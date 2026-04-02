@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php artisan:*)",
+      "Bash(php -l app/Http/Controllers/StravaController.php)",
+      "Bash(php -l app/Services/OpenAIService.php)",
+      "Bash(php -l app/Models/RunnerProfile.php)",
+      "Bash(php -l routes/web.php)",
+      "Bash(php -l app/Models/Activity.php)",
+      "Bash(npm run:*)",
+      "Bash(curl -s --max-time 3 http://localhost:5173/@vite/client)",
+      "Bash(curl -s -L http://localhost:8000/dashboard)"
+    ]
+  }
+}

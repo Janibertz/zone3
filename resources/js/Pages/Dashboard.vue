@@ -1,0 +1,1216 @@
+<script setup>
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import WellbeingModal from '@/Components/WellbeingModal.vue';
+import { Head, usePage } from '@inertiajs/vue3';
+import { Inertia } from '@inertiajs/inertia';
+import { router } from '@inertiajs/vue3';
+import { ref, watch, computed, onMounted } from 'vue';
+import axios from 'axios';
+import { useDarkMode } from '@/Composables/useDarkMode';
+
+const { isDark } = useDarkMode();
+
+const props = defineProps({
+    stravaConnected: Boolean,
+    stravaAccount: Object,
+    goals: Array,
+    recentActivities: {
+        type: Array,
+        default: () => [],
+    },
+    suggestions: {
+        type: Array,
+        default: () => [],
+    },
+    thresholdPace: {
+        type: String,
+        default: null,
+    },
+    thresholdPaceCalculatedAt: {
+        type: String,
+        default: null,
+    },
+    paceZones: {
+        type: Object,
+        default: null,
+    },
+    thresholdPaceHistory: {
+        type: Array,
+        default: () => [],
+    },
+    racePredictions: {
+        type: Object,
+        default: null,
+    },
+    thresholdPaceCalculating: {
+        type: Boolean,
+        default: false,
+    },
+    syncResult: {
+        type: String,
+        default: null,
+    },
+});
+
+const page = usePage();
+const flash = page.props?.flash || {};
+const errors = page.props?.errors || {};
+
+const errorMessages = computed(() => {
+    if (!errors) return [];
+    if (typeof errors === 'string') return [errors];
+    if (Array.isArray(errors)) return errors;
+    if (typeof errors === 'object') {
+        return Object.values(errors).flatMap((value) => {
+            if (Array.isArray(value)) return value;
+            return [String(value)];
+        });
+    }
+    return [];
+});
+
+const fieldErrors = computed(() => {
+    if (!errors || typeof errors !== 'object') return {};
+    return errors;
+});
+
+const showFlash = ref(true);
+
+const resetFlash = () => {
+    showFlash.value = true;
+    setTimeout(() => {
+        showFlash.value = false;
+    }, 4500);
+};
+
+watch(
+    () => page.props.flash,
+    () => {
+        if (flash.success || flash.error) {
+            resetFlash();
+        }
+    },
+    { immediate: true }
+);
+
+function fieldError(field) {
+    const value = fieldErrors.value[field];
+    if (Array.isArray(value)) return value[0];
+    return value || '';
+}
+
+const goalTemplates = [
+    { key: '5k', label: '5 km', type: 'distance', target_value: 5, unit: 'km' },
+    { key: '10k', label: '10 km', type: 'distance', target_value: 10, unit: 'km' },
+    { key: 'half_marathon', label: 'Halbmarathon (21 km)', type: 'distance', target_value: 21.1, unit: 'km' },
+    { key: 'marathon', label: 'Marathon (42 km)', type: 'distance', target_value: 42.2, unit: 'km' },
+];
+
+const selectedGoalKey = ref(goalTemplates[0].key);
+
+const goalForm = ref({
+    ...goalTemplates[0],
+    start_date: '',
+    end_date: '',
+    target_time_hours: null,
+    target_time_minutes: null,
+    active: true,
+});
+
+watch(selectedGoalKey, (value) => {
+    const template = goalTemplates.find((t) => t.key === value);
+    if (template) {
+        goalForm.value.name = template.label;
+        goalForm.value.type = template.type;
+        goalForm.value.target_value = template.target_value;
+        goalForm.value.unit = template.unit;
+        goalForm.value.target_time_hours = null;
+        goalForm.value.target_time_minutes = null;
+    }
+});
+
+const plan = ref(null);
+const planError = ref(null);
+const selectedActivity = ref(null);
+const showActivityModal = ref(false);
+const aiAnalysis = ref(null);
+const aiPlan = ref(null);
+const aiLoading = ref(false);
+const showAIModal = ref(false);
+const aiModalType = ref(null);
+const showWellbeingModal = ref(false);
+const syncing = ref(false);
+const activitiesScrollRef = ref(null);
+
+function scrollActivities(direction) {
+    if (!activitiesScrollRef.value) return;
+    activitiesScrollRef.value.scrollBy({ left: direction * 200, behavior: 'smooth' });
+}
+
+const trainingRecommendation = ref(null);
+const recommendationLoading = ref(false);
+const recommendationError = ref(null);
+const showRecommendation = ref(false);
+const recommendationHint = ref(null);
+
+// Computed: total distance across all activities
+const totalDistanceKm = computed(() => {
+    const total = props.recentActivities.reduce((sum, a) => sum + (a.distance || 0), 0);
+    return (total / 1000).toFixed(1);
+});
+
+// Computed: last 7 days activity indicators
+const last7Days = computed(() => {
+    const dayLabels = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+    const activityDates = new Set(
+        props.recentActivities.map((a) => {
+            if (!a.start_date) return null;
+            const d = new Date(a.start_date);
+            return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        }).filter(Boolean)
+    );
+    const result = [];
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        result.push({
+            label: dayLabels[d.getDay()].charAt(0),
+            active: activityDates.has(key),
+        });
+    }
+    return result;
+});
+
+// Computed: set of day-numbers with activities in the current month
+// Map: day-number → array of activities for current month
+const activeDaysInMonth = computed(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const map = new Map();
+    (props.recentActivities ?? []).forEach(a => {
+        const d = new Date(a.start_date);
+        if (d.getFullYear() === year && d.getMonth() === month) {
+            const day = d.getDate();
+            if (!map.has(day)) map.set(day, []);
+            map.get(day).push(a);
+        }
+    });
+    return map;
+});
+
+const calendarPickerDay = ref(null);   // day-number of open picker
+
+function openCalendarDay(d) {
+    if (!d.hasActivity) return;
+    const activities = activeDaysInMonth.value.get(d.day);
+    if (activities.length === 1) {
+        openActivityDetail(activities[0]);
+    } else {
+        calendarPickerDay.value = calendarPickerDay.value === d.day ? null : d.day;
+    }
+}
+
+function pickCalendarActivity(activity) {
+    calendarPickerDay.value = null;
+    openActivityDetail(activity);
+}
+
+// Computed: calendar grid for current month
+const calendarDays = computed(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrevMonth = new Date(year, month, 0).getDate();
+    const days = [];
+    for (let i = firstDay - 1; i >= 0; i--) {
+        days.push({ day: daysInPrevMonth - i, currentMonth: false, isToday: false, hasActivity: false });
+    }
+    for (let i = 1; i <= daysInMonth; i++) {
+        days.push({ day: i, currentMonth: true, isToday: i === today.getDate(), hasActivity: activeDaysInMonth.value.has(i) });
+    }
+    const remaining = 35 - days.length;
+    for (let i = 1; i <= remaining; i++) {
+        days.push({ day: i, currentMonth: false, isToday: false, hasActivity: false });
+    }
+    return days;
+});
+
+// Computed: current month/year label
+const currentMonthLabel = computed(() => {
+    return new Date().toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+});
+
+function openActivityDetail(activity) {
+    selectedActivity.value = activity;
+    showActivityModal.value = true;
+}
+
+function closeActivityModal() {
+    showActivityModal.value = false;
+    selectedActivity.value = null;
+}
+
+function closeAIModal() {
+    showAIModal.value = false;
+    aiAnalysis.value = null;
+    aiPlan.value = null;
+    aiLoading.value = false;
+}
+
+async function getAIAnalysis(goalId) {
+    aiLoading.value = true;
+    aiModalType.value = 'analysis';
+    showAIModal.value = true;
+    try {
+        const response = await axios.get(route('ai.analyze', goalId));
+        aiAnalysis.value = response.data.analysis;
+    } catch (error) {
+        aiAnalysis.value = 'Fehler beim Abrufen der Analyse: ' + (error.response?.data?.message || error.message);
+    } finally {
+        aiLoading.value = false;
+    }
+}
+
+async function getAIPlan(goalId) {
+    aiLoading.value = true;
+    aiModalType.value = 'plan';
+    showAIModal.value = true;
+    try {
+        const response = await axios.get(route('ai.plan', goalId));
+        aiPlan.value = response.data.plan;
+    } catch (error) {
+        aiPlan.value = 'Fehler beim Erstellen des Plans: ' + (error.response?.data?.message || error.message);
+    } finally {
+        aiLoading.value = false;
+    }
+}
+
+function formatDistance(meters) {
+    const km = meters / 1000;
+    return km.toFixed(2);
+}
+
+function formatTime(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m ${secs}s`;
+}
+
+function formatSpeed(metersPerSecond) {
+    if (metersPerSecond <= 0) return '—';
+    const secondsPerKm = 1000 / metersPerSecond;
+    const minutes = Math.floor(secondsPerKm / 60);
+    const seconds = Math.round(secondsPerKm % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')} min/km`;
+}
+
+function round2(value) {
+    if (typeof value !== 'number') return value;
+    return Math.round(value * 100) / 100;
+}
+
+function formatDate(dateString) {
+    if (!dateString) return '—';
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${day}.${month}.${year} ${hours}:${minutes}`;
+}
+
+function formatDateShort(dateString) {
+    if (!dateString) return '—';
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+}
+
+function generateAIAnalysis(progress) {
+    if (!progress) return 'Keine Daten verfügbar.';
+    const completed = progress.completed_distance_km;
+    const target = progress.target_distance_km;
+    const percentage = progress.progress_percentage;
+    const daysRemaining = progress.days_remaining;
+    const activitiesCount = progress.activities_count;
+    let analysis = [];
+    if (percentage >= 100) {
+        analysis.push('🏆 Du hast dein Ziel erreicht!');
+    } else if (percentage >= 75) {
+        analysis.push(`🎯 ${percentage}% — nur noch ${round2(target - completed)} km!`);
+    } else if (percentage >= 50) {
+        analysis.push(`💪 Halbzeit! ${round2(completed)} von ${target} km.`);
+    } else {
+        analysis.push(`⏳ ${percentage}% — ${round2(target - completed)} km verbleiben.`);
+    }
+    if (daysRemaining > 0) {
+        const kmPerDay = round2((target - completed) / daysRemaining);
+        const kmPerWeek = round2(kmPerDay * 7);
+        if (kmPerDay > 0) analysis.push(`⏰ ${daysRemaining} Tage: ~${kmPerDay} km/Tag (${kmPerWeek} km/Wo.)`);
+    }
+    if (activitiesCount > 0) {
+        const avgPerSession = round2(completed / activitiesCount);
+        analysis.push(`📊 ${activitiesCount} Einheiten, Ø ${avgPerSession} km`);
+    }
+    return analysis.join(' • ');
+}
+
+function generatePlan(goalId) {
+    axios.post(route('plans.generate'), { goal_id: goalId })
+        .then(res => { plan.value = res.data.plan; planError.value = null; })
+        .catch(err => { planError.value = err.response?.data?.message || 'Plan konnte nicht erstellt werden.'; plan.value = null; });
+}
+
+function saveGoal() {
+    Inertia.post(route('goals.store'), goalForm.value, {
+        preserveScroll: true,
+        onSuccess: () => {
+            selectedGoalKey.value = goalTemplates[0].key;
+            goalForm.value = { ...goalTemplates[0], start_date: '', end_date: '', target_time_hours: null, target_time_minutes: null, active: true };
+        },
+    });
+}
+
+async function getTodayRecommendation() {
+    recommendationLoading.value = true;
+    recommendationError.value = null;
+    showRecommendation.value = false;
+    recommendationHint.value = null;
+    try {
+        const response = await axios.get(route('ai.recommendation.today'));
+        const data = response.data;
+        if (data.wellbeing_exists) {
+            showRecommendation.value = true;
+            trainingRecommendation.value = data.recommendation;
+        } else {
+            showRecommendation.value = false;
+            recommendationHint.value = data.recommendation_message || 'Bitte Wellbeing für heute eintragen.';
+        }
+    } catch (error) {
+        recommendationError.value = 'Fehler: ' + (error.response?.data?.message || error.message);
+    } finally {
+        recommendationLoading.value = false;
+    }
+}
+
+// SVG chart for threshold pace history
+// Parse "d.m.Y" date string to timestamp
+function parseDMY(dateStr) {
+    if (!dateStr) return null;
+    const parts = dateStr.split('.');
+    if (parts.length !== 3) return null;
+    return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])).getTime();
+}
+
+const chartData = computed(() => {
+    const history = props.thresholdPaceHistory;
+    if (!history || history.length < 2) return null;
+
+    // Only show chart when data spans more than 7 days
+    const firstDate = parseDMY(history[0]?.date);
+    const lastDate  = parseDMY(history[history.length - 1]?.date);
+    if (!firstDate || !lastDate) return null;
+    const spanDays = (lastDate - firstDate) / (1000 * 60 * 60 * 24);
+    if (spanDays < 7) return null;
+
+    const W = 560, H = 120, padX = 40, padY = 16;
+    const plotW = W - padX * 2;
+    const plotH = H - padY * 2;
+
+    const paces = history.map(h => h.pace);
+    const minPace = Math.min(...paces);
+    const maxPace = Math.max(...paces);
+    const range = maxPace - minPace || 0.5;
+
+    const points = history.map((h, i) => {
+        const x = padX + (i / (history.length - 1)) * plotW;
+        // Invert Y: lower pace (faster) = higher on chart
+        const y = padY + ((h.pace - minPace) / range) * plotH;
+        return { x, y, pace: h.pace_formatted, date: h.date };
+    });
+
+    // Smooth polyline path
+    const pathD = points.map((p, i) => {
+        if (i === 0) return `M ${p.x} ${p.y}`;
+        const prev = points[i - 1];
+        const cpX = (prev.x + p.x) / 2;
+        return `C ${cpX} ${prev.y}, ${cpX} ${p.y}, ${p.x} ${p.y}`;
+    }).join(' ');
+
+    // Fill area below curve
+    const fillD = pathD + ` L ${points[points.length - 1].x} ${H - padY} L ${padX} ${H - padY} Z`;
+
+    return { points, pathD, fillD, W, H, minPace, maxPace, padX, padY };
+});
+
+onMounted(() => {
+    getTodayRecommendation();
+});
+
+function syncStrava() {
+    syncing.value = true;
+    router.post('/strava/sync', {}, {
+        onFinish: () => { syncing.value = false; },
+    });
+}
+
+function deleteGoal(goalId) {
+    if (confirm('Bist du sicher, dass du dieses Ziel löschen möchtest?')) {
+        Inertia.delete(route('goals.destroy', goalId), { preserveScroll: true });
+    }
+}
+</script>
+
+<template>
+    <Head title="Übersicht" />
+
+    <AuthenticatedLayout>
+        <template #header>
+            <div>
+                <h2 class="text-xl font-bold text-gray-800 dark:text-white">Runner Dashboard</h2>
+                <p class="text-sm text-gray-500 dark:text-slate-400">Dashboard / Übersicht</p>
+            </div>
+        </template>
+
+        <div class="py-4 lg:py-6">
+            <div class="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8 space-y-3 lg:space-y-4">
+
+                <!-- Sync result banner -->
+                <div v-if="props.syncResult" class="flex items-start gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+                    <svg class="h-5 w-5 shrink-0 text-indigo-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p class="text-sm text-indigo-800">{{ props.syncResult }}</p>
+                </div>
+
+                <!-- Flash Messages -->
+                <div v-if="flash.success && showFlash" class="rounded-lg border border-green-200 bg-green-50 p-4">
+                    <p class="text-sm font-medium text-green-800">{{ flash.success }}</p>
+                </div>
+                <div v-if="flash.error && showFlash" class="rounded-lg border border-red-200 bg-red-50 p-4">
+                    <p class="text-sm font-medium text-red-800">{{ flash.error }}</p>
+                </div>
+
+                <!-- ═══ ROW 1: Profil + Stats + Kalender ═══ -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
+
+                    <!-- Profil-Karte -->
+                    <div class="lg:col-span-5 rounded-2xl overflow-hidden shadow-sm">
+                        <!-- Hero-Header -->
+                        <div class="relative bg-gradient-to-br from-slate-800 via-slate-800 to-indigo-900 p-4 sm:p-5">
+                            <div class="flex items-center justify-between gap-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-indigo-500 flex items-center justify-center text-2xl ring-4 ring-indigo-400 ring-opacity-30 shrink-0">
+                                        🏃
+                                    </div>
+                                    <div class="min-w-0">
+                                        <p class="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Strava Konto</p>
+                                        <h3 class="text-lg font-bold text-white truncate">{{ props.stravaAccount?.username || 'Nicht verbunden' }}</h3>
+                                        <p class="text-xs text-slate-400">{{ props.stravaAccount?.last_synced_at ? 'Sync: ' + props.stravaAccount.last_synced_at : 'Noch nie synchronisiert' }}</p>
+                                    </div>
+                                </div>
+                                <span v-if="props.stravaConnected"
+                                    class="shrink-0 inline-flex items-center gap-1 rounded-full bg-green-500 bg-opacity-20 border border-green-500 border-opacity-30 px-2 py-0.5 text-xs font-medium text-green-300">
+                                    <span class="h-1.5 w-1.5 rounded-full bg-green-400"></span> Live
+                                </span>
+                                <span v-else
+                                    class="shrink-0 inline-flex items-center gap-1 rounded-full bg-red-500 bg-opacity-20 border border-red-500 border-opacity-30 px-2 py-0.5 text-xs font-medium text-red-300">
+                                    <span class="h-1.5 w-1.5 rounded-full bg-red-400"></span> Getrennt
+                                </span>
+                            </div>
+                            <div class="mt-3 flex gap-2">
+                                <a v-if="!props.stravaConnected" href="/strava/connect"
+                                    class="flex-1 text-center rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 transition-colors">
+                                    Mit Strava verbinden
+                                </a>
+                                <button v-else @click="syncStrava" :disabled="syncing || props.thresholdPaceCalculating"
+                                    class="flex-1 flex items-center justify-center gap-2 rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400 disabled:opacity-60 transition-colors">
+                                    <span v-if="syncing" class="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                                    <span>{{ syncing ? 'Läuft…' : '🔄 Sync' }}</span>
+                                </button>
+                                <a href="/profile/runner"
+                                    class="flex-1 text-center rounded-xl bg-white bg-opacity-10 border border-white border-opacity-20 px-4 py-2 text-sm font-semibold text-white hover:bg-opacity-20 transition-colors">
+                                    Profil
+                                </a>
+                            </div>
+                        </div>
+                        <!-- Unterer Teil: Letzte Aktivitäten -->
+                        <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 border-t-0 rounded-b-xl p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Letzte Aktivitäten</h4>
+                                <span class="text-xs text-gray-400 dark:text-slate-500">{{ new Date().toLocaleDateString('de-DE') }}</span>
+                            </div>
+                            <div v-if="props.recentActivities.length === 0" class="text-sm text-gray-400 dark:text-slate-500 text-center py-6">
+                                Keine Aktivitäten vorhanden
+                            </div>
+                            <div v-else class="space-y-1">
+                                <button
+                                    v-for="activity in props.recentActivities.slice(0, 3)"
+                                    :key="activity.id"
+                                    @click="openActivityDetail(activity)"
+                                    class="w-full flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 text-left transition-colors group"
+                                >
+                                    <div class="h-9 w-9 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center text-base flex-shrink-0 group-hover:bg-blue-200 dark:group-hover:bg-blue-500/30 transition-colors">
+                                        🏃
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{{ activity.name }}</p>
+                                        <p class="text-xs text-gray-400 dark:text-slate-500">{{ formatDate(activity.start_date) }}</p>
+                                    </div>
+                                    <div class="text-right flex-shrink-0">
+                                        <p class="text-sm font-bold text-blue-600 dark:text-blue-400">{{ round2(formatDistance(activity.distance)) }} km</p>
+                                        <p class="text-xs text-gray-400 dark:text-slate-500">{{ formatTime(activity.moving_time) }}</p>
+                                    </div>
+                                    <span class="inline-flex items-center rounded-full bg-green-100 dark:bg-green-500/20 px-1.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-400 flex-shrink-0">
+                                        ✓
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stats-Karte -->
+                    <div class="lg:col-span-3 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+                        <div class="flex items-center justify-between mb-1">
+                            <h4 class="text-sm font-semibold text-gray-800">Aktivitäten</h4>
+                            <span class="text-xs bg-gray-100 text-gray-500 rounded-md px-2 py-0.5">Gesamt</span>
+                        </div>
+                        <p class="text-xs text-gray-400 mb-4">
+                            <span class="font-semibold text-gray-700">{{ props.recentActivities.length }} Läufe</span> · {{ totalDistanceKm }} km total
+                        </p>
+
+                        <!-- 3 Kennzahlen -->
+                        <div class="flex justify-between text-center mb-5">
+                            <div>
+                                <p class="text-2xl font-bold text-gray-900">{{ props.recentActivities.length }}</p>
+                                <p class="text-xs text-gray-500 mt-0.5">Läufe</p>
+                                <div class="mt-1.5 h-1 w-8 rounded-full bg-green-500 mx-auto"></div>
+                            </div>
+                            <div>
+                                <p class="text-2xl font-bold text-gray-900">{{ totalDistanceKm }}</p>
+                                <p class="text-xs text-gray-500 mt-0.5">km</p>
+                                <div class="mt-1.5 h-1 w-8 rounded-full bg-blue-500 mx-auto"></div>
+                            </div>
+                            <div>
+                                <p class="text-2xl font-bold text-gray-900">{{ props.goals.length }}</p>
+                                <p class="text-xs text-gray-500 mt-0.5">Ziele</p>
+                                <div class="mt-1.5 h-1 w-8 rounded-full bg-orange-500 mx-auto"></div>
+                            </div>
+                        </div>
+
+                        <!-- Donut SVG -->
+                        <div class="flex items-center justify-center my-3">
+                            <div class="relative h-24 w-24">
+                                <svg viewBox="0 0 36 36" class="h-24 w-24 -rotate-90">
+                                    <circle cx="18" cy="18" r="15.915" fill="none" :stroke="isDark ? '#334155' : '#f3f4f6'" stroke-width="3.5"/>
+                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#22c55e" stroke-width="3.5"
+                                        stroke-dasharray="70 30" stroke-linecap="round"/>
+                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#ef4444" stroke-width="3.5"
+                                        stroke-dasharray="15 85" stroke-dashoffset="-70" stroke-linecap="round"/>
+                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#3b82f6" stroke-width="3.5"
+                                        stroke-dasharray="10 90" stroke-dashoffset="-85" stroke-linecap="round"/>
+                                </svg>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                    <span class="text-xs font-bold text-gray-700">Aktiv</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Letzte 7 Tage -->
+                        <div>
+                            <p class="text-xs text-gray-400 mb-2">Letzte 7 Tage</p>
+                            <div class="flex gap-1 justify-between">
+                                <div v-for="day in last7Days" :key="day.label" class="flex flex-col items-center">
+                                    <div class="h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors"
+                                        :class="day.active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-400'">
+                                        {{ day.label }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Kalender + Zieltermine -->
+                    <div class="lg:col-span-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-sm font-semibold text-gray-800">{{ currentMonthLabel }}</h4>
+                            <button @click="showWellbeingModal = true"
+                                class="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-md px-2 py-1 transition-colors">
+                                + Wellbeing
+                            </button>
+                        </div>
+
+                        <!-- Mini-Kalender -->
+                        <div class="mb-4">
+                            <div class="grid grid-cols-7 gap-0.5 text-center text-xs font-medium text-gray-400 mb-1">
+                                <div>So</div><div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div>
+                            </div>
+                            <div class="grid grid-cols-7 gap-0.5 text-center">
+                                <div v-for="(d, i) in calendarDays" :key="i"
+                                    class="relative flex flex-col items-center justify-center h-7 w-7 mx-auto rounded-full text-xs transition-colors"
+                                    :class="{
+                                        'bg-indigo-600 text-white font-bold shadow-sm': d.isToday,
+                                        'text-gray-300': !d.currentMonth,
+                                        'text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700': d.currentMonth && !d.isToday,
+                                        'cursor-pointer': d.hasActivity,
+                                        'cursor-default': !d.hasActivity,
+                                    }"
+                                    @click="openCalendarDay(d)">
+                                    {{ d.day }}
+                                    <span v-if="d.hasActivity && !d.isToday"
+                                        class="absolute bottom-0.5 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-indigo-500">
+                                    </span>
+                                    <span v-if="d.hasActivity && d.isToday"
+                                        class="absolute bottom-0.5 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-white opacity-80">
+                                    </span>
+
+                                    <!-- Multi-activity picker -->
+                                    <div v-if="d.hasActivity && calendarPickerDay === d.day"
+                                        class="absolute top-8 left-1/2 -translate-x-1/2 z-30 w-52 rounded-xl bg-white dark:bg-slate-800 shadow-lg border border-gray-100 dark:border-slate-700 py-1 text-left"
+                                        @click.stop>
+                                        <p class="px-3 py-1.5 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider border-b border-gray-100 dark:border-slate-700">
+                                            {{ activeDaysInMonth.get(d.day)?.length }} Aktivitäten
+                                        </p>
+                                        <button
+                                            v-for="act in activeDaysInMonth.get(d.day)"
+                                            :key="act.id"
+                                            @click="pickCalendarActivity(act)"
+                                            class="w-full px-3 py-2 text-left hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors">
+                                            <p class="text-xs font-semibold text-gray-800 dark:text-slate-200 truncate">{{ act.name }}</p>
+                                            <p class="text-xs text-gray-400 dark:text-slate-500">{{ formatDistance(act.distance) }} km · {{ formatTime(act.moving_time) }}</p>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Nächste Zieltermine -->
+                        <div>
+                            <h5 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Nächste Ziele</h5>
+                            <div v-if="props.goals.length === 0" class="text-sm text-gray-400">
+                                Keine Ziele vorhanden
+                            </div>
+                            <div v-else class="space-y-2">
+                                <div v-for="goal in props.goals.slice(0, 3)" :key="goal.id"
+                                    class="flex items-center justify-between rounded-lg bg-gray-50 dark:bg-slate-800 p-2.5 border border-gray-100 dark:border-slate-700">
+                                    <div>
+                                        <p class="text-xs font-semibold text-gray-800 dark:text-slate-200">{{ goal.name }}</p>
+                                        <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">bis {{ formatDateShort(goal.end_date) }}</p>
+                                    </div>
+                                    <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/15 rounded-md px-2 py-0.5">
+                                        {{ goal.target_value }} {{ goal.unit }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ ROW 2: Quick Actions ═══ -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+                    <button v-if="props.stravaConnected" @click="syncStrava" :disabled="syncing"
+                        class="flex items-center gap-2.5 rounded-xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm p-3 sm:p-4 hover:shadow-md hover:border-blue-200 dark:hover:border-blue-500/40 transition-all group disabled:opacity-60">
+                        <div class="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center text-xl group-hover:bg-blue-200 dark:group-hover:bg-blue-500/30 transition-colors flex-shrink-0">
+                            <span v-if="syncing" class="h-5 w-5 rounded-full border-2 border-blue-600 border-t-transparent animate-spin inline-block"></span>
+                            <span v-else>🔄</span>
+                        </div>
+                        <span class="text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-200 leading-tight">{{ syncing ? 'Läuft…' : 'Strava Sync' }}</span>
+                    </button>
+                    <a v-else href="/strava/connect"
+                        class="flex items-center gap-2.5 rounded-xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm p-3 sm:p-4 hover:shadow-md hover:border-orange-200 dark:hover:border-orange-500/40 transition-all group">
+                        <div class="h-10 w-10 rounded-xl bg-orange-100 dark:bg-orange-500/20 flex items-center justify-center text-xl group-hover:bg-orange-200 dark:group-hover:bg-orange-500/30 transition-colors flex-shrink-0">🔗</div>
+                        <span class="text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-200 leading-tight">Strava verbinden</span>
+                    </a>
+                    <button @click="document.getElementById('goal-form-section').scrollIntoView({behavior:'smooth'})"
+                        class="flex items-center gap-2.5 rounded-xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm p-3 sm:p-4 hover:shadow-md hover:border-green-200 dark:hover:border-green-500/40 transition-all group">
+                        <div class="h-10 w-10 rounded-xl bg-green-100 dark:bg-green-500/20 flex items-center justify-center text-xl group-hover:bg-green-200 dark:group-hover:bg-green-500/30 transition-colors flex-shrink-0">🎯</div>
+                        <span class="text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-200 leading-tight">Ziel hinzufügen</span>
+                    </button>
+                    <button @click="showWellbeingModal = true"
+                        class="flex items-center gap-2.5 rounded-xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm p-3 sm:p-4 hover:shadow-md hover:border-purple-200 dark:hover:border-purple-500/40 transition-all group">
+                        <div class="h-10 w-10 rounded-xl bg-purple-100 dark:bg-purple-500/20 flex items-center justify-center text-xl group-hover:bg-purple-200 dark:group-hover:bg-purple-500/30 transition-colors flex-shrink-0">💪</div>
+                        <span class="text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-200 leading-tight">Wellbeing</span>
+                    </button>
+                    <a href="/profile/runner"
+                        class="flex items-center gap-2.5 rounded-xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm p-3 sm:p-4 hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-500/40 transition-all group sm:col-span-1 col-span-2">
+                        <div class="h-10 w-10 rounded-xl bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center text-xl group-hover:bg-indigo-200 dark:group-hover:bg-indigo-500/30 transition-colors flex-shrink-0">👤</div>
+                        <span class="text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-200 leading-tight">Athletenprofil</span>
+                    </a>
+                </div>
+
+                <!-- ═══ Schwellenpace-Karte ═══ -->
+                <div class="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 shadow-sm text-white overflow-hidden relative">
+
+                    <!-- Background calculation indicator -->
+                    <div v-if="props.thresholdPaceCalculating" class="absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-white bg-opacity-20 px-3 py-1">
+                        <span class="h-2.5 w-2.5 rounded-full border-2 border-white border-t-transparent animate-spin inline-block"></span>
+                        <span class="text-xs font-medium text-white">Berechnung läuft…</span>
+                    </div>
+
+                    <div class="p-5">
+                        <!-- Header Row: Pace + Zones -->
+                        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                            <div class="flex items-center gap-4">
+                                <div class="h-14 w-14 rounded-xl bg-white bg-opacity-20 flex items-center justify-center text-3xl flex-shrink-0">⚡</div>
+                                <div>
+                                    <p class="text-xs font-medium text-indigo-200 uppercase tracking-wider">KI-berechnete Schwellenpace</p>
+                                    <p v-if="props.thresholdPace" class="text-4xl font-bold mt-0.5 tabular-nums">
+                                        {{ props.thresholdPace }}
+                                        <span class="text-lg font-normal text-indigo-200">min/km</span>
+                                    </p>
+                                    <p v-else class="text-xl font-semibold mt-0.5 text-indigo-200">Noch nicht berechnet</p>
+                                    <p class="text-xs text-indigo-300 mt-1">
+                                        <span v-if="props.thresholdPaceCalculating">KI analysiert letzte 20 Läufe im Hintergrund…</span>
+                                        <span v-else-if="props.thresholdPaceCalculatedAt">Berechnet: {{ props.thresholdPaceCalculatedAt }} · Basis: letzte 20 Läufe</span>
+                                        <span v-else>Wird automatisch nach dem nächsten Strava-Sync berechnet</span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Pace Zones -->
+                            <div v-if="props.paceZones" class="grid grid-cols-5 gap-1 sm:gap-1.5 w-full sm:min-w-[320px]">
+                                <div v-for="(zone, key) in props.paceZones" :key="key"
+                                    class="rounded-lg bg-white bg-opacity-15 p-2 text-center">
+                                    <p class="text-xs font-bold text-white uppercase tracking-wide">{{ key }}</p>
+                                    <p class="text-xs text-indigo-100 mt-0.5 leading-tight font-mono">
+                                        {{ zone.min_pace }}<br>
+                                        <span class="text-indigo-300 text-[10px]">{{ zone.max_pace }}</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Race Predictions -->
+                        <div v-if="props.racePredictions" class="mt-4 pt-4 border-t border-white border-opacity-20">
+                            <p class="text-xs font-semibold text-indigo-200 uppercase tracking-wider mb-2">🏁 Wettkampf-Zeitvorhersagen</p>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div v-for="(pred, key) in props.racePredictions" :key="key"
+                                    class="rounded-lg bg-white bg-opacity-10 px-3 py-2">
+                                    <p class="text-xs text-indigo-300">{{ pred.label }}</p>
+                                    <p class="text-lg font-bold text-white tabular-nums mt-0.5">{{ pred.total_time }}</p>
+                                    <p class="text-xs text-indigo-200 font-mono">{{ pred.pace }} min/km</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SVG History Chart -->
+                        <div v-if="chartData" class="mt-4 pt-4 border-t border-white border-opacity-20">
+                            <p class="text-xs font-semibold text-indigo-200 uppercase tracking-wider mb-3">📈 Entwicklung Schwellenpace</p>
+                            <div class="w-full overflow-hidden">
+                                <svg :viewBox="`0 0 ${chartData.W} ${chartData.H}`" class="w-full" preserveAspectRatio="none" style="height:100px">
+                                    <!-- Fill area -->
+                                    <path :d="chartData.fillD" fill="rgba(255,255,255,0.08)" />
+                                    <!-- Line -->
+                                    <path :d="chartData.pathD" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round" />
+                                    <!-- Points + labels -->
+                                    <g v-for="(p, i) in chartData.points" :key="i">
+                                        <circle :cx="p.x" :cy="p.y" r="4" fill="white" opacity="0.9" />
+                                        <!-- Show label for first, last, and every 3rd point to avoid clutter -->
+                                        <text v-if="i === 0 || i === chartData.points.length - 1 || i % 3 === 0"
+                                            :x="p.x" :y="p.y - 8"
+                                            text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.85)"
+                                            font-family="monospace">
+                                            {{ p.pace }}
+                                        </text>
+                                        <text v-if="i === 0 || i === chartData.points.length - 1"
+                                            :x="p.x" :y="chartData.H - 2"
+                                            text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.5)">
+                                            {{ p.date }}
+                                        </text>
+                                    </g>
+                                </svg>
+                            </div>
+                            <p class="text-xs text-indigo-300 mt-1 text-center">
+                                {{ props.thresholdPaceHistory.length }} Messpunkte · oben = schneller
+                            </p>
+                        </div>
+                        <div v-else-if="props.thresholdPace" class="mt-3 text-xs text-indigo-300">
+                            Diagramm erscheint sobald Daten über mehr als 7 Tage vorliegen
+                            <span v-if="props.thresholdPaceHistory.length > 0"> · {{ props.thresholdPaceHistory.length }} Messung(en) gespeichert</span>.
+                        </div>
+
+                        <!-- Footer -->
+                        <div v-if="props.stravaConnected" class="mt-4 pt-4 border-t border-white border-opacity-20 flex items-center justify-between gap-3">
+                            <p class="text-xs text-indigo-200">
+                                Neuberechnung erfolgt automatisch nach einem Sync · max. 1× täglich
+                            </p>
+                            <button @click="syncStrava" :disabled="syncing || props.thresholdPaceCalculating"
+                                class="rounded-lg bg-white bg-opacity-20 hover:bg-opacity-30 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-white transition-colors flex-shrink-0 flex items-center gap-1.5">
+                                <span v-if="syncing" class="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin inline-block"></span>
+                                <span>{{ syncing ? 'Synchronisiert…' : '🔄 Strava Sync' }}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ ROW 3: Trainingsempfehlung + Aktive Ziele ═══ -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
+
+                    <!-- Trainingsempfehlung -->
+                    <div class="lg:col-span-7 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-sm font-semibold text-gray-800">🧭 Trainings-Empfehlung für heute</h4>
+                            <button @click="getTodayRecommendation"
+                                class="text-xs text-indigo-600 font-medium hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-md px-2 py-1 transition-colors">
+                                Aktualisieren
+                            </button>
+                        </div>
+                        <div v-if="recommendationLoading" class="flex items-center gap-3 text-gray-500 py-4">
+                            <span class="text-xl">⏳</span>
+                            <span class="text-sm">Empfehlung wird geladen...</span>
+                        </div>
+                        <div v-else-if="recommendationError" class="rounded-lg bg-red-50 border border-red-100 p-4 text-sm text-red-700">
+                            {{ recommendationError }}
+                        </div>
+                        <div v-else-if="showRecommendation" class="rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-100 dark:border-indigo-800/40 p-4 text-sm text-gray-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                            {{ trainingRecommendation }}
+                        </div>
+                        <div v-else-if="recommendationHint" class="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 p-4">
+                            <p class="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-1">Hinweis</p>
+                            <p class="text-sm text-amber-700 dark:text-amber-400">{{ recommendationHint }}</p>
+                            <button @click="showWellbeingModal = true"
+                                class="mt-3 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition-colors">
+                                Jetzt Wellbeing eintragen
+                            </button>
+                        </div>
+                        <div v-else class="text-sm text-gray-400 text-center py-8">
+                            Noch keine Empfehlung verfügbar.
+                        </div>
+                    </div>
+
+                    <!-- Aktive Ziele -->
+                    <div class="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-sm font-semibold text-gray-800">Aktive Ziele</h4>
+                            <span class="text-xs bg-indigo-50 text-indigo-600 rounded-md px-2 py-0.5 font-medium">{{ props.goals.length }} Gesamt</span>
+                        </div>
+                        <div v-if="props.goals.length === 0" class="text-sm text-gray-400 text-center py-8">
+                            Keine Ziele vorhanden
+                        </div>
+                        <div v-else class="space-y-3 max-h-96 overflow-y-auto">
+                            <div v-for="goal in props.goals" :key="goal.id"
+                                class="rounded-lg border border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 p-3">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="flex items-start gap-2.5 flex-1 min-w-0">
+                                        <div class="h-9 w-9 rounded-lg bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center text-lg flex-shrink-0">🏅</div>
+                                        <div class="min-w-0">
+                                            <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 leading-tight">{{ goal.name }}</p>
+                                            <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{{ goal.target_value }} {{ goal.unit }} · bis {{ formatDateShort(goal.end_date) }}</p>
+                                        </div>
+                                    </div>
+                                    <span v-if="goal.progress" class="text-sm font-bold text-indigo-600 flex-shrink-0">
+                                        {{ goal.progress.progress_percentage }}%
+                                    </span>
+                                </div>
+                                <div v-if="goal.progress" class="mt-2.5">
+                                    <div class="h-1.5 rounded-full bg-gray-200 dark:bg-slate-700">
+                                        <div class="h-1.5 rounded-full transition-all duration-500"
+                                            :style="{ width: Math.min(goal.progress.progress_percentage, 100) + '%' }"
+                                            :class="{
+                                                'bg-green-500': goal.progress.progress_percentage >= 75,
+                                                'bg-blue-500': goal.progress.progress_percentage >= 50 && goal.progress.progress_percentage < 75,
+                                                'bg-orange-500': goal.progress.progress_percentage >= 25 && goal.progress.progress_percentage < 50,
+                                                'bg-red-400': goal.progress.progress_percentage < 25,
+                                            }">
+                                        </div>
+                                    </div>
+                                    <p class="mt-1 text-xs text-gray-400">{{ round2(goal.progress.completed_distance_km) }} / {{ goal.progress.target_distance_km }} km · {{ generateAIAnalysis(goal.progress) }}</p>
+                                </div>
+                                <div class="mt-2 flex flex-wrap gap-1">
+                                    <button @click="getAIAnalysis(goal.id)"
+                                        class="rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors">
+                                        🤖 Analyse
+                                    </button>
+                                    <button @click="getAIPlan(goal.id)"
+                                        class="rounded-md bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700 hover:bg-purple-100 transition-colors">
+                                        🎯 KI-Plan
+                                    </button>
+                                    <button @click="generatePlan(goal.id)"
+                                        class="rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors">
+                                        📋 Plan
+                                    </button>
+                                    <button @click="deleteGoal(goal.id)"
+                                        class="rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors ml-auto">
+                                        ✕
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ ROW 4: Aktivitäten horizontal scroll ═══ -->
+                <div v-if="props.recentActivities.length > 0" class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-sm font-semibold text-gray-800">Alle Aktivitäten</h4>
+                        <div class="flex gap-1.5">
+                            <button @click="scrollActivities(-1)" class="h-7 w-7 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center text-sm transition-colors">‹</button>
+                            <button @click="scrollActivities(1)" class="h-7 w-7 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center text-sm transition-colors">›</button>
+                        </div>
+                    </div>
+                    <div ref="activitiesScrollRef" class="activities-scroll flex gap-3 overflow-x-auto" style="-ms-overflow-style:none;scrollbar-width:none;">
+                        <button
+                            v-for="activity in props.recentActivities"
+                            :key="activity.id"
+                            @click="openActivityDetail(activity)"
+                            class="flex-shrink-0 w-44 rounded-xl border border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 p-4 text-left hover:border-indigo-300 dark:hover:border-indigo-500/50 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all hover:shadow-sm group"
+                        >
+                            <div class="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center text-xl mb-3 group-hover:bg-blue-200 dark:group-hover:bg-blue-500/30 transition-colors">🏃</div>
+                            <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate">{{ activity.name }}</p>
+                            <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{{ formatDateShort(activity.start_date) }}</p>
+                            <div class="mt-3 flex items-center justify-between">
+                                <span class="text-sm font-bold text-blue-600 dark:text-blue-400">{{ round2(formatDistance(activity.distance)) }} km</span>
+                                <span class="text-xs text-gray-400 dark:text-slate-500">{{ formatTime(activity.moving_time) }}</span>
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">⚡ {{ formatSpeed(activity.average_speed) }}</p>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ═══ ROW 5: Ziel hinzufügen + Fortschritt + Tipps ═══ -->
+                <div id="goal-form-section" class="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
+
+                    <!-- Ziel hinzufügen -->
+                    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-sm font-semibold text-gray-800">Ziel hinzufügen</h4>
+                            <span class="text-xs text-gray-400">Neues Ziel</span>
+                        </div>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Zieltyp</label>
+                                <select v-model="selectedGoalKey"
+                                    class="w-full rounded-lg border-gray-200 bg-gray-50 py-2 px-3 text-sm focus:border-indigo-400 focus:ring-indigo-400 focus:ring-1">
+                                    <option v-for="t in goalTemplates" :key="t.key" :value="t.key">{{ t.label }}</option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Startdatum *</label>
+                                    <input type="date" v-model="goalForm.start_date"
+                                        class="w-full rounded-lg border-gray-200 bg-gray-50 py-2 px-3 text-sm focus:border-indigo-400 focus:ring-indigo-400 focus:ring-1" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Enddatum *</label>
+                                    <input type="date" v-model="goalForm.end_date"
+                                        class="w-full rounded-lg border-gray-200 bg-gray-50 py-2 px-3 text-sm focus:border-indigo-400 focus:ring-indigo-400 focus:ring-1" />
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Stunden</label>
+                                    <input type="number" v-model="goalForm.target_time_hours" min="0" max="23"
+                                        class="w-full rounded-lg border-gray-200 bg-gray-50 py-2 px-3 text-sm focus:border-indigo-400 focus:ring-indigo-400 focus:ring-1" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Minuten</label>
+                                    <input type="number" v-model="goalForm.target_time_minutes" min="0" max="59"
+                                        class="w-full rounded-lg border-gray-200 bg-gray-50 py-2 px-3 text-sm focus:border-indigo-400 focus:ring-indigo-400 focus:ring-1" />
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" v-model="goalForm.active" id="goal-active"
+                                    class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                                <label for="goal-active" class="text-sm text-gray-600">Aktiv</label>
+                            </div>
+                            <button @click="saveGoal"
+                                class="w-full rounded-lg bg-indigo-600 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors">
+                                Ziel speichern
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Zielfortschritt (Balken) -->
+                    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-sm font-semibold text-gray-800">Zielfortschritt</h4>
+                        </div>
+                        <div v-if="props.goals.length === 0" class="text-sm text-gray-400 text-center py-8">
+                            Keine Ziele vorhanden
+                        </div>
+                        <div v-else class="space-y-4">
+                            <div v-for="goal in props.goals" :key="goal.id">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-xs font-medium text-gray-700 truncate max-w-[70%]">{{ goal.name }}</span>
+                                    <span class="text-xs font-bold"
+                                        :class="{
+                                            'text-green-600': (goal.progress?.progress_percentage || 0) >= 75,
+                                            'text-blue-600': (goal.progress?.progress_percentage || 0) >= 50 && (goal.progress?.progress_percentage || 0) < 75,
+                                            'text-orange-600': (goal.progress?.progress_percentage || 0) >= 25 && (goal.progress?.progress_percentage || 0) < 50,
+                                            'text-red-500': (goal.progress?.progress_percentage || 0) < 25,
+                                        }">
+                                        {{ goal.progress?.progress_percentage || 0 }}%
+                                    </span>
+                                </div>
+                                <div class="h-2 rounded-full bg-gray-100 dark:bg-slate-700">
+                                    <div class="h-2 rounded-full transition-all duration-500"
+                                        :style="{ width: Math.min(goal.progress?.progress_percentage || 0, 100) + '%' }"
+                                        :class="{
+                                            'bg-green-500': (goal.progress?.progress_percentage || 0) >= 75,
+                                            'bg-blue-500': (goal.progress?.progress_percentage || 0) >= 50 && (goal.progress?.progress_percentage || 0) < 75,
+                                            'bg-orange-500': (goal.progress?.progress_percentage || 0) >= 25 && (goal.progress?.progress_percentage || 0) < 50,
+                                            'bg-red-400': (goal.progress?.progress_percentage || 0) < 25,
+                                        }">
+                                    </div>
+                                </div>
+                                <p class="mt-0.5 text-xs text-gray-400">
+                                    {{ round2(goal.progress?.completed_distance_km || 0) }} / {{ goal.progress?.target_distance_km || goal.target_value }} km
+                                </p>
+                            </div>
+                        </div>
+                        <!-- Plan result -->
+                        <div v-if="plan" class="mt-4 rounded-lg bg-indigo-50 border border-indigo-100 p-3">
+                            <p class="text-xs font-semibold text-indigo-800 mb-1">📋 Generierter Plan</p>
+                            <p class="text-xs text-indigo-700">Ø wöchentlich: {{ plan.current_average_weekly_distance_km }} km → <span class="font-semibold">{{ plan.recommended_weekly_distance_km }} km</span></p>
+                        </div>
+                        <div v-if="planError" class="mt-4 rounded-lg bg-red-50 border border-red-100 p-3">
+                            <p class="text-xs text-red-700">{{ planError }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Trainings-Tipps / Suggestions -->
+                    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-sm font-semibold text-gray-800">Trainings-Tipps</h4>
+                            <span class="text-xs text-indigo-600 font-medium">KI-Empfehlungen</span>
+                        </div>
+                        <div v-if="!props.suggestions || props.suggestions.length === 0" class="text-sm text-gray-400 text-center py-8">
+                            Keine Tipps verfügbar
+                        </div>
+                        <div v-else class="space-y-3">
+                            <div v-for="(tip, i) in props.suggestions" :key="i"
+                                class="flex items-start gap-3 pb-3 border-b border-gray-50 last:border-0">
+                                <div class="h-8 w-8 rounded-lg bg-amber-100 flex items-center justify-center text-sm flex-shrink-0">💡</div>
+                                <div class="min-w-0">
+                                    <p class="text-sm font-medium text-gray-800 leading-snug">{{ tip.title || tip }}</p>
+                                    <p v-if="tip.description" class="text-xs text-gray-500 mt-0.5">{{ tip.description }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ═══ Activity Detail Modal ═══ -->
+        <div v-if="showActivityModal && selectedActivity" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4">
+            <div class="max-h-[92vh] w-full sm:max-w-2xl overflow-y-auto rounded-t-3xl sm:rounded-2xl bg-white dark:bg-slate-900 shadow-2xl">
+                <div class="sticky top-0 flex items-center justify-between border-b border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-4">
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-white">Aktivitätsdetails</h2>
+                    <button @click="closeActivityModal" class="h-8 w-8 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center justify-center transition-colors">✕</button>
+                </div>
+                <div class="p-6 space-y-6">
+                    <div>
+                        <p class="text-xs uppercase tracking-wider text-gray-400 dark:text-slate-500 font-medium">Aktivität</p>
+                        <h3 class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{{ selectedActivity.name }}</h3>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">{{ formatDate(selectedActivity.start_date) }}</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div class="rounded-xl bg-blue-50 dark:bg-blue-500/15 p-4">
+                            <p class="text-xs font-medium text-blue-600 dark:text-blue-400">Distanz</p>
+                            <p class="mt-1 text-xl font-bold text-blue-900 dark:text-blue-200">{{ round2(formatDistance(selectedActivity.distance)) }} <span class="text-sm font-normal">km</span></p>
+                        </div>
+                        <div class="rounded-xl bg-emerald-50 dark:bg-emerald-500/15 p-4">
+                            <p class="text-xs font-medium text-emerald-600 dark:text-emerald-400">Dauer</p>
+                            <p class="mt-1 text-xl font-bold text-emerald-900 dark:text-emerald-200">{{ formatTime(selectedActivity.moving_time) }}</p>
+                        </div>
+                        <div class="rounded-xl bg-orange-50 dark:bg-orange-500/15 p-4">
+                            <p class="text-xs font-medium text-orange-600 dark:text-orange-400">Ø Pace</p>
+                            <p class="mt-1 text-base font-bold text-orange-900 dark:text-orange-200">{{ formatSpeed(selectedActivity.average_speed) }}</p>
+                        </div>
+                        <div class="rounded-xl bg-purple-50 dark:bg-purple-500/15 p-4">
+                            <p class="text-xs font-medium text-purple-600 dark:text-purple-400">Typ</p>
+                            <p class="mt-1 text-base font-bold text-purple-900 dark:text-purple-200">{{ selectedActivity.type }}</p>
+                        </div>
+                    </div>
+                    <div class="space-y-3 border-t border-gray-100 dark:border-slate-800 pt-5">
+                        <div v-if="selectedActivity.total_elevation_gain" class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600 dark:text-slate-400">📈 Höhenmeter</span>
+                            <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ round2(selectedActivity.total_elevation_gain) }} m</span>
+                        </div>
+                        <div v-if="selectedActivity.max_speed" class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600 dark:text-slate-400">⚡ Max. Pace</span>
+                            <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ formatSpeed(selectedActivity.max_speed) }}</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600 dark:text-slate-400">⏱ Gesamtzeit</span>
+                            <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ formatTime(selectedActivity.elapsed_time) }}</span>
+                        </div>
+                        <div v-if="selectedActivity.location_city || selectedActivity.location_state" class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600 dark:text-slate-400">📍 Ort</span>
+                            <span class="text-sm font-semibold text-gray-900 dark:text-white">
+                                {{ [selectedActivity.location_city, selectedActivity.location_state].filter(Boolean).join(', ') || '—' }}
+                            </span>
+                        </div>
+                        <div v-if="selectedActivity.description" class="border-t border-gray-100 dark:border-slate-800 pt-4">
+                            <p class="text-xs font-medium uppercase tracking-wider text-gray-400 dark:text-slate-500">Beschreibung</p>
+                            <p class="mt-2 text-sm text-gray-700 dark:text-slate-300">{{ selectedActivity.description }}</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-3 border-t border-gray-100 dark:border-slate-800 pt-5">
+                        <button @click="closeActivityModal"
+                            class="flex-1 rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
+                            Schließen
+                        </button>
+                        <a :href="`https://www.strava.com/activities/${selectedActivity.strava_id}`"
+                            target="_blank" rel="noopener noreferrer"
+                            class="flex-1 rounded-xl bg-orange-500 px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-orange-600 transition-colors">
+                            Auf Strava ansehen
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ AI Modal ═══ -->
+        <div v-if="showAIModal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4">
+            <div class="max-h-[92vh] w-full sm:max-w-2xl overflow-y-auto rounded-t-3xl sm:rounded-2xl bg-white dark:bg-slate-900 shadow-2xl">
+                <div class="sticky top-0 flex items-center justify-between border-b border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-4">
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-white">
+                        {{ aiModalType === 'analysis' ? '🤖 KI-Analyse' : '🎯 KI-Trainingsplan' }}
+                    </h2>
+                    <button @click="closeAIModal" class="h-8 w-8 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center justify-center transition-colors">✕</button>
+                </div>
+                <div class="p-6">
+                    <div v-if="aiLoading" class="flex flex-col items-center justify-center py-16 gap-3">
+                        <div class="text-5xl">🤖</div>
+                        <p class="text-gray-500 dark:text-slate-400 text-sm">KI denkt nach...</p>
+                    </div>
+                    <div v-else>
+                        <div v-if="aiModalType === 'analysis'" class="rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-800/30 p-5 text-sm text-gray-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">{{ aiAnalysis }}</div>
+                        <div v-if="aiModalType === 'plan'" class="rounded-xl bg-purple-50 dark:bg-purple-500/10 border border-purple-100 dark:border-purple-800/30 p-5 text-sm text-gray-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">{{ aiPlan }}</div>
+                    </div>
+                    <div class="mt-5 border-t border-gray-100 dark:border-slate-800 pt-5">
+                        <button @click="closeAIModal"
+                            class="w-full rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
+                            Schließen
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Wellbeing Modal -->
+        <WellbeingModal
+            :show="showWellbeingModal"
+            @close="showWellbeingModal = false"
+            @saved="showWellbeingModal = false"
+        />
+    </AuthenticatedLayout>
+</template>
+
+<style scoped>
+.activities-scroll::-webkit-scrollbar {
+    display: none;
+}
+</style>
