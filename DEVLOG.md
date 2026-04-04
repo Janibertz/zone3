@@ -2,6 +2,20 @@
 
 ## Abgeschlossen
 
+### 2026-04-04 — Admin-Bereich
+- **Migration** `is_admin` (boolean) und `is_active` (boolean) auf der `users`-Tabelle
+- **Middleware** `EnsureUserIsAdmin` — 403 Abort wenn kein Admin
+- **Artisan Command** `php artisan admin:make {email}` — ersten Admin vergeben
+- **Routes** `/admin/*` als eigene `routes/admin.php`, Middleware-Stack `web + auth + admin`
+- **AdminDashboardController** — Statistiken, Registrierungen/Aktivitäten pro Monat, letzte Nutzer
+- **AdminUserController** — Liste (Suche + Filter), Detailansicht, Admin/Aktiv-Toggle, Löschen
+- **AdminLayout.vue** — eigenständiges Layout mit rotem Akzent, "Zurück zur App"-Link
+- **Admin/Dashboard.vue** — Stat-Cards, CSS-Balkendiagramme (ohne externe Lib), Nutzertabelle
+- **Admin/Users/Index.vue** — paginierte Nutzerliste, Filter, Aktionen mit Bestätigungsmodal
+- **Admin/Users/Show.vue** — vollständige Nutzerdetails (Profil, Aktivitäten, Ziele, Wellbeing)
+- **AuthenticatedLayout.vue** — Admin-Link am Ende der Navigation (nur für Admins sichtbar)
+- `isAdmin` in Inertia Shared Props für alle Seiten verfügbar
+
 ### 2026-04-04 — Onboarding-Flow für neue Nutzer
 - **Migration** `onboarding_completed_at` auf der `users`-Tabelle
 - **Middleware** `EnsureOnboardingComplete` — leitet unangemeldete Nutzer auf `/onboarding` um
