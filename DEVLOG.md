@@ -16,6 +16,19 @@
 - **AuthenticatedLayout.vue** — Admin-Link am Ende der Navigation (nur für Admins sichtbar)
 - `isAdmin` in Inertia Shared Props für alle Seiten verfügbar
 
+### 2026-04-04 — Onboarding überarbeitet (KI-Profil + Wettkampfziel)
+- **Schritt 2 komplett überarbeitet**: Auswahl zwischen "Ich kenne meine Werte" und "KI berechnen lassen"
+  - KI-Modus fragt Alter, beste Wettkampfzeit + Wochenlaufumfang → OpenAI schätzt LTHR, Max HF, Schwellentempo
+  - Ergebnis wird zur Bestätigung angezeigt vor dem Speichern (kein blindes Übernehmen)
+- **Schritt 3 komplett überarbeitet**: Wettkampf-orientiertes Ziel mit Zielzeit
+  - Renndistanz wählen (5km, 10km, Halbmarathon, Marathon, Eigene Distanz)
+  - Datum des Rennens + Stunden:Minuten Zielzeit
+  - Vorschau-Karte "Halbmarathon in 1 Std. 40 Min. am 15. Juni 2026"
+  - Name wird automatisch aus Distanz + Datum vorgeschlagen
+- `OpenAIService::estimateProfileFromRaceData()` — neuer KI-Endpunkt für Zonenberechnung
+- `OnboardingController::estimateProfile()` — neuer API-Endpunkt `/onboarding/estimate-profile`
+- Ziel-Validierung angepasst: `race_date` statt separatem start/end_date, race_distance als Metadaten
+
 ### 2026-04-04 — Onboarding-Flow für neue Nutzer
 - **Migration** `onboarding_completed_at` auf der `users`-Tabelle
 - **Middleware** `EnsureOnboardingComplete` — leitet unangemeldete Nutzer auf `/onboarding` um

@@ -627,6 +627,87 @@ PROMPT;
         return (int)$m[1] + (int)$m[2] / 60;
     }
 
+    /**
+     * Estimate runner profile (LTHR, Max HR, threshold pace) from simple user inputs.
+     * Used in onboarding when the user doesn't know their exact training values.
+     *
+     * @param int    $age           Age in years
+     * @param string $raceDistance  One of: 5km, 10km, half_marathon, marathon
+     * @param string $raceTime      Best recent race time in H:MM:SS or MM:SS format
+     * @param int    $weeklyRuns    Approximate runs per week (1-7)
+     * @return array{threshold_heart_rate:int, max_heart_rate:int, threshold_speed:string}|null
+     */
+    public function estimateProfileFromRaceData(int $age, string $raceDistance, string $raceTime, int $weeklyRuns): ?array
+    {
+        $distanceLabels = [
+            '5km'           => '5 km',
+            '10km'          => '10 km',
+            'half_marathon' => 'Halbmarathon (21,1 km)',
+            'marathon'      => 'Marathon (42,2 km)',
+        ];
+        $distanceLabel = $distanceLabels[$raceDistance] ?? $raceDistance;
+
+        $prompt = <<<PROMPT
+Du bist Sportwissenschaftler und Lauf-Coach spezialisiert auf Leistungsdiagnostik.
+
+Schätze basierend auf folgenden Angaben die Trainingskennwerte:
+- Alter: {$age} Jahre
+- Beste Wettkampfzeit über {$distanceLabel}: {$raceTime}
+- Trainingsläufe pro Woche: {$weeklyRuns}
+
+Berechne:
+1. **Maximale Herzfrequenz (Max HR)**: Nutze die Formel 208 - (0.7 × Alter) als Basis, passe für Fitnessniveau an.
+2. **Schwellenherzfrequenz (LTHR)**: Ca. 85-92% der Max HR abhängig von Erfahrung und Trainingsumfang.
+3. **Schwellenpace (Threshold Pace)**: Die Pace, die ~60 min maximal gehalten werden kann. Leite sie aus der Wettkampfzeit via Jack-Daniels-VDOT-Äquivalent ab. 5km-Pace × 1.06 ≈ 10km, × 1.13 ≈ Halbmarathon-Renntempo. Schwellenpace liegt ca. 3-6% schneller als Halbmarathon-Renntempo.
+
+Gib ausschließlich dieses JSON zurück (kein anderer Text):
+{"threshold_heart_rate": <integer bpm>, "max_heart_rate": <integer bpm>, "threshold_speed": "<M:SS>"}
+PROMPT;
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Content-Type'  => 'application/json',
+            ])->post($this->baseUrl . '/chat/completions', [
+                'model'    => $this->model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Du bist ein präziser Sportwissenschaftler. Antworte ausschließlich mit validem JSON.'],
+                    ['role' => 'user',   'content' => $prompt],
+                ],
+                'temperature' => 0.2,
+                'max_tokens'  => 80,
+            ]);
+
+            if ($response->failed()) {
+                Log::error('OpenAI Profile Estimation Error', ['status' => $response->status(), 'body' => $response->body()]);
+                return null;
+            }
+
+            $text = data_get($response->json(), 'choices.0.message.content', '');
+
+            if (preg_match('/\{.*?\}/s', $text, $matches)) {
+                $json = json_decode($matches[0], true);
+                if (
+                    json_last_error() === JSON_ERROR_NONE &&
+                    isset($json['threshold_heart_rate'], $json['max_heart_rate'], $json['threshold_speed'])
+                ) {
+                    return [
+                        'threshold_heart_rate' => (int) $json['threshold_heart_rate'],
+                        'max_heart_rate'        => (int) $json['max_heart_rate'],
+                        'threshold_speed'       => (string) $json['threshold_speed'],
+                    ];
+                }
+            }
+
+            Log::warning('OpenAI Profile Estimation parse failed', ['text' => $text]);
+            return null;
+
+        } catch (\Exception $e) {
+            Log::error('OpenAI Profile Estimation Exception', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
     private function formatSeconds(int $seconds): string
     {
         $h = floor($seconds / 3600);

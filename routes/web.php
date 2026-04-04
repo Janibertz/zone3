@@ -28,6 +28,7 @@ Route::get('/', function () {
 // ── Onboarding (auth required, no onboarding-complete check) ──────────────
 Route::middleware('auth')->group(function () {
     Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
+    Route::post('/onboarding/estimate-profile', [OnboardingController::class, 'estimateProfile'])->name('onboarding.estimate-profile');
     Route::post('/onboarding/profile', [OnboardingController::class, 'saveProfile'])->name('onboarding.profile');
     Route::post('/onboarding/goal', [OnboardingController::class, 'saveGoal'])->name('onboarding.goal');
     Route::post('/onboarding/complete', [OnboardingController::class, 'complete'])->name('onboarding.complete');
