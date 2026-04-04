@@ -3,6 +3,7 @@
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\AIController;
 use App\Http\Controllers\GoalController;
+use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\PlanController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RunnerProfileController;
@@ -22,6 +23,15 @@ Route::get('/', function () {
         'laravelVersion' => Application::VERSION,
         'phpVersion' => PHP_VERSION,
     ]);
+});
+
+// ── Onboarding (auth required, no onboarding-complete check) ──────────────
+Route::middleware('auth')->group(function () {
+    Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
+    Route::post('/onboarding/profile', [OnboardingController::class, 'saveProfile'])->name('onboarding.profile');
+    Route::post('/onboarding/goal', [OnboardingController::class, 'saveGoal'])->name('onboarding.goal');
+    Route::post('/onboarding/complete', [OnboardingController::class, 'complete'])->name('onboarding.complete');
+    Route::post('/onboarding/complete-strava', [OnboardingController::class, 'completeAndConnectStrava'])->name('onboarding.complete-strava');
 });
 
 Route::get('/dashboard', function (ProgressService $progressService) {
@@ -103,11 +113,11 @@ Route::get('/dashboard', function (ProgressService $progressService) {
         'thresholdPaceCalculating' => (bool) ($runnerProfile?->threshold_pace_calculating),
         'syncResult' => session('sync_result'),
     ]);
-})->middleware(['auth', 'verified'])->name('dashboard');
+})->middleware(['auth', 'verified', 'onboarding'])->name('dashboard');
 
 Route::get('/api/ai/recommendation/today', [AIController::class, 'recommendToday'])->middleware(['auth', 'verified'])->name('ai.recommendation.today');
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
