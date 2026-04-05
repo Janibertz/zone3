@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Activity;
-use App\Models\Goal;
+use App\Models\Event;
 use App\Models\User;
 use App\Models\WellbeingEntry;
 use Inertia\Inertia;
@@ -20,8 +20,8 @@ class AdminDashboardController extends Controller
             'admin_users'      => User::where('is_admin', true)->count(),
             'strava_users'     => User::has('stravaAccount')->count(),
             'total_activities' => Activity::count(),
-            'total_goals'      => Goal::count(),
-            'active_goals'     => Goal::where('active', true)->count(),
+            'total_events'     => Event::count(),
+            'upcoming_events'  => Event::where('event_date', '>=', now()->toDateString())->count(),
             'total_wellbeing'  => WellbeingEntry::count(),
         ];
 

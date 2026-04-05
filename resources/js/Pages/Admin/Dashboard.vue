@@ -44,7 +44,7 @@ const maxAct = Math.max(...(props.activitiesPerMonth?.map(a => a.count) ?? [1]),
                     { label: 'Nutzer gesamt',    value: stats.total_users,      color: 'indigo' },
                     { label: 'Verifiziert',       value: stats.verified_users,   color: 'green'  },
                     { label: 'Aktivitäten',       value: stats.total_activities, color: 'blue'   },
-                    { label: 'Aktive Ziele',      value: stats.active_goals,     color: 'orange' },
+                    { label: 'Geplante Events',   value: stats.upcoming_events,  color: 'orange' },
                 ]" :key="card.label"
                     class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl p-5"
                 >
@@ -59,7 +59,7 @@ const maxAct = Math.max(...(props.activitiesPerMonth?.map(a => a.count) ?? [1]),
                     { label: 'Onboarded',   value: stats.onboarded_users },
                     { label: 'Admins',      value: stats.admin_users     },
                     { label: 'Strava-Verbunden', value: stats.strava_users },
-                    { label: 'Ziele gesamt', value: stats.total_goals    },
+                    { label: 'Events gesamt', value: stats.total_events   },
                     { label: 'Wellbeing-Einträge', value: stats.total_wellbeing },
                 ]" :key="card.label"
                     class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl p-4"

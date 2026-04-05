@@ -363,6 +363,30 @@ function formatPaceFromSpeed(metersPerSecond) {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+// Relative date: "Heute", "Gestern", "vor 3 Tagen", etc.
+function relativeDate(dateString) {
+    if (!dateString) return '—';
+    const d = new Date(dateString);
+    const now = new Date();
+    const diffDays = Math.floor((now - d) / 86400000);
+    if (diffDays === 0) return 'Heute';
+    if (diffDays === 1) return 'Gestern';
+    if (diffDays < 7)  return `vor ${diffDays} Tagen`;
+    if (diffDays < 14) return 'vor 1 Woche';
+    if (diffDays < 30) return `vor ${Math.floor(diffDays / 7)} Wochen`;
+    return d.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
+}
+
+// Pace color: grün = schnell, orange = mittel, rot = langsam
+function paceColor(mps) {
+    if (!mps || mps <= 0) return 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400';
+    const secPerKm = 1000 / mps;
+    if (secPerKm < 270)  return 'bg-green-50 dark:bg-green-500/15 text-green-700 dark:text-green-300';  // < 4:30
+    if (secPerKm < 330)  return 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300';      // < 5:30
+    if (secPerKm < 390)  return 'bg-yellow-50 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300'; // < 6:30
+    return 'bg-orange-50 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300';
+}
+
 function round2(value) {
     if (typeof value !== 'number') return value;
     return Math.round(value * 100) / 100;
@@ -586,38 +610,49 @@ function syncStrava() {
                         <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 border-t-0 rounded-b-xl p-4">
                             <div class="flex items-center justify-between mb-3">
                                 <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Letzte Läufe</h4>
-                                <a href="/activities" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition">Alle anzeigen →</a>
+                                <a href="/activities" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition">Alle →</a>
                             </div>
                             <div v-if="props.recentActivities.length === 0" class="text-sm text-gray-400 dark:text-slate-500 text-center py-6">
                                 Noch keine Aktivitäten — Strava verbinden und synchronisieren
                             </div>
-                            <div v-else class="space-y-1.5">
+                            <div v-else class="space-y-2">
                                 <button
                                     v-for="activity in props.recentActivities.slice(0, 4)"
                                     :key="activity.id"
                                     @click="openActivityDetail(activity)"
-                                    class="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-800 text-left transition-colors group border border-transparent hover:border-gray-100 dark:hover:border-slate-700"
+                                    class="w-full rounded-xl px-3 py-3 hover:bg-gray-50 dark:hover:bg-slate-800/70 text-left transition-colors group border border-transparent hover:border-gray-100 dark:hover:border-slate-700"
                                 >
-                                    <div class="h-9 w-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/15 flex items-center justify-center text-base flex-shrink-0 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/25 transition-colors">
-                                        🏃
+                                    <!-- Zeile 1: Name + Datum -->
+                                    <div class="flex items-start justify-between gap-2 mb-2">
+                                        <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate leading-tight">{{ activity.name }}</p>
+                                        <span class="text-[11px] text-gray-400 dark:text-slate-500 flex-shrink-0">{{ relativeDate(activity.start_date) }}</span>
                                     </div>
-                                    <div class="flex-1 min-w-0">
-                                        <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate">{{ activity.name }}</p>
-                                        <div class="flex items-center gap-2 mt-0.5 text-xs text-gray-400 dark:text-slate-500">
-                                            <span>{{ formatDate(activity.start_date) }}</span>
-                                            <span v-if="activity.average_heartrate" class="flex items-center gap-0.5">
-                                                · ❤️ {{ Math.round(activity.average_heartrate) }} bpm
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div class="text-right flex-shrink-0 space-y-0.5">
-                                        <p class="text-sm font-bold text-indigo-600 dark:text-indigo-400">{{ round2(formatDistance(activity.distance)) }} km</p>
-                                        <div class="flex items-center gap-1.5 justify-end text-xs text-gray-400 dark:text-slate-500">
-                                            <span>{{ formatTime(activity.moving_time) }}</span>
-                                            <span v-if="activity.average_speed && activity.average_speed > 0">
-                                                · {{ formatPaceFromSpeed(activity.average_speed) }}/km
-                                            </span>
-                                        </div>
+                                    <!-- Zeile 2: Metriken als Pills -->
+                                    <div class="flex flex-wrap gap-1.5">
+                                        <!-- Distanz -->
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 text-xs font-bold">
+                                            📍 {{ round2(formatDistance(activity.distance)) }} km
+                                        </span>
+                                        <!-- Zeit -->
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-medium">
+                                            ⏱ {{ formatTime(activity.moving_time) }}
+                                        </span>
+                                        <!-- Pace -->
+                                        <span v-if="activity.average_speed > 0"
+                                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold"
+                                            :class="paceColor(activity.average_speed)">
+                                            ⚡ {{ formatPaceFromSpeed(activity.average_speed) }}/km
+                                        </span>
+                                        <!-- Herzfrequenz -->
+                                        <span v-if="activity.average_heartrate"
+                                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-medium">
+                                            ❤️ {{ Math.round(activity.average_heartrate) }}
+                                        </span>
+                                        <!-- Höhenmeter -->
+                                        <span v-if="activity.total_elevation_gain > 0"
+                                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-xs font-medium">
+                                            ↑ {{ Math.round(activity.total_elevation_gain) }}m
+                                        </span>
                                     </div>
                                 </button>
                             </div>
