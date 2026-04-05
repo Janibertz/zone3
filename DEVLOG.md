@@ -2,6 +2,25 @@
 
 ## Abgeschlossen
 
+### 2026-04-05 — Dashboard Stats-Box + Aktivitäten + Admin überarbeitet
+
+- **Stats-Box** (Dashboard Mitte) komplett neu — ersetzt sinnlosen Donut + Buchstaben-Dots:
+  - 3 KPI-Kacheln: km diese Woche / Läufe diese Woche / Ø Pace (farbig: indigo/grün/lila)
+  - Balkendiagramm letzte 7 Tage mit echten km-Werten, Mo–So Labels, Heute hervorgehoben
+  - Footer: Dieser Monat (km + Läufe) und Gesamt-km
+- **Aktivitätsanzeige** (Dashboard oben links) überarbeitet:
+  - Pill-Layout mit farbigen Badges: Distanz / Zeit / Pace / ❤️ HF / ↑ Höhenmeter
+  - Pace farbkodiert: grün <4:30, blau <5:30, gelb <6:30, orange langsamer
+  - Relativer Zeitstempel: "Heute", "Gestern", "vor 3 Tagen" etc.
+- **Quick-Event-Widget** — "Ziel hinzufügen" ersetzt durch schnelles Event-Erstell-Formular:
+  - Distanz-Buttons (5km/10km/HM/Marathon), Datum, Zielzeit (h+min), Priorität A/B/C
+  - Speichert direkt über Events-API, Events-Liste wird nach Save neu geladen
+- **Dashboard Crash-Fix** — `props.goals` war an 5+ Stellen noch referenziert nach Migration auf `props.events` → TypeError → weiße Seite; alle Stellen auf `props.events` umgestellt
+- **Dark-Mode-Flash behoben** — Inline-Script in `app.blade.php` liest localStorage vor Vue-Mount; `<html class="dark">` als Fallback
+- **Admin Dashboard** — "Aktive Ziele" → "Geplante Events", "Ziele gesamt" → "Events gesamt"; Backend nutzt `Event::count()` statt `Goal::count()`
+- **`relativeDate()`** und **`paceColor()`** Hilfsfunktionen ergänzt
+- **`weekStats`**, **`monthStats`**, **`last7DaysBars`**, **`last7DaysMax`** Computed Properties ergänzt
+
 ### 2026-04-05 — Ziele/Goals → Events gemergt + Kalender-Seite
 
 - **Event-Model** — `training_phase` Accessor: berechnet automatisch Base/Build/Peak/Taper/Race Week anhand Wochen bis Event; `weeks_until` Accessor
