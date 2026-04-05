@@ -1,0 +1,398 @@
+<script setup>
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import Modal from '@/Components/Modal.vue';
+import { Head, useForm, router } from '@inertiajs/vue3';
+import { ref, computed, watch } from 'vue';
+
+const props = defineProps({
+    events: Array,
+    status: String,
+});
+
+// ── Filters ─────────────────────────────────────────────────────────────────
+const filterPriority = ref('all');
+
+const filteredEvents = computed(() => {
+    if (filterPriority.value === 'all') return props.events;
+    return props.events.filter(e => e.priority === filterPriority.value);
+});
+
+// ── Modal state ──────────────────────────────────────────────────────────────
+const showModal   = ref(false);
+const editingEvent = ref(null);
+
+const form = useForm({
+    name:                '',
+    event_date:          '',
+    race_distance:       '10km',
+    distance_km:         '',
+    priority:            'B',
+    target_time_hours:   0,
+    target_time_minutes: 0,
+    notes:               '',
+});
+
+function openCreate() {
+    editingEvent.value = null;
+    form.reset();
+    form.race_distance = '10km';
+    form.priority = 'B';
+    form.target_time_hours = 0;
+    form.target_time_minutes = 0;
+    showModal.value = true;
+}
+
+function openEdit(event) {
+    editingEvent.value = event;
+    form.name                = event.name;
+    form.event_date          = event.event_date;
+    form.race_distance       = event.race_distance;
+    form.distance_km         = event.distance_km ?? '';
+    form.priority            = event.priority;
+    form.target_time_hours   = event.target_time_hours;
+    form.target_time_minutes = event.target_time_minutes;
+    form.notes               = event.notes ?? '';
+    showModal.value = true;
+}
+
+function closeModal() {
+    showModal.value = false;
+    editingEvent.value = null;
+    form.reset();
+    form.clearErrors();
+}
+
+function submitForm() {
+    if (editingEvent.value) {
+        form.patch(route('events.update', editingEvent.value.id), {
+            onSuccess: closeModal,
+        });
+    } else {
+        form.post(route('events.store'), {
+            onSuccess: closeModal,
+        });
+    }
+}
+
+// ── Delete ───────────────────────────────────────────────────────────────────
+const confirmingDelete = ref(null);
+
+function deleteEvent(event) {
+    router.delete(route('events.destroy', event.id), {
+        onSuccess: () => { confirmingDelete.value = null; },
+    });
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const raceDistances = [
+    { value: '5km',           label: '5 km' },
+    { value: '10km',          label: '10 km' },
+    { value: 'half_marathon', label: 'Halbmarathon' },
+    { value: 'marathon',      label: 'Marathon' },
+    { value: 'custom',        label: 'Eigene Distanz' },
+];
+
+const priorityConfig = {
+    A: { label: 'A', title: 'A-Event',  desc: 'Hauptrennen',       bg: 'bg-red-100 dark:bg-red-500/15',    text: 'text-red-700 dark:text-red-400',    border: 'border-red-200 dark:border-red-500/30',   dot: 'bg-red-500' },
+    B: { label: 'B', title: 'B-Event',  desc: 'Wichtiges Rennen',  bg: 'bg-amber-100 dark:bg-amber-500/15', text: 'text-amber-700 dark:text-amber-400', border: 'border-amber-200 dark:border-amber-500/30', dot: 'bg-amber-500' },
+    C: { label: 'C', title: 'C-Event',  desc: 'Trainingsrennen',   bg: 'bg-gray-100 dark:bg-slate-700',    text: 'text-gray-600 dark:text-slate-300',  border: 'border-gray-200 dark:border-slate-600',   dot: 'bg-gray-400' },
+};
+
+function daysLabel(days) {
+    if (days < 0) return 'Vorbei';
+    if (days === 0) return 'Heute!';
+    if (days === 1) return 'Morgen';
+    return `in ${days} Tagen`;
+}
+
+function formatDate(dateStr) {
+    return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+const hoursOptions = Array.from({ length: 24 }, (_, i) => i);
+const minutesOptions = Array.from({ length: 60 }, (_, i) => i);
+
+// Auto-generate name when distance changes in create mode
+watch(() => form.race_distance, (val) => {
+    if (editingEvent.value) return;
+    const found = raceDistances.find(r => r.value === val);
+    if (found && found.value !== 'custom') {
+        const year = new Date().getFullYear();
+        form.name = `${found.label} ${year}`;
+    }
+}, { immediate: false });
+</script>
+
+<template>
+    <Head title="Events" />
+    <AuthenticatedLayout>
+        <div class="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-5 sm:mb-7">
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Events & Rennen</h1>
+                    <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Plane deine Wettkämpfe und lass KI-Trainingspläne erstellen</p>
+                </div>
+                <button
+                    @click="openCreate"
+                    class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm"
+                >
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    Event hinzufügen
+                </button>
+            </div>
+
+            <!-- Success banner -->
+            <div v-if="status === 'event-created' || status === 'event-updated'" class="mb-4 flex items-center gap-2 rounded-xl bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 px-4 py-3 text-sm text-green-700 dark:text-green-400">
+                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Event {{ status === 'event-created' ? 'hinzugefügt' : 'gespeichert' }}.
+            </div>
+
+            <!-- Priority filter tabs -->
+            <div class="flex gap-1 bg-gray-100 dark:bg-slate-800 rounded-2xl p-1 mb-5 w-fit">
+                <button v-for="f in ['all','A','B','C']" :key="f"
+                    @click="filterPriority = f"
+                    class="px-3 py-1.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap"
+                    :class="filterPriority === f
+                        ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'"
+                >
+                    {{ f === 'all' ? 'Alle' : f + '-Events' }}
+                </button>
+            </div>
+
+            <!-- Empty state -->
+            <div v-if="filteredEvents.length === 0" class="text-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
+                <svg class="h-12 w-12 mx-auto text-gray-300 dark:text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5" />
+                </svg>
+                <p class="text-sm font-medium text-gray-500 dark:text-slate-400">Keine Events gefunden</p>
+                <p class="mt-1 text-xs text-gray-400 dark:text-slate-500">Füge dein erstes Rennevent hinzu</p>
+                <button @click="openCreate" class="mt-4 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors">
+                    Event hinzufügen
+                </button>
+            </div>
+
+            <!-- Event cards -->
+            <div class="space-y-3">
+                <div
+                    v-for="event in filteredEvents"
+                    :key="event.id"
+                    class="bg-white dark:bg-slate-900 rounded-2xl border shadow-sm overflow-hidden transition-all"
+                    :class="priorityConfig[event.priority].border"
+                >
+                    <!-- Card top strip -->
+                    <div class="h-1 w-full" :class="priorityConfig[event.priority].dot.replace('bg-', 'bg-') + ' opacity-60'" style="background: var(--strip-color);"
+                        :style="`background-color: ${event.priority === 'A' ? '#ef4444' : event.priority === 'B' ? '#f59e0b' : '#9ca3af'}`"
+                    />
+
+                    <div class="p-4 sm:p-5">
+                        <div class="flex items-start gap-3">
+                            <!-- Priority badge -->
+                            <div class="shrink-0 h-10 w-10 rounded-xl flex items-center justify-center font-bold text-lg"
+                                :class="[priorityConfig[event.priority].bg, priorityConfig[event.priority].text]">
+                                {{ event.priority }}
+                            </div>
+
+                            <!-- Main info -->
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div>
+                                        <h3 class="font-semibold text-gray-900 dark:text-white leading-tight">{{ event.name }}</h3>
+                                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+                                            <span class="text-sm text-gray-500 dark:text-slate-400">{{ formatDate(event.event_date) }}</span>
+                                            <span class="text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 rounded-full">{{ event.distance_label }}</span>
+                                            <span v-if="event.target_time_formatted" class="text-xs text-gray-500 dark:text-slate-400">
+                                                Ziel: {{ event.target_time_formatted }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <!-- Days until -->
+                                    <div class="shrink-0 text-right">
+                                        <span class="text-sm font-semibold"
+                                            :class="event.days_until <= 7 ? 'text-red-600 dark:text-red-400' : event.days_until <= 30 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-slate-400'"
+                                        >
+                                            {{ daysLabel(event.days_until) }}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- Notes -->
+                                <p v-if="event.notes" class="mt-2 text-xs text-gray-400 dark:text-slate-500 line-clamp-1">{{ event.notes }}</p>
+
+                                <!-- Actions -->
+                                <div class="flex items-center gap-2 mt-3 flex-wrap">
+                                    <!-- Plan button -->
+                                    <a :href="route('events.plan.show', event.id)"
+                                        class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
+                                        :class="event.plan_generated_at
+                                            ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20'
+                                            : 'bg-indigo-600 text-white hover:bg-indigo-700'"
+                                    >
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                                        </svg>
+                                        {{ event.plan_generated_at ? 'KI-Plan ansehen' : 'KI-Plan erstellen' }}
+                                    </a>
+
+                                    <button @click="openEdit(event)"
+                                        class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                                    >
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
+                                        </svg>
+                                        Bearbeiten
+                                    </button>
+
+                                    <button @click="confirmingDelete = event"
+                                        class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
+                                    >
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                        </svg>
+                                        Löschen
+                                    </button>
+
+                                    <!-- Plan date -->
+                                    <span v-if="event.plan_generated_at" class="ml-auto text-xs text-gray-400 dark:text-slate-500">
+                                        Plan vom {{ event.plan_generated_at }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Create/Edit Modal ─────────────────────────────────────────── -->
+        <Modal :show="showModal" @close="closeModal" max-width="lg">
+            <div class="p-5 sm:p-6 bg-white dark:bg-slate-900">
+                <h2 class="text-base font-bold text-gray-900 dark:text-white mb-5">
+                    {{ editingEvent ? 'Event bearbeiten' : 'Neues Event' }}
+                </h2>
+
+                <form @submit.prevent="submitForm" class="space-y-4">
+                    <!-- Priority -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Priorität</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button v-for="p in ['A','B','C']" :key="p" type="button"
+                                @click="form.priority = p"
+                                class="rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition-all"
+                                :class="form.priority === p
+                                    ? (p === 'A' ? 'border-red-500 bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-400' : p === 'B' ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400' : 'border-gray-400 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300')
+                                    : 'border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:border-gray-300'"
+                            >
+                                <div class="font-bold text-lg">{{ p }}</div>
+                                <div class="text-xs mt-0.5">{{ p === 'A' ? 'Hauptrennen' : p === 'B' ? 'Wichtig' : 'Training' }}</div>
+                            </button>
+                        </div>
+                        <p v-if="form.errors.priority" class="mt-1 text-xs text-red-500">{{ form.errors.priority }}</p>
+                    </div>
+
+                    <!-- Name -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Name</label>
+                        <input v-model="form.name" type="text" required placeholder="z.B. Halbmarathon Berlin"
+                            class="block w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors"
+                        />
+                        <p v-if="form.errors.name" class="mt-1 text-xs text-red-500">{{ form.errors.name }}</p>
+                    </div>
+
+                    <!-- Distance + Date -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Distanz</label>
+                            <select v-model="form.race_distance"
+                                class="block w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors"
+                            >
+                                <option v-for="d in raceDistances" :key="d.value" :value="d.value">{{ d.label }}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Datum</label>
+                            <input v-model="form.event_date" type="date" required
+                                class="block w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors"
+                            />
+                            <p v-if="form.errors.event_date" class="mt-1 text-xs text-red-500">{{ form.errors.event_date }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Custom distance km -->
+                    <div v-if="form.race_distance === 'custom'">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Distanz in km</label>
+                        <input v-model="form.distance_km" type="number" step="0.1" min="0.1" placeholder="z.B. 15"
+                            class="block w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors"
+                        />
+                    </div>
+
+                    <!-- Target time -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Zielzeit <span class="text-gray-400 font-normal">(optional)</span></label>
+                        <div class="flex items-center gap-2">
+                            <select v-model.number="form.target_time_hours"
+                                class="rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors"
+                            >
+                                <option v-for="h in hoursOptions" :key="h" :value="h">{{ h }}h</option>
+                            </select>
+                            <select v-model.number="form.target_time_minutes"
+                                class="rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors"
+                            >
+                                <option v-for="m in minutesOptions" :key="m" :value="m">{{ String(m).padStart(2,'0') }} min</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Notizen <span class="text-gray-400 font-normal">(optional)</span></label>
+                        <textarea v-model="form.notes" rows="2" placeholder="z.B. Kurs, Hotel, Motivation..."
+                            class="block w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors resize-none"
+                        />
+                    </div>
+
+                    <div class="flex gap-3 justify-end pt-1">
+                        <button type="button" @click="closeModal"
+                            class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                        >
+                            Abbrechen
+                        </button>
+                        <button type="submit" :disabled="form.processing"
+                            class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
+                        >
+                            <svg v-if="form.processing" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                            {{ editingEvent ? 'Speichern' : 'Event erstellen' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </Modal>
+
+        <!-- ── Delete confirm modal ──────────────────────────────────────── -->
+        <Modal :show="!!confirmingDelete" @close="confirmingDelete = null">
+            <div class="p-6 bg-white dark:bg-slate-900">
+                <h2 class="text-lg font-bold text-gray-900 dark:text-white">Event löschen?</h2>
+                <p class="mt-2 text-sm text-gray-500 dark:text-slate-400">
+                    <strong>{{ confirmingDelete?.name }}</strong> und der zugehörige KI-Plan werden dauerhaft gelöscht.
+                </p>
+                <div class="mt-5 flex gap-3 justify-end">
+                    <button @click="confirmingDelete = null"
+                        class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                        Abbrechen
+                    </button>
+                    <button @click="deleteEvent(confirmingDelete)"
+                        class="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 transition-colors"
+                    >
+                        Ja, löschen
+                    </button>
+                </div>
+            </div>
+        </Modal>
+
+    </AuthenticatedLayout>
+</template>

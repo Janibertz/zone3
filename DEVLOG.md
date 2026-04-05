@@ -2,6 +2,19 @@
 
 ## Abgeschlossen
 
+### 2026-04-05 — Event-System + KI-Trainingsplan
+- **Migration** `events`-Tabelle: Name, Datum, Renndistanz, Priorität (A/B/C), Zielzeit, Notizen
+- **Migration** `training_plans`-Tabelle: 10 Tages-Sessions als JSON + Kontext-Snapshot
+- **Event-Model** mit Accessors für `distance_label`, `target_time_formatted`, `days_until`
+- **TrainingPlan-Model** + Beziehungen zu User und Event
+- **EventController** — CRUD (index, store, update, destroy), Prio-Sortierung A→B→C
+- **TrainingPlanController** — `show()` Planansicht + `generate()` KI-Plan erstellen
+- **OpenAIService::generateEventTrainingPlan()** — analysiert Aktivitäten (4 Wochen), Wellbeing (14 Tage) + Athletenprofil; gibt strukturiertes JSON-Array mit 10 Sessions zurück; passt Intensität automatisch an Tage bis zum Rennen an (Tapering)
+- **Events/Index.vue** — Eventliste mit A/B/C Prioritäts-Filter, farbige Priority-Badges, Tage-bis-Event Anzeige, Erstellen/Bearbeiten-Modal, Löschen mit Bestätigung
+- **Events/Plan.vue** — 10-Tages-Plan Ansicht mit Sessiontyp-Icons (Ruhetag, Easy, Tempo, Intervall, Langer Lauf, Rennvorbereitung), Distanz/Dauer/Pace/Zone pro Session, "Heute"-Highlight, Plan aktualisieren-Button
+- **Navigation** — "Events" Menüpunkt in Sidebar/Mobile-Nav ergänzt
+- **Profil** — "Onboarding neu starten" Button im Konto-Tab ergänzt (`POST /onboarding/reset`)
+
 ### 2026-04-04 — Admin-Bereich
 - **Migration** `is_admin` (boolean) und `is_active` (boolean) auf der `users`-Tabelle
 - **Middleware** `EnsureUserIsAdmin` — 403 Abort wenn kein Admin
@@ -63,9 +76,9 @@
 ### Nächste Schritte (hoch priorisiert)
 
 - [ ] **Aktivitäten-Detailseite** — Kartenansicht (Polyline), Herzfrequenz-Verlauf, Zonenverteilung pro Aktivität
-- [ ] **Ziele-Seite** — Dedizierte `/goals` UI-Seite mit Fortschrittsanzeige (Cards + Balken)
 - [ ] **Wellbeing-Seite** — Verlaufsansicht der Wellbeing-Einträge, Wochenübersicht
-- [ ] **Trainingsplan-Seite** — Wochenansicht des generierten AI-Trainingsplans
+- [ ] **Event im Onboarding → Events-System verknüpfen** — onboarding `saveGoal` direkt als Event speichern statt als Goal
+- [ ] **Plan-Anpassung nach neuen Aktivitäten** — automatisch Plan-Refresh vorschlagen wenn neue Strava-Daten eingehen
 
 ### Mittlere Priorität
 

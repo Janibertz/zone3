@@ -708,6 +708,150 @@ PROMPT;
         }
     }
 
+    /**
+     * Generate a structured 10-day training plan for a specific race event.
+     *
+     * Returns an array of exactly 10 session objects, or null on failure.
+     * Each session: date, type, title, description, distance_km, duration_min,
+     *               pace_target, zone, intensity.
+     */
+    public function generateEventTrainingPlan(
+        \App\Models\Event $event,
+        ?array $profile,
+        array $recentActivities,
+        array $wellbeingData,
+    ): ?array {
+        $today        = now()->format('Y-m-d');
+        $eventDate    = $event->event_date->format('Y-m-d');
+        $daysUntil    = $event->days_until;
+        $targetH      = $event->target_time_hours;
+        $targetM      = $event->target_time_minutes;
+        $targetTime   = $targetH > 0 ? sprintf('%d:%02d Std', $targetH, $targetM) : "{$targetM} Min";
+        $distLabel    = $event->distance_label;
+        $priority     = $event->priority;
+        $priorityText = match ($priority) {
+            'A' => 'A-Event (Hauptrennen — höchste Priorität)',
+            'B' => 'B-Event (wichtiges Rennen)',
+            'C' => 'C-Event (Trainingsrennen)',
+        };
+
+        // Profile section
+        $profileText = $profile
+            ? "Athletenprofil:\n- Schwellenpace: {$profile['threshold_pace']} min/km\n- LTHR: {$profile['threshold_hr']} bpm\n- Max HR: {$profile['max_hr']} bpm"
+            : "Athletenprofil: nicht hinterlegt — plane konservativ.";
+
+        // Activities summary (last 4 weeks, max 10)
+        $actLines = [];
+        foreach (array_slice($recentActivities, 0, 10) as $a) {
+            $hr      = $a['avg_hr'] ? " | HF: {$a['avg_hr']} bpm" : '';
+            $pace    = $a['pace'] ? " | Pace: {$a['pace']} min/km" : '';
+            $actLines[] = "- [{$a['date']}] {$a['name']}: {$a['distance_km']} km, {$a['duration_min']} min{$pace}{$hr}";
+        }
+        $activitiesText = empty($actLines)
+            ? 'Keine Aktivitäten in den letzten 4 Wochen.'
+            : implode("\n", $actLines);
+
+        // Wellbeing summary
+        if (! empty($wellbeingData)) {
+            $avgEnergy   = round(array_sum(array_column($wellbeingData, 'energy')) / count($wellbeingData), 1);
+            $avgSleep    = round(array_sum(array_column($wellbeingData, 'sleep')) / count($wellbeingData), 1);
+            $avgSoreness = round(array_sum(array_column($wellbeingData, 'soreness')) / count($wellbeingData), 1);
+            $avgStress   = round(array_sum(array_column($wellbeingData, 'stress')) / count($wellbeingData), 1);
+            $sickCount   = count(array_filter($wellbeingData, fn ($w) => $w['is_sick']));
+            $injuredCount= count(array_filter($wellbeingData, fn ($w) => $w['is_injured']));
+            $wellbeingText = "Wellbeing (Ø letzte 14 Tage):\n- Energie: {$avgEnergy}/10 | Schlaf: {$avgSleep}/10 | Muskelkater: {$avgSoreness}/10 | Stress: {$avgStress}/10";
+            if ($sickCount > 0) $wellbeingText .= "\n- ⚠️ Krank an {$sickCount} Tagen";
+            if ($injuredCount > 0) $wellbeingText .= "\n- ⚠️ Verletzt an {$injuredCount} Tagen";
+        } else {
+            $wellbeingText = 'Wellbeing: keine Daten vorhanden.';
+        }
+
+        $prompt = <<<PROMPT
+Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan für folgendes Rennevent.
+
+**Event:**
+- Name: {$event->name}
+- Datum: {$eventDate} (in {$daysUntil} Tagen)
+- Distanz: {$distLabel}
+- Priorität: {$priorityText}
+- Zielzeit: {$targetTime}
+
+**{$profileText}**
+
+**Letzte Aktivitäten (4 Wochen):**
+{$activitiesText}
+
+**{$wellbeingText}**
+
+**Planungsregeln:**
+- Starte den Plan ab heute ({$today})
+- Passe die Intensität an den Zeitraum bis zum Rennen an: {$daysUntil} Tage
+- Bei >30 Tagen: normaler Aufbau (Volumen + Tempo)
+- Bei 10-30 Tagen: Tapering einleiten (Volumen reduzieren, Qualität halten)
+- Bei <10 Tagen: starkes Tapering, nur leichte Läufe und Ruhetage
+- Berücksichtige Wellbeing-Daten: schlechter Schlaf/hoher Stress → leichtere Einheiten
+- Exakt eine Ruhetage pro Woche (mindestens)
+- A-Events: max. Leistungsoptimierung; C-Events: Trainingsrennen, moderate Belastung
+
+**Antworte ausschließlich mit einem JSON-Array von genau 10 Objekten:**
+[
+  {
+    "date": "YYYY-MM-DD",
+    "type": "rest|easy_run|tempo_run|interval|long_run|race_prep",
+    "title": "Kurzer Titel (max 40 Zeichen)",
+    "description": "Beschreibung der Einheit (2-3 Sätze, konkrete Anweisungen)",
+    "distance_km": 0,
+    "duration_min": 0,
+    "pace_target": "5:30-6:00 oder null bei Ruhetag",
+    "zone": 2,
+    "intensity": "rest|low|medium|high"
+  }
+]
+Für Ruhetage: distance_km=0, duration_min=0, pace_target=null, zone=null.
+PROMPT;
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Content-Type'  => 'application/json',
+            ])->timeout(60)->post($this->baseUrl . '/chat/completions', [
+                'model'    => $this->model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Du bist ein präziser Lauf-Coach. Antworte ausschließlich mit einem validen JSON-Array ohne zusätzlichen Text.'],
+                    ['role' => 'user',   'content' => $prompt],
+                ],
+                'temperature' => 0.6,
+                'max_tokens'  => 2500,
+            ]);
+
+            if ($response->failed()) {
+                Log::error('OpenAI Event Training Plan Error', ['status' => $response->status(), 'body' => $response->body()]);
+                return null;
+            }
+
+            $text = data_get($response->json(), 'choices.0.message.content', '');
+
+            // Extract JSON array from response
+            if (preg_match('/\[.*\]/s', $text, $matches)) {
+                $sessions = json_decode($matches[0], true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($sessions) && count($sessions) > 0) {
+                    Log::info('Event training plan generated', [
+                        'event_id' => $event->id,
+                        'sessions' => count($sessions),
+                    ]);
+                    return $sessions;
+                }
+            }
+
+            Log::warning('Event training plan parse failed', ['text' => $text]);
+            return null;
+
+        } catch (\Exception $e) {
+            Log::error('Event Training Plan Exception', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
     private function formatSeconds(int $seconds): string
     {
         $h = floor($seconds / 3600);

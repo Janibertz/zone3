@@ -112,6 +112,18 @@ class OnboardingController extends Controller
         return response()->json(['success' => true]);
     }
 
+    /**
+     * Reset onboarding so the user can go through it again.
+     */
+    public function reset(Request $request)
+    {
+        $user = Auth::user();
+        $user->onboarding_completed_at = null;
+        $user->save();
+
+        return redirect()->route('onboarding');
+    }
+
     public function complete(Request $request)
     {
         $user = Auth::user();
