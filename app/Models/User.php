@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Models\Event;
 use App\Models\Goal;
+use App\Models\TrainingSession;
 use App\Models\StravaAccount;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -49,6 +50,16 @@ class User extends Authenticatable
     public function events()
     {
         return $this->hasMany(Event::class);
+    }
+
+    public function trainingSessions()
+    {
+        return $this->hasMany(TrainingSession::class);
+    }
+
+    public function activeTrainingPlan()
+    {
+        return $this->hasOne(TrainingPlan::class)->where('is_active', true)->latest();
     }
 
     public function activities()

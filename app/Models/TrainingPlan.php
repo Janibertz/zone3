@@ -17,8 +17,9 @@ class TrainingPlan extends Model
     ];
 
     protected $casts = [
-        'sessions' => 'array',
-        'context'  => 'array',
+        'sessions'  => 'array',
+        'context'   => 'array',
+        'is_active' => 'boolean',
     ];
 
     public function user()
@@ -29,5 +30,10 @@ class TrainingPlan extends Model
     public function event()
     {
         return $this->belongsTo(Event::class);
+    }
+
+    public function trainingSessions()
+    {
+        return $this->hasMany(TrainingSession::class)->orderBy('planned_date');
     }
 }

@@ -201,7 +201,13 @@ watch(() => form.race_distance, (val) => {
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-start justify-between gap-2">
                                     <div>
-                                        <h3 class="font-semibold text-gray-900 dark:text-white leading-tight">{{ event.name }}</h3>
+                                        <div class="flex items-center gap-2">
+                                            <h3 class="font-semibold text-gray-900 dark:text-white leading-tight">{{ event.name }}</h3>
+                                            <span v-if="event.plan_is_active" class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-1.5 py-0.5 rounded-full">
+                                                <svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" /></svg>
+                                                Aktiv
+                                            </span>
+                                        </div>
                                         <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
                                             <span class="text-sm text-gray-500 dark:text-slate-400">{{ formatDate(event.event_date) }}</span>
                                             <span class="text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 rounded-full">{{ event.distance_label }}</span>

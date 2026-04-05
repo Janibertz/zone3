@@ -8,7 +8,9 @@ use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\PlanController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TrainingPlanController;
+use App\Http\Controllers\TrainingSessionController;
 use App\Http\Controllers\RunnerProfileController;
+use App\Models\TrainingSession;
 use App\Http\Controllers\StatisticsController;
 use App\Http\Controllers\StravaController;
 use App\Http\Controllers\WellbeingController;
@@ -138,6 +140,29 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/statistics', [StatisticsController::class, 'index'])->name('statistics.index');
     Route::get('/calendar', function () {
         $user = auth()->user();
+
+        // Active plan sessions for calendar
+        $activePlan = $user->activeTrainingPlan;
+        $trainingSessions = $activePlan
+            ? TrainingSession::where('training_plan_id', $activePlan->id)
+                ->orderBy('planned_date')
+                ->get()
+                ->map(fn ($s) => [
+                    'id'           => $s->id,
+                    'planned_date' => $s->planned_date->format('Y-m-d'),
+                    'type'         => $s->type,
+                    'title'        => $s->title,
+                    'distance_km'  => $s->distance_km,
+                    'duration_min' => $s->duration_min,
+                    'pace_target'  => $s->pace_target,
+                    'zone'         => $s->zone,
+                    'intensity'    => $s->intensity,
+                    'status'       => $s->status,
+                    'event_id'     => $s->event_id,
+                ])
+                ->toArray()
+            : [];
+
         return Inertia::render('Calendar', [
             'activities' => Activity::where('user_id', $user->id)->orderByDesc('start_date')->get(),
             'events'     => $user->events()->orderBy('event_date')->get()->map(fn($e) => [
@@ -153,6 +178,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
                 'days_until'            => $e->days_until,
                 'training_phase'        => $e->training_phase,
             ]),
+            'trainingSessions' => $trainingSessions,
         ]);
     })->name('calendar');
 
@@ -167,6 +193,11 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::delete('/events/{event}', [EventController::class, 'destroy'])->name('events.destroy');
     Route::get('/events/{event}/plan', [TrainingPlanController::class, 'show'])->name('events.plan.show');
     Route::post('/events/{event}/plan/generate', [TrainingPlanController::class, 'generate'])->name('events.plan.generate');
+
+    // Training Sessions
+    Route::patch('/training-sessions/{session}/complete', [TrainingSessionController::class, 'complete'])->name('training-sessions.complete');
+    Route::patch('/training-sessions/{session}/skip', [TrainingSessionController::class, 'skip'])->name('training-sessions.skip');
+    Route::post('/training-sessions/{session}/adjust', [TrainingSessionController::class, 'adjust'])->name('training-sessions.adjust');
 
     Route::post('/plans/generate', [PlanController::class, 'generate'])->name('plans.generate');
 

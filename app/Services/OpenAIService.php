@@ -852,6 +852,89 @@ PROMPT;
         }
     }
 
+    /**
+     * Adjust a single training session based on today's wellbeing data.
+     * Returns updated session fields or null on failure.
+     */
+    public function adjustSessionForWellbeing(array $session, \App\Models\WellbeingEntry $wellbeing): ?array
+    {
+        $sick    = $wellbeing->is_sick    ? 'Ja' : 'Nein';
+        $injured = $wellbeing->is_injured ? 'Ja' : 'Nein';
+
+        $prompt = <<<PROMPT
+Du bist ein Lauf-Coach. Passe die folgende Trainingseinheit an den aktuellen Gesundheitszustand des Athleten an.
+
+**Geplante Einheit:**
+- Typ: {$session['type']}
+- Titel: {$session['title']}
+- Beschreibung: {$session['description']}
+- Distanz: {$session['distance_km']} km
+- Dauer: {$session['duration_min']} min
+- Pace-Ziel: {$session['pace_target']}
+- Zone: {$session['zone']}
+- Intensität: {$session['intensity']}
+
+**Aktuelles Wellbeing:**
+- Energie: {$wellbeing->energy_level}/10
+- Schlaf: {$wellbeing->sleep_quality}/10
+- Muskelkater: {$wellbeing->muscle_soreness}/10
+- Stress: {$wellbeing->stress_level}/10
+- Krank: {$sick}
+- Verletzt: {$injured}
+
+**Anpassungsregeln:**
+- Krank oder verletzt → Typ "rest", Distanz 0, Dauer 0, Intensität "rest"
+- Energie ≤ 3 oder Schlaf ≤ 3 → Intensität auf "low" reduzieren, Distanz um 30-40% kürzen
+- Muskelkater ≥ 7 → Typ zu "easy_run", Intensität "low", Pace 30-45 Sek langsamer
+- Stress ≥ 8 → Dauer kürzen um 20%, Intensität reduzieren
+- Sonst → leichte Anpassung der Beschreibung mit Hinweis auf Wellbeing
+
+Antworte ausschließlich mit JSON (kein anderer Text):
+{
+  "type": "...",
+  "title": "...",
+  "description": "...",
+  "distance_km": 0,
+  "duration_min": 0,
+  "pace_target": "... oder null",
+  "zone": 1,
+  "intensity": "..."
+}
+PROMPT;
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Content-Type'  => 'application/json',
+            ])->post($this->baseUrl . '/chat/completions', [
+                'model'    => $this->model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Du bist ein präziser Lauf-Coach. Antworte ausschließlich mit validem JSON.'],
+                    ['role' => 'user',   'content' => $prompt],
+                ],
+                'temperature' => 0.4,
+                'max_tokens'  => 300,
+            ]);
+
+            if ($response->failed()) {
+                Log::error('OpenAI Session Adjust Error', ['status' => $response->status()]);
+                return null;
+            }
+
+            $text = data_get($response->json(), 'choices.0.message.content', '');
+            if (preg_match('/\{.*\}/s', $text, $matches)) {
+                $json = json_decode($matches[0], true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    return $json;
+                }
+            }
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Session Adjust Exception', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
     private function formatSeconds(int $seconds): string
     {
         $h = floor($seconds / 3600);

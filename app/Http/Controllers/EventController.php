@@ -86,6 +86,7 @@ class EventController extends Controller
             'target_time_formatted'  => $e->target_time_formatted,
             'notes'                  => $e->notes,
             'days_until'             => $e->days_until,
+            'plan_is_active'         => (bool) $plan?->is_active,
             'plan_generated_at'      => $plan?->created_at?->format('d.m.Y H:i'),
         ];
     }
