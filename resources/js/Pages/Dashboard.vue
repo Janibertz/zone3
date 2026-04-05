@@ -966,63 +966,56 @@ function deleteGoal(goalId) {
                         </div>
                     </div>
 
-                    <!-- Aktive Ziele -->
+                    <!-- Nächste Events -->
                     <div class="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
                         <div class="flex items-center justify-between mb-4">
-                            <h4 class="text-sm font-semibold text-gray-800">Aktive Ziele</h4>
-                            <span class="text-xs bg-indigo-50 text-indigo-600 rounded-md px-2 py-0.5 font-medium">{{ props.goals.length }} Gesamt</span>
+                            <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Nächste Events</h4>
+                            <a href="/events" class="text-xs bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 rounded-md px-2 py-0.5 font-medium hover:bg-indigo-100 transition">+ Neu</a>
                         </div>
-                        <div v-if="props.goals.length === 0" class="text-sm text-gray-400 text-center py-8">
-                            Keine Ziele vorhanden
+                        <div v-if="props.events.length === 0" class="text-sm text-gray-400 dark:text-slate-500 text-center py-8">
+                            Kein Event geplant.<br>
+                            <a href="/events" class="text-indigo-500 hover:underline text-xs mt-1 inline-block">Event hinzufügen →</a>
                         </div>
                         <div v-else class="space-y-3 max-h-96 overflow-y-auto">
-                            <div v-for="goal in props.goals" :key="goal.id"
-                                class="rounded-lg border border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 p-3">
-                                <div class="flex items-start justify-between gap-2">
+                            <a v-for="event in props.events" :key="event.id" href="/events"
+                                class="block rounded-xl border border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 p-3 hover:border-indigo-200 dark:hover:border-indigo-500/40 transition">
+                                <div class="flex items-start justify-between gap-2 mb-2">
                                     <div class="flex items-start gap-2.5 flex-1 min-w-0">
-                                        <div class="h-9 w-9 rounded-lg bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center text-lg flex-shrink-0">🏅</div>
+                                        <div class="h-9 w-9 rounded-lg flex items-center justify-center font-black text-sm flex-shrink-0"
+                                            :class="{
+                                                'bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400': event.priority === 'A',
+                                                'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-600 dark:text-yellow-400': event.priority === 'B',
+                                                'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400': event.priority === 'C',
+                                            }">
+                                            {{ event.priority }}
+                                        </div>
                                         <div class="min-w-0">
-                                            <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 leading-tight">{{ goal.name }}</p>
-                                            <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{{ goal.target_value }} {{ goal.unit }} · bis {{ formatDateShort(goal.end_date) }}</p>
+                                            <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 leading-tight truncate">{{ event.name }}</p>
+                                            <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{{ event.distance_label }} · {{ new Date(event.event_date).toLocaleDateString('de-DE') }}</p>
                                         </div>
                                     </div>
-                                    <span v-if="goal.progress" class="text-sm font-bold text-indigo-600 flex-shrink-0">
-                                        {{ goal.progress.progress_percentage }}%
+                                    <div class="text-right flex-shrink-0">
+                                        <p class="text-sm font-bold text-indigo-600 dark:text-indigo-400">{{ event.days_until }}d</p>
+                                        <p class="text-xs text-gray-400 dark:text-slate-500">{{ event.weeks_until }} Wo.</p>
+                                    </div>
+                                </div>
+                                <!-- Trainingsphase + Zielzeit -->
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs px-2 py-0.5 rounded-md font-semibold"
+                                        :class="{
+                                            'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400': event.training_phase.key === 'race_week',
+                                            'bg-yellow-50 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400': event.training_phase.key === 'taper',
+                                            'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400': event.training_phase.key === 'peak',
+                                            'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400': event.training_phase.key === 'build',
+                                            'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400': event.training_phase.key === 'base',
+                                        }">
+                                        {{ event.training_phase.label }}
+                                    </span>
+                                    <span v-if="event.target_time_formatted" class="text-xs text-gray-400 dark:text-slate-500">
+                                        Ziel: {{ event.target_time_formatted }}
                                     </span>
                                 </div>
-                                <div v-if="goal.progress" class="mt-2.5">
-                                    <div class="h-1.5 rounded-full bg-gray-200 dark:bg-slate-700">
-                                        <div class="h-1.5 rounded-full transition-all duration-500"
-                                            :style="{ width: Math.min(goal.progress.progress_percentage, 100) + '%' }"
-                                            :class="{
-                                                'bg-green-500': goal.progress.progress_percentage >= 75,
-                                                'bg-blue-500': goal.progress.progress_percentage >= 50 && goal.progress.progress_percentage < 75,
-                                                'bg-orange-500': goal.progress.progress_percentage >= 25 && goal.progress.progress_percentage < 50,
-                                                'bg-red-400': goal.progress.progress_percentage < 25,
-                                            }">
-                                        </div>
-                                    </div>
-                                    <p class="mt-1 text-xs text-gray-400">{{ round2(goal.progress.completed_distance_km) }} / {{ goal.progress.target_distance_km }} km · {{ generateAIAnalysis(goal.progress) }}</p>
-                                </div>
-                                <div class="mt-2 flex flex-wrap gap-1">
-                                    <button @click="getAIAnalysis(goal.id)"
-                                        class="rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors">
-                                        🤖 Analyse
-                                    </button>
-                                    <button @click="getAIPlan(goal.id)"
-                                        class="rounded-md bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700 hover:bg-purple-100 transition-colors">
-                                        🎯 KI-Plan
-                                    </button>
-                                    <button @click="generatePlan(goal.id)"
-                                        class="rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors">
-                                        📋 Plan
-                                    </button>
-                                    <button @click="deleteGoal(goal.id)"
-                                        class="rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors ml-auto">
-                                        ✕
-                                    </button>
-                                </div>
-                            </div>
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -1108,51 +1101,45 @@ function deleteGoal(goalId) {
                         </div>
                     </div>
 
-                    <!-- Zielfortschritt (Balken) -->
+                    <!-- Event Countdown -->
                     <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
-                        <div class="flex items-center justify-between mb-4">
-                            <h4 class="text-sm font-semibold text-gray-800">Zielfortschritt</h4>
-                        </div>
-                        <div v-if="props.goals.length === 0" class="text-sm text-gray-400 text-center py-8">
-                            Keine Ziele vorhanden
+                        <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200 mb-4">Event Countdown</h4>
+                        <div v-if="props.events.length === 0" class="text-sm text-gray-400 dark:text-slate-500 text-center py-8">
+                            Kein Event geplant
                         </div>
                         <div v-else class="space-y-4">
-                            <div v-for="goal in props.goals" :key="goal.id">
-                                <div class="flex items-center justify-between mb-1">
-                                    <span class="text-xs font-medium text-gray-700 truncate max-w-[70%]">{{ goal.name }}</span>
-                                    <span class="text-xs font-bold"
-                                        :class="{
-                                            'text-green-600': (goal.progress?.progress_percentage || 0) >= 75,
-                                            'text-blue-600': (goal.progress?.progress_percentage || 0) >= 50 && (goal.progress?.progress_percentage || 0) < 75,
-                                            'text-orange-600': (goal.progress?.progress_percentage || 0) >= 25 && (goal.progress?.progress_percentage || 0) < 50,
-                                            'text-red-500': (goal.progress?.progress_percentage || 0) < 25,
-                                        }">
-                                        {{ goal.progress?.progress_percentage || 0 }}%
-                                    </span>
+                            <div v-for="event in props.events.slice(0, 4)" :key="event.id">
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <span class="text-xs font-semibold text-gray-700 dark:text-slate-300 truncate max-w-[65%]">{{ event.name }}</span>
+                                    <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400">{{ event.days_until }}d</span>
                                 </div>
-                                <div class="h-2 rounded-full bg-gray-100 dark:bg-slate-700">
+                                <!-- Progress bar: % of training time elapsed -->
+                                <div class="h-2 rounded-full bg-gray-100 dark:bg-slate-700 overflow-hidden">
                                     <div class="h-2 rounded-full transition-all duration-500"
-                                        :style="{ width: Math.min(goal.progress?.progress_percentage || 0, 100) + '%' }"
                                         :class="{
-                                            'bg-green-500': (goal.progress?.progress_percentage || 0) >= 75,
-                                            'bg-blue-500': (goal.progress?.progress_percentage || 0) >= 50 && (goal.progress?.progress_percentage || 0) < 75,
-                                            'bg-orange-500': (goal.progress?.progress_percentage || 0) >= 25 && (goal.progress?.progress_percentage || 0) < 50,
-                                            'bg-red-400': (goal.progress?.progress_percentage || 0) < 25,
-                                        }">
+                                            'bg-red-500': event.training_phase.key === 'race_week',
+                                            'bg-yellow-500': event.training_phase.key === 'taper',
+                                            'bg-orange-500': event.training_phase.key === 'peak',
+                                            'bg-blue-500': event.training_phase.key === 'build',
+                                            'bg-green-500': event.training_phase.key === 'base',
+                                        }"
+                                        :style="{ width: Math.max(5, 100 - Math.min(100, (event.days_until / 180) * 100)) + '%' }">
                                     </div>
                                 </div>
-                                <p class="mt-0.5 text-xs text-gray-400">
-                                    {{ round2(goal.progress?.completed_distance_km || 0) }} / {{ goal.progress?.target_distance_km || goal.target_value }} km
-                                </p>
+                                <div class="flex items-center justify-between mt-1">
+                                    <span class="text-xs text-gray-400 dark:text-slate-500">{{ event.distance_label }}</span>
+                                    <span class="text-xs font-medium"
+                                        :class="{
+                                            'text-red-500': event.training_phase.key === 'race_week',
+                                            'text-yellow-600': event.training_phase.key === 'taper',
+                                            'text-orange-600': event.training_phase.key === 'peak',
+                                            'text-blue-600': event.training_phase.key === 'build',
+                                            'text-green-600': event.training_phase.key === 'base',
+                                        }">
+                                        {{ event.training_phase.label }}
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                        <!-- Plan result -->
-                        <div v-if="plan" class="mt-4 rounded-lg bg-indigo-50 border border-indigo-100 p-3">
-                            <p class="text-xs font-semibold text-indigo-800 mb-1">📋 Generierter Plan</p>
-                            <p class="text-xs text-indigo-700">Ø wöchentlich: {{ plan.current_average_weekly_distance_km }} km → <span class="font-semibold">{{ plan.recommended_weekly_distance_km }} km</span></p>
-                        </div>
-                        <div v-if="planError" class="mt-4 rounded-lg bg-red-50 border border-red-100 p-3">
-                            <p class="text-xs text-red-700">{{ planError }}</p>
                         </div>
                     </div>
 
