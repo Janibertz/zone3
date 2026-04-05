@@ -1,19 +1,11 @@
 <script setup>
-import Checkbox from '@/Components/Checkbox.vue';
 import GuestLayout from '@/Layouts/GuestLayout.vue';
 import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 defineProps({
-    canResetPassword: {
-        type: Boolean,
-    },
-    status: {
-        type: String,
-    },
+    canResetPassword: Boolean,
+    status: String,
 });
 
 const form = useForm({
@@ -33,68 +25,97 @@ const submit = () => {
     <GuestLayout>
         <Head title="Anmelden" />
 
-        <div v-if="status" class="mb-4 text-sm font-medium text-green-600">
-            {{ status }}
-        </div>
-
-        <form @submit.prevent="submit">
-            <div>
-                <InputLabel for="email" value="E-Mail" />
-
-                <TextInput
-                    id="email"
-                    type="email"
-                    class="mt-1 block w-full"
-                    v-model="form.email"
-                    required
-                    autofocus
-                    autocomplete="username"
-                />
-
-                <InputError class="mt-2" :message="form.errors.email" />
-            </div>
-
-            <div class="mt-4">
-                <InputLabel for="password" value="Passwort" />
-
-                <TextInput
-                    id="password"
-                    type="password"
-                    class="mt-1 block w-full"
-                    v-model="form.password"
-                    required
-                    autocomplete="current-password"
-                />
-
-                <InputError class="mt-2" :message="form.errors.password" />
-            </div>
-
-            <div class="mt-4 block">
-                <label class="flex items-center">
-                    <Checkbox name="remember" v-model:checked="form.remember" />
-                    <span class="ms-2 text-sm text-gray-600"
-                        >Angemeldet bleiben</span
-                    >
-                </label>
-            </div>
-
-            <div class="mt-4 flex items-center justify-end">
-                <Link
-                    v-if="canResetPassword"
-                    :href="route('password.request')"
-                    class="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                >
-                    Passwort vergessen?
+        <div class="w-full max-w-sm">
+            <!-- Logo -->
+            <div class="text-center mb-8">
+                <Link href="/" class="inline-flex flex-col items-center gap-2">
+                    <div class="h-12 w-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                        <span class="text-white text-lg font-bold">Z3</span>
+                    </div>
+                    <span class="text-xl font-bold text-white tracking-tight">Zone3</span>
                 </Link>
-
-                <PrimaryButton
-                    class="ms-4"
-                    :class="{ 'opacity-25': form.processing }"
-                    :disabled="form.processing"
-                >
-                    Anmelden
-                </PrimaryButton>
+                <h1 class="mt-5 text-2xl font-bold text-white">Willkommen zurück</h1>
+                <p class="mt-1 text-sm text-slate-400">Meld dich an und weiter trainieren</p>
             </div>
-        </form>
+
+            <!-- Card -->
+            <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-xl p-6">
+
+                <!-- Status message -->
+                <div v-if="status" class="mb-5 flex items-center gap-2 rounded-xl bg-green-500/10 border border-green-500/30 px-4 py-3 text-sm text-green-400">
+                    <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    {{ status }}
+                </div>
+
+                <form @submit.prevent="submit" class="space-y-4">
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-slate-300 mb-1.5">E-Mail</label>
+                        <input
+                            id="email"
+                            v-model="form.email"
+                            type="email"
+                            required
+                            autofocus
+                            autocomplete="username"
+                            placeholder="deine@email.de"
+                            class="block w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-colors"
+                        />
+                        <InputError class="mt-1.5" :message="form.errors.email" />
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label for="password" class="block text-sm font-medium text-slate-300">Passwort</label>
+                            <Link
+                                v-if="canResetPassword"
+                                :href="route('password.request')"
+                                class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                            >
+                                Vergessen?
+                            </Link>
+                        </div>
+                        <input
+                            id="password"
+                            v-model="form.password"
+                            type="password"
+                            required
+                            autocomplete="current-password"
+                            placeholder="••••••••"
+                            class="block w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-colors"
+                        />
+                        <InputError class="mt-1.5" :message="form.errors.password" />
+                    </div>
+
+                    <label class="flex items-center gap-2.5 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            v-model="form.remember"
+                            class="h-4 w-4 rounded border-slate-600 bg-slate-800 text-indigo-600 focus:ring-indigo-500/20"
+                        />
+                        <span class="text-sm text-slate-400">Angemeldet bleiben</span>
+                    </label>
+
+                    <button
+                        type="submit"
+                        :disabled="form.processing"
+                        class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm mt-1"
+                    >
+                        <svg v-if="form.processing" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                        </svg>
+                        Anmelden
+                    </button>
+                </form>
+            </div>
+
+            <!-- Register link -->
+            <p class="mt-5 text-center text-sm text-slate-500">
+                Noch kein Account?
+                <Link :href="route('register')" class="text-indigo-400 font-medium hover:text-indigo-300 transition-colors">
+                    Jetzt registrieren
+                </Link>
+            </p>
+        </div>
     </GuestLayout>
 </template>
