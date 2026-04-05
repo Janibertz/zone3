@@ -99,35 +99,49 @@ function fieldError(field) {
     return value || '';
 }
 
-const goalTemplates = [
-    { key: '5k', label: '5 km', type: 'distance', target_value: 5, unit: 'km' },
-    { key: '10k', label: '10 km', type: 'distance', target_value: 10, unit: 'km' },
-    { key: 'half_marathon', label: 'Halbmarathon (21 km)', type: 'distance', target_value: 21.1, unit: 'km' },
-    { key: 'marathon', label: 'Marathon (42 km)', type: 'distance', target_value: 42.2, unit: 'km' },
+const raceOptions = [
+    { value: '5km',           label: '5 km',          hours: 0, minutes: 25 },
+    { value: '10km',          label: '10 km',         hours: 0, minutes: 50 },
+    { value: 'half_marathon', label: 'Halbmarathon',  hours: 1, minutes: 45 },
+    { value: 'marathon',      label: 'Marathon',      hours: 3, minutes: 30 },
 ];
 
-const selectedGoalKey = ref(goalTemplates[0].key);
-
-const goalForm = ref({
-    ...goalTemplates[0],
-    start_date: '',
-    end_date: '',
-    target_time_hours: null,
-    target_time_minutes: null,
-    active: true,
+const quickEventForm = ref({
+    race_distance:       'half_marathon',
+    event_date:          '',
+    target_time_hours:   1,
+    target_time_minutes: 45,
+    priority:            'A',
+    name:                '',
 });
+const quickEventSaving  = ref(false);
+const quickEventSuccess = ref(false);
 
-watch(selectedGoalKey, (value) => {
-    const template = goalTemplates.find((t) => t.key === value);
-    if (template) {
-        goalForm.value.name = template.label;
-        goalForm.value.type = template.type;
-        goalForm.value.target_value = template.target_value;
-        goalForm.value.unit = template.unit;
-        goalForm.value.target_time_hours = null;
-        goalForm.value.target_time_minutes = null;
+watch([() => quickEventForm.value.race_distance, () => quickEventForm.value.event_date], () => {
+    const opt = raceOptions.find(r => r.value === quickEventForm.value.race_distance);
+    if (opt) {
+        quickEventForm.value.target_time_hours   = opt.hours;
+        quickEventForm.value.target_time_minutes = opt.minutes;
     }
+    const dateLabel = quickEventForm.value.event_date
+        ? new Date(quickEventForm.value.event_date).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
+        : '';
+    quickEventForm.value.name = opt && dateLabel ? `${opt.label} ${dateLabel}` : (opt?.label ?? '');
 });
+
+async function saveQuickEvent() {
+    quickEventSaving.value = true;
+    try {
+        await axios.post(route('events.store'), quickEventForm.value);
+        quickEventSuccess.value = true;
+        router.reload({ only: ['events'] });
+        setTimeout(() => { quickEventSuccess.value = false; }, 3000);
+        quickEventForm.value.event_date = '';
+        quickEventForm.value.name = '';
+    } finally {
+        quickEventSaving.value = false;
+    }
+}
 
 const plan = ref(null);
 const planError = ref(null);
@@ -409,15 +423,6 @@ function generatePlan(goalId) {
         .catch(err => { planError.value = err.response?.data?.message || 'Plan konnte nicht erstellt werden.'; plan.value = null; });
 }
 
-function saveGoal() {
-    Inertia.post(route('goals.store'), goalForm.value, {
-        preserveScroll: true,
-        onSuccess: () => {
-            selectedGoalKey.value = goalTemplates[0].key;
-            goalForm.value = { ...goalTemplates[0], start_date: '', end_date: '', target_time_hours: null, target_time_minutes: null, active: true };
-        },
-    });
-}
 
 async function getTodayRecommendation() {
     recommendationLoading.value = true;
@@ -502,11 +507,6 @@ function syncStrava() {
     });
 }
 
-function deleteGoal(goalId) {
-    if (confirm('Bist du sicher, dass du dieses Ziel löschen möchtest?')) {
-        Inertia.delete(route('goals.destroy', goalId), { preserveScroll: true });
-    }
-}
 </script>
 
 <template>
@@ -1048,55 +1048,84 @@ function deleteGoal(goalId) {
                     </div>
                 </div>
 
-                <!-- ═══ ROW 5: Ziel hinzufügen + Fortschritt + Tipps ═══ -->
-                <div id="goal-form-section" class="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
+                <!-- ═══ ROW 5: Quick Event + Countdown + Tipps ═══ -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
 
-                    <!-- Ziel hinzufügen -->
+                    <!-- Quick Event erstellen -->
                     <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
                         <div class="flex items-center justify-between mb-4">
-                            <h4 class="text-sm font-semibold text-gray-800">Ziel hinzufügen</h4>
-                            <span class="text-xs text-gray-400">Neues Ziel</span>
+                            <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Schnelles Event</h4>
+                            <a href="/events" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition">Alle Events →</a>
                         </div>
+
+                        <!-- Erfolgs-Banner -->
+                        <div v-if="quickEventSuccess" class="mb-3 rounded-xl bg-green-50 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20 px-3 py-2.5 flex items-center gap-2">
+                            <span class="text-green-600 dark:text-green-400 text-sm">✓</span>
+                            <p class="text-sm text-green-700 dark:text-green-400 font-medium">Event gespeichert!</p>
+                        </div>
+
                         <div class="space-y-3">
+                            <!-- Distanz Buttons -->
                             <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Zieltyp</label>
-                                <select v-model="selectedGoalKey"
-                                    class="w-full rounded-lg border-gray-200 bg-gray-50 py-2 px-3 text-sm focus:border-indigo-400 focus:ring-indigo-400 focus:ring-1">
-                                    <option v-for="t in goalTemplates" :key="t.key" :value="t.key">{{ t.label }}</option>
-                                </select>
-                            </div>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label class="block text-xs font-medium text-gray-600 mb-1">Startdatum *</label>
-                                    <input type="date" v-model="goalForm.start_date"
-                                        class="w-full rounded-lg border-gray-200 bg-gray-50 py-2 px-3 text-sm focus:border-indigo-400 focus:ring-indigo-400 focus:ring-1" />
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-medium text-gray-600 mb-1">Enddatum *</label>
-                                    <input type="date" v-model="goalForm.end_date"
-                                        class="w-full rounded-lg border-gray-200 bg-gray-50 py-2 px-3 text-sm focus:border-indigo-400 focus:ring-indigo-400 focus:ring-1" />
+                                <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Distanz</label>
+                                <div class="grid grid-cols-2 gap-1.5">
+                                    <button v-for="opt in raceOptions" :key="opt.value"
+                                        @click="quickEventForm.race_distance = opt.value"
+                                        class="py-2 px-3 rounded-xl text-xs font-semibold border transition"
+                                        :class="quickEventForm.race_distance === opt.value
+                                            ? 'bg-indigo-500 text-white border-indigo-500'
+                                            : 'bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:border-indigo-300'">
+                                        {{ opt.label }}
+                                    </button>
                                 </div>
                             </div>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label class="block text-xs font-medium text-gray-600 mb-1">Stunden</label>
-                                    <input type="number" v-model="goalForm.target_time_hours" min="0" max="23"
-                                        class="w-full rounded-lg border-gray-200 bg-gray-50 py-2 px-3 text-sm focus:border-indigo-400 focus:ring-indigo-400 focus:ring-1" />
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-medium text-gray-600 mb-1">Minuten</label>
-                                    <input type="number" v-model="goalForm.target_time_minutes" min="0" max="59"
-                                        class="w-full rounded-lg border-gray-200 bg-gray-50 py-2 px-3 text-sm focus:border-indigo-400 focus:ring-indigo-400 focus:ring-1" />
+
+                            <!-- Datum -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Renndatum *</label>
+                                <input type="date" v-model="quickEventForm.event_date"
+                                    class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 py-2 px-3 text-sm text-gray-800 dark:text-slate-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 focus:outline-none" />
+                            </div>
+
+                            <!-- Zielzeit -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Zielzeit</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="relative">
+                                        <input type="number" v-model="quickEventForm.target_time_hours" min="0" max="23"
+                                            class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 py-2 pl-3 pr-8 text-sm text-gray-800 dark:text-slate-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 focus:outline-none" />
+                                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">h</span>
+                                    </div>
+                                    <div class="relative">
+                                        <input type="number" v-model="quickEventForm.target_time_minutes" min="0" max="59"
+                                            class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 py-2 pl-3 pr-8 text-sm text-gray-800 dark:text-slate-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 focus:outline-none" />
+                                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">min</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="flex items-center gap-2">
-                                <input type="checkbox" v-model="goalForm.active" id="goal-active"
-                                    class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-                                <label for="goal-active" class="text-sm text-gray-600">Aktiv</label>
+
+                            <!-- Priorität -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Priorität</label>
+                                <div class="flex gap-1.5">
+                                    <button v-for="p in ['A','B','C']" :key="p"
+                                        @click="quickEventForm.priority = p"
+                                        class="flex-1 py-1.5 rounded-lg text-xs font-bold border transition"
+                                        :class="quickEventForm.priority === p
+                                            ? p === 'A' ? 'bg-red-500 text-white border-red-500'
+                                              : p === 'B' ? 'bg-yellow-500 text-white border-yellow-500'
+                                              : 'bg-gray-400 text-white border-gray-400'
+                                            : 'bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-slate-400 border-gray-200 dark:border-slate-700'">
+                                        {{ p }}
+                                    </button>
+                                </div>
                             </div>
-                            <button @click="saveGoal"
-                                class="w-full rounded-lg bg-indigo-600 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors">
-                                Ziel speichern
+
+                            <button @click="saveQuickEvent" :disabled="!quickEventForm.event_date || quickEventSaving"
+                                class="w-full rounded-xl py-2.5 text-sm font-bold text-white transition disabled:opacity-50"
+                                :class="quickEventSaving ? 'bg-indigo-400' : 'bg-indigo-500 hover:bg-indigo-400'">
+                                <span v-if="quickEventSaving">Speichern…</span>
+                                <span v-else>Event erstellen</span>
                             </button>
                         </div>
                     </div>
