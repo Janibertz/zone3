@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Event;
 use App\Models\RunnerProfile;
 use App\Services\OpenAIService;
 use Illuminate\Http\Request;
@@ -82,31 +83,28 @@ class OnboardingController extends Controller
     }
 
     /**
-     * Save race goal with target time.
+     * Save race goal as an Event (A-priority by default).
      */
     public function saveGoal(Request $request)
     {
         $validated = $request->validate([
             'name'                => 'required|string|max:150',
             'race_distance'       => 'required|string|in:5km,10km,half_marathon,marathon,custom',
-            'target_value'        => 'required|numeric|min:0.1',
-            'unit'                => 'required|string|max:20',
+            'distance_km'         => 'nullable|numeric|min:0.1',
             'target_time_hours'   => 'required|integer|min:0|max:23',
             'target_time_minutes' => 'required|integer|min:0|max:59',
             'race_date'           => 'required|date|after:today',
         ]);
 
-        Auth::user()->goals()->create([
+        Event::create([
+            'user_id'             => Auth::id(),
             'name'                => $validated['name'],
-            'type'                => 'distance',
-            'target_value'        => $validated['target_value'],
-            'unit'                => $validated['unit'],
+            'event_date'          => $validated['race_date'],
+            'race_distance'       => $validated['race_distance'],
+            'distance_km'         => $validated['distance_km'] ?? null,
+            'priority'            => 'A',
             'target_time_hours'   => $validated['target_time_hours'],
             'target_time_minutes' => $validated['target_time_minutes'],
-            'start_date'          => now()->toDateString(),
-            'end_date'            => $validated['race_date'],
-            'active'              => true,
-            'meta'                => ['race_distance' => $validated['race_distance']],
         ]);
 
         return response()->json(['success' => true]);

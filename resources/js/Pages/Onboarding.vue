@@ -106,8 +106,7 @@ const raceOptions = [
 const goalForm = ref({
     name:                '',
     race_distance:       'half_marathon',
-    target_value:        21.0975,
-    unit:                'km',
+    distance_km:         null,
     target_time_hours:   1,
     target_time_minutes: 45,
     race_date:           '',
@@ -128,11 +127,7 @@ watch([() => goalForm.value.race_distance, () => goalForm.value.race_date], () =
 function selectRace(opt) {
     goalForm.value.race_distance = opt.value;
     goalForm.value.name = ''; // reset so auto-fill kicks in
-    if (opt.distance) {
-        goalForm.value.target_value = opt.distance;
-    } else {
-        goalForm.value.target_value = '';
-    }
+    goalForm.value.distance_km = opt.distance ?? null;
 }
 
 const targetTimeFormatted = computed(() => {
@@ -495,7 +490,7 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                             <!-- Custom distance -->
                             <div v-if="goalForm.race_distance === 'custom'" class="mt-1">
                                 <label class="block text-xs text-gray-500 dark:text-slate-400 mb-1.5">Distanz in km</label>
-                                <input v-model="goalForm.target_value" type="number" min="0.1" step="0.1" placeholder="z.B. 15"
+                                <input v-model="goalForm.distance_km" type="number" min="0.1" step="0.1" placeholder="z.B. 15"
                                     class="input-field border-gray-200 dark:border-slate-600" />
                             </div>
                         </div>
