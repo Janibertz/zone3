@@ -173,28 +173,70 @@ const totalDistanceKm = computed(() => {
     return (total / 1000).toFixed(1);
 });
 
-// Computed: last 7 days activity indicators
-const last7Days = computed(() => {
-    const dayLabels = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-    const activityDates = new Set(
-        props.recentActivities.map((a) => {
-            if (!a.start_date) return null;
-            const d = new Date(a.start_date);
-            return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-        }).filter(Boolean)
-    );
+// Helper: date key YYYY-M-D
+function dayKey(d) { return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
+
+// This week stats (Mon–today)
+const weekStats = computed(() => {
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    const dow = (now.getDay() + 6) % 7; // Mon=0
+    startOfWeek.setDate(now.getDate() - dow);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const weekActs = props.recentActivities.filter(a => a.start_date && new Date(a.start_date) >= startOfWeek);
+    const km = (weekActs.reduce((s, a) => s + (a.distance || 0), 0) / 1000).toFixed(1);
+    const runs = weekActs.length;
+    const speeds = weekActs.filter(a => a.average_speed > 0).map(a => a.average_speed);
+    const avgPace = speeds.length
+        ? formatPaceFromSpeed(speeds.reduce((s, v) => s + v, 0) / speeds.length)
+        : '—';
+    return { km, runs, avgPace };
+});
+
+// This month stats
+const monthStats = computed(() => {
+    const now = new Date();
+    const acts = props.recentActivities.filter(a => {
+        if (!a.start_date) return false;
+        const d = new Date(a.start_date);
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    });
+    return {
+        km: (acts.reduce((s, a) => s + (a.distance || 0), 0) / 1000).toFixed(1),
+        runs: acts.length,
+    };
+});
+
+// Last 7 days bars (Mo..So labels, km per day)
+const last7DaysBars = computed(() => {
+    const labels = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    const kmMap = new Map();
+    props.recentActivities.forEach(a => {
+        if (!a.start_date) return;
+        const k = dayKey(new Date(a.start_date));
+        kmMap.set(k, (kmMap.get(k) || 0) + (a.distance || 0) / 1000);
+    });
     const result = [];
+    const todayKey = dayKey(new Date());
     for (let i = 6; i >= 0; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i);
-        const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        const k = dayKey(d);
+        const dow = (d.getDay() + 6) % 7; // Mon=0
         result.push({
-            label: dayLabels[d.getDay()].charAt(0),
-            active: activityDates.has(key),
+            date: k,
+            label: labels[dow],
+            km: Math.round((kmMap.get(k) || 0) * 10) / 10,
+            isToday: k === todayKey,
         });
     }
     return result;
 });
+
+const last7DaysMax = computed(() =>
+    Math.max(...last7DaysBars.value.map(d => d.km), 1)
+);
 
 // Calendar state — navigable month
 const today = new Date();
@@ -660,62 +702,58 @@ function syncStrava() {
                     </div>
 
                     <!-- Stats-Karte -->
-                    <div class="lg:col-span-3 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
-                        <div class="flex items-center justify-between mb-1">
-                            <h4 class="text-sm font-semibold text-gray-800">Aktivitäten</h4>
-                            <span class="text-xs bg-gray-100 text-gray-500 rounded-md px-2 py-0.5">Gesamt</span>
-                        </div>
-                        <p class="text-xs text-gray-400 mb-4">
-                            <span class="font-semibold text-gray-700">{{ props.recentActivities.length }} Läufe</span> · {{ totalDistanceKm }} km total
-                        </p>
+                    <div class="lg:col-span-3 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5 flex flex-col gap-4">
 
-                        <!-- 3 Kennzahlen -->
-                        <div class="flex justify-between text-center mb-5">
-                            <div>
-                                <p class="text-2xl font-bold text-gray-900">{{ props.recentActivities.length }}</p>
-                                <p class="text-xs text-gray-500 mt-0.5">Läufe</p>
-                                <div class="mt-1.5 h-1 w-8 rounded-full bg-green-500 mx-auto"></div>
+                        <!-- Header -->
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Diese Woche</h4>
+                            <a href="/statistics" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition">Statistiken →</a>
+                        </div>
+
+                        <!-- 3 KPIs: Woche -->
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="rounded-xl bg-indigo-50 dark:bg-indigo-500/10 p-3 text-center">
+                                <p class="text-xl font-black text-indigo-700 dark:text-indigo-300">{{ weekStats.km }}</p>
+                                <p class="text-[11px] text-indigo-500 dark:text-indigo-400 mt-0.5 font-medium">km</p>
                             </div>
-                            <div>
-                                <p class="text-2xl font-bold text-gray-900">{{ totalDistanceKm }}</p>
-                                <p class="text-xs text-gray-500 mt-0.5">km</p>
-                                <div class="mt-1.5 h-1 w-8 rounded-full bg-blue-500 mx-auto"></div>
+                            <div class="rounded-xl bg-green-50 dark:bg-green-500/10 p-3 text-center">
+                                <p class="text-xl font-black text-green-700 dark:text-green-300">{{ weekStats.runs }}</p>
+                                <p class="text-[11px] text-green-500 dark:text-green-400 mt-0.5 font-medium">Läufe</p>
                             </div>
-                            <div>
-                                <p class="text-2xl font-bold text-gray-900">{{ props.events.length }}</p>
-                                <p class="text-xs text-gray-500 mt-0.5">Events</p>
-                                <div class="mt-1.5 h-1 w-8 rounded-full bg-orange-500 mx-auto"></div>
+                            <div class="rounded-xl bg-purple-50 dark:bg-purple-500/10 p-3 text-center">
+                                <p class="text-xl font-black text-purple-700 dark:text-purple-300">{{ weekStats.avgPace }}</p>
+                                <p class="text-[11px] text-purple-500 dark:text-purple-400 mt-0.5 font-medium">Ø Pace</p>
                             </div>
                         </div>
 
-                        <!-- Donut SVG -->
-                        <div class="flex items-center justify-center my-3">
-                            <div class="relative h-24 w-24">
-                                <svg viewBox="0 0 36 36" class="h-24 w-24 -rotate-90">
-                                    <circle cx="18" cy="18" r="15.915" fill="none" :stroke="isDark ? '#334155' : '#f3f4f6'" stroke-width="3.5"/>
-                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#22c55e" stroke-width="3.5"
-                                        stroke-dasharray="70 30" stroke-linecap="round"/>
-                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#ef4444" stroke-width="3.5"
-                                        stroke-dasharray="15 85" stroke-dashoffset="-70" stroke-linecap="round"/>
-                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#3b82f6" stroke-width="3.5"
-                                        stroke-dasharray="10 90" stroke-dashoffset="-85" stroke-linecap="round"/>
-                                </svg>
-                                <div class="absolute inset-0 flex flex-col items-center justify-center">
-                                    <span class="text-xs font-bold text-gray-700">Aktiv</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Letzte 7 Tage -->
+                        <!-- Tagesbalken letzte 7 Tage -->
                         <div>
-                            <p class="text-xs text-gray-400 mb-2">Letzte 7 Tage</p>
-                            <div class="flex gap-1 justify-between">
-                                <div v-for="day in last7Days" :key="day.label" class="flex flex-col items-center">
-                                    <div class="h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors"
-                                        :class="day.active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-400'">
-                                        {{ day.label }}
+                            <p class="text-xs font-medium text-gray-400 dark:text-slate-500 mb-2">Letzte 7 Tage</p>
+                            <div class="flex items-end gap-1 h-14">
+                                <div v-for="day in last7DaysBars" :key="day.date"
+                                    class="flex-1 flex flex-col items-center gap-1">
+                                    <div class="w-full rounded-t-md transition-all"
+                                        :class="day.km > 0 ? 'bg-indigo-500 dark:bg-indigo-400' : 'bg-gray-100 dark:bg-slate-700'"
+                                        :style="{ height: day.km > 0 ? Math.max(6, (day.km / last7DaysMax) * 48) + 'px' : '4px' }"
+                                        :title="day.km > 0 ? day.km + ' km' : 'Kein Lauf'">
                                     </div>
+                                    <span class="text-[10px] font-medium"
+                                        :class="day.isToday ? 'text-indigo-600 dark:text-indigo-400 font-bold' : 'text-gray-400 dark:text-slate-500'">
+                                        {{ day.label }}
+                                    </span>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- Monats-Total -->
+                        <div class="border-t border-gray-100 dark:border-slate-800 pt-3 flex items-center justify-between">
+                            <div>
+                                <p class="text-[11px] text-gray-400 dark:text-slate-500">Dieser Monat</p>
+                                <p class="text-sm font-bold text-gray-800 dark:text-slate-200 mt-0.5">{{ monthStats.km }} km · {{ monthStats.runs }} Läufe</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[11px] text-gray-400 dark:text-slate-500">Gesamt</p>
+                                <p class="text-sm font-bold text-gray-800 dark:text-slate-200 mt-0.5">{{ totalDistanceKm }} km</p>
                             </div>
                         </div>
                     </div>
