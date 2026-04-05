@@ -66,4 +66,28 @@ class Event extends Model
     {
         return (int) now()->startOfDay()->diffInDays($this->event_date->copy()->startOfDay(), false);
     }
+
+    public function getTrainingPhaseAttribute(): array
+    {
+        $days = $this->days_until;
+
+        if ($days < 0) {
+            return ['key' => 'past',      'label' => 'Vergangenheit', 'color' => 'gray'];
+        } elseif ($days <= 14) {
+            return ['key' => 'race_week', 'label' => 'Race Week',     'color' => 'red'];
+        } elseif ($days <= 28) {
+            return ['key' => 'taper',     'label' => 'Taper',         'color' => 'yellow'];
+        } elseif ($days <= 70) {
+            return ['key' => 'peak',      'label' => 'Peak',           'color' => 'orange'];
+        } elseif ($days <= 112) {
+            return ['key' => 'build',     'label' => 'Build',          'color' => 'blue'];
+        } else {
+            return ['key' => 'base',      'label' => 'Base',           'color' => 'green'];
+        }
+    }
+
+    public function getWeeksUntilAttribute(): int
+    {
+        return max(0, (int) ceil($this->days_until / 7));
+    }
 }

@@ -13,7 +13,7 @@ const { isDark } = useDarkMode();
 const props = defineProps({
     stravaConnected: Boolean,
     stravaAccount: Object,
-    goals: Array,
+    events: { type: Array, default: () => [] },
     recentActivities: {
         type: Array,
         default: () => [],
@@ -182,16 +182,28 @@ const last7Days = computed(() => {
     return result;
 });
 
-// Computed: set of day-numbers with activities in the current month
-// Map: day-number → array of activities for current month
+// Calendar state — navigable month
+const today = new Date();
+const calYear  = ref(today.getFullYear());
+const calMonth = ref(today.getMonth()); // 0-indexed
+
+function prevMonth() {
+    if (calMonth.value === 0) { calMonth.value = 11; calYear.value--; }
+    else calMonth.value--;
+    calendarPickerDay.value = null;
+}
+function nextMonth() {
+    if (calMonth.value === 11) { calMonth.value = 0; calYear.value++; }
+    else calMonth.value++;
+    calendarPickerDay.value = null;
+}
+
+// Map: day-number → array of activities for the displayed month
 const activeDaysInMonth = computed(() => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = today.getMonth();
     const map = new Map();
     (props.recentActivities ?? []).forEach(a => {
         const d = new Date(a.start_date);
-        if (d.getFullYear() === year && d.getMonth() === month) {
+        if (d.getFullYear() === calYear.value && d.getMonth() === calMonth.value) {
             const day = d.getDate();
             if (!map.has(day)) map.set(day, []);
             map.get(day).push(a);
@@ -200,7 +212,19 @@ const activeDaysInMonth = computed(() => {
     return map;
 });
 
-const calendarPickerDay = ref(null);   // day-number of open picker
+// Events that fall in the displayed month
+const eventsInMonth = computed(() => {
+    const map = new Map();
+    (props.events ?? []).forEach(e => {
+        const d = new Date(e.event_date);
+        if (d.getFullYear() === calYear.value && d.getMonth() === calMonth.value) {
+            map.set(d.getDate(), e);
+        }
+    });
+    return map;
+});
+
+const calendarPickerDay = ref(null);
 
 function openCalendarDay(d) {
     if (!d.hasActivity) return;
@@ -217,32 +241,39 @@ function pickCalendarActivity(activity) {
     openActivityDetail(activity);
 }
 
-// Computed: calendar grid for current month
+// Monday-first calendar grid
 const calendarDays = computed(() => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = today.getMonth();
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const daysInPrevMonth = new Date(year, month, 0).getDate();
+    const firstDow = new Date(calYear.value, calMonth.value, 1).getDay(); // 0=Sun
+    const leadingBlanks = (firstDow + 6) % 7; // Mon=0, Tue=1, ... Sun=6
+    const daysInMonth = new Date(calYear.value, calMonth.value + 1, 0).getDate();
+    const daysInPrevMonth = new Date(calYear.value, calMonth.value, 0).getDate();
+    const isCurrentMonth = calYear.value === today.getFullYear() && calMonth.value === today.getMonth();
     const days = [];
-    for (let i = firstDay - 1; i >= 0; i--) {
-        days.push({ day: daysInPrevMonth - i, currentMonth: false, isToday: false, hasActivity: false });
+
+    for (let i = leadingBlanks - 1; i >= 0; i--) {
+        days.push({ day: daysInPrevMonth - i, currentMonth: false, isToday: false, hasActivity: false, hasEvent: false });
     }
     for (let i = 1; i <= daysInMonth; i++) {
-        days.push({ day: i, currentMonth: true, isToday: i === today.getDate(), hasActivity: activeDaysInMonth.value.has(i) });
+        days.push({
+            day: i,
+            currentMonth: true,
+            isToday: isCurrentMonth && i === today.getDate(),
+            hasActivity: activeDaysInMonth.value.has(i),
+            hasEvent: eventsInMonth.value.has(i),
+            event: eventsInMonth.value.get(i) ?? null,
+        });
     }
-    const remaining = 35 - days.length;
+    const total = days.length;
+    const remaining = total <= 35 ? 35 - total : 42 - total;
     for (let i = 1; i <= remaining; i++) {
-        days.push({ day: i, currentMonth: false, isToday: false, hasActivity: false });
+        days.push({ day: i, currentMonth: false, isToday: false, hasActivity: false, hasEvent: false });
     }
     return days;
 });
 
-// Computed: current month/year label
-const currentMonthLabel = computed(() => {
-    return new Date().toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
-});
+const currentMonthLabel = computed(() =>
+    new Date(calYear.value, calMonth.value, 1).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
+);
 
 function openActivityDetail(activity) {
     selectedActivity.value = activity;
@@ -308,6 +339,14 @@ function formatSpeed(metersPerSecond) {
     const minutes = Math.floor(secondsPerKm / 60);
     const seconds = Math.round(secondsPerKm % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')} min/km`;
+}
+
+function formatPaceFromSpeed(metersPerSecond) {
+    if (!metersPerSecond || metersPerSecond <= 0) return '—';
+    const secondsPerKm = 1000 / metersPerSecond;
+    const minutes = Math.floor(secondsPerKm / 60);
+    const seconds = Math.round(secondsPerKm % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
 function round2(value) {
@@ -546,33 +585,40 @@ function deleteGoal(goalId) {
                         <!-- Unterer Teil: Letzte Aktivitäten -->
                         <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 border-t-0 rounded-b-xl p-4">
                             <div class="flex items-center justify-between mb-3">
-                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Letzte Aktivitäten</h4>
-                                <span class="text-xs text-gray-400 dark:text-slate-500">{{ new Date().toLocaleDateString('de-DE') }}</span>
+                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Letzte Läufe</h4>
+                                <a href="/activities" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition">Alle anzeigen →</a>
                             </div>
                             <div v-if="props.recentActivities.length === 0" class="text-sm text-gray-400 dark:text-slate-500 text-center py-6">
-                                Keine Aktivitäten vorhanden
+                                Noch keine Aktivitäten — Strava verbinden und synchronisieren
                             </div>
-                            <div v-else class="space-y-1">
+                            <div v-else class="space-y-1.5">
                                 <button
-                                    v-for="activity in props.recentActivities.slice(0, 3)"
+                                    v-for="activity in props.recentActivities.slice(0, 4)"
                                     :key="activity.id"
                                     @click="openActivityDetail(activity)"
-                                    class="w-full flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 text-left transition-colors group"
+                                    class="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-800 text-left transition-colors group border border-transparent hover:border-gray-100 dark:hover:border-slate-700"
                                 >
-                                    <div class="h-9 w-9 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center text-base flex-shrink-0 group-hover:bg-blue-200 dark:group-hover:bg-blue-500/30 transition-colors">
+                                    <div class="h-9 w-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/15 flex items-center justify-center text-base flex-shrink-0 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/25 transition-colors">
                                         🏃
                                     </div>
                                     <div class="flex-1 min-w-0">
-                                        <p class="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{{ activity.name }}</p>
-                                        <p class="text-xs text-gray-400 dark:text-slate-500">{{ formatDate(activity.start_date) }}</p>
+                                        <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate">{{ activity.name }}</p>
+                                        <div class="flex items-center gap-2 mt-0.5 text-xs text-gray-400 dark:text-slate-500">
+                                            <span>{{ formatDate(activity.start_date) }}</span>
+                                            <span v-if="activity.average_heartrate" class="flex items-center gap-0.5">
+                                                · ❤️ {{ Math.round(activity.average_heartrate) }} bpm
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div class="text-right flex-shrink-0">
-                                        <p class="text-sm font-bold text-blue-600 dark:text-blue-400">{{ round2(formatDistance(activity.distance)) }} km</p>
-                                        <p class="text-xs text-gray-400 dark:text-slate-500">{{ formatTime(activity.moving_time) }}</p>
+                                    <div class="text-right flex-shrink-0 space-y-0.5">
+                                        <p class="text-sm font-bold text-indigo-600 dark:text-indigo-400">{{ round2(formatDistance(activity.distance)) }} km</p>
+                                        <div class="flex items-center gap-1.5 justify-end text-xs text-gray-400 dark:text-slate-500">
+                                            <span>{{ formatTime(activity.moving_time) }}</span>
+                                            <span v-if="activity.average_speed && activity.average_speed > 0">
+                                                · {{ formatPaceFromSpeed(activity.average_speed) }}/km
+                                            </span>
+                                        </div>
                                     </div>
-                                    <span class="inline-flex items-center rounded-full bg-green-100 dark:bg-green-500/20 px-1.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-400 flex-shrink-0">
-                                        ✓
-                                    </span>
                                 </button>
                             </div>
                         </div>
@@ -601,8 +647,8 @@ function deleteGoal(goalId) {
                                 <div class="mt-1.5 h-1 w-8 rounded-full bg-blue-500 mx-auto"></div>
                             </div>
                             <div>
-                                <p class="text-2xl font-bold text-gray-900">{{ props.goals.length }}</p>
-                                <p class="text-xs text-gray-500 mt-0.5">Ziele</p>
+                                <p class="text-2xl font-bold text-gray-900">{{ props.events.length }}</p>
+                                <p class="text-xs text-gray-500 mt-0.5">Events</p>
                                 <div class="mt-1.5 h-1 w-8 rounded-full bg-orange-500 mx-auto"></div>
                             </div>
                         </div>
@@ -639,34 +685,39 @@ function deleteGoal(goalId) {
                         </div>
                     </div>
 
-                    <!-- Kalender + Zieltermine -->
+                    <!-- Kalender + Events -->
                     <div class="lg:col-span-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
-                        <div class="flex items-center justify-between mb-4">
-                            <h4 class="text-sm font-semibold text-gray-800">{{ currentMonthLabel }}</h4>
-                            <button @click="showWellbeingModal = true"
-                                class="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-md px-2 py-1 transition-colors">
-                                + Wellbeing
-                            </button>
+                        <!-- Header mit Navigation -->
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-2">
+                                <button @click="prevMonth" class="h-7 w-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-700 transition text-sm">‹</button>
+                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200 min-w-[120px] text-center">{{ currentMonthLabel }}</h4>
+                                <button @click="nextMonth" class="h-7 w-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-700 transition text-sm">›</button>
+                            </div>
+                            <a href="/calendar" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition">Vollansicht →</a>
                         </div>
 
-                        <!-- Mini-Kalender -->
+                        <!-- Mini-Kalender: Woche beginnt Montag -->
                         <div class="mb-4">
-                            <div class="grid grid-cols-7 gap-0.5 text-center text-xs font-medium text-gray-400 mb-1">
-                                <div>So</div><div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div>
+                            <div class="grid grid-cols-7 gap-0.5 text-center text-xs font-medium text-gray-400 dark:text-slate-500 mb-1">
+                                <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
                             </div>
                             <div class="grid grid-cols-7 gap-0.5 text-center">
                                 <div v-for="(d, i) in calendarDays" :key="i"
                                     class="relative flex flex-col items-center justify-center h-7 w-7 mx-auto rounded-full text-xs transition-colors"
                                     :class="{
-                                        'bg-indigo-600 text-white font-bold shadow-sm': d.isToday,
-                                        'text-gray-300': !d.currentMonth,
-                                        'text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700': d.currentMonth && !d.isToday,
-                                        'cursor-pointer': d.hasActivity,
-                                        'cursor-default': !d.hasActivity,
+                                        'bg-indigo-600 text-white font-bold shadow-sm': d.isToday && !d.hasEvent,
+                                        'bg-orange-500 text-white font-bold shadow-sm': d.hasEvent,
+                                        'text-gray-300 dark:text-slate-600': !d.currentMonth,
+                                        'text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700': d.currentMonth && !d.isToday && !d.hasEvent,
+                                        'cursor-pointer': d.hasActivity || d.hasEvent,
+                                        'cursor-default': !d.hasActivity && !d.hasEvent,
                                     }"
+                                    :title="d.hasEvent ? d.event.name : ''"
                                     @click="openCalendarDay(d)">
                                     {{ d.day }}
-                                    <span v-if="d.hasActivity && !d.isToday"
+                                    <!-- Aktivitäts-Dot -->
+                                    <span v-if="d.hasActivity && !d.isToday && !d.hasEvent"
                                         class="absolute bottom-0.5 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-indigo-500">
                                     </span>
                                     <span v-if="d.hasActivity && d.isToday"
@@ -693,23 +744,51 @@ function deleteGoal(goalId) {
                             </div>
                         </div>
 
-                        <!-- Nächste Zieltermine -->
+                        <!-- Nächste Events -->
                         <div>
-                            <h5 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Nächste Ziele</h5>
-                            <div v-if="props.goals.length === 0" class="text-sm text-gray-400">
-                                Keine Ziele vorhanden
+                            <div class="flex items-center justify-between mb-2">
+                                <h5 class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Nächste Events</h5>
+                                <a href="/events" class="text-xs text-indigo-500 hover:text-indigo-700 transition">+ Hinzufügen</a>
+                            </div>
+                            <div v-if="props.events.length === 0" class="text-sm text-gray-400 dark:text-slate-500">
+                                Kein Event geplant
                             </div>
                             <div v-else class="space-y-2">
-                                <div v-for="goal in props.goals.slice(0, 3)" :key="goal.id"
-                                    class="flex items-center justify-between rounded-lg bg-gray-50 dark:bg-slate-800 p-2.5 border border-gray-100 dark:border-slate-700">
-                                    <div>
-                                        <p class="text-xs font-semibold text-gray-800 dark:text-slate-200">{{ goal.name }}</p>
-                                        <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">bis {{ formatDateShort(goal.end_date) }}</p>
+                                <a v-for="event in props.events.slice(0, 3)" :key="event.id"
+                                    :href="`/events`"
+                                    class="flex items-center gap-3 rounded-xl bg-gray-50 dark:bg-slate-800 p-2.5 border border-gray-100 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-500/40 transition-colors group">
+                                    <!-- Priority + Phase badge -->
+                                    <div class="flex-shrink-0 text-center">
+                                        <div class="h-9 w-9 rounded-lg flex items-center justify-center font-black text-sm"
+                                            :class="{
+                                                'bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400': event.priority === 'A',
+                                                'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-600 dark:text-yellow-400': event.priority === 'B',
+                                                'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400': event.priority === 'C',
+                                            }">
+                                            {{ event.priority }}
+                                        </div>
                                     </div>
-                                    <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/15 rounded-md px-2 py-0.5">
-                                        {{ goal.target_value }} {{ goal.unit }}
-                                    </span>
-                                </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-xs font-semibold text-gray-800 dark:text-slate-200 truncate">{{ event.name }}</p>
+                                        <div class="flex items-center gap-1.5 mt-0.5">
+                                            <span class="text-xs text-gray-400 dark:text-slate-500">{{ new Date(event.event_date).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' }) }}</span>
+                                            <span class="text-xs px-1.5 py-0.5 rounded-md font-medium"
+                                                :class="{
+                                                    'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400': event.training_phase.key === 'race_week',
+                                                    'bg-yellow-50 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400': event.training_phase.key === 'taper',
+                                                    'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400': event.training_phase.key === 'peak',
+                                                    'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400': event.training_phase.key === 'build',
+                                                    'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400': event.training_phase.key === 'base',
+                                                }">
+                                                {{ event.training_phase.label }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="text-right flex-shrink-0">
+                                        <p class="text-xs font-bold text-indigo-600 dark:text-indigo-400">{{ event.days_until }}d</p>
+                                        <p class="text-xs text-gray-400 dark:text-slate-500">{{ event.distance_label }}</p>
+                                    </div>
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -730,11 +809,11 @@ function deleteGoal(goalId) {
                         <div class="h-10 w-10 rounded-xl bg-orange-100 dark:bg-orange-500/20 flex items-center justify-center text-xl group-hover:bg-orange-200 dark:group-hover:bg-orange-500/30 transition-colors flex-shrink-0">🔗</div>
                         <span class="text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-200 leading-tight">Strava verbinden</span>
                     </a>
-                    <button @click="document.getElementById('goal-form-section').scrollIntoView({behavior:'smooth'})"
+                    <a href="/events"
                         class="flex items-center gap-2.5 rounded-xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm p-3 sm:p-4 hover:shadow-md hover:border-green-200 dark:hover:border-green-500/40 transition-all group">
                         <div class="h-10 w-10 rounded-xl bg-green-100 dark:bg-green-500/20 flex items-center justify-center text-xl group-hover:bg-green-200 dark:group-hover:bg-green-500/30 transition-colors flex-shrink-0">🎯</div>
-                        <span class="text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-200 leading-tight">Ziel hinzufügen</span>
-                    </button>
+                        <span class="text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-200 leading-tight">Event planen</span>
+                    </a>
                     <button @click="showWellbeingModal = true"
                         class="flex items-center gap-2.5 rounded-xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm p-3 sm:p-4 hover:shadow-md hover:border-purple-200 dark:hover:border-purple-500/40 transition-all group">
                         <div class="h-10 w-10 rounded-xl bg-purple-100 dark:bg-purple-500/20 flex items-center justify-center text-xl group-hover:bg-purple-200 dark:group-hover:bg-purple-500/30 transition-colors flex-shrink-0">💪</div>

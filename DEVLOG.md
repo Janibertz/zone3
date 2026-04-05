@@ -2,6 +2,18 @@
 
 ## Abgeschlossen
 
+### 2026-04-05 — Ziele/Goals → Events gemergt + Kalender-Seite
+
+- **Event-Model** — `training_phase` Accessor: berechnet automatisch Base/Build/Peak/Taper/Race Week anhand Wochen bis Event; `weeks_until` Accessor
+- **Onboarding `saveGoal`** — speichert direkt als Event (Priorität A) statt als altes Goal
+- **Dashboard Backend** — übergibt `events` statt `goals`; lädt die nächsten Events mit Training Phase
+- **Dashboard Kalender** — Woche beginnt jetzt Montag (Mo–So); Monatsnavigation (‹ ›); Events werden orange im Kalender markiert; Tooltip mit Event-Name; Link zur Vollansicht
+- **Dashboard Aktivitäten** — bessere Darstellung mit Pace (min/km), Herzfrequenz, "Alle anzeigen →" Link; `formatPaceFromSpeed()` Funktion ergänzt
+- **Dashboard Events** — "Nächste Ziele" ersetzt durch "Nächste Events" mit Priority-Badge, Training-Phase-Badge und Countdown
+- **Quick-Actions** — "Ziel hinzufügen" → "Event planen" (Link zu /events)
+- **Kalender-Seite** `/calendar` — Vollansicht mit Monatsnavigation, Monday-first Grid, Aktivitäten und Events je Tag, Sidebar-Panel mit Details, Trainingsphase-Legende, mobile Detail-Panel
+- **Navigation** — "Kalender" Menüpunkt ergänzt (Desktop + Mobile)
+
 ### 2026-04-05 — Event-System + KI-Trainingsplan
 - **Migration** `events`-Tabelle: Name, Datum, Renndistanz, Priorität (A/B/C), Zielzeit, Notizen
 - **Migration** `training_plans`-Tabelle: 10 Tages-Sessions als JSON + Kontext-Snapshot

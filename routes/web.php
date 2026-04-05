@@ -13,6 +13,7 @@ use App\Http\Controllers\StatisticsController;
 use App\Http\Controllers\StravaController;
 use App\Http\Controllers\WellbeingController;
 use App\Models\Activity;
+use App\Models\Event;
 use App\Services\ProgressService;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -41,21 +42,24 @@ Route::middleware('auth')->group(function () {
 Route::get('/dashboard', function (ProgressService $progressService) {
     $user = auth()->user();
 
-    $goalsWithProgress = $user->goals()->get()->map(function ($goal) use ($progressService) {
-        return [
-            'id' => $goal->id,
-            'name' => $goal->name,
-            'type' => $goal->type,
-            'target_value' => $goal->target_value,
-            'unit' => $goal->unit,
-            'target_time_hours' => $goal->target_time_hours,
-            'target_time_minutes' => $goal->target_time_minutes,
-            'start_date' => $goal->start_date,
-            'end_date' => $goal->end_date,
-            'active' => $goal->active,
-            'progress' => $progressService->calculateProgress($goal),
-        ];
-    });
+    $upcomingEvents = $user->events()
+        ->where('event_date', '>=', now()->toDateString())
+        ->orderBy('event_date')
+        ->get()
+        ->map(fn($e) => [
+            'id'                  => $e->id,
+            'name'                => $e->name,
+            'event_date'          => $e->event_date->format('Y-m-d'),
+            'race_distance'       => $e->race_distance,
+            'distance_label'      => $e->distance_label,
+            'priority'            => $e->priority,
+            'target_time_hours'   => $e->target_time_hours,
+            'target_time_minutes' => $e->target_time_minutes,
+            'target_time_formatted' => $e->target_time_formatted,
+            'days_until'          => $e->days_until,
+            'weeks_until'         => $e->weeks_until,
+            'training_phase'      => $e->training_phase,
+        ]);
 
     $runnerProfile = $user->runnerProfile;
     $thresholdPaceFormatted = null;
@@ -106,8 +110,8 @@ Route::get('/dashboard', function (ProgressService $progressService) {
             'username' => $user->stravaAccount->username,
             'last_synced_at' => $user->stravaAccount->last_synced_at,
         ] : null,
-        'goals' => $goalsWithProgress,
-        'recentActivities' => Activity::where('user_id', $user->id)->orderByDesc('start_date')->limit(10)->get(),
+        'events' => $upcomingEvents,
+        'recentActivities' => Activity::where('user_id', $user->id)->orderByDesc('start_date')->limit(20)->get(),
         'suggestions' => $progressService->generateTrainingSuggestions($user),
         'thresholdPace' => $thresholdPaceFormatted,
         'thresholdPaceCalculatedAt' => $runnerProfile?->threshold_pace_calculated_at?->format('d.m.Y H:i'),
@@ -132,6 +136,25 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
 
     Route::get('/activities', [ActivityController::class, 'index'])->name('activities.index');
     Route::get('/statistics', [StatisticsController::class, 'index'])->name('statistics.index');
+    Route::get('/calendar', function () {
+        $user = auth()->user();
+        return Inertia::render('Calendar', [
+            'activities' => Activity::where('user_id', $user->id)->orderByDesc('start_date')->get(),
+            'events'     => $user->events()->orderBy('event_date')->get()->map(fn($e) => [
+                'id'                    => $e->id,
+                'name'                  => $e->name,
+                'event_date'            => $e->event_date->format('Y-m-d'),
+                'race_distance'         => $e->race_distance,
+                'distance_label'        => $e->distance_label,
+                'priority'              => $e->priority,
+                'target_time_hours'     => $e->target_time_hours,
+                'target_time_minutes'   => $e->target_time_minutes,
+                'target_time_formatted' => $e->target_time_formatted,
+                'days_until'            => $e->days_until,
+                'training_phase'        => $e->training_phase,
+            ]),
+        ]);
+    })->name('calendar');
 
     Route::get('/goals', [GoalController::class, 'index'])->name('goals.index');
     Route::post('/goals', [GoalController::class, 'store'])->name('goals.store');

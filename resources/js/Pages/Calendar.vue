@@ -1,0 +1,335 @@
+<script setup>
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { Head, Link } from '@inertiajs/vue3';
+import { ref, computed } from 'vue';
+
+const props = defineProps({
+    activities: { type: Array, default: () => [] },
+    events:     { type: Array, default: () => [] },
+});
+
+// --- State ---
+const today      = new Date();
+const calYear    = ref(today.getFullYear());
+const calMonth   = ref(today.getMonth());
+const selected   = ref(null); // { type: 'activity'|'event', data }
+
+// --- Navigation ---
+function prevMonth() {
+    if (calMonth.value === 0) { calMonth.value = 11; calYear.value--; }
+    else calMonth.value--;
+    selected.value = null;
+}
+function nextMonth() {
+    if (calMonth.value === 11) { calMonth.value = 0; calYear.value++; }
+    else calMonth.value++;
+    selected.value = null;
+}
+function goToday() {
+    calYear.value  = today.getFullYear();
+    calMonth.value = today.getMonth();
+    selected.value = null;
+}
+
+const monthLabel = computed(() =>
+    new Date(calYear.value, calMonth.value, 1)
+        .toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
+);
+
+// --- Data maps for current month ---
+const activityMap = computed(() => {
+    const map = new Map();
+    props.activities.forEach(a => {
+        const d = new Date(a.start_date);
+        if (d.getFullYear() === calYear.value && d.getMonth() === calMonth.value) {
+            const day = d.getDate();
+            if (!map.has(day)) map.set(day, []);
+            map.get(day).push(a);
+        }
+    });
+    return map;
+});
+
+const eventMap = computed(() => {
+    const map = new Map();
+    props.events.forEach(e => {
+        const d = new Date(e.event_date);
+        if (d.getFullYear() === calYear.value && d.getMonth() === calMonth.value) {
+            map.set(d.getDate(), e);
+        }
+    });
+    return map;
+});
+
+// --- Calendar grid (Monday-first) ---
+const calendarWeeks = computed(() => {
+    const firstDow      = new Date(calYear.value, calMonth.value, 1).getDay();
+    const leadingBlanks = (firstDow + 6) % 7;
+    const daysInMonth   = new Date(calYear.value, calMonth.value + 1, 0).getDate();
+    const daysInPrev    = new Date(calYear.value, calMonth.value, 0).getDate();
+    const isCurrentMon  = calYear.value === today.getFullYear() && calMonth.value === today.getMonth();
+
+    const days = [];
+    for (let i = leadingBlanks - 1; i >= 0; i--) {
+        days.push({ day: daysInPrev - i, currentMonth: false, isToday: false, activities: [], event: null });
+    }
+    for (let i = 1; i <= daysInMonth; i++) {
+        days.push({
+            day: i,
+            currentMonth: true,
+            isToday: isCurrentMon && i === today.getDate(),
+            activities: activityMap.value.get(i) ?? [],
+            event: eventMap.value.get(i) ?? null,
+        });
+    }
+    const total     = days.length;
+    const remaining = total % 7 === 0 ? 0 : 7 - (total % 7);
+    for (let i = 1; i <= remaining; i++) {
+        days.push({ day: i, currentMonth: false, isToday: false, activities: [], event: null });
+    }
+
+    // Split into weeks
+    const weeks = [];
+    for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
+    return weeks;
+});
+
+// --- Helpers ---
+function formatDistance(m) {
+    return m ? (m / 1000).toFixed(1) : '0';
+}
+function formatTime(s) {
+    if (!s) return '—';
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+function formatPace(mps) {
+    if (!mps || mps <= 0) return '—';
+    const spk = 1000 / mps;
+    return `${Math.floor(spk / 60)}:${String(Math.round(spk % 60)).padStart(2, '0')}`;
+}
+function phaseColor(key) {
+    return {
+        race_week: 'bg-red-500',
+        taper:     'bg-yellow-500',
+        peak:      'bg-orange-500',
+        build:     'bg-blue-500',
+        base:      'bg-green-500',
+    }[key] ?? 'bg-gray-400';
+}
+function priorityColor(p) {
+    return { A: 'bg-red-500', B: 'bg-yellow-500', C: 'bg-gray-400' }[p] ?? 'bg-gray-400';
+}
+
+function selectDay(d) {
+    if (!d.currentMonth) return;
+    if (d.activities.length === 0 && !d.event) return;
+    selected.value = { day: d.day, activities: d.activities, event: d.event };
+}
+</script>
+
+<template>
+    <Head title="Kalender – Zone3" />
+    <AuthenticatedLayout>
+        <div class="min-h-screen bg-gray-50 dark:bg-slate-950 px-4 py-6 lg:px-8">
+
+            <!-- Header -->
+            <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <h1 class="text-2xl font-black text-gray-900 dark:text-white">Kalender</h1>
+                    <p class="text-sm text-gray-500 dark:text-slate-400 mt-0.5">Trainingsübersicht & Events</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button @click="prevMonth"
+                        class="h-9 w-9 rounded-xl flex items-center justify-center bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-500 hover:text-gray-800 dark:hover:text-white hover:border-gray-300 transition">
+                        ‹
+                    </button>
+                    <button @click="goToday"
+                        class="px-4 h-9 rounded-xl text-sm font-semibold bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-200 hover:border-indigo-300 transition min-w-[140px] text-center">
+                        {{ monthLabel }}
+                    </button>
+                    <button @click="nextMonth"
+                        class="h-9 w-9 rounded-xl flex items-center justify-center bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-500 hover:text-gray-800 dark:hover:text-white hover:border-gray-300 transition">
+                        ›
+                    </button>
+                    <button @click="goToday"
+                        class="px-4 h-9 rounded-xl text-sm font-semibold bg-indigo-500 hover:bg-indigo-400 text-white transition">
+                        Heute
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex gap-6 items-start">
+
+                <!-- Kalender Grid -->
+                <div class="flex-1 bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 overflow-hidden shadow-sm">
+                    <!-- Wochentage Header -->
+                    <div class="grid grid-cols-7 border-b border-gray-100 dark:border-slate-800">
+                        <div v-for="day in ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']" :key="day"
+                            class="py-3 text-center text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">
+                            {{ day }}
+                        </div>
+                    </div>
+
+                    <!-- Wochen -->
+                    <div>
+                        <div v-for="(week, wi) in calendarWeeks" :key="wi"
+                            class="grid grid-cols-7"
+                            :class="wi < calendarWeeks.length - 1 ? 'border-b border-gray-100 dark:border-slate-800' : ''">
+
+                            <div v-for="(d, di) in week" :key="di"
+                                class="min-h-[90px] sm:min-h-[110px] p-1.5 sm:p-2 border-r border-gray-100 dark:border-slate-800 last:border-r-0 transition-colors"
+                                :class="{
+                                    'bg-indigo-50/50 dark:bg-indigo-500/5': d.isToday,
+                                    'opacity-40': !d.currentMonth,
+                                    'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/50': d.currentMonth && (d.activities.length > 0 || d.event),
+                                }"
+                                @click="selectDay(d)">
+
+                                <!-- Tag Zahl -->
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full"
+                                        :class="{
+                                            'bg-indigo-600 text-white': d.isToday,
+                                            'text-gray-400 dark:text-slate-500': !d.currentMonth,
+                                            'text-gray-700 dark:text-slate-300': d.currentMonth && !d.isToday,
+                                        }">
+                                        {{ d.day }}
+                                    </span>
+                                    <!-- Event Marker -->
+                                    <span v-if="d.event"
+                                        class="text-xs px-1.5 py-0.5 rounded-md font-bold text-white leading-none"
+                                        :class="priorityColor(d.event.priority)">
+                                        {{ d.event.priority }}
+                                    </span>
+                                </div>
+
+                                <!-- Event Label -->
+                                <div v-if="d.event"
+                                    class="mb-1 px-1.5 py-1 rounded-lg text-xs font-semibold text-white truncate"
+                                    :class="phaseColor(d.event.training_phase?.key)">
+                                    🏁 {{ d.event.name }}
+                                </div>
+
+                                <!-- Aktivitäten -->
+                                <div v-for="act in d.activities.slice(0, 2)" :key="act.id"
+                                    class="px-1.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 mb-0.5 truncate">
+                                    <p class="text-xs font-semibold text-indigo-700 dark:text-indigo-300 truncate">🏃 {{ formatDistance(act.distance) }} km</p>
+                                    <p class="text-xs text-indigo-500 dark:text-indigo-400">{{ formatTime(act.moving_time) }} · {{ formatPace(act.average_speed) }}/km</p>
+                                </div>
+                                <div v-if="d.activities.length > 2"
+                                    class="px-1.5 text-xs text-gray-400 dark:text-slate-500">
+                                    +{{ d.activities.length - 2 }} weitere
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sidebar Detail Panel -->
+                <div class="hidden lg:block w-72 flex-shrink-0">
+                    <div v-if="!selected" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-5 text-center shadow-sm">
+                        <div class="text-3xl mb-3">📅</div>
+                        <p class="text-sm font-semibold text-gray-700 dark:text-slate-200">Tag auswählen</p>
+                        <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">Klicke auf einen Tag mit Aktivitäten oder Events</p>
+                    </div>
+
+                    <div v-else class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                        <!-- Event -->
+                        <div v-if="selected.event" class="p-4 border-b border-gray-100 dark:border-slate-800">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-xs px-2 py-0.5 rounded-md font-bold text-white" :class="priorityColor(selected.event.priority)">
+                                    Priorität {{ selected.event.priority }}
+                                </span>
+                                <span class="text-xs px-2 py-0.5 rounded-md font-semibold"
+                                    :class="{
+                                        'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400': selected.event.training_phase?.key === 'race_week',
+                                        'bg-yellow-50 text-yellow-600 dark:bg-yellow-500/10 dark:text-yellow-400': selected.event.training_phase?.key === 'taper',
+                                        'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400': selected.event.training_phase?.key === 'peak',
+                                        'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400': selected.event.training_phase?.key === 'build',
+                                        'bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400': selected.event.training_phase?.key === 'base',
+                                    }">
+                                    {{ selected.event.training_phase?.label }}
+                                </span>
+                            </div>
+                            <h3 class="font-bold text-gray-900 dark:text-white">🏁 {{ selected.event.name }}</h3>
+                            <p class="text-sm text-gray-500 dark:text-slate-400 mt-1">{{ selected.event.distance_label }}</p>
+                            <p v-if="selected.event.target_time_formatted" class="text-sm text-indigo-600 dark:text-indigo-400 font-semibold mt-1">
+                                Ziel: {{ selected.event.target_time_formatted }}
+                            </p>
+                            <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">Noch {{ selected.event.days_until }} Tage</p>
+                        </div>
+
+                        <!-- Aktivitäten -->
+                        <div class="p-4">
+                            <div v-if="selected.activities.length === 0" class="text-sm text-gray-400 dark:text-slate-500 text-center py-4">
+                                Keine Aktivitäten an diesem Tag
+                            </div>
+                            <div v-for="act in selected.activities" :key="act.id" class="mb-4 last:mb-0">
+                                <h4 class="font-semibold text-gray-900 dark:text-white text-sm mb-2">🏃 {{ act.name }}</h4>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="bg-blue-50 dark:bg-blue-500/10 rounded-xl p-2.5 text-center">
+                                        <p class="text-lg font-black text-blue-700 dark:text-blue-300">{{ formatDistance(act.distance) }}</p>
+                                        <p class="text-xs text-blue-500 dark:text-blue-400">km</p>
+                                    </div>
+                                    <div class="bg-green-50 dark:bg-green-500/10 rounded-xl p-2.5 text-center">
+                                        <p class="text-lg font-black text-green-700 dark:text-green-300">{{ formatTime(act.moving_time) }}</p>
+                                        <p class="text-xs text-green-500 dark:text-green-400">Zeit</p>
+                                    </div>
+                                    <div class="bg-purple-50 dark:bg-purple-500/10 rounded-xl p-2.5 text-center">
+                                        <p class="text-lg font-black text-purple-700 dark:text-purple-300">{{ formatPace(act.average_speed) }}</p>
+                                        <p class="text-xs text-purple-500 dark:text-purple-400">min/km</p>
+                                    </div>
+                                    <div v-if="act.average_heartrate" class="bg-red-50 dark:bg-red-500/10 rounded-xl p-2.5 text-center">
+                                        <p class="text-lg font-black text-red-700 dark:text-red-300">{{ Math.round(act.average_heartrate) }}</p>
+                                        <p class="text-xs text-red-500 dark:text-red-400">bpm</p>
+                                    </div>
+                                    <div v-if="act.total_elevation_gain" class="bg-orange-50 dark:bg-orange-500/10 rounded-xl p-2.5 text-center">
+                                        <p class="text-lg font-black text-orange-700 dark:text-orange-300">{{ Math.round(act.total_elevation_gain) }}</p>
+                                        <p class="text-xs text-orange-500 dark:text-orange-400">m Höhe</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Legende -->
+                    <div class="mt-4 bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 shadow-sm">
+                        <h5 class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-3">Trainingsphasen</h5>
+                        <div class="space-y-1.5">
+                            <div v-for="phase in [
+                                { key: 'base', label: 'Base (>16 Wo.)', color: 'bg-green-500' },
+                                { key: 'build', label: 'Build (12–16 Wo.)', color: 'bg-blue-500' },
+                                { key: 'peak', label: 'Peak (8–10 Wo.)', color: 'bg-orange-500' },
+                                { key: 'taper', label: 'Taper (2–4 Wo.)', color: 'bg-yellow-500' },
+                                { key: 'race_week', label: 'Race Week (<2 Wo.)', color: 'bg-red-500' },
+                            ]" :key="phase.key" class="flex items-center gap-2">
+                                <div class="h-2.5 w-2.5 rounded-full flex-shrink-0" :class="phase.color"></div>
+                                <span class="text-xs text-gray-600 dark:text-slate-400">{{ phase.label }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mobile: selected day detail -->
+            <div v-if="selected" class="mt-4 lg:hidden bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 shadow-sm">
+                <div v-if="selected.event" class="mb-3 pb-3 border-b border-gray-100 dark:border-slate-800">
+                    <p class="font-bold text-gray-900 dark:text-white">🏁 {{ selected.event.name }}</p>
+                    <p class="text-sm text-gray-500 dark:text-slate-400">{{ selected.event.distance_label }} · Noch {{ selected.event.days_until }} Tage</p>
+                </div>
+                <div v-for="act in selected.activities" :key="act.id" class="flex items-center gap-4">
+                    <div class="flex-1">
+                        <p class="font-semibold text-gray-900 dark:text-white text-sm">🏃 {{ act.name }}</p>
+                    </div>
+                    <div class="text-right text-sm">
+                        <p class="font-bold text-indigo-600 dark:text-indigo-400">{{ formatDistance(act.distance) }} km</p>
+                        <p class="text-gray-400 dark:text-slate-500">{{ formatTime(act.moving_time) }} · {{ formatPace(act.average_speed) }}/km</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </AuthenticatedLayout>
+</template>
