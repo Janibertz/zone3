@@ -104,110 +104,120 @@ class TrainingPlanController extends Controller
         }
 
         // ── Call AI ──────────────────────────────────────────────────────────
-        $aiSessions = $openAI->generateEventTrainingPlan($event, $profileData, $recentActivities, $wellbeingData);
+        try {
+            $aiSessions = $openAI->generateEventTrainingPlan($event, $profileData, $recentActivities, $wellbeingData);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'OpenAI-Fehler: ' . $e->getMessage()], 500);
+        }
 
         if (! $aiSessions) {
             return response()->json(['error' => 'Plan konnte nicht erstellt werden. Bitte versuche es erneut.'], 500);
         }
 
-        // ── One-active-plan rule: deactivate all other plans ─────────────────
-        TrainingPlan::where('user_id', $user->id)->update(['is_active' => false]);
+        try {
+            // ── One-active-plan rule: deactivate all other plans ─────────────
+            TrainingPlan::where('user_id', $user->id)->update(['is_active' => false]);
 
-        // ── Delete planned sessions of old plans for this event ──────────────
-        $oldPlanIds = TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->pluck('id');
-        TrainingSession::whereIn('training_plan_id', $oldPlanIds)->where('status', 'planned')->delete();
-        TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->delete();
+            // ── Delete planned sessions of old plans for this event ──────────
+            $oldPlanIds = TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->pluck('id');
+            TrainingSession::whereIn('training_plan_id', $oldPlanIds)->where('status', 'planned')->delete();
+            TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->delete();
 
-        // ── Create new plan ──────────────────────────────────────────────────
-        $plan = TrainingPlan::create([
-            'user_id'           => $user->id,
-            'event_id'          => $event->id,
-            'is_active'         => true,
-            'needs_plan_update' => false,
-            'sessions'          => $aiSessions,
-            'context'           => [
-                'activities_used'    => count($recentActivities),
-                'wellbeing_entries'  => count($wellbeingData),
-                'has_runner_profile' => (bool) $profileData,
-                'days_until_event'   => $event->days_until,
-            ],
-        ]);
-
-        // ── Create individual TrainingSession records ────────────────────────
-        $sessions = [];
-        foreach ($aiSessions as $i => $s) {
-            $ts = TrainingSession::create([
-                'user_id'          => $user->id,
-                'training_plan_id' => $plan->id,
-                'event_id'         => $event->id,
-                'planned_date'     => $s['date'],
-                'type'             => $s['type'] ?? 'easy_run',
-                'title'            => $s['title'] ?? '',
-                'description'      => $s['description'] ?? '',
-                'distance_km'      => ($s['distance_km'] ?? 0) ?: null,
-                'duration_min'     => ($s['duration_min'] ?? 0) ?: null,
-                'pace_target'      => ($s['pace_target'] === 'null' || empty($s['pace_target'])) ? null : $s['pace_target'],
-                'zone'             => $s['zone'] ?? null,
-                'intensity'        => $s['intensity'] ?? 'low',
-                'status'           => 'planned',
-                'sort_order'       => $i,
+            // ── Create new plan (without needs_plan_update — rely on DB default) ──
+            $plan = TrainingPlan::create([
+                'user_id'  => $user->id,
+                'event_id' => $event->id,
+                'sessions' => $aiSessions,
+                'context'  => [
+                    'activities_used'    => count($recentActivities),
+                    'wellbeing_entries'  => count($wellbeingData),
+                    'has_runner_profile' => (bool) $profileData,
+                    'days_until_event'   => $event->days_until,
+                ],
             ]);
-            $sessions[] = $this->formatSession($ts);
-        }
 
-        // ── Retroactively match Strava runs to the new plan sessions ────────
-        // Covers all runs in the plan window, regardless of session type (rest days included).
-        $planDates = collect($aiSessions)->pluck('date');
-        $planStart = $planDates->min();
-        $planEnd   = $planDates->max();
+            // Set is_active via direct update (not in $fillable)
+            \Illuminate\Support\Facades\DB::table('training_plans')
+                ->where('id', $plan->id)
+                ->update(['is_active' => true, 'needs_plan_update' => false]);
 
-        $recentRuns = $user->activities()
-            ->where('type', 'Run')
-            ->whereDate('start_date', '>=', $planStart)
-            ->whereDate('start_date', '<=', $planEnd)
-            ->get();
+            // ── Create individual TrainingSession records ────────────────────
+            foreach ($aiSessions as $i => $s) {
+                TrainingSession::create([
+                    'user_id'          => $user->id,
+                    'training_plan_id' => $plan->id,
+                    'event_id'         => $event->id,
+                    'planned_date'     => $s['date'],
+                    'type'             => $s['type'] ?? 'easy_run',
+                    'title'            => $s['title'] ?? '',
+                    'description'      => $s['description'] ?? '',
+                    'distance_km'      => ($s['distance_km'] ?? 0) ?: null,
+                    'duration_min'     => ($s['duration_min'] ?? 0) ?: null,
+                    'pace_target'      => ($s['pace_target'] === 'null' || empty($s['pace_target'])) ? null : $s['pace_target'],
+                    'zone'             => $s['zone'] ?? null,
+                    'intensity'        => $s['intensity'] ?? 'low',
+                    'status'           => 'planned',
+                    'sort_order'       => $i,
+                ]);
+            }
 
-        foreach ($recentRuns as $run) {
-            $date = $run->start_date->toDateString();
+            // ── Retroactively match Strava runs in plan window ───────────────
+            $planDates = collect($aiSessions)->pluck('date');
+            $planStart = $planDates->min();
+            $planEnd   = $planDates->max();
 
-            // Find non-rest planned session on this date
-            $matchedSession = TrainingSession::where('training_plan_id', $plan->id)
-                ->where('planned_date', $date)
-                ->where('type', '!=', 'rest')
-                ->where('status', 'planned')
-                ->first();
+            if ($planStart && $planEnd) {
+                $recentRuns = $user->activities()
+                    ->where('type', 'Run')
+                    ->whereDate('start_date', '>=', $planStart)
+                    ->whereDate('start_date', '<=', $planEnd)
+                    ->get();
 
-            if ($matchedSession) {
-                $matchedSession->update(['status' => 'completed', 'activity_id' => $run->id]);
-            } else {
-                // Plan has a rest day or no session — add as unplanned completed entry
-                $alreadyLinked = TrainingSession::where('training_plan_id', $plan->id)
-                    ->where('activity_id', $run->id)
-                    ->exists();
+                foreach ($recentRuns as $run) {
+                    $date = $run->start_date->toDateString();
 
-                if (! $alreadyLinked) {
-                    TrainingSession::create([
-                        'user_id'          => $user->id,
-                        'training_plan_id' => $plan->id,
-                        'event_id'         => $plan->event_id,
-                        'activity_id'      => $run->id,
-                        'planned_date'     => $date,
-                        'type'             => 'easy_run',
-                        'title'            => 'Ungeplante Einheit',
-                        'description'      => $run->name,
-                        'distance_km'      => $run->distance > 0 ? round($run->distance / 1000, 2) : null,
-                        'duration_min'     => $run->moving_time > 0 ? (int) round($run->moving_time / 60) : null,
-                        'pace_target'      => $this->paceFromSpeed($run->average_speed),
-                        'zone'             => null,
-                        'intensity'        => 'medium',
-                        'status'           => 'completed',
-                        'sort_order'       => 999,
-                    ]);
+                    $matchedSession = TrainingSession::where('training_plan_id', $plan->id)
+                        ->where('planned_date', $date)
+                        ->where('type', '!=', 'rest')
+                        ->where('status', 'planned')
+                        ->first();
+
+                    if ($matchedSession) {
+                        $matchedSession->update(['status' => 'completed', 'activity_id' => $run->id]);
+                    } else {
+                        $alreadyLinked = TrainingSession::where('training_plan_id', $plan->id)
+                            ->where('activity_id', $run->id)
+                            ->exists();
+
+                        if (! $alreadyLinked) {
+                            TrainingSession::create([
+                                'user_id'          => $user->id,
+                                'training_plan_id' => $plan->id,
+                                'event_id'         => $plan->event_id,
+                                'activity_id'      => $run->id,
+                                'planned_date'     => $date,
+                                'type'             => 'easy_run',
+                                'title'            => 'Ungeplante Einheit',
+                                'description'      => $run->name,
+                                'distance_km'      => $run->distance > 0 ? round($run->distance / 1000, 2) : null,
+                                'duration_min'     => $run->moving_time > 0 ? (int) round($run->moving_time / 60) : null,
+                                'pace_target'      => $this->paceFromSpeed($run->average_speed),
+                                'zone'             => null,
+                                'intensity'        => 'medium',
+                                'status'           => 'completed',
+                                'sort_order'       => 999,
+                            ]);
+                        }
+                    }
                 }
             }
+
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'Datenbankfehler: ' . $e->getMessage()], 500);
         }
 
-        // Reload sessions so the response includes completed/unplanned ones
+        // ── Reload and return sessions ───────────────────────────────────────
+        $plan->refresh();
         $sessions = TrainingSession::where('training_plan_id', $plan->id)
             ->orderBy('planned_date')
             ->orderBy('sort_order')
