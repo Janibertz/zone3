@@ -150,21 +150,69 @@ class TrainingPlanController extends Controller
                 'status'           => 'planned',
                 'sort_order'       => $i,
             ]);
-
-            // Retroactively match an existing Run activity on this date
-            if ($ts->type !== 'rest') {
-                $existingActivity = $user->activities()
-                    ->where('type', 'Run')
-                    ->whereDate('start_date', $ts->planned_date)
-                    ->first();
-                if ($existingActivity) {
-                    $ts->update(['status' => 'completed', 'activity_id' => $existingActivity->id]);
-                    $ts->refresh();
-                }
-            }
-
             $sessions[] = $this->formatSession($ts);
         }
+
+        // ── Retroactively match Strava runs to the new plan sessions ────────
+        // Covers all runs in the plan window, regardless of session type (rest days included).
+        $planDates = collect($aiSessions)->pluck('date');
+        $planStart = $planDates->min();
+        $planEnd   = $planDates->max();
+
+        $recentRuns = $user->activities()
+            ->where('type', 'Run')
+            ->whereDate('start_date', '>=', $planStart)
+            ->whereDate('start_date', '<=', $planEnd)
+            ->get();
+
+        foreach ($recentRuns as $run) {
+            $date = $run->start_date->toDateString();
+
+            // Find non-rest planned session on this date
+            $matchedSession = TrainingSession::where('training_plan_id', $plan->id)
+                ->where('planned_date', $date)
+                ->where('type', '!=', 'rest')
+                ->where('status', 'planned')
+                ->first();
+
+            if ($matchedSession) {
+                $matchedSession->update(['status' => 'completed', 'activity_id' => $run->id]);
+            } else {
+                // Plan has a rest day or no session — add as unplanned completed entry
+                $alreadyLinked = TrainingSession::where('training_plan_id', $plan->id)
+                    ->where('activity_id', $run->id)
+                    ->exists();
+
+                if (! $alreadyLinked) {
+                    TrainingSession::create([
+                        'user_id'          => $user->id,
+                        'training_plan_id' => $plan->id,
+                        'event_id'         => $plan->event_id,
+                        'activity_id'      => $run->id,
+                        'planned_date'     => $date,
+                        'type'             => 'easy_run',
+                        'title'            => 'Ungeplante Einheit',
+                        'description'      => $run->name,
+                        'distance_km'      => $run->distance > 0 ? round($run->distance / 1000, 2) : null,
+                        'duration_min'     => $run->moving_time > 0 ? (int) round($run->moving_time / 60) : null,
+                        'pace_target'      => null,
+                        'zone'             => null,
+                        'intensity'        => 'medium',
+                        'status'           => 'completed',
+                        'sort_order'       => 999,
+                    ]);
+                }
+            }
+        }
+
+        // Reload sessions so the response includes completed/unplanned ones
+        $sessions = TrainingSession::where('training_plan_id', $plan->id)
+            ->orderBy('planned_date')
+            ->orderBy('sort_order')
+            ->get()
+            ->map(fn ($s) => $this->formatSession($s))
+            ->values()
+            ->toArray();
 
         return response()->json([
             'plan' => [
