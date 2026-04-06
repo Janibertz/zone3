@@ -150,6 +150,19 @@ class TrainingPlanController extends Controller
                 'status'           => 'planned',
                 'sort_order'       => $i,
             ]);
+
+            // Retroactively match an existing Run activity on this date
+            if ($ts->type !== 'rest') {
+                $existingActivity = $user->activities()
+                    ->where('type', 'Run')
+                    ->whereDate('start_date', $ts->planned_date)
+                    ->first();
+                if ($existingActivity) {
+                    $ts->update(['status' => 'completed', 'activity_id' => $existingActivity->id]);
+                    $ts->refresh();
+                }
+            }
+
             $sessions[] = $this->formatSession($ts);
         }
 

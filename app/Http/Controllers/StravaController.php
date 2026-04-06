@@ -106,8 +106,12 @@ class StravaController extends Controller
                 $newCount++;
                 if ($activity->type === 'Run') {
                     $newRunCount++;
-                    $this->matchActivityToSession($user->id, $activity);
                 }
+            }
+
+            // Always try to match runs to plan sessions (safe — duplicate-checked inside)
+            if ($activity->type === 'Run') {
+                $this->matchActivityToSession($user->id, $activity);
             }
         }
 
@@ -223,7 +227,12 @@ class StravaController extends Controller
             return;
         }
 
-        // 2. No planned session – create an unplanned completed entry in the active plan
+        // 2. No planned session – check if an unplanned entry for this activity already exists
+        if (TrainingSession::where('user_id', $userId)->where('activity_id', $activity->id)->exists()) {
+            return;
+        }
+
+        // Create an unplanned completed entry in the active plan
         $activePlan = TrainingPlan::where('user_id', $userId)
             ->where('is_active', true)
             ->latest()
