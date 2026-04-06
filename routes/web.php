@@ -138,6 +138,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/strava/connect', [StravaController::class, 'connect'])->name('strava.connect');
     Route::get('/strava/callback', [StravaController::class, 'callback'])->name('strava.callback');
     Route::post('/strava/sync', [StravaController::class, 'sync'])->name('strava.sync');
+    Route::delete('/strava/disconnect', [StravaController::class, 'disconnect'])->name('strava.disconnect');
 
     Route::get('/activities', [ActivityController::class, 'index'])->name('activities.index');
     Route::get('/statistics', [StatisticsController::class, 'index'])->name('statistics.index');

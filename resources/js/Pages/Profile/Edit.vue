@@ -6,9 +6,11 @@ import Modal from '@/Components/Modal.vue';
 import { ref, computed, nextTick } from 'vue';
 
 const props = defineProps({
-    mustVerifyEmail: Boolean,
-    status: String,
-    runnerProfile: Object,
+    mustVerifyEmail:  Boolean,
+    status:           String,
+    runnerProfile:    Object,
+    stravaConnected:  Boolean,
+    stravaAccount:    Object,
 });
 
 const page = usePage();
@@ -122,6 +124,16 @@ const closeDeleteModal = () => {
     confirmingDeletion.value = false;
     deleteForm.clearErrors();
     deleteForm.reset();
+};
+
+// ── Strava disconnect confirmation ──────────────────────────────────────────
+const confirmStravaDisconnect = ref(false);
+const stravaDisconnectForm = useForm({});
+
+const disconnectStrava = () => {
+    stravaDisconnectForm.delete(route('strava.disconnect'), {
+        onSuccess: () => { confirmStravaDisconnect.value = false; },
+    });
 };
 </script>
 
@@ -383,6 +395,72 @@ const closeDeleteModal = () => {
 
                 <!-- ══ KONTO ══ -->
                 <template v-else-if="activeTab === 'account'">
+
+                    <!-- Strava Verbindung -->
+                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 dark:border-slate-800">
+                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Strava Verbindung</h2>
+                        <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Verwalte deine Strava-Integration</p>
+                    </div>
+                    <div class="p-4 sm:p-6 border-b border-gray-100 dark:border-slate-800">
+                        <!-- Verbunden -->
+                        <div v-if="props.stravaConnected" class="flex items-start justify-between gap-4">
+                            <div class="flex items-center gap-3">
+                                <div class="h-10 w-10 rounded-xl bg-orange-100 dark:bg-orange-500/15 flex items-center justify-center text-xl flex-shrink-0">🔗</div>
+                                <div>
+                                    <p class="text-sm font-semibold text-gray-900 dark:text-white">
+                                        Verbunden als <span class="text-orange-600 dark:text-orange-400">{{ props.stravaAccount?.username }}</span>
+                                    </p>
+                                    <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                                        Zuletzt synchronisiert: {{ props.stravaAccount?.last_synced_at ?? 'Noch nie' }}
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 flex-shrink-0">
+                                <span class="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-500/15 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-400">
+                                    <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span> Aktiv
+                                </span>
+                            </div>
+                        </div>
+                        <!-- Nicht verbunden -->
+                        <div v-else class="flex items-center gap-3">
+                            <div class="h-10 w-10 rounded-xl bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-xl flex-shrink-0">🔗</div>
+                            <div>
+                                <p class="text-sm font-semibold text-gray-900 dark:text-white">Nicht verbunden</p>
+                                <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Verbinde Strava um deine Läufe zu importieren</p>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 flex flex-wrap gap-3">
+                            <Link
+                                v-if="!props.stravaConnected"
+                                href="/strava/connect"
+                                class="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 transition-colors shadow-sm"
+                            >
+                                Mit Strava verbinden
+                            </Link>
+                            <template v-else>
+                                <Link
+                                    href="/strava/connect"
+                                    class="inline-flex items-center gap-2 rounded-xl bg-gray-100 dark:bg-slate-800 px-5 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                                >
+                                    Konto wechseln
+                                </Link>
+                                <button
+                                    type="button"
+                                    @click="confirmStravaDisconnect = true"
+                                    class="inline-flex items-center gap-2 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-5 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
+                                >
+                                    Strava trennen
+                                </button>
+                            </template>
+                        </div>
+
+                        <!-- Hinweis was gelöscht wird -->
+                        <p v-if="props.stravaConnected" class="mt-3 text-xs text-gray-400 dark:text-slate-500">
+                            Beim Trennen werden die Verbindung und alle importierten Aktivitäten aus Zone3 gelöscht. Deine Strava-Daten bleiben auf Strava erhalten.
+                        </p>
+                    </div>
+
                     <!-- Onboarding reset -->
                     <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 dark:border-slate-800">
                         <h2 class="text-base font-semibold text-gray-900 dark:text-white">Onboarding wiederholen</h2>
@@ -431,6 +509,29 @@ const closeDeleteModal = () => {
 
             </div>
         </div>
+
+        <!-- Strava disconnect confirmation modal -->
+        <Modal :show="confirmStravaDisconnect" @close="confirmStravaDisconnect = false">
+            <div class="p-6 bg-white dark:bg-slate-900">
+                <h2 class="text-lg font-bold text-gray-900 dark:text-white">Strava wirklich trennen?</h2>
+                <p class="mt-2 text-sm text-gray-500 dark:text-slate-400">
+                    Die Verbindung zu Strava wird entfernt und alle importierten Aktivitäten werden aus Zone3 gelöscht.
+                    Deine Daten auf Strava bleiben unverändert.
+                </p>
+                <div class="mt-5 flex gap-3 justify-end">
+                    <button @click="confirmStravaDisconnect = false" class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
+                        Abbrechen
+                    </button>
+                    <button
+                        @click="disconnectStrava"
+                        :disabled="stravaDisconnectForm.processing"
+                        class="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                    >
+                        Ja, Strava trennen
+                    </button>
+                </div>
+            </div>
+        </Modal>
 
         <!-- Delete confirmation modal -->
         <Modal :show="confirmingDeletion" @close="closeDeleteModal">

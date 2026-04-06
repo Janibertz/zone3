@@ -18,10 +18,16 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): Response
     {
+        $user = $request->user();
         return Inertia::render('Profile/Edit', [
-            'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
-            'status' => session('status'),
-            'runnerProfile' => $request->user()->runnerProfile,
+            'mustVerifyEmail'  => $user instanceof MustVerifyEmail,
+            'status'           => session('status'),
+            'runnerProfile'    => $user->runnerProfile,
+            'stravaConnected'  => (bool) $user->stravaAccount,
+            'stravaAccount'    => $user->stravaAccount ? [
+                'username'       => $user->stravaAccount->username,
+                'last_synced_at' => $user->stravaAccount->last_synced_at,
+            ] : null,
         ]);
     }
 

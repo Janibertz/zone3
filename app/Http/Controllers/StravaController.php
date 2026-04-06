@@ -41,6 +41,20 @@ class StravaController extends Controller
     }
 
     /**
+     * Disconnect Strava — removes the account record and all imported activities.
+     */
+    public function disconnect(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        $user->stravaAccount?->delete();
+        $user->activities()->delete();
+
+        return redirect()->route('profile.edit')
+            ->with('status', 'strava-disconnected');
+    }
+
+    /**
      * Manual sync: saves activities immediately, dispatches AI job if rate limit allows.
      */
     public function sync(Request $request, StravaService $strava): RedirectResponse
