@@ -114,6 +114,10 @@ class TrainingPlanController extends Controller
             return response()->json(['error' => 'Plan konnte nicht erstellt werden. Bitte versuche es erneut.'], 500);
         }
 
+        // Strip any sessions the AI placed after the event date
+        $eventDateStr = $event->event_date->format('Y-m-d');
+        $aiSessions = array_values(array_filter($aiSessions, fn ($s) => ($s['date'] ?? '') <= $eventDateStr));
+
         try {
             // ── One-active-plan rule: deactivate all other plans ─────────────
             TrainingPlan::where('user_id', $user->id)->update(['is_active' => false]);
@@ -176,15 +180,47 @@ class TrainingPlanController extends Controller
                 foreach ($recentRuns as $run) {
                     $date = $run->start_date->toDateString();
 
-                    $matchedSession = TrainingSession::where('training_plan_id', $plan->id)
+                    // Find any planned session on this date (including rest days)
+                    $sessionOnDate = TrainingSession::where('training_plan_id', $plan->id)
                         ->where('planned_date', $date)
-                        ->where('type', '!=', 'rest')
                         ->where('status', 'planned')
                         ->first();
 
-                    if ($matchedSession) {
-                        $matchedSession->update(['status' => 'completed', 'activity_id' => $run->id]);
+                    $distKm  = $run->distance > 0 ? round($run->distance / 1000, 2) : null;
+                    $durMin  = $run->moving_time > 0 ? (int) round($run->moving_time / 60) : null;
+                    $pace    = $this->paceFromSpeed($run->average_speed);
+
+                    if ($sessionOnDate && $sessionOnDate->type !== 'rest') {
+                        // Replace planned session data with actual Strava data
+                        $sessionOnDate->update([
+                            'status'      => 'completed',
+                            'activity_id' => $run->id,
+                            'distance_km' => $distKm ?? $sessionOnDate->distance_km,
+                            'duration_min'=> $durMin ?? $sessionOnDate->duration_min,
+                            'pace_target' => $pace ?? $sessionOnDate->pace_target,
+                        ]);
+                    } elseif ($sessionOnDate && $sessionOnDate->type === 'rest') {
+                        // User ran on a planned rest day — remove rest day, add actual run
+                        $sessionOnDate->delete();
+                        TrainingSession::create([
+                            'user_id'          => $user->id,
+                            'training_plan_id' => $plan->id,
+                            'event_id'         => $plan->event_id,
+                            'activity_id'      => $run->id,
+                            'planned_date'     => $date,
+                            'type'             => 'easy_run',
+                            'title'            => 'Ungeplante Einheit',
+                            'description'      => $run->name,
+                            'distance_km'      => $distKm,
+                            'duration_min'     => $durMin,
+                            'pace_target'      => $pace,
+                            'zone'             => null,
+                            'intensity'        => 'medium',
+                            'status'           => 'completed',
+                            'sort_order'       => 0,
+                        ]);
                     } else {
+                        // No session on this date — create unplanned entry if not already linked
                         $alreadyLinked = TrainingSession::where('training_plan_id', $plan->id)
                             ->where('activity_id', $run->id)
                             ->exists();
@@ -199,9 +235,9 @@ class TrainingPlanController extends Controller
                                 'type'             => 'easy_run',
                                 'title'            => 'Ungeplante Einheit',
                                 'description'      => $run->name,
-                                'distance_km'      => $run->distance > 0 ? round($run->distance / 1000, 2) : null,
-                                'duration_min'     => $run->moving_time > 0 ? (int) round($run->moving_time / 60) : null,
-                                'pace_target'      => $this->paceFromSpeed($run->average_speed),
+                                'distance_km'      => $distKm,
+                                'duration_min'     => $durMin,
+                                'pace_target'      => $pace,
                                 'zone'             => null,
                                 'intensity'        => 'medium',
                                 'status'           => 'completed',

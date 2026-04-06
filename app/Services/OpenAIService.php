@@ -785,15 +785,19 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan f�
 
 **Planungsregeln:**
 - Starte den Plan ab heute ({$today})
+- Der letzte Tag im Plan ist IMMER der Renntag ({$eventDate}) — niemals danach
+- Plane maximal bis {$eventDate}, auch wenn das weniger als 10 Tage sind
+- Am Renntag ({$eventDate}): type="race_prep", title="{$event->name}", beschreibe das Rennen selbst
 - Passe die Intensität an den Zeitraum bis zum Rennen an: {$daysUntil} Tage
 - Bei >30 Tagen: normaler Aufbau (Volumen + Tempo)
 - Bei 10-30 Tagen: Tapering einleiten (Volumen reduzieren, Qualität halten)
 - Bei <10 Tagen: starkes Tapering, nur leichte Läufe und Ruhetage
 - Berücksichtige Wellbeing-Daten: schlechter Schlaf/hoher Stress → leichtere Einheiten
-- Exakt eine Ruhetage pro Woche (mindestens)
+- Mindestens ein Ruhetag pro Woche
 - A-Events: max. Leistungsoptimierung; C-Events: Trainingsrennen, moderate Belastung
+- WICHTIG: Plane nur Tage von heute ({$today}) bis zum Renntag ({$eventDate}). Kein Tag nach {$eventDate}.
 
-**Antworte ausschließlich mit einem JSON-Array von genau 10 Objekten:**
+**Antworte ausschließlich mit einem JSON-Array (zwischen 1 und 10 Objekte, je nach verfügbaren Tagen bis zum Rennen):**
 [
   {
     "date": "YYYY-MM-DD",

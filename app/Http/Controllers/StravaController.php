@@ -212,18 +212,49 @@ class StravaController extends Controller
     {
         $date = $activity->start_date->toDateString();
 
-        // 1. Find a planned session in the active plan on the same date
+        // 1. Find any planned session in the active plan on the same date
         $session = TrainingSession::where('user_id', $userId)
             ->where('planned_date', $date)
             ->where('status', 'planned')
             ->whereHas('trainingPlan', fn ($q) => $q->where('is_active', true))
             ->first();
 
+        $distKm = $activity->distance > 0 ? round($activity->distance / 1000, 2) : null;
+        $durMin = $activity->moving_time > 0 ? (int) round($activity->moving_time / 60) : null;
+        $pace   = $this->paceFromSpeed($activity->average_speed);
+
         if ($session) {
-            $session->update([
-                'status'      => 'completed',
-                'activity_id' => $activity->id,
-            ]);
+            if ($session->type === 'rest') {
+                // User ran on a rest day — delete rest entry, create real run entry
+                $plan = $session->trainingPlan;
+                $session->delete();
+                TrainingSession::create([
+                    'user_id'          => $userId,
+                    'training_plan_id' => $plan->id,
+                    'event_id'         => $plan->event_id,
+                    'activity_id'      => $activity->id,
+                    'planned_date'     => $date,
+                    'type'             => 'easy_run',
+                    'title'            => 'Ungeplante Einheit',
+                    'description'      => $activity->name,
+                    'distance_km'      => $distKm,
+                    'duration_min'     => $durMin,
+                    'pace_target'      => $pace,
+                    'zone'             => null,
+                    'intensity'        => 'medium',
+                    'status'           => 'completed',
+                    'sort_order'       => 0,
+                ]);
+            } else {
+                // Replace planned session data with actual Strava data
+                $session->update([
+                    'status'       => 'completed',
+                    'activity_id'  => $activity->id,
+                    'distance_km'  => $distKm ?? $session->distance_km,
+                    'duration_min' => $durMin ?? $session->duration_min,
+                    'pace_target'  => $pace ?? $session->pace_target,
+                ]);
+            }
             // Flag plan for recalculation
             $session->trainingPlan?->update(['needs_plan_update' => true]);
             return;
@@ -242,9 +273,6 @@ class StravaController extends Controller
 
         if (! $activePlan) return;
 
-        $distanceKm  = $activity->distance > 0 ? round($activity->distance / 1000, 2) : null;
-        $durationMin = $activity->moving_time > 0 ? (int) round($activity->moving_time / 60) : null;
-
         TrainingSession::create([
             'user_id'          => $userId,
             'training_plan_id' => $activePlan->id,
@@ -254,9 +282,9 @@ class StravaController extends Controller
             'type'             => 'easy_run',
             'title'            => 'Ungeplante Einheit',
             'description'      => $activity->name,
-            'distance_km'      => $distanceKm,
-            'duration_min'     => $durationMin,
-            'pace_target'      => $this->paceFromSpeed($activity->average_speed),
+            'distance_km'      => $distKm,
+            'duration_min'     => $durMin,
+            'pace_target'      => $pace,
             'zone'             => null,
             'intensity'        => 'medium',
             'status'           => 'completed',
