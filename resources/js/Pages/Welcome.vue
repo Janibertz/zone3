@@ -237,6 +237,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
                 </div>
                 <div>Dein persönlicher KI Running Coach</div>
                 <div class="flex items-center gap-4">
+                    <Link :href="route('support')" class="hover:text-white/60 transition">Support & Datenschutz</Link>
                     <Link :href="route('login')" class="hover:text-white/60 transition">Anmelden</Link>
                     <Link v-if="canRegister" :href="route('register')" class="hover:text-white/60 transition">Registrieren</Link>
                 </div>

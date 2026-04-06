@@ -30,6 +30,9 @@ Route::get('/', function () {
     ]);
 });
 
+Route::get('/support', fn() => Inertia::render('Support'))->name('support');
+Route::get('/privacy', fn() => redirect()->route('support'))->name('privacy');
+
 // ── Onboarding (auth required, no onboarding-complete check) ──────────────
 Route::middleware('auth')->group(function () {
     Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
