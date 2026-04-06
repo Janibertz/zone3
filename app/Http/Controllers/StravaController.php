@@ -6,6 +6,8 @@ use App\Jobs\CalculateThresholdPaceJob;
 use App\Models\Activity;
 use App\Models\RunnerProfile;
 use App\Models\StravaAccount;
+use App\Models\TrainingPlan;
+use App\Models\TrainingSession;
 use App\Services\StravaService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -76,7 +78,7 @@ class StravaController extends Controller
                 ->where('user_id', $user->id)
                 ->exists();
 
-            Activity::updateOrCreate(
+            $activity = Activity::updateOrCreate(
                 ['strava_id' => $activityData['id'], 'user_id' => $user->id],
                 [
                     'name'                 => $activityData['name'] ?? 'Aktivität',
@@ -102,8 +104,9 @@ class StravaController extends Controller
 
             if ($isNew) {
                 $newCount++;
-                if (($activityData['type'] ?? 'Run') === 'Run') {
+                if ($activity->type === 'Run') {
                     $newRunCount++;
+                    $this->matchActivityToSession($user->id, $activity);
                 }
             }
         }
@@ -163,7 +166,7 @@ class StravaController extends Controller
 
         $userId = $account->user_id;
 
-        Activity::updateOrCreate(
+        $activity = Activity::updateOrCreate(
             ['strava_id' => $activityData['id'], 'user_id' => $userId],
             [
                 'name'                 => $activityData['name'] ?? 'Aktivität',
@@ -187,9 +190,67 @@ class StravaController extends Controller
             ]
         );
 
-        $this->dispatchCalculationIfDue($userId, ($activityData['type'] ?? '') === 'Run' ? 1 : 0);
+        $isRun = $activity->type === 'Run';
+        $this->dispatchCalculationIfDue($userId, $isRun ? 1 : 0);
+        if ($isRun) {
+            $this->matchActivityToSession($userId, $activity);
+        }
 
         return response('OK');
+    }
+
+    /**
+     * Match a new Strava Run to a planned training session on the same day.
+     * If a planned session exists → mark it completed and link the activity.
+     * If no session exists but an active plan is present → create an "Ungeplante Einheit" as completed.
+     */
+    private function matchActivityToSession(int $userId, Activity $activity): void
+    {
+        $date = $activity->start_date->toDateString();
+
+        // 1. Find a planned session in the active plan on the same date
+        $session = TrainingSession::where('user_id', $userId)
+            ->where('planned_date', $date)
+            ->where('status', 'planned')
+            ->whereHas('trainingPlan', fn ($q) => $q->where('is_active', true))
+            ->first();
+
+        if ($session) {
+            $session->update([
+                'status'      => 'completed',
+                'activity_id' => $activity->id,
+            ]);
+            return;
+        }
+
+        // 2. No planned session – create an unplanned completed entry in the active plan
+        $activePlan = TrainingPlan::where('user_id', $userId)
+            ->where('is_active', true)
+            ->latest()
+            ->first();
+
+        if (! $activePlan) return;
+
+        $distanceKm  = $activity->distance > 0 ? round($activity->distance / 1000, 2) : null;
+        $durationMin = $activity->moving_time > 0 ? (int) round($activity->moving_time / 60) : null;
+
+        TrainingSession::create([
+            'user_id'          => $userId,
+            'training_plan_id' => $activePlan->id,
+            'event_id'         => $activePlan->event_id,
+            'activity_id'      => $activity->id,
+            'planned_date'     => $date,
+            'type'             => 'easy_run',
+            'title'            => 'Ungeplante Einheit',
+            'description'      => $activity->name,
+            'distance_km'      => $distanceKm,
+            'duration_min'     => $durationMin,
+            'pace_target'      => null,
+            'zone'             => null,
+            'intensity'        => 'medium',
+            'status'           => 'completed',
+            'sort_order'       => 999,
+        ]);
     }
 
     /**

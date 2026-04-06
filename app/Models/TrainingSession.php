@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Activity;
 
 class TrainingSession extends Model
 {
@@ -13,6 +14,7 @@ class TrainingSession extends Model
         'user_id',
         'training_plan_id',
         'event_id',
+        'activity_id',
         'planned_date',
         'type',
         'title',
@@ -37,4 +39,5 @@ class TrainingSession extends Model
     public function user()        { return $this->belongsTo(User::class); }
     public function trainingPlan(){ return $this->belongsTo(TrainingPlan::class); }
     public function event()       { return $this->belongsTo(Event::class); }
+    public function activity()    { return $this->belongsTo(Activity::class); }
 }

@@ -90,6 +90,7 @@ class TrainingSessionController extends Controller
             'status'       => $s->status,
             'skip_reason'  => $s->skip_reason,
             'sort_order'   => $s->sort_order,
+            'activity_id'  => $s->activity_id,
         ];
     }
 }

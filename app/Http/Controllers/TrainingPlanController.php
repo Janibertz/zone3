@@ -167,7 +167,7 @@ class TrainingPlanController extends Controller
     private function formatSession(TrainingSession $s): array
     {
         return [
-            'id'           => $s->id,
+            'id'          => $s->id,
             'planned_date' => $s->planned_date->format('Y-m-d'),
             'type'         => $s->type,
             'title'        => $s->title,
@@ -180,6 +180,7 @@ class TrainingPlanController extends Controller
             'status'       => $s->status,
             'skip_reason'  => $s->skip_reason,
             'sort_order'   => $s->sort_order,
+            'activity_id'  => $s->activity_id,
         ];
     }
 
