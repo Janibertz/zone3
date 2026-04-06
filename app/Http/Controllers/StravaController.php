@@ -224,6 +224,8 @@ class StravaController extends Controller
                 'status'      => 'completed',
                 'activity_id' => $activity->id,
             ]);
+            // Flag plan for recalculation
+            $session->trainingPlan?->update(['needs_plan_update' => true]);
             return;
         }
 
@@ -254,12 +256,24 @@ class StravaController extends Controller
             'description'      => $activity->name,
             'distance_km'      => $distanceKm,
             'duration_min'     => $durationMin,
-            'pace_target'      => null,
+            'pace_target'      => $this->paceFromSpeed($activity->average_speed),
             'zone'             => null,
             'intensity'        => 'medium',
             'status'           => 'completed',
             'sort_order'       => 999,
         ]);
+
+        // Signal that the remaining planned sessions should be recalculated
+        $activePlan->needs_plan_update = true;
+        $activePlan->save();
+    }
+
+    /** Convert Strava average_speed (m/s) to "M:SS" pace string, or null. */
+    private function paceFromSpeed(float $mps): ?string
+    {
+        if ($mps <= 0) return null;
+        $secPerKm = 1000 / $mps;
+        return sprintf('%d:%02d', (int)($secPerKm / 60), (int)($secPerKm % 60));
     }
 
     /**

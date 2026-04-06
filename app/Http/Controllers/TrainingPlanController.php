@@ -43,10 +43,11 @@ class TrainingPlanController extends Controller
                 'days_until'            => $event->days_until,
             ],
             'plan' => $plan ? [
-                'id'           => $plan->id,
-                'is_active'    => $plan->is_active,
-                'generated_at' => $plan->created_at->format('d.m.Y H:i'),
-                'context'      => $plan->context,
+                'id'                => $plan->id,
+                'is_active'         => $plan->is_active,
+                'generated_at'      => $plan->created_at->format('d.m.Y H:i'),
+                'context'           => $plan->context,
+                'needs_plan_update' => $plan->needs_plan_update,
             ] : null,
             'sessions' => $sessions,
         ]);
@@ -119,11 +120,12 @@ class TrainingPlanController extends Controller
 
         // ── Create new plan ──────────────────────────────────────────────────
         $plan = TrainingPlan::create([
-            'user_id'   => $user->id,
-            'event_id'  => $event->id,
-            'is_active' => true,
-            'sessions'  => $aiSessions, // keep legacy JSON for reference
-            'context'   => [
+            'user_id'           => $user->id,
+            'event_id'          => $event->id,
+            'is_active'         => true,
+            'needs_plan_update' => false,
+            'sessions'          => $aiSessions,
+            'context'           => [
                 'activities_used'    => count($recentActivities),
                 'wellbeing_entries'  => count($wellbeingData),
                 'has_runner_profile' => (bool) $profileData,
@@ -195,7 +197,7 @@ class TrainingPlanController extends Controller
                         'description'      => $run->name,
                         'distance_km'      => $run->distance > 0 ? round($run->distance / 1000, 2) : null,
                         'duration_min'     => $run->moving_time > 0 ? (int) round($run->moving_time / 60) : null,
-                        'pace_target'      => null,
+                        'pace_target'      => $this->paceFromSpeed($run->average_speed),
                         'zone'             => null,
                         'intensity'        => 'medium',
                         'status'           => 'completed',
@@ -216,10 +218,11 @@ class TrainingPlanController extends Controller
 
         return response()->json([
             'plan' => [
-                'id'           => $plan->id,
-                'is_active'    => true,
-                'generated_at' => $plan->created_at->format('d.m.Y H:i'),
-                'context'      => $plan->context,
+                'id'                => $plan->id,
+                'is_active'         => true,
+                'generated_at'      => $plan->created_at->format('d.m.Y H:i'),
+                'context'           => $plan->context,
+                'needs_plan_update' => false,
             ],
             'sessions' => $sessions,
         ]);
@@ -250,5 +253,12 @@ class TrainingPlanController extends Controller
         if ($mps <= 0) return '—';
         $spk = 1000 / $mps;
         return (int)($spk / 60) . ':' . str_pad((int)($spk % 60), 2, '0', STR_PAD_LEFT);
+    }
+
+    private function paceFromSpeed(float $mps): ?string
+    {
+        if ($mps <= 0) return null;
+        $secPerKm = 1000 / $mps;
+        return sprintf('%d:%02d', (int)($secPerKm / 60), (int)($secPerKm % 60));
     }
 }

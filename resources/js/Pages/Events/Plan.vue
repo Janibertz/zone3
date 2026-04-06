@@ -260,6 +260,21 @@ const skipReasons = ['Keine Zeit', 'Krank', 'Verletzt', 'Erschöpft', 'Sonstiges
                 </div>
             </Transition>
 
+            <!-- Strava update banner -->
+            <div v-if="currentPlan?.needs_plan_update"
+                class="mb-4 flex items-start gap-3 rounded-2xl bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 px-4 py-3">
+                <span class="text-xl leading-none mt-0.5">🔗</span>
+                <div class="flex-1">
+                    <p class="text-sm font-semibold text-orange-700 dark:text-orange-400">Neue Strava-Aktivität importiert</p>
+                    <p class="text-xs text-orange-600/70 dark:text-orange-400/70 mt-0.5">Der verbleibende Plan sollte neu berechnet werden, damit die KI deinen aktuellen Trainingsstand berücksichtigt.</p>
+                </div>
+                <button @click="generatePlan" :disabled="generating"
+                    class="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold px-3 py-2 transition-colors disabled:opacity-50">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
+                    Plan aktualisieren
+                </button>
+            </div>
+
             <!-- Plan header -->
             <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
                 <div>

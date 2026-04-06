@@ -14,12 +14,14 @@ class TrainingPlan extends Model
         'event_id',
         'sessions',
         'context',
+        'needs_plan_update',
     ];
 
     protected $casts = [
-        'sessions'  => 'array',
-        'context'   => 'array',
-        'is_active' => 'boolean',
+        'sessions'          => 'array',
+        'context'           => 'array',
+        'is_active'         => 'boolean',
+        'needs_plan_update' => 'boolean',
     ];
 
     public function user()
