@@ -96,9 +96,7 @@ class StravaController extends Controller
                     'location_city'        => $activityData['location_city'] ?? null,
                     'location_state'       => $activityData['location_state'] ?? null,
                     'location_country'     => $activityData['location_country'] ?? null,
-                    'polyline'             => isset($activityData['map']['polyline'])
-                        ? ['polyline' => $activityData['map']['polyline']]
-                        : null,
+                    'polyline'             => $this->extractPolyline($activityData),
                 ]
             );
 
@@ -188,9 +186,7 @@ class StravaController extends Controller
                 'location_city'        => $activityData['location_city'] ?? null,
                 'location_state'       => $activityData['location_state'] ?? null,
                 'location_country'     => $activityData['location_country'] ?? null,
-                'polyline'             => isset($activityData['map']['summary_polyline'])
-                    ? ['polyline' => $activityData['map']['summary_polyline']]
-                    : null,
+                'polyline'             => $this->extractPolyline($activityData),
             ]
         );
 
@@ -327,5 +323,20 @@ class StravaController extends Controller
             $profile->save();
             CalculateThresholdPaceJob::dispatch($userId);
         }
+    }
+
+    /**
+     * Extract the best available polyline from Strava activity data.
+     * List endpoint → summary_polyline only.
+     * Single activity endpoint → polyline (detailed) preferred, fallback summary_polyline.
+     * Returns null if neither is present or both are empty strings.
+     */
+    private function extractPolyline(array $activityData): ?array
+    {
+        $poly = $activityData['map']['polyline'] ?? null;
+        if (empty($poly)) {
+            $poly = $activityData['map']['summary_polyline'] ?? null;
+        }
+        return $poly ? ['polyline' => $poly] : null;
     }
 }
