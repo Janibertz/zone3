@@ -53,9 +53,36 @@ class TrainingPlanController extends Controller
         ]);
     }
 
+    /**
+     * Cancel (deactivate) the active plan for an event.
+     */
+    public function cancel(Event $event)
+    {
+        abort_if($event->user_id !== Auth::id(), 403);
+
+        TrainingPlan::where('user_id', Auth::id())
+            ->where('event_id', $event->id)
+            ->where('is_active', true)
+            ->update(['is_active' => false]);
+
+        return response()->json(['success' => true]);
+    }
+
     public function generate(Event $event, OpenAIService $openAI)
     {
         abort_if($event->user_id !== Auth::id(), 403);
+
+        // Block if a different event already has an active plan
+        $otherActivePlan = TrainingPlan::where('user_id', Auth::id())
+            ->where('is_active', true)
+            ->where('event_id', '!=', $event->id)
+            ->first();
+
+        if ($otherActivePlan) {
+            return response()->json([
+                'error' => 'Es gibt bereits einen aktiven Plan für ein anderes Event. Bitte brich diesen zuerst ab.',
+            ], 422);
+        }
 
         $user = Auth::user();
 

@@ -19,6 +19,23 @@ const errorMsg        = ref('');
 const todayWellbeing  = ref(null);
 const wellbeingLoaded = ref(false);
 
+// Cancel plan modal
+const cancelModal   = ref(false);
+const cancelLoading = ref(false);
+
+async function cancelPlan() {
+    cancelLoading.value = true;
+    try {
+        await axios.post(route('events.plan.cancel', props.event.id));
+        currentPlan.value = { ...currentPlan.value, is_active: false };
+        cancelModal.value = false;
+    } catch {
+        errorMsg.value = 'Fehler beim Abbrechen des Plans.';
+    } finally {
+        cancelLoading.value = false;
+    }
+}
+
 // Skip modal
 const skipModal   = ref(false);
 const skipSession = ref(null);
@@ -284,14 +301,33 @@ const skipReasons = ['Keine Zeit', 'Krank', 'Verletzt', 'Erschöpft', 'Sonstiges
                         <span v-if="currentPlan.context"> · {{ currentPlan.context.activities_used }} Aktivitäten</span>
                     </p>
                 </div>
-                <button @click="generatePlan" :disabled="generating"
-                    class="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors shadow-sm disabled:opacity-60"
-                    :class="currentPlan ? 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700' : 'bg-indigo-600 text-white hover:bg-indigo-700'"
-                >
-                    <svg v-if="generating" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                    <svg v-else class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
-                    {{ generating ? 'KI analysiert...' : currentPlan ? 'Plan aktualisieren' : 'KI-Plan erstellen' }}
-                </button>
+                <div class="flex gap-2">
+                    <!-- Cancel plan (only when active) -->
+                    <button v-if="currentPlan?.is_active"
+                        @click="cancelModal = true"
+                        class="inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
+                    >
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                        Abbrechen
+                    </button>
+
+                    <!-- Generate/update (only when plan is active or no plan yet) -->
+                    <button v-if="!currentPlan || currentPlan.is_active"
+                        @click="generatePlan" :disabled="generating"
+                        class="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors shadow-sm disabled:opacity-60"
+                        :class="currentPlan ? 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700' : 'bg-indigo-600 text-white hover:bg-indigo-700'"
+                    >
+                        <svg v-if="generating" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                        <svg v-else class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
+                        {{ generating ? 'KI analysiert...' : currentPlan ? 'Plan aktualisieren' : 'KI-Plan erstellen' }}
+                    </button>
+
+                    <!-- Cancelled state info -->
+                    <span v-if="currentPlan && !currentPlan.is_active"
+                        class="inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-400 dark:text-slate-500 bg-gray-100 dark:bg-slate-800">
+                        Plan abgebrochen
+                    </span>
+                </div>
             </div>
 
             <!-- Error -->
@@ -446,6 +482,28 @@ const skipReasons = ['Keine Zeit', 'Krank', 'Verletzt', 'Erschöpft', 'Sonstiges
                     <button @click="confirmSkip" :disabled="skipLoading" class="rounded-xl bg-gray-700 dark:bg-slate-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors">
                         <svg v-if="skipLoading" class="inline h-4 w-4 animate-spin mr-1" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                         Überspringen
+                    </button>
+                </div>
+            </div>
+        </Modal>
+
+        <!-- Cancel plan modal -->
+        <Modal :show="cancelModal" @close="cancelModal = false">
+            <div class="p-6 bg-white dark:bg-slate-900">
+                <h2 class="text-lg font-bold text-gray-900 dark:text-white">Plan wirklich abbrechen?</h2>
+                <p class="mt-2 text-sm text-gray-500 dark:text-slate-400">
+                    Der KI-Plan wird deaktiviert. Deine bereits absolvierten Einheiten bleiben erhalten.
+                    Du kannst danach für jedes Event einen neuen Plan erstellen.
+                </p>
+                <div class="mt-5 flex gap-3 justify-end">
+                    <button @click="cancelModal = false"
+                        class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
+                        Nicht abbrechen
+                    </button>
+                    <button @click="cancelPlan" :disabled="cancelLoading"
+                        class="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
+                        <svg v-if="cancelLoading" class="inline h-4 w-4 animate-spin mr-1" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                        Ja, Plan abbrechen
                     </button>
                 </div>
             </div>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
+use App\Models\TrainingPlan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -17,9 +18,15 @@ class EventController extends Controller
             ->get()
             ->map(fn (Event $e) => $this->formatEvent($e));
 
+        $activePlan = TrainingPlan::where('user_id', Auth::id())
+            ->where('is_active', true)
+            ->latest()
+            ->first();
+
         return Inertia::render('Events/Index', [
-            'events' => $events,
-            'status' => session('status'),
+            'events'              => $events,
+            'status'              => session('status'),
+            'active_plan_event_id' => $activePlan?->event_id,
         ]);
     }
 

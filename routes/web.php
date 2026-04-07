@@ -233,6 +233,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::delete('/events/{event}', [EventController::class, 'destroy'])->name('events.destroy');
     Route::get('/events/{event}/plan', [TrainingPlanController::class, 'show'])->name('events.plan.show');
     Route::post('/events/{event}/plan/generate', [TrainingPlanController::class, 'generate'])->name('events.plan.generate');
+    Route::post('/events/{event}/plan/cancel', [TrainingPlanController::class, 'cancel'])->name('events.plan.cancel');
 
     // Training Sessions
     Route::patch('/training-sessions/{session}/complete', [TrainingSessionController::class, 'complete'])->name('training-sessions.complete');
