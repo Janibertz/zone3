@@ -50,6 +50,14 @@ const props = defineProps({
         type: String,
         default: null,
     },
+    todayPlanSession: {
+        type: Object,
+        default: null,
+    },
+    hasActivePlan: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const page = usePage();
@@ -1026,36 +1034,103 @@ function syncStrava() {
                 <!-- ═══ ROW 3: Trainingsempfehlung + Aktive Ziele ═══ -->
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
 
-                    <!-- Trainingsempfehlung -->
+                    <!-- Heute: Plan-Session ODER KI-Empfehlung -->
                     <div class="lg:col-span-7 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
-                        <div class="flex items-center justify-between mb-4">
-                            <h4 class="text-sm font-semibold text-gray-800">🧭 Trainings-Empfehlung für heute</h4>
-                            <button @click="getTodayRecommendation"
-                                class="text-xs text-indigo-600 font-medium hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-md px-2 py-1 transition-colors">
-                                Aktualisieren
-                            </button>
-                        </div>
-                        <div v-if="recommendationLoading" class="flex items-center gap-3 text-gray-500 py-4">
-                            <span class="text-xl">⏳</span>
-                            <span class="text-sm">Empfehlung wird geladen...</span>
-                        </div>
-                        <div v-else-if="recommendationError" class="rounded-lg bg-red-50 border border-red-100 p-4 text-sm text-red-700">
-                            {{ recommendationError }}
-                        </div>
-                        <div v-else-if="showRecommendation" class="rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-100 dark:border-indigo-800/40 p-4 text-sm text-gray-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
-                            {{ trainingRecommendation }}
-                        </div>
-                        <div v-else-if="recommendationHint" class="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 p-4">
-                            <p class="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-1">Hinweis</p>
-                            <p class="text-sm text-amber-700 dark:text-amber-400">{{ recommendationHint }}</p>
-                            <button @click="showWellbeingModal = true"
-                                class="mt-3 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition-colors">
-                                Jetzt Wellbeing eintragen
-                            </button>
-                        </div>
-                        <div v-else class="text-sm text-gray-400 text-center py-8">
-                            Noch keine Empfehlung verfügbar.
-                        </div>
+
+                        <!-- ── Aktiver Plan: heutige Session anzeigen ── -->
+                        <template v-if="props.hasActivePlan">
+                            <div class="flex items-center justify-between mb-4">
+                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">📅 Heutige Trainingseinheit</h4>
+                                <a :href="props.todayPlanSession?.event_id ? `/events/${props.todayPlanSession.event_id}/plan` : '/events'"
+                                    class="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-800 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 rounded-md px-2 py-1 transition-colors">
+                                    Zum Plan →
+                                </a>
+                            </div>
+
+                            <!-- Session card -->
+                            <div v-if="props.todayPlanSession" class="rounded-xl border overflow-hidden" :class="{
+                                'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800': props.todayPlanSession.type === 'rest',
+                                'border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10': props.todayPlanSession.type === 'easy_run',
+                                'border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10': props.todayPlanSession.type === 'tempo_run',
+                                'border-red-100 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10': props.todayPlanSession.type === 'interval',
+                                'border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10': props.todayPlanSession.type === 'long_run',
+                                'border-indigo-100 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10': props.todayPlanSession.type === 'race_prep',
+                            }">
+                                <div class="px-4 py-3">
+                                    <div class="flex items-start justify-between gap-2 mb-1">
+                                        <p class="font-semibold text-sm" :class="{
+                                            'text-gray-500 dark:text-slate-400': props.todayPlanSession.type === 'rest',
+                                            'text-green-700 dark:text-green-400': props.todayPlanSession.type === 'easy_run',
+                                            'text-amber-700 dark:text-amber-400': props.todayPlanSession.type === 'tempo_run',
+                                            'text-red-700 dark:text-red-400': props.todayPlanSession.type === 'interval',
+                                            'text-blue-700 dark:text-blue-400': props.todayPlanSession.type === 'long_run',
+                                            'text-indigo-700 dark:text-indigo-400': props.todayPlanSession.type === 'race_prep',
+                                        }">{{ props.todayPlanSession.title }}</p>
+                                        <div class="flex gap-1.5 shrink-0">
+                                            <span v-if="props.todayPlanSession.status === 'completed'" class="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400">✓ Erledigt</span>
+                                            <span v-else-if="props.todayPlanSession.status === 'skipped'" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-500">Übersprungen</span>
+                                            <span v-else class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400">Heute</span>
+                                            <span v-if="props.todayPlanSession.activity_id" class="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-400">🔗 Strava</span>
+                                        </div>
+                                    </div>
+                                    <p class="text-xs text-gray-500 dark:text-slate-400 leading-relaxed">{{ props.todayPlanSession.description }}</p>
+                                    <div v-if="props.todayPlanSession.type !== 'rest'" class="flex flex-wrap gap-3 mt-2.5">
+                                        <span v-if="props.todayPlanSession.distance_km" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
+                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c-.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" /></svg>
+                                            {{ props.todayPlanSession.distance_km }} km
+                                        </span>
+                                        <span v-if="props.todayPlanSession.duration_min" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
+                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
+                                            {{ props.todayPlanSession.duration_min }} min
+                                        </span>
+                                        <span v-if="props.todayPlanSession.pace_target && props.todayPlanSession.pace_target !== 'null'" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
+                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg>
+                                            {{ props.todayPlanSession.pace_target }} min/km
+                                        </span>
+                                        <span v-if="props.todayPlanSession.zone" class="text-xs font-medium px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300">Zone {{ props.todayPlanSession.zone }}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- No session today (rest day not in plan, or plan ended) -->
+                            <div v-else class="rounded-xl bg-gray-50 dark:bg-slate-800 border border-dashed border-gray-200 dark:border-slate-600 p-6 text-center">
+                                <p class="text-sm text-gray-400 dark:text-slate-500">Für heute ist keine Trainingseinheit geplant.</p>
+                                <a href="/events" class="mt-2 inline-block text-xs text-indigo-500 hover:underline">Zum Plan →</a>
+                            </div>
+                        </template>
+
+                        <!-- ── Kein aktiver Plan: KI-Empfehlung ── -->
+                        <template v-else>
+                            <div class="flex items-center justify-between mb-4">
+                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">🧭 Trainings-Empfehlung für heute</h4>
+                                <button @click="getTodayRecommendation"
+                                    class="text-xs text-indigo-600 font-medium hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-md px-2 py-1 transition-colors">
+                                    Aktualisieren
+                                </button>
+                            </div>
+                            <div v-if="recommendationLoading" class="flex items-center gap-3 text-gray-500 py-4">
+                                <span class="text-xl">⏳</span>
+                                <span class="text-sm">Empfehlung wird geladen...</span>
+                            </div>
+                            <div v-else-if="recommendationError" class="rounded-lg bg-red-50 border border-red-100 p-4 text-sm text-red-700">
+                                {{ recommendationError }}
+                            </div>
+                            <div v-else-if="showRecommendation" class="rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-100 dark:border-indigo-800/40 p-4 text-sm text-gray-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                                {{ trainingRecommendation }}
+                                <p class="mt-3 text-xs text-indigo-500 dark:text-indigo-400 italic">Diese Empfehlung wird automatisch in deinen Kalender eingetragen.</p>
+                            </div>
+                            <div v-else-if="recommendationHint" class="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 p-4">
+                                <p class="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-1">Hinweis</p>
+                                <p class="text-sm text-amber-700 dark:text-amber-400">{{ recommendationHint }}</p>
+                                <button @click="showWellbeingModal = true"
+                                    class="mt-3 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition-colors">
+                                    Jetzt Wellbeing eintragen
+                                </button>
+                            </div>
+                            <div v-else class="text-sm text-gray-400 text-center py-8">
+                                Noch keine Empfehlung verfügbar.
+                            </div>
+                        </template>
                     </div>
 
                     <!-- Nächste Events -->

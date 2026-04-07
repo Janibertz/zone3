@@ -105,6 +105,35 @@ Route::get('/dashboard', function (ProgressService $progressService) {
         }
     }
 
+    // Today's session from the active training plan
+    $activePlan = $user->activeTrainingPlan;
+    $todayStr   = now()->toDateString();
+    $todayPlanSession = null;
+    if ($activePlan) {
+        $s = TrainingSession::where('training_plan_id', $activePlan->id)
+            ->where('planned_date', $todayStr)
+            ->orderBy('sort_order')
+            ->first();
+        if ($s) {
+            $todayPlanSession = [
+                'id'           => $s->id,
+                'type'         => $s->type,
+                'title'        => $s->title,
+                'description'  => $s->description,
+                'distance_km'  => $s->distance_km,
+                'duration_min' => $s->duration_min,
+                'pace_target'  => $s->pace_target,
+                'zone'         => $s->zone,
+                'intensity'    => $s->intensity,
+                'status'       => $s->status,
+                'activity_id'  => $s->activity_id,
+                'event_id'     => $s->event_id,
+                'plan_id'      => $activePlan->id,
+                'event_name'   => $activePlan->event?->name,
+            ];
+        }
+    }
+
     return Inertia::render('Dashboard', [
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
@@ -125,6 +154,8 @@ Route::get('/dashboard', function (ProgressService $progressService) {
         'racePredictions' => $racePredictions,
         'thresholdPaceCalculating' => (bool) ($runnerProfile?->threshold_pace_calculating),
         'syncResult' => session('sync_result'),
+        'todayPlanSession' => $todayPlanSession,
+        'hasActivePlan' => (bool) $activePlan,
     ]);
 })->middleware(['auth', 'verified', 'onboarding'])->name('dashboard');
 
@@ -147,25 +178,30 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
 
         // Active plan sessions for calendar
         $activePlan = $user->activeTrainingPlan;
-        $trainingSessions = $activePlan
-            ? TrainingSession::where('training_plan_id', $activePlan->id)
-                ->orderBy('planned_date')
-                ->get()
-                ->map(fn ($s) => [
-                    'id'           => $s->id,
-                    'planned_date' => $s->planned_date->format('Y-m-d'),
-                    'type'         => $s->type,
-                    'title'        => $s->title,
-                    'distance_km'  => $s->distance_km,
-                    'duration_min' => $s->duration_min,
-                    'pace_target'  => $s->pace_target,
-                    'zone'         => $s->zone,
-                    'intensity'    => $s->intensity,
-                    'status'       => $s->status,
-                    'event_id'     => $s->event_id,
-                ])
-                ->toArray()
-            : [];
+        $sessionQuery = TrainingSession::where('user_id', $user->id)
+            ->where(function ($q) use ($activePlan) {
+                // Active plan sessions
+                if ($activePlan) {
+                    $q->where('training_plan_id', $activePlan->id);
+                }
+                // Standalone recommendation sessions (no plan)
+                $q->orWhereNull('training_plan_id');
+            })
+            ->orderBy('planned_date');
+
+        $trainingSessions = $sessionQuery->get()->map(fn ($s) => [
+            'id'           => $s->id,
+            'planned_date' => $s->planned_date->format('Y-m-d'),
+            'type'         => $s->type,
+            'title'        => $s->title,
+            'distance_km'  => $s->distance_km,
+            'duration_min' => $s->duration_min,
+            'pace_target'  => $s->pace_target,
+            'zone'         => $s->zone,
+            'intensity'    => $s->intensity,
+            'status'       => $s->status,
+            'event_id'     => $s->event_id,
+        ])->toArray();
 
         return Inertia::render('Calendar', [
             'activities' => Activity::where('user_id', $user->id)->orderByDesc('start_date')->get(),

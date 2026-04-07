@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Goal;
+use App\Models\TrainingPlan;
+use App\Models\TrainingSession;
 use App\Services\OpenAIService;
 use App\Services\ProgressService;
 use Carbon\Carbon;
@@ -193,6 +195,29 @@ class AIController extends Controller
                     $runnerProfile->recommendation_date = $today;
                     $runnerProfile->recommendation_wellbeing_id = $todayWellbeing->id;
                     $runnerProfile->save();
+                }
+
+                // Save as standalone TrainingSession if no active plan exists
+                $hasActivePlan = TrainingPlan::where('user_id', $user->id)
+                    ->where('is_active', true)
+                    ->exists();
+
+                if (! $hasActivePlan && $recommendation) {
+                    TrainingSession::updateOrCreate(
+                        [
+                            'user_id'          => $user->id,
+                            'planned_date'     => $today,
+                            'training_plan_id' => null,
+                        ],
+                        [
+                            'type'        => 'easy_run',
+                            'title'       => 'Empfehlung für heute',
+                            'description' => $recommendation,
+                            'status'      => 'planned',
+                            'intensity'   => 'medium',
+                            'sort_order'  => 0,
+                        ]
+                    );
                 }
             }
 
