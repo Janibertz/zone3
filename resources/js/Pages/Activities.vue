@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { router, Link } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 
 const props = defineProps({
@@ -11,7 +11,6 @@ const props = defineProps({
 const search = ref(props.filters?.search ?? '');
 const selectedType = ref(props.filters?.type ?? '');
 const selectedMonth = ref(props.filters?.month ?? '');
-const selected = ref(null);
 
 function applyFilters() {
     router.get(route('activities.index'), {
@@ -149,11 +148,11 @@ const activeFilterCount = computed(() =>
 
             <!-- Activity list -->
             <div class="space-y-2">
-                <button
+                <Link
                     v-for="activity in activities.data"
                     :key="activity.id"
-                    @click="selected = activity"
-                    class="w-full text-left bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 active:scale-[0.99] hover:border-indigo-200 dark:hover:border-indigo-500/40 hover:shadow-sm transition-all duration-150"
+                    :href="route('activities.show', activity.id)"
+                    class="block w-full text-left bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 active:scale-[0.99] hover:border-indigo-200 dark:hover:border-indigo-500/40 hover:shadow-sm transition-all duration-150"
                 >
                     <!-- Top row: type badge + date + chevron -->
                     <div class="flex items-center justify-between gap-2 mb-2">
@@ -191,7 +190,7 @@ const activeFilterCount = computed(() =>
                             <span class="text-xs font-medium text-gray-600 dark:text-slate-400">{{ Math.round(activity.average_heartrate) }}</span>
                         </div>
                     </div>
-                </button>
+                </Link>
 
                 <!-- Empty state -->
                 <div v-if="activities.data.length === 0" class="flex flex-col items-center justify-center py-16 gap-3">
@@ -223,77 +222,5 @@ const activeFilterCount = computed(() =>
             </div>
         </div>
 
-        <!-- ── Activity Detail Modal (bottom sheet on mobile) ── -->
-        <Transition
-            enter-active-class="transition duration-200 ease-out"
-            enter-from-class="opacity-0 translate-y-4"
-            leave-active-class="transition duration-150 ease-in"
-            leave-to-class="opacity-0 translate-y-4"
-        >
-            <div
-                v-if="selected"
-                class="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center"
-                @click.self="selected = null"
-            >
-                <div class="bg-white dark:bg-slate-900 w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] overflow-y-auto">
-
-                    <!-- Drag handle (mobile) -->
-                    <div class="flex justify-center pt-3 pb-1 sm:hidden">
-                        <div class="h-1 w-10 bg-gray-200 dark:bg-slate-700 rounded-full"></div>
-                    </div>
-
-                    <!-- Header -->
-                    <div class="flex items-start justify-between px-5 pt-3 pb-4 sm:pt-5 border-b border-gray-100 dark:border-slate-800">
-                        <div class="flex-1 min-w-0 pr-3">
-                            <span class="text-xs font-semibold px-2 py-0.5 rounded-full" :class="typeColor(selected.type)">{{ typeLabel[selected.type] ?? selected.type }}</span>
-                            <h2 class="mt-2 text-lg font-bold text-gray-900 dark:text-white leading-snug">{{ selected.name }}</h2>
-                            <p class="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
-                                {{ formatDate(selected.start_date) }}<span v-if="selected.location_city"> · {{ selected.location_city }}</span>
-                            </p>
-                        </div>
-                        <button @click="selected = null" class="shrink-0 h-8 w-8 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
-                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/>
-                            </svg>
-                        </button>
-                    </div>
-
-                    <!-- Stats grid -->
-                    <div class="p-4 sm:p-5 grid grid-cols-2 gap-2.5">
-                        <div class="bg-gray-50 dark:bg-slate-800 rounded-xl p-3.5">
-                            <p class="text-xs text-gray-500 dark:text-slate-400 mb-1">Distanz</p>
-                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ formatDistance(selected.distance) }}</p>
-                        </div>
-                        <div class="bg-gray-50 dark:bg-slate-800 rounded-xl p-3.5">
-                            <p class="text-xs text-gray-500 dark:text-slate-400 mb-1">Bewegungszeit</p>
-                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ formatDuration(selected.moving_time) }}</p>
-                        </div>
-                        <div v-if="selected.type === 'Run'" class="bg-gray-50 dark:bg-slate-800 rounded-xl p-3.5">
-                            <p class="text-xs text-gray-500 dark:text-slate-400 mb-1">Pace</p>
-                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ formatPace(selected.average_speed) }} <span class="text-sm font-normal text-gray-400 dark:text-slate-500">/km</span></p>
-                        </div>
-                        <div v-if="selected.average_heartrate" class="bg-gray-50 dark:bg-slate-800 rounded-xl p-3.5">
-                            <p class="text-xs text-gray-500 dark:text-slate-400 mb-1">Ø Herzfrequenz</p>
-                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ Math.round(selected.average_heartrate) }} <span class="text-sm font-normal text-gray-400 dark:text-slate-500">bpm</span></p>
-                        </div>
-                        <div v-if="selected.max_heartrate" class="bg-gray-50 dark:bg-slate-800 rounded-xl p-3.5">
-                            <p class="text-xs text-gray-500 dark:text-slate-400 mb-1">Max. HF</p>
-                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ Math.round(selected.max_heartrate) }} <span class="text-sm font-normal text-gray-400 dark:text-slate-500">bpm</span></p>
-                        </div>
-                        <div v-if="selected.total_elevation_gain > 0" class="bg-gray-50 dark:bg-slate-800 rounded-xl p-3.5">
-                            <p class="text-xs text-gray-500 dark:text-slate-400 mb-1">Höhenmeter</p>
-                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ Math.round(selected.total_elevation_gain) }} <span class="text-sm font-normal text-gray-400 dark:text-slate-500">m</span></p>
-                        </div>
-                    </div>
-
-                    <div v-if="selected.description" class="px-5 pb-4">
-                        <p class="text-sm text-gray-600 dark:text-slate-400 leading-relaxed">{{ selected.description }}</p>
-                    </div>
-
-                    <!-- Safe area spacer for iOS -->
-                    <div class="h-safe-bottom pb-2 sm:pb-0" />
-                </div>
-            </div>
-        </Transition>
     </AuthenticatedLayout>
 </template>

@@ -172,6 +172,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::delete('/strava/disconnect', [StravaController::class, 'disconnect'])->name('strava.disconnect');
 
     Route::get('/activities', [ActivityController::class, 'index'])->name('activities.index');
+    Route::get('/activities/{activity}', [ActivityController::class, 'show'])->name('activities.show');
     Route::get('/statistics', [StatisticsController::class, 'index'])->name('statistics.index');
     Route::get('/calendar', function () {
         $user = auth()->user();
