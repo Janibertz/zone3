@@ -2,6 +2,36 @@
 
 ## Abgeschlossen
 
+### 2026-04-07 — KI-Plan: Strava-Matching, Event-Cutoff, Pace-Daten
+
+- **Strava-Aktivität ersetzt geplante Session:** Wenn ein Lauf aus Strava importiert wird, werden Distanz, Dauer und Pace der geplanten Session mit den echten Strava-Daten überschrieben (statt nur Status auf "completed" setzen)
+- **Ruhetag-Handling:** War für einen Tag ein Ruhetag geplant und der Athlet ist trotzdem gelaufen → Ruhetag wird gelöscht, echte Einheit wird als "Ungeplante Einheit" (abgeschlossen) eingefügt
+- **Plan endet am Renntag:** KI-Prompt enthält explizite Anweisung, keine Sessions nach dem Event-Datum zu planen; zusätzlicher serverseitiger Filter entfernt eventuell trotzdem generierte Post-Event-Sessions
+- **Renntag ist letzter Tag:** Am Event-Datum selbst wird `race_prep`-Session mit dem Event-Namen generiert
+- **`needs_plan_update` Flag:** Wird gesetzt wenn ein neuer Strava-Lauf einem Plan zugeordnet wird; Banner in `Plan.vue` informiert Nutzer und bietet direkt "Plan aktualisieren"-Button
+- **Pace aus Strava:** `paceFromSpeed()` Helper berechnet aus Strava `average_speed` (m/s) den Pace-String (min:sec/km); wird bei Ungeplanten Einheiten und Retro-Matching gespeichert
+- **Error Handling in `generate()`:** Try-catch-Blöcke mit spezifischen Fehlermeldungen (OpenAI-Fehler vs. Datenbankfehler) statt generischem Fallback
+- **`DB::table()` für `is_active` + `needs_plan_update`:** Direkte DB-Schreiboperationen umgehen Fillable-Beschränkungen des Models
+- **Retroaktives Matching bei Plan-Generierung:** Nach Erstellen aller AI-Sessions werden vorhandene Strava-Läufe im Plan-Zeitfenster automatisch den passenden Sessions zugeordnet
+
+### 2026-04-07 — Strava Disconnect + Support-Seite
+
+- **Strava trennen** im Profil (Tab: Konto): Button öffnet Bestätigungsmodal mit Hinweis dass alle importierten Aktivitäten gelöscht werden
+- **`StravaController::disconnect()`:** Löscht `StravaAccount` + alle `activities` des Users; leitet zurück mit Status `strava-disconnected`
+- **`ProfileController::edit()`:** Übergibt `stravaConnected` und `stravaAccount` (Username, letzter Sync) an die View
+- **Route** `DELETE /strava/disconnect` → `strava.disconnect`
+- **Support-Seite** `/support` — öffentlich ohne Login; Kontakt, Strava-Datenschutz, Datenschutzerklärung, Disconnect-Anleitung; Verantwortlicher: Jan Anders (jan.anders@me.com)
+- **Footer** auf der Landingpage: "Support & Datenschutz" Link
+
+### 2026-04-06 — Strava-Aktivitäten → Trainingsplan Matching
+
+- **`TrainingSession.activity_id`:** Neue Migration + FK auf `activities`; verknüpft eine abgeschlossene Session mit der zugehörigen Strava-Aktivität
+- **`StravaController::matchActivityToSession()`:** Wird nach jedem Run-Import aufgerufen (sync + webhook); sucht passende geplante Session am gleichen Tag → markiert als erledigt + verknüpft Aktivität; kein Match → erstellt "Ungeplante Einheit" als abgeschlossene Session im aktiven Plan
+- **Duplikat-Schutz:** Prüft ob für diese `activity_id` bereits eine Session existiert bevor eine neue angelegt wird
+- **Re-Sync sicher:** Matching läuft für alle Runs (nicht nur neue) — idempotent durch Duplikat-Guard
+- **Plan.vue:** 🔗 Strava-Badge bei Sessions mit verknüpfter Aktivität; gelbes Warn-Banner bei "Ungeplante Einheit" mit Hinweis "Nicht im Plan – automatisch aus Strava importiert"
+- **Nixpacks-Fix:** `nixpacks.toml` entfernt — Coolify's eigene Node 22 Konfiguration wird genutzt (Vite 8 erfordert Node ≥ 20.19)
+
 ### 2026-04-05 — Dashboard Stats-Box + Aktivitäten + Admin überarbeitet
 
 - **Stats-Box** (Dashboard Mitte) komplett neu — ersetzt sinnlosen Donut + Buchstaben-Dots:
@@ -108,8 +138,8 @@
 
 - [ ] **Aktivitäten-Detailseite** — Kartenansicht (Polyline), Herzfrequenz-Verlauf, Zonenverteilung pro Aktivität
 - [ ] **Wellbeing-Seite** — Verlaufsansicht der Wellbeing-Einträge, Wochenübersicht
-- [ ] **Event im Onboarding → Events-System verknüpfen** — onboarding `saveGoal` direkt als Event speichern statt als Goal
-- [ ] **Plan-Anpassung nach neuen Aktivitäten** — automatisch Plan-Refresh vorschlagen wenn neue Strava-Daten eingehen
+- [ ] **Plan-Wochensicht** — Kalenderansicht des Plans statt reine Listendarstellung
+- [ ] **Strava Extended Access** — Beantragung ausstehend (Support-Seite + Privacy-Seite erstellt)
 
 ### Mittlere Priorität
 
