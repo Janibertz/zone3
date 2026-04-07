@@ -195,11 +195,18 @@ function formatDate(dateStr) {
 const isToday  = (d) => d === today;
 const isPast   = (d) => d < today;
 
+// Only show today + future sessions in the plan view
+// Past sessions live in the calendar
+const visibleSessions = computed(() =>
+    currentSessions.value.filter(s => s.planned_date >= today)
+);
+
 const weeklyLoad = computed(() => {
-    const runs  = currentSessions.value.filter(s => s.type !== 'rest' && s.status !== 'skipped');
+    const all  = currentSessions.value; // stats over full plan
+    const runs = all.filter(s => s.type !== 'rest' && s.status !== 'skipped');
     const total = runs.reduce((s, x) => s + (x.distance_km || 0), 0);
-    const done  = currentSessions.value.filter(s => s.status === 'completed').length;
-    const skipped = currentSessions.value.filter(s => s.status === 'skipped').length;
+    const done    = all.filter(s => s.status === 'completed').length;
+    const skipped = all.filter(s => s.status === 'skipped').length;
     return { total: Math.round(total * 10) / 10, runs: runs.length, done, skipped };
 });
 
@@ -341,7 +348,7 @@ const skipReasons = ['Keine Zeit', 'Krank', 'Verletzt', 'Erschöpft', 'Sonstiges
             </div>
 
             <!-- Empty -->
-            <div v-else-if="!currentPlan || currentSessions.length === 0" class="bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700 p-10 text-center">
+            <div v-else-if="!currentPlan || visibleSessions.length === 0" class="bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700 p-10 text-center">
                 <svg class="h-12 w-12 mx-auto text-gray-300 dark:text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
                 <p class="text-sm font-medium text-gray-700 dark:text-slate-300">Noch kein Trainingsplan</p>
                 <p class="mt-1 text-xs text-gray-400 dark:text-slate-500 max-w-xs mx-auto">Die KI analysiert Aktivitäten, Wellbeing und Athletenprofil für einen optimalen 10-Tages-Plan.</p>
@@ -363,7 +370,7 @@ const skipReasons = ['Keine Zeit', 'Krank', 'Verletzt', 'Erschöpft', 'Sonstiges
                 </div>
 
                 <div class="space-y-2">
-                    <div v-for="session in currentSessions" :key="session.id"
+                    <div v-for="session in visibleSessions" :key="session.id"
                         class="rounded-2xl border overflow-hidden transition-all"
                         :class="[
                             typeOf(session.type).border,
