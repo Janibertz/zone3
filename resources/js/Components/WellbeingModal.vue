@@ -213,8 +213,8 @@ const formatDate = (date) => {
 const submitWellbeing = async () => {
     submitting.value = true;
     try {
-        await axios.post('/api/wellbeing', form.value);
-        emit('saved');
+        const res = await axios.post('/api/wellbeing', form.value);
+        emit('saved', res.data);
         emit('close');
     } catch (error) {
         console.error('Fehler beim Speichern:', error);

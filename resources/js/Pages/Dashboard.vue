@@ -153,6 +153,25 @@ const aiLoading = ref(false);
 const showAIModal = ref(false);
 const aiModalType = ref(null);
 const showWellbeingModal = ref(false);
+const wellbeingToast = ref(null);
+let wellbeingToastTimer = null;
+
+function onWellbeingSaved(data) {
+    showWellbeingModal.value = false;
+    if (data?.plan_adjusted) {
+        wellbeingToast.value = {
+            type: 'ai',
+            message: 'KI passt deine heutige Trainingseinheit an deine Tagesform an…',
+        };
+    } else {
+        wellbeingToast.value = {
+            type: 'success',
+            message: data?.message ?? 'Wellbeing gespeichert! 💪',
+        };
+    }
+    clearTimeout(wellbeingToastTimer);
+    wellbeingToastTimer = setTimeout(() => { wellbeingToast.value = null; }, 5000);
+}
 const syncing = ref(false);
 const activitiesScrollRef = ref(null);
 
@@ -1369,10 +1388,22 @@ function syncStrava() {
         </div>
 
         <!-- Wellbeing Modal -->
+        <!-- Wellbeing / plan-adjust toast -->
+        <Transition enter-active-class="transition-all duration-300" enter-from-class="opacity-0 translate-y-4" leave-active-class="transition-all duration-200" leave-to-class="opacity-0 translate-y-4">
+            <div v-if="wellbeingToast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl text-sm font-medium"
+                :class="wellbeingToast.type === 'ai'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-green-600 text-white'">
+                <svg v-if="wellbeingToast.type === 'ai'" class="h-4 w-4 animate-spin shrink-0" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                <svg v-else class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                {{ wellbeingToast.message }}
+            </div>
+        </Transition>
+
         <WellbeingModal
             :show="showWellbeingModal"
             @close="showWellbeingModal = false"
-            @saved="showWellbeingModal = false"
+            @saved="onWellbeingSaved"
         />
     </AuthenticatedLayout>
 </template>

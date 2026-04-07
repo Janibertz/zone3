@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\AdjustPlanForWellbeingJob;
+use App\Models\TrainingSession;
 use App\Models\WellbeingEntry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -65,12 +67,30 @@ class WellbeingController extends Controller
         $entry->user_id = $user->id;
         $entry->save();
 
+        // Auto-adjust today's planned session if an active plan exists
+        $today = Carbon::today()->toDateString();
+        $hasPlannedSession = TrainingSession::where('user_id', $user->id)
+            ->where('planned_date', $today)
+            ->where('status', 'planned')
+            ->where('type', '!=', 'rest')
+            ->whereHas('trainingPlan', fn ($q) => $q->where('is_active', true))
+            ->exists();
+
+        if ($hasPlannedSession) {
+            AdjustPlanForWellbeingJob::dispatch($user->id, $entry->id);
+        }
+
+        $message = $hasPlannedSession
+            ? 'Wellbeing gespeichert! KI passt deine heutige Trainingseinheit an. 🤖'
+            : 'Wellbeing Eintrag gespeichert! 💪';
+
         return response()->json([
-            'success' => true,
-            'message' => 'Wellbeing Eintrag gespeichert! 💪',
-            'entry' => $entry,
-            'status' => $entry->getStatus(),
-            'score' => $entry->getWellbeingScore(),
+            'success'       => true,
+            'message'       => $message,
+            'entry'         => $entry,
+            'status'        => $entry->getStatus(),
+            'score'         => $entry->getWellbeingScore(),
+            'plan_adjusted' => $hasPlannedSession,
         ]);
     }
 
