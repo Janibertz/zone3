@@ -156,6 +156,9 @@ Route::get('/dashboard', function (ProgressService $progressService) {
         'syncResult' => session('sync_result'),
         'todayPlanSession' => $todayPlanSession,
         'hasActivePlan' => (bool) $activePlan,
+        'hasWellbeingToday' => $user->wellbeingEntries()
+            ->where('date', now()->toDateString())
+            ->exists(),
     ]);
 })->middleware(['auth', 'verified', 'onboarding'])->name('dashboard');
 
@@ -240,6 +243,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::patch('/training-sessions/{session}/complete', [TrainingSessionController::class, 'complete'])->name('training-sessions.complete');
     Route::patch('/training-sessions/{session}/skip', [TrainingSessionController::class, 'skip'])->name('training-sessions.skip');
     Route::post('/training-sessions/{session}/adjust', [TrainingSessionController::class, 'adjust'])->name('training-sessions.adjust');
+    Route::get('/training-sessions/{session}/download', [TrainingSessionController::class, 'download'])->name('training-sessions.download');
 
     Route::post('/plans/generate', [PlanController::class, 'generate'])->name('plans.generate');
 

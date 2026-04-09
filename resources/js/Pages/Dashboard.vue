@@ -58,6 +58,10 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    hasWellbeingToday: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const page = usePage();
@@ -161,11 +165,13 @@ const aiLoading = ref(false);
 const showAIModal = ref(false);
 const aiModalType = ref(null);
 const showWellbeingModal = ref(false);
+const wellbeingEnteredToday = ref(props.hasWellbeingToday);
 const wellbeingToast = ref(null);
 let wellbeingToastTimer = null;
 
 function onWellbeingSaved(data) {
     showWellbeingModal.value = false;
+    wellbeingEnteredToday.value = true;
     if (data?.plan_adjusted) {
         wellbeingToast.value = {
             type: 'ai',
@@ -631,6 +637,38 @@ function syncStrava() {
                 <div v-if="flash.error && showFlash" class="rounded-lg border border-red-200 bg-red-50 p-4">
                     <p class="text-sm font-medium text-red-800">{{ flash.error }}</p>
                 </div>
+
+                <!-- ─── Wellbeing-Erinnerung ─────────────────────────────────── -->
+                <Transition
+                    enter-active-class="transition-all duration-300 ease-out"
+                    enter-from-class="opacity-0 -translate-y-2"
+                    leave-active-class="transition-all duration-200 ease-in"
+                    leave-to-class="opacity-0 -translate-y-2"
+                >
+                    <button
+                        v-if="!wellbeingEnteredToday"
+                        @click="showWellbeingModal = true"
+                        class="w-full text-left flex items-center gap-4 rounded-2xl px-4 py-3.5 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-500/10 dark:to-orange-500/10 border border-amber-200 dark:border-amber-500/30 hover:from-amber-100 hover:to-orange-100 dark:hover:from-amber-500/20 dark:hover:to-orange-500/20 transition-colors shadow-sm"
+                    >
+                        <!-- Pulse dot -->
+                        <div class="relative shrink-0">
+                            <span class="absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75 animate-ping"></span>
+                            <span class="relative inline-flex h-3 w-3 rounded-full bg-amber-500"></span>
+                        </div>
+
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-semibold text-amber-800 dark:text-amber-300">Wie geht es dir heute?</p>
+                            <p class="text-xs text-amber-600 dark:text-amber-400/80 mt-0.5">Tagesform eintragen — der KI-Plan passt sich automatisch an</p>
+                        </div>
+
+                        <span class="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 py-1.5 transition-colors">
+                            Eintragen
+                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/>
+                            </svg>
+                        </span>
+                    </button>
+                </Transition>
 
                 <!-- ═══ ROW 1: Profil + Stats + Kalender ═══ -->
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
