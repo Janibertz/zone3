@@ -41,10 +41,7 @@ class StravaSubscribeWebhook extends Command
             $this->warn("Existing subscription (ID: {$sub['id']}) points to: {$existingUrl}");
             $this->info('Deleting old subscription...');
 
-            $delete = Http::delete("https://www.strava.com/api/v3/push_subscriptions/{$sub['id']}", [
-                'client_id'     => $clientId,
-                'client_secret' => $clientSecret,
-            ]);
+            $delete = Http::delete("https://www.strava.com/api/v3/push_subscriptions/{$sub['id']}?client_id={$clientId}&client_secret={$clientSecret}");
 
             if ($delete->successful() || $delete->status() === 204) {
                 $this->info('Old subscription deleted.');
