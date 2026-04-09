@@ -42,9 +42,12 @@ function formatTime(dateStr) {
     return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
 
-// Parse "m:ss" pace string to total seconds
+// Parse "m:ss" pace string to total seconds.
+// "∞" → Infinity (Zone 1 has no upper slowness limit)
+// "0:00" → 0 (Zone 5 has no lower speed limit)
 function paceToSeconds(paceStr) {
     if (!paceStr) return null;
+    if (paceStr === '∞') return Infinity;
     const parts = paceStr.split(':');
     if (parts.length !== 2) return null;
     return parseInt(parts[0]) * 60 + parseInt(parts[1]);
@@ -61,15 +64,12 @@ const paceZoneInfo = computed(() => {
     for (const key of zones) {
         const z = props.paceZones[key];
         if (!z) continue;
-        const minSec = paceToSeconds(z.min_pace); // faster (lower number)
-        const maxSec = paceToSeconds(z.max_pace); // slower (higher number)
-        if (maxSec === null || minSec === null) continue;
-        // pace is within zone if between min (fast) and max (slow)
+        const minSec = paceToSeconds(z.min_pace) ?? 0;          // faster bound (0 = no limit)
+        const maxSec = paceToSeconds(z.max_pace) ?? Infinity;   // slower bound (∞ = no limit)
         if (paceSec >= minSec && paceSec <= maxSec) {
             return { key, name: z.name, minPace: z.min_pace, maxPace: z.max_pace };
         }
     }
-    // fallback: check if slower than z5 max
     return null;
 });
 
