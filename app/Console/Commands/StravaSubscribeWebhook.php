@@ -22,16 +22,36 @@ class StravaSubscribeWebhook extends Command
             return 1;
         }
 
-        // Check existing subscriptions first
+        // Check existing subscriptions
         $existing = Http::get('https://www.strava.com/api/v3/push_subscriptions', [
             'client_id'     => $clientId,
             'client_secret' => $clientSecret,
         ]);
 
         if ($existing->successful() && count($existing->json()) > 0) {
-            $this->info('Existing Strava webhook subscription found:');
-            $this->line(json_encode($existing->json(), JSON_PRETTY_PRINT));
-            return 0;
+            $sub = $existing->json()[0];
+            $existingUrl = $sub['callback_url'] ?? '';
+
+            if ($existingUrl === $callbackUrl) {
+                $this->info("Webhook already registered correctly (ID: {$sub['id']}).");
+                $this->line("URL: {$existingUrl}");
+                return 0;
+            }
+
+            $this->warn("Existing subscription (ID: {$sub['id']}) points to: {$existingUrl}");
+            $this->info('Deleting old subscription...');
+
+            $delete = Http::delete("https://www.strava.com/api/v3/push_subscriptions/{$sub['id']}", [
+                'client_id'     => $clientId,
+                'client_secret' => $clientSecret,
+            ]);
+
+            if ($delete->successful() || $delete->status() === 204) {
+                $this->info('Old subscription deleted.');
+            } else {
+                $this->error('Failed to delete old subscription: ' . $delete->body());
+                return 1;
+            }
         }
 
         // Register new subscription
