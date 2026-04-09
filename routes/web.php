@@ -251,6 +251,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::patch('/training-sessions/{session}/skip', [TrainingSessionController::class, 'skip'])->name('training-sessions.skip');
     Route::post('/training-sessions/{session}/adjust', [TrainingSessionController::class, 'adjust'])->name('training-sessions.adjust');
     Route::get('/training-sessions/{session}/download', [TrainingSessionController::class, 'download'])->name('training-sessions.download');
+    Route::get('/training-sessions/{session}/nutrition-tips', [TrainingSessionController::class, 'nutritionTips'])->name('training-sessions.nutrition-tips');
 
     Route::post('/plans/generate', [PlanController::class, 'generate'])->name('plans.generate');
 

@@ -939,6 +939,75 @@ PROMPT;
         }
     }
 
+    /**
+     * Generate personalised nutrition tips for a training session.
+     * Returns array with keys: before[], during[], after[]
+     */
+    public function generateNutritionTips(array $session): ?array
+    {
+        $isRace = ($session['type'] ?? '') === 'race';
+
+        $prompt = <<<PROMPT
+Du bist ein erfahrener Lauf- und Ernährungscoach. Erstelle konkrete, personalisierte Verpflegungstipps für die folgende Trainingseinheit.
+
+**Einheit:**
+- Typ: {$session['type']}
+- Titel: {$session['title']}
+- Distanz: {$session['distance_km']} km
+- Dauer: {$session['duration_min']} min
+- Pace-Ziel: {$session['pace_target']}
+- Intensität: {$session['intensity']}
+- Renntag: {$session['is_race']}
+
+**Regeln:**
+- Unter 45 min / 8 km: minimale Verpflegung, kein Gel nötig
+- 45–90 min: leichter Pre-Workout-Snack, Wasser
+- Über 90 min / 16 km: Gel-Strategie alle 40–45 min, Elektrolyte
+- Renntag: Carb-Loading Vorabend, Race-Verpflegungsstrategie, Carb-Depletion vermeiden
+- Intervall/Tempo: kohlenhydratreich 2–3h vorher, kein Gel nötig
+
+Gib immer konkrete Mengen, Zeitangaben und Produktbeispiele (Gels, Riegel, Getränke).
+Antworte ausschließlich mit JSON (kein anderer Text):
+{
+  "before": [{"icon": "🍝", "text": "..."}, ...],
+  "during": [{"icon": "💧", "text": "..."}, ...],
+  "after":  [{"icon": "🥛", "text": "..."}, ...]
+}
+PROMPT;
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Content-Type'  => 'application/json',
+            ])->post($this->baseUrl . '/chat/completions', [
+                'model'    => $this->model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Du bist ein Ernährungs- und Laufexperte. Antworte ausschließlich mit validem JSON.'],
+                    ['role' => 'user',   'content' => $prompt],
+                ],
+                'temperature' => 0.5,
+                'max_tokens'  => 600,
+            ]);
+
+            if ($response->failed()) {
+                Log::error('OpenAI Nutrition Tips Error', ['status' => $response->status()]);
+                return null;
+            }
+
+            $text = data_get($response->json(), 'choices.0.message.content', '');
+            if (preg_match('/\{.*\}/s', $text, $matches)) {
+                $json = json_decode($matches[0], true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    return $json;
+                }
+            }
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Nutrition Tips Exception', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
     private function formatSeconds(int $seconds): string
     {
         $h = floor($seconds / 3600);

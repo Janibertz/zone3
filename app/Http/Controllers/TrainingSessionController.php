@@ -44,6 +44,30 @@ class TrainingSessionController extends Controller
     }
 
     /**
+     * Generate AI nutrition tips for a session.
+     */
+    public function nutritionTips(TrainingSession $session, OpenAIService $openAI)
+    {
+        abort_if($session->user_id !== Auth::id(), 403);
+
+        $tips = $openAI->generateNutritionTips([
+            'type'         => $session->type,
+            'title'        => $session->title,
+            'distance_km'  => $session->distance_km,
+            'duration_min' => $session->duration_min,
+            'pace_target'  => $session->pace_target,
+            'intensity'    => $session->intensity,
+            'is_race'      => $session->type === 'race' ? 'Ja' : 'Nein',
+        ]);
+
+        if (! $tips) {
+            return response()->json(['error' => 'Tipps konnten nicht geladen werden.'], 500);
+        }
+
+        return response()->json($tips);
+    }
+
+    /**
      * AI-adjust a single session based on today's wellbeing.
      */
     public function adjust(TrainingSession $session, OpenAIService $openAI)
