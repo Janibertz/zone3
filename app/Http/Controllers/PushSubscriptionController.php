@@ -88,7 +88,12 @@ class PushSubscriptionController extends Controller
             return response()->json(['error' => 'Keine aktive Push-Subscription gefunden.'], 422);
         }
 
-        $webPush->sendTest($user);
+        try {
+            $webPush->sendTest($user);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Push test failed: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
 
         return response()->json(['ok' => true]);
     }
