@@ -187,19 +187,20 @@ class TrainingSessionController extends Controller
 
     private function generateTcx(TrainingSession $session, array $steps): string
     {
-        $workoutName   = htmlspecialchars($session->title ?: 'Training', ENT_XML1);
-        $scheduledOn   = $session->planned_date->format('Y-m-d') . 'T00:00:00Z';
-        $notes         = htmlspecialchars($session->description ?: '', ENT_XML1);
-        $stepsXml      = '';
+        // TCX v2 schema: Name_t max 15 chars, ScheduledOn is xs:date (no time)
+        $workoutName = htmlspecialchars(mb_substr($session->title ?: 'Training', 0, 15), ENT_XML1);
+        $scheduledOn = $session->planned_date->format('Y-m-d');
+        $notes       = htmlspecialchars($session->description ?: '', ENT_XML1);
+        $stepsXml    = '';
 
         foreach ($steps as $i => $step) {
             $sid      = $i + 1;
-            $stepName = htmlspecialchars($step['name'], ENT_XML1);
-            $notes2   = htmlspecialchars($step['label'], ENT_XML1);
+            // Step Name_t also max 15 chars; Step_t has no <Notes> element in schema
+            $stepName = htmlspecialchars(mb_substr($step['name'], 0, 15), ENT_XML1);
             $meters   = max(100, $step['meters']);
 
-            // Speed target: ±5 % of target pace, falls back to None_t
-            if ($step['speedMps'] && $step['speedMps'] > 0) {
+            // Speed target ±5 % — use None_t if no pace set
+            if (!empty($step['speedMps']) && $step['speedMps'] > 0) {
                 $lo = number_format($step['speedMps'] * 0.95, 4, '.', '');
                 $hi = number_format($step['speedMps'] * 1.05, 4, '.', '');
                 $targetXml = "          <Target xsi:type=\"Speed_t\">\n"
@@ -215,7 +216,6 @@ class TrainingSessionController extends Controller
             $stepsXml .= "        <Step xsi:type=\"Step_t\">\n"
                 . "          <StepId>{$sid}</StepId>\n"
                 . "          <Name>{$stepName}</Name>\n"
-                . "          <Notes>{$notes2}</Notes>\n"
                 . "          <Duration xsi:type=\"Distance_t\">\n"
                 . "            <Meters>{$meters}</Meters>\n"
                 . "          </Duration>\n"
@@ -233,9 +233,9 @@ class TrainingSessionController extends Controller
   <Workouts>
     <Workout Sport="Running">
       <Name>{$workoutName}</Name>
+{$stepsXml}      <ScheduledOn>{$scheduledOn}</ScheduledOn>
       <Notes>{$notes}</Notes>
-      <ScheduledOn>{$scheduledOn}</ScheduledOn>
-{$stepsXml}    </Workout>
+    </Workout>
   </Workouts>
 </TrainingCenterDatabase>
 XML;
