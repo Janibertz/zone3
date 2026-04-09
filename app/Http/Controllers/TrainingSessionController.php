@@ -76,21 +76,20 @@ class TrainingSessionController extends Controller
     }
 
     /**
-     * Download the session as a Garmin-compatible TCX workout file.
+     * Download the session as a Garmin-compatible FIT workout file.
      */
     public function download(TrainingSession $session)
     {
         abort_if($session->user_id !== Auth::id(), 403);
 
-        $steps = $this->computeWorkoutSteps($session);
-        $xml   = $this->generateTcx($session, $steps);
-
+        $steps    = $this->computeWorkoutSteps($session);
+        $fit      = $this->generateFit($session, $steps);
         $filename = Str::slug($session->title ?: 'training')
             . '-' . $session->planned_date->format('Y-m-d')
-            . '.tcx';
+            . '.fit';
 
-        return response($xml, 200, [
-            'Content-Type'        => 'application/vnd.garmin.tcx+xml',
+        return response($fit, 200, [
+            'Content-Type'        => 'application/vnd.ant.fit',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
         ]);
     }
@@ -239,6 +238,124 @@ class TrainingSessionController extends Controller
   </Workouts>
 </TrainingCenterDatabase>
 XML;
+    }
+
+    // ── FIT generator ────────────────────────────────────────────────────────
+
+    /**
+     * Generate a binary Garmin FIT workout file.
+     * Spec: https://developer.garmin.com/fit/protocol/
+     */
+    private function generateFit(TrainingSession $session, array $steps): string
+    {
+        $fitEpoch = mktime(0, 0, 0, 12, 31, 1989); // FIT epoch
+        $now      = time() - $fitEpoch;
+        $numSteps = count($steps);
+        $data     = '';
+
+        // ── file_id (mesg 0): type, manufacturer, time_created ──
+        $data .= $this->fitDef(0, 0, [[0,1,0],[1,2,0x84],[4,4,0x86]]);
+        $data .= chr(0)
+               . pack('C', 5)       // type = workout
+               . pack('v', 255)     // manufacturer = development
+               . pack('V', $now);   // time_created
+
+        // ── workout (mesg 26): sport, num_valid_steps, wkt_name ──
+        $data .= $this->fitDef(1, 26, [[4,1,0],[6,2,0x84],[8,16,0x07]]);
+        $wktName = str_pad(substr($session->title ?: 'Training', 0, 15) . "\x00", 16, "\x00");
+        $data .= chr(1)
+               . pack('C', 1)           // sport = running
+               . pack('v', $numSteps)   // num_valid_steps
+               . $wktName;
+
+        // ── workout_step (mesg 27) definition ──
+        $data .= $this->fitDef(2, 27, [
+            [254, 2, 0x84], // message_index
+            [0,  16, 0x07], // wkt_step_name
+            [1,   1, 0x00], // duration_type
+            [2,   4, 0x86], // duration_value (cm for distance)
+            [3,   1, 0x00], // target_type
+            [4,   4, 0x86], // target_value
+            [5,   4, 0x86], // custom_target_low (mm/s)
+            [6,   4, 0x86], // custom_target_high (mm/s)
+            [7,   1, 0x00], // intensity (0=active,2=warmup,3=cooldown)
+        ]);
+
+        foreach ($steps as $i => $step) {
+            $stepName  = str_pad(substr($step['name'], 0, 15) . "\x00", 16, "\x00");
+            $meters    = max(100, $step['meters']);
+            $distanceCm = $meters * 100;
+
+            // intensity: first step=warmup, last=cooldown, rest=active
+            if ($i === 0) $intensity = 2;
+            elseif ($i === $numSteps - 1) $intensity = 3;
+            else $intensity = 0;
+
+            // speed target in mm/s
+            if (!empty($step['speedMps']) && $step['speedMps'] > 0) {
+                $targetType = 0; // speed
+                $targetVal  = 0;
+                $targetLo   = (int) round($step['speedMps'] * 0.95 * 1000);
+                $targetHi   = (int) round($step['speedMps'] * 1.05 * 1000);
+            } else {
+                $targetType = 2; // open
+                $targetVal  = 0;
+                $targetLo   = 0;
+                $targetHi   = 0;
+            }
+
+            $data .= chr(2)
+                   . pack('v', $i)           // message_index
+                   . $stepName
+                   . pack('C', 1)            // duration_type = distance
+                   . pack('V', $distanceCm)
+                   . pack('C', $targetType)
+                   . pack('V', $targetVal)
+                   . pack('V', $targetLo)
+                   . pack('V', $targetHi)
+                   . pack('C', $intensity);
+        }
+
+        // ── header ──
+        $dataSize  = strlen($data);
+        $headerRaw = pack('C', 14) . pack('C', 0x20) . pack('v', 2132) . pack('V', $dataSize) . '.FIT';
+        $headerCrc = $this->fitCrc($headerRaw);
+        $header    = $headerRaw . pack('v', $headerCrc);
+
+        $fileCrc = $this->fitCrc($data);
+        return $header . $data . pack('v', $fileCrc);
+    }
+
+    /** Build a FIT definition message for a local message number. */
+    private function fitDef(int $localNum, int $globalNum, array $fields): string
+    {
+        $msg  = chr(0x40 | $localNum); // definition record header
+        $msg .= chr(0);                // reserved
+        $msg .= chr(0);                // architecture: little-endian
+        $msg .= pack('v', $globalNum);
+        $msg .= chr(count($fields));
+        foreach ($fields as [$fNum, $fSize, $fBase]) {
+            $msg .= chr($fNum) . chr($fSize) . chr($fBase);
+        }
+        return $msg;
+    }
+
+    /** FIT CRC-16 (Garmin variant). */
+    private function fitCrc(string $data): int
+    {
+        $crc = 0;
+        $t   = [0x0000,0xCC01,0xD801,0x1400,0xF001,0x3C00,0x2800,0xE401,
+                0xA001,0x6C00,0x7800,0xB401,0x5000,0x9C01,0x8801,0x4400];
+        for ($i = 0; $i < strlen($data); $i++) {
+            $b    = ord($data[$i]);
+            $tmp  = $t[$crc & 0xF];
+            $crc  = ($crc >> 4) & 0x0FFF;
+            $crc ^= $tmp ^ $t[$b & 0xF];
+            $tmp  = $t[$crc & 0xF];
+            $crc  = ($crc >> 4) & 0x0FFF;
+            $crc ^= $tmp ^ $t[($b >> 4) & 0xF];
+        }
+        return $crc;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
