@@ -27,13 +27,18 @@ class TrainingSession extends Model
         'status',
         'skip_reason',
         'sort_order',
+        'rating',
+        'effort_perceived',
+        'feeling_notes',
     ];
 
     protected $casts = [
-        'planned_date' => 'date',
-        'distance_km'  => 'float',
-        'zone'         => 'integer',
-        'sort_order'   => 'integer',
+        'planned_date'     => 'date',
+        'distance_km'      => 'float',
+        'zone'             => 'integer',
+        'sort_order'       => 'integer',
+        'rating'           => 'integer',
+        'effort_perceived' => 'integer',
     ];
 
     public function user()        { return $this->belongsTo(User::class); }

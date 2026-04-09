@@ -720,6 +720,7 @@ PROMPT;
         ?array $profile,
         array $recentActivities,
         array $wellbeingData,
+        array $sessionRatings = [],
     ): ?array {
         $today        = now()->format('Y-m-d');
         $eventDate    = $event->event_date->format('Y-m-d');
@@ -766,6 +767,23 @@ PROMPT;
             $wellbeingText = 'Wellbeing: keine Daten vorhanden.';
         }
 
+        // Session ratings summary for AI learning
+        $ratingsText = 'Keine Bewertungsdaten vorhanden.';
+        if (! empty($sessionRatings)) {
+            $ratingLines = [];
+            foreach ($sessionRatings as $r) {
+                $stars  = $r['rating'] ? str_repeat('⭐', $r['rating']) : '–';
+                $rpe    = $r['effort_perceived'] ? "RPE {$r['effort_perceived']}/10" : '';
+                $note   = $r['feeling_notes'] ? " | \"{$r['feeling_notes']}\"" : '';
+                $ratingLines[] = "- [{$r['date']}] {$r['type']} {$r['distance_km']}km — {$stars} {$rpe}{$note}";
+            }
+            // Compute avg rating and RPE for coaching context
+            $avgRating = round(array_sum(array_column($sessionRatings, 'rating')) / count($sessionRatings), 1);
+            $rpeValues = array_filter(array_column($sessionRatings, 'effort_perceived'));
+            $avgRpe    = $rpeValues ? round(array_sum($rpeValues) / count($rpeValues), 1) : null;
+            $ratingsText = "Ø Bewertung: {$avgRating}/5" . ($avgRpe ? " | Ø RPE: {$avgRpe}/10" : '') . "\n" . implode("\n", array_slice($ratingLines, 0, 10));
+        }
+
         $prompt = <<<PROMPT
 Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan für folgendes Rennevent.
 
@@ -783,6 +801,9 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan f�
 
 **{$wellbeingText}**
 
+**Bisherige Einheitsbewertungen (Athleten-Feedback):**
+{$ratingsText}
+
 **Planungsregeln:**
 - Starte den Plan ab heute ({$today})
 - Der letzte Tag im Plan ist IMMER der Renntag ({$eventDate}) — niemals danach
@@ -796,6 +817,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan f�
 - Mindestens ein Ruhetag pro Woche
 - A-Events: max. Leistungsoptimierung; C-Events: Trainingsrennen, moderate Belastung
 - WICHTIG: Plane nur Tage von heute ({$today}) bis zum Renntag ({$eventDate}). Kein Tag nach {$eventDate}.
+- Lerne aus den Athleten-Bewertungen: niedrige Bewertungen (1-2⭐) oder hohe RPE (≥8) bei bestimmten Typen → weniger davon oder leichter planen; hohe Bewertungen (4-5⭐) → mehr davon
 
 **Antworte ausschließlich mit einem JSON-Array (zwischen 1 und 10 Objekte, je nach verfügbaren Tagen bis zum Rennen):**
 [

@@ -131,9 +131,26 @@ class TrainingPlanController extends Controller
             ];
         }
 
+        // ── Session ratings from previous plans (for AI learning) ───────────
+        $sessionRatings = TrainingSession::where('user_id', $user->id)
+            ->whereNotNull('rating')
+            ->where('status', 'completed')
+            ->orderByDesc('planned_date')
+            ->limit(30)
+            ->get()
+            ->map(fn ($s) => [
+                'date'             => $s->planned_date->format('Y-m-d'),
+                'type'             => $s->type,
+                'distance_km'      => $s->distance_km,
+                'rating'           => $s->rating,           // 1–5
+                'effort_perceived' => $s->effort_perceived, // RPE 1–10
+                'feeling_notes'    => $s->feeling_notes,
+            ])
+            ->toArray();
+
         // ── Call AI ──────────────────────────────────────────────────────────
         try {
-            $aiSessions = $openAI->generateEventTrainingPlan($event, $profileData, $recentActivities, $wellbeingData);
+            $aiSessions = $openAI->generateEventTrainingPlan($event, $profileData, $recentActivities, $wellbeingData, $sessionRatings);
         } catch (\Throwable $e) {
             return response()->json(['error' => 'OpenAI-Fehler: ' . $e->getMessage()], 500);
         }

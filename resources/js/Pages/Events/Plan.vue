@@ -219,6 +219,33 @@ const nutritionLoading   = ref(false);
 const nutritionError     = ref('');
 const nutritionCache     = {};
 
+// ── Rating ───────────────────────────────────────────────────────────────────
+const ratingValue  = ref(0);
+const effortValue  = ref(0);
+const feelingNotes = ref('');
+const ratingSaving = ref(false);
+const ratingSaved  = ref(false);
+
+async function saveRating() {
+    if (!detailSession.value) return;
+    ratingSaving.value = true;
+    ratingSaved.value  = false;
+    try {
+        const { data } = await axios.patch(route('training-sessions.rate', detailSession.value.id), {
+            rating:           ratingValue.value  || null,
+            effort_perceived: effortValue.value  || null,
+            feeling_notes:    feelingNotes.value || null,
+        });
+        const idx = sessionList.value.findIndex(s => s.id === data.session.id);
+        if (idx !== -1) sessionList.value[idx] = data.session;
+        detailSession.value = data.session;
+        ratingSaved.value = true;
+        setTimeout(() => ratingSaved.value = false, 2500);
+    } finally {
+        ratingSaving.value = false;
+    }
+}
+
 const isRaceSession = computed(() => {
     const s = detailSession.value;
     if (!s) return false;
@@ -230,6 +257,10 @@ async function openDetail(session) {
     detailSession.value   = session;
     aiNutritionTips.value = null;
     nutritionError.value  = '';
+    ratingValue.value     = session.rating          || 0;
+    effortValue.value     = session.effort_perceived || 0;
+    feelingNotes.value    = session.feeling_notes    || '';
+    ratingSaved.value     = false;
 
     // Serve from cache if already loaded
     if (nutritionCache[session.id]) {
@@ -735,6 +766,48 @@ const workoutSteps = computed(() => {
                         <span class="text-xs font-medium px-2 py-0.5 rounded-full" :class="typeOf(detailSession.type).badge">Zone {{ detailSession.zone }}</span>
                         <span v-if="detailSession.intensity" class="text-xs text-gray-400 dark:text-slate-500 capitalize">· {{ detailSession.intensity }}</span>
                     </div>
+                </div>
+
+                <!-- Rating (nur für abgeschlossene Sessions) -->
+                <div v-if="detailSession.status === 'completed'" class="px-5 pb-4 border-t border-gray-100 dark:border-slate-800 pt-4 space-y-4">
+                    <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500">Einheit bewerten</h3>
+
+                    <!-- Sterne -->
+                    <div>
+                        <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Wie gut ist die Einheit gelaufen?</p>
+                        <div class="flex gap-1.5">
+                            <button v-for="n in 5" :key="n" @click="ratingValue = ratingValue === n ? 0 : n"
+                                class="h-9 w-9 rounded-xl flex items-center justify-center text-xl transition-all"
+                                :class="n <= ratingValue ? 'bg-amber-100 dark:bg-amber-500/20 scale-110' : 'bg-gray-100 dark:bg-slate-800 opacity-40 hover:opacity-70'">
+                                ⭐
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- RPE -->
+                    <div>
+                        <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Empfundene Anstrengung (RPE 1–10): <span class="font-semibold text-gray-700 dark:text-slate-300">{{ effortValue || '–' }}</span></p>
+                        <input type="range" min="0" max="10" step="1" v-model.number="effortValue"
+                            class="w-full h-2 rounded-full accent-indigo-600 cursor-pointer" />
+                        <div class="flex justify-between text-xs text-gray-400 dark:text-slate-500 mt-1 px-0.5">
+                            <span>Sehr leicht</span><span>Maximal</span>
+                        </div>
+                    </div>
+
+                    <!-- Notiz -->
+                    <div>
+                        <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Notiz (optional)</p>
+                        <textarea v-model="feelingNotes" rows="2" maxlength="300" placeholder="Wie hat sich die Einheit angefühlt?"
+                            class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none">
+                        </textarea>
+                    </div>
+
+                    <button @click="saveRating" :disabled="ratingSaving"
+                        class="w-full rounded-xl py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+                        :class="ratingSaved ? 'bg-green-500 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'">
+                        <svg v-if="ratingSaving" class="inline h-4 w-4 animate-spin mr-1" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                        {{ ratingSaved ? '✓ Gespeichert' : ratingSaving ? 'Speichern…' : 'Bewertung speichern' }}
+                    </button>
                 </div>
 
                 <!-- Download footer -->

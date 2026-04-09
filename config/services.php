@@ -36,9 +36,11 @@ return [
     ],
 
     'strava' => [
-        'client_id' => env('STRAVA_CLIENT_ID'),
-        'client_secret' => env('STRAVA_CLIENT_SECRET'),
-        'redirect' => env('STRAVA_REDIRECT_URI'),
+        'client_id'              => env('STRAVA_CLIENT_ID'),
+        'client_secret'          => env('STRAVA_CLIENT_SECRET'),
+        'redirect'               => env('STRAVA_REDIRECT_URI'),
+        'webhook_callback_url'   => env('STRAVA_WEBHOOK_CALLBACK_URL', env('APP_URL') . '/strava/webhook'),
+        'webhook_verify_token'   => env('STRAVA_WEBHOOK_VERIFY_TOKEN', 'zone3_webhook'),
     ],
 
     'openai' => [

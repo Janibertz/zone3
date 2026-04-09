@@ -44,6 +44,24 @@ class TrainingSessionController extends Controller
     }
 
     /**
+     * Save user rating + perceived effort for a completed session.
+     */
+    public function rate(Request $request, TrainingSession $session)
+    {
+        abort_if($session->user_id !== Auth::id(), 403);
+
+        $request->validate([
+            'rating'           => 'nullable|integer|min:1|max:5',
+            'effort_perceived' => 'nullable|integer|min:1|max:10',
+            'feeling_notes'    => 'nullable|string|max:300',
+        ]);
+
+        $session->update($request->only(['rating', 'effort_perceived', 'feeling_notes']));
+
+        return response()->json(['session' => $this->formatSession($session->fresh())]);
+    }
+
+    /**
      * Generate AI nutrition tips for a session.
      */
     public function nutritionTips(TrainingSession $session, OpenAIService $openAI)
@@ -413,7 +431,10 @@ XML;
             'status'       => $s->status,
             'skip_reason'  => $s->skip_reason,
             'sort_order'   => $s->sort_order,
-            'activity_id'  => $s->activity_id,
+            'activity_id'      => $s->activity_id,
+            'rating'           => $s->rating,
+            'effort_perceived' => $s->effort_perceived,
+            'feeling_notes'    => $s->feeling_notes,
         ];
     }
 }

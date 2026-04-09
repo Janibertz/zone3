@@ -8,7 +8,9 @@ use App\Models\RunnerProfile;
 use App\Models\StravaAccount;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
+use App\Models\User;
 use App\Services\StravaService;
+use App\Services\WebPushService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -149,7 +151,7 @@ class StravaController extends Controller
     /**
      * Strava webhook event handler (POST) — triggered automatically when a new activity is created.
      */
-    public function webhook(Request $request, StravaService $strava): Response
+    public function webhook(Request $request, StravaService $strava, WebPushService $webPush): Response
     {
         $data = $request->all();
 
@@ -194,6 +196,19 @@ class StravaController extends Controller
         $this->dispatchCalculationIfDue($userId, $isRun ? 1 : 0);
         if ($isRun) {
             $this->matchActivityToSession($userId, $activity);
+        }
+
+        // Push notification for the user
+        $user = User::find($userId);
+        if ($user && $user->push_notifications_enabled) {
+            $distKm  = $activity->distance > 0 ? round($activity->distance / 1000, 1) . ' km' : '';
+            $body    = trim($activity->name . ($distKm ? " · {$distKm}" : ''));
+            $webPush->sendToUser(
+                $user,
+                'Neue Aktivität importiert 🏃',
+                $body,
+                '/activities'
+            );
         }
 
         return response('OK');
