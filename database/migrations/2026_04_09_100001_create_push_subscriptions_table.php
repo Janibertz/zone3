@@ -8,7 +8,11 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::createOrIgnore('push_subscriptions', function (Blueprint $table) {
+        if (Schema::hasTable('push_subscriptions')) {
+            return;
+        }
+
+        Schema::create('push_subscriptions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->text('endpoint');
