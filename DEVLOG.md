@@ -2,6 +2,63 @@
 
 ## Abgeschlossen
 
+### 2026-04-09 — Strava Auto-Import + Session-Bewertung + KI-Lernschleife
+
+- **Strava Webhook Registrierung:** Neuer Artisan-Command `strava:subscribe-webhook` registriert automatisch die Webhook-Subscription bei Strava. Env-Variablen `STRAVA_WEBHOOK_CALLBACK_URL` und `STRAVA_WEBHOOK_VERIFY_TOKEN` ergänzt
+- **Push Notification bei Aktivitätsimport:** Nach jedem automatischen Strava-Webhook-Import bekommt der Nutzer eine Push Notification ("Neue Aktivität importiert 🏃 · Name · X km") — wenn Push aktiviert
+- **Session-Bewertung:** Abgeschlossene Trainingseinheiten können bewertet werden direkt im Detail-Modal:
+  - **Sterne (1–5):** Wie gut ist die Einheit gelaufen?
+  - **RPE-Slider (1–10):** Empfundene Anstrengung (Rate of Perceived Exertion)
+  - **Freitext-Notiz** (max. 300 Zeichen)
+  - PATCH `/training-sessions/{session}/rate` Endpoint
+  - Migration: Felder `rating`, `effort_perceived`, `feeling_notes` auf `training_sessions`
+- **KI lernt aus Bewertungen:** Beim Generieren eines neuen Trainingsplans bekommt die KI die letzten 30 bewerteten Sessions als Kontext. Durchschnittsbewertung + RPE wird berechnet; niedrige Bewertungen/hoher RPE bei bestimmten Einheitstypen → KI plant diese leichter oder seltener; hohe Bewertungen → mehr davon
+
+### 2026-04-09 — KI-Verpflegungstipps + Workout-Detail
+
+- **KI-Verpflegungsplan:** Beim Öffnen des Session-Detail-Modals ruft die App OpenAI auf und generiert personalisierte Verpflegungstipps in drei Sektionen:
+  - 🕐 **Vor dem Training/Rennen** — Timing von Mahlzeiten, Carb-Loading bei langen Läufen
+  - 🏃 **Während des Trainings** — Hydration-Intervalle, Gel-Strategie mit Zeitangaben
+  - ✅ **Nach dem Training** — Recovery-Fenster mit Protein + Kohlenhydraten
+  - Ergebnisse werden pro Session im Browser gecacht (kein doppelter API-Call)
+- **Race Day Erkennung:** Sessions am Renntag (`type === 'race'` oder `planned_date === event_date`) zeigen keine Warmup/Cooldown-Struktur
+- **FIT-Workout-Download:** TCX durch natives Garmin FIT-Binärformat ersetzt — vollständiger PHP-FIT-Encoder mit CRC-16, distance-basierten Steps, Speed-Targets in mm/s, Warmup/Cooldown-Intensität
+- **Workout-Struktur Detail:** Warmup / Hauptteil / Cooldown mit geschätzter Zeit pro Phase
+
+### 2026-04-09 — Web Push Notifications
+
+- **VAPID-Infrastruktur:** `minishlink/web-push` Library, VAPID-Keys (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`), `push_subscriptions` Tabelle
+- **Profil-Tab "Benachrichtigungen":** Push aktivieren/deaktivieren, Test-Notification senden, Uhrzeit für Wellbeing-Erinnerung, Toggle für Schwellenpace-Benachrichtigung, Toggle für Plan-Update-Benachrichtigung
+- **`WebPushService`:** `sendToUser()` sendet an alle aktiven Subscriptions des Nutzers, löscht abgelaufene (410-Antworten) automatisch
+- **Scheduler:** `push:wellbeing-reminders` Command läuft jede Minute via `startup.sh`-Loop; erinnert Nutzer wenn Wellbeing noch nicht ausgefüllt und Uhrzeit passt
+- **Automatische Benachrichtigungen:**
+  - Nach Schwellenpace-Neuberechnung (`CalculateThresholdPaceJob`)
+  - Nach KI-Plan-Generierung (`TrainingPlanController::generate()`)
+  - Nach Strava-Aktivitätsimport via Webhook
+- **Service Worker** (`public/sw.js`): `push`-Event-Handler mit Notification-Display, `notificationclick`-Handler öffnet/fokussiert den passenden Tab
+
+### 2026-04-09 — Aktivitäten-Detailseite
+
+- **`/activities/{activity}` Seite** (`Activities/Show.vue`): Leaflet-Karte mit decodierter Google-Polyline (grüner Start-, roter Endmarker), Stats-Grid (Distanz, Zeit, Pace, Höhe), Herzfrequenz-Anzeige, Pace-Zonen-Balken
+- **Polyline-Fix:** Strava List-API gibt `summary_polyline` zurück (nicht `polyline`) → `extractPolyline()` Helper mit Fallback in `StravaController`
+- **Pace-Zonen-Matching Fix:** `∞` (Zone 1 max) und `0:00` (Zone 5 min) wurden nicht korrekt gematcht — `paceToSeconds()` gibt `Infinity` für `∞` zurück, Fallback `?? 0` / `?? Infinity`
+
+### 2026-04-08 — Queue Worker Fix + Scheduler + APP_NAME
+
+- **`startup.sh`:** Kombinierter Startprozess für Coolify (Nixpacks unterstützt nur `web:` Procfile-Eintrag):
+  - Migrations + Cache-Befehle
+  - Queue Worker in Restart-Loop (Background)
+  - Scheduler-Loop alle 60 Sek. (Background)
+  - PHP Dev-Server im Foreground
+- **APP_NAME** auf `Zone3` gesetzt
+
+### 2026-04-07 — Plan-Ansicht + Session-Detail + Wellbeing-Banner
+
+- **Plan.vue zeigt nur zukünftige Sessions:** Filter auf `planned_date >= heute`
+- **Wellbeing-Banner Dashboard:** Auffälliges gelbes Puls-Banner wenn Wellbeing heute noch nicht ausgefüllt; verschwindet nach dem Ausfüllen ohne Seitenreload
+- **Session-Detail Modal:** Warmup/Hauptteil/Cooldown-Aufschlüsselung mit km, Pace und geschätzter Zeit pro Phase; konfigurierbar pro Session-Typ
+- **Ein-aktiver-Plan-Regel:** Nur ein Plan gleichzeitig aktiv; Plan abbrechen-Modal mit Bestätigung
+
 ### 2026-04-07 — KI-Plan: Strava-Matching, Event-Cutoff, Pace-Daten
 
 - **Strava-Aktivität ersetzt geplante Session:** Wenn ein Lauf aus Strava importiert wird, werden Distanz, Dauer und Pace der geplanten Session mit den echten Strava-Daten überschrieben (statt nur Status auf "completed" setzen)
@@ -136,22 +193,23 @@
 
 ### Nächste Schritte (hoch priorisiert)
 
-- [ ] **Aktivitäten-Detailseite** — Kartenansicht (Polyline), Herzfrequenz-Verlauf, Zonenverteilung pro Aktivität
-- [ ] **Wellbeing-Seite** — Verlaufsansicht der Wellbeing-Einträge, Wochenübersicht
+- [ ] **Wellbeing-Verlaufsseite** — Grafische Auswertung der Wellbeing-Einträge über Zeit
 - [ ] **Plan-Wochensicht** — Kalenderansicht des Plans statt reine Listendarstellung
 - [ ] **Strava Extended Access** — Beantragung ausstehend (Support-Seite + Privacy-Seite erstellt)
+- [ ] **Garmin Connect direkt hochladen** — OAuth-Integration statt manueller FIT-Download
+- [ ] **Session-Bewertung in Aktivitäten-Ansicht** — Rating auch direkt aus der Aktivitäten-Liste heraus
 
 ### Mittlere Priorität
 
-- [ ] **Push-Benachrichtigungen / E-Mail-Reminders** — Tägliche Trainingsempfehlung (Queue Worker bereits eingerichtet)
 - [ ] **Mobile-Optimierung** — Bessere Touch-Gesten, Bottom-Navigation für Mobile
 - [ ] **Dark Mode persistenz** — Einstellung im Nutzerprofil speichern statt nur localStorage
 - [ ] **Mehrsprachigkeit** (DE/EN)
+- [ ] **Wochen- und Monatszusammenfassung** per Push / E-Mail
 
 ### Ideen / Backlog
 
 - [ ] Garmin / Polar Integration als Alternative zu Strava
-- [ ] Wochen- und Monatszusammenfassung per E-Mail
 - [ ] Wettkampfkalender / Rennanmeldung verwalten
 - [ ] Vergleich mit anderen Nutzern (optional/opt-in)
 - [ ] Apple Health / Google Fit Sync
+- [ ] Langzeit-Lernkurve: Schwellenpace-Verlauf als Chart im Profil
