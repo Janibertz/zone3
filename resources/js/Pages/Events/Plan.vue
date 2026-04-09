@@ -271,6 +271,70 @@ const workoutSteps = computed(() => {
         { phase: cfg.cName, label: cfg.cLabel, km: Math.round(cooldownKm * 10) / 10, pace: easyPaceStr, color: 'blue'   },
     ];
 });
+
+const nutritionTips = computed(() => {
+    const s = detailSession.value;
+    if (!s || s.type === 'rest') return null;
+
+    const dist = s.distance_km || 0;
+    const dur  = s.duration_min || 0;
+    const isLong   = dist >= 16 || dur >= 90;
+    const isMedium = !isLong && (dist >= 8 || dur >= 45);
+    const isHard   = ['tempo_run', 'interval', 'race_prep'].includes(s.type);
+    const isRace   = s.type === 'race_prep';
+
+    const gelCount = isLong ? Math.max(1, Math.floor(dur / 45) - 1) : 0;
+    const gelTimes = Array.from({ length: gelCount }, (_, i) => `${(i + 1) * 45} min`);
+
+    const before = [];
+    const during = [];
+    const after  = [];
+
+    // ── Vor dem Training ──
+    if (isLong) {
+        before.push({ icon: '🍝', text: 'Abend vorher: Kohlenhydratreiches Abendessen (Pasta, Reis, Kartoffeln)' });
+        before.push({ icon: '🍌', text: '1–2 h vorher: Leichter Snack (Banane, Toast mit Honig oder Haferbrei)' });
+        before.push({ icon: '💧', text: '500–750 ml Wasser mind. 2 h vorher trinken' });
+    } else if (isMedium || isHard) {
+        before.push({ icon: '🍌', text: '1 h vorher: Leichter Snack (Banane, Energieriegel oder Toast)' });
+        before.push({ icon: '💧', text: '400–500 ml Wasser 1–2 h vorher' });
+    } else {
+        before.push({ icon: '💧', text: '300–400 ml Wasser 30–60 min vorher' });
+    }
+    if (isRace) {
+        before.push({ icon: '🏁', text: 'Wettkampfverpflegung üben – genau das nutzen, was du beim Rennen einsetzt' });
+    }
+
+    // ── Während des Trainings ──
+    if (isLong) {
+        during.push({ icon: '💧', text: 'Alle 15–20 min 150–200 ml Wasser oder Iso-Getränk' });
+        if (gelCount > 0) {
+            during.push({ icon: '🟡', text: `${gelCount} Gel${gelCount > 1 ? 's' : ''} einplanen: bei ${gelTimes.join(', ')}` });
+            during.push({ icon: '⚠️', text: 'Gele immer mit Wasser nehmen – nicht mit Iso-Getränk kombinieren' });
+        }
+        if (dist >= 25 || dur >= 120) {
+            during.push({ icon: '🧂', text: 'Bei > 2 h: Elektrolyte wichtig (Salztabletten oder Elektrolytgetränk)' });
+        }
+    } else if (isHard) {
+        during.push({ icon: '💧', text: 'Alle 20 min 150–200 ml Wasser' });
+        during.push({ icon: '⚡', text: 'Optional: Isotonisches Getränk für schnelle Kohlenhydrate' });
+    } else if (isMedium) {
+        during.push({ icon: '💧', text: 'Alle 20–30 min 150–200 ml Wasser' });
+    } else {
+        during.push({ icon: '💧', text: 'Wasser nach Bedarf – bei kurzen Einheiten meist ausreichend' });
+    }
+
+    // ── Nach dem Training ──
+    after.push({ icon: '🥛', text: 'Innerhalb 30 min: Protein + Kohlenhydrate (Milch, Joghurt + Obst, Recovery-Shake)' });
+    if (isLong) {
+        after.push({ icon: '🍚', text: 'Vollständige Mahlzeit innerhalb 2 h: Reis oder Nudeln mit Protein (Hühnchen, Fisch, Hülsenfrüchte)' });
+        after.push({ icon: '💧', text: '500 ml+ Wasser + Elektrolyte zur Rehydration' });
+    } else {
+        after.push({ icon: '💧', text: '400–500 ml Wasser zur Rehydration' });
+    }
+
+    return { before, during, after };
+});
 </script>
 
 <template>
@@ -639,6 +703,56 @@ const workoutSteps = computed(() => {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Verpflegungsplan -->
+                    <div v-if="nutritionTips">
+                        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-2">Verpflegungsplan</h3>
+                        <div class="space-y-2">
+
+                            <!-- Vor dem Training -->
+                            <div class="rounded-xl border border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10 overflow-hidden">
+                                <div class="flex items-center gap-2 px-3.5 py-2 border-b border-amber-100 dark:border-amber-500/20">
+                                    <span class="text-sm">🕐</span>
+                                    <span class="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wide">Vor dem Training</span>
+                                </div>
+                                <ul class="px-3.5 py-2.5 space-y-1.5">
+                                    <li v-for="tip in nutritionTips.before" :key="tip.text" class="flex items-start gap-2 text-xs text-amber-900 dark:text-amber-200">
+                                        <span class="shrink-0 leading-relaxed">{{ tip.icon }}</span>
+                                        <span class="leading-relaxed">{{ tip.text }}</span>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <!-- Während des Trainings -->
+                            <div class="rounded-xl border border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10 overflow-hidden">
+                                <div class="flex items-center gap-2 px-3.5 py-2 border-b border-blue-100 dark:border-blue-500/20">
+                                    <span class="text-sm">🏃</span>
+                                    <span class="text-xs font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide">Während des Trainings</span>
+                                </div>
+                                <ul class="px-3.5 py-2.5 space-y-1.5">
+                                    <li v-for="tip in nutritionTips.during" :key="tip.text" class="flex items-start gap-2 text-xs text-blue-900 dark:text-blue-200">
+                                        <span class="shrink-0 leading-relaxed">{{ tip.icon }}</span>
+                                        <span class="leading-relaxed">{{ tip.text }}</span>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <!-- Nach dem Training -->
+                            <div class="rounded-xl border border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10 overflow-hidden">
+                                <div class="flex items-center gap-2 px-3.5 py-2 border-b border-green-100 dark:border-green-500/20">
+                                    <span class="text-sm">✅</span>
+                                    <span class="text-xs font-bold text-green-800 dark:text-green-300 uppercase tracking-wide">Nach dem Training</span>
+                                </div>
+                                <ul class="px-3.5 py-2.5 space-y-1.5">
+                                    <li v-for="tip in nutritionTips.after" :key="tip.text" class="flex items-start gap-2 text-xs text-green-900 dark:text-green-200">
+                                        <span class="shrink-0 leading-relaxed">{{ tip.icon }}</span>
+                                        <span class="leading-relaxed">{{ tip.text }}</span>
+                                    </li>
+                                </ul>
+                            </div>
+
                         </div>
                     </div>
 
