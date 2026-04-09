@@ -45,7 +45,7 @@ class WebPushService
                 $payload
             );
 
-            if ($result->isExpired() || $result->getResponse()?->getStatusCode() === 410) {
+            if ($result->isSubscriptionExpired()) {
                 $stale[] = $sub->id;
             }
         }
