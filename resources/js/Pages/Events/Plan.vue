@@ -211,6 +211,66 @@ const weeklyLoad = computed(() => {
 });
 
 const skipReasons = ['Keine Zeit', 'Krank', 'Verletzt', 'Erschöpft', 'Sonstiges'];
+
+// ── Session detail modal ──────────────────────────────────────────────────────
+const detailSession = ref(null);
+
+function openDetail(session) {
+    if (session.type === 'rest') return;
+    detailSession.value = session;
+}
+
+// Compute Aufwärmen / Hauptteil / Auslaufen from session data
+function parsePaceToSec(paceStr) {
+    if (!paceStr || paceStr === 'null') return null;
+    const parts = paceStr.split(':');
+    if (parts.length !== 2) return null;
+    return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+}
+
+function secToPaceStr(sec) {
+    const m = Math.floor(sec / 60);
+    const s = Math.round(sec % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function estimatedTime(meters, paceStr) {
+    const sec = parsePaceToSec(paceStr);
+    if (!sec || !meters) return null;
+    const totalSec = Math.round((meters / 1000) * sec);
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return `~${m}:${String(s).padStart(2, '0')} min`;
+}
+
+const workoutSteps = computed(() => {
+    const s = detailSession.value;
+    if (!s || s.type === 'rest') return [];
+
+    const distKm = s.distance_km || 5;
+    const paceSecPerKm = parsePaceToSec(s.pace_target);
+    const easySecPerKm = paceSecPerKm ? paceSecPerKm + 60 : null;
+    const easyPaceStr  = easySecPerKm ? secToPaceStr(easySecPerKm) : null;
+
+    const configs = {
+        easy_run:  { wF: 0.10, wMax: 1.0, cF: 0.10, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Leichtes Einlaufen',              mName: 'Hauptteil',  mLabel: 'Lockeres Dauertempo',                     cName: 'Auslaufen', cLabel: 'Leichtes Auslaufen' },
+        tempo_run: { wF: 0.25, wMax: 2.0, cF: 0.12, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Lockeres Einlaufen',              mName: 'Hauptteil',  mLabel: 'Tempodauerlauf',                          cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen' },
+        interval:  { wF: 0.20, wMax: 2.0, cF: 0.10, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Lockeres Einlaufen',              mName: 'Intervalle', mLabel: 'Intervallarbeit (Details in Beschreibung)',cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen' },
+        long_run:  { wF: 0.05, wMax: 1.0, cF: 0.05, cMax: 1.0, wName: 'Einlaufen',  wLabel: 'Leichtes Einlaufen',              mName: 'Hauptteil',  mLabel: 'Langer gleichmäßiger Lauf',               cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen' },
+        race_prep: { wF: 0.30, wMax: 2.0, cF: 0.15, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Lockeres Einlaufen + Strides',    mName: 'Hauptteil',  mLabel: 'Renntempo-Abschnitte',                    cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen' },
+    };
+
+    const cfg = configs[s.type] || configs['easy_run'];
+    const warmupKm   = Math.min(cfg.wMax, distKm * cfg.wF);
+    const cooldownKm = Math.min(cfg.cMax, distKm * cfg.cF);
+    const mainKm     = Math.max(0, distKm - warmupKm - cooldownKm);
+
+    return [
+        { phase: cfg.wName, label: cfg.wLabel, km: Math.round(warmupKm * 10) / 10,   pace: easyPaceStr, color: 'green'  },
+        { phase: cfg.mName, label: cfg.mLabel, km: Math.round(mainKm * 10) / 10,     pace: s.pace_target && s.pace_target !== 'null' ? s.pace_target : easyPaceStr, color: 'main' },
+        { phase: cfg.cName, label: cfg.cLabel, km: Math.round(cooldownKm * 10) / 10, pace: easyPaceStr, color: 'blue'   },
+    ];
+});
 </script>
 
 <template>
@@ -432,29 +492,40 @@ const skipReasons = ['Keine Zeit', 'Krank', 'Verletzt', 'Erschöpft', 'Sonstiges
                                     <span v-if="session.zone" class="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded" :class="typeOf(session.type).badge">Zone {{ session.zone }}</span>
                                 </div>
 
-                                <!-- Action buttons (only for planned sessions) -->
-                                <div v-if="session.status === 'planned'" class="flex gap-2 mt-3 flex-wrap">
-                                    <button @click="completeSession(session)"
-                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors"
-                                    >
-                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                                        Abgeschlossen
-                                    </button>
-                                    <button @click="openSkipModal(session)"
+                                <!-- Action buttons -->
+                                <div class="flex gap-2 mt-3 flex-wrap">
+                                    <!-- Details (all non-rest sessions) -->
+                                    <button v-if="session.type !== 'rest'"
+                                        @click="openDetail(session)"
                                         class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
                                     >
-                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M6.225 6.225A9 9 0 0 0 21 12a9 9 0 0 1-15.098 4.672" /></svg>
-                                        Überspringen
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" /></svg>
+                                        Details
                                     </button>
-                                    <button v-if="!isPast(session.planned_date) || isToday(session.planned_date)"
-                                        @click="adjustSession(session)"
-                                        :disabled="adjustingId === session.id"
-                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 disabled:opacity-50 transition-colors"
-                                    >
-                                        <svg v-if="adjustingId === session.id" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                        <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
-                                        KI anpassen
-                                    </button>
+
+                                    <template v-if="session.status === 'planned'">
+                                        <button @click="completeSession(session)"
+                                            class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors"
+                                        >
+                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                                            Abgeschlossen
+                                        </button>
+                                        <button @click="openSkipModal(session)"
+                                            class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
+                                        >
+                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M6.225 6.225A9 9 0 0 0 21 12a9 9 0 0 1-15.098 4.672" /></svg>
+                                            Überspringen
+                                        </button>
+                                        <button v-if="!isPast(session.planned_date) || isToday(session.planned_date)"
+                                            @click="adjustSession(session)"
+                                            :disabled="adjustingId === session.id"
+                                            class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 disabled:opacity-50 transition-colors"
+                                        >
+                                            <svg v-if="adjustingId === session.id" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                            <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
+                                            KI anpassen
+                                        </button>
+                                    </template>
                                 </div>
                             </div>
                         </div>
@@ -490,6 +561,105 @@ const skipReasons = ['Keine Zeit', 'Krank', 'Verletzt', 'Erschöpft', 'Sonstiges
                         <svg v-if="skipLoading" class="inline h-4 w-4 animate-spin mr-1" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                         Überspringen
                     </button>
+                </div>
+            </div>
+        </Modal>
+
+        <!-- ── Session Detail Modal ───────────────────────────────────────── -->
+        <Modal :show="!!detailSession" @close="detailSession = null">
+            <div v-if="detailSession" class="bg-white dark:bg-slate-900 max-h-[90vh] overflow-y-auto">
+
+                <!-- Header -->
+                <div class="flex items-start justify-between px-5 pt-5 pb-4 border-b border-gray-100 dark:border-slate-800">
+                    <div class="flex-1 min-w-0 pr-3">
+                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full" :class="typeOf(detailSession.type).badge">
+                            {{ typeOf(detailSession.type).label }}
+                        </span>
+                        <h2 class="mt-2 text-lg font-bold text-gray-900 dark:text-white leading-snug">{{ detailSession.title }}</h2>
+                        <p class="text-sm text-gray-500 dark:text-slate-400 mt-0.5">{{ formatDate(detailSession.planned_date) }}</p>
+                    </div>
+                    <button @click="detailSession = null" class="shrink-0 h-8 w-8 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
+                        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/></svg>
+                    </button>
+                </div>
+
+                <div class="px-5 py-4 space-y-4">
+
+                    <!-- Description -->
+                    <p v-if="detailSession.description" class="text-sm text-gray-600 dark:text-slate-400 leading-relaxed">{{ detailSession.description }}</p>
+
+                    <!-- Overall metrics -->
+                    <div class="grid grid-cols-3 gap-2">
+                        <div v-if="detailSession.distance_km" class="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 text-center">
+                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ detailSession.distance_km }}</p>
+                            <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">km</p>
+                        </div>
+                        <div v-if="detailSession.duration_min" class="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 text-center">
+                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ detailSession.duration_min }}</p>
+                            <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">min</p>
+                        </div>
+                        <div v-if="detailSession.pace_target && detailSession.pace_target !== 'null'" class="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 text-center">
+                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ detailSession.pace_target }}</p>
+                            <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">min/km</p>
+                        </div>
+                    </div>
+
+                    <!-- Warmup / Hauptteil / Cooldown -->
+                    <div>
+                        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-2">Trainingsstruktur</h3>
+                        <div class="space-y-2">
+                            <div v-for="(step, idx) in workoutSteps" :key="idx"
+                                class="flex items-start gap-3 rounded-xl p-3.5"
+                                :class="{
+                                    'bg-green-50 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20': step.color === 'green',
+                                    'bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20': step.color === 'main',
+                                    'bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20': step.color === 'blue',
+                                }"
+                            >
+                                <!-- Phase number -->
+                                <div class="shrink-0 h-7 w-7 rounded-lg flex items-center justify-center text-xs font-bold"
+                                    :class="{
+                                        'bg-green-200 dark:bg-green-500/30 text-green-800 dark:text-green-300': step.color === 'green',
+                                        'bg-indigo-200 dark:bg-indigo-500/30 text-indigo-800 dark:text-indigo-300': step.color === 'main',
+                                        'bg-blue-200 dark:bg-blue-500/30 text-blue-800 dark:text-blue-300': step.color === 'blue',
+                                    }">
+                                    {{ idx + 1 }}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ step.phase }}</p>
+                                    <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{{ step.label }}</p>
+                                    <div class="flex items-center gap-3 mt-1.5 flex-wrap">
+                                        <span class="text-xs font-medium text-gray-700 dark:text-slate-300">{{ step.km }} km</span>
+                                        <span v-if="step.pace && step.pace !== 'null'" class="text-xs text-gray-500 dark:text-slate-400">
+                                            {{ step.pace }} min/km
+                                        </span>
+                                        <span v-if="step.pace && step.km" class="text-xs text-gray-400 dark:text-slate-500">
+                                            {{ estimatedTime(step.km * 1000, step.pace) }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Zone info -->
+                    <div v-if="detailSession.zone" class="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400">
+                        <span class="text-xs font-medium px-2 py-0.5 rounded-full" :class="typeOf(detailSession.type).badge">Zone {{ detailSession.zone }}</span>
+                        <span v-if="detailSession.intensity" class="text-xs text-gray-400 dark:text-slate-500 capitalize">· {{ detailSession.intensity }}</span>
+                    </div>
+                </div>
+
+                <!-- Download footer -->
+                <div class="px-5 pb-5 border-t border-gray-100 dark:border-slate-800 pt-4 flex items-center justify-between gap-3">
+                    <p class="text-xs text-gray-400 dark:text-slate-500">Als TCX für Garmin Connect herunterladen</p>
+                    <a :href="route('training-sessions.download', detailSession.id)"
+                        class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 transition-colors"
+                    >
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                        </svg>
+                        .tcx herunterladen
+                    </a>
                 </div>
             </div>
         </Modal>

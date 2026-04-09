@@ -6,6 +6,7 @@ use App\Models\Event;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Services\OpenAIService;
+use App\Services\WebPushService;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
@@ -68,7 +69,7 @@ class TrainingPlanController extends Controller
         return response()->json(['success' => true]);
     }
 
-    public function generate(Event $event, OpenAIService $openAI)
+    public function generate(Event $event, OpenAIService $openAI, WebPushService $webPush)
     {
         abort_if($event->user_id !== Auth::id(), 403);
 
@@ -288,6 +289,17 @@ class TrainingPlanController extends Controller
             ->map(fn ($s) => $this->formatSession($s))
             ->values()
             ->toArray();
+
+        // Notify user if they have push + plan-update notifications enabled
+        $user = Auth::user();
+        if ($user->push_notifications_enabled && $user->notify_plan_updated) {
+            $webPush->sendToUser(
+                $user,
+                'KI-Plan aktualisiert 🧠',
+                "Dein Trainingsplan für {$event->name} wurde neu berechnet.",
+                "/events/{$event->id}/plan"
+            );
+        }
 
         return response()->json([
             'plan' => [

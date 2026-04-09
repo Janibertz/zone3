@@ -14,7 +14,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'onboarding_completed_at', 'is_admin', 'is_active'])]
+#[Fillable(['name', 'email', 'password', 'onboarding_completed_at', 'is_admin', 'is_active',
+    'push_notifications_enabled', 'wellbeing_reminder_time', 'notify_threshold_pace', 'notify_plan_updated'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -29,11 +30,14 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at'        => 'datetime',
-            'onboarding_completed_at'  => 'datetime',
-            'is_admin'                 => 'boolean',
-            'is_active'                => 'boolean',
-            'password'                 => 'hashed',
+            'email_verified_at'             => 'datetime',
+            'onboarding_completed_at'       => 'datetime',
+            'is_admin'                      => 'boolean',
+            'is_active'                     => 'boolean',
+            'password'                      => 'hashed',
+            'push_notifications_enabled'    => 'boolean',
+            'notify_threshold_pace'         => 'boolean',
+            'notify_plan_updated'           => 'boolean',
         ];
     }
 
@@ -75,5 +79,10 @@ class User extends Authenticatable
     public function wellbeingEntries()
     {
         return $this->hasMany(WellbeingEntry::class);
+    }
+
+    public function pushSubscriptions()
+    {
+        return $this->hasMany(PushSubscription::class);
     }
 }

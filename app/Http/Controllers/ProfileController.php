@@ -28,6 +28,13 @@ class ProfileController extends Controller
                 'username'       => $user->stravaAccount->username,
                 'last_synced_at' => $user->stravaAccount->last_synced_at,
             ] : null,
+            'notificationSettings' => [
+                'push_enabled'            => (bool) $user->push_notifications_enabled,
+                'wellbeing_reminder_time' => $user->wellbeing_reminder_time ?? '08:00',
+                'notify_threshold_pace'   => (bool) ($user->notify_threshold_pace ?? true),
+                'notify_plan_updated'     => (bool) ($user->notify_plan_updated ?? true),
+            ],
+            'vapidPublicKey' => config('services.webpush.public_key'),
         ]);
     }
 

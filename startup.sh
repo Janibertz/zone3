@@ -23,5 +23,13 @@ echo "[startup] Starting queue worker in background..."
   done
 ) &
 
+echo "[startup] Starting scheduler in background..."
+(
+  while true; do
+    php artisan schedule:run --no-interaction
+    sleep 60
+  done
+) &
+
 echo "[startup] Starting web server..."
 exec php artisan serve --host=0.0.0.0 --port="${PORT:-8000}"

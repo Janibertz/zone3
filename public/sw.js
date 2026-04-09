@@ -1,4 +1,40 @@
-const CACHE_NAME = 'zone3-v1';
+const CACHE_NAME = 'zone3-v2';
+
+// ── Push Notifications ────────────────────────────────────────────────────────
+
+self.addEventListener('push', (event) => {
+  let data = { title: 'Zone3', body: '', url: '/dashboard' };
+  try { data = { ...data, ...event.data?.json() }; } catch {}
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-72.png',
+      data: { url: data.url },
+      vibrate: [100, 50, 100],
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url ?? '/dashboard';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      // Focus existing tab if open
+      for (const client of list) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.navigate(url);
+          return client.focus();
+        }
+      }
+      return clients.openWindow(url);
+    })
+  );
+});
+
+
 const STATIC_ASSETS = [
   '/',
   '/dashboard',

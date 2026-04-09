@@ -14,6 +14,7 @@ use App\Models\TrainingSession;
 use App\Http\Controllers\StatisticsController;
 use App\Http\Controllers\StravaController;
 use App\Http\Controllers\WellbeingController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Models\Activity;
 use App\Models\Event;
 use App\Services\ProgressService;
@@ -168,6 +169,12 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Push Notifications
+    Route::post('/push/subscribe', [PushSubscriptionController::class, 'store'])->name('push.subscribe');
+    Route::post('/push/unsubscribe', [PushSubscriptionController::class, 'destroy'])->name('push.unsubscribe');
+    Route::patch('/push/settings', [PushSubscriptionController::class, 'updateSettings'])->name('push.settings');
+    Route::post('/push/test', [PushSubscriptionController::class, 'test'])->name('push.test');
 
     Route::get('/strava/connect', [StravaController::class, 'connect'])->name('strava.connect');
     Route::get('/strava/callback', [StravaController::class, 'callback'])->name('strava.callback');

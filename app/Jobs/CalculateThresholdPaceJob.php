@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\RunnerProfile;
 use App\Models\User;
 use App\Services\OpenAIService;
+use App\Services\WebPushService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -17,7 +18,7 @@ class CalculateThresholdPaceJob implements ShouldQueue
 
     public function __construct(public readonly int $userId) {}
 
-    public function handle(OpenAIService $openAI): void
+    public function handle(OpenAIService $openAI, WebPushService $webPush): void
     {
         $user = User::find($this->userId);
         if (! $user) return;
@@ -67,6 +68,16 @@ class CalculateThresholdPaceJob implements ShouldQueue
         $profile->pace_zones                   = $profile->calculatePaceZones();
         $profile->threshold_pace_calculating   = false;
         $profile->save();
+
+        // Notify user if pace changed and notifications are enabled
+        if ($user->push_notifications_enabled && $user->notify_threshold_pace) {
+            $webPush->sendToUser(
+                $user,
+                'Schwellenpace aktualisiert 🏃',
+                "Deine neue Schwellenpace: {$paceFormatted} min/km",
+                '/profile'
+            );
+        }
     }
 
     public function failed(\Throwable $e): void

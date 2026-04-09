@@ -3,14 +3,17 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm, usePage, Link } from '@inertiajs/vue3';
 import InputError from '@/Components/InputError.vue';
 import Modal from '@/Components/Modal.vue';
-import { ref, computed, nextTick } from 'vue';
+import { ref, computed, nextTick, onMounted } from 'vue';
+import axios from 'axios';
 
 const props = defineProps({
-    mustVerifyEmail:  Boolean,
-    status:           String,
-    runnerProfile:    Object,
-    stravaConnected:  Boolean,
-    stravaAccount:    Object,
+    mustVerifyEmail:       Boolean,
+    status:                String,
+    runnerProfile:         Object,
+    stravaConnected:       Boolean,
+    stravaAccount:         Object,
+    notificationSettings:  Object,
+    vapidPublicKey:        String,
 });
 
 const page = usePage();
@@ -38,7 +41,113 @@ const tabs = [
         label: 'Konto',
         icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />'
     },
+    {
+        key: 'notifications',
+        label: 'Benachrichtigungen',
+        icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />'
+    },
 ];
+
+// ── Push Notification state ─────────────────────────────────────────────────
+const pushSupported    = ref('Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window);
+const pushPermission   = ref(typeof Notification !== 'undefined' ? Notification.permission : 'default'); // 'default' | 'granted' | 'denied'
+const pushSubscribed   = ref(false);
+const pushLoading      = ref(false);
+const pushError        = ref('');
+const pushTestSent     = ref(false);
+
+const notifSettings = ref({
+    wellbeing_reminder_time: props.notificationSettings?.wellbeing_reminder_time ?? '08:00',
+    notify_threshold_pace:   props.notificationSettings?.notify_threshold_pace ?? true,
+    notify_plan_updated:     props.notificationSettings?.notify_plan_updated ?? true,
+});
+const notifSaving = ref(false);
+const notifSaved  = ref(false);
+
+// Check existing subscription on mount
+onMounted(async () => {
+    if (!pushSupported.value) return;
+    try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        pushSubscribed.value = !!sub;
+    } catch {}
+});
+
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function subscribePush() {
+    pushLoading.value = true;
+    pushError.value   = '';
+    try {
+        const permission = await Notification.requestPermission();
+        pushPermission.value = permission;
+        if (permission !== 'granted') {
+            pushError.value = 'Benachrichtigungen wurden blockiert. Bitte erlaube sie in den Browser-Einstellungen.';
+            return;
+        }
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(props.vapidPublicKey),
+        });
+        const json = sub.toJSON();
+        await axios.post(route('push.subscribe'), {
+            endpoint:   json.endpoint,
+            public_key: json.keys.p256dh,
+            auth_token: json.keys.auth,
+        });
+        pushSubscribed.value = true;
+    } catch (e) {
+        pushError.value = 'Fehler beim Aktivieren: ' + (e?.message ?? 'Unbekannter Fehler');
+    } finally {
+        pushLoading.value = false;
+    }
+}
+
+async function unsubscribePush() {
+    pushLoading.value = true;
+    pushError.value   = '';
+    try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+            await axios.post(route('push.unsubscribe'), { endpoint: sub.endpoint });
+            await sub.unsubscribe();
+        }
+        pushSubscribed.value = false;
+    } catch (e) {
+        pushError.value = 'Fehler beim Deaktivieren: ' + (e?.message ?? '');
+    } finally {
+        pushLoading.value = false;
+    }
+}
+
+async function sendTestPush() {
+    try {
+        await axios.post(route('push.test'));
+        pushTestSent.value = true;
+        setTimeout(() => { pushTestSent.value = false; }, 3000);
+    } catch (e) {
+        pushError.value = e?.response?.data?.error ?? 'Test fehlgeschlagen.';
+    }
+}
+
+async function saveNotifSettings() {
+    notifSaving.value = true;
+    try {
+        await axios.patch(route('push.settings'), notifSettings.value);
+        notifSaved.value = true;
+        setTimeout(() => { notifSaved.value = false; }, 2500);
+    } finally {
+        notifSaving.value = false;
+    }
+}
 
 // ── Personal info form ──────────────────────────────────────────────────────
 const profileForm = useForm({
@@ -505,6 +614,136 @@ const disconnectStrava = () => {
                             Konto löschen
                         </button>
                     </div>
+                </template>
+
+                <!-- ── Benachrichtigungen ───────────────────────────────────── -->
+                <template v-else-if="activeTab === 'notifications'">
+
+                    <!-- Push aktivieren/deaktivieren -->
+                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 dark:border-slate-800">
+                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Web Push Benachrichtigungen</h2>
+                        <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Erhalte Hinweise direkt im Browser — auch wenn die App nicht geöffnet ist</p>
+                    </div>
+
+                    <div class="p-4 sm:p-6 space-y-5">
+
+                        <!-- Browser not supported -->
+                        <div v-if="!pushSupported" class="rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
+                            Dein Browser unterstützt keine Push-Benachrichtigungen.
+                        </div>
+
+                        <template v-else>
+                            <!-- Permission denied -->
+                            <div v-if="pushPermission === 'denied'" class="rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+                                Benachrichtigungen sind in deinem Browser blockiert. Bitte erlaube sie in den Browser-Einstellungen und lade die Seite neu.
+                            </div>
+
+                            <!-- Subscribe / Unsubscribe -->
+                            <div class="flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-50 dark:bg-slate-800">
+                                <div>
+                                    <p class="text-sm font-semibold text-gray-900 dark:text-white">
+                                        {{ pushSubscribed ? 'Push aktiv ✓' : 'Push deaktiviert' }}
+                                    </p>
+                                    <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                                        {{ pushSubscribed ? 'Du erhältst Benachrichtigungen auf diesem Gerät' : 'Noch keine Benachrichtigungen auf diesem Gerät' }}
+                                    </p>
+                                </div>
+                                <button
+                                    @click="pushSubscribed ? unsubscribePush() : subscribePush()"
+                                    :disabled="pushLoading || pushPermission === 'denied'"
+                                    class="shrink-0 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
+                                    :class="pushSubscribed
+                                        ? 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400'
+                                        : 'bg-indigo-600 text-white hover:bg-indigo-700'"
+                                >
+                                    <svg v-if="pushLoading" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                    {{ pushSubscribed ? 'Deaktivieren' : 'Aktivieren' }}
+                                </button>
+                            </div>
+
+                            <!-- Test button -->
+                            <div v-if="pushSubscribed" class="flex items-center gap-3">
+                                <button @click="sendTestPush"
+                                    class="inline-flex items-center gap-2 rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 px-3 py-2 text-sm font-medium transition-colors">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" /></svg>
+                                    Test-Benachrichtigung senden
+                                </button>
+                                <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
+                                    <span v-if="pushTestSent" class="text-sm text-green-600 dark:text-green-400 font-medium">Gesendet ✓</span>
+                                </Transition>
+                            </div>
+
+                            <!-- Error -->
+                            <p v-if="pushError" class="text-sm text-red-600 dark:text-red-400">{{ pushError }}</p>
+                        </template>
+                    </div>
+
+                    <!-- Einstellungen -->
+                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-t border-b border-gray-100 dark:border-slate-800">
+                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Einstellungen</h2>
+                        <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Diese Einstellungen gelten sobald Push aktiviert ist</p>
+                    </div>
+
+                    <div class="p-4 sm:p-6 space-y-5">
+
+                        <!-- Wellbeing Erinnerungszeit -->
+                        <div class="flex items-start justify-between gap-4">
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-gray-900 dark:text-white">Wellbeing-Erinnerung</p>
+                                <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Uhrzeit zu der du erinnert wirst, falls du das Wellbeing noch nicht eingetragen hast</p>
+                            </div>
+                            <input
+                                v-model="notifSettings.wellbeing_reminder_time"
+                                type="time"
+                                class="shrink-0 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                        </div>
+
+                        <!-- Schwellenpace -->
+                        <div class="flex items-center justify-between gap-4">
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-gray-900 dark:text-white">Schwellenpace aktualisiert</p>
+                                <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Benachrichtigung wenn die KI deine Schwellenpace neu berechnet hat</p>
+                            </div>
+                            <button
+                                @click="notifSettings.notify_threshold_pace = !notifSettings.notify_threshold_pace"
+                                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                                :class="notifSettings.notify_threshold_pace ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-slate-700'"
+                            >
+                                <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200"
+                                    :class="notifSettings.notify_threshold_pace ? 'translate-x-5' : 'translate-x-0'" />
+                            </button>
+                        </div>
+
+                        <!-- KI-Plan -->
+                        <div class="flex items-center justify-between gap-4">
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-gray-900 dark:text-white">KI-Plan aktualisiert</p>
+                                <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Benachrichtigung wenn dein Trainingsplan neu berechnet wurde</p>
+                            </div>
+                            <button
+                                @click="notifSettings.notify_plan_updated = !notifSettings.notify_plan_updated"
+                                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                                :class="notifSettings.notify_plan_updated ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-slate-700'"
+                            >
+                                <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200"
+                                    :class="notifSettings.notify_plan_updated ? 'translate-x-5' : 'translate-x-0'" />
+                            </button>
+                        </div>
+
+                        <!-- Save button -->
+                        <div class="flex items-center gap-3 pt-2">
+                            <button @click="saveNotifSettings" :disabled="notifSaving"
+                                class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                                <svg v-if="notifSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                Einstellungen speichern
+                            </button>
+                            <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
+                                <span v-if="notifSaved" class="text-sm text-green-600 dark:text-green-400 font-medium">Gespeichert ✓</span>
+                            </Transition>
+                        </div>
+                    </div>
+
                 </template>
 
             </div>
