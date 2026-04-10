@@ -164,14 +164,14 @@ onUnmounted(() => {
 
             <!-- Back + Header -->
             <div class="flex items-start gap-3">
-                <button
-                    @click="window.history.back()"
+                <Link
+                    :href="route('activities.index')"
                     class="shrink-0 mt-0.5 h-8 w-8 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
                 >
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/>
                     </svg>
-                </button>
+                </Link>
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 mb-1">
                         <span class="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0" :class="typeColor(activity.type)">
