@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useDarkMode } from '@/Composables/useDarkMode';
+import UserAvatar from '@/Components/UserAvatar.vue';
 
 const page = usePage();
 const user       = computed(() => page.props.auth.user);
@@ -123,9 +124,7 @@ const navItems = [
                     {{ isDark ? 'Helles Design' : 'Dunkles Design' }}
                 </button>
                 <div class="flex items-center gap-3 px-2 py-2">
-                    <div class="h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center shadow-sm">
-                        <span class="text-sm font-bold text-white">{{ user.name.charAt(0).toUpperCase() }}</span>
-                    </div>
+                    <UserAvatar :user="user" size="md" />
                     <div class="min-w-0 flex-1">
                         <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ user.name }}</p>
                         <p class="text-xs text-gray-400 dark:text-slate-500 truncate">{{ user.email }}</p>

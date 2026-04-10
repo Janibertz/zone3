@@ -1,6 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import WellbeingModal from '@/Components/WellbeingModal.vue';
+import UserAvatar from '@/Components/UserAvatar.vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import { Inertia } from '@inertiajs/inertia';
 import { router } from '@inertiajs/vue3';
@@ -671,8 +672,8 @@ function syncStrava() {
                         <div class="relative bg-gradient-to-br from-slate-800 via-slate-800 to-indigo-900 p-4 sm:p-5">
                             <div class="flex items-center justify-between gap-3">
                                 <div class="flex items-center gap-3">
-                                    <div class="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-indigo-500 flex items-center justify-center text-2xl ring-4 ring-indigo-400 ring-opacity-30 shrink-0">
-                                        🏃
+                                    <div class="ring-4 ring-indigo-400 ring-opacity-30 rounded-full shrink-0">
+                                        <UserAvatar :user="page.props.auth.user" size="lg" />
                                     </div>
                                     <div class="min-w-0">
                                         <p class="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Strava Konto</p>
