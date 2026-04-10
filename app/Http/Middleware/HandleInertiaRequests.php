@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\TrainingPlan;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -35,6 +36,15 @@ class HandleInertiaRequests extends Middleware
                 'user'    => $request->user(),
                 'isAdmin' => (bool) $request->user()?->is_admin,
             ],
+            'activePlan' => function () use ($request) {
+                if (! $request->user()) return null;
+                $plan = TrainingPlan::where('user_id', $request->user()->id)
+                    ->where('is_active', true)
+                    ->with('event:id,name')
+                    ->first();
+                if (! $plan) return null;
+                return ['event_id' => $plan->event_id, 'event_name' => $plan->event->name ?? 'Trainingsplan'];
+            },
         ];
     }
 }
