@@ -157,8 +157,6 @@ async function saveQuickEvent() {
 
 const plan = ref(null);
 const planError = ref(null);
-const selectedActivity = ref(null);
-const showActivityModal = ref(false);
 const aiAnalysis = ref(null);
 const aiPlan = ref(null);
 const aiLoading = ref(false);
@@ -365,13 +363,7 @@ const currentMonthLabel = computed(() =>
 );
 
 function openActivityDetail(activity) {
-    selectedActivity.value = activity;
-    showActivityModal.value = true;
-}
-
-function closeActivityModal() {
-    showActivityModal.value = false;
-    selectedActivity.value = null;
+    router.visit(route('activities.show', activity.id));
 }
 
 function closeAIModal() {
@@ -1399,76 +1391,6 @@ function syncStrava() {
                     </div>
                 </div>
 
-            </div>
-        </div>
-
-        <!-- ═══ Activity Detail Modal ═══ -->
-        <div v-if="showActivityModal && selectedActivity" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4">
-            <div class="max-h-[92vh] w-full sm:max-w-2xl overflow-y-auto rounded-t-3xl sm:rounded-2xl bg-white dark:bg-slate-900 shadow-2xl">
-                <div class="sticky top-0 flex items-center justify-between border-b border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-4">
-                    <h2 class="text-lg font-bold text-gray-900 dark:text-white">Aktivitätsdetails</h2>
-                    <button @click="closeActivityModal" class="h-8 w-8 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center justify-center transition-colors">✕</button>
-                </div>
-                <div class="p-6 space-y-6">
-                    <div>
-                        <p class="text-xs uppercase tracking-wider text-gray-400 dark:text-slate-500 font-medium">Aktivität</p>
-                        <h3 class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{{ selectedActivity.name }}</h3>
-                        <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">{{ formatDate(selectedActivity.start_date) }}</p>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                        <div class="rounded-xl bg-blue-50 dark:bg-blue-500/15 p-4">
-                            <p class="text-xs font-medium text-blue-600 dark:text-blue-400">Distanz</p>
-                            <p class="mt-1 text-xl font-bold text-blue-900 dark:text-blue-200">{{ round2(formatDistance(selectedActivity.distance)) }} <span class="text-sm font-normal">km</span></p>
-                        </div>
-                        <div class="rounded-xl bg-emerald-50 dark:bg-emerald-500/15 p-4">
-                            <p class="text-xs font-medium text-emerald-600 dark:text-emerald-400">Dauer</p>
-                            <p class="mt-1 text-xl font-bold text-emerald-900 dark:text-emerald-200">{{ formatTime(selectedActivity.moving_time) }}</p>
-                        </div>
-                        <div class="rounded-xl bg-orange-50 dark:bg-orange-500/15 p-4">
-                            <p class="text-xs font-medium text-orange-600 dark:text-orange-400">Ø Pace</p>
-                            <p class="mt-1 text-base font-bold text-orange-900 dark:text-orange-200">{{ formatSpeed(selectedActivity.average_speed) }}</p>
-                        </div>
-                        <div class="rounded-xl bg-purple-50 dark:bg-purple-500/15 p-4">
-                            <p class="text-xs font-medium text-purple-600 dark:text-purple-400">Typ</p>
-                            <p class="mt-1 text-base font-bold text-purple-900 dark:text-purple-200">{{ selectedActivity.type }}</p>
-                        </div>
-                    </div>
-                    <div class="space-y-3 border-t border-gray-100 dark:border-slate-800 pt-5">
-                        <div v-if="selectedActivity.total_elevation_gain" class="flex items-center justify-between">
-                            <span class="text-sm text-gray-600 dark:text-slate-400">📈 Höhenmeter</span>
-                            <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ round2(selectedActivity.total_elevation_gain) }} m</span>
-                        </div>
-                        <div v-if="selectedActivity.max_speed" class="flex items-center justify-between">
-                            <span class="text-sm text-gray-600 dark:text-slate-400">⚡ Max. Pace</span>
-                            <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ formatSpeed(selectedActivity.max_speed) }}</span>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-sm text-gray-600 dark:text-slate-400">⏱ Gesamtzeit</span>
-                            <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ formatTime(selectedActivity.elapsed_time) }}</span>
-                        </div>
-                        <div v-if="selectedActivity.location_city || selectedActivity.location_state" class="flex items-center justify-between">
-                            <span class="text-sm text-gray-600 dark:text-slate-400">📍 Ort</span>
-                            <span class="text-sm font-semibold text-gray-900 dark:text-white">
-                                {{ [selectedActivity.location_city, selectedActivity.location_state].filter(Boolean).join(', ') || '—' }}
-                            </span>
-                        </div>
-                        <div v-if="selectedActivity.description" class="border-t border-gray-100 dark:border-slate-800 pt-4">
-                            <p class="text-xs font-medium uppercase tracking-wider text-gray-400 dark:text-slate-500">Beschreibung</p>
-                            <p class="mt-2 text-sm text-gray-700 dark:text-slate-300">{{ selectedActivity.description }}</p>
-                        </div>
-                    </div>
-                    <div class="flex gap-3 border-t border-gray-100 dark:border-slate-800 pt-5">
-                        <button @click="closeActivityModal"
-                            class="flex-1 rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
-                            Schließen
-                        </button>
-                        <a :href="`https://www.strava.com/activities/${selectedActivity.strava_id}`"
-                            target="_blank" rel="noopener noreferrer"
-                            class="flex-1 rounded-xl bg-orange-500 px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-orange-600 transition-colors">
-                            Auf Strava ansehen
-                        </a>
-                    </div>
-                </div>
             </div>
         </div>
 
