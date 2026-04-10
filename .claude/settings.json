@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php -r \"require 'vendor/autoload.php'; echo class_exists\\('Minishlink\\\\WebPush\\\\WebPush'\\) ? 'OK' : 'NOT FOUND';\")",
+      "Bash(php -r ':*)",
+      "Bash(node -e ':*)",
+      "Bash(grep -r \"webhook_verify_token\\\\|zone3_webhook\" /c/Users/janan/Desktop/zone3/config /c/Users/janan/Desktop/zone3/.env*)",
+      "Bash(ls C:/Users/janan/Desktop/zone3/*.md)"
+    ]
+  }
+}

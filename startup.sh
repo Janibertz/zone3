@@ -4,6 +4,9 @@ set -e
 echo "[startup] Running migrations..."
 php artisan migrate --force --no-interaction
 
+echo "[startup] Linking storage..."
+php artisan storage:link --force 2>/dev/null || true
+
 echo "[startup] Caching config/routes/views..."
 php artisan config:cache
 php artisan route:cache
