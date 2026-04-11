@@ -188,6 +188,53 @@ const submitAthlete = () => { athleteForm.post(route('runner.profile.store'), { 
 const paceZones   = computed(() => props.runnerProfile?.pace_zones ?? []);
 const athleteSaved = computed(() => props.status === 'athlete-saved');
 
+// ── Weekly availability ──────────────────────────────────────────────────────
+const availabilityDays = [
+    { key: 'monday',    label: 'Mo', full: 'Montag' },
+    { key: 'tuesday',   label: 'Di', full: 'Dienstag' },
+    { key: 'wednesday', label: 'Mi', full: 'Mittwoch' },
+    { key: 'thursday',  label: 'Do', full: 'Donnerstag' },
+    { key: 'friday',    label: 'Fr', full: 'Freitag' },
+    { key: 'saturday',  label: 'Sa', full: 'Samstag' },
+    { key: 'sunday',    label: 'So', full: 'Sonntag' },
+];
+const durationOptions = [30, 45, 60, 90, 120, 180];
+
+const defaultAvail = () => ({
+    monday:    { available: true,  duration_min: 60 },
+    tuesday:   { available: false, duration_min: 0  },
+    wednesday: { available: true,  duration_min: 60 },
+    thursday:  { available: false, duration_min: 0  },
+    friday:    { available: true,  duration_min: 60 },
+    saturday:  { available: true,  duration_min: 90 },
+    sunday:    { available: false, duration_min: 0  },
+});
+
+const availability = ref(
+    props.runnerProfile?.weekly_availability
+        ? { ...defaultAvail(), ...props.runnerProfile.weekly_availability }
+        : defaultAvail()
+);
+const availSaving = ref(false);
+const availSaved  = ref(false);
+
+function toggleAvailDay(key) {
+    availability.value[key].available = !availability.value[key].available;
+    if (!availability.value[key].available) availability.value[key].duration_min = 0;
+    else if (!availability.value[key].duration_min) availability.value[key].duration_min = 60;
+}
+
+async function saveAvailability() {
+    availSaving.value = true;
+    try {
+        await axios.post(route('onboarding.availability'), { availability: availability.value });
+        availSaved.value = true;
+        setTimeout(() => { availSaved.value = false; }, 2500);
+    } finally {
+        availSaving.value = false;
+    }
+}
+
 const zoneColors = [
     'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-500/10 dark:border-blue-500/30 dark:text-blue-300',
     'bg-green-50 border-green-200 text-green-700 dark:bg-green-500/10 dark:border-green-500/30 dark:text-green-300',
@@ -477,6 +524,78 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                         <div v-else class="border-t border-gray-100 dark:border-slate-800 pt-5">
                             <div class="rounded-xl bg-gray-50 dark:bg-slate-800 border border-dashed border-gray-200 dark:border-slate-600 px-5 py-6 text-center">
                                 <p class="text-sm text-gray-400 dark:text-slate-500">Speichere dein Profil um deine Laufzonen zu berechnen.</p>
+                            </div>
+                        </div>
+
+                        <!-- Weekly availability -->
+                        <div class="border-t border-gray-100 dark:border-slate-800 pt-5 space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-sm font-semibold text-gray-700 dark:text-slate-300">Wöchentliche Verfügbarkeit</h3>
+                                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">An welchen Tagen kannst du trainieren? Der KI-Plan respektiert diese Zeiten.</p>
+                                </div>
+                                <div v-if="availSaved" class="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400 font-medium">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    Gespeichert
+                                </div>
+                            </div>
+
+                            <!-- Day toggles -->
+                            <div class="grid grid-cols-7 gap-1.5">
+                                <button
+                                    v-for="day in availabilityDays"
+                                    :key="day.key"
+                                    type="button"
+                                    @click="toggleAvailDay(day.key)"
+                                    class="flex flex-col items-center gap-1 rounded-xl py-2.5 text-xs font-semibold transition-colors border"
+                                    :class="availability[day.key].available
+                                        ? 'bg-indigo-600 border-indigo-600 text-white'
+                                        : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-400 dark:text-slate-500'"
+                                >
+                                    {{ day.label }}
+                                </button>
+                            </div>
+
+                            <!-- Duration for active days -->
+                            <div class="space-y-2">
+                                <div
+                                    v-for="day in availabilityDays.filter(d => availability[d.key].available)"
+                                    :key="day.key"
+                                    class="flex items-center gap-3"
+                                >
+                                    <span class="w-24 text-sm text-gray-600 dark:text-slate-400 shrink-0">{{ day.full }}</span>
+                                    <div class="flex flex-wrap gap-1.5">
+                                        <button
+                                            v-for="dur in durationOptions"
+                                            :key="dur"
+                                            type="button"
+                                            @click="availability[day.key].duration_min = dur"
+                                            class="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors border"
+                                            :class="availability[day.key].duration_min === dur
+                                                ? 'bg-indigo-600 border-indigo-600 text-white'
+                                                : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:border-indigo-300'"
+                                        >
+                                            {{ dur }} min
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Summary + save -->
+                            <div class="flex items-center justify-between pt-1">
+                                <p class="text-xs text-gray-400 dark:text-slate-500">
+                                    {{ availabilityDays.filter(d => availability[d.key].available).length }} Tage ·
+                                    {{ availabilityDays.reduce((s, d) => s + (availability[d.key].available ? availability[d.key].duration_min : 0), 0) }} Min/Woche
+                                </p>
+                                <button
+                                    type="button"
+                                    @click="saveAvailability"
+                                    :disabled="availSaving"
+                                    class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
+                                >
+                                    <svg v-if="availSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                    Verfügbarkeit speichern
+                                </button>
                             </div>
                         </div>
                     </div>
