@@ -45,6 +45,23 @@ const skipLoading = ref(false);
 // Adjust state per session id
 const adjustingId = ref(null);
 
+// ── Availability overrides ────────────────────────────────────────────────────
+const availabilityOverrides = ref({});
+const overrideSaving = ref(null); // date string being saved
+
+async function setAvailabilityOverride(date, available, durationMin = 60) {
+    overrideSaving.value = date;
+    try {
+        const res = await axios.patch(route('events.plan.availability', props.event.id), {
+            date,
+            available,
+            duration_min: available ? durationMin : 0,
+        });
+        availabilityOverrides.value = res.data.overrides ?? {};
+    } catch { /* ignore */ }
+    finally { overrideSaving.value = null; }
+}
+
 const today = new Date().toISOString().slice(0, 10);
 
 // ── Load today's wellbeing ────────────────────────────────────────────────────
@@ -586,7 +603,27 @@ const workoutSteps = computed(() => {
                                             <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
                                             KI anpassen
                                         </button>
+                                        <!-- Availability override: mark day as unavailable -->
+                                        <button
+                                            v-if="!isPast(session.planned_date) && session.type !== 'rest'"
+                                            @click="setAvailabilityOverride(session.planned_date, false)"
+                                            :disabled="overrideSaving === session.planned_date"
+                                            class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 disabled:opacity-50 transition-colors"
+                                            title="Tag als nicht verfügbar markieren — beim nächsten Plan-Update berücksichtigt"
+                                        >
+                                            <svg v-if="overrideSaving === session.planned_date" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                            <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+                                            Kein Training
+                                        </button>
                                     </template>
+                                    <!-- Show override badge if set -->
+                                    <span
+                                        v-if="availabilityOverrides[session.planned_date] && !availabilityOverrides[session.planned_date].available"
+                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400"
+                                    >
+                                        Nicht verfügbar — Plan neu generieren
+                                        <button @click="delete availabilityOverrides[session.planned_date]; setAvailabilityOverride(session.planned_date, true, session.duration_min || 60)" class="ml-1 hover:text-amber-900">✕</button>
+                                    </span>
                                 </div>
                             </div>
                         </div>

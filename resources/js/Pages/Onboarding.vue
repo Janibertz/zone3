@@ -10,12 +10,13 @@ const user = computed(() => page.props.auth.user);
 
 // ── Steps ─────────────────────────────────────────────────────────────────
 const currentStep = ref(1);
-const totalSteps  = 4;
+const totalSteps  = 5;
 const steps = [
-    { number: 1, label: 'Willkommen'   },
-    { number: 2, label: 'Dein Profil'  },
-    { number: 3, label: 'Dein Ziel'    },
-    { number: 4, label: 'Strava'       },
+    { number: 1, label: 'Willkommen'    },
+    { number: 2, label: 'Dein Profil'   },
+    { number: 3, label: 'Verfügbarkeit' },
+    { number: 4, label: 'Dein Ziel'     },
+    { number: 5, label: 'Strava'        },
 ];
 function nextStep() { if (currentStep.value < totalSteps) currentStep.value++; }
 
@@ -93,7 +94,61 @@ async function confirmEstimate() {
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// STEP 3 — Race goal with target time
+// STEP 3 — Weekly availability
+// ════════════════════════════════════════════════════════════════════════
+const days = [
+    { key: 'monday',    label: 'Mo', full: 'Montag'     },
+    { key: 'tuesday',   label: 'Di', full: 'Dienstag'   },
+    { key: 'wednesday', label: 'Mi', full: 'Mittwoch'   },
+    { key: 'thursday',  label: 'Do', full: 'Donnerstag' },
+    { key: 'friday',    label: 'Fr', full: 'Freitag'    },
+    { key: 'saturday',  label: 'Sa', full: 'Samstag'    },
+    { key: 'sunday',    label: 'So', full: 'Sonntag'    },
+];
+
+const durationOptions = [
+    { value: 30,  label: '30 min' },
+    { value: 45,  label: '45 min' },
+    { value: 60,  label: '1 Std'  },
+    { value: 90,  label: '1:30 Std' },
+    { value: 120, label: '2 Std'  },
+    { value: 180, label: '3 Std+' },
+];
+
+const availability = ref({
+    monday:    { available: true,  duration_min: 60 },
+    tuesday:   { available: false, duration_min: 0  },
+    wednesday: { available: true,  duration_min: 60 },
+    thursday:  { available: false, duration_min: 0  },
+    friday:    { available: true,  duration_min: 60 },
+    saturday:  { available: true,  duration_min: 90 },
+    sunday:    { available: false, duration_min: 0  },
+});
+
+const availabilityLoading = ref(false);
+const availabilityErrors  = ref({});
+
+function toggleDay(key) {
+    availability.value[key].available = !availability.value[key].available;
+    if (!availability.value[key].available) availability.value[key].duration_min = 0;
+    else if (availability.value[key].duration_min === 0) availability.value[key].duration_min = 60;
+}
+
+async function submitAvailability() {
+    availabilityErrors.value  = {};
+    availabilityLoading.value = true;
+    try {
+        await axios.post(route('onboarding.availability'), { availability: availability.value });
+        nextStep();
+    } catch (err) {
+        if (err.response?.status === 422) availabilityErrors.value = err.response.data.errors;
+    } finally {
+        availabilityLoading.value = false;
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// STEP 4 — Race goal with target time
 // ════════════════════════════════════════════════════════════════════════
 const raceOptions = [
     { value: '5km',           label: '5 km',         distance: 5,        icon: '🏃' },
@@ -158,7 +213,7 @@ async function submitGoal() {
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// STEP 4 — Complete / Strava
+// STEP 5 — Complete / Strava
 // ════════════════════════════════════════════════════════════════════════
 function complete() { router.post(route('onboarding.complete')); }
 function completeAndConnectStrava() { router.post(route('onboarding.complete-strava')); }
@@ -460,9 +515,82 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                 </div>
 
                 <!-- ══════════════════════════════════════════
-                     STEP 3 — Race goal
+                     STEP 3 — Availability
                      ══════════════════════════════════════════ -->
-                <div v-else-if="currentStep === 3" class="space-y-5">
+                <div v-else-if="currentStep === 3" class="space-y-6">
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Wann kannst du trainieren?</h2>
+                        <p class="mt-2 text-gray-500 dark:text-slate-400">
+                            Wähle deine verfügbaren Tage und wie viel Zeit du hast.<br>
+                            Der KI-Plan passt sich automatisch daran an.
+                        </p>
+                    </div>
+
+                    <!-- Day grid -->
+                    <div class="grid grid-cols-7 gap-2">
+                        <div v-for="day in days" :key="day.key" class="flex flex-col items-center gap-2">
+                            <!-- Day toggle -->
+                            <button
+                                type="button"
+                                @click="toggleDay(day.key)"
+                                class="w-full aspect-square rounded-2xl flex flex-col items-center justify-center text-sm font-bold transition-all duration-150 border-2"
+                                :class="availability[day.key].available
+                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-200 dark:shadow-indigo-900/30 scale-105'
+                                    : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-400 dark:text-slate-500 hover:border-gray-300 dark:hover:border-slate-600'"
+                            >
+                                {{ day.label }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Duration per available day -->
+                    <div class="space-y-3">
+                        <p class="text-sm font-semibold text-gray-700 dark:text-slate-300">Trainingszeit pro Tag</p>
+                        <div v-for="day in days.filter(d => availability[d.key].available)" :key="day.key + '_dur'" class="flex items-center gap-3">
+                            <span class="w-24 text-sm text-gray-600 dark:text-slate-400 font-medium">{{ day.full }}</span>
+                            <div class="flex flex-wrap gap-1.5 flex-1">
+                                <button
+                                    v-for="opt in durationOptions"
+                                    :key="opt.value"
+                                    type="button"
+                                    @click="availability[day.key].duration_min = opt.value"
+                                    class="px-2.5 py-1 rounded-xl text-xs font-semibold border transition-colors"
+                                    :class="availability[day.key].duration_min === opt.value
+                                        ? 'bg-indigo-600 border-indigo-600 text-white'
+                                        : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 hover:border-indigo-300 dark:hover:border-indigo-500'"
+                                >
+                                    {{ opt.label }}
+                                </button>
+                            </div>
+                        </div>
+                        <p v-if="!days.some(d => availability[d.key].available)" class="text-sm text-amber-600 dark:text-amber-400">
+                            Bitte wähle mindestens einen Tag aus.
+                        </p>
+                    </div>
+
+                    <!-- Summary -->
+                    <div class="rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/30 px-4 py-3">
+                        <p class="text-sm font-semibold text-indigo-800 dark:text-indigo-300 mb-1">Deine Wochenverfügbarkeit</p>
+                        <p class="text-sm text-indigo-700 dark:text-indigo-400">
+                            {{ days.filter(d => availability[d.key].available).length }} Trainingstage ·
+                            {{ days.filter(d => availability[d.key].available).reduce((s, d) => s + availability[d.key].duration_min, 0) }} Min. pro Woche
+                        </p>
+                    </div>
+
+                    <button
+                        @click="submitAvailability"
+                        :disabled="availabilityLoading || !days.some(d => availability[d.key].available)"
+                        class="w-full rounded-2xl bg-indigo-600 px-6 py-3.5 text-base font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
+                    >
+                        <svg v-if="availabilityLoading" class="inline h-5 w-5 animate-spin mr-2" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                        Weiter
+                    </button>
+                </div>
+
+                <!-- ══════════════════════════════════════════
+                     STEP 4 — Race goal
+                     ══════════════════════════════════════════ -->
+                <div v-else-if="currentStep === 4" class="space-y-5">
                     <div class="text-center">
                         <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Was ist dein Ziel?</h2>
                         <p class="mt-2 text-gray-500 dark:text-slate-400">
@@ -564,9 +692,9 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                 </div>
 
                 <!-- ══════════════════════════════════════════
-                     STEP 4 — Strava
+                     STEP 5 — Strava
                      ══════════════════════════════════════════ -->
-                <div v-else-if="currentStep === 4" class="space-y-6 text-center">
+                <div v-else-if="currentStep === 5" class="space-y-6 text-center">
                     <div class="w-20 h-20 mx-auto rounded-3xl bg-orange-500 flex items-center justify-center shadow-lg">
                         <svg class="w-10 h-10 text-white" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066l-2.084 4.116z"/>

@@ -23,6 +23,7 @@ class RunnerProfile extends Model
         'threshold_pace_calculated_at',
         'threshold_pace_history',
         'threshold_pace_calculating',
+        'weekly_availability',
     ];
 
     protected $casts = [
@@ -32,6 +33,7 @@ class RunnerProfile extends Model
         'has_completed_setup' => 'boolean',
         'threshold_pace_calculated_at' => 'datetime',
         'threshold_pace_calculating' => 'boolean',
+        'weekly_availability'        => 'array',
     ];
 
     public function user()

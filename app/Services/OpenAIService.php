@@ -721,6 +721,8 @@ PROMPT;
         array $recentActivities,
         array $wellbeingData,
         array $sessionRatings = [],
+        ?array $weeklyAvailability = null,
+        array $availabilityOverrides = [],
     ): ?array {
         $today        = now()->format('Y-m-d');
         $eventDate    = $event->event_date->format('Y-m-d');
@@ -784,6 +786,35 @@ PROMPT;
             $ratingsText = "Ø Bewertung: {$avgRating}/5" . ($avgRpe ? " | Ø RPE: {$avgRpe}/10" : '') . "\n" . implode("\n", array_slice($ratingLines, 0, 10));
         }
 
+        // Availability text
+        $dayNames = [
+            'monday' => 'Montag', 'tuesday' => 'Dienstag', 'wednesday' => 'Mittwoch',
+            'thursday' => 'Donnerstag', 'friday' => 'Freitag', 'saturday' => 'Samstag', 'sunday' => 'Sonntag',
+        ];
+        if ($weeklyAvailability) {
+            $avLines = [];
+            foreach ($dayNames as $key => $label) {
+                $day = $weeklyAvailability[$key] ?? null;
+                if (!$day) { $avLines[] = "- {$label}: nicht verfügbar"; continue; }
+                if (! ($day['available'] ?? false)) { $avLines[] = "- {$label}: nicht verfügbar"; }
+                else { $avLines[] = "- {$label}: verfügbar, max. {$day['duration_min']} Minuten"; }
+            }
+            $availabilityText = "Wöchentliche Verfügbarkeit des Athleten:\n" . implode("\n", $avLines);
+        } else {
+            $availabilityText = 'Wöchentliche Verfügbarkeit: keine Angabe — verteile Training gleichmäßig.';
+        }
+
+        // Per-date overrides
+        $overrideText = '';
+        if (! empty($availabilityOverrides)) {
+            $ovLines = [];
+            foreach ($availabilityOverrides as $date => $ov) {
+                if (! ($ov['available'] ?? true)) { $ovLines[] = "- {$date}: NICHT verfügbar (override)"; }
+                else { $ovLines[] = "- {$date}: verfügbar, max. {$ov['duration_min']} Minuten (override)"; }
+            }
+            $overrideText = "\n\n**Einzelne Tages-Ausnahmen (haben Vorrang vor der Wochenverfügbarkeit):**\n" . implode("\n", $ovLines);
+        }
+
         $prompt = <<<PROMPT
 Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan für folgendes Rennevent.
 
@@ -804,6 +835,8 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan f�
 **Bisherige Einheitsbewertungen (Athleten-Feedback):**
 {$ratingsText}
 
+**{$availabilityText}**{$overrideText}
+
 **Planungsregeln:**
 - Starte den Plan ab heute ({$today})
 - Der letzte Tag im Plan ist IMMER der Renntag ({$eventDate}) — niemals danach
@@ -818,6 +851,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan f�
 - A-Events: max. Leistungsoptimierung; C-Events: Trainingsrennen, moderate Belastung
 - WICHTIG: Plane nur Tage von heute ({$today}) bis zum Renntag ({$eventDate}). Kein Tag nach {$eventDate}.
 - Lerne aus den Athleten-Bewertungen: niedrige Bewertungen (1-2⭐) oder hohe RPE (≥8) bei bestimmten Typen → weniger davon oder leichter planen; hohe Bewertungen (4-5⭐) → mehr davon
+- VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die Trainingsdauer darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
 
 **Antworte ausschließlich mit einem JSON-Array (zwischen 1 und 10 Objekte, je nach verfügbaren Tagen bis zum Rennen):**
 [

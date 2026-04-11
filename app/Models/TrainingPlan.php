@@ -15,13 +15,15 @@ class TrainingPlan extends Model
         'sessions',
         'context',
         'needs_plan_update',
+        'availability_overrides',
     ];
 
     protected $casts = [
-        'sessions'          => 'array',
-        'context'           => 'array',
-        'is_active'         => 'boolean',
-        'needs_plan_update' => 'boolean',
+        'sessions'                => 'array',
+        'context'                 => 'array',
+        'is_active'               => 'boolean',
+        'needs_plan_update'       => 'boolean',
+        'availability_overrides'  => 'array',
     ];
 
     public function user()

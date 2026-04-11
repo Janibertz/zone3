@@ -39,6 +39,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
     Route::post('/onboarding/estimate-profile', [OnboardingController::class, 'estimateProfile'])->name('onboarding.estimate-profile');
     Route::post('/onboarding/profile', [OnboardingController::class, 'saveProfile'])->name('onboarding.profile');
+    Route::post('/onboarding/availability', [OnboardingController::class, 'saveAvailability'])->name('onboarding.availability');
     Route::post('/onboarding/goal', [OnboardingController::class, 'saveGoal'])->name('onboarding.goal');
     Route::post('/onboarding/reset', [OnboardingController::class, 'reset'])->name('onboarding.reset');
     Route::post('/onboarding/complete', [OnboardingController::class, 'complete'])->name('onboarding.complete');
@@ -246,6 +247,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/events/{event}/plan', [TrainingPlanController::class, 'show'])->name('events.plan.show');
     Route::post('/events/{event}/plan/generate', [TrainingPlanController::class, 'generate'])->name('events.plan.generate');
     Route::post('/events/{event}/plan/cancel', [TrainingPlanController::class, 'cancel'])->name('events.plan.cancel');
+    Route::patch('/events/{event}/plan/availability', [TrainingPlanController::class, 'updateAvailabilityOverride'])->name('events.plan.availability');
 
     // Training Sessions
     Route::patch('/training-sessions/{session}/complete', [TrainingSessionController::class, 'complete'])->name('training-sessions.complete');

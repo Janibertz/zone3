@@ -83,6 +83,28 @@ class OnboardingController extends Controller
     }
 
     /**
+     * Save weekly availability.
+     */
+    public function saveAvailability(Request $request)
+    {
+        $days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+
+        $validated = $request->validate([
+            'availability'         => 'required|array',
+            'availability.*.available'   => 'required|boolean',
+            'availability.*.duration_min' => 'required|integer|min:0|max:300',
+        ]);
+
+        $user    = Auth::user();
+        $profile = $user->runnerProfile ?? new RunnerProfile(['user_id' => $user->id]);
+        $profile->user_id             = $user->id;
+        $profile->weekly_availability = $validated['availability'];
+        $profile->save();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
      * Save race goal as an Event (A-priority by default).
      */
     public function saveGoal(Request $request)

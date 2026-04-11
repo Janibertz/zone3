@@ -148,9 +148,19 @@ class TrainingPlanController extends Controller
             ])
             ->toArray();
 
+        // ── Availability ─────────────────────────────────────────────────────
+        $weeklyAvailability  = $user->runnerProfile?->weekly_availability ?? null;
+
+        // Get existing plan's overrides if regenerating
+        $existingPlan = TrainingPlan::where('event_id', $event->id)
+            ->where('user_id', $user->id)
+            ->latest()
+            ->first();
+        $availabilityOverrides = $existingPlan?->availability_overrides ?? [];
+
         // ── Call AI ──────────────────────────────────────────────────────────
         try {
-            $aiSessions = $openAI->generateEventTrainingPlan($event, $profileData, $recentActivities, $wellbeingData, $sessionRatings);
+            $aiSessions = $openAI->generateEventTrainingPlan($event, $profileData, $recentActivities, $wellbeingData, $sessionRatings, $weeklyAvailability, $availabilityOverrides);
         } catch (\Throwable $e) {
             return response()->json(['error' => 'OpenAI-Fehler: ' . $e->getMessage()], 500);
         }
@@ -328,6 +338,34 @@ class TrainingPlanController extends Controller
             ],
             'sessions' => $sessions,
         ]);
+    }
+
+    /**
+     * Store or update a per-date availability override for the active plan.
+     */
+    public function updateAvailabilityOverride(Event $event, \Illuminate\Http\Request $request)
+    {
+        abort_if($event->user_id !== Auth::id(), 403);
+
+        $request->validate([
+            'date'         => 'required|date_format:Y-m-d',
+            'available'    => 'required|boolean',
+            'duration_min' => 'nullable|integer|min:0|max:300',
+        ]);
+
+        $plan = TrainingPlan::where('event_id', $event->id)
+            ->where('user_id', Auth::id())
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        $overrides = $plan->availability_overrides ?? [];
+        $overrides[$request->date] = [
+            'available'    => $request->available,
+            'duration_min' => $request->duration_min ?? 0,
+        ];
+        $plan->update(['availability_overrides' => $overrides, 'needs_plan_update' => true]);
+
+        return response()->json(['success' => true, 'overrides' => $overrides]);
     }
 
     private function formatSession(TrainingSession $s): array
