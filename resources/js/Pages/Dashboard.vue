@@ -63,6 +63,14 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    unratedSessions: {
+        type: Array,
+        default: () => [],
+    },
+    weeklyReview: {
+        type: Object,
+        default: null,
+    },
 });
 
 const page = usePage();
@@ -1244,6 +1252,61 @@ function syncStrava() {
                             <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">⚡ {{ formatSpeed(activity.average_speed) }}</p>
                         </button>
                     </div>
+                </div>
+
+                <!-- ═══ ROW 4b: Unrated Sessions + Weekly Review ═══ -->
+                <div v-if="props.unratedSessions.length > 0 || props.weeklyReview" class="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
+
+                    <!-- Noch zu bewerten -->
+                    <div v-if="props.unratedSessions.length > 0" class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-amber-100 dark:border-amber-500/20 p-4 sm:p-5">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="h-7 w-7 rounded-lg bg-amber-100 dark:bg-amber-500/15 flex items-center justify-center text-sm shrink-0">⭐</div>
+                            <div>
+                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Noch zu bewerten</h4>
+                                <p class="text-xs text-gray-400 dark:text-slate-500">Dein Feedback verbessert den KI-Plan</p>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <component
+                                :is="session.activity_id ? 'a' : 'a'"
+                                v-for="session in props.unratedSessions"
+                                :key="session.id"
+                                :href="session.activity_id
+                                    ? route('activities.show', session.activity_id)
+                                    : (session.event_id ? `/events/${session.event_id}/plan` : '#')"
+                                class="flex items-center justify-between gap-3 rounded-xl border border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2.5 hover:border-amber-200 dark:hover:border-amber-500/30 hover:bg-amber-50 dark:hover:bg-amber-500/5 transition-colors group"
+                            >
+                                <div class="flex items-center gap-2.5 min-w-0">
+                                    <span class="shrink-0 text-sm">
+                                        {{ {'easy_run':'🟢','tempo_run':'🟡','interval':'🔴','long_run':'🔵','race_prep':'🏁'}[session.type] ?? '🏃' }}
+                                    </span>
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{{ session.title || 'Einheit' }}</p>
+                                        <p class="text-xs text-gray-400 dark:text-slate-500">
+                                            {{ new Date(session.planned_date).toLocaleDateString('de-DE', {day:'2-digit', month:'short'}) }}
+                                            {{ session.distance_km ? `· ${session.distance_km} km` : '' }}
+                                        </p>
+                                    </div>
+                                </div>
+                                <span class="shrink-0 text-xs text-amber-600 dark:text-amber-400 font-medium group-hover:underline">Bewerten →</span>
+                            </component>
+                        </div>
+                    </div>
+
+                    <!-- Wochenrückblick -->
+                    <div v-if="props.weeklyReview" class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-indigo-100 dark:border-indigo-500/20 p-4 sm:p-5">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="h-7 w-7 rounded-lg bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center text-sm shrink-0">🧠</div>
+                            <div>
+                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">KI Wochenrückblick</h4>
+                                <p class="text-xs text-gray-400 dark:text-slate-500">
+                                    KW {{ new Date(props.weeklyReview.week_start).toLocaleDateString('de-DE', {day:'2-digit', month:'short'}) }}
+                                </p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-700 dark:text-slate-300 leading-relaxed">{{ props.weeklyReview.content }}</p>
+                    </div>
+
                 </div>
 
                 <!-- ═══ ROW 5: Quick Event + Countdown + Tipps ═══ -->

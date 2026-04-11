@@ -62,11 +62,16 @@ class TrainingSessionController extends Controller
     }
 
     /**
-     * Generate AI nutrition tips for a session.
+     * Return AI nutrition tips for a session — served from DB cache, generated on first request.
      */
     public function nutritionTips(TrainingSession $session, OpenAIService $openAI)
     {
         abort_if($session->user_id !== Auth::id(), 403);
+
+        // Return cached tips if available
+        if ($session->nutrition_tips) {
+            return response()->json($session->nutrition_tips);
+        }
 
         $tips = $openAI->generateNutritionTips([
             'type'         => $session->type,
@@ -75,12 +80,15 @@ class TrainingSessionController extends Controller
             'duration_min' => $session->duration_min,
             'pace_target'  => $session->pace_target,
             'intensity'    => $session->intensity,
-            'is_race'      => $session->type === 'race' ? 'Ja' : 'Nein',
+            'is_race'      => $session->type === 'race_prep' ? 'Ja' : 'Nein',
         ]);
 
         if (! $tips) {
             return response()->json(['error' => 'Tipps konnten nicht geladen werden.'], 500);
         }
+
+        // Cache to DB for future requests
+        $session->update(['nutrition_tips' => $tips]);
 
         return response()->json($tips);
     }
@@ -435,6 +443,7 @@ XML;
             'rating'           => $s->rating,
             'effort_perceived' => $s->effort_perceived,
             'feeling_notes'    => $s->feeling_notes,
+            'nutrition_tips'   => $s->nutrition_tips,
         ];
     }
 }

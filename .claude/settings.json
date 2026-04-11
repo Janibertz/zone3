@@ -5,7 +5,18 @@
       "Bash(php -r ':*)",
       "Bash(node -e ':*)",
       "Bash(grep -r \"webhook_verify_token\\\\|zone3_webhook\" /c/Users/janan/Desktop/zone3/config /c/Users/janan/Desktop/zone3/.env*)",
-      "Bash(ls C:/Users/janan/Desktop/zone3/*.md)"
+      "Bash(ls C:/Users/janan/Desktop/zone3/*.md)",
+      "Bash(composer dump-autoload:*)",
+      "Bash(php -l app/Http/Controllers/TrainingPlanController.php)",
+      "Bash(php -l app/Http/Controllers/OnboardingController.php)",
+      "Bash(php -l app/Http/Middleware/HandleInertiaRequests.php)",
+      "Bash(php -l app/Models/TrainingPlan.php)",
+      "Bash(node_modules/.bin/vue-tsc --noEmit)",
+      "Bash(grep -n \"nutrition\\\\|verpfleg\\\\|rating\\\\|bewert\\\\|weekly_review\\\\|week_review\" c:/Users/janan/Desktop/zone3/database/migrations/*.php c:/Users/janan/Desktop/zone3/app/Models/TrainingSession.php)",
+      "Bash(php -l app/Console/Commands/GenerateWeeklyReview.php)",
+      "Bash(php -l app/Models/WeeklyReview.php)",
+      "Bash(php -l app/Http/Controllers/ActivityController.php)",
+      "Bash(php -l app/Http/Controllers/TrainingSessionController.php)"
     ]
   }
 }

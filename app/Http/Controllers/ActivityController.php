@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Activity;
+use App\Models\TrainingSession;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -14,6 +15,11 @@ class ActivityController extends Controller
         abort_if($activity->user_id !== Auth::id(), 403);
 
         $paceZones = Auth::user()->runnerProfile?->pace_zones;
+
+        // Find training session linked to this activity (for rating)
+        $linkedSession = TrainingSession::where('activity_id', $activity->id)
+            ->where('user_id', Auth::id())
+            ->first();
 
         return Inertia::render('Activities/Show', [
             'activity' => [
@@ -36,7 +42,15 @@ class ActivityController extends Controller
                 'location_country'     => $activity->location_country,
                 'polyline'             => $activity->polyline['polyline'] ?? null,
             ],
-            'paceZones' => $paceZones,
+            'paceZones'     => $paceZones,
+            'linkedSession' => $linkedSession ? [
+                'id'               => $linkedSession->id,
+                'title'            => $linkedSession->title,
+                'type'             => $linkedSession->type,
+                'rating'           => $linkedSession->rating,
+                'effort_perceived' => $linkedSession->effort_perceived,
+                'feeling_notes'    => $linkedSession->feeling_notes,
+            ] : null,
         ]);
     }
 

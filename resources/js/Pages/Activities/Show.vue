@@ -1,12 +1,41 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Link } from '@inertiajs/vue3';
+import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 
 const props = defineProps({
-    activity: Object,
-    paceZones: Object,
+    activity:      Object,
+    paceZones:     Object,
+    linkedSession: Object,
 });
+
+// ── Session rating ────────────────────────────────────────────────────────────
+const ratingValue  = ref(props.linkedSession?.rating          ?? 0);
+const effortValue  = ref(props.linkedSession?.effort_perceived ?? 0);
+const feelingNotes = ref(props.linkedSession?.feeling_notes    ?? '');
+const ratingSaving = ref(false);
+const ratingSaved  = ref(false);
+const ratingError  = ref('');
+
+async function saveRating() {
+    if (!props.linkedSession) return;
+    ratingSaving.value = true;
+    ratingError.value  = '';
+    try {
+        await axios.patch(route('training-sessions.rate', props.linkedSession.id), {
+            rating:           ratingValue.value  || null,
+            effort_perceived: effortValue.value  || null,
+            feeling_notes:    feelingNotes.value || null,
+        });
+        ratingSaved.value = true;
+        setTimeout(() => { ratingSaved.value = false; }, 2500);
+    } catch {
+        ratingError.value = 'Speichern fehlgeschlagen.';
+    } finally {
+        ratingSaving.value = false;
+    }
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -333,6 +362,80 @@ onUnmounted(() => {
             <div v-if="activity.description" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
                 <h2 class="text-sm font-semibold text-gray-900 dark:text-white mb-2">Beschreibung</h2>
                 <p class="text-sm text-gray-600 dark:text-slate-400 leading-relaxed">{{ activity.description }}</p>
+            </div>
+
+            <!-- Session rating (shown when activity is linked to a training plan session) -->
+            <div v-if="linkedSession" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 class="text-sm font-semibold text-gray-900 dark:text-white">Einheit bewerten</h2>
+                        <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{{ linkedSession.title }} · Dein Feedback verbessert den KI-Plan</p>
+                    </div>
+                    <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
+                        <span v-if="ratingSaved" class="text-xs text-green-600 dark:text-green-400 font-semibold">Gespeichert</span>
+                    </Transition>
+                </div>
+
+                <!-- Stars -->
+                <div class="mb-4">
+                    <p class="text-xs font-medium text-gray-500 dark:text-slate-400 mb-2">Wie war die Einheit?</p>
+                    <div class="flex gap-1.5">
+                        <button
+                            v-for="star in 5"
+                            :key="star"
+                            type="button"
+                            @click="ratingValue = ratingValue === star ? 0 : star"
+                            class="h-9 w-9 rounded-xl flex items-center justify-center text-xl transition-colors"
+                            :class="star <= ratingValue
+                                ? 'bg-amber-50 dark:bg-amber-500/10'
+                                : 'bg-gray-50 dark:bg-slate-800 opacity-40 hover:opacity-70'"
+                        >⭐</button>
+                        <span class="ml-2 self-center text-sm text-gray-400 dark:text-slate-500">
+                            {{ ['', 'Sehr schwer', 'Schwer', 'Okay', 'Gut', 'Top'][ratingValue] }}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- RPE -->
+                <div class="mb-4">
+                    <p class="text-xs font-medium text-gray-500 dark:text-slate-400 mb-2">Gefühlte Belastung (RPE)</p>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button
+                            v-for="rpe in 10"
+                            :key="rpe"
+                            type="button"
+                            @click="effortValue = effortValue === rpe ? 0 : rpe"
+                            class="h-8 w-8 rounded-lg text-xs font-bold transition-colors border"
+                            :class="rpe === effortValue
+                                ? 'bg-indigo-600 border-indigo-600 text-white'
+                                : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:border-indigo-300'"
+                        >{{ rpe }}</button>
+                        <span class="ml-1 self-center text-xs text-gray-400 dark:text-slate-500">
+                            {{ effortValue ? `RPE ${effortValue}/10` : '' }}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div class="mb-4">
+                    <textarea
+                        v-model="feelingNotes"
+                        rows="2"
+                        placeholder="Notizen (optional) — was hat gut/schlecht funktioniert?"
+                        class="block w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 focus:border-indigo-400 resize-none transition-colors"
+                    />
+                </div>
+
+                <p v-if="ratingError" class="text-xs text-red-500 mb-3">{{ ratingError }}</p>
+
+                <button
+                    @click="saveRating"
+                    :disabled="ratingSaving || (!ratingValue && !effortValue && !feelingNotes)"
+                    class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40 transition-colors"
+                >
+                    <svg v-if="ratingSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                    Bewertung speichern
+                </button>
             </div>
 
             <!-- Strava link -->

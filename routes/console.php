@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Check every minute: send wellbeing reminder to eligible users
 Schedule::command('push:wellbeing-reminders')->everyMinute();
+
+// Every Monday at 07:00: generate weekly AI review for all athletes
+Schedule::command('ai:weekly-review')->weeklyOn(1, '07:00');

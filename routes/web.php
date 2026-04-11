@@ -17,7 +17,9 @@ use App\Http\Controllers\WellbeingController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Models\Activity;
 use App\Models\Event;
+use App\Models\WeeklyReview;
 use App\Services\ProgressService;
+use Carbon\Carbon;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -161,6 +163,33 @@ Route::get('/dashboard', function (ProgressService $progressService) {
         'hasWellbeingToday' => $user->wellbeingEntries()
             ->where('date', now()->toDateString())
             ->exists(),
+
+        // Sessions completed without a rating (prompt user to review)
+        'unratedSessions' => TrainingSession::where('user_id', $user->id)
+            ->where('status', 'completed')
+            ->whereNull('rating')
+            ->orderByDesc('planned_date')
+            ->limit(5)
+            ->get()
+            ->map(fn ($s) => [
+                'id'           => $s->id,
+                'title'        => $s->title,
+                'type'         => $s->type,
+                'planned_date' => $s->planned_date->format('Y-m-d'),
+                'distance_km'  => $s->distance_km,
+                'activity_id'  => $s->activity_id,
+                'event_id'     => $s->event_id,
+            ])
+            ->values(),
+
+        // Weekly AI review (generated every Monday, cached for the week)
+        'weeklyReview' => (function () use ($user) {
+            $weekStart = Carbon::now()->startOfWeek(Carbon::MONDAY)->subWeek()->toDateString();
+            $review = WeeklyReview::where('user_id', $user->id)
+                ->where('week_start', $weekStart)
+                ->first();
+            return $review ? ['content' => $review->content, 'week_start' => $weekStart] : null;
+        })(),
     ]);
 })->middleware(['auth', 'verified', 'onboarding'])->name('dashboard');
 

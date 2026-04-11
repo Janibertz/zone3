@@ -1003,32 +1003,52 @@ PROMPT;
     {
         $isRace = ($session['type'] ?? '') === 'race';
 
+        $distKm  = (float) ($session['distance_km']  ?? 0);
+        $durMin  = (int)   ($session['duration_min'] ?? 0);
+        $type    = $session['type']      ?? 'easy_run';
+        $intens  = $session['intensity'] ?? 'medium';
+        $pace    = $session['pace_target'] ?? 'keine Angabe';
+
         $prompt = <<<PROMPT
-Du bist ein erfahrener Lauf- und Ernährungscoach. Erstelle konkrete, personalisierte Verpflegungstipps für die folgende Trainingseinheit.
+Du bist Ernährungsberater für Leistungssportler. Erstelle präzise, athletengerechte Verpflegungstipps für die folgende Laufeinheit. Verzichte auf allgemeine Ratschläge — der Athlet kennt die Basics. Gib stattdessen konkrete Mengen, exaktes Timing und bewährte Sportprodukte.
 
 **Einheit:**
-- Typ: {$session['type']}
-- Titel: {$session['title']}
-- Distanz: {$session['distance_km']} km
-- Dauer: {$session['duration_min']} min
-- Pace-Ziel: {$session['pace_target']}
-- Intensität: {$session['intensity']}
+- Typ: {$type}
+- Distanz: {$distKm} km
+- Dauer: {$durMin} min
+- Pace-Ziel: {$pace}
+- Intensität: {$intens}
 - Renntag: {$session['is_race']}
 
-**Regeln:**
-- Unter 45 min / 8 km: minimale Verpflegung, kein Gel nötig
-- 45–90 min: leichter Pre-Workout-Snack, Wasser
-- Über 90 min / 16 km: Gel-Strategie alle 40–45 min, Elektrolyte
-- Renntag: Carb-Loading Vorabend, Race-Verpflegungsstrategie, Carb-Depletion vermeiden
-- Intervall/Tempo: kohlenhydratreich 2–3h vorher, kein Gel nötig
+**Protokoll nach Einheitstyp:**
 
-Gib immer konkrete Mengen, Zeitangaben und Produktbeispiele (Gels, Riegel, Getränke).
+Unter 45 min / lockeres Lauftempo:
+- Vorher: Nüchtern oder 1-2h nach letzter Mahlzeit, kein extra Snack nötig
+- Während: nur Wasser (0,5–1L je nach Hitze), keine Gels
+- Nachher: Protein innerhalb 30 min (25–30g Whey oder 500ml fettarme Milch), Carbs in der Folgestunde
+
+45–75 min / moderat:
+- Vorher: 2–3h vorher kohlenhydratreiche Mahlzeit (Haferflocken + Beeren, Reis, Brot); 30–60 min vorher maximal 1 Energy-Gel oder 30g Datteln
+- Während: alle 30 min 150–200ml Wasser, bei Hitze Elektrolyttablette (z.B. Nuun, SaltStick)
+- Nachher: Recovery Shake (25g Whey + 50g Carbs) oder Quark + Obst
+
+Über 75 min / langer Lauf / Renntag:
+- Vorher: 3h vorher Pasta/Reis (80–100g trocken), 2h vorher nichts Festes mehr; 15 min vor Start 1 Gel (z.B. Maurten 160, SiS Beta Fuel)
+- Während: Gel alle 40–45 min (z.B. GU Original, Maurten 100), Elektrolytgetränk oder Wasser mit Salztablette; ab 90 min isotonisches Getränk (400–600ml/h)
+- Nachher: innerhalb 30 min Recovery Shake (4:1 Carb-Protein-Verhältnis), dann vollständige Mahlzeit nach 1–2h
+
+Intervall / Tempo:
+- Vorher: 3h vorher leichte kohlenhydratreiche Mahlzeit (kein Fett/Ballaststoffe); 30 min vorher optional Koffein (3–5mg/kg KG)
+- Während: Wasser + Elektrolyte, bei >60 min ein Gel in der Pause
+- Nachher: Proteinshake unmittelbar danach (30g Whey), innerhalb 2h vollständige Erholungsmahlzeit
+
 Antworte ausschließlich mit JSON (kein anderer Text):
 {
   "before": [{"icon": "🍝", "text": "..."}, ...],
   "during": [{"icon": "💧", "text": "..."}, ...],
-  "after":  [{"icon": "🥛", "text": "..."}, ...]
+  "after":  [{"icon": "🥩", "text": "..."}, ...]
 }
+Max. 3 Punkte pro Abschnitt. Konkrete Mengen, Produkte, Zeitangaben. Kein Allgemeinwissen.
 PROMPT;
 
         try {
@@ -1060,6 +1080,99 @@ PROMPT;
             return null;
         } catch (\Exception $e) {
             Log::error('Nutrition Tips Exception', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * Generate a weekly review for the athlete (runs every Monday, cached in DB).
+     */
+    public function generateWeeklyReview(\App\Models\User $user, string $weekStart, string $weekEnd): ?string
+    {
+        // Completed sessions this week
+        $sessions = \App\Models\TrainingSession::where('user_id', $user->id)
+            ->where('status', 'completed')
+            ->whereBetween('planned_date', [$weekStart, $weekEnd])
+            ->orderBy('planned_date')
+            ->get();
+
+        // Skipped sessions
+        $skipped = \App\Models\TrainingSession::where('user_id', $user->id)
+            ->where('status', 'skipped')
+            ->whereBetween('planned_date', [$weekStart, $weekEnd])
+            ->count();
+
+        // Wellbeing this week
+        $wellbeing = $user->wellbeingEntries()
+            ->whereBetween('date', [$weekStart, $weekEnd])
+            ->get();
+
+        if ($sessions->isEmpty() && $wellbeing->isEmpty()) {
+            return null; // Nothing to review
+        }
+
+        // Build session summary
+        $totalKm    = $sessions->sum(fn ($s) => $s->distance_km ?? 0);
+        $totalMin   = $sessions->sum(fn ($s) => $s->duration_min ?? 0);
+        $sessionLines = $sessions->map(fn ($s) => sprintf(
+            '- [%s] %s: %s km, %s min%s%s',
+            $s->planned_date->format('D'),
+            $s->title,
+            number_format($s->distance_km ?? 0, 1),
+            $s->duration_min ?? 0,
+            $s->rating  ? ", Bewertung: {$s->rating}/5⭐" : '',
+            $s->effort_perceived ? ", RPE {$s->effort_perceived}/10" : ''
+        ))->implode("\n");
+
+        $wellbeingLines = '';
+        if ($wellbeing->isNotEmpty()) {
+            $avgE = round($wellbeing->avg('energy_level'), 1);
+            $avgS = round($wellbeing->avg('sleep_quality'), 1);
+            $avgM = round($wellbeing->avg('muscle_soreness'), 1);
+            $sick = $wellbeing->where('is_sick', true)->count();
+            $wellbeingLines = "Wellbeing Ø: Energie {$avgE}/10 | Schlaf {$avgS}/10 | Muskelkater {$avgM}/10" . ($sick > 0 ? " | {$sick} Krankheitstage" : '');
+        }
+
+        $prompt = <<<PROMPT
+Du bist Lauf-Coach. Schreibe einen kurzen, motivierenden Wochenrückblick für deinen Athleten. Sei direkt, konkret und ehrlich — weder überschwänglich noch demotivierend.
+
+**Trainingswoche {$weekStart} – {$weekEnd}:**
+{$sessionLines}
+Übersprungene Einheiten: {$skipped}
+Gesamt: {$totalKm} km / {$totalMin} min
+
+{$wellbeingLines}
+
+**Dein Review (max. 150 Wörter):**
+- Was lief gut diese Woche?
+- Was fiel auf (Belastung, Wellbeing, Konstanz)?
+- Eine konkrete Empfehlung für die kommende Woche
+
+Schreibe fließend, kein JSON, kein Markdown mit #-Überschriften. Direkte Ansprache (du).
+PROMPT;
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Content-Type'  => 'application/json',
+            ])->timeout(30)->post($this->baseUrl . '/chat/completions', [
+                'model'    => $this->model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Du bist ein erfahrener Lauf-Coach. Antworte auf Deutsch, kurz und präzise.'],
+                    ['role' => 'user',   'content' => $prompt],
+                ],
+                'temperature' => 0.7,
+                'max_tokens'  => 300,
+            ]);
+
+            if ($response->failed()) {
+                Log::error('OpenAI Weekly Review Error', ['status' => $response->status()]);
+                return null;
+            }
+
+            return trim(data_get($response->json(), 'choices.0.message.content', '')) ?: null;
+        } catch (\Exception $e) {
+            Log::error('Weekly Review Exception', ['error' => $e->getMessage()]);
             return null;
         }
     }
