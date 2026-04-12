@@ -56,7 +56,11 @@ class TrainingSessionController extends Controller
             'feeling_notes'    => 'nullable|string|max:300',
         ]);
 
-        $session->update($request->only(['rating', 'effort_perceived', 'feeling_notes']));
+        $session->update([
+            'rating'           => $request->input('rating')           ?: null,
+            'effort_perceived' => $request->input('effort_perceived') ?: null,
+            'feeling_notes'    => $request->filled('feeling_notes') ? trim($request->input('feeling_notes')) : null,
+        ]);
 
         return response()->json(['session' => $this->formatSession($session->fresh())]);
     }

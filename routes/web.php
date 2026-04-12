@@ -164,10 +164,13 @@ Route::get('/dashboard', function (ProgressService $progressService) {
             ->where('date', now()->toDateString())
             ->exists(),
 
-        // Sessions completed without a rating (prompt user to review)
+        // Sessions completed without any feedback (no stars, no RPE, no notes), excluding rest days
         'unratedSessions' => TrainingSession::where('user_id', $user->id)
             ->where('status', 'completed')
+            ->where('type', '!=', 'rest')
             ->whereNull('rating')
+            ->whereNull('effort_perceived')
+            ->whereNull('feeling_notes')
             ->orderByDesc('planned_date')
             ->limit(5)
             ->get()
