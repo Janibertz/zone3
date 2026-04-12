@@ -16,7 +16,8 @@
       "Bash(php -l app/Console/Commands/GenerateWeeklyReview.php)",
       "Bash(php -l app/Models/WeeklyReview.php)",
       "Bash(php -l app/Http/Controllers/ActivityController.php)",
-      "Bash(php -l app/Http/Controllers/TrainingSessionController.php)"
+      "Bash(php -l app/Http/Controllers/TrainingSessionController.php)",
+      "Bash(npm list:*)"
     ]
   }
 }

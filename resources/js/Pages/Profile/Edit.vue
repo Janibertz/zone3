@@ -3,7 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm, usePage, Link } from '@inertiajs/vue3';
 import InputError from '@/Components/InputError.vue';
 import Modal from '@/Components/Modal.vue';
-import { ref, computed, nextTick, onMounted } from 'vue';
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import axios from 'axios';
 
 const props = defineProps({
@@ -31,41 +31,98 @@ const tabs = [
 
 const distanceOptions = ['5 km', '10 km', 'Halbmarathon', 'Marathon', 'Ultra'];
 
-// ── Avatar upload ────────────────────────────────────────────────────────────
-const avatarInput = ref(null);
-const avatarPreview = ref(null);
+// ── Avatar upload + crop ─────────────────────────────────────────────────────
+const avatarInput    = ref(null);
+const avatarPreview  = ref(null);
 const avatarUploading = ref(false);
+const avatarImgError  = ref(false);
+
+// Crop modal state
+const showCropModal  = ref(false);
+const cropImageSrc   = ref('');
+const cropperEl      = ref(null);   // the <img> inside the modal
+let   cropperInstance = null;
 
 function triggerAvatarUpload() {
     avatarInput.value?.click();
 }
 
-async function onAvatarChange(e) {
+// When user selects a file → open crop modal instead of uploading directly
+function onAvatarChange(e) {
     const file = e.target.files[0];
     if (!file) return;
+    // Reset input so same file can be re-selected
+    e.target.value = '';
 
-    // Preview
     const reader = new FileReader();
-    reader.onload = (ev) => { avatarPreview.value = ev.target.result; };
+    reader.onload = (ev) => {
+        cropImageSrc.value = ev.target.result;
+        showCropModal.value = true;
+        nextTick(initCropper);
+    };
     reader.readAsDataURL(file);
+}
 
-    // Upload
+async function initCropper() {
+    if (!cropperEl.value) return;
+    // Lazy-load cropperjs
+    const [Cropper, _css] = await Promise.all([
+        import('cropperjs').then(m => m.default),
+        import('cropperjs/dist/cropper.css'),
+    ]);
+    if (cropperInstance) { cropperInstance.destroy(); cropperInstance = null; }
+    cropperInstance = new Cropper(cropperEl.value, {
+        aspectRatio: 1,
+        viewMode:    1,
+        dragMode:    'move',
+        autoCropArea: 0.85,
+        cropBoxResizable: false,
+        cropBoxMovable:   false,
+        center: true,
+        guides: false,
+        background: false,
+        highlight:  false,
+    });
+}
+
+function closeCropModal() {
+    if (cropperInstance) { cropperInstance.destroy(); cropperInstance = null; }
+    showCropModal.value = false;
+    cropImageSrc.value  = '';
+}
+
+async function confirmCrop() {
+    if (!cropperInstance) return;
     avatarUploading.value = true;
+
     try {
+        // Export cropped canvas at 400×400
+        const canvas = cropperInstance.getCroppedCanvas({ width: 400, height: 400, imageSmoothingQuality: 'high' });
+        const blob   = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+
+        // Preview immediately
+        avatarPreview.value  = canvas.toDataURL('image/jpeg', 0.9);
+        avatarImgError.value = false;
+        closeCropModal();
+
+        // Upload
         const formData = new FormData();
-        formData.append('avatar', file);
-        formData.append('_method', 'POST');
+        formData.append('avatar', blob, 'avatar.jpg');
         await axios.post(route('profile.avatar'), formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-    } catch (e) {
+    } catch {
         avatarPreview.value = null;
     } finally {
         avatarUploading.value = false;
     }
 }
 
+onBeforeUnmount(() => {
+    if (cropperInstance) { cropperInstance.destroy(); cropperInstance = null; }
+});
+
 const avatarUrl = computed(() => {
     if (avatarPreview.value) return avatarPreview.value;
-    if (user.value.avatar) return '/storage/' + user.value.avatar;
+    if (user.value.avatar && !avatarImgError.value) return '/storage/' + user.value.avatar;
     return null;
 });
 
@@ -289,7 +346,7 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                                 @click="triggerAvatarUpload"
                                 class="group relative h-20 w-20 sm:h-24 sm:w-24 rounded-2xl overflow-hidden border-4 border-white dark:border-slate-900 shadow-lg bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center hover:ring-2 hover:ring-indigo-400 transition-all"
                             >
-                                <img v-if="avatarUrl" :src="avatarUrl" alt="Profilbild" class="absolute inset-0 h-full w-full object-cover" />
+                                <img v-if="avatarUrl" :src="avatarUrl" alt="Profilbild" class="absolute inset-0 h-full w-full object-cover" @error="avatarImgError = true" />
                                 <span v-else class="text-2xl sm:text-3xl font-bold text-white select-none">{{ initials }}</span>
                                 <!-- Hover overlay -->
                                 <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -804,4 +861,55 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
         </Modal>
 
     </AuthenticatedLayout>
+
+    <!-- ══ CROP MODAL ══ -->
+    <Teleport to="body">
+        <Transition
+            enter-active-class="transition duration-200"
+            enter-from-class="opacity-0"
+            leave-active-class="transition duration-150"
+            leave-to-class="opacity-0"
+        >
+            <div v-if="showCropModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+                <div class="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden">
+
+                    <!-- Header -->
+                    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-slate-800">
+                        <h3 class="text-base font-semibold text-gray-900 dark:text-white">Profilbild zuschneiden</h3>
+                        <button @click="closeCropModal" class="h-8 w-8 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center justify-center transition-colors text-sm">✕</button>
+                    </div>
+
+                    <!-- Cropper area -->
+                    <div class="relative bg-gray-950" style="height: 340px;">
+                        <img
+                            ref="cropperEl"
+                            :src="cropImageSrc"
+                            alt="Bild zuschneiden"
+                            class="block max-w-full"
+                            style="max-height: 340px;"
+                        />
+                    </div>
+
+                    <!-- Hint -->
+                    <p class="text-xs text-gray-400 dark:text-slate-500 text-center py-2">Verschieben und zoomen um den Ausschnitt anzupassen</p>
+
+                    <!-- Actions -->
+                    <div class="flex items-center gap-3 px-5 py-4 border-t border-gray-100 dark:border-slate-800">
+                        <button
+                            @click="closeCropModal"
+                            class="flex-1 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+                        >Abbrechen</button>
+                        <button
+                            @click="confirmCrop"
+                            :disabled="avatarUploading"
+                            class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                        >
+                            <svg v-if="avatarUploading" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                            {{ avatarUploading ? 'Wird hochgeladen...' : 'Zuschneiden & Speichern' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
+    </Teleport>
 </template>
