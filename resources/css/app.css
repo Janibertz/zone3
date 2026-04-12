@@ -19,6 +19,25 @@
   .pb-safe  { padding-bottom: env(safe-area-inset-bottom); }
   .pt-safe  { padding-top:    env(safe-area-inset-top); }
   .mb-safe  { margin-bottom:  env(safe-area-inset-bottom); }
+
+  /* Mobile header: 56px content + dynamic notch/island height */
+  .h-mobile-header   { height: calc(3.5rem + env(safe-area-inset-top)); }
+  /* Padding-top for page content = header height */
+  .pt-mobile-header  { padding-top: calc(3.5rem + env(safe-area-inset-top)); }
+  /* Padding-bottom for page content = tab bar (64px) + home indicator */
+  .pb-mobile-tabbar  { padding-bottom: calc(4rem + env(safe-area-inset-bottom)); }
+  /* Tab bar itself gets safe-area padding at the bottom */
+  .pb-safe-tabbar    { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* ── Native PWA feel ────────────────────────────────────── */
+@layer base {
+  /* Momentum scrolling on iOS */
+  main { -webkit-overflow-scrolling: touch; }
+  /* Prevent overscroll bounce on the root — bounce should only happen in scrollable content */
+  body { overscroll-behavior-y: none; }
+  /* Disable text selection on UI elements (feels native) */
+  nav, header { user-select: none; -webkit-user-select: none; }
 }
 
 /* ═══════════════════════════════════════════════════════════
