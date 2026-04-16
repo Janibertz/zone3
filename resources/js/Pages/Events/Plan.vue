@@ -976,7 +976,7 @@ const workoutSteps = computed(() => {
                         </textarea>
                     </div>
 
-                    <button @click="saveRating" :disabled="ratingSaving"
+                    <button @click="saveRating" :disabled="ratingSaving || (!ratingValue && !effortValue && !feelingNotes)"
                         class="w-full rounded-xl py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
                         :class="ratingSaved ? 'bg-green-500 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'">
                         <svg v-if="ratingSaving" class="inline h-4 w-4 animate-spin mr-1" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
