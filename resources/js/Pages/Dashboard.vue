@@ -169,6 +169,40 @@ async function saveQuickEvent() {
 }
 
 const showPaceDetails = ref(false);
+
+// ── Inline-Rating (Noch zu bewerten) ─────────────────────────────────────────
+const ratedIds       = ref(new Set());
+const ratingOpenId   = ref(null);
+const ratingStars    = ref(0);
+const ratingEffort   = ref(0);
+const ratingNotes    = ref('');
+const ratingSavingId = ref(null);
+
+const pendingRatingSessions = computed(() =>
+    props.unratedSessions.filter(s => !ratedIds.value.has(s.id))
+);
+
+function openRating(session) {
+    ratingOpenId.value = session.id;
+    ratingStars.value  = 0;
+    ratingEffort.value = 0;
+    ratingNotes.value  = '';
+}
+
+async function submitRating(sessionId) {
+    ratingSavingId.value = sessionId;
+    try {
+        await axios.patch(route('training-sessions.rate', sessionId), {
+            rating:           ratingStars.value  || null,
+            effort_perceived: ratingEffort.value || null,
+            feeling_notes:    ratingNotes.value  || null,
+        });
+        ratedIds.value = new Set([...ratedIds.value, sessionId]);
+        ratingOpenId.value = null;
+    } finally {
+        ratingSavingId.value = null;
+    }
+}
 const plan = ref(null);
 const planError = ref(null);
 const aiAnalysis = ref(null);
@@ -1288,10 +1322,10 @@ function syncStrava() {
                 </div>
 
                 <!-- ═══ ROW 4b: Unrated Sessions + Weekly Review ═══ -->
-                <div v-if="props.unratedSessions.length > 0 || props.weeklyReview" class="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
+                <div v-if="pendingRatingSessions.length > 0 || props.weeklyReview" class="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
 
                     <!-- Noch zu bewerten -->
-                    <div v-if="props.unratedSessions.length > 0" class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-amber-100 dark:border-amber-500/20 p-4 sm:p-5">
+                    <div v-if="pendingRatingSessions.length > 0" class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-amber-100 dark:border-amber-500/20 p-4 sm:p-5">
                         <div class="flex items-center gap-2 mb-3">
                             <div class="h-7 w-7 rounded-lg bg-amber-100 dark:bg-amber-500/15 flex items-center justify-center text-sm shrink-0">⭐</div>
                             <div>
@@ -1300,29 +1334,92 @@ function syncStrava() {
                             </div>
                         </div>
                         <div class="space-y-2">
-                            <component
-                                :is="session.activity_id ? 'a' : 'a'"
-                                v-for="session in props.unratedSessions"
-                                :key="session.id"
-                                :href="session.activity_id
-                                    ? route('activities.show', session.activity_id)
-                                    : (session.event_id ? `/events/${session.event_id}/plan` : '#')"
-                                class="flex items-center justify-between gap-3 rounded-xl border border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2.5 hover:border-amber-200 dark:hover:border-amber-500/30 hover:bg-amber-50 dark:hover:bg-amber-500/5 transition-colors group"
-                            >
-                                <div class="flex items-center gap-2.5 min-w-0">
-                                    <span class="shrink-0 text-sm">
-                                        {{ {'easy_run':'🟢','tempo_run':'🟡','interval':'🔴','long_run':'🔵','race_prep':'🏁'}[session.type] ?? '🏃' }}
-                                    </span>
-                                    <div class="min-w-0">
-                                        <p class="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{{ session.title || 'Einheit' }}</p>
-                                        <p class="text-xs text-gray-400 dark:text-slate-500">
-                                            {{ new Date(session.planned_date).toLocaleDateString('de-DE', {day:'2-digit', month:'short'}) }}
-                                            {{ session.distance_km ? `· ${session.distance_km} km` : '' }}
-                                        </p>
+                            <div v-for="session in pendingRatingSessions" :key="session.id">
+                                <!-- Collapsed row -->
+                                <button
+                                    v-if="ratingOpenId !== session.id"
+                                    @click="openRating(session)"
+                                    class="w-full flex items-center justify-between gap-3 rounded-xl border border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2.5 hover:border-amber-200 dark:hover:border-amber-500/30 hover:bg-amber-50 dark:hover:bg-amber-500/5 transition-colors group text-left"
+                                >
+                                    <div class="flex items-center gap-2.5 min-w-0">
+                                        <span class="shrink-0 text-sm">
+                                            {{ {'easy_run':'🟢','tempo_run':'🟡','interval':'🔴','long_run':'🔵','race_prep':'🏁'}[session.type] ?? '🏃' }}
+                                        </span>
+                                        <div class="min-w-0">
+                                            <p class="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{{ session.title || 'Einheit' }}</p>
+                                            <p class="text-xs text-gray-400 dark:text-slate-500">
+                                                {{ new Date(session.planned_date).toLocaleDateString('de-DE', {day:'2-digit', month:'short'}) }}
+                                                {{ session.distance_km ? `· ${session.distance_km} km` : '' }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <span class="shrink-0 text-xs text-amber-600 dark:text-amber-400 font-medium group-hover:underline">Bewerten ↓</span>
+                                </button>
+
+                                <!-- Expanded inline rating form -->
+                                <div v-else class="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/5 p-3">
+                                    <!-- Session title + close -->
+                                    <div class="flex items-center justify-between mb-3">
+                                        <div class="flex items-center gap-2 min-w-0">
+                                            <span class="text-sm shrink-0">{{ {'easy_run':'🟢','tempo_run':'🟡','interval':'🔴','long_run':'🔵','race_prep':'🏁'}[session.type] ?? '🏃' }}</span>
+                                            <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate">{{ session.title || 'Einheit' }}</p>
+                                        </div>
+                                        <button @click="ratingOpenId = null" class="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 text-lg leading-none shrink-0 ml-2">✕</button>
+                                    </div>
+
+                                    <!-- Stars -->
+                                    <div class="mb-2">
+                                        <p class="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Wie war die Einheit?</p>
+                                        <div class="flex items-center gap-1">
+                                            <button
+                                                v-for="star in 5" :key="star"
+                                                @click="ratingStars = ratingStars === star ? 0 : star"
+                                                class="h-8 w-8 rounded-lg flex items-center justify-center text-lg transition-all"
+                                                :class="star <= ratingStars ? 'bg-amber-100 dark:bg-amber-500/20 scale-110' : 'bg-gray-100 dark:bg-slate-700 opacity-40 hover:opacity-70'"
+                                            >⭐</button>
+                                            <span class="ml-2 text-xs text-gray-400 dark:text-slate-500">
+                                                {{ ['','Sehr schwer','Schwer','Okay','Gut','Top'][ratingStars] }}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <!-- RPE -->
+                                    <div class="mb-2">
+                                        <p class="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Anstrengung (RPE)</p>
+                                        <div class="flex gap-1 flex-wrap">
+                                            <button
+                                                v-for="n in 10" :key="n"
+                                                @click="ratingEffort = ratingEffort === n ? 0 : n"
+                                                class="h-7 w-7 rounded-lg text-xs font-bold transition-all"
+                                                :class="n === ratingEffort
+                                                    ? (n <= 3 ? 'bg-green-500 text-white' : n <= 6 ? 'bg-amber-500 text-white' : 'bg-red-500 text-white')
+                                                    : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'"
+                                            >{{ n }}</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Notes (optional) -->
+                                    <textarea
+                                        v-model="ratingNotes"
+                                        rows="2"
+                                        placeholder="Notizen (optional)…"
+                                        class="w-full rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-2 text-xs text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-200 dark:focus:ring-amber-500/30 resize-none mb-2"
+                                    />
+
+                                    <!-- Save -->
+                                    <div class="flex items-center gap-2">
+                                        <button
+                                            @click="submitRating(session.id)"
+                                            :disabled="ratingSavingId === session.id || (!ratingStars && !ratingEffort && !ratingNotes)"
+                                            class="flex-1 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-40 px-3 py-1.5 text-xs font-semibold text-white transition-colors flex items-center justify-center gap-1.5"
+                                        >
+                                            <svg v-if="ratingSavingId === session.id" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                            Speichern
+                                        </button>
+                                        <a v-if="session.activity_id" :href="route('activities.show', session.activity_id)" class="text-xs text-gray-400 hover:text-indigo-500 transition-colors">Details →</a>
                                     </div>
                                 </div>
-                                <span class="shrink-0 text-xs text-amber-600 dark:text-amber-400 font-medium group-hover:underline">Bewerten →</span>
-                            </component>
+                            </div>
                         </div>
                     </div>
 
