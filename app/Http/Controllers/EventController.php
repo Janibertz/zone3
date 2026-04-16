@@ -12,6 +12,12 @@ class EventController extends Controller
 {
     public function index()
     {
+        // Deactivate any plans whose event has already passed
+        TrainingPlan::where('user_id', Auth::id())
+            ->where('is_active', true)
+            ->whereHas('event', fn ($q) => $q->where('event_date', '<', now()->toDateString()))
+            ->update(['is_active' => false]);
+
         $events = Auth::user()->events()
             ->orderByRaw("CASE priority WHEN 'A' THEN 1 WHEN 'B' THEN 2 WHEN 'C' THEN 3 ELSE 4 END")
             ->orderBy('event_date')
@@ -20,6 +26,7 @@ class EventController extends Controller
 
         $activePlan = TrainingPlan::where('user_id', Auth::id())
             ->where('is_active', true)
+            ->whereHas('event', fn ($q) => $q->where('event_date', '>=', now()->toDateString()))
             ->latest()
             ->first();
 
@@ -93,7 +100,7 @@ class EventController extends Controller
             'target_time_formatted'  => $e->target_time_formatted,
             'notes'                  => $e->notes,
             'days_until'             => $e->days_until,
-            'plan_is_active'         => (bool) $plan?->is_active,
+            'plan_is_active'         => (bool) $plan?->is_active && $e->days_until >= 0,
             'plan_generated_at'      => $plan?->created_at?->format('d.m.Y H:i'),
         ];
     }
