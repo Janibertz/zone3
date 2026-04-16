@@ -355,12 +355,15 @@ class TrainingPlanController extends Controller
                             'sort_order'       => 0,
                         ]);
                     } else {
-                        // No session on this date — create unplanned entry if not already linked
-                        $alreadyLinked = TrainingSession::where('training_plan_id', $plan->id)
+                        // No session on this date — re-link existing or create unplanned entry
+                        $existingSession = TrainingSession::where('user_id', $user->id)
                             ->where('activity_id', $run->id)
-                            ->exists();
+                            ->first();
 
-                        if (! $alreadyLinked) {
+                        if ($existingSession) {
+                            // Re-link existing session to new plan (preserves rating/notes)
+                            $existingSession->update(['training_plan_id' => $plan->id, 'event_id' => $plan->event_id]);
+                        } else {
                             TrainingSession::create([
                                 'user_id'          => $user->id,
                                 'training_plan_id' => $plan->id,
