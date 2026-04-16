@@ -6,6 +6,7 @@ use App\Models\Event;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Services\OpenAIService;
+use App\Services\TrainingLoadService;
 use App\Services\WebPushService;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -69,7 +70,7 @@ class TrainingPlanController extends Controller
         return response()->json(['success' => true]);
     }
 
-    public function generate(Event $event, OpenAIService $openAI, WebPushService $webPush)
+    public function generate(Event $event, OpenAIService $openAI, WebPushService $webPush, TrainingLoadService $trainingLoadService)
     {
         abort_if($event->user_id !== Auth::id(), 403);
 
@@ -158,9 +159,12 @@ class TrainingPlanController extends Controller
             ->first();
         $availabilityOverrides = $existingPlan?->availability_overrides ?? [];
 
+        // ── Training load metrics (CTL / ATL / TSB) ──────────────────────────
+        $trainingLoad = $trainingLoadService->calculate($user->id);
+
         // ── Call AI ──────────────────────────────────────────────────────────
         try {
-            $aiSessions = $openAI->generateEventTrainingPlan($event, $profileData, $recentActivities, $wellbeingData, $sessionRatings, $weeklyAvailability, $availabilityOverrides);
+            $aiSessions = $openAI->generateEventTrainingPlan($event, $profileData, $recentActivities, $wellbeingData, $sessionRatings, $weeklyAvailability, $availabilityOverrides, $trainingLoad);
         } catch (\Throwable $e) {
             return response()->json(['error' => 'OpenAI-Fehler: ' . $e->getMessage()], 500);
         }

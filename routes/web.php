@@ -19,6 +19,7 @@ use App\Models\Activity;
 use App\Models\Event;
 use App\Models\WeeklyReview;
 use App\Services\ProgressService;
+use App\Services\TrainingLoadService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -48,7 +49,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/onboarding/complete-strava', [OnboardingController::class, 'completeAndConnectStrava'])->name('onboarding.complete-strava');
 });
 
-Route::get('/dashboard', function (ProgressService $progressService) {
+Route::get('/dashboard', function (ProgressService $progressService, TrainingLoadService $trainingLoadService) {
     $user = auth()->user();
 
     $upcomingEvents = $user->events()
@@ -184,6 +185,9 @@ Route::get('/dashboard', function (ProgressService $progressService) {
                 'event_id'     => $s->event_id,
             ])
             ->values(),
+
+        // CTL / ATL / TSB training load metrics
+        'trainingLoad' => $trainingLoadService->calculate($user->id),
 
         // Weekly AI review (generated every Monday, cached for the week)
         'weeklyReview' => (function () use ($user) {

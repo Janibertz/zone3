@@ -723,6 +723,7 @@ PROMPT;
         array $sessionRatings = [],
         ?array $weeklyAvailability = null,
         array $availabilityOverrides = [],
+        ?array $trainingLoad = null,
     ): ?array {
         $today        = now()->format('Y-m-d');
         $eventDate    = $event->event_date->format('Y-m-d');
@@ -804,6 +805,19 @@ PROMPT;
             $availabilityText = 'Wöchentliche Verfügbarkeit: keine Angabe — verteile Training gleichmäßig.';
         }
 
+        // Training load context (CTL / ATL / TSB)
+        $loadText = 'Trainingsbelastung: keine Daten vorhanden.';
+        if ($trainingLoad && ($trainingLoad['ctl'] > 0 || $trainingLoad['atl'] > 0)) {
+            $tsb       = $trainingLoad['tsb'];
+            $tsbSign   = $tsb >= 0 ? "+{$tsb}" : "{$tsb}";
+            $formLabel = $trainingLoad['form_label'];
+            $loadText  = "Aktuelle Trainingsbelastung:\n"
+                . "- CTL (Fitness, 42-Tage-EMA): {$trainingLoad['ctl']}\n"
+                . "- ATL (Ermüdung, 7-Tage-EMA): {$trainingLoad['atl']}\n"
+                . "- TSB (Form = CTL−ATL): {$tsbSign} → Status: {$formLabel}\n"
+                . "Übermüdet (<−30): Nur leichte Einheiten / Ruhe. Belastet (−30 bis −10): Normaler Trainingsblock. Optimal (−10 bis +5): Wettkampfbereit. Frisch (+5 bis +25): Tapering aktiv. Ausgeruht (>+25): Volumen erhöhen.";
+        }
+
         // Per-date overrides
         $overrideText = '';
         if (! empty($availabilityOverrides)) {
@@ -832,6 +846,8 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan f�
 
 **{$wellbeingText}**
 
+**{$loadText}**
+
 **Bisherige Einheitsbewertungen (Athleten-Feedback):**
 {$ratingsText}
 
@@ -847,6 +863,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan f�
 - Bei 10-30 Tagen: Tapering einleiten (Volumen reduzieren, Qualität halten)
 - Bei <10 Tagen: starkes Tapering, nur leichte Läufe und Ruhetage
 - Berücksichtige Wellbeing-Daten: schlechter Schlaf/hoher Stress → leichtere Einheiten
+- Berücksichtige die Trainingsbelastung: TSB < −30 (Übermüdet) → Volumen stark reduzieren, mehr Ruhetage; TSB > +15 (zu frisch) → Volumen erhöhen
 - Mindestens ein Ruhetag pro Woche
 - A-Events: max. Leistungsoptimierung; C-Events: Trainingsrennen, moderate Belastung
 - WICHTIG: Plane nur Tage von heute ({$today}) bis zum Renntag ({$eventDate}). Kein Tag nach {$eventDate}.

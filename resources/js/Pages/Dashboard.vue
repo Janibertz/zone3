@@ -71,6 +71,10 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    trainingLoad: {
+        type: Object,
+        default: null,
+    },
 });
 
 const page = usePage();
@@ -594,6 +598,33 @@ const chartData = computed(() => {
     const fillD = pathD + ` L ${points[points.length - 1].x} ${H - padY} L ${padX} ${H - padY} Z`;
 
     return { points, pathD, fillD, W, H, minPace, maxPace, padX, padY };
+});
+
+// CTL/ATL chart — dual-line SVG over last 60 days
+const loadChartData = computed(() => {
+    const history = props.trainingLoad?.history;
+    if (!history || history.length < 5) return null;
+
+    const W = 560, H = 80, padX = 4, padY = 6;
+    const plotW = W - padX * 2;
+    const plotH = H - padY * 2;
+
+    const maxVal = Math.max(...history.map(d => Math.max(d.ctl, d.atl)), 1);
+
+    const toX = (i) => padX + (i / (history.length - 1)) * plotW;
+    const toY = (v) => padY + plotH - (v / maxVal) * plotH;
+
+    const ctlPoints = history.map((d, i) => ({ x: toX(i), y: toY(d.ctl) }));
+    const atlPoints = history.map((d, i) => ({ x: toX(i), y: toY(d.atl) }));
+
+    const smooth = (pts) => pts.map((p, i) => {
+        if (i === 0) return `M ${p.x} ${p.y}`;
+        const prev = pts[i - 1];
+        const cpX = (prev.x + p.x) / 2;
+        return `C ${cpX} ${prev.y}, ${cpX} ${p.y}, ${p.x} ${p.y}`;
+    }).join(' ');
+
+    return { ctlPath: smooth(ctlPoints), atlPath: smooth(atlPoints), W, H };
 });
 
 onMounted(() => {
@@ -1224,6 +1255,114 @@ function syncStrava() {
                             </a>
                         </div>
                     </div>
+                </div>
+
+                <!-- ═══ ROW 3b: Trainingsbelastung (CTL / ATL / TSB) ═══ -->
+                <div v-if="props.trainingLoad" class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+
+                    <!-- Header -->
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <div class="h-7 w-7 rounded-lg bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center shrink-0">
+                                <svg class="h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Trainingsbelastung</h4>
+                                <p class="text-xs text-gray-400 dark:text-slate-500">CTL · ATL · Form (60 Tage)</p>
+                            </div>
+                        </div>
+                        <!-- Form badge -->
+                        <span class="text-xs font-semibold px-2.5 py-1 rounded-full"
+                            :class="{
+                                'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400':    props.trainingLoad.form_color === 'red',
+                                'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-400': props.trainingLoad.form_color === 'orange',
+                                'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400':  props.trainingLoad.form_color === 'green',
+                                'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400':    props.trainingLoad.form_color === 'blue',
+                                'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-400':     props.trainingLoad.form_color === 'gray',
+                            }"
+                        >{{ props.trainingLoad.form_label }}</span>
+                    </div>
+
+                    <!-- Three metric tiles -->
+                    <div class="grid grid-cols-3 gap-3 mb-4">
+                        <!-- CTL -->
+                        <div class="rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 p-3 text-center">
+                            <p class="text-2xl font-bold text-indigo-700 dark:text-indigo-300 tabular-nums">{{ props.trainingLoad.ctl }}</p>
+                            <p class="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 mt-0.5">CTL</p>
+                            <p class="text-[10px] text-indigo-400 dark:text-indigo-500 leading-tight mt-0.5">Fitness</p>
+                        </div>
+                        <!-- ATL -->
+                        <div class="rounded-xl bg-orange-50 dark:bg-orange-500/10 border border-orange-100 dark:border-orange-500/20 p-3 text-center">
+                            <p class="text-2xl font-bold text-orange-600 dark:text-orange-400 tabular-nums">{{ props.trainingLoad.atl }}</p>
+                            <p class="text-[11px] font-semibold text-orange-600 dark:text-orange-400 mt-0.5">ATL</p>
+                            <p class="text-[10px] text-orange-400 dark:text-orange-500 leading-tight mt-0.5">Ermüdung</p>
+                        </div>
+                        <!-- TSB -->
+                        <div class="rounded-xl p-3 text-center border"
+                            :class="{
+                                'bg-red-50 border-red-100 dark:bg-red-500/10 dark:border-red-500/20':         props.trainingLoad.form_color === 'red',
+                                'bg-orange-50 border-orange-100 dark:bg-orange-500/10 dark:border-orange-500/20': props.trainingLoad.form_color === 'orange',
+                                'bg-green-50 border-green-100 dark:bg-green-500/10 dark:border-green-500/20':   props.trainingLoad.form_color === 'green',
+                                'bg-blue-50 border-blue-100 dark:bg-blue-500/10 dark:border-blue-500/20':      props.trainingLoad.form_color === 'blue',
+                                'bg-gray-50 border-gray-100 dark:bg-slate-800 dark:border-slate-700':          props.trainingLoad.form_color === 'gray',
+                            }"
+                        >
+                            <p class="text-2xl font-bold tabular-nums"
+                                :class="{
+                                    'text-red-600 dark:text-red-400':    props.trainingLoad.form_color === 'red',
+                                    'text-orange-600 dark:text-orange-400': props.trainingLoad.form_color === 'orange',
+                                    'text-green-600 dark:text-green-400':   props.trainingLoad.form_color === 'green',
+                                    'text-blue-600 dark:text-blue-400':     props.trainingLoad.form_color === 'blue',
+                                    'text-gray-500 dark:text-slate-400':    props.trainingLoad.form_color === 'gray',
+                                }"
+                            >{{ props.trainingLoad.tsb > 0 ? '+' : '' }}{{ props.trainingLoad.tsb }}</p>
+                            <p class="text-[11px] font-semibold mt-0.5"
+                                :class="{
+                                    'text-red-600 dark:text-red-400':    props.trainingLoad.form_color === 'red',
+                                    'text-orange-600 dark:text-orange-400': props.trainingLoad.form_color === 'orange',
+                                    'text-green-600 dark:text-green-400':   props.trainingLoad.form_color === 'green',
+                                    'text-blue-600 dark:text-blue-400':     props.trainingLoad.form_color === 'blue',
+                                    'text-gray-500 dark:text-slate-400':    props.trainingLoad.form_color === 'gray',
+                                }"
+                            >TSB</p>
+                            <p class="text-[10px] leading-tight mt-0.5"
+                                :class="{
+                                    'text-red-400 dark:text-red-500':    props.trainingLoad.form_color === 'red',
+                                    'text-orange-400 dark:text-orange-500': props.trainingLoad.form_color === 'orange',
+                                    'text-green-400 dark:text-green-500':   props.trainingLoad.form_color === 'green',
+                                    'text-blue-400 dark:text-blue-500':     props.trainingLoad.form_color === 'blue',
+                                    'text-gray-400 dark:text-slate-500':    props.trainingLoad.form_color === 'gray',
+                                }"
+                            >Form</p>
+                        </div>
+                    </div>
+
+                    <!-- 60-day CTL / ATL chart -->
+                    <div v-if="loadChartData" class="rounded-xl overflow-hidden bg-gray-50 dark:bg-slate-800/50 px-1 pt-1 pb-0">
+                        <svg :viewBox="`0 0 ${loadChartData.W} ${loadChartData.H}`" class="w-full" preserveAspectRatio="none">
+                            <!-- ATL line (orange) -->
+                            <path :d="loadChartData.atlPath" fill="none" stroke="rgb(249,115,22)" stroke-width="1.5" stroke-linecap="round" opacity="0.7" />
+                            <!-- CTL line (indigo) -->
+                            <path :d="loadChartData.ctlPath" fill="none" stroke="rgb(99,102,241)" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                        <!-- Legend -->
+                        <div class="flex items-center gap-3 px-2 pb-2 pt-1">
+                            <span class="flex items-center gap-1 text-[10px] text-gray-500 dark:text-slate-400">
+                                <span class="inline-block h-0.5 w-4 rounded bg-indigo-500"></span> Fitness (CTL)
+                            </span>
+                            <span class="flex items-center gap-1 text-[10px] text-gray-500 dark:text-slate-400">
+                                <span class="inline-block h-0.5 w-4 rounded bg-orange-400 opacity-70"></span> Ermüdung (ATL)
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Explanation -->
+                    <p class="mt-3 text-[11px] text-gray-400 dark:text-slate-500 leading-relaxed">
+                        <strong class="text-gray-500 dark:text-slate-400">Form = Fitness − Ermüdung.</strong>
+                        Optimal (−10 bis +5): Wettkampfbereit. Belastet (−30 bis −10): Trainingsblock. Frisch (+5 bis +25): Tapering.
+                    </p>
                 </div>
 
                 <!-- ═══ ROW 4: Aktivitäten horizontal scroll ═══ -->
