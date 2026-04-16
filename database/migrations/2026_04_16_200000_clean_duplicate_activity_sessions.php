@@ -42,6 +42,15 @@ return new class extends Migration
                 DB::table('training_sessions')->whereIn('id', $deleteIds)->delete();
             }
         }
+
+        // Replace hardcoded 'Ungeplante Einheit' titles with the actual Strava activity name
+        DB::statement("
+            UPDATE training_sessions ts
+            JOIN activities a ON a.id = ts.activity_id
+            SET ts.title = a.name
+            WHERE ts.title = 'Ungeplante Einheit'
+              AND ts.activity_id IS NOT NULL
+        ");
     }
 
     public function down(): void
