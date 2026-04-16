@@ -168,6 +168,7 @@ async function saveQuickEvent() {
     }
 }
 
+const showPaceDetails = ref(false);
 const plan = ref(null);
 const planError = ref(null);
 const aiAnalysis = ref(null);
@@ -198,12 +199,6 @@ function onWellbeingSaved(data) {
     wellbeingToastTimer = setTimeout(() => { wellbeingToast.value = null; }, 5000);
 }
 const syncing = ref(false);
-const activitiesScrollRef = ref(null);
-
-function scrollActivities(direction) {
-    if (!activitiesScrollRef.value) return;
-    activitiesScrollRef.value.scrollBy({ left: direction * 200, behavior: 'smooth' });
-}
 
 const trainingRecommendation = ref(null);
 const recommendationLoading = ref(false);
@@ -427,13 +422,6 @@ function formatTime(seconds) {
     return `${minutes}m ${secs}s`;
 }
 
-function formatSpeed(metersPerSecond) {
-    if (metersPerSecond <= 0) return '—';
-    const secondsPerKm = 1000 / metersPerSecond;
-    const minutes = Math.floor(secondsPerKm / 60);
-    const seconds = Math.round(secondsPerKm % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')} min/km`;
-}
 
 function formatPaceFromSpeed(metersPerSecond) {
     if (!metersPerSecond || metersPerSecond <= 0) return '—';
@@ -483,14 +471,6 @@ function formatDate(dateString) {
     return `${day}.${month}.${year} ${hours}:${minutes}`;
 }
 
-function formatDateShort(dateString) {
-    if (!dateString) return '—';
-    const date = new Date(dateString);
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}.${month}.${year}`;
-}
 
 function generateAIAnalysis(progress) {
     if (!progress) return 'Keine Daten verfügbar.';
@@ -964,38 +944,6 @@ function syncStrava() {
                     </div>
                 </div>
 
-                <!-- ═══ ROW 2: Quick Actions ═══ -->
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-                    <button v-if="props.stravaConnected" @click="syncStrava" :disabled="syncing"
-                        class="flex items-center gap-2.5 rounded-xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm p-3 sm:p-4 hover:shadow-md hover:border-blue-200 dark:hover:border-blue-500/40 transition-all group disabled:opacity-60">
-                        <div class="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center text-xl group-hover:bg-blue-200 dark:group-hover:bg-blue-500/30 transition-colors flex-shrink-0">
-                            <span v-if="syncing" class="h-5 w-5 rounded-full border-2 border-blue-600 border-t-transparent animate-spin inline-block"></span>
-                            <span v-else>🔄</span>
-                        </div>
-                        <span class="text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-200 leading-tight">{{ syncing ? 'Läuft…' : 'Strava Sync' }}</span>
-                    </button>
-                    <a v-else href="/strava/connect"
-                        class="flex items-center gap-2.5 rounded-xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm p-3 sm:p-4 hover:shadow-md hover:border-orange-200 dark:hover:border-orange-500/40 transition-all group">
-                        <div class="h-10 w-10 rounded-xl bg-orange-100 dark:bg-orange-500/20 flex items-center justify-center text-xl group-hover:bg-orange-200 dark:group-hover:bg-orange-500/30 transition-colors flex-shrink-0">🔗</div>
-                        <span class="text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-200 leading-tight">Strava verbinden</span>
-                    </a>
-                    <a href="/events"
-                        class="flex items-center gap-2.5 rounded-xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm p-3 sm:p-4 hover:shadow-md hover:border-green-200 dark:hover:border-green-500/40 transition-all group">
-                        <div class="h-10 w-10 rounded-xl bg-green-100 dark:bg-green-500/20 flex items-center justify-center text-xl group-hover:bg-green-200 dark:group-hover:bg-green-500/30 transition-colors flex-shrink-0">🎯</div>
-                        <span class="text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-200 leading-tight">Event planen</span>
-                    </a>
-                    <button @click="showWellbeingModal = true"
-                        class="flex items-center gap-2.5 rounded-xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm p-3 sm:p-4 hover:shadow-md hover:border-purple-200 dark:hover:border-purple-500/40 transition-all group">
-                        <div class="h-10 w-10 rounded-xl bg-purple-100 dark:bg-purple-500/20 flex items-center justify-center text-xl group-hover:bg-purple-200 dark:group-hover:bg-purple-500/30 transition-colors flex-shrink-0">💪</div>
-                        <span class="text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-200 leading-tight">Wellbeing</span>
-                    </button>
-                    <a href="/profile/runner"
-                        class="flex items-center gap-2.5 rounded-xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm p-3 sm:p-4 hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-500/40 transition-all group sm:col-span-1 col-span-2">
-                        <div class="h-10 w-10 rounded-xl bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center text-xl group-hover:bg-indigo-200 dark:group-hover:bg-indigo-500/30 transition-colors flex-shrink-0">👤</div>
-                        <span class="text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-200 leading-tight">Athletenprofil</span>
-                    </a>
-                </div>
-
                 <!-- ═══ Schwellenpace-Karte ═══ -->
                 <div class="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 shadow-sm text-white overflow-hidden relative">
 
@@ -1038,6 +986,32 @@ function syncStrava() {
                             </div>
                         </div>
 
+                        <!-- Toggle: Details anzeigen/verstecken -->
+                        <div class="mt-4 pt-3 border-t border-white border-opacity-20 flex items-center justify-between gap-3">
+                            <button @click="showPaceDetails = !showPaceDetails"
+                                class="flex items-center gap-1.5 text-xs font-medium text-indigo-200 hover:text-white transition-colors">
+                                <svg class="h-3.5 w-3.5 transition-transform duration-200" :class="showPaceDetails ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                                </svg>
+                                {{ showPaceDetails ? 'Weniger anzeigen' : 'Vorhersagen & Verlauf' }}
+                            </button>
+                            <button v-if="props.stravaConnected" @click="syncStrava" :disabled="syncing || props.thresholdPaceCalculating"
+                                class="rounded-lg bg-white bg-opacity-20 hover:bg-opacity-30 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-white transition-colors flex-shrink-0 flex items-center gap-1.5">
+                                <span v-if="syncing" class="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin inline-block"></span>
+                                <span>{{ syncing ? 'Sync…' : '🔄 Sync' }}</span>
+                            </button>
+                        </div>
+
+                        <!-- Accordion: Race Predictions + Chart -->
+                        <Transition
+                            enter-active-class="transition-all duration-300 ease-out overflow-hidden"
+                            enter-from-class="opacity-0 max-h-0"
+                            enter-to-class="opacity-100 max-h-[600px]"
+                            leave-active-class="transition-all duration-200 ease-in overflow-hidden"
+                            leave-from-class="opacity-100 max-h-[600px]"
+                            leave-to-class="opacity-0 max-h-0"
+                        >
+                        <div v-if="showPaceDetails">
                         <!-- Race Predictions -->
                         <div v-if="props.racePredictions" class="mt-4 pt-4 border-t border-white border-opacity-20">
                             <p class="text-xs font-semibold text-indigo-200 uppercase tracking-wider mb-2">🏁 Wettkampf-Zeitvorhersagen</p>
@@ -1056,14 +1030,10 @@ function syncStrava() {
                             <p class="text-xs font-semibold text-indigo-200 uppercase tracking-wider mb-3">📈 Entwicklung Schwellenpace</p>
                             <div class="w-full overflow-hidden">
                                 <svg :viewBox="`0 0 ${chartData.W} ${chartData.H}`" class="w-full" preserveAspectRatio="none" style="height:100px">
-                                    <!-- Fill area -->
                                     <path :d="chartData.fillD" fill="rgba(255,255,255,0.08)" />
-                                    <!-- Line -->
                                     <path :d="chartData.pathD" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round" />
-                                    <!-- Points + labels -->
                                     <g v-for="(p, i) in chartData.points" :key="i">
                                         <circle :cx="p.x" :cy="p.y" r="4" fill="white" opacity="0.9" />
-                                        <!-- Show label for first, last, and every 3rd point to avoid clutter -->
                                         <text v-if="i === 0 || i === chartData.points.length - 1 || i % 3 === 0"
                                             :x="p.x" :y="p.y - 8"
                                             text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.85)"
@@ -1086,18 +1056,9 @@ function syncStrava() {
                             Diagramm erscheint sobald Daten über mehr als 7 Tage vorliegen
                             <span v-if="props.thresholdPaceHistory.length > 0"> · {{ props.thresholdPaceHistory.length }} Messung(en) gespeichert</span>.
                         </div>
-
-                        <!-- Footer -->
-                        <div v-if="props.stravaConnected" class="mt-4 pt-4 border-t border-white border-opacity-20 flex items-center justify-between gap-3">
-                            <p class="text-xs text-indigo-200">
-                                Neuberechnung erfolgt automatisch nach einem Sync · max. 1× täglich
-                            </p>
-                            <button @click="syncStrava" :disabled="syncing || props.thresholdPaceCalculating"
-                                class="rounded-lg bg-white bg-opacity-20 hover:bg-opacity-30 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-white transition-colors flex-shrink-0 flex items-center gap-1.5">
-                                <span v-if="syncing" class="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin inline-block"></span>
-                                <span>{{ syncing ? 'Synchronisiert…' : '🔄 Strava Sync' }}</span>
-                            </button>
                         </div>
+                        </Transition>
+
                     </div>
                 </div>
 
@@ -1378,34 +1339,6 @@ function syncStrava() {
                     </p>
                 </div>
 
-                <!-- ═══ ROW 4: Aktivitäten horizontal scroll ═══ -->
-                <div v-if="props.recentActivities.length > 0" class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
-                    <div class="flex items-center justify-between mb-4">
-                        <h4 class="text-sm font-semibold text-gray-800">Alle Aktivitäten</h4>
-                        <div class="flex gap-1.5">
-                            <button @click="scrollActivities(-1)" class="h-7 w-7 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center text-sm transition-colors">‹</button>
-                            <button @click="scrollActivities(1)" class="h-7 w-7 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center text-sm transition-colors">›</button>
-                        </div>
-                    </div>
-                    <div ref="activitiesScrollRef" class="activities-scroll flex gap-3 overflow-x-auto" style="-ms-overflow-style:none;scrollbar-width:none;">
-                        <button
-                            v-for="activity in props.recentActivities"
-                            :key="activity.id"
-                            @click="openActivityDetail(activity)"
-                            class="flex-shrink-0 w-44 rounded-xl border border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 p-4 text-left hover:border-indigo-300 dark:hover:border-indigo-500/50 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all hover:shadow-sm group"
-                        >
-                            <div class="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center text-xl mb-3 group-hover:bg-blue-200 dark:group-hover:bg-blue-500/30 transition-colors">🏃</div>
-                            <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate">{{ activity.name }}</p>
-                            <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{{ formatDateShort(activity.start_date) }}</p>
-                            <div class="mt-3 flex items-center justify-between">
-                                <span class="text-sm font-bold text-blue-600 dark:text-blue-400">{{ round2(formatDistance(activity.distance)) }} km</span>
-                                <span class="text-xs text-gray-400 dark:text-slate-500">{{ formatTime(activity.moving_time) }}</span>
-                            </div>
-                            <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">⚡ {{ formatSpeed(activity.average_speed) }}</p>
-                        </button>
-                    </div>
-                </div>
-
                 <!-- ═══ ROW 4b: Unrated Sessions + Weekly Review ═══ -->
                 <div v-if="props.unratedSessions.length > 0 || props.weeklyReview" class="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
 
@@ -1461,16 +1394,15 @@ function syncStrava() {
 
                 </div>
 
-                <!-- ═══ ROW 5: Quick Event + Countdown + Tipps ═══ -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
-
-                    <!-- Quick Event erstellen -->
-                    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
-                        <div class="flex items-center justify-between mb-4">
-                            <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Schnelles Event</h4>
-                            <a href="/events" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition">Alle Events →</a>
-                        </div>
-
+                <!-- ═══ ROW 5: Quick Event ═══ -->
+                <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Schnelles Event erstellen</h4>
+                        <a href="/events" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition">Alle Events →</a>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+                    <!-- Formular -->
+                    <div>
                         <!-- Erfolgs-Banner -->
                         <div v-if="quickEventSuccess" class="mb-3 rounded-xl bg-green-50 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20 px-3 py-2.5 flex items-center gap-2">
                             <span class="text-green-600 dark:text-green-400 text-sm">✓</span>
@@ -1543,69 +1475,42 @@ function syncStrava() {
                         </div>
                     </div>
 
-                    <!-- Event Countdown -->
-                    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
-                        <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200 mb-4">Event Countdown</h4>
-                        <div v-if="props.events.length === 0" class="text-sm text-gray-400 dark:text-slate-500 text-center py-8">
-                            Kein Event geplant
+                    <!-- Rechts: Hinweise & Nächste Events -->
+                    <div class="flex flex-col gap-4">
+                        <!-- Nächster Schritt nach dem Event -->
+                        <div class="rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 p-4">
+                            <p class="text-xs font-bold text-indigo-700 dark:text-indigo-300 mb-2">Nach dem Event: KI-Plan</p>
+                            <p class="text-xs text-indigo-600 dark:text-indigo-400 leading-relaxed">
+                                Sobald du ein Event angelegt hast, erstellt die KI automatisch einen 10-Tages-Trainingsplan — abgestimmt auf deine Schwellenpace und Zielzeit.
+                            </p>
                         </div>
-                        <div v-else class="space-y-4">
-                            <div v-for="event in props.events.slice(0, 4)" :key="event.id">
-                                <div class="flex items-center justify-between mb-1.5">
-                                    <span class="text-xs font-semibold text-gray-700 dark:text-slate-300 truncate max-w-[65%]">{{ event.name }}</span>
-                                    <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400">{{ event.days_until }}d</span>
-                                </div>
-                                <!-- Progress bar: % of training time elapsed -->
-                                <div class="h-2 rounded-full bg-gray-100 dark:bg-slate-700 overflow-hidden">
-                                    <div class="h-2 rounded-full transition-all duration-500"
-                                        :class="{
-                                            'bg-red-500': event.training_phase.key === 'race_week',
-                                            'bg-yellow-500': event.training_phase.key === 'taper',
-                                            'bg-orange-500': event.training_phase.key === 'peak',
-                                            'bg-blue-500': event.training_phase.key === 'build',
-                                            'bg-green-500': event.training_phase.key === 'base',
-                                        }"
-                                        :style="{ width: Math.max(5, 100 - Math.min(100, (event.days_until / 180) * 100)) + '%' }">
+
+                        <!-- Aktuelle Events -->
+                        <div v-if="props.events.length > 0">
+                            <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-2">Deine Events</p>
+                            <div class="space-y-2">
+                                <a v-for="event in props.events.slice(0, 3)" :key="event.id" href="/events"
+                                    class="flex items-center justify-between gap-3 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 px-3 py-2.5 hover:border-indigo-200 dark:hover:border-indigo-500/40 transition-colors">
+                                    <div class="flex items-center gap-2.5 min-w-0">
+                                        <span class="h-6 w-6 rounded-md flex items-center justify-center text-xs font-black flex-shrink-0"
+                                            :class="{
+                                                'bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400': event.priority === 'A',
+                                                'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-600 dark:text-yellow-400': event.priority === 'B',
+                                                'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400': event.priority === 'C',
+                                            }">{{ event.priority }}</span>
+                                        <p class="text-xs font-medium text-gray-700 dark:text-slate-300 truncate">{{ event.name }}</p>
                                     </div>
-                                </div>
-                                <div class="flex items-center justify-between mt-1">
-                                    <span class="text-xs text-gray-400 dark:text-slate-500">{{ event.distance_label }}</span>
-                                    <span class="text-xs font-medium"
-                                        :class="{
-                                            'text-red-500': event.training_phase.key === 'race_week',
-                                            'text-yellow-600': event.training_phase.key === 'taper',
-                                            'text-orange-600': event.training_phase.key === 'peak',
-                                            'text-blue-600': event.training_phase.key === 'build',
-                                            'text-green-600': event.training_phase.key === 'base',
-                                        }">
-                                        {{ event.training_phase.label }}
-                                    </span>
-                                </div>
+                                    <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400 flex-shrink-0">{{ event.days_until }}d</span>
+                                </a>
                             </div>
+                        </div>
+                        <div v-else class="rounded-xl border border-dashed border-gray-200 dark:border-slate-700 p-4 text-center">
+                            <p class="text-xs text-gray-400 dark:text-slate-500">Noch keine Events — erstelle jetzt dein erstes!</p>
                         </div>
                     </div>
 
-                    <!-- Trainings-Tipps / Suggestions -->
-                    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
-                        <div class="flex items-center justify-between mb-4">
-                            <h4 class="text-sm font-semibold text-gray-800">Trainings-Tipps</h4>
-                            <span class="text-xs text-indigo-600 font-medium">KI-Empfehlungen</span>
-                        </div>
-                        <div v-if="!props.suggestions || props.suggestions.length === 0" class="text-sm text-gray-400 text-center py-8">
-                            Keine Tipps verfügbar
-                        </div>
-                        <div v-else class="space-y-3">
-                            <div v-for="(tip, i) in props.suggestions" :key="i"
-                                class="flex items-start gap-3 pb-3 border-b border-gray-50 last:border-0">
-                                <div class="h-8 w-8 rounded-lg bg-amber-100 flex items-center justify-center text-sm flex-shrink-0">💡</div>
-                                <div class="min-w-0">
-                                    <p class="text-sm font-medium text-gray-800 leading-snug">{{ tip.title || tip }}</p>
-                                    <p v-if="tip.description" class="text-xs text-gray-500 mt-0.5">{{ tip.description }}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                    </div><!-- /inner grid -->
+                </div><!-- /outer card -->
 
             </div>
         </div>
