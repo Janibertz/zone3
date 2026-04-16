@@ -894,53 +894,6 @@ function syncStrava() {
                             </div>
                         </div>
 
-                        <!-- Nächste Events -->
-                        <div>
-                            <div class="flex items-center justify-between mb-2">
-                                <h5 class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Nächste Events</h5>
-                                <a href="/events" class="text-xs text-indigo-500 hover:text-indigo-700 transition">+ Hinzufügen</a>
-                            </div>
-                            <div v-if="props.events.length === 0" class="text-sm text-gray-400 dark:text-slate-500">
-                                Kein Event geplant
-                            </div>
-                            <div v-else class="space-y-2">
-                                <a v-for="event in props.events.slice(0, 3)" :key="event.id"
-                                    :href="`/events`"
-                                    class="flex items-center gap-3 rounded-xl bg-gray-50 dark:bg-slate-800 p-2.5 border border-gray-100 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-500/40 transition-colors group">
-                                    <!-- Priority + Phase badge -->
-                                    <div class="flex-shrink-0 text-center">
-                                        <div class="h-9 w-9 rounded-lg flex items-center justify-center font-black text-sm"
-                                            :class="{
-                                                'bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400': event.priority === 'A',
-                                                'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-600 dark:text-yellow-400': event.priority === 'B',
-                                                'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400': event.priority === 'C',
-                                            }">
-                                            {{ event.priority }}
-                                        </div>
-                                    </div>
-                                    <div class="flex-1 min-w-0">
-                                        <p class="text-xs font-semibold text-gray-800 dark:text-slate-200 truncate">{{ event.name }}</p>
-                                        <div class="flex items-center gap-1.5 mt-0.5">
-                                            <span class="text-xs text-gray-400 dark:text-slate-500">{{ new Date(event.event_date).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' }) }}</span>
-                                            <span class="text-xs px-1.5 py-0.5 rounded-md font-medium"
-                                                :class="{
-                                                    'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400': event.training_phase.key === 'race_week',
-                                                    'bg-yellow-50 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400': event.training_phase.key === 'taper',
-                                                    'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400': event.training_phase.key === 'peak',
-                                                    'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400': event.training_phase.key === 'build',
-                                                    'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400': event.training_phase.key === 'base',
-                                                }">
-                                                {{ event.training_phase.label }}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div class="text-right flex-shrink-0">
-                                        <p class="text-xs font-bold text-indigo-600 dark:text-indigo-400">{{ event.days_until }}d</p>
-                                        <p class="text-xs text-gray-400 dark:text-slate-500">{{ event.distance_label }}</p>
-                                    </div>
-                                </a>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -1075,11 +1028,11 @@ function syncStrava() {
                     </a>
                 </div>
 
-                <!-- ═══ ROW 3: Trainingsempfehlung + Aktive Ziele ═══ -->
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
+                <!-- ═══ ROW 3: Trainingsempfehlung ═══ -->
+                <div>
 
                     <!-- Heute: Plan-Session ODER KI-Empfehlung -->
-                    <div class="lg:col-span-7 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+                    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
 
                         <!-- ── Aktiver Plan: heutige Session anzeigen ── -->
                         <template v-if="props.hasActivePlan">
@@ -1177,58 +1130,6 @@ function syncStrava() {
                         </template>
                     </div>
 
-                    <!-- Nächste Events -->
-                    <div class="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
-                        <div class="flex items-center justify-between mb-4">
-                            <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Nächste Events</h4>
-                            <a href="/events" class="text-xs bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 rounded-md px-2 py-0.5 font-medium hover:bg-indigo-100 transition">+ Neu</a>
-                        </div>
-                        <div v-if="props.events.length === 0" class="text-sm text-gray-400 dark:text-slate-500 text-center py-8">
-                            Kein Event geplant.<br>
-                            <a href="/events" class="text-indigo-500 hover:underline text-xs mt-1 inline-block">Event hinzufügen →</a>
-                        </div>
-                        <div v-else class="space-y-3 max-h-96 overflow-y-auto">
-                            <a v-for="event in props.events" :key="event.id" href="/events"
-                                class="block rounded-xl border border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 p-3 hover:border-indigo-200 dark:hover:border-indigo-500/40 transition">
-                                <div class="flex items-start justify-between gap-2 mb-2">
-                                    <div class="flex items-start gap-2.5 flex-1 min-w-0">
-                                        <div class="h-9 w-9 rounded-lg flex items-center justify-center font-black text-sm flex-shrink-0"
-                                            :class="{
-                                                'bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400': event.priority === 'A',
-                                                'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-600 dark:text-yellow-400': event.priority === 'B',
-                                                'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400': event.priority === 'C',
-                                            }">
-                                            {{ event.priority }}
-                                        </div>
-                                        <div class="min-w-0">
-                                            <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 leading-tight truncate">{{ event.name }}</p>
-                                            <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{{ event.distance_label }} · {{ new Date(event.event_date).toLocaleDateString('de-DE') }}</p>
-                                        </div>
-                                    </div>
-                                    <div class="text-right flex-shrink-0">
-                                        <p class="text-sm font-bold text-indigo-600 dark:text-indigo-400">{{ event.days_until }}d</p>
-                                        <p class="text-xs text-gray-400 dark:text-slate-500">{{ event.weeks_until }} Wo.</p>
-                                    </div>
-                                </div>
-                                <!-- Trainingsphase + Zielzeit -->
-                                <div class="flex items-center gap-2">
-                                    <span class="text-xs px-2 py-0.5 rounded-md font-semibold"
-                                        :class="{
-                                            'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400': event.training_phase.key === 'race_week',
-                                            'bg-yellow-50 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400': event.training_phase.key === 'taper',
-                                            'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400': event.training_phase.key === 'peak',
-                                            'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400': event.training_phase.key === 'build',
-                                            'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400': event.training_phase.key === 'base',
-                                        }">
-                                        {{ event.training_phase.label }}
-                                    </span>
-                                    <span v-if="event.target_time_formatted" class="text-xs text-gray-400 dark:text-slate-500">
-                                        Ziel: {{ event.target_time_formatted }}
-                                    </span>
-                                </div>
-                            </a>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- ═══ ROW 3b: Trainingsbelastung (CTL / ATL / TSB) ═══ -->
@@ -1485,28 +1386,6 @@ function syncStrava() {
                             </p>
                         </div>
 
-                        <!-- Aktuelle Events -->
-                        <div v-if="props.events.length > 0">
-                            <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-2">Deine Events</p>
-                            <div class="space-y-2">
-                                <a v-for="event in props.events.slice(0, 3)" :key="event.id" href="/events"
-                                    class="flex items-center justify-between gap-3 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 px-3 py-2.5 hover:border-indigo-200 dark:hover:border-indigo-500/40 transition-colors">
-                                    <div class="flex items-center gap-2.5 min-w-0">
-                                        <span class="h-6 w-6 rounded-md flex items-center justify-center text-xs font-black flex-shrink-0"
-                                            :class="{
-                                                'bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400': event.priority === 'A',
-                                                'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-600 dark:text-yellow-400': event.priority === 'B',
-                                                'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400': event.priority === 'C',
-                                            }">{{ event.priority }}</span>
-                                        <p class="text-xs font-medium text-gray-700 dark:text-slate-300 truncate">{{ event.name }}</p>
-                                    </div>
-                                    <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400 flex-shrink-0">{{ event.days_until }}d</span>
-                                </a>
-                            </div>
-                        </div>
-                        <div v-else class="rounded-xl border border-dashed border-gray-200 dark:border-slate-700 p-4 text-center">
-                            <p class="text-xs text-gray-400 dark:text-slate-500">Noch keine Events — erstelle jetzt dein erstes!</p>
-                        </div>
                     </div>
 
                     </div><!-- /inner grid -->
