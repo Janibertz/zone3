@@ -1101,6 +1101,19 @@ function syncStrava() {
                     </div>
                 </div>
 
+                <!-- ═══ No active plan banner ═══ -->
+                <div v-if="!props.hasActivePlan" class="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-500/10 dark:to-blue-500/10 border border-indigo-100 dark:border-indigo-500/20 rounded-2xl p-4 sm:p-5 flex items-center gap-4">
+                    <div class="shrink-0 h-11 w-11 rounded-xl bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center text-xl">🎯</div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-bold text-gray-900 dark:text-white">Kein aktiver Trainingsplan</p>
+                        <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Erstelle jetzt einen KI-Trainingsplan für dein nächstes Event – individuell auf deine Daten zugeschnitten.</p>
+                    </div>
+                    <a href="/events" class="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2.5 transition-colors shadow-sm">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
+                        Plan erstellen
+                    </a>
+                </div>
+
                 <!-- ═══ ROW 3: Trainingsempfehlung + Aktive Ziele ═══ -->
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
 

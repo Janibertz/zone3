@@ -571,7 +571,7 @@ const workoutSteps = computed(() => {
             <!-- Plan header -->
             <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
                 <div>
-                    <h2 class="text-base font-bold text-gray-900 dark:text-white">10-Tages-Trainingsplan</h2>
+                    <h2 class="text-base font-bold text-gray-900 dark:text-white">{{ isPastEvent ? 'Trainings-Auswertung' : '10-Tages-Trainingsplan' }}</h2>
                     <p v-if="currentPlan" class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
                         Erstellt am {{ currentPlan.generated_at }}
                         <span v-if="currentPlan.context"> · {{ currentPlan.context.activities_used }} Aktivitäten</span>
@@ -598,8 +598,8 @@ const workoutSteps = computed(() => {
                         {{ generating ? 'KI analysiert...' : currentPlan ? 'Plan aktualisieren' : 'KI-Plan erstellen' }}
                     </button>
 
-                    <!-- Cancelled state info -->
-                    <span v-if="currentPlan && !currentPlan.is_active"
+                    <!-- Cancelled state info (only for active events) -->
+                    <span v-if="currentPlan && !currentPlan.is_active && !isPastEvent"
                         class="inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-400 dark:text-slate-500 bg-gray-100 dark:bg-slate-800">
                         Plan abgebrochen
                     </span>
@@ -619,12 +619,18 @@ const workoutSteps = computed(() => {
             <!-- Empty -->
             <div v-else-if="!currentPlan || visibleSessions.length === 0" class="bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700 p-10 text-center">
                 <svg class="h-12 w-12 mx-auto text-gray-300 dark:text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
-                <p class="text-sm font-medium text-gray-700 dark:text-slate-300">Noch kein Trainingsplan</p>
-                <p class="mt-1 text-xs text-gray-400 dark:text-slate-500 max-w-xs mx-auto">Die KI analysiert Aktivitäten, Wellbeing und Athletenprofil für einen optimalen 10-Tages-Plan.</p>
-                <button @click="generatePlan" :disabled="generating" class="mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
-                    KI-Plan erstellen
-                </button>
+                <template v-if="isPastEvent">
+                    <p class="text-sm font-medium text-gray-700 dark:text-slate-300">Kein Trainingsplan vorhanden</p>
+                    <p class="mt-1 text-xs text-gray-400 dark:text-slate-500 max-w-xs mx-auto">Für dieses Event wurde kein KI-Plan erstellt.</p>
+                </template>
+                <template v-else>
+                    <p class="text-sm font-medium text-gray-700 dark:text-slate-300">Noch kein Trainingsplan</p>
+                    <p class="mt-1 text-xs text-gray-400 dark:text-slate-500 max-w-xs mx-auto">Die KI analysiert Aktivitäten, Wellbeing und Athletenprofil für einen optimalen 10-Tages-Plan.</p>
+                    <button @click="generatePlan" :disabled="generating" class="mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
+                        KI-Plan erstellen
+                    </button>
+                </template>
             </div>
 
             <!-- Sessions list -->
