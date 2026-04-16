@@ -6,9 +6,10 @@ import { ref, computed, onMounted } from 'vue';
 import axios from 'axios';
 
 const props = defineProps({
-    event:    Object,
-    plan:     Object,   // { id, is_active, generated_at, context }
-    sessions: Array,    // TrainingSession records from DB
+    event:        Object,
+    plan:         Object,   // { id, is_active, generated_at, context, actual_time_hours, ... }
+    sessions:     Array,    // TrainingSession records from DB
+    isPastEvent:  { type: Boolean, default: false },
 });
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -212,11 +213,56 @@ function formatDate(dateStr) {
 const isToday  = (d) => d === today;
 const isPast   = (d) => d < today;
 
-// Only show today + future sessions in the plan view
-// Past sessions live in the calendar
+// Past events: show all sessions as history; future: only today + forward
 const visibleSessions = computed(() =>
-    currentSessions.value.filter(s => s.planned_date >= today)
+    props.isPastEvent
+        ? currentSessions.value
+        : currentSessions.value.filter(s => s.planned_date >= today)
 );
+
+// ── Race result state ─────────────────────────────────────────────────────────
+const resultHours   = ref(props.plan?.actual_time_hours   ?? null);
+const resultMinutes = ref(props.plan?.actual_time_minutes ?? null);
+const resultRating  = ref(props.plan?.overall_rating      ?? 0);
+const resultNotes   = ref(props.plan?.result_notes        ?? '');
+const resultSaving  = ref(false);
+const resultSaved   = ref(false);
+
+// Compare target vs actual (both in total minutes)
+const goalAchieved = computed(() => {
+    if (resultHours.value === null && resultMinutes.value === null) return null;
+    const targetMin = (props.event.target_time_hours ?? 0) * 60 + (props.event.target_time_minutes ?? 0);
+    const actualMin = (resultHours.value ?? 0) * 60 + (resultMinutes.value ?? 0);
+    if (!targetMin || !actualMin) return null;
+    return actualMin <= targetMin;
+});
+
+const goalDeltaText = computed(() => {
+    if (goalAchieved.value === null) return null;
+    const targetMin = (props.event.target_time_hours ?? 0) * 60 + (props.event.target_time_minutes ?? 0);
+    const actualMin = (resultHours.value ?? 0) * 60 + (resultMinutes.value ?? 0);
+    const delta = Math.abs(actualMin - targetMin);
+    const h = Math.floor(delta / 60), m = delta % 60;
+    const fmt = h > 0 ? `${h}:${String(m).padStart(2,'0')} Std` : `${m} Min`;
+    return goalAchieved.value ? `${fmt} schneller als Ziel` : `${fmt} langsamer als Ziel`;
+});
+
+async function saveResult() {
+    resultSaving.value = true;
+    resultSaved.value  = false;
+    try {
+        await axios.patch(route('events.plan.result', props.event.id), {
+            actual_time_hours:   resultHours.value,
+            actual_time_minutes: resultMinutes.value,
+            overall_rating:      resultRating.value || null,
+            result_notes:        resultNotes.value  || null,
+        });
+        resultSaved.value = true;
+        setTimeout(() => resultSaved.value = false, 3000);
+    } finally {
+        resultSaving.value = false;
+    }
+}
 
 const weeklyLoad = computed(() => {
     const all  = currentSessions.value; // stats over full plan
@@ -386,6 +432,91 @@ const workoutSteps = computed(() => {
                 </div>
             </div>
 
+            <!-- ── Race Result Form (past events only) ──────────────────────── -->
+            <div v-if="isPastEvent && plan" class="mb-5 bg-white dark:bg-slate-900 rounded-2xl border border-indigo-100 dark:border-indigo-500/20 shadow-sm p-4 sm:p-5">
+                <div class="flex items-center gap-2 mb-4">
+                    <div class="h-8 w-8 rounded-xl bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center shrink-0 text-base">🏅</div>
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-900 dark:text-white">Rennergebnis eintragen</h3>
+                        <p class="text-xs text-gray-400 dark:text-slate-500">Dein Ergebnis hilft der KI, den nächsten Plan gezielter zu gestalten</p>
+                    </div>
+                </div>
+
+                <!-- Target vs Actual -->
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <!-- Ziel -->
+                    <div class="rounded-xl bg-gray-50 dark:bg-slate-800/60 border border-gray-100 dark:border-slate-700 p-3">
+                        <p class="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Zielzeit</p>
+                        <p class="text-xl font-bold text-gray-700 dark:text-slate-200 tabular-nums">{{ event.target_time_formatted || '—' }}</p>
+                    </div>
+                    <!-- Ergebnis -->
+                    <div class="rounded-xl border p-3 transition-colors"
+                        :class="goalAchieved === true  ? 'bg-green-50 dark:bg-green-500/10 border-green-100 dark:border-green-500/20'
+                              : goalAchieved === false ? 'bg-red-50 dark:bg-red-500/10 border-red-100 dark:border-red-500/20'
+                              : 'bg-gray-50 dark:bg-slate-800/60 border-gray-100 dark:border-slate-700'"
+                    >
+                        <p class="text-[10px] font-semibold uppercase tracking-wider mb-1"
+                            :class="goalAchieved === true ? 'text-green-500' : goalAchieved === false ? 'text-red-400' : 'text-gray-400 dark:text-slate-500'">
+                            Dein Ergebnis
+                        </p>
+                        <div class="flex items-center gap-1">
+                            <input v-model.number="resultHours" type="number" min="0" max="23" placeholder="0"
+                                class="w-10 text-xl font-bold bg-transparent border-none outline-none tabular-nums p-0 text-gray-800 dark:text-white placeholder-gray-300"
+                            />
+                            <span class="text-lg font-bold text-gray-400">:</span>
+                            <input v-model.number="resultMinutes" type="number" min="0" max="59" placeholder="00"
+                                class="w-10 text-xl font-bold bg-transparent border-none outline-none tabular-nums p-0 text-gray-800 dark:text-white placeholder-gray-300"
+                            />
+                            <span class="text-xs text-gray-400 dark:text-slate-500 ml-1">Std:Min</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Goal achieved banner -->
+                <Transition enter-active-class="transition-all duration-300 ease-out" enter-from-class="opacity-0 scale-95">
+                    <div v-if="goalAchieved !== null" class="mb-4 rounded-xl px-3 py-2.5 flex items-center gap-2"
+                        :class="goalAchieved ? 'bg-green-100 dark:bg-green-500/15' : 'bg-red-50 dark:bg-red-500/10'"
+                    >
+                        <span class="text-lg">{{ goalAchieved ? '🎯' : '📉' }}</span>
+                        <div>
+                            <p class="text-sm font-semibold" :class="goalAchieved ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'">
+                                {{ goalAchieved ? 'Ziel erreicht!' : 'Ziel knapp verfehlt' }}
+                            </p>
+                            <p class="text-xs" :class="goalAchieved ? 'text-green-600/70 dark:text-green-500' : 'text-red-500/70 dark:text-red-500'">
+                                {{ goalDeltaText }}
+                            </p>
+                        </div>
+                    </div>
+                </Transition>
+
+                <!-- Plan rating -->
+                <div class="mb-3">
+                    <p class="text-xs font-semibold text-gray-600 dark:text-slate-400 mb-2">Wie gut hat der Plan funktioniert?</p>
+                    <div class="flex gap-2">
+                        <button v-for="n in 5" :key="n" @click="resultRating = n"
+                            class="h-9 w-9 rounded-xl flex items-center justify-center text-lg transition-all"
+                            :class="n <= resultRating ? 'bg-amber-100 dark:bg-amber-500/20 scale-110' : 'bg-gray-100 dark:bg-slate-800 opacity-40 hover:opacity-70'"
+                        >⭐</button>
+                        <button v-if="resultRating" @click="resultRating = 0" class="ml-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-slate-300">zurücksetzen</button>
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <textarea v-model="resultNotes" rows="2" placeholder="Was hat gut geklappt? Was sollte beim nächsten Plan anders sein?"
+                    class="w-full rounded-xl px-3 py-2.5 text-sm border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500/50 mb-3"
+                />
+
+                <!-- Save -->
+                <button @click="saveResult" :disabled="resultSaving"
+                    class="w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-colors disabled:opacity-60"
+                    :class="resultSaved ? 'bg-green-500 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'"
+                >
+                    <svg v-if="resultSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                    <svg v-else-if="resultSaved" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                    {{ resultSaved ? 'Gespeichert!' : resultSaving ? 'Speichern…' : 'Ergebnis speichern' }}
+                </button>
+            </div>
+
             <!-- Wellbeing banner for today's session -->
             <Transition enter-active-class="transition-all duration-300" enter-from-class="opacity-0 -translate-y-2" leave-to-class="opacity-0">
                 <div v-if="wellbeingBanner && todaySession"
@@ -423,7 +554,7 @@ const workoutSteps = computed(() => {
             </Transition>
 
             <!-- Strava update banner -->
-            <div v-if="currentPlan?.needs_plan_update"
+            <div v-if="currentPlan?.needs_plan_update && !isPastEvent"
                 class="mb-4 flex items-start gap-3 rounded-2xl bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 px-4 py-3">
                 <span class="text-xl leading-none mt-0.5">🔗</span>
                 <div class="flex-1">
@@ -447,8 +578,8 @@ const workoutSteps = computed(() => {
                     </p>
                 </div>
                 <div class="flex gap-2">
-                    <!-- Cancel plan (only when active) -->
-                    <button v-if="currentPlan?.is_active"
+                    <!-- Cancel plan (only when active and event not past) -->
+                    <button v-if="currentPlan?.is_active && !isPastEvent"
                         @click="cancelModal = true"
                         class="inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
                     >
@@ -456,8 +587,8 @@ const workoutSteps = computed(() => {
                         Abbrechen
                     </button>
 
-                    <!-- Generate/update (only when plan is active or no plan yet) -->
-                    <button v-if="!currentPlan || currentPlan.is_active"
+                    <!-- Generate/update (only when plan is active or no plan yet, and event not past) -->
+                    <button v-if="(!currentPlan || currentPlan.is_active) && !isPastEvent"
                         @click="generatePlan" :disabled="generating"
                         class="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors shadow-sm disabled:opacity-60"
                         :class="currentPlan ? 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700' : 'bg-indigo-600 text-white hover:bg-indigo-700'"

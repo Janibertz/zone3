@@ -40,6 +40,7 @@ class HandleInertiaRequests extends Middleware
                 if (! $request->user()) return null;
                 $plan = TrainingPlan::where('user_id', $request->user()->id)
                     ->where('is_active', true)
+                    ->whereHas('event', fn ($q) => $q->where('event_date', '>=', now()->toDateString()))
                     ->with('event:id,name')
                     ->first();
                 if (! $plan) return null;

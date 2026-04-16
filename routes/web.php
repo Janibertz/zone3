@@ -284,6 +284,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::post('/events/{event}/plan/generate', [TrainingPlanController::class, 'generate'])->name('events.plan.generate');
     Route::post('/events/{event}/plan/cancel', [TrainingPlanController::class, 'cancel'])->name('events.plan.cancel');
     Route::patch('/events/{event}/plan/availability', [TrainingPlanController::class, 'updateAvailabilityOverride'])->name('events.plan.availability');
+    Route::patch('/events/{event}/plan/result', [TrainingPlanController::class, 'saveResult'])->name('events.plan.result');
 
     // Training Sessions
     Route::patch('/training-sessions/{session}/complete', [TrainingSessionController::class, 'complete'])->name('training-sessions.complete');

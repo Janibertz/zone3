@@ -724,6 +724,7 @@ PROMPT;
         ?array $weeklyAvailability = null,
         array $availabilityOverrides = [],
         ?array $trainingLoad = null,
+        array $pastPlanResults = [],
     ): ?array {
         $today        = now()->format('Y-m-d');
         $eventDate    = $event->event_date->format('Y-m-d');
@@ -805,6 +806,33 @@ PROMPT;
             $availabilityText = 'Wöchentliche Verfügbarkeit: keine Angabe — verteile Training gleichmäßig.';
         }
 
+        // Past race results (for learning from previous plan cycles)
+        $pastResultsText = 'Keine vergangenen Rennergebnisse vorhanden.';
+        if (! empty($pastPlanResults)) {
+            $lines = [];
+            foreach ($pastPlanResults as $r) {
+                $stars  = $r['overall_rating'] ? str_repeat('⭐', $r['overall_rating']) : '–';
+                $actual = $r['actual_time'] ?? 'nicht eingetragen';
+                $diff   = '';
+                // Simple time comparison for feedback
+                if ($r['actual_time'] && $r['target_time']) {
+                    [$th, $tm] = explode(':', $r['target_time']) + [0, 0];
+                    [$ah, $am] = explode(':', $r['actual_time']) + [0, 0];
+                    $targetSec = ((int)$th * 60 + (int)$tm) * 60;
+                    $actualSec = ((int)$ah * 60 + (int)$am) * 60;
+                    $deltaSec  = $actualSec - $targetSec;
+                    if ($deltaSec <= 0) {
+                        $diff = ' ✅ Ziel erreicht (' . abs((int)($deltaSec / 60)) . ' Min schneller)';
+                    } else {
+                        $diff = ' ❌ Ziel verfehlt (+' . (int)($deltaSec / 60) . ' Min langsamer)';
+                    }
+                }
+                $note  = $r['result_notes'] ? " | Notiz: \"{$r['result_notes']}\"" : '';
+                $lines[] = "- {$r['event_name']} ({$r['race_distance']}): Ziel {$r['target_time']} → Ergebnis {$actual}{$diff} | Plan-Bewertung: {$stars}{$note}";
+            }
+            $pastResultsText = "Vergangene Rennergebnisse des Athleten:\n" . implode("\n", $lines);
+        }
+
         // Training load context (CTL / ATL / TSB)
         $loadText = 'Trainingsbelastung: keine Daten vorhanden.';
         if ($trainingLoad && ($trainingLoad['ctl'] > 0 || $trainingLoad['atl'] > 0)) {
@@ -848,6 +876,8 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan f�
 
 **{$loadText}**
 
+**{$pastResultsText}**
+
 **Bisherige Einheitsbewertungen (Athleten-Feedback):**
 {$ratingsText}
 
@@ -868,6 +898,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan f�
 - A-Events: max. Leistungsoptimierung; C-Events: Trainingsrennen, moderate Belastung
 - WICHTIG: Plane nur Tage von heute ({$today}) bis zum Renntag ({$eventDate}). Kein Tag nach {$eventDate}.
 - Lerne aus den Athleten-Bewertungen: niedrige Bewertungen (1-2⭐) oder hohe RPE (≥8) bei bestimmten Typen → weniger davon oder leichter planen; hohe Bewertungen (4-5⭐) → mehr davon
+- Lerne aus vergangenen Rennergebnissen: Ziel verfehlt → mehr spezifisches Tempotraining für diese Distanz; Ziel erreicht/übertroffen → Plan funktioniert, ähnliche Struktur beibehalten
 - VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die Trainingsdauer darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
 
 **Antworte ausschließlich mit einem JSON-Array (zwischen 1 und 10 Objekte, je nach verfügbaren Tagen bis zum Rennen):**

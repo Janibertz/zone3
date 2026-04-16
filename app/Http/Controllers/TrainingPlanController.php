@@ -17,10 +17,17 @@ class TrainingPlanController extends Controller
     {
         abort_if($event->user_id !== Auth::id(), 403);
 
+        $isPastEvent = $event->days_until < 0;
+
         $plan = TrainingPlan::where('event_id', $event->id)
             ->where('user_id', Auth::id())
             ->latest()
             ->first();
+
+        // Auto-deactivate if event has passed and plan is still marked active
+        if ($isPastEvent && $plan && $plan->is_active) {
+            $plan->update(['is_active' => false]);
+        }
 
         $sessions = $plan
             ? TrainingSession::where('training_plan_id', $plan->id)
@@ -45,13 +52,58 @@ class TrainingPlanController extends Controller
                 'days_until'            => $event->days_until,
             ],
             'plan' => $plan ? [
-                'id'                => $plan->id,
-                'is_active'         => $plan->is_active,
-                'generated_at'      => $plan->created_at->format('d.m.Y H:i'),
-                'context'           => $plan->context,
-                'needs_plan_update' => $plan->needs_plan_update,
+                'id'                  => $plan->id,
+                'is_active'           => (bool) $plan->is_active,
+                'generated_at'        => $plan->created_at->format('d.m.Y H:i'),
+                'context'             => $plan->context,
+                'needs_plan_update'   => $plan->needs_plan_update,
+                'actual_time_hours'   => $plan->actual_time_hours,
+                'actual_time_minutes' => $plan->actual_time_minutes,
+                'overall_rating'      => $plan->overall_rating,
+                'result_notes'        => $plan->result_notes,
             ] : null,
-            'sessions' => $sessions,
+            'sessions'    => $sessions,
+            'isPastEvent' => $isPastEvent,
+        ]);
+    }
+
+    /**
+     * Save the athlete's actual race result and plan rating for a completed event.
+     */
+    public function saveResult(Event $event, \Illuminate\Http\Request $request)
+    {
+        abort_if($event->user_id !== Auth::id(), 403);
+
+        if ($event->days_until >= 0) {
+            return response()->json(['error' => 'Das Event liegt noch nicht in der Vergangenheit.'], 422);
+        }
+
+        $validated = $request->validate([
+            'actual_time_hours'   => 'nullable|integer|min:0|max:23',
+            'actual_time_minutes' => 'nullable|integer|min:0|max:59',
+            'overall_rating'      => 'nullable|integer|min:1|max:5',
+            'result_notes'        => 'nullable|string|max:1000',
+        ]);
+
+        $plan = TrainingPlan::where('event_id', $event->id)
+            ->where('user_id', Auth::id())
+            ->latest()
+            ->first();
+
+        if (! $plan) {
+            return response()->json(['error' => 'Kein Plan gefunden.'], 404);
+        }
+
+        $plan->update($validated);
+
+        return response()->json([
+            'success' => true,
+            'plan'    => [
+                'actual_time_hours'   => $plan->actual_time_hours,
+                'actual_time_minutes' => $plan->actual_time_minutes,
+                'overall_rating'      => $plan->overall_rating,
+                'result_notes'        => $plan->result_notes,
+            ],
         ]);
     }
 
@@ -73,6 +125,10 @@ class TrainingPlanController extends Controller
     public function generate(Event $event, OpenAIService $openAI, WebPushService $webPush, TrainingLoadService $trainingLoadService)
     {
         abort_if($event->user_id !== Auth::id(), 403);
+
+        if ($event->days_until < 0) {
+            return response()->json(['error' => 'Dieses Event liegt in der Vergangenheit. Bitte erstelle ein neues Event für einen neuen Plan.'], 422);
+        }
 
         // Block if a different event already has an active plan
         $otherActivePlan = TrainingPlan::where('user_id', Auth::id())
@@ -159,12 +215,32 @@ class TrainingPlanController extends Controller
             ->first();
         $availabilityOverrides = $existingPlan?->availability_overrides ?? [];
 
+        // ── Past race results (rated plans) ──────────────────────────────────
+        $pastPlanResults = TrainingPlan::where('user_id', $user->id)
+            ->whereNotNull('overall_rating')
+            ->whereHas('event', fn ($q) => $q->where('event_date', '<', now()->toDateString()))
+            ->with('event:id,name,race_distance,target_time_hours,target_time_minutes')
+            ->latest()
+            ->limit(3)
+            ->get()
+            ->map(fn ($p) => [
+                'event_name'     => $p->event->name,
+                'race_distance'  => $p->event->race_distance,
+                'target_time'    => sprintf('%d:%02d', $p->event->target_time_hours, $p->event->target_time_minutes),
+                'actual_time'    => $p->actual_time_hours !== null
+                    ? sprintf('%d:%02d', $p->actual_time_hours, $p->actual_time_minutes)
+                    : null,
+                'overall_rating' => $p->overall_rating,
+                'result_notes'   => $p->result_notes,
+            ])
+            ->toArray();
+
         // ── Training load metrics (CTL / ATL / TSB) ──────────────────────────
         $trainingLoad = $trainingLoadService->calculate($user->id);
 
         // ── Call AI ──────────────────────────────────────────────────────────
         try {
-            $aiSessions = $openAI->generateEventTrainingPlan($event, $profileData, $recentActivities, $wellbeingData, $sessionRatings, $weeklyAvailability, $availabilityOverrides, $trainingLoad);
+            $aiSessions = $openAI->generateEventTrainingPlan($event, $profileData, $recentActivities, $wellbeingData, $sessionRatings, $weeklyAvailability, $availabilityOverrides, $trainingLoad, $pastPlanResults);
         } catch (\Throwable $e) {
             return response()->json(['error' => 'OpenAI-Fehler: ' . $e->getMessage()], 500);
         }

@@ -16,6 +16,10 @@ class TrainingPlan extends Model
         'context',
         'needs_plan_update',
         'availability_overrides',
+        'actual_time_hours',
+        'actual_time_minutes',
+        'overall_rating',
+        'result_notes',
     ];
 
     protected $casts = [
