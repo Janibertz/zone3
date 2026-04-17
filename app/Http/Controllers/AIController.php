@@ -8,6 +8,7 @@ use App\Models\TrainingSession;
 use App\Services\OpenAIService;
 use App\Services\ProgressService;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AIController extends Controller
@@ -165,19 +166,19 @@ class AIController extends Controller
         $recommendationMessage = 'Bitte trage zunächst dein Wellbeing für heute ein, um eine Trainingsempfehlung zu erhalten.';
 
         if ($wellbeingExists) {
-            // Check cached recommendation (same day + same entry)
-            $cached = null;
+            // Check cached recommendation (same day + same entry) — stored as JSON string
             if ($runnerProfile &&
                 $runnerProfile->recommendation_date == $today &&
                 $runnerProfile->recommendation_wellbeing_id == $todayWellbeing->id &&
                 !empty($runnerProfile->today_recommendation))
             {
-                $cached = $runnerProfile->today_recommendation;
+                $decoded = json_decode($runnerProfile->today_recommendation, true);
+                if (is_array($decoded)) {
+                    $recommendation = $decoded;
+                }
             }
 
-            if ($cached) {
-                $recommendation = $cached;
-            } else {
+            if (! $recommendation) {
                 $recommendation = $this->openAI->generateTodayRecommendation(
                     $runnerProfile ? [
                         'threshold_heart_rate' => $runnerProfile->threshold_heart_rate,
@@ -190,34 +191,11 @@ class AIController extends Controller
                     $progressData
                 );
 
-                if ($runnerProfile) {
-                    $runnerProfile->today_recommendation = $recommendation;
+                if ($runnerProfile && $recommendation) {
+                    $runnerProfile->today_recommendation = json_encode($recommendation, JSON_UNESCAPED_UNICODE);
                     $runnerProfile->recommendation_date = $today;
                     $runnerProfile->recommendation_wellbeing_id = $todayWellbeing->id;
                     $runnerProfile->save();
-                }
-
-                // Save as standalone TrainingSession if no active plan exists
-                $hasActivePlan = TrainingPlan::where('user_id', $user->id)
-                    ->where('is_active', true)
-                    ->exists();
-
-                if (! $hasActivePlan && $recommendation) {
-                    TrainingSession::updateOrCreate(
-                        [
-                            'user_id'          => $user->id,
-                            'planned_date'     => $today,
-                            'training_plan_id' => null,
-                        ],
-                        [
-                            'type'        => 'easy_run',
-                            'title'       => 'Empfehlung für heute',
-                            'description' => $recommendation,
-                            'status'      => 'planned',
-                            'intensity'   => 'medium',
-                            'sort_order'  => 0,
-                        ]
-                    );
                 }
             }
 
@@ -228,13 +206,69 @@ class AIController extends Controller
             'recommendation' => $recommendation,
             'recommendation_message' => $recommendationMessage,
             'wellbeing_exists' => $wellbeingExists,
-            'context' => [
-                'runner_profile' => $runnerProfile,
-                'yesterday_activity' => $yesterdayActivity,
-                'today_wellbeing' => $todayWellbeing,
-                'active_goal' => $activeGoal,
-                'progress' => $progressData,
-            ],
         ]);
+    }
+
+    /**
+     * Accept a recommendation and persist it as a standalone TrainingSession.
+     */
+    public function acceptRecommendation(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'type'         => 'required|string|in:easy_run,tempo_run,interval,long_run,race_prep,rest',
+            'title'        => 'required|string|max:255',
+            'description'  => 'nullable|string|max:2000',
+            'distance_km'  => 'nullable|numeric|min:0',
+            'duration_min' => 'nullable|integer|min:0',
+            'pace_target'  => 'nullable|string|max:20',
+            'zone'         => 'nullable|integer|min:1|max:5',
+            'intensity'    => 'nullable|string|in:low,medium,high',
+        ]);
+
+        $user  = $request->user();
+        $today = Carbon::today()->toDateString();
+
+        TrainingSession::updateOrCreate(
+            [
+                'user_id'          => $user->id,
+                'planned_date'     => $today,
+                'training_plan_id' => null,
+            ],
+            array_merge($data, [
+                'status'     => 'planned',
+                'sort_order' => 0,
+            ])
+        );
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Adjust a recommendation harder or softer via AI.
+     */
+    public function adjustRecommendation(Request $request): JsonResponse
+    {
+        $request->validate([
+            'direction' => 'required|in:harder,softer',
+            'current'   => 'required|array',
+        ]);
+
+        $user           = $request->user();
+        $today          = Carbon::today()->toDateString();
+        $runnerProfile  = $user->runnerProfile;
+        $todayWellbeing = $user->wellbeingEntries()->whereDate('date', $today)->first();
+
+        $adjusted = $this->openAI->adjustTodayRecommendation(
+            $request->current,
+            $request->direction,
+            $runnerProfile ? [
+                'threshold_heart_rate' => $runnerProfile->threshold_heart_rate,
+                'max_heart_rate'       => $runnerProfile->max_heart_rate,
+                'threshold_speed'      => $runnerProfile->threshold_speed,
+            ] : null,
+            $todayWellbeing ? $todayWellbeing->toArray() : null
+        );
+
+        return response()->json(['recommendation' => $adjusted]);
     }
 }

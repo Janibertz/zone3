@@ -315,28 +315,38 @@ PROMPT;
         }
     }
 
-    public function generateTodayRecommendation(array $runnerProfile, ?array $yesterdayActivity, ?array $wellbeingEntry, ?array $goal, array $progress): string
+    /**
+     * Generate a structured training recommendation for today.
+     * Returns an associative array with keys: type, title, description,
+     * distance_km, duration_min, pace_target, zone, intensity.
+     * Returns null on failure.
+     */
+    public function generateTodayRecommendation(?array $runnerProfile, ?array $yesterdayActivity, ?array $wellbeingEntry, ?array $goal, array $progress): ?array
     {
-        $profileText = $runnerProfile ? "Runner Profile:\n- LUTHR: {$runnerProfile['threshold_heart_rate']} bpm\n- Max HR: {$runnerProfile['max_heart_rate']} bpm\n- Schwellenpace: {$runnerProfile['threshold_speed']} (min/km)\n" : "Kein Runner Profile vorhanden.\n";
-        $activityText = $yesterdayActivity ? "Letzte Aktivität (gestern):\n- Name: {$yesterdayActivity['name']}\n- Distanz: " . round($yesterdayActivity['distance']/1000,2) . " km\n- Dauer: " . $this->formatSeconds($yesterdayActivity['moving_time']) . "\n-Durchschnitts-Pace: " . ($yesterdayActivity['average_speed'] ? $this->calculatePace($yesterdayActivity['average_speed']) : '—') . "\n" : "Keine Aktivität von gestern.\n";
-        $wellbeingText = $wellbeingEntry ? "Wellbeing heute:\n- Energie: {$wellbeingEntry['energy_level']}/10\n- Stimmung: {$wellbeingEntry['mood']}/10\n- Schlaf: {$wellbeingEntry['sleep_quality']}/10\n- Muskelkater: {$wellbeingEntry['muscle_soreness']}/10\n- Stress: {$wellbeingEntry['stress_level']}/10\n" : "Kein Wellbeing-Eintrag heute.\n";
-        $goalText = $goal ? "Aktives Ziel:\n- {$goal['name']} ({$goal['target_value']} {$goal['unit']})\n- Zeitraum: {$goal['start_date']} bis {$goal['end_date']}\n" : "Kein aktives Ziel.\n";
-        $progressText = "Progress:\n- Fertig: " . ($progress['completed_distance_km'] ?? 0) . " / " . ($progress['target_distance_km'] ?? 0) . " km ({$progress['progress_percentage']}%)\n- Status: {$progress['status']}\n- Tage rest: {$progress['days_remaining']}\n";
+        $profileText = $runnerProfile ? "Runner Profile:\n- LTHR: {$runnerProfile['threshold_heart_rate']} bpm\n- Max HR: {$runnerProfile['max_heart_rate']} bpm\n- Schwellenpace: {$runnerProfile['threshold_speed']} min/km\n" : "Kein Runner Profile vorhanden.\n";
+        $activityText = $yesterdayActivity ? "Letzte Aktivität (gestern):\n- " . round($yesterdayActivity['distance']/1000,2) . " km in " . $this->formatSeconds($yesterdayActivity['moving_time']) . " · Pace: " . ($yesterdayActivity['average_speed'] ? $this->calculatePace($yesterdayActivity['average_speed']) : '—') . "\n" : "Keine Aktivität von gestern.\n";
+        $wellbeingText = $wellbeingEntry ? "Wellbeing heute: Energie {$wellbeingEntry['energy_level']}/10, Schlaf {$wellbeingEntry['sleep_quality']}/10, Muskelkater {$wellbeingEntry['muscle_soreness']}/10, Stress {$wellbeingEntry['stress_level']}/10\n" : "Kein Wellbeing.\n";
+        $goalText = $goal ? "Ziel: {$goal['name']}\n" : "Kein aktives Ziel.\n";
 
         $prompt = <<<PROMPT
-Du bist ein sehr präziser Lauf-Coach. Erstelle eine konkrete Trainingsempfehlung für heute basierend auf folgenden Daten:
+Du bist ein präziser Lauf-Coach. Erstelle eine Trainingsempfehlung für heute als JSON-Objekt.
 
 {$profileText}
 {$activityText}
 {$wellbeingText}
 {$goalText}
-{$progressText}
 
-1) Empfohlenes Training für heute (Distanz, pace, Intensität, Dauer)
-2) Grund (anhand Training + Wellbeing + Ziel)
-3) Ausfall- / Regenerationsempfehlung falls erholt / müde
-
-Antworte auf Deutsch, mit maximal 6 Sätzen, gut strukturiert.
+Antworte NUR mit einem JSON-Objekt (kein Markdown, kein Text davor/danach):
+{
+  "type": "easy_run|tempo_run|interval|long_run|rest",
+  "title": "Kurzer Titel der Einheit",
+  "description": "2-3 Sätze Erklärung warum und wie",
+  "distance_km": 8.0,
+  "duration_min": 50,
+  "pace_target": "5:30",
+  "zone": 2,
+  "intensity": "low|medium|high"
+}
 PROMPT;
 
         try {
@@ -346,27 +356,85 @@ PROMPT;
             ])->post($this->baseUrl . '/chat/completions', [
                 'model' => $this->model,
                 'messages' => [
-                    ['role' => 'system', 'content' => 'Du bist ein erfahrener Lauf-Coach. Kurze, präzise Empfehlungen.'],
+                    ['role' => 'system', 'content' => 'Du bist ein erfahrener Lauf-Coach. Antworte ausschließlich mit dem angeforderten JSON-Objekt.'],
                     ['role' => 'user', 'content' => $prompt],
                 ],
-                'temperature' => 0.5,
-                'max_tokens' => 250,
+                'temperature' => 0.4,
+                'max_tokens' => 300,
             ]);
 
             if ($response->failed()) {
-                Log::error('OpenAI Today Recommendation Error', [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]);
-                return 'Keine Empfehlung verfügbar (Fehler bei KI).';
+                Log::error('OpenAI Today Recommendation Error', ['status' => $response->status(), 'body' => $response->body()]);
+                return null;
             }
 
-            $data = $response->json();
-            return $data['choices'][0]['message']['content'] ?? 'Keine Empfehlung verfügbar.';
+            $content = $response->json()['choices'][0]['message']['content'] ?? '';
+            // Strip potential markdown fences
+            $content = preg_replace('/^```(?:json)?\s*/i', '', trim($content));
+            $content = preg_replace('/\s*```$/', '', $content);
+            $parsed = json_decode(trim($content), true);
+
+            return is_array($parsed) ? $parsed : null;
 
         } catch (\Exception $e) {
             Log::error('OpenAI Today Recommendation Exception', ['error' => $e->getMessage()]);
-            return 'Fehler bei KI-Empfehlung: ' . $e->getMessage();
+            return null;
+        }
+    }
+
+    /**
+     * Adjust an existing structured recommendation harder or softer.
+     * Returns adjusted recommendation array or null on failure.
+     */
+    public function adjustTodayRecommendation(array $current, string $direction, ?array $runnerProfile, ?array $wellbeingEntry): ?array
+    {
+        $directionText = $direction === 'harder'
+            ? 'Mache die Einheit HÄRTER: mehr Distanz (+15-25%), schnellere Pace, höhere Zone, oder Wechsel zu einem intensiveren Typ (z.B. easy_run → tempo_run).'
+            : 'Mache die Einheit SOFTER: weniger Distanz (-15-25%), langsamere Pace, niedrigere Zone, oder Wechsel zu einem ruhigeren Typ (z.B. tempo_run → easy_run).';
+
+        $wellbeingText = $wellbeingEntry ? "Wellbeing: Energie {$wellbeingEntry['energy_level']}/10, Muskelkater {$wellbeingEntry['muscle_soreness']}/10\n" : '';
+        $profileText = $runnerProfile ? "Schwellenpace: {$runnerProfile['threshold_speed']} min/km\n" : '';
+
+        $currentJson = json_encode($current, JSON_UNESCAPED_UNICODE);
+
+        $prompt = <<<PROMPT
+Aktuelle Einheit:
+{$currentJson}
+
+{$profileText}{$wellbeingText}
+Aufgabe: {$directionText}
+
+Antworte NUR mit dem angepassten JSON-Objekt (gleiche Felder wie die Eingabe):
+PROMPT;
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Content-Type' => 'application/json',
+            ])->post($this->baseUrl . '/chat/completions', [
+                'model' => $this->model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Du bist ein Lauf-Coach. Antworte ausschließlich mit dem angeforderten JSON-Objekt.'],
+                    ['role' => 'user', 'content' => $prompt],
+                ],
+                'temperature' => 0.3,
+                'max_tokens' => 300,
+            ]);
+
+            if ($response->failed()) {
+                return null;
+            }
+
+            $content = $response->json()['choices'][0]['message']['content'] ?? '';
+            $content = preg_replace('/^```(?:json)?\s*/i', '', trim($content));
+            $content = preg_replace('/\s*```$/', '', $content);
+            $parsed = json_decode(trim($content), true);
+
+            return is_array($parsed) ? $parsed : null;
+
+        } catch (\Exception $e) {
+            Log::error('OpenAI Adjust Recommendation Exception', ['error' => $e->getMessage()]);
+            return null;
         }
     }
 
