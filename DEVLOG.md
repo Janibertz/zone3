@@ -2,6 +2,31 @@
 
 ## Abgeschlossen
 
+### 2026-04-17 — Dashboard Prio 3: Visual Polish
+
+- **Größere KPI-Zahlen** im Hero-Block: `text-3xl font-black` statt `text-xl`, `uppercase tracking-wider` Labels — Garmin-Connect-Stil mit deutlich mehr visuellem Gewicht
+- **Activity-Type-Icons:** `activityTypeIcon(type)`-Funktion gibt typspezifische Emojis zurück (🏃 Laufen, 🚴 Radfahren, 🏊 Schwimmen, 🚶 Gehen, 🥾 Wandern, 💪 Workout etc.); Icon erscheint links neben Aktivitätsnamen in "Letzte Läufe"
+- **Ring-Progress beim Event-Countdown:** Kreisförmiger SVG-Ring ersetzt den Priority-Badge-Block bei "Nächste Events"; Füllstand zeigt wie nah das Event ist (0–180-Tage-Skala); Farbverlauf Indigo → Amber → Orange → Rot je näher das Rennen rückt; Prioritätsbuchstabe (A/B/C) bleibt im Mittelpunkt des Rings
+
+### 2026-04-17 — Dashboard Prio 2: Layout-Restrukturierung + Hero-Karte
+
+- **"Heute"-Block nach oben** verschoben — wichtigste Info (heutige Trainingseinheit) erscheint direkt nach den Flash-Bannern, noch vor Hero + Kalender
+- **"Kein aktiver Plan"-Banner** ebenfalls nach oben gezogen — direkt vor dem Heute-Block
+- **Profil + Stats zu einer Hero-Karte gemergt** (`lg:col-span-8`):
+  - Dunkles Gradient-Header: Avatar / Name / Strava-Status / Buttons in einer Zeile
+  - Zeile 2: Wochenstats-KPIs (km, Läufe, Ø Pace) + 7-Tage-Balkendiagramm nebeneinander
+  - Heller Footer: Letzte 6 Läufe im 2-Spalten-Grid
+- **Kalender** bleibt bei `lg:col-span-4` rechts daneben
+
+### 2026-04-16 — Dashboard Bugfixes: Bewertungen + Strava-Namen + Duplikate
+
+- **Bewertete Sessions weiterhin angezeigt (Root Cause 1):** `TrainingPlanController::formatSession()` lieferte `rating`, `effort_perceived`, `feeling_notes` nicht mit → Plan.vue initialisierte alle auf 0/null → ungeschützter Save-Button resetzte Bewertung auf null beim Öffnen; Fix: Felder in `formatSession()` ergänzt, Save-Button in Plan.vue deaktiviert wenn alle Felder leer
+- **Bewertete Sessions weiterhin angezeigt (Root Cause 2):** Plan-Neugenerierung erstellte Duplikate — `alreadyLinked`-Check war plan-scoped, fand abgetrennte Sessions (training_plan_id=null nach nullOnDelete) nicht; Fix: Check auf user-wide umgestellt, bestehende Session wird re-linked statt neu erstellt
+- **Cleanup-Migration** `2026_04_16_200000`: bereinigt vorhandene Duplikate (pro user_id+activity_id Gruppe: bewertete/älteste behalten, Rest gelöscht)
+- **"Ungeplante Einheit" → Strava-Name:** `title`-Feld in allen 4 Erstellungs-Stellen (StravaController webhook + sync je 2×, TrainingPlanController retroaktives Matching) auf `$activity->name` / `$run->name` geändert
+- **Migration** `2026_04_16_210000`: benennt bestehende "Ungeplante Einheit"-Einträge per SQL-UPDATE auf den echten Strava-Namen um
+- **Inline-Rating vom Dashboard:** "Noch zu bewerten"-Karte zeigt klappbare Bewertungs-UI direkt auf dem Dashboard — Sterne (1–5), RPE (1–10), Freitext; PATCH an `/training-sessions/{id}/rate`; optimistisches Update (bereits bewertete IDs local gefiltert ohne Reload)
+
 ### 2026-04-09 — Strava Auto-Import + Session-Bewertung + KI-Lernschleife
 
 - **Strava Webhook Registrierung:** Neuer Artisan-Command `strava:subscribe-webhook` registriert automatisch die Webhook-Subscription bei Strava. Env-Variablen `STRAVA_WEBHOOK_CALLBACK_URL` und `STRAVA_WEBHOOK_VERIFY_TOKEN` ergänzt

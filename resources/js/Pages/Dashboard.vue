@@ -456,6 +456,33 @@ function formatTime(seconds) {
     return `${minutes}m ${secs}s`;
 }
 
+function activityTypeIcon(type) {
+    const icons = {
+        Run: '🏃', VirtualRun: '🏃',
+        Ride: '🚴', VirtualRide: '🚴', EBikeRide: '🚴',
+        Swim: '🏊',
+        Walk: '🚶', Hike: '🥾',
+        Workout: '💪', WeightTraining: '💪',
+        Yoga: '🧘',
+        Ski: '⛷️', AlpineSki: '⛷️', NordicSki: '🎿',
+        Rowing: '🚣', Kayaking: '🚣',
+        Soccer: '⚽', Tennis: '🎾',
+    };
+    return icons[type] ?? '🏃';
+}
+
+function eventRingProps(daysUntil) {
+    const progress = Math.min(1, Math.max(0, (180 - daysUntil) / 180));
+    const circumference = 2 * Math.PI * 14; // r=14
+    const dashOffset = circumference * (1 - progress);
+    let ringClass, labelClass;
+    if (daysUntil <= 14)  { ringClass = 'text-red-400';    labelClass = 'text-red-300'; }
+    else if (daysUntil <= 60)  { ringClass = 'text-orange-400'; labelClass = 'text-orange-300'; }
+    else if (daysUntil <= 120) { ringClass = 'text-amber-400';  labelClass = 'text-amber-300'; }
+    else                       { ringClass = 'text-indigo-300'; labelClass = 'text-indigo-200'; }
+    return { circumference, dashOffset, ringClass, labelClass };
+}
+
 
 function formatPaceFromSpeed(metersPerSecond) {
     if (!metersPerSecond || metersPerSecond <= 0) return '—';
@@ -879,17 +906,17 @@ function syncStrava() {
                                 <!-- KPIs + Monats-Total -->
                                 <div class="space-y-2">
                                     <div class="grid grid-cols-3 gap-2">
-                                        <div class="rounded-xl bg-white/10 p-2.5 text-center">
-                                            <p class="text-xl font-black text-white tabular-nums">{{ weekStats.km }}</p>
-                                            <p class="text-[10px] text-indigo-200 font-medium mt-0.5">km</p>
+                                        <div class="rounded-xl bg-white/10 p-3 text-center">
+                                            <p class="text-3xl font-black text-white tabular-nums leading-none">{{ weekStats.km }}</p>
+                                            <p class="text-[10px] text-indigo-200 font-semibold uppercase tracking-wider mt-1">km / Wo.</p>
                                         </div>
-                                        <div class="rounded-xl bg-white/10 p-2.5 text-center">
-                                            <p class="text-xl font-black text-white">{{ weekStats.runs }}</p>
-                                            <p class="text-[10px] text-indigo-200 font-medium mt-0.5">Läufe</p>
+                                        <div class="rounded-xl bg-white/10 p-3 text-center">
+                                            <p class="text-3xl font-black text-white leading-none">{{ weekStats.runs }}</p>
+                                            <p class="text-[10px] text-indigo-200 font-semibold uppercase tracking-wider mt-1">Läufe</p>
                                         </div>
-                                        <div class="rounded-xl bg-white/10 p-2.5 text-center">
-                                            <p class="text-xl font-black text-white tabular-nums">{{ weekStats.avgPace }}</p>
-                                            <p class="text-[10px] text-indigo-200 font-medium mt-0.5">Ø Pace</p>
+                                        <div class="rounded-xl bg-white/10 p-3 text-center">
+                                            <p class="text-3xl font-black text-white tabular-nums leading-none">{{ weekStats.avgPace }}</p>
+                                            <p class="text-[10px] text-indigo-200 font-semibold uppercase tracking-wider mt-1">Ø Pace</p>
                                         </div>
                                     </div>
                                     <div class="rounded-xl bg-white/5 px-3 py-2 flex items-center justify-between">
@@ -945,7 +972,10 @@ function syncStrava() {
                                     class="rounded-xl px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-800/70 text-left transition-colors group border border-transparent hover:border-gray-100 dark:hover:border-slate-700"
                                 >
                                     <div class="flex items-start justify-between gap-2 mb-1.5">
-                                        <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate leading-tight">{{ activity.name }}</p>
+                                        <div class="flex items-center gap-1.5 min-w-0">
+                                            <span class="text-base leading-none shrink-0">{{ activityTypeIcon(activity.type) }}</span>
+                                            <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate leading-tight">{{ activity.name }}</p>
+                                        </div>
                                         <span class="text-[11px] text-gray-400 dark:text-slate-500 flex-shrink-0">{{ relativeDate(activity.start_date) }}</span>
                                     </div>
                                     <div class="flex flex-wrap gap-1.5">
@@ -1046,14 +1076,24 @@ function syncStrava() {
                                 <a v-for="event in props.events.slice(0, 3)" :key="event.id"
                                     href="/events"
                                     class="flex items-center gap-3 rounded-xl bg-gray-50 dark:bg-slate-800 p-2.5 border border-gray-100 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-500/40 transition-colors">
-                                    <div class="flex-shrink-0">
-                                        <div class="h-9 w-9 rounded-lg flex items-center justify-center font-black text-sm"
-                                            :class="{
-                                                'bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400': event.priority === 'A',
-                                                'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-600 dark:text-yellow-400': event.priority === 'B',
-                                                'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400': event.priority === 'C',
-                                            }">
-                                            {{ event.priority }}
+                                    <div class="flex-shrink-0 relative h-10 w-10">
+                                        <svg viewBox="0 0 36 36" class="h-10 w-10 -rotate-90">
+                                            <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor"
+                                                stroke-width="3" class="text-gray-200 dark:text-slate-700" />
+                                            <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor"
+                                                stroke-width="3" stroke-linecap="round"
+                                                :stroke-dasharray="eventRingProps(event.days_until).circumference"
+                                                :stroke-dashoffset="eventRingProps(event.days_until).dashOffset"
+                                                :class="eventRingProps(event.days_until).ringClass"
+                                            />
+                                        </svg>
+                                        <div class="absolute inset-0 flex items-center justify-center">
+                                            <span class="text-[11px] font-black"
+                                                :class="{
+                                                    'text-red-500 dark:text-red-400':    event.priority === 'A',
+                                                    'text-yellow-500 dark:text-yellow-400': event.priority === 'B',
+                                                    'text-gray-400 dark:text-slate-500':  event.priority === 'C',
+                                                }">{{ event.priority }}</span>
                                         </div>
                                     </div>
                                     <div class="flex-1 min-w-0">
