@@ -71,6 +71,10 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    todayRecommendationSession: {
+        type: Object,
+        default: null,
+    },
     trainingLoad: {
         type: Object,
         default: null,
@@ -458,6 +462,44 @@ function formatTime(seconds) {
     if (hours > 0) return `${hours}h ${minutes}m`;
     return `${minutes}m ${secs}s`;
 }
+
+// ── Workout-Struktur für angenommene Empfehlung ──────────────────────────────
+function parsePaceToSec(paceStr) {
+    if (!paceStr || paceStr === 'null') return null;
+    const parts = paceStr.split(':');
+    if (parts.length !== 2) return null;
+    return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+}
+function secToPaceStr(sec) {
+    const m = Math.floor(sec / 60);
+    const s = Math.round(sec % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+}
+function recommendationWorkoutSteps(session) {
+    if (!session || session.type === 'rest') return [];
+    const distKm = session.distance_km || 5;
+    const paceSecPerKm = parsePaceToSec(session.pace_target);
+    const easySecPerKm = paceSecPerKm ? paceSecPerKm + 60 : null;
+    const easyPaceStr  = easySecPerKm ? secToPaceStr(easySecPerKm) : null;
+    const configs = {
+        easy_run:  { wF: 0.10, wMax: 1.0, cF: 0.10, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Leichtes Einlaufen',           mName: 'Hauptteil',  mLabel: 'Lockeres Dauertempo',      cName: 'Auslaufen', cLabel: 'Leichtes Auslaufen'  },
+        tempo_run: { wF: 0.25, wMax: 2.0, cF: 0.12, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Lockeres Einlaufen',           mName: 'Hauptteil',  mLabel: 'Tempodauerlauf',           cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
+        interval:  { wF: 0.20, wMax: 2.0, cF: 0.10, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Lockeres Einlaufen',           mName: 'Intervalle', mLabel: 'Intervallarbeit',          cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
+        long_run:  { wF: 0.05, wMax: 1.0, cF: 0.05, cMax: 1.0, wName: 'Einlaufen',  wLabel: 'Leichtes Einlaufen',           mName: 'Hauptteil',  mLabel: 'Langer gleichmäßiger Lauf',cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
+        race_prep: { wF: 0.30, wMax: 2.0, cF: 0.15, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Einlaufen + Strides',          mName: 'Hauptteil',  mLabel: 'Renntempo-Abschnitte',     cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
+    };
+    const cfg = configs[session.type] || configs['easy_run'];
+    const warmupKm   = Math.min(cfg.wMax, distKm * cfg.wF);
+    const cooldownKm = Math.min(cfg.cMax, distKm * cfg.cF);
+    const mainKm     = Math.max(0, distKm - warmupKm - cooldownKm);
+    return [
+        { phase: cfg.wName, label: cfg.wLabel, km: Math.round(warmupKm * 10) / 10,   pace: easyPaceStr, color: 'green' },
+        { phase: cfg.mName, label: cfg.mLabel, km: Math.round(mainKm * 10) / 10,     pace: session.pace_target && session.pace_target !== 'null' ? session.pace_target : easyPaceStr, color: 'main' },
+        { phase: cfg.cName, label: cfg.cLabel, km: Math.round(cooldownKm * 10) / 10, pace: easyPaceStr, color: 'blue'  },
+    ];
+}
+
+const showRecommendationDetail = ref(false);
 
 function activityTypeIcon(type) {
     const icons = {
@@ -858,120 +900,204 @@ function syncStrava() {
                     <template v-else>
                         <div class="flex items-center justify-between mb-4">
                             <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">🧭 Trainings-Empfehlung für heute</h4>
-                            <button @click="getTodayRecommendation"
-                                class="text-xs text-indigo-600 font-medium hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-md px-2 py-1 transition-colors">
+                            <button v-if="!props.todayRecommendationSession" @click="getTodayRecommendation"
+                                class="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-800 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 rounded-md px-2 py-1 transition-colors">
                                 Aktualisieren
                             </button>
                         </div>
-                        <div v-if="recommendationLoading" class="flex items-center gap-3 text-gray-500 py-4">
-                            <span class="text-xl">⏳</span>
-                            <span class="text-sm">Empfehlung wird geladen...</span>
-                        </div>
-                        <div v-else-if="recommendationError" class="rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 p-4 text-sm text-red-700 dark:text-red-400">
-                            {{ recommendationError }}
-                        </div>
 
-                        <!-- ── Empfehlung: Erfolg nach Annehmen ── -->
-                        <div v-else-if="recommendationAccepted" class="rounded-xl bg-green-50 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20 p-4 flex items-center gap-3">
-                            <div class="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center shrink-0 text-white text-base">✓</div>
-                            <div>
-                                <p class="text-sm font-semibold text-green-800 dark:text-green-300">Einheit gespeichert!</p>
-                                <p class="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                                    <strong>{{ trainingRecommendation?.title }}</strong> wurde in deinen Kalender eingetragen.
-                                </p>
-                            </div>
-                        </div>
-
-                        <!-- ── Empfehlung: Strukturierte Karte ── -->
-                        <div v-else-if="showRecommendation && trainingRecommendation" class="space-y-3">
+                        <!-- ══ Bereits angenommene Empfehlung (nach Reload) ══ -->
+                        <div v-if="props.todayRecommendationSession" class="space-y-3">
                             <!-- Session-Karte -->
                             <div class="rounded-xl border overflow-hidden" :class="{
-                                'border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10':   trainingRecommendation.type === 'easy_run',
-                                'border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10':  trainingRecommendation.type === 'tempo_run',
-                                'border-red-100 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10':          trainingRecommendation.type === 'interval',
-                                'border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10':      trainingRecommendation.type === 'long_run',
-                                'border-indigo-100 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10': trainingRecommendation.type === 'race_prep',
-                                'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800':          trainingRecommendation.type === 'rest',
+                                'border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10':    props.todayRecommendationSession.type === 'easy_run',
+                                'border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10':   props.todayRecommendationSession.type === 'tempo_run',
+                                'border-red-100 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10':           props.todayRecommendationSession.type === 'interval',
+                                'border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10':       props.todayRecommendationSession.type === 'long_run',
+                                'border-indigo-100 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10': props.todayRecommendationSession.type === 'race_prep',
+                                'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800':           props.todayRecommendationSession.type === 'rest',
                             }">
                                 <div class="px-4 py-3">
                                     <div class="flex items-start justify-between gap-2 mb-1">
                                         <p class="font-semibold text-sm" :class="{
-                                            'text-green-700 dark:text-green-400':   trainingRecommendation.type === 'easy_run',
-                                            'text-amber-700 dark:text-amber-400':  trainingRecommendation.type === 'tempo_run',
-                                            'text-red-700 dark:text-red-400':      trainingRecommendation.type === 'interval',
-                                            'text-blue-700 dark:text-blue-400':    trainingRecommendation.type === 'long_run',
-                                            'text-indigo-700 dark:text-indigo-400': trainingRecommendation.type === 'race_prep',
-                                            'text-gray-500 dark:text-slate-400':   trainingRecommendation.type === 'rest',
-                                        }">{{ trainingRecommendation.title }}</p>
-                                        <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 shrink-0">KI-Empfehlung</span>
+                                            'text-green-700 dark:text-green-400':    props.todayRecommendationSession.type === 'easy_run',
+                                            'text-amber-700 dark:text-amber-400':   props.todayRecommendationSession.type === 'tempo_run',
+                                            'text-red-700 dark:text-red-400':        props.todayRecommendationSession.type === 'interval',
+                                            'text-blue-700 dark:text-blue-400':      props.todayRecommendationSession.type === 'long_run',
+                                            'text-indigo-700 dark:text-indigo-400':  props.todayRecommendationSession.type === 'race_prep',
+                                            'text-gray-500 dark:text-slate-400':     props.todayRecommendationSession.type === 'rest',
+                                        }">{{ props.todayRecommendationSession.title }}</p>
+                                        <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 shrink-0">✓ Geplant</span>
                                     </div>
-                                    <p class="text-xs text-gray-500 dark:text-slate-400 leading-relaxed mb-2.5">{{ trainingRecommendation.description }}</p>
-                                    <div v-if="trainingRecommendation.type !== 'rest'" class="flex flex-wrap gap-3">
-                                        <span v-if="trainingRecommendation.distance_km" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
+                                    <p class="text-xs text-gray-500 dark:text-slate-400 leading-relaxed mb-2.5">{{ props.todayRecommendationSession.description }}</p>
+                                    <div v-if="props.todayRecommendationSession.type !== 'rest'" class="flex flex-wrap gap-3">
+                                        <span v-if="props.todayRecommendationSession.distance_km" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
                                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c-.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" /></svg>
-                                            {{ trainingRecommendation.distance_km }} km
+                                            {{ props.todayRecommendationSession.distance_km }} km
                                         </span>
-                                        <span v-if="trainingRecommendation.duration_min" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
+                                        <span v-if="props.todayRecommendationSession.duration_min" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
                                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
-                                            {{ trainingRecommendation.duration_min }} min
+                                            {{ props.todayRecommendationSession.duration_min }} min
                                         </span>
-                                        <span v-if="trainingRecommendation.pace_target" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
+                                        <span v-if="props.todayRecommendationSession.pace_target" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
                                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg>
-                                            {{ trainingRecommendation.pace_target }} min/km
+                                            {{ props.todayRecommendationSession.pace_target }} min/km
                                         </span>
-                                        <span v-if="trainingRecommendation.zone" class="text-xs font-medium px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300">Zone {{ trainingRecommendation.zone }}</span>
+                                        <span v-if="props.todayRecommendationSession.zone" class="text-xs font-medium px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300">Zone {{ props.todayRecommendationSession.zone }}</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Aktions-Buttons -->
-                            <div class="grid grid-cols-3 gap-2">
-                                <!-- Softer -->
+                            <!-- Workout-Struktur (aufklappbar) -->
+                            <div v-if="props.todayRecommendationSession.type !== 'rest'" class="rounded-xl border border-gray-100 dark:border-slate-700 overflow-hidden">
                                 <button
-                                    @click="adjustRecommendation('softer')"
-                                    :disabled="adjustingDirection !== null || acceptingRecommendation"
-                                    class="flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-xs font-semibold text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors"
+                                    @click="showRecommendationDetail = !showRecommendationDetail"
+                                    class="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-left"
                                 >
-                                    <span v-if="adjustingDirection === 'softer'" class="h-3.5 w-3.5 rounded-full border-2 border-gray-400 border-t-transparent animate-spin"></span>
-                                    <span v-else>↓</span>
-                                    Softer
+                                    <span class="text-xs font-semibold text-gray-600 dark:text-slate-300 uppercase tracking-wider">Trainingsstruktur</span>
+                                    <svg class="h-4 w-4 text-gray-400 transition-transform duration-200" :class="showRecommendationDetail ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                                    </svg>
                                 </button>
+                                <div v-if="showRecommendationDetail" class="divide-y divide-gray-100 dark:divide-slate-700/50">
+                                    <div v-for="step in recommendationWorkoutSteps(props.todayRecommendationSession)" :key="step.phase"
+                                        class="flex items-center gap-3 px-4 py-2.5">
+                                        <div class="h-2 w-2 rounded-full shrink-0"
+                                            :class="{
+                                                'bg-green-400': step.color === 'green',
+                                                'bg-indigo-500': step.color === 'main',
+                                                'bg-blue-400': step.color === 'blue',
+                                            }"></div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-xs font-semibold text-gray-700 dark:text-slate-200">{{ step.phase }}</p>
+                                            <p class="text-xs text-gray-400 dark:text-slate-500">{{ step.label }}</p>
+                                        </div>
+                                        <div class="text-right shrink-0">
+                                            <p class="text-xs font-semibold text-gray-700 dark:text-slate-200 tabular-nums">{{ step.km }} km</p>
+                                            <p v-if="step.pace" class="text-xs text-gray-400 dark:text-slate-500 tabular-nums">{{ step.pace }} /km</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
-                                <!-- Einheit annehmen -->
-                                <button
-                                    @click="acceptRecommendation()"
-                                    :disabled="acceptingRecommendation || adjustingDirection !== null"
-                                    class="flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 px-3 py-2.5 text-xs font-semibold text-white transition-colors"
-                                >
-                                    <span v-if="acceptingRecommendation" class="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin"></span>
-                                    <span v-else>✓</span>
-                                    Annehmen
-                                </button>
-
-                                <!-- Härter -->
-                                <button
-                                    @click="adjustRecommendation('harder')"
-                                    :disabled="adjustingDirection !== null || acceptingRecommendation"
-                                    class="flex items-center justify-center gap-1.5 rounded-xl border border-orange-200 dark:border-orange-500/30 bg-orange-50 dark:bg-orange-500/10 px-3 py-2.5 text-xs font-semibold text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20 disabled:opacity-40 transition-colors"
-                                >
-                                    <span v-if="adjustingDirection === 'harder'" class="h-3.5 w-3.5 rounded-full border-2 border-orange-400 border-t-transparent animate-spin"></span>
-                                    <span v-else>↑</span>
-                                    Härter
-                                </button>
+                            <!-- Aktions-Buttons: Detail + Export -->
+                            <div class="flex items-center gap-2">
+                                <a :href="route('training-sessions.download', props.todayRecommendationSession.id)"
+                                    class="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-3 py-2.5 text-xs font-semibold text-white transition-colors">
+                                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                    </svg>
+                                    .fit herunterladen
+                                </a>
                             </div>
                         </div>
 
-                        <div v-else-if="recommendationHint" class="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 p-4">
-                            <p class="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-1">Hinweis</p>
-                            <p class="text-sm text-amber-700 dark:text-amber-400">{{ recommendationHint }}</p>
-                            <button @click="showWellbeingModal = true"
-                                class="mt-3 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition-colors">
-                                Jetzt Wellbeing eintragen
-                            </button>
-                        </div>
-                        <div v-else class="text-sm text-gray-400 dark:text-slate-500 text-center py-8">
-                            Noch keine Empfehlung verfügbar.
-                        </div>
+                        <!-- ══ Empfehlung wird geladen / angezeigt ══ -->
+                        <template v-else>
+                            <div v-if="recommendationLoading" class="flex items-center gap-3 text-gray-500 dark:text-slate-400 py-4">
+                                <span class="text-xl">⏳</span>
+                                <span class="text-sm">Empfehlung wird geladen...</span>
+                            </div>
+                            <div v-else-if="recommendationError" class="rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 p-4 text-sm text-red-700 dark:text-red-400">
+                                {{ recommendationError }}
+                            </div>
+
+                            <!-- Erfolg nach Annehmen (noch auf gleicher Seite) -->
+                            <div v-else-if="recommendationAccepted" class="rounded-xl bg-green-50 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20 p-4 flex items-center gap-3">
+                                <div class="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center shrink-0 text-white text-base">✓</div>
+                                <div>
+                                    <p class="text-sm font-semibold text-green-800 dark:text-green-300">Einheit gespeichert!</p>
+                                    <p class="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                                        <strong>{{ trainingRecommendation?.title }}</strong> wurde in deinen Kalender eingetragen.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Strukturierte Empfehlungs-Karte -->
+                            <div v-else-if="showRecommendation && trainingRecommendation" class="space-y-3">
+                                <div class="rounded-xl border overflow-hidden" :class="{
+                                    'border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10':    trainingRecommendation.type === 'easy_run',
+                                    'border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10':   trainingRecommendation.type === 'tempo_run',
+                                    'border-red-100 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10':           trainingRecommendation.type === 'interval',
+                                    'border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10':       trainingRecommendation.type === 'long_run',
+                                    'border-indigo-100 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10': trainingRecommendation.type === 'race_prep',
+                                    'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800':           trainingRecommendation.type === 'rest',
+                                }">
+                                    <div class="px-4 py-3">
+                                        <div class="flex items-start justify-between gap-2 mb-1">
+                                            <p class="font-semibold text-sm" :class="{
+                                                'text-green-700 dark:text-green-400':    trainingRecommendation.type === 'easy_run',
+                                                'text-amber-700 dark:text-amber-400':   trainingRecommendation.type === 'tempo_run',
+                                                'text-red-700 dark:text-red-400':        trainingRecommendation.type === 'interval',
+                                                'text-blue-700 dark:text-blue-400':      trainingRecommendation.type === 'long_run',
+                                                'text-indigo-700 dark:text-indigo-400':  trainingRecommendation.type === 'race_prep',
+                                                'text-gray-500 dark:text-slate-400':     trainingRecommendation.type === 'rest',
+                                            }">{{ trainingRecommendation.title }}</p>
+                                            <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 shrink-0">KI-Empfehlung</span>
+                                        </div>
+                                        <p class="text-xs text-gray-500 dark:text-slate-400 leading-relaxed mb-2.5">{{ trainingRecommendation.description }}</p>
+                                        <div v-if="trainingRecommendation.type !== 'rest'" class="flex flex-wrap gap-3">
+                                            <span v-if="trainingRecommendation.distance_km" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
+                                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c-.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" /></svg>
+                                                {{ trainingRecommendation.distance_km }} km
+                                            </span>
+                                            <span v-if="trainingRecommendation.duration_min" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
+                                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
+                                                {{ trainingRecommendation.duration_min }} min
+                                            </span>
+                                            <span v-if="trainingRecommendation.pace_target" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
+                                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg>
+                                                {{ trainingRecommendation.pace_target }} min/km
+                                            </span>
+                                            <span v-if="trainingRecommendation.zone" class="text-xs font-medium px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300">Zone {{ trainingRecommendation.zone }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Aktions-Buttons -->
+                                <div class="grid grid-cols-3 gap-2">
+                                    <button
+                                        @click="adjustRecommendation('softer')"
+                                        :disabled="adjustingDirection !== null || acceptingRecommendation"
+                                        class="flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-xs font-semibold text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors"
+                                    >
+                                        <span v-if="adjustingDirection === 'softer'" class="h-3.5 w-3.5 rounded-full border-2 border-gray-400 border-t-transparent animate-spin"></span>
+                                        <span v-else class="text-base leading-none">🧘</span>
+                                        Lockerer
+                                    </button>
+                                    <button
+                                        @click="acceptRecommendation()"
+                                        :disabled="acceptingRecommendation || adjustingDirection !== null"
+                                        class="flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 px-3 py-2.5 text-xs font-semibold text-white transition-colors"
+                                    >
+                                        <span v-if="acceptingRecommendation" class="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin"></span>
+                                        <span v-else>✓</span>
+                                        Einplanen
+                                    </button>
+                                    <button
+                                        @click="adjustRecommendation('harder')"
+                                        :disabled="adjustingDirection !== null || acceptingRecommendation"
+                                        class="flex items-center justify-center gap-1.5 rounded-xl border border-orange-200 dark:border-orange-500/30 bg-orange-50 dark:bg-orange-500/10 px-3 py-2.5 text-xs font-semibold text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20 disabled:opacity-40 transition-colors"
+                                    >
+                                        <span v-if="adjustingDirection === 'harder'" class="h-3.5 w-3.5 rounded-full border-2 border-orange-400 border-t-transparent animate-spin"></span>
+                                        <span v-else class="text-base leading-none">🔥</span>
+                                        Intensiver
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div v-else-if="recommendationHint" class="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 p-4">
+                                <p class="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-1">Hinweis</p>
+                                <p class="text-sm text-amber-700 dark:text-amber-400">{{ recommendationHint }}</p>
+                                <button @click="showWellbeingModal = true"
+                                    class="mt-3 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition-colors">
+                                    Jetzt Wellbeing eintragen
+                                </button>
+                            </div>
+                            <div v-else class="text-sm text-gray-400 dark:text-slate-500 text-center py-8">
+                                Noch keine Empfehlung verfügbar.
+                            </div>
+                        </template>
                     </template>
                 </div>
 

@@ -139,6 +139,30 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         }
     }
 
+    // Standalone recommendation session (accepted by user, no active plan)
+    $todayRecommendationSession = null;
+    if (! $activePlan) {
+        $sr = TrainingSession::where('user_id', $user->id)
+            ->where('planned_date', $todayStr)
+            ->whereNull('training_plan_id')
+            ->orderBy('sort_order')
+            ->first();
+        if ($sr) {
+            $todayRecommendationSession = [
+                'id'           => $sr->id,
+                'type'         => $sr->type,
+                'title'        => $sr->title,
+                'description'  => $sr->description,
+                'distance_km'  => $sr->distance_km,
+                'duration_min' => $sr->duration_min,
+                'pace_target'  => $sr->pace_target,
+                'zone'         => $sr->zone,
+                'intensity'    => $sr->intensity,
+                'status'       => $sr->status,
+            ];
+        }
+    }
+
     return Inertia::render('Dashboard', [
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
@@ -160,6 +184,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         'thresholdPaceCalculating' => (bool) ($runnerProfile?->threshold_pace_calculating),
         'syncResult' => session('sync_result'),
         'todayPlanSession' => $todayPlanSession,
+        'todayRecommendationSession' => $todayRecommendationSession,
         'hasActivePlan' => (bool) $activePlan,
         'hasWellbeingToday' => $user->wellbeingEntries()
             ->where('date', now()->toDateString())
