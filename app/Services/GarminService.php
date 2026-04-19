@@ -27,7 +27,10 @@ class GarminService
             ]);
             return $response->json();
         } catch (\Throwable $e) {
-            return ['ok' => false, 'error' => $e->getMessage()];
+            $msg = str_contains($e->getMessage(), 'Connection refused') || str_contains($e->getMessage(), 'Failed to connect')
+                ? 'Garmin-Service läuft noch nicht. Bitte warte kurz und versuche es erneut.'
+                : $e->getMessage();
+            return ['ok' => false, 'error' => $msg];
         }
     }
 
