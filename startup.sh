@@ -17,7 +17,7 @@ apt-get install -y -q python3 python3-pip 2>/dev/null || true
 PYTHON=$(command -v python3 || command -v python || echo "")
 if [ -n "$PYTHON" ]; then
   PIP=$(command -v pip3 || command -v pip || echo "")
-  [ -n "$PIP" ] && $PIP install -q -r garmin_service/requirements.txt 2>&1 | tail -3 || true
+  [ -n "$PIP" ] && $PIP install -q --break-system-packages -r garmin_service/requirements.txt 2>&1 | tail -3 || true
 
   echo "[startup] Starting Garmin microservice on port 8001..."
   (
