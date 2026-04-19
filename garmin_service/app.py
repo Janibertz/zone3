@@ -99,11 +99,15 @@ def build_workout_payload(session: dict) -> dict:
     }
 
 
-def get_garth_client(email: str, password: str) -> garth.Client:
-    """Return an authenticated garth client."""
-    client = garth.Client()
-    client.login(email, password)
-    return client
+_client_cache: dict[str, garth.Client] = {}
+
+def get_garth_client(email: str, password: str, force_relogin: bool = False) -> garth.Client:
+    """Return a cached authenticated garth client, re-login only when needed."""
+    if force_relogin or email not in _client_cache:
+        client = garth.Client()
+        client.login(email, password)
+        _client_cache[email] = client
+    return _client_cache[email]
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -118,12 +122,15 @@ def test_connection():
     data = request.get_json()
     email    = data.get('email', '')
     password = data.get('password', '')
-    try:
-        client = get_garth_client(email, password)
-        profile = client.connectapi('/userprofile-service/userprofile/personal-information')
-        return jsonify({'ok': True, 'display_name': profile.get('displayName', '')})
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 400
+    for attempt in range(2):
+        try:
+            client  = get_garth_client(email, password, force_relogin=(attempt > 0))
+            profile = client.connectapi('/userprofile-service/userprofile/personal-information')
+            return jsonify({'ok': True, 'display_name': profile.get('displayName', '')})
+        except Exception as e:
+            if attempt == 0 and ('401' in str(e) or 'Unauthorized' in str(e)):
+                continue
+            return jsonify({'ok': False, 'error': str(e)}), 400
 
 
 @app.route('/push-session', methods=['POST'])
