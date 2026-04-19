@@ -12,7 +12,8 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-echo "[startup] Installing Python Garmin service dependencies..."
+echo "[startup] Installing Python for Garmin service..."
+apt-get install -y -q python3 python3-pip 2>/dev/null || true
 PYTHON=$(command -v python3 || command -v python || echo "")
 if [ -n "$PYTHON" ]; then
   PIP=$(command -v pip3 || command -v pip || echo "")
