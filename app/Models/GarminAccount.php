@@ -10,6 +10,7 @@ class GarminAccount extends Model
     protected $fillable = [
         'user_id',
         'email',
+        'password',
         'password_encrypted',
         'cookies',
         'cookies_expire_at',
