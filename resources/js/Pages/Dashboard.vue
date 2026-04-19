@@ -501,6 +501,20 @@ function recommendationWorkoutSteps(session) {
 
 const showRecommendationDetail = ref(false);
 
+const recNutritionTips    = ref(null);
+const recNutritionLoading = ref(false);
+const recNutritionError   = ref('');
+
+onMounted(() => {
+    if (props.todayRecommendationSession && props.todayRecommendationSession.type !== 'rest') {
+        recNutritionLoading.value = true;
+        axios.get(route('training-sessions.nutrition-tips', props.todayRecommendationSession.id))
+            .then(({ data }) => { recNutritionTips.value = data; })
+            .catch(() => { recNutritionError.value = 'Verpflegungstipps konnten nicht geladen werden.'; })
+            .finally(() => { recNutritionLoading.value = false; });
+    }
+});
+
 function activityTypeIcon(type) {
     const icons = {
         Run: '🏃', VirtualRun: '🏃',
@@ -975,6 +989,58 @@ function syncStrava() {
                                         <div class="text-right shrink-0">
                                             <p class="text-xs font-semibold text-gray-700 dark:text-slate-200 tabular-nums">{{ step.km }} km</p>
                                             <p v-if="step.pace" class="text-xs text-gray-400 dark:text-slate-500 tabular-nums">{{ step.pace }} /km</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- KI-Verpflegungsplan -->
+                            <div v-if="props.todayRecommendationSession.type !== 'rest'" class="rounded-xl border border-gray-100 dark:border-slate-700 overflow-hidden">
+                                <div class="px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border-b border-gray-100 dark:border-slate-700">
+                                    <span class="text-xs font-semibold text-gray-600 dark:text-slate-300 uppercase tracking-wider">KI-Verpflegungsplan</span>
+                                </div>
+                                <div class="px-4 py-3">
+                                    <div v-if="recNutritionLoading" class="flex items-center gap-3 py-2 text-sm text-gray-500 dark:text-slate-400">
+                                        <svg class="h-4 w-4 animate-spin shrink-0 text-indigo-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                        KI erstellt Verpflegungstipps…
+                                    </div>
+                                    <p v-else-if="recNutritionError" class="text-xs text-red-500 dark:text-red-400">{{ recNutritionError }}</p>
+                                    <div v-else-if="recNutritionTips" class="space-y-2">
+                                        <div class="rounded-xl border border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10 overflow-hidden">
+                                            <div class="flex items-center gap-2 px-3.5 py-2 border-b border-amber-100 dark:border-amber-500/20">
+                                                <span>🕐</span>
+                                                <span class="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wide">Vor dem Training</span>
+                                            </div>
+                                            <ul class="px-3.5 py-2.5 space-y-1.5">
+                                                <li v-for="tip in recNutritionTips.before" :key="tip.text" class="flex items-start gap-2 text-xs text-amber-900 dark:text-amber-200">
+                                                    <span class="shrink-0 leading-relaxed">{{ tip.icon }}</span>
+                                                    <span class="leading-relaxed">{{ tip.text }}</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        <div class="rounded-xl border border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10 overflow-hidden">
+                                            <div class="flex items-center gap-2 px-3.5 py-2 border-b border-blue-100 dark:border-blue-500/20">
+                                                <span>🏃</span>
+                                                <span class="text-xs font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide">Während des Trainings</span>
+                                            </div>
+                                            <ul class="px-3.5 py-2.5 space-y-1.5">
+                                                <li v-for="tip in recNutritionTips.during" :key="tip.text" class="flex items-start gap-2 text-xs text-blue-900 dark:text-blue-200">
+                                                    <span class="shrink-0 leading-relaxed">{{ tip.icon }}</span>
+                                                    <span class="leading-relaxed">{{ tip.text }}</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        <div class="rounded-xl border border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10 overflow-hidden">
+                                            <div class="flex items-center gap-2 px-3.5 py-2 border-b border-green-100 dark:border-green-500/20">
+                                                <span>✅</span>
+                                                <span class="text-xs font-bold text-green-800 dark:text-green-300 uppercase tracking-wide">Nach dem Training</span>
+                                            </div>
+                                            <ul class="px-3.5 py-2.5 space-y-1.5">
+                                                <li v-for="tip in recNutritionTips.after" :key="tip.text" class="flex items-start gap-2 text-xs text-green-900 dark:text-green-200">
+                                                    <span class="shrink-0 leading-relaxed">{{ tip.icon }}</span>
+                                                    <span class="leading-relaxed">{{ tip.text }}</span>
+                                                </li>
+                                            </ul>
                                         </div>
                                     </div>
                                 </div>
