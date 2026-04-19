@@ -23,7 +23,11 @@
       "Read(//c/Users/janan/.claude/projects/c--Users-janan-Desktop-zone3/**)",
       "Bash(php -r ' *)",
       "Bash(composer show *)",
-      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('scripts', {}\\).get\\('post-install-cmd', 'none'\\)\\)\")"
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('scripts', {}\\).get\\('post-install-cmd', 'none'\\)\\)\")",
+      "Bash(git rm *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\janan\\.claude\\projects\\c--Users-janan-Desktop-zone3\\memory"
     ]
   }
 }

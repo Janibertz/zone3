@@ -8,6 +8,11 @@ return new class extends Migration
 {
     public function up(): void
     {
+        Schema::dropIfExists('garmin_accounts');
+    }
+
+    public function down(): void
+    {
         Schema::create('garmin_accounts', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
@@ -17,13 +22,6 @@ return new class extends Migration
             $table->timestamp('cookies_expire_at')->nullable();
             $table->timestamp('connected_at')->nullable();
             $table->timestamps();
-
-            $table->unique('user_id');
         });
-    }
-
-    public function down(): void
-    {
-        Schema::dropIfExists('garmin_accounts');
     }
 };

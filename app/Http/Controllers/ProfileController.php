@@ -42,12 +42,6 @@ class ProfileController extends Controller
                 'notify_threshold_pace'   => (bool) ($user->notify_threshold_pace ?? true),
                 'notify_plan_updated'     => (bool) ($user->notify_plan_updated ?? true),
             ],
-            'garminConnected' => (bool) $user->garminAccount,
-            'garminAccount'  => $user->garminAccount ? [
-                'email'        => $user->garminAccount->email,
-                'connected_at' => $user->garminAccount->connected_at?->format('d.m.Y'),
-            ] : null,
-            'garminError'    => session('garmin_error'),
             'vapidPublicKey' => config('services.webpush.public_key'),
             'athleteStats' => [
                 'total_runs'      => (int) $stats->total_runs,

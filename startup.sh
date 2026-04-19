@@ -12,25 +12,6 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-echo "[startup] Installing Python for Garmin service..."
-apt-get install -y -q python3 python3-pip 2>/dev/null || true
-PYTHON=$(command -v python3 || command -v python || echo "")
-if [ -n "$PYTHON" ]; then
-  PIP=$(command -v pip3 || command -v pip || echo "")
-  [ -n "$PIP" ] && $PIP install -q --break-system-packages -r garmin_service/requirements.txt 2>&1 | tail -3 || true
-
-  echo "[startup] Starting Garmin microservice on port 8001..."
-  (
-    while true; do
-      $PYTHON garmin_service/app.py
-      echo "[garmin] Restarting Garmin service..."
-      sleep 3
-    done
-  ) &
-else
-  echo "[startup] WARNING: Python not found, Garmin sync disabled."
-fi
-
 echo "[startup] Starting queue worker in background..."
 # Restart-loop so the worker comes back up automatically if it exits
 (

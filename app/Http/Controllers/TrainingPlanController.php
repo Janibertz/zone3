@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Event;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
-use App\Services\GarminService;
 use App\Services\OpenAIService;
 use App\Services\TrainingLoadService;
 use App\Services\WebPushService;
@@ -414,16 +413,6 @@ class TrainingPlanController extends Controller
             ->map(fn ($s) => $this->formatSession($s))
             ->values()
             ->toArray();
-
-        // ── Push sessions to Garmin Connect (if connected) ──────────────────
-        $garminAccount = $user->garminAccount;
-        if ($garminAccount) {
-            try {
-                app(GarminService::class)->pushPlan($garminAccount, $sessions);
-            } catch (\Throwable $e) {
-                Log::warning('Garmin pushPlan failed', ['error' => $e->getMessage()]);
-            }
-        }
 
         // Notify user if they have push + plan-update notifications enabled
         $user = Auth::user();

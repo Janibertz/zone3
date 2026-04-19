@@ -47,11 +47,6 @@ class User extends Authenticatable
         return $this->hasOne(StravaAccount::class);
     }
 
-    public function garminAccount()
-    {
-        return $this->hasOne(\App\Models\GarminAccount::class);
-    }
-
     public function goals()
     {
         return $this->hasMany(Goal::class);
