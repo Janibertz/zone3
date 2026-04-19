@@ -20,7 +20,10 @@
       "Bash(npm list:*)",
       "Bash(grep -r \"rating\\\\|result\\\\|performance\\\\|outcome\" /c/Users/janan/Desktop/zone3/database/migrations/*.php)",
       "Bash(grep -v \"^$\")",
-      "Read(//c/Users/janan/.claude/projects/c--Users-janan-Desktop-zone3/**)"
+      "Read(//c/Users/janan/.claude/projects/c--Users-janan-Desktop-zone3/**)",
+      "Bash(php -r ' *)",
+      "Bash(composer show *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('scripts', {}\\).get\\('post-install-cmd', 'none'\\)\\)\")"
     ]
   }
 }

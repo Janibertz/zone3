@@ -12,6 +12,18 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
+echo "[startup] Installing Python Garmin service dependencies..."
+pip install -q -r garmin_service/requirements.txt 2>&1 | tail -3 || true
+
+echo "[startup] Starting Garmin microservice on port 8001..."
+(
+  while true; do
+    python3 garmin_service/app.py
+    echo "[garmin] Restarting Garmin service..."
+    sleep 3
+  done
+) &
+
 echo "[startup] Starting queue worker in background..."
 # Restart-loop so the worker comes back up automatically if it exits
 (

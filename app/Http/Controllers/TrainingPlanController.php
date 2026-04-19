@@ -418,14 +418,10 @@ class TrainingPlanController extends Controller
         // ── Push sessions to Garmin Connect (if connected) ──────────────────
         $garminAccount = $user->garminAccount;
         if ($garminAccount) {
-            $garmin = app(GarminService::class);
-            foreach ($sessions as $s) {
-                if (($s['type'] ?? '') === 'rest') continue;
-                try {
-                    $garmin->pushSession($garminAccount, $s);
-                } catch (\Throwable $e) {
-                    Log::warning('Garmin push failed for session', ['session' => $s['title'] ?? '', 'error' => $e->getMessage()]);
-                }
+            try {
+                app(GarminService::class)->pushPlan($garminAccount, $sessions);
+            } catch (\Throwable $e) {
+                Log::warning('Garmin pushPlan failed', ['error' => $e->getMessage()]);
             }
         }
 

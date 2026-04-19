@@ -17,24 +17,24 @@ class GarminController extends Controller
             'password' => 'required|string',
         ]);
 
-        try {
-            $cookies = $garmin->login($request->email, $request->password);
-        } catch (\Throwable $e) {
-            return redirect()->route('profile.edit')
-                ->with('status', 'garmin-error')
-                ->with('garmin_error', $e->getMessage());
-        }
-
+        // Save first so we can test
         $account = GarminAccount::updateOrCreate(
             ['user_id' => $request->user()->id],
             [
-                'email'             => $request->email,
-                'password'          => $request->password,
-                'cookies'           => $cookies,
-                'cookies_expire_at' => now()->addHours(23),
-                'connected_at'      => now(),
+                'email'        => $request->email,
+                'password'     => $request->password,
+                'connected_at' => now(),
             ]
         );
+
+        // Test credentials against Garmin via Python microservice
+        $result = $garmin->testConnection($account);
+        if (! ($result['ok'] ?? false)) {
+            $account->delete();
+            return redirect()->route('profile.edit')
+                ->with('status', 'garmin-error')
+                ->with('garmin_error', $result['error'] ?? 'Login fehlgeschlagen.');
+        }
 
         return redirect()->route('profile.edit')->with('status', 'garmin-connected');
     }
@@ -42,7 +42,6 @@ class GarminController extends Controller
     public function disconnect(Request $request): RedirectResponse
     {
         $request->user()->garminAccount?->delete();
-
         return redirect()->route('profile.edit')->with('status', 'garmin-disconnected');
     }
 
@@ -53,11 +52,10 @@ class GarminController extends Controller
             return response()->json(['ok' => false, 'message' => 'Nicht verbunden.']);
         }
 
-        try {
-            $garmin->ensureFreshSession($account);
-            return response()->json(['ok' => true]);
-        } catch (\Throwable $e) {
-            return response()->json(['ok' => false, 'message' => $e->getMessage()]);
-        }
+        $result = $garmin->testConnection($account);
+        return response()->json([
+            'ok'      => $result['ok'] ?? false,
+            'message' => $result['error'] ?? ($result['display_name'] ?? 'OK'),
+        ]);
     }
 }
