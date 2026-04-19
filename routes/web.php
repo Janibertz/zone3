@@ -13,6 +13,7 @@ use App\Http\Controllers\RunnerProfileController;
 use App\Models\TrainingSession;
 use App\Http\Controllers\StatisticsController;
 use App\Http\Controllers\StravaController;
+use App\Http\Controllers\GarminController;
 use App\Http\Controllers\WellbeingController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Models\Activity;
@@ -245,6 +246,10 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/strava/callback', [StravaController::class, 'callback'])->name('strava.callback');
     Route::post('/strava/sync', [StravaController::class, 'sync'])->name('strava.sync');
     Route::delete('/strava/disconnect', [StravaController::class, 'disconnect'])->name('strava.disconnect');
+
+    Route::post('/garmin/connect', [GarminController::class, 'connect'])->name('garmin.connect');
+    Route::delete('/garmin/disconnect', [GarminController::class, 'disconnect'])->name('garmin.disconnect');
+    Route::get('/garmin/test', [GarminController::class, 'test'])->name('garmin.test');
 
     Route::get('/activities', [ActivityController::class, 'index'])->name('activities.index');
     Route::get('/activities/{activity}', [ActivityController::class, 'show'])->name('activities.show');

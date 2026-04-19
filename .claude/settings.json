@@ -18,7 +18,9 @@
       "Bash(php -l app/Http/Controllers/ActivityController.php)",
       "Bash(php -l app/Http/Controllers/TrainingSessionController.php)",
       "Bash(npm list:*)",
-      "Bash(grep -r \"rating\\\\|result\\\\|performance\\\\|outcome\" /c/Users/janan/Desktop/zone3/database/migrations/*.php)"
+      "Bash(grep -r \"rating\\\\|result\\\\|performance\\\\|outcome\" /c/Users/janan/Desktop/zone3/database/migrations/*.php)",
+      "Bash(grep -v \"^$\")",
+      "Read(//c/Users/janan/.claude/projects/c--Users-janan-Desktop-zone3/**)"
     ]
   }
 }

@@ -12,6 +12,9 @@ const props = defineProps({
     runnerProfile:         Object,
     stravaConnected:       Boolean,
     stravaAccount:         Object,
+    garminConnected:       Boolean,
+    garminAccount:         Object,
+    garminError:           String,
     notificationSettings:  Object,
     vapidPublicKey:        String,
     athleteStats:          Object,
@@ -320,6 +323,37 @@ const closeDeleteModal = () => { confirmingDeletion.value = false; deleteForm.cl
 const confirmStravaDisconnect = ref(false);
 const stravaDisconnectForm = useForm({});
 const disconnectStrava = () => { stravaDisconnectForm.delete(route('strava.disconnect'), { onSuccess: () => { confirmStravaDisconnect.value = false; } }); };
+
+// ── Garmin connect ────────────────────────────────────────────────────────────
+const garminForm = useForm({ email: '', password: '' });
+const showGarminForm   = ref(false);
+const confirmGarminDisconnect = ref(false);
+const garminDisconnectForm = useForm({});
+const garminTestLoading = ref(false);
+const garminTestResult  = ref(null);
+
+const connectGarmin = () => {
+    garminForm.post(route('garmin.connect'), {
+        onSuccess: () => { showGarminForm.value = false; garminForm.reset(); },
+    });
+};
+const disconnectGarmin = () => {
+    garminDisconnectForm.delete(route('garmin.disconnect'), {
+        onSuccess: () => { confirmGarminDisconnect.value = false; },
+    });
+};
+const testGarmin = async () => {
+    garminTestLoading.value = true;
+    garminTestResult.value  = null;
+    try {
+        const { data } = await axios.get(route('garmin.test'));
+        garminTestResult.value = data.ok ? 'success' : 'error';
+    } catch {
+        garminTestResult.value = 'error';
+    } finally {
+        garminTestLoading.value = false;
+    }
+};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:border-indigo-400 dark:focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors';
@@ -804,6 +838,89 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                         <p v-if="props.stravaConnected" class="mt-3 text-xs text-gray-400 dark:text-slate-500">Beim Trennen werden alle importierten Aktivitäten aus Zone3 gelöscht. Deine Strava-Daten bleiben erhalten.</p>
                     </div>
 
+                    <!-- Garmin -->
+                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 dark:border-slate-800">
+                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Garmin Connect</h2>
+                        <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Generierte Trainingseinheiten automatisch auf deine Garmin-Uhr übertragen</p>
+                    </div>
+                    <div class="p-4 sm:p-6 border-b border-gray-100 dark:border-slate-800">
+
+                        <!-- Error banner -->
+                        <div v-if="props.garminError" class="mb-4 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+                            {{ props.garminError }}
+                        </div>
+
+                        <!-- Connected state -->
+                        <div v-if="props.garminConnected" class="flex items-start justify-between gap-4">
+                            <div class="flex items-center gap-3">
+                                <div class="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-500/15 flex items-center justify-center shrink-0">
+                                    <svg class="h-5 w-5 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 100-16 8 8 0 000 16zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ props.garminAccount?.email }}</p>
+                                    <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Verbunden seit {{ props.garminAccount?.connected_at }}</p>
+                                </div>
+                            </div>
+                            <span class="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-500/15 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-400 shrink-0">
+                                <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span> Aktiv
+                            </span>
+                        </div>
+
+                        <!-- Not connected -->
+                        <div v-else-if="!showGarminForm" class="flex items-center gap-3">
+                            <div class="h-10 w-10 rounded-xl bg-gray-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                                <svg class="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 100-16 8 8 0 000 16zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+                            </div>
+                            <div>
+                                <p class="text-sm font-semibold text-gray-900 dark:text-white">Nicht verbunden</p>
+                                <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Trainingseinheiten werden nach der Plan-Generierung automatisch übertragen</p>
+                            </div>
+                        </div>
+
+                        <!-- Connect form -->
+                        <form v-if="showGarminForm && !props.garminConnected" @submit.prevent="connectGarmin" class="mt-4 space-y-3 max-w-sm">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Garmin Connect E-Mail</label>
+                                <input v-model="garminForm.email" type="email" required autocomplete="off"
+                                    class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                <p v-if="garminForm.errors.email" class="mt-1 text-xs text-red-500">{{ garminForm.errors.email }}</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Passwort</label>
+                                <input v-model="garminForm.password" type="password" required autocomplete="new-password"
+                                    class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                <p v-if="garminForm.errors.password" class="mt-1 text-xs text-red-500">{{ garminForm.errors.password }}</p>
+                            </div>
+                            <p class="text-xs text-amber-600 dark:text-amber-400">⚠️ Das Passwort wird verschlüsselt gespeichert um die Session automatisch zu erneuern.</p>
+                            <div class="flex gap-3">
+                                <button type="submit" :disabled="garminForm.processing" class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                                    {{ garminForm.processing ? 'Verbinden…' : 'Verbinden' }}
+                                </button>
+                                <button type="button" @click="showGarminForm = false" class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">Abbrechen</button>
+                            </div>
+                        </form>
+
+                        <!-- Actions -->
+                        <div class="mt-4 flex flex-wrap gap-3">
+                            <template v-if="!props.garminConnected && !showGarminForm">
+                                <button type="button" @click="showGarminForm = true" class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm">
+                                    Mit Garmin verbinden
+                                </button>
+                            </template>
+                            <template v-if="props.garminConnected">
+                                <button type="button" @click="testGarmin" :disabled="garminTestLoading"
+                                    class="inline-flex items-center gap-2 rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">
+                                    <span v-if="garminTestLoading">Teste…</span>
+                                    <span v-else-if="garminTestResult === 'success'" class="text-green-600 dark:text-green-400">✓ Verbindung OK</span>
+                                    <span v-else-if="garminTestResult === 'error'" class="text-red-600 dark:text-red-400">✗ Fehler</span>
+                                    <span v-else>Verbindung testen</span>
+                                </button>
+                                <button type="button" @click="confirmGarminDisconnect = true" class="inline-flex items-center gap-2 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-5 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors">Garmin trennen</button>
+                            </template>
+                        </div>
+                        <p v-if="props.garminConnected" class="mt-3 text-xs text-gray-400 dark:text-slate-500">Trainingseinheiten werden bei der nächsten Plan-Generierung automatisch auf deine Uhr übertragen. Bestehende Einheiten bleiben in Garmin Connect erhalten.</p>
+                    </div>
+
                     <!-- Onboarding reset -->
                     <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 dark:border-slate-800">
                         <h2 class="text-base font-semibold text-gray-900 dark:text-white">Onboarding wiederholen</h2>
@@ -840,6 +957,18 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                 <div class="mt-5 flex gap-3 justify-end">
                     <button @click="confirmStravaDisconnect = false" class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">Abbrechen</button>
                     <button @click="disconnectStrava" :disabled="stravaDisconnectForm.processing" class="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 transition-colors">Ja, trennen</button>
+                </div>
+            </div>
+        </Modal>
+
+        <!-- Garmin disconnect modal -->
+        <Modal :show="confirmGarminDisconnect" @close="confirmGarminDisconnect = false">
+            <div class="p-6 bg-white dark:bg-slate-900">
+                <h2 class="text-lg font-bold text-gray-900 dark:text-white">Garmin wirklich trennen?</h2>
+                <p class="mt-2 text-sm text-gray-500 dark:text-slate-400">Die Verbindung wird entfernt. Bereits übertragene Workouts bleiben in Garmin Connect erhalten.</p>
+                <div class="mt-5 flex gap-3 justify-end">
+                    <button @click="confirmGarminDisconnect = false" class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">Abbrechen</button>
+                    <button @click="disconnectGarmin" :disabled="garminDisconnectForm.processing" class="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 transition-colors">Ja, trennen</button>
                 </div>
             </div>
         </Modal>
