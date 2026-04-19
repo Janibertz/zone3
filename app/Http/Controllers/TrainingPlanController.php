@@ -238,9 +238,24 @@ class TrainingPlanController extends Controller
         // ── Training load metrics (CTL / ATL / TSB) ──────────────────────────
         $trainingLoad = $trainingLoadService->calculate($user->id);
 
+        // ── Other events in the plan window (race days → no training) ────────
+        $planEnd = now()->addDays(10)->format('Y-m-d');
+        $otherEvents = Event::where('user_id', $user->id)
+            ->where('id', '!=', $event->id)
+            ->where('event_date', '>=', now()->toDateString())
+            ->where('event_date', '<=', $planEnd)
+            ->get()
+            ->map(fn ($e) => [
+                'date'     => $e->event_date->format('Y-m-d'),
+                'name'     => $e->name,
+                'distance' => $e->distance_label,
+                'priority' => $e->priority,
+            ])
+            ->toArray();
+
         // ── Call AI ──────────────────────────────────────────────────────────
         try {
-            $aiSessions = $openAI->generateEventTrainingPlan($event, $profileData, $recentActivities, $wellbeingData, $sessionRatings, $weeklyAvailability, $availabilityOverrides, $trainingLoad, $pastPlanResults);
+            $aiSessions = $openAI->generateEventTrainingPlan($event, $profileData, $recentActivities, $wellbeingData, $sessionRatings, $weeklyAvailability, $availabilityOverrides, $trainingLoad, $pastPlanResults, $otherEvents);
         } catch (\Throwable $e) {
             return response()->json(['error' => 'OpenAI-Fehler: ' . $e->getMessage()], 500);
         }

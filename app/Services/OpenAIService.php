@@ -793,6 +793,7 @@ PROMPT;
         array $availabilityOverrides = [],
         ?array $trainingLoad = null,
         array $pastPlanResults = [],
+        array $otherEvents = [],
     ): ?array {
         $today        = now()->format('Y-m-d');
         $eventDate    = $event->event_date->format('Y-m-d');
@@ -914,6 +915,16 @@ PROMPT;
                 . "Übermüdet (<−30): Nur leichte Einheiten / Ruhe. Belastet (−30 bis −10): Normaler Trainingsblock. Optimal (−10 bis +5): Wettkampfbereit. Frisch (+5 bis +25): Tapering aktiv. Ausgeruht (>+25): Volumen erhöhen.";
         }
 
+        // Other events in the plan window
+        $otherEventsText = '';
+        if (! empty($otherEvents)) {
+            $lines = [];
+            foreach ($otherEvents as $e) {
+                $lines[] = "- {$e['date']}: {$e['name']} ({$e['distance']}, Priorität {$e['priority']})";
+            }
+            $otherEventsText = "\n\n**Weitere Rennevents im Planungszeitraum (an diesen Tagen KEIN Training — type=\"rest\"):**\n" . implode("\n", $lines);
+        }
+
         // Per-date overrides
         $overrideText = '';
         if (! empty($availabilityOverrides)) {
@@ -949,7 +960,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan f�
 **Bisherige Einheitsbewertungen (Athleten-Feedback):**
 {$ratingsText}
 
-**{$availabilityText}**{$overrideText}
+**{$availabilityText}**{$otherEventsText}{$overrideText}
 
 **Planungsregeln:**
 - Starte den Plan ab heute ({$today})
@@ -967,6 +978,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan f�
 - WICHTIG: Plane nur Tage von heute ({$today}) bis zum Renntag ({$eventDate}). Kein Tag nach {$eventDate}.
 - Lerne aus den Athleten-Bewertungen: niedrige Bewertungen (1-2⭐) oder hohe RPE (≥8) bei bestimmten Typen → weniger davon oder leichter planen; hohe Bewertungen (4-5⭐) → mehr davon
 - Lerne aus vergangenen Rennergebnissen: Ziel verfehlt → mehr spezifisches Tempotraining für diese Distanz; Ziel erreicht/übertroffen → Plan funktioniert, ähnliche Struktur beibehalten
+- ANDERE RENNEVENTS: An Tagen mit anderen Rennevents im Planungszeitraum IMMER type="rest" — der Athlet läuft ein Rennen, kein zusätzliches Training.
 - VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die Trainingsdauer darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
 
 **Antworte ausschließlich mit einem JSON-Array (zwischen 1 und 10 Objekte, je nach verfügbaren Tagen bis zum Rennen):**
