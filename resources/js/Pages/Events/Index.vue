@@ -1,8 +1,10 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import Modal from '@/Components/Modal.vue';
-import { Head, useForm, router } from '@inertiajs/vue3';
+import { Head, useForm, router, usePage } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
+
+const coachName = computed(() => usePage().props.coach?.name ?? 'Dein Coach');
 
 const props = defineProps({
     events: Array,
@@ -143,7 +145,7 @@ watch(() => form.race_distance, (val) => {
             <div class="flex items-center justify-between mb-5 sm:mb-7">
                 <div>
                     <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Events & Rennen</h1>
-                    <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Plane deine Wettkämpfe und lass deinen Coach Trainingspläne erstellen</p>
+                    <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Plane deine Wettkämpfe und lass {{ coachName }} Trainingspläne erstellen</p>
                 </div>
                 <button
                     @click="openCreate"

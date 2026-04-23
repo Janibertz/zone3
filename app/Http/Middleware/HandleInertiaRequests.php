@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Coach;
 use App\Models\TrainingPlan;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -36,6 +37,20 @@ class HandleInertiaRequests extends Middleware
                 'user'    => $request->user(),
                 'isAdmin' => (bool) $request->user()?->is_admin,
             ],
+            'coach' => function () use ($request) {
+                $user = $request->user();
+                if (! $user) return null;
+                $coach = $user->coach;
+                if (! $coach) return null;
+                return [
+                    'id'              => $coach->id,
+                    'name'            => $coach->name,
+                    'specialty'       => $coach->specialty,
+                    'tagline'         => $coach->tagline,
+                    'avatar_color'    => $coach->avatar_color,
+                    'avatar_initials' => $coach->avatar_initials,
+                ];
+            },
             'activePlan' => function () use ($request) {
                 if (! $request->user()) return null;
                 $plan = TrainingPlan::where('user_id', $request->user()->id)

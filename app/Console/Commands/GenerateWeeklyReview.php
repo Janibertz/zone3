@@ -25,13 +25,14 @@ class GenerateWeeklyReview extends Command
             $query->whereIn('id', $userIds);
         }
 
-        $query->chunk(50, function ($users) use ($openAI, $weekStart, $weekEnd) {
+        $query->with('coach')->chunk(50, function ($users) use ($openAI, $weekStart, $weekEnd) {
             foreach ($users as $user) {
                 // Skip if already generated for this week
                 if (WeeklyReview::where('user_id', $user->id)->where('week_start', $weekStart)->exists()) {
                     continue;
                 }
 
+                $openAI->withCoach($user->coach?->personality_prompt);
                 $content = $openAI->generateWeeklyReview($user, $weekStart, $weekEnd);
 
                 if ($content) {

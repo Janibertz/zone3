@@ -1,8 +1,10 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import Modal from '@/Components/Modal.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
+
+const coachName = computed(() => usePage().props.coach?.name ?? 'Dein Coach');
 import axios from 'axios';
 
 const props = defineProps({
@@ -101,7 +103,7 @@ const wellbeingBanner = computed(() => {
             level: 'warning',
             icon: '😴',
             text: energy <= 3 ? 'Sehr wenig Energie heute.' : 'Starker Muskelkater.',
-            tip: 'Dein Coach kann die Einheit an deinen Zustand anpassen.',
+            tip: `${coachName.value} kann die Einheit an deinen Zustand anpassen.`,
             canAdjust: true,
         };
     }
@@ -438,7 +440,7 @@ const workoutSteps = computed(() => {
                     <div class="h-8 w-8 rounded-xl bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center shrink-0 text-base">🏅</div>
                     <div>
                         <h3 class="text-sm font-bold text-gray-900 dark:text-white">Rennergebnis eintragen</h3>
-                        <p class="text-xs text-gray-400 dark:text-slate-500">Dein Ergebnis hilft deinem Coach, den nächsten Plan gezielter zu gestalten</p>
+                        <p class="text-xs text-gray-400 dark:text-slate-500">Dein Ergebnis hilft {{ coachName }}, den nächsten Plan gezielter zu gestalten</p>
                     </div>
                 </div>
 
@@ -559,7 +561,7 @@ const workoutSteps = computed(() => {
                 <span class="text-xl leading-none mt-0.5">🔗</span>
                 <div class="flex-1">
                     <p class="text-sm font-semibold text-orange-700 dark:text-orange-400">Neue Strava-Aktivität importiert</p>
-                    <p class="text-xs text-orange-600/70 dark:text-orange-400/70 mt-0.5">Der verbleibende Plan sollte neu berechnet werden, damit dein Coach deinen aktuellen Trainingsstand berücksichtigt.</p>
+                    <p class="text-xs text-orange-600/70 dark:text-orange-400/70 mt-0.5">Der verbleibende Plan sollte neu berechnet werden, damit {{ coachName }} deinen aktuellen Trainingsstand berücksichtigt.</p>
                 </div>
                 <button @click="generatePlan" :disabled="generating"
                     class="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold px-3 py-2 transition-colors disabled:opacity-50">
@@ -595,7 +597,7 @@ const workoutSteps = computed(() => {
                     >
                         <svg v-if="generating" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                         <svg v-else class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
-                        {{ generating ? 'Dein Coach analysiert...' : currentPlan?.is_active ? 'Plan aktualisieren' : 'Neuen Plan erstellen' }}
+                        {{ generating ? coachName + ' analysiert...' : currentPlan?.is_active ? 'Plan aktualisieren' : 'Neuen Plan erstellen' }}
                     </button>
                 </div>
             </div>
@@ -606,7 +608,7 @@ const workoutSteps = computed(() => {
             <!-- Generating -->
             <div v-if="generating" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-10 text-center mb-4">
                 <svg class="h-10 w-10 animate-spin mx-auto text-indigo-500 mb-3" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                <p class="text-sm font-medium text-gray-700 dark:text-slate-300">Dein Coach analysiert deine Daten...</p>
+                <p class="text-sm font-medium text-gray-700 dark:text-slate-300">{{ coachName }} analysiert deine Daten...</p>
                 <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">Aktivitäten, Wellbeing und Athletenprofil werden ausgewertet</p>
             </div>
 
@@ -619,7 +621,7 @@ const workoutSteps = computed(() => {
                 </template>
                 <template v-else>
                     <p class="text-sm font-medium text-gray-700 dark:text-slate-300">Noch kein Trainingsplan</p>
-                    <p class="mt-1 text-xs text-gray-400 dark:text-slate-500 max-w-xs mx-auto">Dein Coach analysiert Aktivitäten, Wellbeing und Athletenprofil für einen optimalen 10-Tages-Plan.</p>
+                    <p class="mt-1 text-xs text-gray-400 dark:text-slate-500 max-w-xs mx-auto">{{ coachName }} analysiert Aktivitäten, Wellbeing und Athletenprofil für einen optimalen 10-Tages-Plan.</p>
                     <button @click="generatePlan" :disabled="generating" class="mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
                         Plan erstellen
@@ -878,7 +880,7 @@ const workoutSteps = computed(() => {
                         <!-- Loading -->
                         <div v-if="nutritionLoading" class="flex items-center gap-3 py-4 text-sm text-gray-500 dark:text-slate-400">
                             <svg class="h-4 w-4 animate-spin shrink-0 text-indigo-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                            Dein Coach erstellt Verpflegungstipps…
+                            {{ coachName }} erstellt Verpflegungstipps…
                         </div>
 
                         <!-- Error -->
