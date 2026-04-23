@@ -278,9 +278,9 @@ const weekStats = computed(() => {
     const weekActs = props.recentActivities.filter(a => a.start_date && new Date(a.start_date) >= startOfWeek);
     const km = (weekActs.reduce((s, a) => s + (a.distance || 0), 0) / 1000).toFixed(1);
     const runs = weekActs.length;
-    const speeds = weekActs.filter(a => a.average_speed > 0).map(a => a.average_speed);
-    const avgPace = speeds.length
-        ? formatPaceFromSpeed(speeds.reduce((s, v) => s + v, 0) / speeds.length)
+    const runSpeeds = weekActs.filter(a => a.type === 'Run' && a.average_speed > 0).map(a => a.average_speed);
+    const avgPace = runSpeeds.length
+        ? formatPaceFromSpeed(runSpeeds.reduce((s, v) => s + v, 0) / runSpeeds.length)
         : '—';
     return { km, runs, avgPace };
 });
@@ -560,6 +560,20 @@ function formatPaceFromSpeed(metersPerSecond) {
     const minutes = Math.floor(secondsPerKm / 60);
     const seconds = Math.round(secondsPerKm % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function formatSwimPace(metersPerSecond) {
+    if (!metersPerSecond || metersPerSecond <= 0) return '—';
+    const secondsPer100m = 100 / metersPerSecond;
+    const minutes = Math.floor(secondsPer100m / 60);
+    const seconds = Math.round(secondsPer100m % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function activityPaceLabel(activity) {
+    if (!activity.average_speed || activity.average_speed <= 0) return null;
+    if (activity.type === 'Swim') return `${formatSwimPace(activity.average_speed)}/100m`;
+    return `${formatPaceFromSpeed(activity.average_speed)}/km`;
 }
 
 // Relative date: "Heute", "Gestern", "vor 3 Tagen", etc.
@@ -1293,7 +1307,7 @@ function syncStrava() {
                         <!-- Heller Footer: Letzte Läufe -->
                         <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 border-t-0 rounded-b-xl p-4">
                             <div class="flex items-center justify-between mb-3">
-                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Letzte Läufe</h4>
+                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Letzte Aktivitäten</h4>
                                 <a href="/activities" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition">Alle →</a>
                             </div>
                             <div v-if="props.recentActivities.length === 0" class="text-sm text-gray-400 dark:text-slate-500 text-center py-4">
@@ -1322,8 +1336,8 @@ function syncStrava() {
                                         </span>
                                         <span v-if="activity.average_speed > 0"
                                             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold"
-                                            :class="paceColor(activity.average_speed)">
-                                            ⚡ {{ formatPaceFromSpeed(activity.average_speed) }}/km
+                                            :class="activity.type !== 'Swim' ? paceColor(activity.average_speed) : 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'">
+                                            ⚡ {{ activityPaceLabel(activity) }}
                                         </span>
                                         <span v-if="activity.average_heartrate"
                                             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-medium">
