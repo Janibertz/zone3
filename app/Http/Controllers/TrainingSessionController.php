@@ -77,6 +77,7 @@ class TrainingSessionController extends Controller
             return response()->json($session->nutrition_tips);
         }
 
+        $openAI->withCoach(Auth::user()->coach?->personality_prompt);
         $tips = $openAI->generateNutritionTips([
             'type'         => $session->type,
             'title'        => $session->title,
@@ -115,10 +116,11 @@ class TrainingSessionController extends Controller
             ], 422);
         }
 
+        $openAI->withCoach(Auth::user()->coach?->personality_prompt);
         $adjusted = $openAI->adjustSessionForWellbeing($session->toArray(), $wellbeing);
 
         if (! $adjusted) {
-            return response()->json(['error' => 'KI-Anpassung fehlgeschlagen. Bitte versuche es erneut.'], 500);
+            return response()->json(['error' => 'Anpassung fehlgeschlagen. Bitte versuche es erneut.'], 500);
         }
 
         $session->update(array_intersect_key($adjusted, array_flip([

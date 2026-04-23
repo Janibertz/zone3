@@ -168,6 +168,15 @@ class OnboardingController extends Controller
     {
         $user = Auth::user();
         $user->onboarding_completed_at = now();
+
+        // Assign Max (companion) as default if user skipped coach selection
+        if (! $user->coach_id) {
+            $default = Coach::where('slug', 'max')->first();
+            if ($default) {
+                $user->coach_id = $default->id;
+            }
+        }
+
         $user->save();
 
         return redirect()->route('dashboard');
@@ -177,6 +186,14 @@ class OnboardingController extends Controller
     {
         $user = Auth::user();
         $user->onboarding_completed_at = now();
+
+        if (! $user->coach_id) {
+            $default = Coach::where('slug', 'max')->first();
+            if ($default) {
+                $user->coach_id = $default->id;
+            }
+        }
+
         $user->save();
 
         return redirect()->route('strava.connect');

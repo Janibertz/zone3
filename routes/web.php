@@ -215,16 +215,6 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         // CTL / ATL / TSB training load metrics
         'trainingLoad' => $trainingLoadService->calculate($user->id),
 
-        // Coach
-        'coach' => $user->coach ? [
-            'id'              => $user->coach->id,
-            'name'            => $user->coach->name,
-            'specialty'       => $user->coach->specialty,
-            'tagline'         => $user->coach->tagline,
-            'avatar_color'    => $user->coach->avatar_color,
-            'avatar_initials' => $user->coach->avatar_initials,
-        ] : null,
-
         // Weekly AI review (generated every Monday, cached for the week)
         'weeklyReview' => (function () use ($user) {
             $weekStart = Carbon::now()->startOfWeek(Carbon::MONDAY)->subWeek()->toDateString();

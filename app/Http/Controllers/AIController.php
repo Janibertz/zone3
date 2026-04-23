@@ -52,6 +52,7 @@ class AIController extends Controller
             ->first();
 
         // Generate AI analysis
+        $this->openAI->withCoach($goal->user->coach?->personality_prompt);
         $analysis = $this->openAI->analyzeTraining($goalData, $progressData, $recentActivities, $wellbeingData);
 
         return response()->json([
@@ -82,6 +83,7 @@ class AIController extends Controller
         $progressData = $this->progress->calculateProgress($goal);
 
         // Generate plan
+        $this->openAI->withCoach($goal->user->coach?->personality_prompt);
         $plan = $this->openAI->generateTrainingPlan($goalData, $progressData);
 
         return response()->json([
@@ -111,6 +113,7 @@ class AIController extends Controller
                 ->get()
                 ->toArray();
 
+            $this->openAI->withCoach($user->coach?->personality_prompt);
             $analysis = $this->openAI->analyzeTraining($goalData, $progressData, $recentActivities);
 
             $suggestions[] = [

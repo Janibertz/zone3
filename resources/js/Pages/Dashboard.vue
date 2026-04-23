@@ -79,10 +79,6 @@ const props = defineProps({
         type: Object,
         default: null,
     },
-    coach: {
-        type: Object,
-        default: null,
-    },
 });
 
 const coachColors = {
@@ -90,9 +86,10 @@ const coachColors = {
     blue:   { bg: 'bg-blue-600',   light: 'bg-blue-50 dark:bg-blue-500/10',   border: 'border-blue-200 dark:border-blue-500/30',   text: 'text-blue-700 dark:text-blue-300'   },
     green:  { bg: 'bg-green-600',  light: 'bg-green-50 dark:bg-green-500/10',  border: 'border-green-200 dark:border-green-500/30',  text: 'text-green-700 dark:text-green-300'  },
 };
-const coachColor = computed(() => coachColors[props.coach?.avatar_color] ?? coachColors.blue);
 
 const page = usePage();
+const coach = computed(() => page.props.coach ?? null);
+const coachColor = computed(() => coachColors[coach.value?.avatar_color] ?? coachColors.blue);
 const flash = page.props?.flash || {};
 const errors = page.props?.errors || {};
 
@@ -236,7 +233,7 @@ function onWellbeingSaved(data) {
     if (data?.plan_adjusted) {
         wellbeingToast.value = {
             type: 'ai',
-            message: (props.coach ? props.coach.name : 'Dein Coach') + ' passt deine heutige Trainingseinheit an deine Tagesform an…',
+            message: (coach.value ? coach.value.name : 'Dein Coach') + ' passt deine heutige Trainingseinheit an deine Tagesform an…',
         };
     } else {
         wellbeingToast.value = {
