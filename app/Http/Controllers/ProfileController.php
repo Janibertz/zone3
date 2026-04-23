@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Models\Activity;
+use App\Models\Coach;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -43,6 +44,15 @@ class ProfileController extends Controller
                 'notify_plan_updated'     => (bool) ($user->notify_plan_updated ?? true),
             ],
             'vapidPublicKey' => config('services.webpush.public_key'),
+            'coaches'   => Coach::all(['id', 'name', 'slug', 'specialty', 'tagline', 'description', 'avatar_color', 'avatar_initials']),
+            'activeCoach' => $user->coach ? [
+                'id'              => $user->coach->id,
+                'name'            => $user->coach->name,
+                'specialty'       => $user->coach->specialty,
+                'tagline'         => $user->coach->tagline,
+                'avatar_color'    => $user->coach->avatar_color,
+                'avatar_initials' => $user->coach->avatar_initials,
+            ] : null,
             'athleteStats' => [
                 'total_runs'      => (int) $stats->total_runs,
                 'total_km'        => round($stats->total_distance / 1000, 1),
@@ -82,6 +92,17 @@ class ProfileController extends Controller
         $user->update(['avatar' => $path]);
 
         return Redirect::route('profile.edit')->with('status', 'avatar-updated');
+    }
+
+    public function updateCoach(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'coach_id' => 'required|integer|exists:coaches,id',
+        ]);
+
+        $request->user()->update(['coach_id' => $request->coach_id]);
+
+        return Redirect::route('profile.edit')->with('status', 'coach-updated');
     }
 
     public function destroy(Request $request): RedirectResponse

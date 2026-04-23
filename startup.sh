@@ -4,6 +4,9 @@ set -e
 echo "[startup] Running migrations..."
 php artisan migrate --force --no-interaction
 
+echo "[startup] Seeding coaches..."
+php artisan db:seed --class=CoachSeeder --force --no-interaction
+
 echo "[startup] Linking storage..."
 php artisan storage:link --force 2>/dev/null || true
 

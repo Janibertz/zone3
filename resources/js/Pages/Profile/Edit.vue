@@ -15,6 +15,8 @@ const props = defineProps({
     notificationSettings:  Object,
     vapidPublicKey:        String,
     athleteStats:          Object,
+    coaches:               { type: Array, default: () => [] },
+    activeCoach:           { type: Object, default: null },
 });
 
 const page = usePage();
@@ -23,6 +25,7 @@ const activeTab = ref('personal');
 
 const tabs = [
     { key: 'personal',       label: 'Persönlich',         icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />' },
+    { key: 'coach',          label: 'Mein Coach',         icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />' },
     { key: 'athlete',        label: 'Athletenprofil',     icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />' },
     { key: 'notifications',  label: 'Benachrichtigungen', icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />' },
     { key: 'security',       label: 'Sicherheit',         icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />' },
@@ -30,6 +33,31 @@ const tabs = [
 ];
 
 const distanceOptions = ['5 km', '10 km', 'Halbmarathon', 'Marathon', 'Ultra'];
+
+// ── Coach selection ────────────────────────────────────────────────────────
+const selectedCoachId  = ref(props.activeCoach?.id ?? null);
+const coachSaving      = ref(false);
+const coachSaved       = ref(false);
+
+const coachColors = {
+    orange: { bg: 'bg-orange-500', ring: 'ring-orange-400', light: 'bg-orange-50 dark:bg-orange-500/10', border: 'border-orange-300 dark:border-orange-500/50', badge: 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300' },
+    blue:   { bg: 'bg-blue-600',   ring: 'ring-blue-400',   light: 'bg-blue-50 dark:bg-blue-500/10',   border: 'border-blue-300 dark:border-blue-500/50',   badge: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'   },
+    green:  { bg: 'bg-green-600',  ring: 'ring-green-400',  light: 'bg-green-50 dark:bg-green-500/10',  border: 'border-green-300 dark:border-green-500/50',  badge: 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300'  },
+};
+const specialtyLabels = { motivator: 'Motivator', strategist: 'Stratege', companion: 'Begleiter' };
+
+async function saveCoach() {
+    if (!selectedCoachId.value) return;
+    coachSaving.value = true;
+    coachSaved.value  = false;
+    try {
+        await axios.patch(route('profile.coach'), { coach_id: selectedCoachId.value });
+        coachSaved.value = true;
+        setTimeout(() => coachSaved.value = false, 3000);
+    } finally {
+        coachSaving.value = false;
+    }
+}
 
 // ── Avatar upload + crop ─────────────────────────────────────────────────────
 const avatarInput    = ref(null);
@@ -525,6 +553,57 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </template>
+
+                <!-- ── MEIN COACH ── -->
+                <template v-else-if="activeTab === 'coach'">
+                    <div class="space-y-4">
+                        <div>
+                            <h3 class="text-base font-bold text-gray-900 dark:text-white">Mein Coach</h3>
+                            <p class="text-sm text-gray-500 dark:text-slate-400 mt-1">Dein Coach beeinflusst wie Trainingsempfehlungen und Pläne kommuniziert werden.</p>
+                        </div>
+
+                        <div class="space-y-3">
+                            <button
+                                v-for="coach in coaches" :key="coach.id"
+                                type="button"
+                                @click="selectedCoachId = coach.id"
+                                class="w-full flex items-start gap-4 p-5 rounded-2xl border-2 text-left transition-all duration-200"
+                                :class="selectedCoachId === coach.id
+                                    ? [coachColors[coach.avatar_color]?.light, coachColors[coach.avatar_color]?.border, 'shadow-sm']
+                                    : 'bg-white dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'"
+                            >
+                                <div class="shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-base"
+                                    :class="[coachColors[coach.avatar_color]?.bg, selectedCoachId === coach.id ? 'ring-2 ring-offset-2 ' + coachColors[coach.avatar_color]?.ring : '']">
+                                    {{ coach.avatar_initials }}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2 mb-0.5">
+                                        <span class="font-bold text-gray-900 dark:text-white">{{ coach.name }}</span>
+                                        <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="coachColors[coach.avatar_color]?.badge">{{ specialtyLabels[coach.specialty] }}</span>
+                                    </div>
+                                    <p class="text-xs italic text-gray-500 dark:text-slate-400 mb-1">„{{ coach.tagline }}"</p>
+                                    <p class="text-sm text-gray-600 dark:text-slate-300">{{ coach.description }}</p>
+                                </div>
+                                <div class="shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5"
+                                    :class="selectedCoachId === coach.id ? [coachColors[coach.avatar_color]?.bg, 'border-transparent'] : 'border-gray-300 dark:border-slate-600'">
+                                    <svg v-if="selectedCoachId === coach.id" class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
+                                    </svg>
+                                </div>
+                            </button>
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <button @click="saveCoach" :disabled="coachSaving || !selectedCoachId"
+                                class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors">
+                                {{ coachSaving ? 'Speichern…' : 'Coach speichern' }}
+                            </button>
+                            <Transition enter-active-class="transition-opacity duration-300" leave-active-class="transition-opacity duration-300" enter-from-class="opacity-0" leave-to-class="opacity-0">
+                                <p v-if="coachSaved" class="text-sm text-green-600 dark:text-green-400 font-medium">Gespeichert!</p>
+                            </Transition>
+                        </div>
                     </div>
                 </template>
 

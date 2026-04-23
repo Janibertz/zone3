@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Coach;
 use App\Models\Event;
 use App\Models\RunnerProfile;
 use App\Services\OpenAIService;
@@ -19,9 +20,28 @@ class OnboardingController extends Controller
             return redirect()->route('dashboard');
         }
 
+        $coaches = Coach::all(['id', 'name', 'slug', 'specialty', 'tagline', 'description', 'avatar_color', 'avatar_initials']);
+
         return Inertia::render('Onboarding', [
             'stravaConnectUrl' => route('strava.connect'),
+            'coaches'          => $coaches,
         ]);
+    }
+
+    /**
+     * Assign a coach to the user during onboarding.
+     */
+    public function saveCoach(Request $request)
+    {
+        $validated = $request->validate([
+            'coach_id' => 'required|integer|exists:coaches,id',
+        ]);
+
+        $user = Auth::user();
+        $user->coach_id = $validated['coach_id'];
+        $user->save();
+
+        return response()->json(['success' => true]);
     }
 
     /**

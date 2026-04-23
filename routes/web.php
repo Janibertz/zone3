@@ -40,6 +40,7 @@ Route::get('/privacy', fn() => redirect()->route('support'))->name('privacy');
 // ── Onboarding (auth required, no onboarding-complete check) ──────────────
 Route::middleware('auth')->group(function () {
     Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
+    Route::post('/onboarding/coach', [OnboardingController::class, 'saveCoach'])->name('onboarding.coach');
     Route::post('/onboarding/estimate-profile', [OnboardingController::class, 'estimateProfile'])->name('onboarding.estimate-profile');
     Route::post('/onboarding/profile', [OnboardingController::class, 'saveProfile'])->name('onboarding.profile');
     Route::post('/onboarding/availability', [OnboardingController::class, 'saveAvailability'])->name('onboarding.availability');
@@ -214,6 +215,16 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         // CTL / ATL / TSB training load metrics
         'trainingLoad' => $trainingLoadService->calculate($user->id),
 
+        // Coach
+        'coach' => $user->coach ? [
+            'id'              => $user->coach->id,
+            'name'            => $user->coach->name,
+            'specialty'       => $user->coach->specialty,
+            'tagline'         => $user->coach->tagline,
+            'avatar_color'    => $user->coach->avatar_color,
+            'avatar_initials' => $user->coach->avatar_initials,
+        ] : null,
+
         // Weekly AI review (generated every Monday, cached for the week)
         'weeklyReview' => (function () use ($user) {
             $weekStart = Carbon::now()->startOfWeek(Carbon::MONDAY)->subWeek()->toDateString();
@@ -233,6 +244,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar');
+    Route::patch('/profile/coach', [ProfileController::class, 'updateCoach'])->name('profile.coach');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // Push Notifications

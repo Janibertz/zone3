@@ -10,11 +10,26 @@ class OpenAIService
     protected string $apiKey;
     protected string $model;
     protected string $baseUrl = 'https://api.openai.com/v1';
+    protected ?string $coachPersonality = null;
 
     public function __construct()
     {
         $this->apiKey = config('services.openai.api_key');
         $this->model = config('services.openai.model', 'gpt-4o');
+    }
+
+    public function withCoach(?string $personalityPrompt): static
+    {
+        $this->coachPersonality = $personalityPrompt;
+        return $this;
+    }
+
+    protected function buildSystemPrompt(string $base): string
+    {
+        if ($this->coachPersonality) {
+            return $this->coachPersonality . ' ' . $base;
+        }
+        return $base;
     }
 
     /**
@@ -39,7 +54,7 @@ class OpenAIService
                 'messages' => [
                     [
                         'role' => 'system',
-                        'content' => 'Du bist ein erfahrener Lauf-Coach. Gib kurze, ermutigende und actionable Trainingsanalysen auf Deutsch. Sei präzise und praktisch. Verwende Emojis für bessere Readability. Beachte die Wellbeing-Daten des Athleten und passe deine Empfehlungen entsprechend an.'
+                        'content' => $this->buildSystemPrompt('Gib kurze, ermutigende und actionable Trainingsanalysen auf Deutsch. Sei präzise und praktisch. Verwende Emojis für bessere Readability. Beachte die Wellbeing-Daten des Athleten und passe deine Empfehlungen entsprechend an.')
                     ],
                     [
                         'role' => 'user',
@@ -356,7 +371,7 @@ PROMPT;
             ])->post($this->baseUrl . '/chat/completions', [
                 'model' => $this->model,
                 'messages' => [
-                    ['role' => 'system', 'content' => 'Du bist ein erfahrener Lauf-Coach. Antworte ausschließlich mit dem angeforderten JSON-Objekt.'],
+                    ['role' => 'system', 'content' => $this->buildSystemPrompt('Antworte ausschließlich mit dem angeforderten JSON-Objekt.')],
                     ['role' => 'user', 'content' => $prompt],
                 ],
                 'temperature' => 0.4,
@@ -1005,7 +1020,7 @@ PROMPT;
             ])->timeout(60)->post($this->baseUrl . '/chat/completions', [
                 'model'    => $this->model,
                 'messages' => [
-                    ['role' => 'system', 'content' => 'Du bist ein präziser Lauf-Coach. Antworte ausschließlich mit einem validen JSON-Array ohne zusätzlichen Text.'],
+                    ['role' => 'system', 'content' => $this->buildSystemPrompt('Antworte ausschließlich mit einem validen JSON-Array ohne zusätzlichen Text.')],
                     ['role' => 'user',   'content' => $prompt],
                 ],
                 'temperature' => 0.6,
@@ -1286,7 +1301,7 @@ PROMPT;
             ])->timeout(30)->post($this->baseUrl . '/chat/completions', [
                 'model'    => $this->model,
                 'messages' => [
-                    ['role' => 'system', 'content' => 'Du bist ein erfahrener Lauf-Coach. Antworte auf Deutsch, kurz und präzise.'],
+                    ['role' => 'system', 'content' => $this->buildSystemPrompt('Antworte auf Deutsch, kurz und präzise.')],
                     ['role' => 'user',   'content' => $prompt],
                 ],
                 'temperature' => 0.7,

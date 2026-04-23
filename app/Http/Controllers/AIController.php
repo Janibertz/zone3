@@ -179,6 +179,7 @@ class AIController extends Controller
             }
 
             if (! $recommendation) {
+                $this->openAI->withCoach($user->coach?->personality_prompt);
                 $recommendation = $this->openAI->generateTodayRecommendation(
                     $runnerProfile ? [
                         'threshold_heart_rate' => $runnerProfile->threshold_heart_rate,
@@ -258,6 +259,7 @@ class AIController extends Controller
         $runnerProfile  = $user->runnerProfile;
         $todayWellbeing = $user->wellbeingEntries()->whereDate('date', $today)->first();
 
+        $this->openAI->withCoach($user->coach?->personality_prompt);
         $adjusted = $this->openAI->adjustTodayRecommendation(
             $request->current,
             $request->direction,

@@ -79,7 +79,18 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    coach: {
+        type: Object,
+        default: null,
+    },
 });
+
+const coachColors = {
+    orange: { bg: 'bg-orange-500', light: 'bg-orange-50 dark:bg-orange-500/10', border: 'border-orange-200 dark:border-orange-500/30', text: 'text-orange-700 dark:text-orange-300' },
+    blue:   { bg: 'bg-blue-600',   light: 'bg-blue-50 dark:bg-blue-500/10',   border: 'border-blue-200 dark:border-blue-500/30',   text: 'text-blue-700 dark:text-blue-300'   },
+    green:  { bg: 'bg-green-600',  light: 'bg-green-50 dark:bg-green-500/10',  border: 'border-green-200 dark:border-green-500/30',  text: 'text-green-700 dark:text-green-300'  },
+};
+const coachColor = computed(() => coachColors[props.coach?.avatar_color] ?? coachColors.blue);
 
 const page = usePage();
 const flash = page.props?.flash || {};
@@ -225,7 +236,7 @@ function onWellbeingSaved(data) {
     if (data?.plan_adjusted) {
         wellbeingToast.value = {
             type: 'ai',
-            message: 'KI passt deine heutige Trainingseinheit an deine Tagesform an…',
+            message: (props.coach ? props.coach.name : 'Dein Coach') + ' passt deine heutige Trainingseinheit an deine Tagesform an…',
         };
     } else {
         wellbeingToast.value = {
@@ -800,6 +811,18 @@ function syncStrava() {
                     <p class="text-sm font-medium text-red-800">{{ flash.error }}</p>
                 </div>
 
+                <!-- ─── Coach Badge ──────────────────────────────────────────── -->
+                <div v-if="coach" class="flex items-center gap-3 rounded-2xl border p-3.5" :class="[coachColor.light, coachColor.border]">
+                    <div class="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold" :class="coachColor.bg">
+                        {{ coach.avatar_initials }}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-semibold" :class="coachColor.text">Dein Coach: {{ coach.name }}</p>
+                        <p class="text-xs text-gray-500 dark:text-slate-400 truncate italic">„{{ coach.tagline }}"</p>
+                    </div>
+                    <a href="/profile" class="shrink-0 text-xs text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors">Wechseln</a>
+                </div>
+
                 <!-- ─── Wellbeing-Erinnerung ─────────────────────────────────── -->
                 <Transition
                     enter-active-class="transition-all duration-300 ease-out"
@@ -820,7 +843,7 @@ function syncStrava() {
 
                         <div class="flex-1 min-w-0">
                             <p class="text-sm font-semibold text-amber-800 dark:text-amber-300">Wie geht es dir heute?</p>
-                            <p class="text-xs text-amber-600 dark:text-amber-400/80 mt-0.5">Tagesform eintragen — der KI-Plan passt sich automatisch an</p>
+                            <p class="text-xs text-amber-600 dark:text-amber-400/80 mt-0.5">Tagesform eintragen — {{ coach?.name ?? 'dein Coach' }} passt den Plan automatisch an</p>
                         </div>
 
                         <span class="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 py-1.5 transition-colors">
@@ -837,7 +860,7 @@ function syncStrava() {
                     <div class="shrink-0 h-11 w-11 rounded-xl bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center text-xl">🎯</div>
                     <div class="flex-1 min-w-0">
                         <p class="text-sm font-bold text-gray-900 dark:text-white">Kein aktiver Trainingsplan</p>
-                        <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Erstelle jetzt einen KI-Trainingsplan für dein nächstes Event – individuell auf deine Daten zugeschnitten.</p>
+                        <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{{ coach ? coach.name + ' erstellt' : 'Erstelle' }} jetzt einen Trainingsplan für dein nächstes Event – individuell auf deine Daten zugeschnitten.</p>
                     </div>
                     <a href="/events" class="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2.5 transition-colors shadow-sm">
                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
@@ -845,7 +868,7 @@ function syncStrava() {
                     </a>
                 </div>
 
-                <!-- ═══ Heute: Trainingseinheit / KI-Empfehlung ═══ -->
+                <!-- ═══ Heute: Trainingseinheit / Coach-Empfehlung ═══ -->
                 <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
 
                     <!-- ── Aktiver Plan: heutige Session anzeigen ── -->
@@ -910,10 +933,10 @@ function syncStrava() {
                         </div>
                     </template>
 
-                    <!-- ── Kein aktiver Plan: KI-Empfehlung ── -->
+                    <!-- ── Kein aktiver Plan: Coach-Empfehlung ── -->
                     <template v-else>
                         <div class="flex items-center justify-between mb-4">
-                            <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">🧭 Trainings-Empfehlung für heute</h4>
+                            <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">🧭 {{ coach ? coach.name + 's Empfehlung für heute' : 'Trainings-Empfehlung für heute' }}</h4>
                             <button v-if="!props.todayRecommendationSession" @click="getTodayRecommendation"
                                 class="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-800 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 rounded-md px-2 py-1 transition-colors">
                                 Aktualisieren
@@ -994,15 +1017,15 @@ function syncStrava() {
                                 </div>
                             </div>
 
-                            <!-- KI-Verpflegungsplan -->
+                            <!-- Verpflegungsplan -->
                             <div v-if="props.todayRecommendationSession.type !== 'rest'" class="rounded-xl border border-gray-100 dark:border-slate-700 overflow-hidden">
                                 <div class="px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border-b border-gray-100 dark:border-slate-700">
-                                    <span class="text-xs font-semibold text-gray-600 dark:text-slate-300 uppercase tracking-wider">KI-Verpflegungsplan</span>
+                                    <span class="text-xs font-semibold text-gray-600 dark:text-slate-300 uppercase tracking-wider">Verpflegungsplan</span>
                                 </div>
                                 <div class="px-4 py-3">
                                     <div v-if="recNutritionLoading" class="flex items-center gap-3 py-2 text-sm text-gray-500 dark:text-slate-400">
                                         <svg class="h-4 w-4 animate-spin shrink-0 text-indigo-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                        KI erstellt Verpflegungstipps…
+                                        {{ coach ? coach.name : 'Dein Coach' }} erstellt Verpflegungstipps…
                                     </div>
                                     <p v-else-if="recNutritionError" class="text-xs text-red-500 dark:text-red-400">{{ recNutritionError }}</p>
                                     <div v-else-if="recNutritionTips" class="space-y-2">
@@ -1099,7 +1122,7 @@ function syncStrava() {
                                                 'text-indigo-700 dark:text-indigo-400':  trainingRecommendation.type === 'race_prep',
                                                 'text-gray-500 dark:text-slate-400':     trainingRecommendation.type === 'rest',
                                             }">{{ trainingRecommendation.title }}</p>
-                                            <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 shrink-0">KI-Empfehlung</span>
+                                            <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 shrink-0">{{ coach ? coach.name : 'Coach' }}</span>
                                         </div>
                                         <p class="text-xs text-gray-500 dark:text-slate-400 leading-relaxed mb-2.5">{{ trainingRecommendation.description }}</p>
                                         <div v-if="trainingRecommendation.type !== 'rest'" class="flex flex-wrap gap-3">
@@ -1450,14 +1473,14 @@ function syncStrava() {
                             <div class="flex items-center gap-4">
                                 <div class="h-14 w-14 rounded-xl bg-white bg-opacity-20 flex items-center justify-center text-3xl flex-shrink-0">⚡</div>
                                 <div>
-                                    <p class="text-xs font-medium text-indigo-200 uppercase tracking-wider">KI-berechnete Schwellenpace</p>
+                                    <p class="text-xs font-medium text-indigo-200 uppercase tracking-wider">Berechnete Schwellenpace</p>
                                     <p v-if="props.thresholdPace" class="text-4xl font-bold mt-0.5 tabular-nums">
                                         {{ props.thresholdPace }}
                                         <span class="text-lg font-normal text-indigo-200">min/km</span>
                                     </p>
                                     <p v-else class="text-xl font-semibold mt-0.5 text-indigo-200">Noch nicht berechnet</p>
                                     <p class="text-xs text-indigo-300 mt-1">
-                                        <span v-if="props.thresholdPaceCalculating">KI analysiert letzte 20 Läufe im Hintergrund…</span>
+                                        <span v-if="props.thresholdPaceCalculating">Analyse läuft im Hintergrund…</span>
                                         <span v-else-if="props.thresholdPaceCalculatedAt">Berechnet: {{ props.thresholdPaceCalculatedAt }} · Basis: letzte 20 Läufe</span>
                                         <span v-else>Wird automatisch nach dem nächsten Strava-Sync berechnet</span>
                                     </p>
@@ -1670,7 +1693,7 @@ function syncStrava() {
                             <div class="h-7 w-7 rounded-lg bg-amber-100 dark:bg-amber-500/15 flex items-center justify-center text-sm shrink-0">⭐</div>
                             <div>
                                 <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Noch zu bewerten</h4>
-                                <p class="text-xs text-gray-400 dark:text-slate-500">Dein Feedback verbessert den KI-Plan</p>
+                                <p class="text-xs text-gray-400 dark:text-slate-500">Dein Feedback verbessert den Plan</p>
                             </div>
                         </div>
                         <div class="space-y-2">
@@ -1768,7 +1791,7 @@ function syncStrava() {
                         <div class="flex items-center gap-2 mb-3">
                             <div class="h-7 w-7 rounded-lg bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center text-sm shrink-0">🧠</div>
                             <div>
-                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">KI Wochenrückblick</h4>
+                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">{{ coach ? coach.name + ' – Wochenrückblick' : 'Wochenrückblick' }}</h4>
                                 <p class="text-xs text-gray-400 dark:text-slate-500">
                                     KW {{ new Date(props.weeklyReview.week_start).toLocaleDateString('de-DE', {day:'2-digit', month:'short'}) }}
                                 </p>
@@ -1864,9 +1887,9 @@ function syncStrava() {
                     <div class="flex flex-col gap-4">
                         <!-- Nächster Schritt nach dem Event -->
                         <div class="rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 p-4">
-                            <p class="text-xs font-bold text-indigo-700 dark:text-indigo-300 mb-2">Nach dem Event: KI-Plan</p>
+                            <p class="text-xs font-bold text-indigo-700 dark:text-indigo-300 mb-2">Nach dem Event: Trainingsplan</p>
                             <p class="text-xs text-indigo-600 dark:text-indigo-400 leading-relaxed">
-                                Sobald du ein Event angelegt hast, erstellt die KI automatisch einen 10-Tages-Trainingsplan — abgestimmt auf deine Schwellenpace und Zielzeit.
+                                Sobald du ein Event angelegt hast, erstellt {{ coach ? coach.name : 'dein Coach' }} automatisch einen 10-Tages-Trainingsplan — abgestimmt auf deine Schwellenpace und Zielzeit.
                             </p>
                         </div>
 
@@ -1883,14 +1906,15 @@ function syncStrava() {
             <div class="max-h-[92vh] w-full sm:max-w-2xl overflow-y-auto rounded-t-3xl sm:rounded-2xl bg-white dark:bg-slate-900 shadow-2xl">
                 <div class="sticky top-0 flex items-center justify-between border-b border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-4">
                     <h2 class="text-lg font-bold text-gray-900 dark:text-white">
-                        {{ aiModalType === 'analysis' ? '🤖 KI-Analyse' : '🎯 KI-Trainingsplan' }}
+                        {{ aiModalType === 'analysis' ? '📊 Analyse' : ('🎯 ' + (coach ? coach.name + 's Trainingsplan' : 'Trainingsplan')) }}
                     </h2>
                     <button @click="closeAIModal" class="h-8 w-8 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center justify-center transition-colors">✕</button>
                 </div>
                 <div class="p-6">
                     <div v-if="aiLoading" class="flex flex-col items-center justify-center py-16 gap-3">
-                        <div class="text-5xl">🤖</div>
-                        <p class="text-gray-500 dark:text-slate-400 text-sm">KI denkt nach...</p>
+                        <div v-if="coach" class="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-xl" :class="coachColor.bg">{{ coach.avatar_initials }}</div>
+                        <div v-else class="text-5xl">🏃</div>
+                        <p class="text-gray-500 dark:text-slate-400 text-sm">{{ coach ? coach.name + ' analysiert…' : 'Wird berechnet…' }}</p>
                     </div>
                     <div v-else>
                         <div v-if="aiModalType === 'analysis'" class="rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-800/30 p-5 text-sm text-gray-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">{{ aiAnalysis }}</div>

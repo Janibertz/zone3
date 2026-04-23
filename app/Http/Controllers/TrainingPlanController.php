@@ -255,6 +255,7 @@ class TrainingPlanController extends Controller
             ->toArray();
 
         // ── Call AI ──────────────────────────────────────────────────────────
+        $openAI->withCoach($user->coach?->personality_prompt);
         try {
             $aiSessions = $openAI->generateEventTrainingPlan($event, $profileData, $recentActivities, $wellbeingData, $sessionRatings, $weeklyAvailability, $availabilityOverrides, $trainingLoad, $pastPlanResults, $otherEvents);
         } catch (\Throwable $e) {

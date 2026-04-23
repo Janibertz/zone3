@@ -3,22 +3,52 @@ import { ref, computed, watch } from 'vue';
 import { Head, usePage, router } from '@inertiajs/vue3';
 import axios from 'axios';
 
-defineProps({ stravaConnectUrl: String });
+defineProps({ stravaConnectUrl: String, coaches: Array });
 
 const page = usePage();
 const user = computed(() => page.props.auth.user);
 
 // ── Steps ─────────────────────────────────────────────────────────────────
 const currentStep = ref(1);
-const totalSteps  = 5;
+const totalSteps  = 6;
 const steps = [
     { number: 1, label: 'Willkommen'    },
-    { number: 2, label: 'Dein Profil'   },
-    { number: 3, label: 'Verfügbarkeit' },
-    { number: 4, label: 'Dein Ziel'     },
-    { number: 5, label: 'Strava'        },
+    { number: 2, label: 'Dein Coach'    },
+    { number: 3, label: 'Dein Profil'   },
+    { number: 4, label: 'Verfügbarkeit' },
+    { number: 5, label: 'Dein Ziel'     },
+    { number: 6, label: 'Strava'        },
 ];
 function nextStep() { if (currentStep.value < totalSteps) currentStep.value++; }
+
+// ════════════════════════════════════════════════════════════════════════
+// STEP 2 — Coach selection
+// ════════════════════════════════════════════════════════════════════════
+const selectedCoachId = ref(null);
+const coachLoading    = ref(false);
+const coachError      = ref(null);
+
+const coachColors = {
+    orange: { bg: 'bg-orange-500', ring: 'ring-orange-400', light: 'bg-orange-50 dark:bg-orange-500/10', border: 'border-orange-300 dark:border-orange-500/50', badge: 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300' },
+    blue:   { bg: 'bg-blue-600',   ring: 'ring-blue-400',   light: 'bg-blue-50 dark:bg-blue-500/10',   border: 'border-blue-300 dark:border-blue-500/50',   badge: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'   },
+    green:  { bg: 'bg-green-600',  ring: 'ring-green-400',  light: 'bg-green-50 dark:bg-green-500/10',  border: 'border-green-300 dark:border-green-500/50',  badge: 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300'  },
+};
+
+const specialtyLabels = { motivator: 'Motivator', strategist: 'Stratege', companion: 'Begleiter' };
+
+async function submitCoach() {
+    if (!selectedCoachId.value) return;
+    coachLoading.value = true;
+    coachError.value   = null;
+    try {
+        await axios.post(route('onboarding.coach'), { coach_id: selectedCoachId.value });
+        nextStep();
+    } catch {
+        coachError.value = 'Fehler beim Speichern. Bitte versuche es erneut.';
+    } finally {
+        coachLoading.value = false;
+    }
+}
 
 // ════════════════════════════════════════════════════════════════════════
 // STEP 2 — Athlete profile
@@ -305,9 +335,74 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                 </div>
 
                 <!-- ══════════════════════════════════════════
-                     STEP 2 — Athlete profile
+                     STEP 2 — Coach selection
                      ══════════════════════════════════════════ -->
                 <div v-else-if="currentStep === 2" class="space-y-5">
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Wähle deinen Coach</h2>
+                        <p class="mt-2 text-gray-500 dark:text-slate-400">
+                            Dein Coach begleitet dich durch jedes Training. Du kannst ihn später wechseln.
+                        </p>
+                    </div>
+
+                    <div class="space-y-3">
+                        <button
+                            v-for="coach in coaches" :key="coach.id"
+                            type="button"
+                            @click="selectedCoachId = coach.id"
+                            class="w-full flex items-start gap-4 p-5 rounded-2xl border-2 text-left transition-all duration-200"
+                            :class="selectedCoachId === coach.id
+                                ? [coachColors[coach.avatar_color]?.light, coachColors[coach.avatar_color]?.border, 'shadow-sm']
+                                : 'bg-white dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'"
+                        >
+                            <!-- Avatar -->
+                            <div class="shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-sm"
+                                :class="[coachColors[coach.avatar_color]?.bg, selectedCoachId === coach.id ? 'ring-2 ring-offset-2 ' + coachColors[coach.avatar_color]?.ring : '']">
+                                {{ coach.avatar_initials }}
+                            </div>
+
+                            <!-- Info -->
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="font-bold text-gray-900 dark:text-white">{{ coach.name }}</span>
+                                    <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="coachColors[coach.avatar_color]?.badge">
+                                        {{ specialtyLabels[coach.specialty] }}
+                                    </span>
+                                </div>
+                                <p class="text-xs font-medium text-gray-500 dark:text-slate-400 italic mb-1.5">„{{ coach.tagline }}"</p>
+                                <p class="text-sm text-gray-600 dark:text-slate-300 leading-relaxed">{{ coach.description }}</p>
+                            </div>
+
+                            <!-- Check -->
+                            <div class="shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all mt-0.5"
+                                :class="selectedCoachId === coach.id
+                                    ? [coachColors[coach.avatar_color]?.bg, 'border-transparent']
+                                    : 'border-gray-300 dark:border-slate-600'">
+                                <svg v-if="selectedCoachId === coach.id" class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
+                                </svg>
+                            </div>
+                        </button>
+                    </div>
+
+                    <p v-if="coachError" class="text-xs text-red-500 text-center">{{ coachError }}</p>
+
+                    <button
+                        @click="submitCoach"
+                        :disabled="!selectedCoachId || coachLoading"
+                        class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors shadow-sm">
+                        {{ coachLoading ? 'Speichern…' : selectedCoachId ? 'Mit ' + (coaches.find(c => c.id === selectedCoachId)?.name) + ' trainieren' : 'Coach auswählen' }}
+                    </button>
+
+                    <button @click="nextStep" class="w-full py-2 text-sm text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors">
+                        Jetzt überspringen
+                    </button>
+                </div>
+
+                <!-- ══════════════════════════════════════════
+                     STEP 3 — Athlete profile
+                     ══════════════════════════════════════════ -->
+                <div v-else-if="currentStep === 3" class="space-y-5">
                     <div class="text-center">
                         <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Dein Athletenprofil</h2>
                         <p class="mt-2 text-gray-500 dark:text-slate-400">
@@ -338,7 +433,7 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                                 </svg>
                             </div>
                             <div>
-                                <p class="font-semibold text-gray-900 dark:text-white">Werte berechnen lassen <span class="ml-1 text-xs bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded-full">KI</span></p>
+                                <p class="font-semibold text-gray-900 dark:text-white">Werte berechnen lassen</p>
                                 <p class="text-sm text-gray-500 dark:text-slate-400 mt-0.5">Ich gebe meine beste Laufzeit an und Zone3 schätzt meine Zonen.</p>
                             </div>
                         </button>
@@ -404,7 +499,7 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                                 <svg class="h-4 w-4 text-purple-500 dark:text-purple-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/>
                                 </svg>
-                                <p class="text-xs text-purple-700 dark:text-purple-300">Zone3 berechnet deine Trainingszonen basierend auf deiner besten Wettkampfzeit via KI. Du kannst die Werte danach noch anpassen.</p>
+                                <p class="text-xs text-purple-700 dark:text-purple-300">Zone3 berechnet deine Trainingszonen basierend auf deiner besten Wettkampfzeit. Du kannst die Werte danach noch anpassen.</p>
                             </div>
 
                             <!-- Age -->
@@ -461,7 +556,7 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                                 </svg>
-                                {{ estimateLoading ? 'KI berechnet…' : 'Zonen berechnen lassen' }}
+                                {{ estimateLoading ? 'Berechnung läuft…' : 'Zonen berechnen lassen' }}
                             </button>
                         </div>
 
@@ -474,7 +569,7 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
                                         </svg>
                                     </div>
-                                    <p class="text-sm font-semibold text-gray-900 dark:text-white">KI-Schätzung abgeschlossen</p>
+                                    <p class="text-sm font-semibold text-gray-900 dark:text-white">Schätzung abgeschlossen</p>
                                 </div>
 
                                 <div class="grid grid-cols-3 gap-3">
@@ -515,14 +610,14 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                 </div>
 
                 <!-- ══════════════════════════════════════════
-                     STEP 3 — Availability
+                     STEP 4 — Availability
                      ══════════════════════════════════════════ -->
-                <div v-else-if="currentStep === 3" class="space-y-6">
+                <div v-else-if="currentStep === 4" class="space-y-6">
                     <div class="text-center">
                         <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Wann kannst du trainieren?</h2>
                         <p class="mt-2 text-gray-500 dark:text-slate-400">
                             Wähle deine verfügbaren Tage und wie viel Zeit du hast.<br>
-                            Der KI-Plan passt sich automatisch daran an.
+                            Dein Coach passt den Plan automatisch daran an.
                         </p>
                     </div>
 
@@ -588,9 +683,9 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                 </div>
 
                 <!-- ══════════════════════════════════════════
-                     STEP 4 — Race goal
+                     STEP 5 — Race goal
                      ══════════════════════════════════════════ -->
-                <div v-else-if="currentStep === 4" class="space-y-5">
+                <div v-else-if="currentStep === 5" class="space-y-5">
                     <div class="text-center">
                         <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Was ist dein Ziel?</h2>
                         <p class="mt-2 text-gray-500 dark:text-slate-400">
@@ -692,9 +787,9 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                 </div>
 
                 <!-- ══════════════════════════════════════════
-                     STEP 5 — Strava
+                     STEP 6 — Strava
                      ══════════════════════════════════════════ -->
-                <div v-else-if="currentStep === 5" class="space-y-6 text-center">
+                <div v-else-if="currentStep === 6" class="space-y-6 text-center">
                     <div class="w-20 h-20 mx-auto rounded-3xl bg-orange-500 flex items-center justify-center shadow-lg">
                         <svg class="w-10 h-10 text-white" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066l-2.084 4.116z"/>

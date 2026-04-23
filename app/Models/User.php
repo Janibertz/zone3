@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Coach;
 use App\Models\Event;
 use App\Models\Goal;
 use App\Models\TrainingSession;
@@ -16,7 +17,7 @@ use Illuminate\Notifications\Notifiable;
 
 #[Fillable(['name', 'email', 'password', 'onboarding_completed_at', 'is_admin', 'is_active',
     'push_notifications_enabled', 'wellbeing_reminder_time', 'notify_threshold_pace', 'notify_plan_updated',
-    'avatar', 'bio', 'location', 'birth_year', 'favorite_distance'])]
+    'avatar', 'bio', 'location', 'birth_year', 'favorite_distance', 'coach_id'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -40,6 +41,11 @@ class User extends Authenticatable
             'notify_threshold_pace'         => 'boolean',
             'notify_plan_updated'           => 'boolean',
         ];
+    }
+
+    public function coach()
+    {
+        return $this->belongsTo(Coach::class);
     }
 
     public function stravaAccount()
