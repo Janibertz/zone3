@@ -61,6 +61,14 @@ function formatPace(averageSpeed) {
     return `${min}:${String(sec).padStart(2,'0')}`;
 }
 
+function formatSwimPace(averageSpeed) {
+    if (!averageSpeed || averageSpeed === 0) return '–';
+    const secPer100m = 100 / averageSpeed;
+    const min = Math.floor(secPer100m / 60);
+    const sec = Math.floor(secPer100m % 60);
+    return `${min}:${String(sec).padStart(2,'0')}`;
+}
+
 function formatDate(dateStr) {
     const d = new Date(dateStr);
     return d.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
@@ -252,6 +260,11 @@ onUnmounted(() => {
                     <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Pace</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white leading-none">{{ formatPace(activity.average_speed) }}</p>
                     <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">min/km</p>
+                </div>
+                <div v-if="activity.type === 'Swim'" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4">
+                    <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Pace</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white leading-none">{{ formatSwimPace(activity.average_speed) }}</p>
+                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">min/100m</p>
                 </div>
                 <div v-if="activity.total_elevation_gain > 0" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4">
                     <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Höhenmeter</p>
