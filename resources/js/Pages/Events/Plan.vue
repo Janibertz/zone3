@@ -101,7 +101,7 @@ const wellbeingBanner = computed(() => {
             level: 'warning',
             icon: '😴',
             text: energy <= 3 ? 'Sehr wenig Energie heute.' : 'Starker Muskelkater.',
-            tip: 'KI kann die Einheit an deinen Zustand anpassen.',
+            tip: 'Dein Coach kann die Einheit an deinen Zustand anpassen.',
             canAdjust: true,
         };
     }
@@ -337,7 +337,7 @@ async function openDetail(session) {
         nutritionCache[session.id] = data;
         aiNutritionTips.value = data;
     } catch {
-        nutritionError.value = 'KI-Tipps konnten nicht geladen werden.';
+        nutritionError.value = 'Ernährungstipps konnten nicht geladen werden.';
     } finally {
         nutritionLoading.value = false;
     }
@@ -438,7 +438,7 @@ const workoutSteps = computed(() => {
                     <div class="h-8 w-8 rounded-xl bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center shrink-0 text-base">🏅</div>
                     <div>
                         <h3 class="text-sm font-bold text-gray-900 dark:text-white">Rennergebnis eintragen</h3>
-                        <p class="text-xs text-gray-400 dark:text-slate-500">Dein Ergebnis hilft der KI, den nächsten Plan gezielter zu gestalten</p>
+                        <p class="text-xs text-gray-400 dark:text-slate-500">Dein Ergebnis hilft deinem Coach, den nächsten Plan gezielter zu gestalten</p>
                     </div>
                 </div>
 
@@ -540,7 +540,7 @@ const workoutSteps = computed(() => {
                             class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
                         >
                             <svg v-if="adjustingId === todaySession.id" class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                            KI anpassen
+                            Anpassen
                         </button>
                     </div>
                     <div v-else-if="wellbeingBanner.level === 'danger'" class="shrink-0">
@@ -559,7 +559,7 @@ const workoutSteps = computed(() => {
                 <span class="text-xl leading-none mt-0.5">🔗</span>
                 <div class="flex-1">
                     <p class="text-sm font-semibold text-orange-700 dark:text-orange-400">Neue Strava-Aktivität importiert</p>
-                    <p class="text-xs text-orange-600/70 dark:text-orange-400/70 mt-0.5">Der verbleibende Plan sollte neu berechnet werden, damit die KI deinen aktuellen Trainingsstand berücksichtigt.</p>
+                    <p class="text-xs text-orange-600/70 dark:text-orange-400/70 mt-0.5">Der verbleibende Plan sollte neu berechnet werden, damit dein Coach deinen aktuellen Trainingsstand berücksichtigt.</p>
                 </div>
                 <button @click="generatePlan" :disabled="generating"
                     class="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold px-3 py-2 transition-colors disabled:opacity-50">
@@ -587,22 +587,16 @@ const workoutSteps = computed(() => {
                         Abbrechen
                     </button>
 
-                    <!-- Generate/update (only when plan is active or no plan yet, and event not past) -->
-                    <button v-if="(!currentPlan || currentPlan.is_active) && !isPastEvent"
+                    <!-- Generate/update (always shown when event not past) -->
+                    <button v-if="!isPastEvent"
                         @click="generatePlan" :disabled="generating"
                         class="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors shadow-sm disabled:opacity-60"
-                        :class="currentPlan ? 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700' : 'bg-indigo-600 text-white hover:bg-indigo-700'"
+                        :class="currentPlan?.is_active ? 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700' : 'bg-indigo-600 text-white hover:bg-indigo-700'"
                     >
                         <svg v-if="generating" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                         <svg v-else class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
-                        {{ generating ? 'KI analysiert...' : currentPlan ? 'Plan aktualisieren' : 'KI-Plan erstellen' }}
+                        {{ generating ? 'Dein Coach analysiert...' : currentPlan?.is_active ? 'Plan aktualisieren' : 'Neuen Plan erstellen' }}
                     </button>
-
-                    <!-- Cancelled state info (only for active events) -->
-                    <span v-if="currentPlan && !currentPlan.is_active && !isPastEvent"
-                        class="inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-400 dark:text-slate-500 bg-gray-100 dark:bg-slate-800">
-                        Plan abgebrochen
-                    </span>
                 </div>
             </div>
 
@@ -612,7 +606,7 @@ const workoutSteps = computed(() => {
             <!-- Generating -->
             <div v-if="generating" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-10 text-center mb-4">
                 <svg class="h-10 w-10 animate-spin mx-auto text-indigo-500 mb-3" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                <p class="text-sm font-medium text-gray-700 dark:text-slate-300">KI analysiert deine Daten...</p>
+                <p class="text-sm font-medium text-gray-700 dark:text-slate-300">Dein Coach analysiert deine Daten...</p>
                 <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">Aktivitäten, Wellbeing und Athletenprofil werden ausgewertet</p>
             </div>
 
@@ -621,14 +615,14 @@ const workoutSteps = computed(() => {
                 <svg class="h-12 w-12 mx-auto text-gray-300 dark:text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
                 <template v-if="isPastEvent">
                     <p class="text-sm font-medium text-gray-700 dark:text-slate-300">Kein Trainingsplan vorhanden</p>
-                    <p class="mt-1 text-xs text-gray-400 dark:text-slate-500 max-w-xs mx-auto">Für dieses Event wurde kein KI-Plan erstellt.</p>
+                    <p class="mt-1 text-xs text-gray-400 dark:text-slate-500 max-w-xs mx-auto">Für dieses Event wurde kein Plan erstellt.</p>
                 </template>
                 <template v-else>
                     <p class="text-sm font-medium text-gray-700 dark:text-slate-300">Noch kein Trainingsplan</p>
-                    <p class="mt-1 text-xs text-gray-400 dark:text-slate-500 max-w-xs mx-auto">Die KI analysiert Aktivitäten, Wellbeing und Athletenprofil für einen optimalen 10-Tages-Plan.</p>
+                    <p class="mt-1 text-xs text-gray-400 dark:text-slate-500 max-w-xs mx-auto">Dein Coach analysiert Aktivitäten, Wellbeing und Athletenprofil für einen optimalen 10-Tages-Plan.</p>
                     <button @click="generatePlan" :disabled="generating" class="mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
-                        KI-Plan erstellen
+                        Plan erstellen
                     </button>
                 </template>
             </div>
@@ -738,7 +732,7 @@ const workoutSteps = computed(() => {
                                         >
                                             <svg v-if="adjustingId === session.id" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                                             <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
-                                            KI anpassen
+                                            Anpassen
                                         </button>
                                         <!-- Availability override: mark day as unavailable -->
                                         <button
@@ -877,14 +871,14 @@ const workoutSteps = computed(() => {
                         </div>
                     </div>
 
-                    <!-- Verpflegungsplan (KI) -->
+                    <!-- Verpflegungsplan -->
                     <div>
-                        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-2">KI-Verpflegungsplan</h3>
+                        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-2">Verpflegungsplan</h3>
 
                         <!-- Loading -->
                         <div v-if="nutritionLoading" class="flex items-center gap-3 py-4 text-sm text-gray-500 dark:text-slate-400">
                             <svg class="h-4 w-4 animate-spin shrink-0 text-indigo-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                            KI erstellt Verpflegungstipps…
+                            Dein Coach erstellt Verpflegungstipps…
                         </div>
 
                         <!-- Error -->
@@ -1004,7 +998,7 @@ const workoutSteps = computed(() => {
             <div class="p-6 bg-white dark:bg-slate-900">
                 <h2 class="text-lg font-bold text-gray-900 dark:text-white">Plan wirklich abbrechen?</h2>
                 <p class="mt-2 text-sm text-gray-500 dark:text-slate-400">
-                    Der KI-Plan wird deaktiviert. Deine bereits absolvierten Einheiten bleiben erhalten.
+                    Der Plan wird deaktiviert. Deine bereits absolvierten Einheiten bleiben erhalten.
                     Du kannst danach für jedes Event einen neuen Plan erstellen.
                 </p>
                 <div class="mt-5 flex gap-3 justify-end">

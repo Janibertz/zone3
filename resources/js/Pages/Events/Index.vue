@@ -143,7 +143,7 @@ watch(() => form.race_distance, (val) => {
             <div class="flex items-center justify-between mb-5 sm:mb-7">
                 <div>
                     <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Events & Rennen</h1>
-                    <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Plane deine Wettkämpfe und lass KI-Trainingspläne erstellen</p>
+                    <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Plane deine Wettkämpfe und lass deinen Coach Trainingspläne erstellen</p>
                 </div>
                 <button
                     @click="openCreate"
@@ -262,7 +262,7 @@ watch(() => form.race_distance, (val) => {
                                                 class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors"
                                             >
                                                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
-                                                KI-Plan ansehen
+                                                Plan ansehen
                                             </a>
                                         </template>
 
@@ -283,7 +283,7 @@ watch(() => form.race_distance, (val) => {
                                                     : 'bg-indigo-600 text-white hover:bg-indigo-700'"
                                             >
                                                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
-                                                {{ event.plan_generated_at ? 'KI-Plan ansehen' : 'KI-Plan erstellen' }}
+                                                {{ event.plan_generated_at ? 'Plan ansehen' : 'Plan erstellen' }}
                                             </a>
                                         </template>
 
@@ -422,7 +422,7 @@ watch(() => form.race_distance, (val) => {
             <div class="p-6 bg-white dark:bg-slate-900">
                 <h2 class="text-lg font-bold text-gray-900 dark:text-white">Event löschen?</h2>
                 <p class="mt-2 text-sm text-gray-500 dark:text-slate-400">
-                    <strong>{{ confirmingDelete?.name }}</strong> und der zugehörige KI-Plan werden dauerhaft gelöscht.
+                    <strong>{{ confirmingDelete?.name }}</strong> und der zugehörige Trainingsplan werden dauerhaft gelöscht.
                 </p>
                 <div class="mt-5 flex gap-3 justify-end">
                     <button @click="confirmingDelete = null"
