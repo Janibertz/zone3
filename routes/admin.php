@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminAiLogController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminUserController;
 use Illuminate\Support\Facades\Route;
@@ -13,3 +14,6 @@ Route::get('/users/{user}',                   [AdminUserController::class, 'show
 Route::patch('/users/{user}/toggle-admin',    [AdminUserController::class, 'toggleAdmin'])  ->name('users.toggle-admin');
 Route::patch('/users/{user}/toggle-active',   [AdminUserController::class, 'toggleActive']) ->name('users.toggle-active');
 Route::delete('/users/{user}',                [AdminUserController::class, 'destroy'])      ->name('users.destroy');
+
+Route::get('/ai-logs',           [AdminAiLogController::class, 'index']) ->name('ai-logs.index');
+Route::get('/ai-logs/{aiLog}',   [AdminAiLogController::class, 'show'])  ->name('ai-logs.show');

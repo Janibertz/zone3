@@ -52,7 +52,7 @@ class AIController extends Controller
             ->first();
 
         // Generate AI analysis
-        $this->openAI->withCoach($goal->user->coach?->personality_prompt);
+        $this->openAI->withCoach($goal->user->coach?->personality_prompt)->forUser($goal->user_id);
         $analysis = $this->openAI->analyzeTraining($goalData, $progressData, $recentActivities, $wellbeingData);
 
         return response()->json([
@@ -83,7 +83,7 @@ class AIController extends Controller
         $progressData = $this->progress->calculateProgress($goal);
 
         // Generate plan
-        $this->openAI->withCoach($goal->user->coach?->personality_prompt);
+        $this->openAI->withCoach($goal->user->coach?->personality_prompt)->forUser($goal->user_id);
         $plan = $this->openAI->generateTrainingPlan($goalData, $progressData);
 
         return response()->json([
@@ -113,7 +113,7 @@ class AIController extends Controller
                 ->get()
                 ->toArray();
 
-            $this->openAI->withCoach($user->coach?->personality_prompt);
+            $this->openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
             $analysis = $this->openAI->analyzeTraining($goalData, $progressData, $recentActivities);
 
             $suggestions[] = [
@@ -206,7 +206,7 @@ class AIController extends Controller
             }
 
             if (! $recommendation) {
-                $this->openAI->withCoach($user->coach?->personality_prompt);
+                $this->openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
                 $recommendation = $this->openAI->generateTodayRecommendation(
                     $runnerProfile ? [
                         'threshold_heart_rate' => $runnerProfile->threshold_heart_rate,
@@ -288,7 +288,7 @@ class AIController extends Controller
         $runnerProfile  = $user->runnerProfile;
         $todayWellbeing = $user->wellbeingEntries()->whereDate('date', $today)->first();
 
-        $this->openAI->withCoach($user->coach?->personality_prompt);
+        $this->openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
         $adjusted = $this->openAI->adjustTodayRecommendation(
             $request->current,
             $request->direction,

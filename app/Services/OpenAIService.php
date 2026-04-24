@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AiLog;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -11,6 +12,7 @@ class OpenAIService
     protected string $model;
     protected string $baseUrl = 'https://api.openai.com/v1';
     protected ?string $coachPersonality = null;
+    protected ?int $userId = null;
 
     public function __construct()
     {
@@ -24,12 +26,99 @@ class OpenAIService
         return $this;
     }
 
+    public function forUser(?int $userId): static
+    {
+        $this->userId = $userId;
+        return $this;
+    }
+
     protected function buildSystemPrompt(string $base): string
     {
         if ($this->coachPersonality) {
             return $this->coachPersonality . ' ' . $base;
         }
         return $base;
+    }
+
+    /**
+     * Central OpenAI HTTP call with automatic AiLog entry.
+     * Returns content string from choices[0].message.content, or null on failure.
+     */
+    protected function callOpenAI(
+        string $callType,
+        array  $messages,
+        float  $temperature,
+        int    $maxTokens,
+        int    $timeout = 30
+    ): ?string {
+        $startMs = (int) round(microtime(true) * 1000);
+
+        $userContent = '';
+        foreach (array_reverse($messages) as $m) {
+            if ($m['role'] === 'user') { $userContent = $m['content']; break; }
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Content-Type'  => 'application/json',
+            ])->timeout($timeout)->post($this->baseUrl . '/chat/completions', [
+                'model'       => $this->model,
+                'messages'    => $messages,
+                'temperature' => $temperature,
+                'max_tokens'  => $maxTokens,
+            ]);
+
+            $durationMs = (int) round(microtime(true) * 1000) - $startMs;
+            $body       = $response->json() ?? [];
+            $content    = data_get($body, 'choices.0.message.content', '');
+            $usage      = $body['usage'] ?? [];
+            $promptTok  = $usage['prompt_tokens']     ?? 0;
+            $compTok    = $usage['completion_tokens'] ?? 0;
+            $totalTok   = $usage['total_tokens']      ?? ($promptTok + $compTok);
+            $cost       = AiLog::calculateCost($this->model, $promptTok, $compTok);
+
+            AiLog::create([
+                'user_id'          => $this->userId,
+                'call_type'        => $callType,
+                'model'            => $this->model,
+                'prompt_tokens'    => $promptTok,
+                'completion_tokens'=> $compTok,
+                'total_tokens'     => $totalTok,
+                'cost_eur'         => $cost,
+                'duration_ms'      => $durationMs,
+                'prompt_preview'   => mb_substr($userContent, 0, 500),
+                'response_preview' => mb_substr($content, 0, 500),
+                'full_prompt'      => $userContent,
+                'full_response'    => $content,
+                'status'           => $response->failed() ? 'error' : 'success',
+                'error_message'    => $response->failed()
+                    ? ('HTTP ' . $response->status() . ': ' . mb_substr($response->body(), 0, 500))
+                    : null,
+            ]);
+
+            if ($response->failed()) {
+                Log::error("OpenAI {$callType} Error", ['status' => $response->status(), 'body' => $response->body()]);
+                return null;
+            }
+
+            return $content;
+
+        } catch (\Exception $e) {
+            $durationMs = (int) round(microtime(true) * 1000) - $startMs;
+
+            AiLog::create([
+                'user_id'       => $this->userId,
+                'call_type'     => $callType,
+                'model'         => $this->model,
+                'duration_ms'   => $durationMs,
+                'status'        => 'error',
+                'error_message' => $e->getMessage(),
+            ]);
+
+            Log::error("OpenAI {$callType} Exception", ['error' => $e->getMessage()]);
+            return null;
+        }
     }
 
     /**
@@ -45,41 +134,12 @@ class OpenAIService
     {
         $prompt = $this->buildAnalysisPrompt($goalData, $progressData, $recentActivities, $wellbeingData);
 
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-                'Content-Type' => 'application/json',
-            ])->post($this->baseUrl . '/chat/completions', [
-                'model' => $this->model,
-                'messages' => [
-                    [
-                        'role' => 'system',
-                        'content' => $this->buildSystemPrompt('Gib kurze, ermutigende und actionable Trainingsanalysen auf Deutsch. Sei präzise und praktisch. Verwende Emojis für bessere Readability. Beachte die Wellbeing-Daten des Athleten und passe deine Empfehlungen entsprechend an.')
-                    ],
-                    [
-                        'role' => 'user',
-                        'content' => $prompt
-                    ]
-                ],
-                'temperature' => 0.7,
-                'max_tokens' => 300,
-            ]);
+        $content = $this->callOpenAI('goal_analysis', [
+            ['role' => 'system', 'content' => $this->buildSystemPrompt('Gib kurze, ermutigende und actionable Trainingsanalysen auf Deutsch. Sei präzise und praktisch. Verwende Emojis für bessere Readability. Beachte die Wellbeing-Daten des Athleten und passe deine Empfehlungen entsprechend an.')],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.7, 300);
 
-            if ($response->failed()) {
-                Log::error('OpenAI API Error', [
-                    'status' => $response->status(),
-                    'body' => $response->body()
-                ]);
-                return 'KI-Analyse konnte nicht geladen werden.';
-            }
-
-            $data = $response->json();
-            return $data['choices'][0]['message']['content'] ?? 'Keine Analyse verfügbar.';
-
-        } catch (\Exception $e) {
-            Log::error('OpenAI Service Error', ['error' => $e->getMessage()]);
-            return 'KI-Service Fehler: ' . $e->getMessage();
-        }
+        return $content ?? 'KI-Analyse konnte nicht geladen werden.';
     }
 
     /**
@@ -216,41 +276,12 @@ Gib einen kurzen, praktischen Wochenplan (3-4 Trainingstage) mit:
 Sei präzise und kurz!
 PROMPT;
 
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-                'Content-Type' => 'application/json',
-            ])->post($this->baseUrl . '/chat/completions', [
-                'model' => $this->model,
-                'messages' => [
-                    [
-                        'role' => 'system',
-                        'content' => 'Du bist ein erfahrener Lauf-Coach. Erstelle praktische, machbare Trainingspläne auf Deutsch.'
-                    ],
-                    [
-                        'role' => 'user',
-                        'content' => $prompt
-                    ]
-                ],
-                'temperature' => 0.7,
-                'max_tokens' => 400,
-            ]);
+        $content = $this->callOpenAI('plan', [
+            ['role' => 'system', 'content' => 'Du bist ein erfahrener Lauf-Coach. Erstelle praktische, machbare Trainingspläne auf Deutsch.'],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.7, 400);
 
-            if ($response->failed()) {
-                Log::error('OpenAI Plan Generation Error', [
-                    'status' => $response->status(),
-                    'body' => $response->body()
-                ]);
-                return 'Trainingsplan konnte nicht erstellt werden.';
-            }
-
-            $data = $response->json();
-            return $data['choices'][0]['message']['content'] ?? 'Kein Plan verfügbar.';
-
-        } catch (\Exception $e) {
-            Log::error('OpenAI Training Plan Error', ['error' => $e->getMessage()]);
-            return 'Fehler beim Plan erstellen: ' . $e->getMessage();
-        }
+        return $content ?? 'Trainingsplan konnte nicht erstellt werden.';
     }
 
     /**
@@ -283,38 +314,12 @@ Nutze diese Regeln (nach Screenshot):
 - Zone 5 (VO2Max): unter Schwellenpace - 0:04
 PROMPT;
 
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-                'Content-Type' => 'application/json',
-            ])->post($this->baseUrl . '/chat/completions', [
-                'model' => $this->model,
-                'messages' => [
-                    [
-                        'role' => 'system',
-                        'content' => 'Du bist ein präziser Lauf-Coach. Antworte nur mit JSON.'
-                    ],
-                    [
-                        'role' => 'user',
-                        'content' => $prompt
-                    ]
-                ],
-                'temperature' => 0.2,
-                'max_tokens' => 260,
-            ]);
+            $text = $this->callOpenAI('pace_zones', [
+                ['role' => 'system', 'content' => 'Du bist ein präziser Lauf-Coach. Antworte nur mit JSON.'],
+                ['role' => 'user',   'content' => $prompt],
+            ], 0.2, 260);
 
-            if ($response->failed()) {
-                Log::error('OpenAI Zone Calculation Error', [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]);
-                return [];
-            }
-
-            $data = $response->json();
-            $text = data_get($data, 'choices.0.message.content', '');
-
-            // Extract first JSON object from response
-            if (preg_match('/\{.*\}/s', $text, $matches)) {
+            if ($text && preg_match('/\{.*\}/s', $text, $matches)) {
                 $json = json_decode($matches[0], true);
                 if (json_last_error() === JSON_ERROR_NONE && isset($json['pace_zones'])) {
                     return $json['pace_zones'];
@@ -402,37 +407,18 @@ Antworte NUR mit einem JSON-Objekt (kein Markdown, kein Text davor/danach):
 }
 PROMPT;
 
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-                'Content-Type' => 'application/json',
-            ])->post($this->baseUrl . '/chat/completions', [
-                'model' => $this->model,
-                'messages' => [
-                    ['role' => 'system', 'content' => $this->buildSystemPrompt('Antworte ausschließlich mit dem angeforderten JSON-Objekt.')],
-                    ['role' => 'user', 'content' => $prompt],
-                ],
-                'temperature' => 0.4,
-                'max_tokens' => 300,
-            ]);
+        $content = $this->callOpenAI('recommendation', [
+            ['role' => 'system', 'content' => $this->buildSystemPrompt('Antworte ausschließlich mit dem angeforderten JSON-Objekt.')],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.4, 300);
 
-            if ($response->failed()) {
-                Log::error('OpenAI Today Recommendation Error', ['status' => $response->status(), 'body' => $response->body()]);
-                return null;
-            }
+        if (!$content) return null;
 
-            $content = $response->json()['choices'][0]['message']['content'] ?? '';
-            // Strip potential markdown fences
-            $content = preg_replace('/^```(?:json)?\s*/i', '', trim($content));
-            $content = preg_replace('/\s*```$/', '', $content);
-            $parsed = json_decode(trim($content), true);
+        $content = preg_replace('/^```(?:json)?\s*/i', '', trim($content));
+        $content = preg_replace('/\s*```$/', '', $content);
+        $parsed  = json_decode(trim($content), true);
 
-            return is_array($parsed) ? $parsed : null;
-
-        } catch (\Exception $e) {
-            Log::error('OpenAI Today Recommendation Exception', ['error' => $e->getMessage()]);
-            return null;
-        }
+        return is_array($parsed) ? $parsed : null;
     }
 
     /**
@@ -460,35 +446,18 @@ Aufgabe: {$directionText}
 Antworte NUR mit dem angepassten JSON-Objekt (gleiche Felder wie die Eingabe):
 PROMPT;
 
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-                'Content-Type' => 'application/json',
-            ])->post($this->baseUrl . '/chat/completions', [
-                'model' => $this->model,
-                'messages' => [
-                    ['role' => 'system', 'content' => 'Du bist ein Lauf-Coach. Antworte ausschließlich mit dem angeforderten JSON-Objekt.'],
-                    ['role' => 'user', 'content' => $prompt],
-                ],
-                'temperature' => 0.3,
-                'max_tokens' => 300,
-            ]);
+        $content = $this->callOpenAI('adjust_recommendation', [
+            ['role' => 'system', 'content' => 'Du bist ein Lauf-Coach. Antworte ausschließlich mit dem angeforderten JSON-Objekt.'],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.3, 300);
 
-            if ($response->failed()) {
-                return null;
-            }
+        if (!$content) return null;
 
-            $content = $response->json()['choices'][0]['message']['content'] ?? '';
-            $content = preg_replace('/^```(?:json)?\s*/i', '', trim($content));
-            $content = preg_replace('/\s*```$/', '', $content);
-            $parsed = json_decode(trim($content), true);
+        $content = preg_replace('/^```(?:json)?\s*/i', '', trim($content));
+        $content = preg_replace('/\s*```$/', '', $content);
+        $parsed  = json_decode(trim($content), true);
 
-            return is_array($parsed) ? $parsed : null;
-
-        } catch (\Exception $e) {
-            Log::error('OpenAI Adjust Recommendation Exception', ['error' => $e->getMessage()]);
-            return null;
-        }
+        return is_array($parsed) ? $parsed : null;
     }
 
     /**
@@ -690,51 +659,30 @@ Du bist ein Sportwissenschaftler und Lauf-Coach spezialisiert auf Laktatschwelle
 {"threshold_pace": "M:SS"}
 PROMPT;
 
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-                'Content-Type'  => 'application/json',
-            ])->post($this->baseUrl . '/chat/completions', [
-                'model'    => $this->model,
-                'messages' => [
-                    ['role' => 'system', 'content' => 'Du bist ein präziser Sportwissenschaftler. Antworte ausschließlich mit JSON.'],
-                    ['role' => 'user',   'content' => $prompt],
-                ],
-                'temperature' => 0.1,
-                'max_tokens'  => 50,
-            ]);
+        $text = $this->callOpenAI('threshold_pace', [
+            ['role' => 'system', 'content' => 'Du bist ein präziser Sportwissenschaftler. Antworte ausschließlich mit JSON.'],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.1, 50);
 
-            if ($response->failed()) {
-                Log::error('OpenAI Threshold Pace Error', ['status' => $response->status(), 'body' => $response->body()]);
-                return $this->paceStringToFloat($mathEstimate);
-            }
-
-            $text = data_get($response->json(), 'choices.0.message.content', '');
-
-            if (preg_match('/\{.*?\}/s', $text, $matches)) {
-                $json = json_decode($matches[0], true);
-                if (json_last_error() === JSON_ERROR_NONE && isset($json['threshold_pace'])) {
-                    $result = $this->paceStringToFloat($json['threshold_pace']);
-                    if ($result !== null) {
-                        Log::info('Threshold pace calculated', [
-                            'lthr'          => $lthr,
-                            'has_hr_data'   => $hasAnyHR,
-                            'math_estimate' => $mathEstimate,
-                            'ai_result'     => $json['threshold_pace'],
-                            'activities'    => count($processed),
-                        ]);
-                        return $result;
-                    }
+        if ($text && preg_match('/\{.*?\}/s', $text, $matches)) {
+            $json = json_decode($matches[0], true);
+            if (json_last_error() === JSON_ERROR_NONE && isset($json['threshold_pace'])) {
+                $result = $this->paceStringToFloat($json['threshold_pace']);
+                if ($result !== null) {
+                    Log::info('Threshold pace calculated', [
+                        'lthr'          => $lthr,
+                        'has_hr_data'   => $hasAnyHR,
+                        'math_estimate' => $mathEstimate,
+                        'ai_result'     => $json['threshold_pace'],
+                        'activities'    => count($processed),
+                    ]);
+                    return $result;
                 }
             }
-
-            Log::warning('Threshold pace AI parse failed, using math estimate', ['text' => $text]);
-            return $this->paceStringToFloat($mathEstimate);
-
-        } catch (\Exception $e) {
-            Log::error('Threshold Pace Exception', ['error' => $e->getMessage()]);
-            return $this->paceStringToFloat($mathEstimate);
         }
+
+        Log::warning('Threshold pace AI parse failed, using math estimate', ['text' => $text]);
+        return $this->paceStringToFloat($mathEstimate);
     }
 
     /**
@@ -785,48 +733,27 @@ Gib ausschließlich dieses JSON zurück (kein anderer Text):
 {"threshold_heart_rate": <integer bpm>, "max_heart_rate": <integer bpm>, "threshold_speed": "<M:SS>"}
 PROMPT;
 
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-                'Content-Type'  => 'application/json',
-            ])->post($this->baseUrl . '/chat/completions', [
-                'model'    => $this->model,
-                'messages' => [
-                    ['role' => 'system', 'content' => 'Du bist ein präziser Sportwissenschaftler. Antworte ausschließlich mit validem JSON.'],
-                    ['role' => 'user',   'content' => $prompt],
-                ],
-                'temperature' => 0.2,
-                'max_tokens'  => 80,
-            ]);
+        $text = $this->callOpenAI('profile_estimation', [
+            ['role' => 'system', 'content' => 'Du bist ein präziser Sportwissenschaftler. Antworte ausschließlich mit validem JSON.'],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.2, 80);
 
-            if ($response->failed()) {
-                Log::error('OpenAI Profile Estimation Error', ['status' => $response->status(), 'body' => $response->body()]);
-                return null;
+        if ($text && preg_match('/\{.*?\}/s', $text, $matches)) {
+            $json = json_decode($matches[0], true);
+            if (
+                json_last_error() === JSON_ERROR_NONE &&
+                isset($json['threshold_heart_rate'], $json['max_heart_rate'], $json['threshold_speed'])
+            ) {
+                return [
+                    'threshold_heart_rate' => (int) $json['threshold_heart_rate'],
+                    'max_heart_rate'        => (int) $json['max_heart_rate'],
+                    'threshold_speed'       => (string) $json['threshold_speed'],
+                ];
             }
-
-            $text = data_get($response->json(), 'choices.0.message.content', '');
-
-            if (preg_match('/\{.*?\}/s', $text, $matches)) {
-                $json = json_decode($matches[0], true);
-                if (
-                    json_last_error() === JSON_ERROR_NONE &&
-                    isset($json['threshold_heart_rate'], $json['max_heart_rate'], $json['threshold_speed'])
-                ) {
-                    return [
-                        'threshold_heart_rate' => (int) $json['threshold_heart_rate'],
-                        'max_heart_rate'        => (int) $json['max_heart_rate'],
-                        'threshold_speed'       => (string) $json['threshold_speed'],
-                    ];
-                }
-            }
-
-            Log::warning('OpenAI Profile Estimation parse failed', ['text' => $text]);
-            return null;
-
-        } catch (\Exception $e) {
-            Log::error('OpenAI Profile Estimation Exception', ['error' => $e->getMessage()]);
-            return null;
         }
+
+        Log::warning('OpenAI Profile Estimation parse failed', ['text' => $text]);
+        return null;
     }
 
     /**
@@ -1051,46 +978,21 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan f�
 Für Ruhetage: distance_km=0, duration_min=0, pace_target=null, zone=null.
 PROMPT;
 
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-                'Content-Type'  => 'application/json',
-            ])->timeout(60)->post($this->baseUrl . '/chat/completions', [
-                'model'    => $this->model,
-                'messages' => [
-                    ['role' => 'system', 'content' => $this->buildSystemPrompt('Antworte ausschließlich mit einem validen JSON-Array ohne zusätzlichen Text.')],
-                    ['role' => 'user',   'content' => $prompt],
-                ],
-                'temperature' => 0.6,
-                'max_tokens'  => 2500,
-            ]);
+        $text = $this->callOpenAI('event_plan', [
+            ['role' => 'system', 'content' => $this->buildSystemPrompt('Antworte ausschließlich mit einem validen JSON-Array ohne zusätzlichen Text.')],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.6, 2500, 60);
 
-            if ($response->failed()) {
-                Log::error('OpenAI Event Training Plan Error', ['status' => $response->status(), 'body' => $response->body()]);
-                return null;
+        if ($text && preg_match('/\[.*\]/s', $text, $matches)) {
+            $sessions = json_decode($matches[0], true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($sessions) && count($sessions) > 0) {
+                Log::info('Event training plan generated', ['event_id' => $event->id, 'sessions' => count($sessions)]);
+                return $sessions;
             }
-
-            $text = data_get($response->json(), 'choices.0.message.content', '');
-
-            // Extract JSON array from response
-            if (preg_match('/\[.*\]/s', $text, $matches)) {
-                $sessions = json_decode($matches[0], true);
-                if (json_last_error() === JSON_ERROR_NONE && is_array($sessions) && count($sessions) > 0) {
-                    Log::info('Event training plan generated', [
-                        'event_id' => $event->id,
-                        'sessions' => count($sessions),
-                    ]);
-                    return $sessions;
-                }
-            }
-
-            Log::warning('Event training plan parse failed', ['text' => $text]);
-            return null;
-
-        } catch (\Exception $e) {
-            Log::error('Event Training Plan Exception', ['error' => $e->getMessage()]);
-            return null;
         }
+
+        Log::warning('Event training plan parse failed', ['text' => $text]);
+        return null;
     }
 
     /**
@@ -1143,37 +1045,18 @@ Antworte ausschließlich mit JSON (kein anderer Text):
 }
 PROMPT;
 
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-                'Content-Type'  => 'application/json',
-            ])->post($this->baseUrl . '/chat/completions', [
-                'model'    => $this->model,
-                'messages' => [
-                    ['role' => 'system', 'content' => 'Du bist ein präziser Lauf-Coach. Antworte ausschließlich mit validem JSON.'],
-                    ['role' => 'user',   'content' => $prompt],
-                ],
-                'temperature' => 0.4,
-                'max_tokens'  => 300,
-            ]);
+        $text = $this->callOpenAI('adjust_session', [
+            ['role' => 'system', 'content' => 'Du bist ein präziser Lauf-Coach. Antworte ausschließlich mit validem JSON.'],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.4, 300);
 
-            if ($response->failed()) {
-                Log::error('OpenAI Session Adjust Error', ['status' => $response->status()]);
-                return null;
+        if ($text && preg_match('/\{.*\}/s', $text, $matches)) {
+            $json = json_decode($matches[0], true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $json;
             }
-
-            $text = data_get($response->json(), 'choices.0.message.content', '');
-            if (preg_match('/\{.*\}/s', $text, $matches)) {
-                $json = json_decode($matches[0], true);
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    return $json;
-                }
-            }
-            return null;
-        } catch (\Exception $e) {
-            Log::error('Session Adjust Exception', ['error' => $e->getMessage()]);
-            return null;
         }
+        return null;
     }
 
     /**
@@ -1232,37 +1115,18 @@ Antworte ausschließlich mit JSON (kein anderer Text):
 Max. 3 Punkte pro Abschnitt. Konkrete Mengen, Produkte, Zeitangaben. Kein Allgemeinwissen.
 PROMPT;
 
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-                'Content-Type'  => 'application/json',
-            ])->post($this->baseUrl . '/chat/completions', [
-                'model'    => $this->model,
-                'messages' => [
-                    ['role' => 'system', 'content' => 'Du bist ein Ernährungs- und Laufexperte. Antworte ausschließlich mit validem JSON.'],
-                    ['role' => 'user',   'content' => $prompt],
-                ],
-                'temperature' => 0.5,
-                'max_tokens'  => 600,
-            ]);
+        $text = $this->callOpenAI('nutrition', [
+            ['role' => 'system', 'content' => 'Du bist ein Ernährungs- und Laufexperte. Antworte ausschließlich mit validem JSON.'],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.5, 600);
 
-            if ($response->failed()) {
-                Log::error('OpenAI Nutrition Tips Error', ['status' => $response->status()]);
-                return null;
+        if ($text && preg_match('/\{.*\}/s', $text, $matches)) {
+            $json = json_decode($matches[0], true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $json;
             }
-
-            $text = data_get($response->json(), 'choices.0.message.content', '');
-            if (preg_match('/\{.*\}/s', $text, $matches)) {
-                $json = json_decode($matches[0], true);
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    return $json;
-                }
-            }
-            return null;
-        } catch (\Exception $e) {
-            Log::error('Nutrition Tips Exception', ['error' => $e->getMessage()]);
-            return null;
         }
+        return null;
     }
 
     /**
@@ -1332,30 +1196,14 @@ Gesamt: {$totalKm} km / {$totalMin} min
 Schreibe fließend, kein JSON, kein Markdown mit #-Überschriften. Direkte Ansprache (du).
 PROMPT;
 
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-                'Content-Type'  => 'application/json',
-            ])->timeout(30)->post($this->baseUrl . '/chat/completions', [
-                'model'    => $this->model,
-                'messages' => [
-                    ['role' => 'system', 'content' => $this->buildSystemPrompt('Antworte auf Deutsch, kurz und präzise.')],
-                    ['role' => 'user',   'content' => $prompt],
-                ],
-                'temperature' => 0.7,
-                'max_tokens'  => 300,
-            ]);
+        $this->forUser($user->id);
 
-            if ($response->failed()) {
-                Log::error('OpenAI Weekly Review Error', ['status' => $response->status()]);
-                return null;
-            }
+        $text = $this->callOpenAI('weekly_review', [
+            ['role' => 'system', 'content' => $this->buildSystemPrompt('Antworte auf Deutsch, kurz und präzise.')],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.7, 300, 30);
 
-            return trim(data_get($response->json(), 'choices.0.message.content', '')) ?: null;
-        } catch (\Exception $e) {
-            Log::error('Weekly Review Exception', ['error' => $e->getMessage()]);
-            return null;
-        }
+        return ($text && trim($text) !== '') ? trim($text) : null;
     }
 
     private function formatSeconds(int $seconds): string

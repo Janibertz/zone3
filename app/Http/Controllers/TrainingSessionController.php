@@ -77,7 +77,7 @@ class TrainingSessionController extends Controller
             return response()->json($session->nutrition_tips);
         }
 
-        $openAI->withCoach(Auth::user()->coach?->personality_prompt);
+        $openAI->withCoach(Auth::user()->coach?->personality_prompt)->forUser(Auth::id());
         $tips = $openAI->generateNutritionTips([
             'type'         => $session->type,
             'title'        => $session->title,
@@ -116,7 +116,7 @@ class TrainingSessionController extends Controller
             ], 422);
         }
 
-        $openAI->withCoach(Auth::user()->coach?->personality_prompt);
+        $openAI->withCoach(Auth::user()->coach?->personality_prompt)->forUser(Auth::id());
         $adjusted = $openAI->adjustSessionForWellbeing($session->toArray(), $wellbeing);
 
         if (! $adjusted) {
