@@ -321,8 +321,14 @@ const zoneColors = [
                             </div>
                             <span
                                 class="text-xs px-2 py-0.5 rounded-full"
-                                :class="goal.active ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400' : 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-slate-400'"
-                            >{{ goal.active ? 'Aktiv' : 'Inaktiv' }}</span>
+                                :class="goal.end_date && new Date(goal.end_date) < new Date()
+                                    ? 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
+                                    : goal.active
+                                        ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400'
+                                        : 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-slate-400'"
+                            >
+                                {{ goal.end_date && new Date(goal.end_date) < new Date() ? 'Abgeschlossen' : goal.active ? 'Aktiv' : 'Inaktiv' }}
+                            </span>
                         </div>
                     </div>
                     <p v-else class="text-sm text-gray-400 dark:text-slate-500">Keine Ziele vorhanden.</p>
