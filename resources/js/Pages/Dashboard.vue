@@ -243,6 +243,9 @@ function onWellbeingSaved(data) {
     }
     clearTimeout(wellbeingToastTimer);
     wellbeingToastTimer = setTimeout(() => { wellbeingToast.value = null; }, 5000);
+
+    // Immediately fetch the recommendation now that wellbeing is available
+    getTodayRecommendation();
 }
 const syncing = ref(false);
 

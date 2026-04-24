@@ -147,7 +147,12 @@ class AIController extends Controller
 
         $wellbeingExists = (bool) $todayWellbeing;
 
-        $activeGoal = $user->goals()->where('active', true)->orderBy('end_date')->first();
+        // Only consider goals that haven't already ended (exclude past events)
+        $activeGoal = $user->goals()
+            ->where('active', true)
+            ->where('end_date', '>=', $today)
+            ->orderBy('end_date')
+            ->first();
 
         $goalData = $activeGoal ? [
             'name' => $activeGoal->name,
@@ -164,6 +169,25 @@ class AIController extends Controller
             'status' => 'none',
             'days_remaining' => 0,
         ];
+
+        // Upcoming events/races (today onwards, nearest first)
+        $upcomingEvents = $user->events()
+            ->where('event_date', '>=', $today)
+            ->orderBy('event_date')
+            ->limit(5)
+            ->get()
+            ->map(fn ($e) => [
+                'name'           => $e->name,
+                'event_date'     => $e->event_date->toDateString(),
+                'days_until'     => (int) Carbon::today()->diffInDays($e->event_date, false),
+                'distance_label' => $e->distance_label,
+            ])
+            ->toArray();
+
+        // Today's availability from runner profile
+        $todayDayName     = strtolower(Carbon::today()->format('l')); // 'monday', 'tuesday', …
+        $weeklyAvailability = $runnerProfile?->weekly_availability ?? [];
+        $todayAvailability  = $weeklyAvailability[$todayDayName] ?? null;
 
         $recommendation = null;
         $recommendationMessage = 'Bitte trage zunächst dein Wellbeing für heute ein, um eine Trainingsempfehlung zu erhalten.';
@@ -192,7 +216,9 @@ class AIController extends Controller
                     $yesterdayActivity ? $yesterdayActivity->toArray() : null,
                     $todayWellbeing ? $todayWellbeing->toArray() : null,
                     $goalData,
-                    $progressData
+                    $progressData,
+                    $upcomingEvents,
+                    $todayAvailability
                 );
 
                 if ($runnerProfile && $recommendation) {

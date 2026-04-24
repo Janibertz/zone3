@@ -336,12 +336,48 @@ PROMPT;
      * distance_km, duration_min, pace_target, zone, intensity.
      * Returns null on failure.
      */
-    public function generateTodayRecommendation(?array $runnerProfile, ?array $yesterdayActivity, ?array $wellbeingEntry, ?array $goal, array $progress): ?array
+    public function generateTodayRecommendation(?array $runnerProfile, ?array $yesterdayActivity, ?array $wellbeingEntry, ?array $goal, array $progress, array $upcomingEvents = [], ?array $todayAvailability = null): ?array
     {
         $profileText = $runnerProfile ? "Runner Profile:\n- LTHR: {$runnerProfile['threshold_heart_rate']} bpm\n- Max HR: {$runnerProfile['max_heart_rate']} bpm\n- Schwellenpace: {$runnerProfile['threshold_speed']} min/km\n" : "Kein Runner Profile vorhanden.\n";
         $activityText = $yesterdayActivity ? "Letzte Aktivität (gestern):\n- " . round($yesterdayActivity['distance']/1000,2) . " km in " . $this->formatSeconds($yesterdayActivity['moving_time']) . " · Pace: " . ($yesterdayActivity['average_speed'] ? $this->calculatePace($yesterdayActivity['average_speed']) : '—') . "\n" : "Keine Aktivität von gestern.\n";
         $wellbeingText = $wellbeingEntry ? "Wellbeing heute: Energie {$wellbeingEntry['energy_level']}/10, Schlaf {$wellbeingEntry['sleep_quality']}/10, Muskelkater {$wellbeingEntry['muscle_soreness']}/10, Stress {$wellbeingEntry['stress_level']}/10\n" : "Kein Wellbeing.\n";
-        $goalText = $goal ? "Ziel: {$goal['name']}\n" : "Kein aktives Ziel.\n";
+        $goalText = $goal ? "Ziel: {$goal['name']} (bis {$goal['end_date']})\n" : "Kein aktives Ziel.\n";
+
+        // Upcoming events / taper logic
+        $eventsText = '';
+        $taperWarning = '';
+        if (!empty($upcomingEvents)) {
+            $lines = array_map(
+                fn ($e) => "- {$e['name']} ({$e['distance_label']}) am {$e['event_date']} (in {$e['days_until']} Tagen)",
+                $upcomingEvents
+            );
+            $eventsText = "Kommende Wettkämpfe:\n" . implode("\n", $lines) . "\n";
+
+            $nearest = $upcomingEvents[0];
+            $daysUntil = $nearest['days_until'];
+            if ($daysUntil <= 1) {
+                $taperWarning = "WICHTIG: Wettkampf morgen oder heute! Kein Training — nur lockeres Einlaufen erlaubt. Empfehle rest oder sehr kurzes easy_run.\n";
+            } elseif ($daysUntil <= 3) {
+                $taperWarning = "WICHTIG: Wettkampf in {$daysUntil} Tagen! Nur leichtes Regenerationstraining, kein intensiver Reiz. Maximal easy_run, Zone 1–2.\n";
+            } elseif ($daysUntil <= 7) {
+                $taperWarning = "WICHTIG: Wettkampf in {$daysUntil} Tagen — Tapering-Phase! Kein hartes Training (kein interval, kein tempo_run). Nur easy_run oder rest.\n";
+            }
+        } else {
+            $eventsText = "Keine kommenden Wettkämpfe.\n";
+        }
+
+        // Today's availability
+        $availabilityText = '';
+        if ($todayAvailability !== null) {
+            if ($todayAvailability['available'] ?? false) {
+                $maxMin = $todayAvailability['duration_min'] ?? null;
+                $availabilityText = $maxMin
+                    ? "Heutige Verfügbarkeit: maximal {$maxMin} Minuten. Passe duration_min entsprechend an.\n"
+                    : "Heute verfügbar für Training.\n";
+            } else {
+                $availabilityText = "Heute laut Profil kein Training geplant. Empfehle rest.\n";
+            }
+        }
 
         $prompt = <<<PROMPT
 Du bist ein präziser Lauf-Coach. Erstelle eine Trainingsempfehlung für heute als JSON-Objekt.
@@ -350,12 +386,14 @@ Du bist ein präziser Lauf-Coach. Erstelle eine Trainingsempfehlung für heute a
 {$activityText}
 {$wellbeingText}
 {$goalText}
-
+{$eventsText}
+{$taperWarning}
+{$availabilityText}
 Antworte NUR mit einem JSON-Objekt (kein Markdown, kein Text davor/danach):
 {
   "type": "easy_run|tempo_run|interval|long_run|rest",
   "title": "Kurzer Titel der Einheit",
-  "description": "2-3 Sätze Erklärung warum und wie",
+  "description": "2-3 Sätze Erklärung warum und wie. Nur auf bevorstehende Wettkämpfe eingehen, keine vergangenen Ereignisse erwähnen.",
   "distance_km": 8.0,
   "duration_min": 50,
   "pace_target": "5:30",
