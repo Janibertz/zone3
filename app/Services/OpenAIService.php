@@ -1112,11 +1112,11 @@ Antworte ausschließlich mit JSON (kein anderer Text):
   "during": [{"icon": "💧", "text": "..."}, ...],
   "after":  [{"icon": "🥩", "text": "..."}, ...]
 }
-Max. 3 Punkte pro Abschnitt. Konkrete Mengen, Produkte, Zeitangaben. Kein Allgemeinwissen.
+Max. 3 Punkte pro Abschnitt. Konkrete Mengen, Produkte, Zeitangaben. Kein Allgemeinwissen. Alle Texte auf Deutsch.
 PROMPT;
 
         $text = $this->callOpenAI('nutrition', [
-            ['role' => 'system', 'content' => 'Du bist ein Ernährungs- und Laufexperte. Antworte ausschließlich mit validem JSON.'],
+            ['role' => 'system', 'content' => 'Du bist ein Ernährungs- und Laufexperte. Antworte ausschließlich mit validem JSON. Alle Texte im JSON müssen auf Deutsch sein.'],
             ['role' => 'user',   'content' => $prompt],
         ], 0.5, 600);
 
