@@ -47,10 +47,10 @@ class AdminDashboardController extends Controller
             ->orderBy('month')
             ->get();
 
-        $aiCostsPerDay = AiLog::selectRaw("DATE(created_at) as date, SUM(cost_eur) as cost, COUNT(*) as calls")
+        $aiCostsPerDay = AiLog::selectRaw("DATE(created_at) as day, SUM(cost_eur) as cost, COUNT(*) as calls")
             ->where('created_at', '>=', now()->subDays(29)->startOfDay())
-            ->groupBy('date')
-            ->orderBy('date')
+            ->groupByRaw('DATE(created_at)')
+            ->orderBy('day')
             ->get();
 
         $coachDistribution = Coach::withCount('users')
@@ -58,11 +58,11 @@ class AdminDashboardController extends Controller
             ->get(['id', 'name', 'avatar_color', 'avatar_initials']);
 
         $wellbeingTrend = WellbeingEntry::selectRaw(
-            "DATE(created_at) as date,
+            "`date`,
              ROUND(AVG((energy_level + mood + sleep_quality + (10 - muscle_soreness) + (10 - stress_level)) / 5.0), 1) as avg_score,
              COUNT(*) as entries"
         )
-            ->where('created_at', '>=', now()->subDays(13)->startOfDay())
+            ->where('date', '>=', now()->subDays(13)->toDateString())
             ->groupBy('date')
             ->orderBy('date')
             ->get();
