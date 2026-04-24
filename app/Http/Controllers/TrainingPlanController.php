@@ -418,9 +418,10 @@ class TrainingPlanController extends Controller
         // Notify user if they have push + plan-update notifications enabled
         $user = Auth::user();
         if ($user->push_notifications_enabled && $user->notify_plan_updated) {
+            $coachName = $user->coach?->name ?? 'Dein Coach';
             $webPush->sendToUser(
                 $user,
-                'KI-Plan aktualisiert 🧠',
+                "{$coachName} hat deinen Plan aktualisiert 🗓️",
                 "Dein Trainingsplan für {$event->name} wurde neu berechnet.",
                 "/events/{$event->id}/plan"
             );

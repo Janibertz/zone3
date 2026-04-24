@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { Head, usePage, router } from '@inertiajs/vue3';
 import axios from 'axios';
 
-defineProps({ stravaConnectUrl: String, coaches: Array });
+const props = defineProps({ stravaConnectUrl: String, coaches: Array });
 
 const page = usePage();
 const user = computed(() => page.props.auth.user);
@@ -24,7 +24,7 @@ function nextStep() { if (currentStep.value < totalSteps) currentStep.value++; }
 // ════════════════════════════════════════════════════════════════════════
 // STEP 2 — Coach selection
 // ════════════════════════════════════════════════════════════════════════
-const selectedCoachId = ref(null);
+const selectedCoachId = ref(props.coaches?.find(c => c.slug === 'max')?.id ?? null);
 const coachLoading    = ref(false);
 const coachError      = ref(null);
 

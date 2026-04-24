@@ -38,6 +38,11 @@ const distanceOptions = ['5 km', '10 km', 'Halbmarathon', 'Marathon', 'Ultra'];
 const selectedCoachId  = ref(props.activeCoach?.id ?? null);
 const coachSaving      = ref(false);
 const coachSaved       = ref(false);
+const savedCoachName   = ref(props.activeCoach?.name ?? null);
+const savedCoachColor  = ref(props.activeCoach?.avatar_color ?? null);
+const savedCoachInitials = ref(props.activeCoach?.avatar_initials ?? null);
+
+const selectedCoach = computed(() => props.coaches?.find(c => c.id === selectedCoachId.value));
 
 const coachColors = {
     orange: { bg: 'bg-orange-500', ring: 'ring-orange-400', light: 'bg-orange-50 dark:bg-orange-500/10', border: 'border-orange-300 dark:border-orange-500/50', badge: 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300' },
@@ -52,8 +57,11 @@ async function saveCoach() {
     coachSaved.value  = false;
     try {
         await axios.patch(route('profile.coach'), { coach_id: selectedCoachId.value });
+        savedCoachName.value     = selectedCoach.value?.name ?? null;
+        savedCoachColor.value    = selectedCoach.value?.avatar_color ?? null;
+        savedCoachInitials.value = selectedCoach.value?.avatar_initials ?? null;
         coachSaved.value = true;
-        setTimeout(() => coachSaved.value = false, 3000);
+        setTimeout(() => coachSaved.value = false, 4000);
     } finally {
         coachSaving.value = false;
     }
@@ -595,13 +603,17 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                             </button>
                         </div>
 
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-3 flex-wrap">
                             <button @click="saveCoach" :disabled="coachSaving || !selectedCoachId"
                                 class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors">
                                 {{ coachSaving ? 'Speichern…' : 'Coach speichern' }}
                             </button>
-                            <Transition enter-active-class="transition-opacity duration-300" leave-active-class="transition-opacity duration-300" enter-from-class="opacity-0" leave-to-class="opacity-0">
-                                <p v-if="coachSaved" class="text-sm text-green-600 dark:text-green-400 font-medium">Gespeichert!</p>
+                            <Transition enter-active-class="transition-all duration-300 ease-out" enter-from-class="opacity-0 translate-y-1" leave-active-class="transition-all duration-200" leave-to-class="opacity-0">
+                                <div v-if="coachSaved && savedCoachName" class="flex items-center gap-2 rounded-xl px-3 py-2 border"
+                                    :class="coachColors[savedCoachColor]?.light + ' ' + coachColors[savedCoachColor]?.border">
+                                    <div class="h-6 w-6 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0" :class="coachColors[savedCoachColor]?.bg">{{ savedCoachInitials }}</div>
+                                    <p class="text-sm font-semibold" :class="coachColors[savedCoachColor]?.badge?.split(' ')[2]">{{ savedCoachName }} ist jetzt dein Coach!</p>
+                                </div>
                             </Transition>
                         </div>
                     </div>

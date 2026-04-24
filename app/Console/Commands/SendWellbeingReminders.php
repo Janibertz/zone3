@@ -24,18 +24,20 @@ class SendWellbeingReminders extends Command
             ->whereNotNull('wellbeing_reminder_time')
             ->whereRaw("TIME_FORMAT(wellbeing_reminder_time, '%H:%i') = ?", [$now])
             ->whereDoesntHave('wellbeingEntries', fn ($q) => $q->where('date', $today))
-            ->with('pushSubscriptions')
+            ->with(['pushSubscriptions', 'coach'])
             ->get();
 
         foreach ($users as $user) {
             if ($user->pushSubscriptions->isEmpty()) continue;
 
-            $webPush->sendToUser(
-                $user,
-                'Wie geht es dir heute? 💪',
-                'Trage jetzt deine Tagesform ein — der KI-Plan passt sich automatisch an.',
-                '/dashboard'
-            );
+            [$title, $body] = match ($user->coach?->specialty) {
+                'motivator'  => ["Bereit für heute? 💪", $user->coach->name . " wartet auf dein Check-in — lass uns den Tag rocken!"],
+                'strategist' => ["Tagesform eintragen 📊", $user->coach->name . ": Deine Daten fehlen noch — Plan-Optimierung ausstehend."],
+                'companion'  => ["Wie geht's dir heute? 🌿", $user->coach->name . " möchte wissen wie du dich fühlst. Kurz eintragen!"],
+                default      => ["Wie geht es dir heute? 💪", "Trage jetzt deine Tagesform ein — dein Plan passt sich automatisch an."],
+            };
+
+            $webPush->sendToUser($user, $title, $body, '/dashboard');
 
             $this->line("Sent wellbeing reminder to user #{$user->id}");
         }

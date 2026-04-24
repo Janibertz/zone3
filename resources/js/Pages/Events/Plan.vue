@@ -4,8 +4,17 @@ import Modal from '@/Components/Modal.vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
 
-const coachName = computed(() => usePage().props.coach?.name ?? 'Dein Coach');
 import axios from 'axios';
+
+const coach = computed(() => usePage().props.coach ?? null);
+const coachName = computed(() => coach.value?.name ?? 'Dein Coach');
+
+const coachAccentColors = {
+    orange: { stripe: 'bg-orange-400', badge: 'bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-500/30', avatar: 'bg-orange-500' },
+    blue:   { stripe: 'bg-blue-500',   badge: 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30',             avatar: 'bg-blue-600'   },
+    green:  { stripe: 'bg-green-500',  badge: 'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300 border-green-200 dark:border-green-500/30',       avatar: 'bg-green-600'  },
+};
+const coachAccent = computed(() => coachAccentColors[coach.value?.avatar_color] ?? coachAccentColors.blue);
 
 const props = defineProps({
     event:        Object,
@@ -411,7 +420,10 @@ const workoutSteps = computed(() => {
             </Link>
 
             <!-- Event header -->
-            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-4 sm:p-5 mb-5">
+            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden mb-5">
+                <!-- Coach-Akzentstreifen -->
+                <div v-if="coach" class="h-1 w-full" :class="coachAccent.stripe"></div>
+                <div class="p-4 sm:p-5">
                 <div class="flex items-start gap-3">
                     <span class="shrink-0 h-10 w-10 rounded-xl flex items-center justify-center font-bold text-lg" :class="priorityColors[event.priority]">{{ event.priority }}</span>
                     <div class="flex-1">
@@ -431,6 +443,14 @@ const workoutSteps = computed(() => {
                             </span>
                         </div>
                     </div>
+                </div>
+                <!-- Coach-Badge -->
+                <div v-if="coach && currentPlan?.is_active" class="mx-4 mb-4 sm:mx-5">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg border" :class="coachAccent.badge">
+                        <span class="h-4 w-4 rounded flex items-center justify-center text-white text-[9px] font-bold" :class="coachAccent.avatar">{{ coach.avatar_initials }}</span>
+                        Plan von {{ coachName }}
+                    </span>
+                </div>
                 </div>
             </div>
 

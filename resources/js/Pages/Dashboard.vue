@@ -947,7 +947,11 @@ function syncStrava() {
                     <!-- ── Kein aktiver Plan: Coach-Empfehlung ── -->
                     <template v-else>
                         <div class="flex items-center justify-between mb-4">
-                            <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">🧭 {{ coach ? coach.name + 's Empfehlung für heute' : 'Trainings-Empfehlung für heute' }}</h4>
+                            <div class="flex items-center gap-2">
+                                <div v-if="coach" class="shrink-0 h-7 w-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" :class="coachColor.bg">{{ coach.avatar_initials }}</div>
+                                <div v-else class="shrink-0 h-7 w-7 rounded-lg bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center text-sm">🧭</div>
+                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">{{ coach ? coach.name + 's Empfehlung für heute' : 'Trainings-Empfehlung für heute' }}</h4>
+                            </div>
                             <button v-if="!props.todayRecommendationSession" @click="getTodayRecommendation"
                                 class="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-800 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 rounded-md px-2 py-1 transition-colors">
                                 Aktualisieren
@@ -1799,8 +1803,9 @@ function syncStrava() {
 
                     <!-- Wochenrückblick -->
                     <div v-if="props.weeklyReview" class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-indigo-100 dark:border-indigo-500/20 p-4 sm:p-5">
-                        <div class="flex items-center gap-2 mb-3">
-                            <div class="h-7 w-7 rounded-lg bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center text-sm shrink-0">🧠</div>
+                        <div class="flex items-center gap-3 mb-3">
+                            <div v-if="coach" class="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center text-white text-xs font-bold shadow-sm" :class="coachColor.bg">{{ coach.avatar_initials }}</div>
+                            <div v-else class="shrink-0 h-9 w-9 rounded-xl bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center text-base">🧠</div>
                             <div>
                                 <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">{{ coach ? coach.name + ' – Wochenrückblick' : 'Wochenrückblick' }}</h4>
                                 <p class="text-xs text-gray-400 dark:text-slate-500">
@@ -1808,7 +1813,7 @@ function syncStrava() {
                                 </p>
                             </div>
                         </div>
-                        <p class="text-sm text-gray-700 dark:text-slate-300 leading-relaxed">{{ props.weeklyReview.content }}</p>
+                        <p class="text-sm text-gray-700 dark:text-slate-300 leading-relaxed italic border-l-2 pl-3" :class="coachColor.border">{{ props.weeklyReview.content }}</p>
                     </div>
 
                 </div>
