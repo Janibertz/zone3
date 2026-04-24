@@ -3,8 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AiLog;
 use App\Models\User;
+use App\Models\WeeklyReview;
+use App\Services\OpenAIService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Password;
 use Inertia\Inertia;
 
 class AdminUserController extends Controller
@@ -42,7 +47,7 @@ class AdminUserController extends Controller
 
     public function show(User $user)
     {
-        $user->load('runnerProfile', 'stravaAccount');
+        $user->load('runnerProfile', 'stravaAccount', 'coach');
 
         $activities = $user->activities()
             ->orderByDesc('start_date')
@@ -56,6 +61,20 @@ class AdminUserController extends Controller
             ->limit(14)
             ->get();
 
+        $wellbeingChart = $user->wellbeingEntries()
+            ->orderBy('date')
+            ->limit(30)
+            ->get(['date', 'energy_level', 'mood', 'sleep_quality', 'muscle_soreness', 'stress_level'])
+            ->map(fn ($e) => [
+                'date'  => $e->date->toDateString(),
+                'score' => round(
+                    ($e->energy_level + $e->mood + $e->sleep_quality
+                        + (10 - $e->muscle_soreness) + (10 - $e->stress_level)) / 5,
+                    1
+                ),
+            ])
+            ->values();
+
         $activityStats = [
             'total'         => $user->activities()->count(),
             'total_km'      => round($user->activities()->where('type', 'Run')->sum('distance') / 1000, 1),
@@ -63,12 +82,31 @@ class AdminUserController extends Controller
             'last_activity' => $user->activities()->latest('start_date')->value('start_date'),
         ];
 
+        $aiLogs = AiLog::where('user_id', $user->id)
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get();
+
+        $aiStats = [
+            'total_calls'  => AiLog::where('user_id', $user->id)->count(),
+            'total_cost'   => AiLog::where('user_id', $user->id)->sum('cost_eur'),
+            'total_tokens' => AiLog::where('user_id', $user->id)->sum('total_tokens'),
+            'by_type'      => AiLog::where('user_id', $user->id)
+                ->selectRaw('call_type, COUNT(*) as count, SUM(cost_eur) as cost')
+                ->groupBy('call_type')
+                ->orderByDesc('count')
+                ->get(),
+        ];
+
         return Inertia::render('Admin/Users/Show', [
             'user'             => $user,
             'activities'       => $activities,
             'goals'            => $goals,
             'wellbeingEntries' => $wellbeingEntries,
+            'wellbeingChart'   => $wellbeingChart,
             'activityStats'    => $activityStats,
+            'aiLogs'           => $aiLogs,
+            'aiStats'          => $aiStats,
         ]);
     }
 
@@ -92,6 +130,47 @@ class AdminUserController extends Controller
         $user->update(['is_active' => !$user->is_active]);
 
         return back()->with('success', $user->is_active ? 'Konto aktiviert.' : 'Konto deaktiviert.');
+    }
+
+    public function resetRecommendation(User $user)
+    {
+        $user->runnerProfile?->update([
+            'today_recommendation'        => null,
+            'recommendation_date'         => null,
+            'recommendation_wellbeing_id' => null,
+        ]);
+
+        return back()->with('success', 'Tagesempfehlung wurde zurückgesetzt.');
+    }
+
+    public function triggerWeeklyReview(User $user, OpenAIService $openAI)
+    {
+        $weekStart = Carbon::now()->startOfWeek(Carbon::MONDAY)->subWeek()->toDateString();
+        $weekEnd   = Carbon::now()->startOfWeek(Carbon::MONDAY)->subDay()->toDateString();
+
+        WeeklyReview::where('user_id', $user->id)->where('week_start', $weekStart)->delete();
+
+        $openAI->withCoach($user->coach?->personality_prompt);
+        $openAI->forUser($user->id);
+        $content = $openAI->generateWeeklyReview($user, $weekStart, $weekEnd);
+
+        if ($content) {
+            WeeklyReview::create([
+                'user_id'    => $user->id,
+                'week_start' => $weekStart,
+                'content'    => $content,
+            ]);
+            return back()->with('success', 'Weekly Review für KW ' . Carbon::parse($weekStart)->weekOfYear . ' wurde generiert.');
+        }
+
+        return back()->with('error', 'Weekly Review konnte nicht generiert werden (keine Trainingsdaten vorhanden).');
+    }
+
+    public function resetPassword(User $user)
+    {
+        Password::sendResetLink(['email' => $user->email]);
+
+        return back()->with('success', 'Passwort-Reset-E-Mail wurde an ' . $user->email . ' gesendet.');
     }
 
     public function destroy(User $user)
