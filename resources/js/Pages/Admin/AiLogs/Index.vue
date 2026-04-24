@@ -42,9 +42,10 @@ function formatDate(d) {
 }
 
 function formatCost(eur) {
-    if (!eur) return '0,00 ct';
-    if (eur < 0.001) return (eur * 100).toFixed(4) + ' ct';
-    return eur.toFixed(4) + ' €';
+    const val = parseFloat(eur);
+    if (!val) return '0,00 ct';
+    if (val < 0.001) return (val * 100).toFixed(4) + ' ct';
+    return val.toFixed(4) + ' €';
 }
 
 function formatTokens(n) {
