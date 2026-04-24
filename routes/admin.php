@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminAiLogController;
+use App\Http\Controllers\Admin\AdminCoachController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminUserController;
 use Illuminate\Support\Facades\Route;
@@ -20,3 +21,7 @@ Route::delete('/users/{user}',                     [AdminUserController::class, 
 
 Route::get('/ai-logs',           [AdminAiLogController::class, 'index']) ->name('ai-logs.index');
 Route::get('/ai-logs/{aiLog}',   [AdminAiLogController::class, 'show'])  ->name('ai-logs.show');
+
+Route::get('/coaches',           [AdminCoachController::class, 'index'])  ->name('coaches.index');
+Route::get('/coaches/{coach}',   [AdminCoachController::class, 'show'])   ->name('coaches.show');
+Route::put('/coaches/{coach}',   [AdminCoachController::class, 'update']) ->name('coaches.update');
