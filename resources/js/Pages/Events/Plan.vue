@@ -1001,16 +1001,26 @@ const workoutSteps = computed(() => {
                 </div>
 
                 <!-- Download footer -->
-                <div class="px-5 pb-5 border-t border-gray-100 dark:border-slate-800 pt-4 flex items-center justify-between gap-3">
-                    <p class="text-xs text-gray-400 dark:text-slate-500">Als FIT-Datei für Garmin Connect herunterladen</p>
-                    <a :href="route('training-sessions.download', detailSession.id)"
-                        class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 transition-colors"
-                    >
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                        </svg>
-                        .fit herunterladen
-                    </a>
+                <div class="px-5 pb-5 border-t border-gray-100 dark:border-slate-800 pt-4">
+                    <p class="text-xs text-gray-400 dark:text-slate-500 mb-3">Workout herunterladen für Garmin Connect</p>
+                    <div class="flex items-center gap-2">
+                        <a :href="route('training-sessions.download', detailSession.id)"
+                            class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 transition-colors"
+                        >
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                            </svg>
+                            .fit
+                        </a>
+                        <a :href="route('training-sessions.download-tcx', detailSession.id)"
+                            class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 text-sm font-semibold px-4 py-2.5 transition-colors"
+                        >
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                            </svg>
+                            .tcx (Fallback)
+                        </a>
+                    </div>
                 </div>
             </div>
         </Modal>

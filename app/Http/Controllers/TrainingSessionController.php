@@ -150,6 +150,22 @@ class TrainingSessionController extends Controller
         ]);
     }
 
+    public function downloadTcx(TrainingSession $session)
+    {
+        abort_if($session->user_id !== Auth::id(), 403);
+
+        $steps    = $this->computeWorkoutSteps($session);
+        $tcx      = $this->generateTcx($session, $steps);
+        $filename = Str::slug($session->title ?: 'training')
+            . '-' . $session->planned_date->format('Y-m-d')
+            . '.tcx';
+
+        return response($tcx, 200, [
+            'Content-Type'        => 'application/vnd.garmin.tcx+xml',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
+
     // ── Workout step computation ──────────────────────────────────────────────
 
     /**
@@ -316,13 +332,13 @@ XML;
                . pack('v', 255)     // manufacturer = development
                . pack('V', $now);   // time_created
 
-        // ── workout (mesg 26): sport, num_valid_steps, wkt_name ──
-        $data .= $this->fitDef(1, 26, [[4,1,0],[6,2,0x84],[8,16,0x07]]);
+        // ── workout (mesg 26): num_valid_steps (f4), wkt_name (f8), sport (f11) ──
+        $data .= $this->fitDef(1, 26, [[4,2,0x84],[8,16,0x07],[11,1,0x00]]);
         $wktName = str_pad(substr($session->title ?: 'Training', 0, 15) . "\x00", 16, "\x00");
         $data .= chr(1)
-               . pack('C', 1)           // sport = running
-               . pack('v', $numSteps)   // num_valid_steps
-               . $wktName;
+               . pack('v', $numSteps)   // num_valid_steps (field 4, uint16)
+               . $wktName              // wkt_name       (field 8, string)
+               . pack('C', 1);         // sport = running (field 11, enum)
 
         // ── workout_step (mesg 27) definition ──
         $data .= $this->fitDef(2, 27, [
@@ -378,7 +394,7 @@ XML;
         $headerCrc = $this->fitCrc($headerRaw);
         $header    = $headerRaw . pack('v', $headerCrc);
 
-        $fileCrc = $this->fitCrc($data);
+        $fileCrc = $this->fitCrc($header . $data);
         return $header . $data . pack('v', $fileCrc);
     }
 
