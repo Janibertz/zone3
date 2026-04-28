@@ -258,45 +258,51 @@ class TrainingSessionController extends Controller
 
     private function generateTcx(TrainingSession $session, array $steps): string
     {
-        // TCX v2 schema: Name_t max 15 chars, ScheduledOn is xs:date (no time)
-        $workoutName = htmlspecialchars(mb_substr($session->title ?: 'Training', 0, 15), ENT_XML1);
-        $scheduledOn = $session->planned_date->format('Y-m-d');
-        $notes       = htmlspecialchars($session->description ?: '', ENT_XML1);
+        // Garmin TCX v2: Name_t max 15 chars (schema enforced)
+        // - <ScheduledOn> is schema-valid but causes Garmin Connect import rejection → omit
+        // - <Notes> must be omitted entirely when empty (empty element fails Connect validation)
+        // - <Intensity> only accepts "Active" or "Resting" per schema
+        $workoutName = htmlspecialchars(mb_substr($session->title ?: 'Training', 0, 15, 'UTF-8'), ENT_XML1, 'UTF-8');
         $stepsXml    = '';
 
         foreach ($steps as $i => $step) {
             $sid      = $i + 1;
-            // Step Name_t also max 15 chars; Step_t has no <Notes> element in schema
-            $stepName = htmlspecialchars(mb_substr($step['name'], 0, 15), ENT_XML1);
+            $stepName = htmlspecialchars(mb_substr($step['name'], 0, 15, 'UTF-8'), ENT_XML1, 'UTF-8');
             $meters   = max(100, $step['meters']);
 
-            // Speed target ±5 % — use None_t if no pace set
+            // Only the main step gets a speed target; warmup/cooldown use None_t
             if (!empty($step['speedMps']) && $step['speedMps'] > 0) {
                 $lo = number_format($step['speedMps'] * 0.95, 4, '.', '');
                 $hi = number_format($step['speedMps'] * 1.05, 4, '.', '');
-                $targetXml = "          <Target xsi:type=\"Speed_t\">\n"
-                    . "            <SpeedZone xsi:type=\"CustomSpeedZone_t\">\n"
-                    . "              <LowInMetersPerSecond>{$lo}</LowInMetersPerSecond>\n"
-                    . "              <HighInMetersPerSecond>{$hi}</HighInMetersPerSecond>\n"
-                    . "            </SpeedZone>\n"
-                    . "          </Target>\n";
+                $targetXml = "        <Target xsi:type=\"Speed_t\">\n"
+                    . "          <SpeedZone xsi:type=\"CustomSpeedZone_t\">\n"
+                    . "            <LowInMetersPerSecond>{$lo}</LowInMetersPerSecond>\n"
+                    . "            <HighInMetersPerSecond>{$hi}</HighInMetersPerSecond>\n"
+                    . "          </SpeedZone>\n"
+                    . "        </Target>\n";
             } else {
-                $targetXml = "          <Target xsi:type=\"None_t\"/>\n";
+                $targetXml = "        <Target xsi:type=\"None_t\"/>\n";
             }
 
-            $stepsXml .= "        <Step xsi:type=\"Step_t\">\n"
-                . "          <StepId>{$sid}</StepId>\n"
-                . "          <Name>{$stepName}</Name>\n"
-                . "          <Duration xsi:type=\"Distance_t\">\n"
-                . "            <Meters>{$meters}</Meters>\n"
-                . "          </Duration>\n"
-                . "          <Intensity>Active</Intensity>\n"
+            $stepsXml .= "      <Step xsi:type=\"Step_t\">\n"
+                . "        <StepId>{$sid}</StepId>\n"
+                . "        <Name>{$stepName}</Name>\n"
+                . "        <Duration xsi:type=\"Distance_t\">\n"
+                . "          <Meters>{$meters}</Meters>\n"
+                . "        </Duration>\n"
+                . "        <Intensity>Active</Intensity>\n"
                 . $targetXml
-                . "        </Step>\n";
+                . "      </Step>\n";
+        }
+
+        $notesTag = '';
+        if (!empty($session->description)) {
+            $notes    = htmlspecialchars($session->description, ENT_XML1, 'UTF-8');
+            $notesTag = "      <Notes>{$notes}</Notes>\n";
         }
 
         return <<<XML
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <TrainingCenterDatabase
   xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -304,9 +310,7 @@ class TrainingSessionController extends Controller
   <Workouts>
     <Workout Sport="Running">
       <Name>{$workoutName}</Name>
-{$stepsXml}      <ScheduledOn>{$scheduledOn}</ScheduledOn>
-      <Notes>{$notes}</Notes>
-    </Workout>
+{$stepsXml}{$notesTag}    </Workout>
   </Workouts>
 </TrainingCenterDatabase>
 XML;
@@ -320,72 +324,75 @@ XML;
      */
     private function generateFit(TrainingSession $session, array $steps): string
     {
-        $fitEpoch = mktime(0, 0, 0, 12, 31, 1989); // FIT epoch
+        // gmmktime ensures UTC regardless of server timezone — critical for FIT epoch
+        $fitEpoch = gmmktime(0, 0, 0, 12, 31, 1989);
         $now      = time() - $fitEpoch;
         $numSteps = count($steps);
         $data     = '';
 
-        // ── file_id (mesg 0): type, manufacturer, time_created ──
-        $data .= $this->fitDef(0, 0, [[0,1,0],[1,2,0x84],[4,4,0x86]]);
+        // ── file_id (mesg 0): type=workout, manufacturer=development, time_created ──
+        $data .= $this->fitDef(0, 0, [[0,1,0x00],[1,2,0x84],[4,4,0x86]]);
         $data .= chr(0)
-               . pack('C', 5)       // type = workout
-               . pack('v', 255)     // manufacturer = development
+               . pack('C', 5)       // type = workout (5)
+               . pack('v', 255)     // manufacturer = development (255)
                . pack('V', $now);   // time_created
 
-        // ── workout (mesg 26): num_valid_steps (f4), wkt_name (f8), sport (f11) ──
+        // ── workout (mesg 26): num_valid_steps=f4(uint16), wkt_name=f8(str), sport=f11(enum) ──
         $data .= $this->fitDef(1, 26, [[4,2,0x84],[8,16,0x07],[11,1,0x00]]);
-        $wktName = str_pad(substr($session->title ?: 'Training', 0, 15) . "\x00", 16, "\x00");
+        $wktName = $this->fitString(mb_substr($session->title ?: 'Training', 0, 15, 'UTF-8'), 16);
         $data .= chr(1)
-               . pack('v', $numSteps)   // num_valid_steps (field 4, uint16)
-               . $wktName              // wkt_name       (field 8, string)
-               . pack('C', 1);         // sport = running (field 11, enum)
+               . pack('v', $numSteps)  // num_valid_steps (field 4)
+               . $wktName             // wkt_name        (field 8)
+               . pack('C', 1);        // sport = running  (field 11)
 
         // ── workout_step (mesg 27) definition ──
         $data .= $this->fitDef(2, 27, [
-            [254, 2, 0x84], // message_index
-            [0,  16, 0x07], // wkt_step_name
-            [1,   1, 0x00], // duration_type
-            [2,   4, 0x86], // duration_value (cm for distance)
-            [3,   1, 0x00], // target_type
-            [4,   4, 0x86], // target_value
-            [5,   4, 0x86], // custom_target_low (mm/s)
-            [6,   4, 0x86], // custom_target_high (mm/s)
-            [7,   1, 0x00], // intensity (0=active,2=warmup,3=cooldown)
+            [254, 2, 0x84], // message_index  (uint16)
+            [0,  16, 0x07], // wkt_step_name  (string, 16 bytes incl. null)
+            [1,   1, 0x00], // duration_type  (enum: 1=distance)
+            [2,   4, 0x86], // duration_value (uint32: meters×100 for distance)
+            [3,   1, 0x00], // target_type    (enum: 0=speed, 2=open)
+            [4,   4, 0x86], // target_value   (uint32: speed zone id or 0xFFFFFFFF)
+            [5,   4, 0x86], // custom_target_value_low  (uint32: mm/s)
+            [6,   4, 0x86], // custom_target_value_high (uint32: mm/s)
+            [7,   1, 0x00], // intensity      (enum: 0=active, 2=warmup, 3=cooldown)
         ]);
 
         foreach ($steps as $i => $step) {
-            $stepName  = str_pad(substr($step['name'], 0, 15) . "\x00", 16, "\x00");
-            $meters    = max(100, $step['meters']);
-            $distanceCm = $meters * 100;
+            $stepName   = $this->fitString(mb_substr($step['name'], 0, 15, 'UTF-8'), 16);
+            $meters     = max(100, $step['meters']);
+            $distanceCm = $meters * 100; // FIT distance unit: meters × 100
 
-            // intensity: first step=warmup, last=cooldown, rest=active
-            if ($i === 0) $intensity = 2;
-            elseif ($i === $numSteps - 1) $intensity = 3;
-            else $intensity = 0;
+            // intensity: warmup for first, cooldown for last, active otherwise
+            $intensity = match(true) {
+                $i === 0                => 2, // warmup
+                $i === $numSteps - 1   => 3, // cooldown
+                default                => 0, // active
+            };
 
-            // speed target in mm/s
+            // speed target (mm/s) — 0xFFFFFFFF = invalid/unused per FIT spec
             if (!empty($step['speedMps']) && $step['speedMps'] > 0) {
-                $targetType = 0; // speed
-                $targetVal  = 0;
+                $targetType = 0; // speed with custom range
+                $targetVal  = 0xFFFFFFFF; // no predefined zone
                 $targetLo   = (int) round($step['speedMps'] * 0.95 * 1000);
                 $targetHi   = (int) round($step['speedMps'] * 1.05 * 1000);
             } else {
-                $targetType = 2; // open
-                $targetVal  = 0;
-                $targetLo   = 0;
-                $targetHi   = 0;
+                $targetType = 2; // open (no target)
+                $targetVal  = 0xFFFFFFFF;
+                $targetLo   = 0xFFFFFFFF;
+                $targetHi   = 0xFFFFFFFF;
             }
 
             $data .= chr(2)
-                   . pack('v', $i)           // message_index
-                   . $stepName
-                   . pack('C', 1)            // duration_type = distance
-                   . pack('V', $distanceCm)
-                   . pack('C', $targetType)
-                   . pack('V', $targetVal)
-                   . pack('V', $targetLo)
-                   . pack('V', $targetHi)
-                   . pack('C', $intensity);
+                   . pack('v', $i)              // message_index
+                   . $stepName                  // wkt_step_name
+                   . pack('C', 1)               // duration_type = distance
+                   . pack('V', $distanceCm)     // duration_value
+                   . pack('C', $targetType)     // target_type
+                   . pack('V', $targetVal)      // target_value
+                   . pack('V', $targetLo)       // custom_target_value_low
+                   . pack('V', $targetHi)       // custom_target_value_high
+                   . pack('C', $intensity);     // intensity
         }
 
         // ── header ──
@@ -396,6 +403,14 @@ XML;
 
         $fileCrc = $this->fitCrc($header . $data);
         return $header . $data . pack('v', $fileCrc);
+    }
+
+    /** Encode a string as a null-terminated, zero-padded FIT string field. */
+    private function fitString(string $value, int $size): string
+    {
+        // Convert to bytes, truncate to size-1 to leave room for null terminator
+        $bytes = substr($value, 0, $size - 1);
+        return str_pad($bytes . "\x00", $size, "\x00");
     }
 
     /** Build a FIT definition message for a local message number. */
