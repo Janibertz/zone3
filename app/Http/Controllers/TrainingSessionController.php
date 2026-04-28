@@ -133,13 +133,14 @@ class TrainingSessionController extends Controller
 
     /**
      * Download the session as a Garmin-compatible FIT workout file.
+     * Uses the official @garmin/fitsdk via Node.js; falls back to PHP generator.
      */
     public function download(TrainingSession $session)
     {
         abort_if($session->user_id !== Auth::id(), 403);
 
         $steps    = $this->computeWorkoutSteps($session);
-        $fit      = $this->generateFit($session, $steps);
+        $fit      = $this->generateFitViaSdk($session, $steps) ?? $this->generateFit($session, $steps);
         $filename = Str::slug($session->title ?: 'training')
             . '-' . $session->planned_date->format('Y-m-d')
             . '.fit';
@@ -319,7 +320,50 @@ XML;
     // ── FIT generator ────────────────────────────────────────────────────────
 
     /**
-     * Generate a binary Garmin FIT workout file.
+     * Generate FIT via the official @garmin/fitsdk Node.js script.
+     * Returns null if Node.js is unavailable or the script fails.
+     */
+    private function generateFitViaSdk(TrainingSession $session, array $steps): ?string
+    {
+        $scriptPath = base_path('scripts/generate-workout-fit.mjs');
+        if (! file_exists($scriptPath)) {
+            return null;
+        }
+
+        $payload = json_encode([
+            'name'  => mb_substr($session->title ?: 'Training', 0, 15, 'UTF-8'),
+            'steps' => array_map(fn ($s) => [
+                'name'     => $s['name'],
+                'meters'   => $s['meters'],
+                'speedMps' => $s['speedMps'],
+            ], $steps),
+        ]);
+
+        $descriptors = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+
+        $proc = proc_open(['node', $scriptPath], $descriptors, $pipes, base_path());
+        if (! is_resource($proc)) {
+            return null;
+        }
+
+        fwrite($pipes[0], $payload);
+        fclose($pipes[0]);
+
+        $output = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        $exitCode = proc_close($proc);
+
+        return ($exitCode === 0 && ! empty($output)) ? $output : null;
+    }
+
+    /**
+     * Generate a binary Garmin FIT workout file (PHP fallback).
      * Spec: https://developer.garmin.com/fit/protocol/
      */
     private function generateFit(TrainingSession $session, array $steps): string
@@ -337,13 +381,13 @@ XML;
                . pack('v', 255)     // manufacturer = development (255)
                . pack('V', $now);   // time_created
 
-        // ── workout (mesg 26): num_valid_steps=f4(uint16), wkt_name=f8(str), sport=f11(enum) ──
-        $data .= $this->fitDef(1, 26, [[4,2,0x84],[8,16,0x07],[11,1,0x00]]);
+        // ── workout (mesg 26): sport=f4(enum), num_valid_steps=f6(uint16), wkt_name=f8(str) ──
+        $data .= $this->fitDef(1, 26, [[4,1,0x00],[6,2,0x84],[8,16,0x07]]);
         $wktName = $this->fitString(mb_substr($session->title ?: 'Training', 0, 15, 'UTF-8'), 16);
         $data .= chr(1)
-               . pack('v', $numSteps)  // num_valid_steps (field 4)
-               . $wktName             // wkt_name        (field 8)
-               . pack('C', 1);        // sport = running  (field 11)
+               . pack('C', 1)          // sport = running       (field 4, enum)
+               . pack('v', $numSteps)  // num_valid_steps       (field 6, uint16)
+               . $wktName;             // wkt_name              (field 8, string)
 
         // ── workout_step (mesg 27) definition ──
         $data .= $this->fitDef(2, 27, [

@@ -21,6 +21,7 @@
         "vue": "^3.4.0"
     },
     "dependencies": {
+        "@garmin/fitsdk": "^21.201.0",
         "@inertiajs/inertia": "^0.11.1",
         "cropperjs": "^1.6.2",
         "leaflet": "^1.9.4",
