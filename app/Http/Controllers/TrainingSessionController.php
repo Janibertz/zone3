@@ -345,9 +345,21 @@ XML;
             2 => ['pipe', 'w'],
         ];
 
-        $proc = proc_open(['node', $scriptPath], $descriptors, $pipes, base_path());
+        $nodeBin = null;
+        foreach (['/root/.nix-profile/bin/node', '/usr/local/bin/node', '/usr/bin/node'] as $candidate) {
+            if (is_executable($candidate)) {
+                $nodeBin = $candidate;
+                break;
+            }
+        }
+        if (! $nodeBin) {
+            \Log::error('FIT SDK: node binary not found in known paths');
+            return null;
+        }
+
+        $proc = proc_open([$nodeBin, $scriptPath], $descriptors, $pipes, base_path());
         if (! is_resource($proc)) {
-            \Log::error('FIT SDK: proc_open failed — node not found or not executable');
+            \Log::error('FIT SDK: proc_open failed');
             return null;
         }
 
