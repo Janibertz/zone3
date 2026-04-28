@@ -347,6 +347,7 @@ XML;
 
         $proc = proc_open(['node', $scriptPath], $descriptors, $pipes, base_path());
         if (! is_resource($proc)) {
+            \Log::error('FIT SDK: proc_open failed — node not found or not executable');
             return null;
         }
 
@@ -354,10 +355,17 @@ XML;
         fclose($pipes[0]);
 
         $output = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
         fclose($pipes[1]);
         fclose($pipes[2]);
 
         $exitCode = proc_close($proc);
+
+        \Log::info('FIT SDK', [
+            'exit_code'   => $exitCode,
+            'output_bytes'=> strlen($output),
+            'stderr'      => $stderr,
+        ]);
 
         return ($exitCode === 0 && ! empty($output)) ? $output : null;
     }
