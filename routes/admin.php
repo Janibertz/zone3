@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AdminAiLogController;
 use App\Http\Controllers\Admin\AdminCoachController;
 use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\AdminSettingsController;
 use App\Http\Controllers\Admin\AdminUserController;
 use Illuminate\Support\Facades\Route;
 
@@ -25,3 +26,6 @@ Route::get('/ai-logs/{aiLog}',   [AdminAiLogController::class, 'show'])  ->name(
 Route::get('/coaches',           [AdminCoachController::class, 'index'])  ->name('coaches.index');
 Route::get('/coaches/{coach}',   [AdminCoachController::class, 'show'])   ->name('coaches.show');
 Route::put('/coaches/{coach}',   [AdminCoachController::class, 'update']) ->name('coaches.update');
+
+Route::get('/settings',              [AdminSettingsController::class, 'index'])       ->name('settings.index');
+Route::post('/settings/test-push',   [AdminSettingsController::class, 'sendTestPush'])->name('settings.test-push');
