@@ -270,6 +270,8 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
                 // Standalone recommendation sessions (no plan)
                 $q->orWhereNull('training_plan_id');
             })
+            // Completed sessions are already represented by Strava activities – don't show twice
+            ->where('status', '!=', 'completed')
             ->orderBy('planned_date');
 
         $trainingSessions = $sessionQuery->get()->map(fn ($s) => [
@@ -287,6 +289,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
             'skip_reason'  => $s->skip_reason,
             'rating'       => $s->rating,
             'event_id'     => $s->event_id,
+            'activity_id'  => $s->activity_id,
         ])->toArray();
 
         return Inertia::render('Calendar', [

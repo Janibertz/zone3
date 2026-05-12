@@ -137,10 +137,22 @@ function priorityColor(p) {
     return { A: 'bg-red-500', B: 'bg-yellow-500', C: 'bg-gray-400' }[p] ?? 'bg-gray-400';
 }
 
+// Past days with Strava activities → Strava is the ground truth, don't show plan sessions
+function visibleSessions(d) {
+    if (!d.currentMonth) return [];
+    const dayDate  = new Date(calYear.value, calMonth.value, d.day);
+    const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const isPast   = dayDate < todayDate;
+    // If there's a Strava activity on a past day, hide plan sessions (Strava = completed workout)
+    if (isPast && d.activities.length > 0) return [];
+    return d.sessions;
+}
+
 function selectDay(d) {
     if (!d.currentMonth) return;
-    if (d.activities.length === 0 && !d.event && d.sessions.length === 0) return;
-    selected.value = { day: d.day, activities: d.activities, event: d.event, sessions: d.sessions };
+    const sessions = visibleSessions(d);
+    if (d.activities.length === 0 && !d.event && sessions.length === 0) return;
+    selected.value = { day: d.day, activities: d.activities, event: d.event, sessions };
 }
 
 const sessionTypeLabels = {
@@ -254,18 +266,18 @@ const sessionDotColors = {
                                     class="px-1.5 text-xs text-gray-400 dark:text-slate-500">
                                     +{{ d.activities.length - 2 }} weitere
                                 </div>
-                                <!-- Training sessions -->
-                                <div v-for="s in d.sessions.slice(0, 1)" :key="s.id"
+                                <!-- Training sessions (past days with Strava: hidden) -->
+                                <div v-for="s in visibleSessions(d).slice(0, 1)" :key="s.id"
                                     class="px-1.5 py-1 rounded-lg mb-0.5 truncate"
-                                    :class="s.status === 'skipped' ? 'opacity-40 bg-gray-100 dark:bg-slate-700' : s.status === 'completed' ? 'bg-green-50 dark:bg-green-500/10' : 'bg-indigo-50 dark:bg-indigo-500/10'">
+                                    :class="s.status === 'skipped' ? 'opacity-40 bg-gray-100 dark:bg-slate-700' : 'bg-indigo-50 dark:bg-indigo-500/10'">
                                     <p class="text-xs font-semibold truncate"
-                                        :class="s.status === 'completed' ? 'text-green-700 dark:text-green-400' : s.status === 'skipped' ? 'text-gray-500 dark:text-slate-400' : 'text-indigo-700 dark:text-indigo-300'">
-                                        {{ s.status === 'completed' ? '✓' : s.status === 'skipped' ? '✗' : '●' }} {{ s.title }}
+                                        :class="s.status === 'skipped' ? 'text-gray-500 dark:text-slate-400' : 'text-indigo-700 dark:text-indigo-300'">
+                                        {{ s.status === 'skipped' ? '✗' : '●' }} {{ s.title }}
                                     </p>
                                     <p v-if="s.distance_km && s.status !== 'skipped'" class="text-xs text-indigo-500 dark:text-indigo-400">{{ s.distance_km }} km</p>
                                 </div>
-                                <div v-if="d.sessions.length > 1" class="px-1.5 text-xs text-gray-400 dark:text-slate-500">
-                                    +{{ d.sessions.length - 1 }} weitere
+                                <div v-if="visibleSessions(d).length > 1" class="px-1.5 text-xs text-gray-400 dark:text-slate-500">
+                                    +{{ visibleSessions(d).length - 1 }} weitere
                                 </div>
                             </div>
                         </div>
