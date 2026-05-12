@@ -2,13 +2,17 @@
 import { ref, computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useDarkMode } from '@/Composables/useDarkMode';
+import { useCoachChat } from '@/Composables/useCoachChat';
 import UserAvatar from '@/Components/UserAvatar.vue';
+import CoachSlideOver from '@/Components/CoachSlideOver.vue';
 
 const page = usePage();
 const user       = computed(() => page.props.auth.user);
 const isAdmin    = computed(() => page.props.auth.isAdmin);
 const activePlan = computed(() => page.props.activePlan);
+const coach      = computed(() => page.props.coach);
 const { isDark, toggle } = useDarkMode();
+const { open: openChat } = useCoachChat();
 
 const navItems = [
     {
@@ -131,6 +135,23 @@ const mobileNavItems = computed(() => {
                 </div>
             </nav>
 
+            <!-- Coach Chat Button -->
+            <div v-if="coach" class="shrink-0 px-3 pb-3">
+                <button
+                    @click="openChat"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
+                >
+                    <div
+                        class="h-5 w-5 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0"
+                        :style="`background-color: ${coach.avatar_color}`"
+                    >
+                        {{ coach.avatar_initials }}
+                    </div>
+                    Chat mit {{ coach.name }}
+                    <span class="ml-auto h-2 w-2 rounded-full bg-green-400 shrink-0" title="Online" />
+                </button>
+            </div>
+
             <!-- User + Dark toggle -->
             <div class="shrink-0 border-t border-gray-100 dark:border-slate-800 p-4 space-y-1">
                 <button
@@ -177,6 +198,21 @@ const mobileNavItems = computed(() => {
                 <span class="text-base font-bold text-gray-900 dark:text-white tracking-tight">Zone3</span>
             </div>
             <div class="flex items-center gap-1">
+                <!-- Coach chat button (mobile) -->
+                <button
+                    v-if="coach"
+                    @click="openChat"
+                    class="h-9 w-9 flex items-center justify-center rounded-xl text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors relative"
+                >
+                    <div
+                        class="h-6 w-6 rounded-full flex items-center justify-center text-white text-[8px] font-bold"
+                        :style="`background-color: ${coach.avatar_color}`"
+                    >
+                        {{ coach.avatar_initials }}
+                    </div>
+                    <span class="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-green-400" />
+                </button>
+
                 <!-- Dark mode toggle -->
                 <button
                     @click="toggle"
@@ -219,6 +255,9 @@ const mobileNavItems = computed(() => {
                 <slot />
             </main>
         </div>
+
+        <!-- Coach Chat Slide-Over -->
+        <CoachSlideOver />
 
         <!-- ══════════════════════════════════════
              MOBILE BOTTOM TAB BAR (max 5 items)

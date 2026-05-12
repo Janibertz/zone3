@@ -1273,6 +1273,82 @@ PROMPT;
         return ($text && trim($text) !== '') ? trim($text) : null;
     }
 
+    /**
+     * Conversational chat with the user's coach.
+     * $history = [{role, content}, ...] (last N messages before the new one)
+     * $newMessage = the user's latest message
+     */
+    public function chatWithCoach(\App\Models\User $user, array $history, string $newMessage): ?string
+    {
+        $today = now()->toDateString();
+
+        // Recent activities
+        $recentActivities = $user->activities()
+            ->orderByDesc('start_date')
+            ->limit(5)
+            ->get()
+            ->map(fn ($a) => sprintf(
+                '- %s: %s (%s km)',
+                $a->start_date->format('d.m.'),
+                $a->name,
+                number_format(($a->distance ?? 0) / 1000, 1)
+            ))
+            ->implode("\n");
+
+        // Active goal
+        $activeGoal = $user->goals()
+            ->where('active', true)
+            ->where('end_date', '>=', $today)
+            ->orderBy('end_date')
+            ->first();
+
+        // Nearest upcoming event
+        $upcomingEvent = $user->events()
+            ->where('event_date', '>=', $today)
+            ->orderBy('event_date')
+            ->first();
+
+        // Today's wellbeing
+        $todayWellbeing = $user->wellbeingEntries()
+            ->whereDate('date', $today)
+            ->first();
+
+        // Build context block
+        $ctx = [];
+        if ($recentActivities) {
+            $ctx[] = "Letzte Aktivitäten:\n{$recentActivities}";
+        }
+        if ($activeGoal) {
+            $ctx[] = "Aktives Ziel: {$activeGoal->name} (bis {$activeGoal->end_date->format('d.m.Y')})";
+        }
+        if ($upcomingEvent) {
+            $days = (int) now()->diffInDays($upcomingEvent->event_date, false);
+            $ctx[] = "Nächstes Event: {$upcomingEvent->name} am {$upcomingEvent->event_date->format('d.m.Y')} (in {$days} Tagen)";
+        }
+        if ($todayWellbeing) {
+            $ctx[] = "Heutiges Wellbeing: Energie {$todayWellbeing->energy_level}/10, Schlaf {$todayWellbeing->sleep_quality}/10, Stimmung {$todayWellbeing->mood}/10";
+        }
+
+        $contextBlock = $ctx
+            ? "\n\nAktueller Kontext des Athleten:\n" . implode("\n", $ctx)
+            : '';
+
+        $systemPrompt = $this->buildSystemPrompt(
+            "Du bist ein persönlicher Lauf-Coach. Antworte immer auf Deutsch. Sei persönlich, direkt und motivierend. " .
+            "Halte Antworten prägnant (2–4 Sätze), außer wenn konkrete Pläne oder Erklärungen verlangt werden. " .
+            "Sprich den Athleten direkt mit 'du' an.{$contextBlock}"
+        );
+
+        // Build message array: system + history + new user message
+        $messages = [['role' => 'system', 'content' => $systemPrompt]];
+        foreach ($history as $msg) {
+            $messages[] = ['role' => $msg['role'], 'content' => $msg['content']];
+        }
+        $messages[] = ['role' => 'user', 'content' => $newMessage];
+
+        return $this->callOpenAI('coach_chat', $messages, 0.8, 500, 45);
+    }
+
     private function formatSeconds(int $seconds): string
     {
         $h = floor($seconds / 3600);

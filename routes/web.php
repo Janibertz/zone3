@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\AIController;
+use App\Http\Controllers\CoachChatController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\GoalController;
 use App\Http\Controllers\OnboardingController;
@@ -354,6 +355,10 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/ai/analyze/{goal}', [AIController::class, 'analyzeGoal'])->name('ai.analyze');
     Route::get('/ai/plan/{goal}', [AIController::class, 'generatePlan'])->name('ai.plan');
     Route::get('/ai/suggestions', [AIController::class, 'suggestionsForAll'])->name('ai.suggestions');
+
+    // Coach Chat
+    Route::get('/api/coach/messages', [CoachChatController::class, 'messages'])->name('coach.messages');
+    Route::post('/api/coach/chat', [CoachChatController::class, 'send'])->name('coach.send');
 });
 
 // Strava Webhook — no auth middleware (called by Strava servers)
