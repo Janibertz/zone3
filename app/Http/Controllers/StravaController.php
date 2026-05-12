@@ -10,6 +10,7 @@ use App\Models\StravaAccount;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
+use App\Services\OpenAIService;
 use App\Services\StravaService;
 use App\Services\WebPushService;
 use Illuminate\Http\RedirectResponse;
@@ -107,6 +108,7 @@ class StravaController extends Controller
                 $newCount++;
                 if ($activity->type === 'Run') {
                     $newRunCount++;
+                    $this->checkForPr($user->id, $activity);
                 }
             }
 
@@ -196,6 +198,9 @@ class StravaController extends Controller
         $this->dispatchCalculationIfDue($userId, $isRun ? 1 : 0);
         $this->matchActivityToSession($userId, $activity);
         $this->dispatchPlanRegenerationIfNeeded($userId);
+        if ($isRun) {
+            $this->checkForPr($userId, $activity);
+        }
 
         // Push notification for the user
         $user = User::find($userId);
@@ -379,6 +384,55 @@ class StravaController extends Controller
 
         if ($needs) {
             RegeneratePlanJob::dispatch($userId)->delay(now()->addMinutes(5));
+        }
+    }
+
+    /**
+     * Check if a new activity is a personal record in a standard distance bucket.
+     * If so, stores pending_pr_activity_id on the runner profile for the dashboard to celebrate.
+     * Distance buckets: 5k (4.5–5.5 km), 10k (9–11 km), HM (19–23 km), Marathon (39–44 km).
+     */
+    private function checkForPr(int $userId, Activity $activity): void
+    {
+        if ($activity->type !== 'Run' || ($activity->distance ?? 0) <= 0 || ($activity->average_speed ?? 0) <= 0) {
+            return;
+        }
+
+        $distKm = $activity->distance / 1000;
+
+        $buckets = [
+            '5k'       => [4.5, 5.5],
+            '10k'      => [9.0, 11.0],
+            'half'     => [19.0, 23.0],
+            'marathon' => [39.0, 44.0],
+        ];
+
+        $bucket = null;
+        foreach ($buckets as $name => [$min, $max]) {
+            if ($distKm >= $min && $distKm <= $max) {
+                $bucket = [$min, $max];
+                break;
+            }
+        }
+
+        if (! $bucket) return;
+
+        // Need at least one previous activity in this bucket for it to be a real PR
+        $bestPrevious = Activity::where('user_id', $userId)
+            ->where('id', '!=', $activity->id)
+            ->where('type', 'Run')
+            ->whereBetween('distance', [$bucket[0] * 1000, $bucket[1] * 1000])
+            ->max('average_speed');
+
+        if ($bestPrevious === null) return; // No previous reference — not a PR event
+
+        if ($activity->average_speed > $bestPrevious) {
+            $profile = RunnerProfile::where('user_id', $userId)->first();
+            if ($profile) {
+                $profile->pending_pr_activity_id = $activity->id;
+                $profile->pending_pr_message     = null; // generated lazily on dashboard load
+                $profile->save();
+            }
         }
     }
 

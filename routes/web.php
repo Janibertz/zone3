@@ -11,13 +11,14 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TrainingPlanController;
 use App\Http\Controllers\TrainingSessionController;
 use App\Http\Controllers\RunnerProfileController;
+use App\Models\Activity;
+use App\Models\Event;
 use App\Models\TrainingSession;
 use App\Http\Controllers\StatisticsController;
+use App\Services\OpenAIService;
 use App\Http\Controllers\StravaController;
 use App\Http\Controllers\WellbeingController;
 use App\Http\Controllers\PushSubscriptionController;
-use App\Models\Activity;
-use App\Models\Event;
 use App\Models\WeeklyReview;
 use App\Services\ProgressService;
 use App\Services\TrainingLoadService;
@@ -227,6 +228,37 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 ->first();
             return $review ? ['content' => $review->content, 'week_start' => $weekStart] : null;
         })(),
+
+        // Pending PR celebration from coach
+        'coachPrMessage' => (function () use ($user) {
+            $profile = $user->runnerProfile;
+            if (! $profile || ! $profile->pending_pr_activity_id) return null;
+
+            // Return cached message if available
+            if ($profile->pending_pr_message) {
+                return $profile->pending_pr_message;
+            }
+
+            // Generate and cache the message
+            $prActivity = Activity::find($profile->pending_pr_activity_id);
+            if (! $prActivity) {
+                $profile->pending_pr_activity_id = null;
+                $profile->save();
+                return null;
+            }
+
+            $message = app(OpenAIService::class)
+                ->withCoach($user->coach?->personality_prompt)
+                ->forUser($user->id)
+                ->generatePrMessage($prActivity);
+
+            if ($message) {
+                $profile->pending_pr_message = $message;
+                $profile->save();
+            }
+
+            return $message;
+        })(),
     ]);
 })->middleware(['auth', 'verified', 'onboarding'])->name('dashboard');
 
@@ -359,6 +391,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     // Coach Chat
     Route::get('/api/coach/messages', [CoachChatController::class, 'messages'])->name('coach.messages');
     Route::post('/api/coach/chat', [CoachChatController::class, 'send'])->name('coach.send');
+    Route::post('/api/coach/pr-dismiss', [AIController::class, 'dismissPr'])->name('coach.pr.dismiss');
 });
 
 // Strava Webhook — no auth middleware (called by Strava servers)

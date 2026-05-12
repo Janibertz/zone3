@@ -26,6 +26,8 @@ class RunnerProfile extends Model
         'weekly_availability',
         'daily_message',
         'daily_message_date',
+        'pending_pr_activity_id',
+        'pending_pr_message',
     ];
 
     protected $casts = [

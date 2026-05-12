@@ -1274,6 +1274,27 @@ PROMPT;
     }
 
     /**
+     * Generate a short celebratory PR message from the coach.
+     */
+    public function generatePrMessage(\App\Models\Activity $activity): ?string
+    {
+        $km      = number_format(($activity->distance ?? 0) / 1000, 2);
+        $min     = round(($activity->moving_time ?? 0) / 60);
+        $h       = (int) ($min / 60);
+        $m       = $min % 60;
+        $timeStr = $h > 0 ? "{$h}h {$m}min" : "{$m}min";
+        $name    = $activity->name;
+
+        $prompt = "Der Athlet hat gerade einen neuen persönlichen Rekord aufgestellt: \"{$name}\" – {$km} km in {$timeStr}. " .
+                  "Schreib eine kurze, enthusiastische Glückwunschbotschaft als Coach (2–3 Sätze, direkte Anrede, auf Deutsch, mit passendem Emoji).";
+
+        return $this->callOpenAI('coach_pr', [
+            ['role' => 'system', 'content' => $this->buildSystemPrompt('Du bist ein begeisterter Lauf-Coach. Feiere echte Leistungen deines Athleten.')],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.9, 150, 20);
+    }
+
+    /**
      * Conversational chat with the user's coach.
      * $history = [{role, content}, ...] (last N messages before the new one)
      * $newMessage = the user's latest message

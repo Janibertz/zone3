@@ -354,6 +354,20 @@ class AIController extends Controller
         return response()->json(['message' => $message]);
     }
 
+    /**
+     * Dismiss the pending PR celebration so it no longer appears on the dashboard.
+     */
+    public function dismissPr(Request $request): JsonResponse
+    {
+        $profile = $request->user()->runnerProfile;
+        if ($profile) {
+            $profile->pending_pr_activity_id = null;
+            $profile->pending_pr_message     = null;
+            $profile->save();
+        }
+        return response()->json(['success' => true]);
+    }
+
     private function formatPace(?float $paceMinutes): ?string
     {
         if (! $paceMinutes) return null;

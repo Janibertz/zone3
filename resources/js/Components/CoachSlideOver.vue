@@ -27,7 +27,7 @@ const displayMessages = computed(() => {
     if (hasLoaded.value && messages.value.length === 0 && !isLoading.value) {
         return [{
             role: 'assistant',
-            content: `Hallo! Ich bin ${coach.value?.name ?? 'dein Coach'}. ${coach.value?.tagline ?? 'Wie kann ich dir heute helfen?'} 💪`,
+            content: `Hallo! Ich bin ${coach.value?.name ?? 'dein Coach'}. Wie kann ich dir heute helfen? 💪`,
             created_at: null,
             placeholder: true,
         }];
