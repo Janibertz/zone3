@@ -1189,14 +1189,20 @@ PROMPT;
      */
     public function generateWeeklyReview(\App\Models\User $user, string $weekStart, string $weekEnd): ?string
     {
-        // Completed sessions this week
-        $sessions = \App\Models\TrainingSession::where('user_id', $user->id)
-            ->where('status', 'completed')
-            ->whereBetween('planned_date', [$weekStart, $weekEnd])
-            ->orderBy('planned_date')
+        // Strava activities this week (ground truth – one entry per actual workout)
+        $activities = $user->activities()
+            ->whereBetween(\DB::raw('DATE(start_date)'), [$weekStart, $weekEnd])
+            ->orderBy('start_date')
             ->get();
 
-        // Skipped sessions
+        // Build a map: strava activity_id → linked training session (for rating/RPE)
+        $linkedActivityIds = $activities->pluck('id')->filter()->all();
+        $sessionsByActivity = \App\Models\TrainingSession::where('user_id', $user->id)
+            ->whereIn('activity_id', $linkedActivityIds)
+            ->get()
+            ->keyBy('activity_id');
+
+        // Skipped plan sessions (no Strava activity for that day)
         $skipped = \App\Models\TrainingSession::where('user_id', $user->id)
             ->where('status', 'skipped')
             ->whereBetween('planned_date', [$weekStart, $weekEnd])
@@ -1207,22 +1213,26 @@ PROMPT;
             ->whereBetween('date', [$weekStart, $weekEnd])
             ->get();
 
-        if ($sessions->isEmpty() && $wellbeing->isEmpty()) {
+        if ($activities->isEmpty() && $wellbeing->isEmpty()) {
             return null; // Nothing to review
         }
 
-        // Build session summary
-        $totalKm    = $sessions->sum(fn ($s) => $s->distance_km ?? 0);
-        $totalMin   = $sessions->sum(fn ($s) => $s->duration_min ?? 0);
-        $sessionLines = $sessions->map(fn ($s) => sprintf(
-            '- [%s] %s: %s km, %s min%s%s',
-            $s->planned_date->format('D'),
-            $s->title,
-            number_format($s->distance_km ?? 0, 1),
-            $s->duration_min ?? 0,
-            $s->rating  ? ", Bewertung: {$s->rating}/5⭐" : '',
-            $s->effort_perceived ? ", RPE {$s->effort_perceived}/10" : ''
-        ))->implode("\n");
+        // Build session summary from Strava activities (correct names, no duplicates)
+        $totalKm  = $activities->sum(fn ($a) => ($a->distance ?? 0) / 1000);
+        $totalMin = $activities->sum(fn ($a) => round(($a->moving_time ?? 0) / 60));
+
+        $sessionLines = $activities->map(function ($a) use ($sessionsByActivity) {
+            $session = $sessionsByActivity[$a->id] ?? null;
+            $km  = number_format(($a->distance ?? 0) / 1000, 1);
+            $min = round(($a->moving_time ?? 0) / 60);
+            $day = $a->start_date->format('D');
+            $extra = '';
+            if ($session) {
+                if ($session->rating)           $extra .= ", Bewertung: {$session->rating}/5⭐";
+                if ($session->effort_perceived) $extra .= ", RPE {$session->effort_perceived}/10";
+            }
+            return "- [{$day}] {$a->name}: {$km} km, {$min} min{$extra}";
+        })->implode("\n");
 
         $wellbeingLines = '';
         if ($wellbeing->isNotEmpty()) {
@@ -1233,13 +1243,15 @@ PROMPT;
             $wellbeingLines = "Wellbeing Ø: Energie {$avgE}/10 | Schlaf {$avgS}/10 | Muskelkater {$avgM}/10" . ($sick > 0 ? " | {$sick} Krankheitstage" : '');
         }
 
+        $totalKmFormatted = number_format($totalKm, 1);
+
         $prompt = <<<PROMPT
 Du bist Lauf-Coach. Schreibe einen kurzen, motivierenden Wochenrückblick für deinen Athleten. Sei direkt, konkret und ehrlich — weder überschwänglich noch demotivierend.
 
 **Trainingswoche {$weekStart} – {$weekEnd}:**
 {$sessionLines}
 Übersprungene Einheiten: {$skipped}
-Gesamt: {$totalKm} km / {$totalMin} min
+Gesamt: {$totalKmFormatted} km / {$totalMin} min
 
 {$wellbeingLines}
 
