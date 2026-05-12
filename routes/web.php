@@ -276,12 +276,15 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
             'planned_date' => $s->planned_date->format('Y-m-d'),
             'type'         => $s->type,
             'title'        => $s->title,
+            'description'  => $s->description,
             'distance_km'  => $s->distance_km,
             'duration_min' => $s->duration_min,
             'pace_target'  => $s->pace_target,
             'zone'         => $s->zone,
             'intensity'    => $s->intensity,
             'status'       => $s->status,
+            'skip_reason'  => $s->skip_reason,
+            'rating'       => $s->rating,
             'event_id'     => $s->event_id,
         ])->toArray();
 

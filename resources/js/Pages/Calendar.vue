@@ -309,7 +309,7 @@ const sessionDotColors = {
                         <!-- Training Sessions -->
                         <div v-if="selected.sessions?.length > 0" class="p-4 border-b border-gray-100 dark:border-slate-800">
                             <h5 class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-3">Trainingsplan</h5>
-                            <div v-for="s in selected.sessions" :key="s.id" class="mb-3 last:mb-0">
+                            <div v-for="s in selected.sessions" :key="s.id" class="mb-4 last:mb-0">
                                 <div class="flex items-start gap-2">
                                     <span class="shrink-0 mt-0.5 h-4 w-4 rounded-full flex items-center justify-center text-xs"
                                         :class="s.status === 'completed' ? 'bg-green-500' : s.status === 'skipped' ? 'bg-gray-400' : (sessionDotColors[s.type] || 'bg-indigo-500')">
@@ -323,7 +323,21 @@ const sessionDotColors = {
                                             <span v-if="s.pace_target && s.pace_target !== 'null'" class="text-xs text-gray-500 dark:text-slate-400">{{ s.pace_target }}/km</span>
                                         </div>
                                         <span v-if="s.status === 'completed'" class="text-xs text-green-600 dark:text-green-400 font-medium">✓ Erledigt</span>
-                                        <span v-else-if="s.status === 'skipped'" class="text-xs text-gray-400">Übersprungen</span>
+                                        <span v-else-if="s.status === 'skipped'" class="text-xs text-gray-400">Übersprungen<span v-if="s.skip_reason"> — {{ s.skip_reason }}</span></span>
+                                        <!-- Description -->
+                                        <p v-if="s.description && s.type !== 'rest'" class="mt-1.5 text-xs text-gray-500 dark:text-slate-400 leading-relaxed line-clamp-3">{{ s.description }}</p>
+                                        <!-- Rating badge -->
+                                        <div v-if="s.rating" class="mt-1 flex items-center gap-1">
+                                            <span v-for="i in s.rating" :key="i" class="text-yellow-400 text-xs">★</span>
+                                        </div>
+                                        <!-- Link to plan -->
+                                        <a v-if="s.event_id && s.type !== 'rest'"
+                                            :href="`/events/${s.event_id}/plan`"
+                                            class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
+                                        >
+                                            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+                                            Zum Plan
+                                        </a>
                                     </div>
                                 </div>
                             </div>
@@ -389,10 +403,18 @@ const sessionDotColors = {
                 </div>
                 <div v-if="selected.sessions?.length > 0" class="mb-3 pb-3 border-b border-gray-100 dark:border-slate-800">
                     <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Trainingsplan</p>
-                    <div v-for="s in selected.sessions" :key="s.id" class="flex items-center gap-2 mb-1">
-                        <div class="h-3 w-3 rounded-full shrink-0" :class="s.status === 'completed' ? 'bg-green-500' : s.status === 'skipped' ? 'bg-gray-400' : (sessionDotColors[s.type] || 'bg-indigo-500')"></div>
-                        <span class="text-sm font-medium text-gray-800 dark:text-slate-200">{{ s.title }}</span>
-                        <span v-if="s.distance_km" class="ml-auto text-xs text-gray-500">{{ s.distance_km }} km</span>
+                    <div v-for="s in selected.sessions" :key="s.id" class="mb-2 last:mb-0">
+                        <div class="flex items-center gap-2">
+                            <div class="h-3 w-3 rounded-full shrink-0" :class="s.status === 'completed' ? 'bg-green-500' : s.status === 'skipped' ? 'bg-gray-400' : (sessionDotColors[s.type] || 'bg-indigo-500')"></div>
+                            <span class="text-sm font-medium text-gray-800 dark:text-slate-200 flex-1">{{ s.title }}</span>
+                            <span v-if="s.distance_km" class="text-xs text-gray-500">{{ s.distance_km }} km</span>
+                        </div>
+                        <p v-if="s.description && s.type !== 'rest'" class="mt-1 ml-5 text-xs text-gray-500 dark:text-slate-400 line-clamp-2">{{ s.description }}</p>
+                        <a v-if="s.event_id && s.type !== 'rest'" :href="`/events/${s.event_id}/plan`"
+                            class="mt-1 ml-5 inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+                            Zum Plan
+                        </a>
                     </div>
                 </div>
                 <div v-for="act in selected.activities" :key="act.id" class="flex items-center gap-4">
