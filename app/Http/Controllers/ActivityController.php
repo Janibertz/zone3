@@ -61,7 +61,12 @@ class ActivityController extends Controller
         $query = Activity::where('user_id', $user->id)->orderByDesc('start_date');
 
         if ($request->filled('type')) {
-            $query->where('type', $request->type);
+            // "Ride" filter covers both outdoor and virtual rides
+            if ($request->type === 'Ride') {
+                $query->whereIn('type', ['Ride', 'VirtualRide']);
+            } else {
+                $query->where('type', $request->type);
+            }
         }
 
         if ($request->filled('month')) {

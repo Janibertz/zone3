@@ -50,13 +50,14 @@ function formatDateShort(dateStr) {
     return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
-const typeLabel = { Run: 'Laufen', Ride: 'Radeln', Swim: 'Schwimmen', Walk: 'Gehen', Workout: 'Workout' };
+const typeLabel = { Run: 'Laufen', Ride: 'Radfahren', VirtualRide: 'Virtual Ride', Swim: 'Schwimmen', Walk: 'Gehen', Workout: 'Workout' };
 const typeColors = {
-    Run:     'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300',
-    Ride:    'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300',
-    Swim:    'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
-    Workout: 'bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300',
-    Walk:    'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300',
+    Run:         'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300',
+    Ride:        'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300',
+    VirtualRide: 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300',
+    Swim:        'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
+    Workout:     'bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300',
+    Walk:        'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300',
 };
 function typeColor(t) {
     return typeColors[t] ?? 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300';
@@ -119,7 +120,7 @@ const activeFilterCount = computed(() =>
                     >
                         <option value="">Alle Typen</option>
                         <option value="Run">Laufen</option>
-                        <option value="Ride">Radfahren</option>
+                        <option value="Ride">Radfahren (inkl. Virtual)</option>
                         <option value="Swim">Schwimmen</option>
                         <option value="Walk">Gehen</option>
                         <option value="Workout">Workout</option>
