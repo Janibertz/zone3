@@ -166,9 +166,9 @@ async function completeSession(session) {
 }
 
 // ── Skip session ──────────────────────────────────────────────────────────────
-function openSkipModal(session) {
+function openSkipModal(session, preReason = '') {
     skipSession.value = session;
-    skipReason.value  = '';
+    skipReason.value  = preReason;
     skipModal.value   = true;
 }
 
@@ -573,19 +573,11 @@ const workoutSteps = computed(() => {
                         </p>
                         <p v-if="wellbeingBanner.tip" class="text-xs mt-0.5 text-gray-500 dark:text-slate-400">{{ wellbeingBanner.tip }}</p>
                     </div>
-                    <div v-if="wellbeingBanner.canAdjust" class="flex gap-2 shrink-0">
-                        <button @click="adjustSession(todaySession)" :disabled="adjustingId === todaySession.id"
-                            class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
-                        >
-                            <svg v-if="adjustingId === todaySession.id" class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                            Anpassen
-                        </button>
-                    </div>
-                    <div v-else-if="wellbeingBanner.level === 'danger'" class="shrink-0">
-                        <button @click="openSkipModal(todaySession)"
+                    <div v-if="wellbeingBanner.level === 'danger'" class="shrink-0">
+                        <button @click="openSkipModal(todaySession, 'Krank')"
                             class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors"
                         >
-                            Überspringen
+                            Kein Training
                         </button>
                     </div>
                 </div>
@@ -669,7 +661,7 @@ const workoutSteps = computed(() => {
             <template v-else>
                 <!-- Summary -->
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-                    <div v-for="(val, lbl) in { 'km geplant': weeklyLoad.total, 'Einheiten': weeklyLoad.runs, 'Erledigt': weeklyLoad.done, 'Übersprungen': weeklyLoad.skipped }" :key="lbl"
+                    <div v-for="(val, lbl) in { 'km geplant': weeklyLoad.total, 'Einheiten': weeklyLoad.runs, 'Erledigt': weeklyLoad.done, 'Kein Training': weeklyLoad.skipped }" :key="lbl"
                         class="bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800 px-3 py-2.5 text-center">
                         <div class="text-xl font-bold text-gray-900 dark:text-white">{{ val }}</div>
                         <div class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{{ lbl }}</div>
@@ -711,7 +703,7 @@ const workoutSteps = computed(() => {
                                     <!-- Status / type badges -->
                                     <div class="flex gap-1.5 shrink-0 flex-wrap justify-end">
                                         <span v-if="session.status === 'completed'" class="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400">✓ Erledigt</span>
-                                        <span v-else-if="session.status === 'skipped'" class="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400">Übersprungen</span>
+                                        <span v-else-if="session.status === 'skipped'" class="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400">Kein Training</span>
                                         <span v-else class="text-xs font-medium px-2 py-0.5 rounded-full" :class="typeOf(session.type).badge">{{ typeOf(session.type).label }}</span>
                                         <span v-if="session.activity_id" class="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-400">🔗 Strava</span>
                                     </div>
@@ -740,72 +732,24 @@ const workoutSteps = computed(() => {
                                 </div>
 
                                 <!-- Action buttons -->
-                                <div class="flex gap-2 mt-3 flex-wrap">
-                                    <!-- Details (all non-rest sessions) -->
-                                    <button v-if="session.type !== 'rest'"
-                                        @click="openDetail(session)"
+                                <div v-if="session.type !== 'rest'" class="flex gap-2 mt-3 flex-wrap">
+                                    <!-- Details (non-rest sessions) -->
+                                    <button @click="openDetail(session)"
                                         class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
                                     >
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" /></svg>
                                         Details
                                     </button>
 
-                                    <template v-if="session.status === 'planned'">
-                                        <button @click="completeSession(session)"
-                                            class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors"
-                                        >
-                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                                            Abgeschlossen
-                                        </button>
-                                        <button @click="openSkipModal(session)"
-                                            class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
-                                        >
-                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M6.225 6.225A9 9 0 0 0 21 12a9 9 0 0 1-15.098 4.672" /></svg>
-                                            Überspringen
-                                        </button>
-                                        <!-- Intensity: softer -->
-                                        <button
-                                            @click="adjustIntensity(session, 'softer')"
-                                            :disabled="adjustingIntensity !== null"
-                                            class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-500/20 disabled:opacity-50 transition-colors"
-                                            title="Einheit lockerer machen"
-                                        >
-                                            <svg v-if="adjustingIntensity?.id === session.id && adjustingIntensity?.direction === 'softer'" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                            <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3" /></svg>
-                                            Lockerer
-                                        </button>
-                                        <!-- Intensity: harder -->
-                                        <button
-                                            @click="adjustIntensity(session, 'harder')"
-                                            :disabled="adjustingIntensity !== null"
-                                            class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20 disabled:opacity-50 transition-colors"
-                                            title="Einheit schwerer machen"
-                                        >
-                                            <svg v-if="adjustingIntensity?.id === session.id && adjustingIntensity?.direction === 'harder'" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                            <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" /></svg>
-                                            Schwerer
-                                        </button>
-                                        <!-- Availability override: mark day as unavailable -->
-                                        <button
-                                            v-if="!isPast(session.planned_date) && session.type !== 'rest'"
-                                            @click="setAvailabilityOverride(session.planned_date, false)"
-                                            :disabled="overrideSaving === session.planned_date"
-                                            class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 disabled:opacity-50 transition-colors"
-                                            title="Tag als nicht verfügbar markieren — beim nächsten Plan-Update berücksichtigt"
-                                        >
-                                            <svg v-if="overrideSaving === session.planned_date" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                            <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
-                                            Kein Training
-                                        </button>
-                                    </template>
-                                    <!-- Show override badge if set -->
-                                    <span
-                                        v-if="availabilityOverrides[session.planned_date] && !availabilityOverrides[session.planned_date].available"
-                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400"
+                                    <!-- Kein Training (planned sessions, not race day) -->
+                                    <button
+                                        v-if="session.status === 'planned' && session.planned_date !== event.event_date"
+                                        @click="openSkipModal(session)"
+                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
                                     >
-                                        Nicht verfügbar — Plan neu generieren
-                                        <button @click="delete availabilityOverrides[session.planned_date]; setAvailabilityOverride(session.planned_date, true, session.duration_min || 60)" class="ml-1 hover:text-amber-900">✕</button>
-                                    </span>
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                        Kein Training
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -818,10 +762,10 @@ const workoutSteps = computed(() => {
             </template>
         </div>
 
-        <!-- Skip modal -->
+        <!-- Kein Training modal -->
         <Modal :show="skipModal" @close="skipModal = false">
             <div class="p-6 bg-white dark:bg-slate-900">
-                <h2 class="text-lg font-bold text-gray-900 dark:text-white">Einheit überspringen</h2>
+                <h2 class="text-lg font-bold text-gray-900 dark:text-white">Kein Training</h2>
                 <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">{{ skipSession?.title }}</p>
                 <div class="mt-4">
                     <p class="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Grund (optional)</p>
@@ -839,7 +783,7 @@ const workoutSteps = computed(() => {
                     <button @click="skipModal = false" class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">Abbrechen</button>
                     <button @click="confirmSkip" :disabled="skipLoading" class="rounded-xl bg-gray-700 dark:bg-slate-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors">
                         <svg v-if="skipLoading" class="inline h-4 w-4 animate-spin mr-1" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                        Überspringen
+                        Bestätigen
                     </button>
                 </div>
             </div>
