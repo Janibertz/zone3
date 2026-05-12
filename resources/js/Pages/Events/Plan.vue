@@ -54,8 +54,11 @@ const skipSession = ref(null);
 const skipReason  = ref('');
 const skipLoading = ref(false);
 
-// Adjust state per session id
+// Adjust state per session id (wellbeing-based)
 const adjustingId = ref(null);
+
+// Intensity adjust state: { id: sessionId, direction: 'harder'|'softer' } | null
+const adjustingIntensity = ref(null);
 
 // ── Availability overrides ────────────────────────────────────────────────────
 const availabilityOverrides = ref({});
@@ -196,6 +199,19 @@ async function adjustSession(session) {
         errorMsg.value = e?.response?.data?.error ?? 'Anpassung fehlgeschlagen.';
     } finally {
         adjustingId.value = null;
+    }
+}
+
+async function adjustIntensity(session, direction) {
+    adjustingIntensity.value = { id: session.id, direction };
+    errorMsg.value = '';
+    try {
+        const res = await axios.post(route('training-sessions.adjust-intensity', session.id), { direction });
+        updateSessionInList(res.data.session);
+    } catch (e) {
+        errorMsg.value = e?.response?.data?.error ?? 'Anpassung fehlgeschlagen.';
+    } finally {
+        adjustingIntensity.value = null;
     }
 }
 
@@ -747,14 +763,27 @@ const workoutSteps = computed(() => {
                                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M6.225 6.225A9 9 0 0 0 21 12a9 9 0 0 1-15.098 4.672" /></svg>
                                             Überspringen
                                         </button>
-                                        <button v-if="!isPast(session.planned_date) || isToday(session.planned_date)"
-                                            @click="adjustSession(session)"
-                                            :disabled="adjustingId === session.id"
-                                            class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 disabled:opacity-50 transition-colors"
+                                        <!-- Intensity: softer -->
+                                        <button
+                                            @click="adjustIntensity(session, 'softer')"
+                                            :disabled="adjustingIntensity !== null"
+                                            class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-500/20 disabled:opacity-50 transition-colors"
+                                            title="Einheit lockerer machen"
                                         >
-                                            <svg v-if="adjustingId === session.id" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                            <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
-                                            Anpassen
+                                            <svg v-if="adjustingIntensity?.id === session.id && adjustingIntensity?.direction === 'softer'" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                            <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3" /></svg>
+                                            Lockerer
+                                        </button>
+                                        <!-- Intensity: harder -->
+                                        <button
+                                            @click="adjustIntensity(session, 'harder')"
+                                            :disabled="adjustingIntensity !== null"
+                                            class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20 disabled:opacity-50 transition-colors"
+                                            title="Einheit schwerer machen"
+                                        >
+                                            <svg v-if="adjustingIntensity?.id === session.id && adjustingIntensity?.direction === 'harder'" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                            <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" /></svg>
+                                            Schwerer
                                         </button>
                                         <!-- Availability override: mark day as unavailable -->
                                         <button

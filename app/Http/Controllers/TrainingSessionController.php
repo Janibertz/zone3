@@ -99,6 +99,58 @@ class TrainingSessionController extends Controller
     }
 
     /**
+     * Adjust a planned session harder or softer via AI.
+     */
+    public function adjustIntensity(Request $request, TrainingSession $session, OpenAIService $openAI)
+    {
+        abort_if($session->user_id !== Auth::id(), 403);
+        abort_if($session->status !== 'planned', 422);
+
+        $request->validate([
+            'direction' => 'required|in:harder,softer',
+        ]);
+
+        $user    = Auth::user();
+        $rp      = $user->runnerProfile;
+        $profile = $rp ? [
+            'threshold_speed'      => sprintf('%d:%02d', (int) $rp->threshold_speed, (int)(($rp->threshold_speed - (int) $rp->threshold_speed) * 60)),
+            'threshold_heart_rate' => $rp->threshold_heart_rate,
+            'max_heart_rate'       => $rp->max_heart_rate,
+        ] : null;
+
+        $wb = $user->wellbeingEntries()->where('date', now()->toDateString())->first();
+        $wellbeing = $wb ? [
+            'energy_level'    => $wb->energy_level,
+            'muscle_soreness' => $wb->muscle_soreness,
+        ] : null;
+
+        $current = [
+            'type'         => $session->type,
+            'title'        => $session->title,
+            'description'  => $session->description,
+            'distance_km'  => $session->distance_km,
+            'duration_min' => $session->duration_min,
+            'pace_target'  => $session->pace_target,
+            'zone'         => $session->zone,
+            'intensity'    => $session->intensity,
+        ];
+
+        $openAI->withCoach($user->coach?->personality_prompt)->forUser(Auth::id());
+        $adjusted = $openAI->adjustTodayRecommendation($current, $request->direction, $profile, $wellbeing);
+
+        if (! $adjusted) {
+            return response()->json(['error' => 'Anpassung fehlgeschlagen. Bitte versuche es erneut.'], 500);
+        }
+
+        $session->update(array_intersect_key($adjusted, array_flip([
+            'type', 'title', 'description', 'distance_km',
+            'duration_min', 'pace_target', 'zone', 'intensity',
+        ])));
+
+        return response()->json(['session' => $this->formatSession($session->fresh())]);
+    }
+
+    /**
      * AI-adjust a single session based on today's wellbeing.
      */
     public function adjust(TrainingSession $session, OpenAIService $openAI)
