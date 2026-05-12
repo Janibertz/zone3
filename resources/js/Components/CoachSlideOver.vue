@@ -141,6 +141,9 @@ watch(isOpen, async (val) => {
                 v-if="isOpen"
                 class="fixed inset-y-0 right-0 z-50 flex flex-col w-full sm:max-w-md bg-white dark:bg-slate-900 shadow-2xl"
             >
+                <!-- Safe-area spacer (Dynamic Island / Notch) -->
+                <div class="shrink-0 pt-safe" />
+
                 <!-- Header -->
                 <div class="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-slate-800">
                     <!-- Coach avatar -->
@@ -235,7 +238,8 @@ watch(isOpen, async (val) => {
                 </div>
 
                 <!-- Input -->
-                <div class="shrink-0 border-t border-gray-100 dark:border-slate-800 p-3 flex gap-2 items-end">
+                <div class="shrink-0 border-t border-gray-100 dark:border-slate-800 p-3 flex gap-2 items-end"
+                     style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom))">
                     <textarea
                         ref="inputEl"
                         v-model="inputText"
