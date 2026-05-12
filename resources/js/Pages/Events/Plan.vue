@@ -668,7 +668,7 @@ const workoutSteps = computed(() => {
             <!-- Sessions list -->
             <template v-else>
                 <!-- Summary -->
-                <div class="grid grid-cols-4 gap-2 mb-4">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
                     <div v-for="(val, lbl) in { 'km geplant': weeklyLoad.total, 'Einheiten': weeklyLoad.runs, 'Erledigt': weeklyLoad.done, 'Übersprungen': weeklyLoad.skipped }" :key="lbl"
                         class="bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800 px-3 py-2.5 text-center">
                         <div class="text-xl font-bold text-gray-900 dark:text-white">{{ val }}</div>

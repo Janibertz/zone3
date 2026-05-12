@@ -410,6 +410,9 @@ const sessionDotColors = {
                             <span v-if="s.distance_km" class="text-xs text-gray-500">{{ s.distance_km }} km</span>
                         </div>
                         <p v-if="s.description && s.type !== 'rest'" class="mt-1 ml-5 text-xs text-gray-500 dark:text-slate-400 line-clamp-2">{{ s.description }}</p>
+                        <div v-if="s.rating" class="mt-1 ml-5 flex items-center gap-0.5">
+                            <span v-for="i in s.rating" :key="i" class="text-yellow-400 text-xs">★</span>
+                        </div>
                         <a v-if="s.event_id && s.type !== 'rest'" :href="`/events/${s.event_id}/plan`"
                             class="mt-1 ml-5 inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
                             <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
@@ -417,13 +420,25 @@ const sessionDotColors = {
                         </a>
                     </div>
                 </div>
-                <div v-for="act in selected.activities" :key="act.id" class="flex items-center gap-4">
-                    <div class="flex-1">
-                        <p class="font-semibold text-gray-900 dark:text-white text-sm">🏃 {{ act.name }}</p>
-                    </div>
-                    <div class="text-right text-sm">
-                        <p class="font-bold text-indigo-600 dark:text-indigo-400">{{ formatDistance(act.distance) }} km</p>
-                        <p class="text-gray-400 dark:text-slate-500">{{ formatTime(act.moving_time) }} · {{ formatPace(act.average_speed) }}/km</p>
+                <div v-for="act in selected.activities" :key="act.id" class="mb-4 last:mb-0">
+                    <p class="font-semibold text-gray-900 dark:text-white text-sm mb-2">🏃 {{ act.name }}</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="bg-blue-50 dark:bg-blue-500/10 rounded-xl p-2.5 text-center">
+                            <p class="text-lg font-black text-blue-700 dark:text-blue-300">{{ formatDistance(act.distance) }}</p>
+                            <p class="text-xs text-blue-500 dark:text-blue-400">km</p>
+                        </div>
+                        <div class="bg-green-50 dark:bg-green-500/10 rounded-xl p-2.5 text-center">
+                            <p class="text-lg font-black text-green-700 dark:text-green-300">{{ formatTime(act.moving_time) }}</p>
+                            <p class="text-xs text-green-500 dark:text-green-400">Zeit</p>
+                        </div>
+                        <div class="bg-purple-50 dark:bg-purple-500/10 rounded-xl p-2.5 text-center">
+                            <p class="text-lg font-black text-purple-700 dark:text-purple-300">{{ formatPace(act.average_speed) }}</p>
+                            <p class="text-xs text-purple-500 dark:text-purple-400">min/km</p>
+                        </div>
+                        <div v-if="act.average_heartrate" class="bg-red-50 dark:bg-red-500/10 rounded-xl p-2.5 text-center">
+                            <p class="text-lg font-black text-red-700 dark:text-red-300">{{ Math.round(act.average_heartrate) }}</p>
+                            <p class="text-xs text-red-500 dark:text-red-400">bpm</p>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -1276,7 +1276,7 @@ function syncStrava() {
                             </div>
 
                             <!-- Zeile 2: Wochenstats + 7-Tage-Balken -->
-                            <div class="grid grid-cols-2 gap-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                 <!-- KPIs + Monats-Total -->
                                 <div class="space-y-2">
                                     <div class="grid grid-cols-3 gap-2">
