@@ -109,10 +109,8 @@ class StravaController extends Controller
                 }
             }
 
-            // Always try to match runs to plan sessions (safe — duplicate-checked inside)
-            if ($activity->type === 'Run') {
-                $this->matchActivityToSession($user->id, $activity);
-            }
+            // Match to plan sessions or create unplanned entry for all activity types
+            $this->matchActivityToSession($user->id, $activity);
         }
 
         $this->dispatchCalculationIfDue($user->id, $newRunCount);
@@ -194,9 +192,7 @@ class StravaController extends Controller
 
         $isRun = $activity->type === 'Run';
         $this->dispatchCalculationIfDue($userId, $isRun ? 1 : 0);
-        if ($isRun) {
-            $this->matchActivityToSession($userId, $activity);
-        }
+        $this->matchActivityToSession($userId, $activity);
 
         // Push notification for the user
         $user = User::find($userId);
@@ -215,13 +211,42 @@ class StravaController extends Controller
     }
 
     /**
-     * Match a new Strava Run to a planned training session on the same day.
-     * If a planned session exists → mark it completed and link the activity.
-     * If no session exists but an active plan is present → create an "Ungeplante Einheit" as completed.
+     * Match a Strava activity to a planned training session (Runs only),
+     * or create an unplanned completed entry for any activity type.
      */
     private function matchActivityToSession(int $userId, Activity $activity): void
     {
         $date = $activity->start_date->toDateString();
+
+        // Non-Run activities (swim, bike, etc.) skip planned-session matching
+        if ($activity->type !== 'Run') {
+            if (TrainingSession::where('user_id', $userId)->where('activity_id', $activity->id)->exists()) {
+                return;
+            }
+            $activePlan = TrainingPlan::where('user_id', $userId)->where('is_active', true)->latest()->first();
+            if (! $activePlan) return;
+
+            $distKm = $activity->distance > 0 ? round($activity->distance / 1000, 2) : null;
+            $durMin = $activity->moving_time > 0 ? (int) round($activity->moving_time / 60) : null;
+
+            TrainingSession::create([
+                'user_id'          => $userId,
+                'training_plan_id' => $activePlan->id,
+                'event_id'         => $activePlan->event_id,
+                'activity_id'      => $activity->id,
+                'planned_date'     => $date,
+                'type'             => 'easy_run',
+                'title'            => $activity->name,
+                'distance_km'      => $distKm,
+                'duration_min'     => $durMin,
+                'pace_target'      => null,
+                'zone'             => null,
+                'intensity'        => 'medium',
+                'status'           => 'completed',
+                'sort_order'       => 999,
+            ]);
+            return;
+        }
 
         // 1. Find any planned session in the active plan on the same date
         $session = TrainingSession::where('user_id', $userId)

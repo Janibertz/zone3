@@ -351,6 +351,11 @@ class TrainingPlanController extends Controller
                             'duration_min'=> $durMin ?? $sessionOnDate->duration_min,
                             'pace_target' => $pace ?? $sessionOnDate->pace_target,
                         ]);
+                        // Remove orphaned completed sessions from old plans for this activity
+                        TrainingSession::where('user_id', $user->id)
+                            ->where('activity_id', $run->id)
+                            ->where('id', '!=', $sessionOnDate->id)
+                            ->delete();
                     } elseif ($sessionOnDate && $sessionOnDate->type === 'rest') {
                         // User ran on a planned rest day — remove rest day, add actual run
                         $sessionOnDate->delete();

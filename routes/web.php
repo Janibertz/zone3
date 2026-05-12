@@ -197,18 +197,21 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             ->where('type', '!=', 'rest')
             ->whereNull('rating')
             ->whereNull('effort_perceived')
-            ->whereNull('feeling_notes')
+            ->where(fn ($q) => $q->whereNull('feeling_notes')->orWhere('feeling_notes', ''))
+            ->whereHas('trainingPlan')
+            ->with('activity:id,name')
             ->orderByDesc('planned_date')
             ->limit(5)
             ->get()
             ->map(fn ($s) => [
-                'id'           => $s->id,
-                'title'        => $s->title,
-                'type'         => $s->type,
-                'planned_date' => $s->planned_date->format('Y-m-d'),
-                'distance_km'  => $s->distance_km,
-                'activity_id'  => $s->activity_id,
-                'event_id'     => $s->event_id,
+                'id'            => $s->id,
+                'title'         => $s->title,
+                'activity_name' => $s->activity?->name,
+                'type'          => $s->type,
+                'planned_date'  => $s->planned_date->format('Y-m-d'),
+                'distance_km'   => $s->distance_km,
+                'activity_id'   => $s->activity_id,
+                'event_id'      => $s->event_id,
             ])
             ->values(),
 

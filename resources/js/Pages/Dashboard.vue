@@ -211,6 +211,7 @@ async function submitRating(sessionId) {
         });
         ratedIds.value = new Set([...ratedIds.value, sessionId]);
         ratingOpenId.value = null;
+        router.reload({ only: ['unratedSessions'] });
     } finally {
         ratingSavingId.value = null;
     }
@@ -1727,7 +1728,7 @@ function syncStrava() {
                                             {{ {'easy_run':'🟢','tempo_run':'🟡','interval':'🔴','long_run':'🔵','race_prep':'🏁'}[session.type] ?? '🏃' }}
                                         </span>
                                         <div class="min-w-0">
-                                            <p class="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{{ session.title || 'Einheit' }}</p>
+                                            <p class="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{{ session.activity_name || session.title || 'Einheit' }}</p>
                                             <p class="text-xs text-gray-400 dark:text-slate-500">
                                                 {{ new Date(session.planned_date).toLocaleDateString('de-DE', {day:'2-digit', month:'short'}) }}
                                                 {{ session.distance_km ? `· ${session.distance_km} km` : '' }}
@@ -1743,7 +1744,7 @@ function syncStrava() {
                                     <div class="flex items-center justify-between mb-3">
                                         <div class="flex items-center gap-2 min-w-0">
                                             <span class="text-sm shrink-0">{{ {'easy_run':'🟢','tempo_run':'🟡','interval':'🔴','long_run':'🔵','race_prep':'🏁'}[session.type] ?? '🏃' }}</span>
-                                            <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate">{{ session.title || 'Einheit' }}</p>
+                                            <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate">{{ session.activity_name || session.title || 'Einheit' }}</p>
                                         </div>
                                         <button @click="ratingOpenId = null" class="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 text-lg leading-none shrink-0 ml-2">✕</button>
                                     </div>
