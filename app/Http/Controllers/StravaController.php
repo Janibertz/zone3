@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\CalculateThresholdPaceJob;
+use App\Jobs\RegeneratePlanJob;
 use App\Models\Activity;
 use App\Models\RunnerProfile;
 use App\Models\StravaAccount;
@@ -114,6 +115,7 @@ class StravaController extends Controller
         }
 
         $this->dispatchCalculationIfDue($user->id, $newRunCount);
+        $this->dispatchPlanRegenerationIfNeeded($user->id);
 
         if ($newCount === 0) {
             $message = 'Keine neuen Aktivitäten gefunden.';
@@ -193,6 +195,7 @@ class StravaController extends Controller
         $isRun = $activity->type === 'Run';
         $this->dispatchCalculationIfDue($userId, $isRun ? 1 : 0);
         $this->matchActivityToSession($userId, $activity);
+        $this->dispatchPlanRegenerationIfNeeded($userId);
 
         // Push notification for the user
         $user = User::find($userId);
@@ -360,6 +363,22 @@ class StravaController extends Controller
             $profile->threshold_pace_calculating = true;
             $profile->save();
             CalculateThresholdPaceJob::dispatch($userId);
+        }
+    }
+
+    /**
+     * Dispatch plan regeneration job if the active plan has needs_plan_update = true.
+     * Uses a 5-minute delay to batch multiple activity imports.
+     */
+    private function dispatchPlanRegenerationIfNeeded(int $userId): void
+    {
+        $needs = \App\Models\TrainingPlan::where('user_id', $userId)
+            ->where('is_active', true)
+            ->where('needs_plan_update', true)
+            ->exists();
+
+        if ($needs) {
+            RegeneratePlanJob::dispatch($userId)->delay(now()->addMinutes(5));
         }
     }
 

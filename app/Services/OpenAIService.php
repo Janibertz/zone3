@@ -855,6 +855,40 @@ PROMPT;
             $availabilityText = 'Wöchentliche Verfügbarkeit: keine Angabe — verteile Training gleichmäßig.';
         }
 
+        // Pre-compute per-date availability for each day in the plan window
+        $isoToWeekday = [1 => 'monday', 2 => 'tuesday', 3 => 'wednesday', 4 => 'thursday', 5 => 'friday', 6 => 'saturday', 7 => 'sunday'];
+        $perDateLines = [];
+        for ($i = 0; $i < 10; $i++) {
+            $date    = now()->addDays($i);
+            $dateStr = $date->format('Y-m-d');
+            if ($dateStr > $eventDate) break;
+            $dayKey    = $isoToWeekday[$date->isoWeekday()];
+            $dayLabel  = $dayNames[$dayKey];
+            // Override takes precedence over weekly default
+            if (isset($availabilityOverrides[$dateStr])) {
+                $ov = $availabilityOverrides[$dateStr];
+                if (! ($ov['available'] ?? true)) {
+                    $perDateLines[] = "- {$dateStr} ({$dayLabel}): ❌ NICHT VERFÜGBAR → type=\"rest\" PFLICHT";
+                } else {
+                    $max = (int) ($ov['duration_min'] ?? 0);
+                    $perDateLines[] = "- {$dateStr} ({$dayLabel}): ✅ verfügbar, max. {$max} min";
+                }
+            } elseif ($weeklyAvailability) {
+                $dayAvail = $weeklyAvailability[$dayKey] ?? null;
+                if (! $dayAvail || ! ($dayAvail['available'] ?? false)) {
+                    $perDateLines[] = "- {$dateStr} ({$dayLabel}): ❌ NICHT VERFÜGBAR → type=\"rest\" PFLICHT";
+                } else {
+                    $max = (int) ($dayAvail['duration_min'] ?? 0);
+                    $perDateLines[] = "- {$dateStr} ({$dayLabel}): ✅ verfügbar, max. {$max} min";
+                }
+            }
+        }
+        $perDateAvailText = ! empty($perDateLines)
+            ? "\n\n**BINDENDE Verfügbarkeit je Datum (Vorrang vor allen anderen Regeln):**\n"
+                . implode("\n", $perDateLines)
+                . "\nAlle Daten mit ❌ MÜSSEN type=\"rest\" erhalten — keine Ausnahmen!"
+            : '';
+
         // Past race results (for learning from previous plan cycles)
         $pastResultsText = 'Keine vergangenen Rennergebnisse vorhanden.';
         if (! empty($pastPlanResults)) {
@@ -905,16 +939,7 @@ PROMPT;
             $otherEventsText = "\n\n**Weitere Rennevents im Planungszeitraum (an diesen Tagen KEIN Training — type=\"rest\"):**\n" . implode("\n", $lines);
         }
 
-        // Per-date overrides
-        $overrideText = '';
-        if (! empty($availabilityOverrides)) {
-            $ovLines = [];
-            foreach ($availabilityOverrides as $date => $ov) {
-                if (! ($ov['available'] ?? true)) { $ovLines[] = "- {$date}: NICHT verfügbar (override)"; }
-                else { $ovLines[] = "- {$date}: verfügbar, max. {$ov['duration_min']} Minuten (override)"; }
-            }
-            $overrideText = "\n\n**Einzelne Tages-Ausnahmen (haben Vorrang vor der Wochenverfügbarkeit):**\n" . implode("\n", $ovLines);
-        }
+        // Per-date overrides are already included in $perDateAvailText above
 
         $prompt = <<<PROMPT
 Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan für folgendes Rennevent.
@@ -940,7 +965,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan f�
 **Bisherige Einheitsbewertungen (Athleten-Feedback):**
 {$ratingsText}
 
-**{$availabilityText}**{$otherEventsText}{$overrideText}
+**{$availabilityText}**{$otherEventsText}{$perDateAvailText}
 
 **Planungsregeln:**
 - Starte den Plan ab heute ({$today})
