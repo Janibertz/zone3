@@ -461,6 +461,36 @@ PROMPT;
     }
 
     /**
+     * Generate a short daily motivational message from the coach.
+     * Considers today's session type, upcoming events, and coach personality.
+     * Returns a plain string (1–2 sentences) or null on failure.
+     */
+    public function generateDailyMessage(?string $sessionType, ?string $sessionTitle, ?array $upcomingEvents): ?string
+    {
+        $sessionText = $sessionType
+            ? "Heutige geplante Einheit: {$sessionTitle} (Typ: {$sessionType}).\n"
+            : "Heute kein spezifisches Training geplant.\n";
+
+        $eventsText = '';
+        if (!empty($upcomingEvents)) {
+            $nearest = $upcomingEvents[0];
+            $eventsText = "Nächster Wettkampf: {$nearest['name']} in {$nearest['days_until']} Tagen.\n";
+        }
+
+        $prompt = <<<PROMPT
+{$sessionText}{$eventsText}
+Schreib eine kurze, motivierende Botschaft (1–2 Sätze) für den Läufer für heute. Sprich ihn direkt an (du). Kein Emoji, keine Anführungszeichen. Nur den reinen Text.
+PROMPT;
+
+        $content = $this->callOpenAI('daily_message', [
+            ['role' => 'system', 'content' => $this->buildSystemPrompt('Du bist ein ermutigender Lauf-Coach. Antworte nur mit dem reinen Motivationstext.')],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.8, 100);
+
+        return $content ? trim($content) : null;
+    }
+
+    /**
      * Calculate threshold pace (Schwellenpace) from last 10 activities using AI.
      *
      * Algorithm:

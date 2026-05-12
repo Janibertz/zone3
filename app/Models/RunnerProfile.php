@@ -24,6 +24,8 @@ class RunnerProfile extends Model
         'threshold_pace_history',
         'threshold_pace_calculating',
         'weekly_availability',
+        'daily_message',
+        'daily_message_date',
     ];
 
     protected $casts = [

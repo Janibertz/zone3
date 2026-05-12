@@ -783,8 +783,25 @@ const loadChartData = computed(() => {
     return { ctlPath: smooth(ctlPoints), atlPath: smooth(atlPoints), W, H };
 });
 
+const dailyMessage = ref(null);
+const dailyMessageLoading = ref(false);
+
+async function fetchDailyMessage() {
+    if (!coach.value) return;
+    dailyMessageLoading.value = true;
+    try {
+        const res = await axios.get('/api/ai/daily-message');
+        dailyMessage.value = res.data.message ?? null;
+    } catch {
+        // fallback to tagline
+    } finally {
+        dailyMessageLoading.value = false;
+    }
+}
+
 onMounted(() => {
     getTodayRecommendation();
+    fetchDailyMessage();
 });
 
 function syncStrava() {
@@ -833,7 +850,10 @@ function syncStrava() {
                     </div>
                     <div class="flex-1 min-w-0">
                         <p class="text-xs font-semibold" :class="coachColor.text">Dein Coach: {{ coach.name }}</p>
-                        <p class="text-xs text-gray-500 dark:text-slate-400 truncate italic">„{{ coach.tagline }}"</p>
+                        <p class="text-xs text-gray-500 dark:text-slate-400 italic line-clamp-2">
+                            <span v-if="dailyMessageLoading" class="animate-pulse">…</span>
+                            <span v-else>„{{ dailyMessage ?? coach.tagline }}"</span>
+                        </p>
                     </div>
                     <a href="/profile" class="shrink-0 text-xs text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors">Wechseln</a>
                 </div>

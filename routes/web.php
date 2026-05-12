@@ -232,6 +232,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
 Route::get('/api/ai/recommendation/today', [AIController::class, 'recommendToday'])->middleware(['auth', 'verified'])->name('ai.recommendation.today');
 Route::post('/api/ai/recommendation/accept', [AIController::class, 'acceptRecommendation'])->middleware(['auth', 'verified'])->name('ai.recommendation.accept');
 Route::post('/api/ai/recommendation/adjust', [AIController::class, 'adjustRecommendation'])->middleware(['auth', 'verified'])->name('ai.recommendation.adjust');
+Route::get('/api/ai/daily-message', [AIController::class, 'dailyMessage'])->middleware(['auth', 'verified'])->name('ai.daily-message');
 
 Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

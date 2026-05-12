@@ -303,6 +303,57 @@ class AIController extends Controller
         return response()->json(['recommendation' => $adjusted]);
     }
 
+    /**
+     * Return (or generate + cache) today's daily motivational message from the coach.
+     */
+    public function dailyMessage(Request $request): JsonResponse
+    {
+        $user          = $request->user();
+        $runnerProfile = $user->runnerProfile;
+        $today         = Carbon::today()->toDateString();
+
+        // Return cached message if still fresh
+        if ($runnerProfile &&
+            $runnerProfile->daily_message_date == $today &&
+            !empty($runnerProfile->daily_message))
+        {
+            return response()->json(['message' => $runnerProfile->daily_message]);
+        }
+
+        // Gather context for the message
+        $todaySession = TrainingSession::where('user_id', $user->id)
+            ->whereDate('planned_date', $today)
+            ->where('status', 'planned')
+            ->first();
+
+        $upcomingEvents = $user->events()
+            ->where('event_date', '>=', $today)
+            ->orderBy('event_date')
+            ->limit(3)
+            ->get()
+            ->map(fn ($e) => [
+                'name'       => $e->name,
+                'event_date' => $e->event_date->toDateString(),
+                'days_until' => (int) Carbon::today()->diffInDays($e->event_date, false),
+            ])
+            ->toArray();
+
+        $this->openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
+        $message = $this->openAI->generateDailyMessage(
+            $todaySession?->type,
+            $todaySession?->title,
+            $upcomingEvents
+        );
+
+        if ($runnerProfile && $message) {
+            $runnerProfile->daily_message      = $message;
+            $runnerProfile->daily_message_date = $today;
+            $runnerProfile->save();
+        }
+
+        return response()->json(['message' => $message]);
+    }
+
     private function formatPace(?float $paceMinutes): ?string
     {
         if (! $paceMinutes) return null;
