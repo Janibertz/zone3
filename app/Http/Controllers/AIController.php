@@ -210,8 +210,8 @@ class AIController extends Controller
                 $recommendation = $this->openAI->generateTodayRecommendation(
                     $runnerProfile ? [
                         'threshold_heart_rate' => $runnerProfile->threshold_heart_rate,
-                        'max_heart_rate' => $runnerProfile->max_heart_rate,
-                        'threshold_speed' => $runnerProfile->threshold_speed,
+                        'max_heart_rate'       => $runnerProfile->max_heart_rate,
+                        'threshold_speed'      => $this->formatPace($runnerProfile->threshold_speed),
                     ] : null,
                     $yesterdayActivity ? $yesterdayActivity->toArray() : null,
                     $todayWellbeing ? $todayWellbeing->toArray() : null,
@@ -295,11 +295,19 @@ class AIController extends Controller
             $runnerProfile ? [
                 'threshold_heart_rate' => $runnerProfile->threshold_heart_rate,
                 'max_heart_rate'       => $runnerProfile->max_heart_rate,
-                'threshold_speed'      => $runnerProfile->threshold_speed,
+                'threshold_speed'      => $this->formatPace($runnerProfile->threshold_speed),
             ] : null,
             $todayWellbeing ? $todayWellbeing->toArray() : null
         );
 
         return response()->json(['recommendation' => $adjusted]);
+    }
+
+    private function formatPace(?float $paceMinutes): ?string
+    {
+        if (! $paceMinutes) return null;
+        $mins = (int) $paceMinutes;
+        $secs = (int) (($paceMinutes - $mins) * 60);
+        return sprintf('%d:%02d', $mins, $secs);
     }
 }
