@@ -186,6 +186,16 @@ const activeFilterCount = computed(() =>
                             <span class="text-gray-400 dark:text-slate-500 text-xs">⚡</span>
                             <span class="font-semibold text-gray-900 dark:text-white">{{ formatPace(activity.average_speed) }}<span class="text-xs font-normal text-gray-400 dark:text-slate-500">/km</span></span>
                         </div>
+                        <template v-if="['Ride','VirtualRide'].includes(activity.type)">
+                            <div v-if="activity.average_speed" class="flex items-center gap-1.5">
+                                <span class="text-gray-400 dark:text-slate-500 text-xs">⚡</span>
+                                <span class="font-semibold text-gray-900 dark:text-white">{{ (activity.average_speed * 3.6).toFixed(1) }}<span class="text-xs font-normal text-gray-400 dark:text-slate-500"> km/h</span></span>
+                            </div>
+                            <div v-if="activity.average_watts" class="flex items-center gap-1.5">
+                                <span class="text-gray-400 dark:text-slate-500 text-xs">⚡</span>
+                                <span class="font-semibold text-gray-900 dark:text-white">{{ Math.round(activity.average_watts) }}<span class="text-xs font-normal text-gray-400 dark:text-slate-500"> W</span></span>
+                            </div>
+                        </template>
                         <div v-if="activity.average_heartrate" class="flex items-center gap-1.5 ml-auto">
                             <span class="text-red-400 text-xs">♥</span>
                             <span class="text-xs font-medium text-gray-600 dark:text-slate-400">{{ Math.round(activity.average_heartrate) }}</span>

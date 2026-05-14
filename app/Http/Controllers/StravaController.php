@@ -93,6 +93,7 @@ class StravaController extends Controller
                     'elapsed_time'         => $activityData['elapsed_time'] ?? 0,
                     'total_elevation_gain' => $activityData['total_elevation_gain'] ?? 0,
                     'average_speed'        => $activityData['average_speed'] ?? 0,
+                    'average_watts'        => $activityData['average_watts'] ?? null,
                     'max_speed'            => $activityData['max_speed'] ?? 0,
                     'average_heartrate'    => $activityData['average_heartrate'] ?? null,
                     'max_heartrate'        => $activityData['max_heartrate'] ?? null,

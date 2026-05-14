@@ -33,6 +33,7 @@ class ActivityController extends Controller
                 'elapsed_time'         => $activity->elapsed_time,
                 'total_elevation_gain' => $activity->total_elevation_gain,
                 'average_speed'        => $activity->average_speed,
+                'average_watts'        => $activity->average_watts,
                 'max_speed'            => $activity->max_speed,
                 'average_heartrate'    => $activity->average_heartrate,
                 'max_heartrate'        => $activity->max_heartrate,

@@ -20,6 +20,7 @@ class Activity extends Model
         'elapsed_time',
         'total_elevation_gain',
         'average_speed',
+        'average_watts',
         'max_speed',
         'average_heartrate',
         'max_heartrate',

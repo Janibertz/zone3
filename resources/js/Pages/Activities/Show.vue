@@ -120,14 +120,17 @@ const zoneColors = {
 
 // ── Type badges ───────────────────────────────────────────────────────────────
 
-const typeLabel = { Run: 'Laufen', Ride: 'Radeln', Swim: 'Schwimmen', Walk: 'Gehen', Workout: 'Workout' };
+const typeLabel = { Run: 'Laufen', Ride: 'Radfahren', VirtualRide: 'Virtual Ride', Swim: 'Schwimmen', Walk: 'Gehen', Workout: 'Workout' };
 const typeColors = {
-    Run:     'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300',
-    Ride:    'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300',
-    Swim:    'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
-    Workout: 'bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300',
-    Walk:    'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300',
+    Run:         'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300',
+    Ride:        'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300',
+    VirtualRide: 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300',
+    Swim:        'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
+    Workout:     'bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300',
+    Walk:        'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300',
 };
+
+const isCycling = computed(() => ['Ride', 'VirtualRide'].includes(props.activity.type));
 function typeColor(t) {
     return typeColors[t] ?? 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300';
 }
@@ -265,6 +268,16 @@ onUnmounted(() => {
                     <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Pace</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white leading-none">{{ formatSwimPace(activity.average_speed) }}</p>
                     <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">min/100m</p>
+                </div>
+                <div v-if="isCycling && activity.average_speed" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4">
+                    <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Geschwindigkeit</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white leading-none">{{ (activity.average_speed * 3.6).toFixed(1) }}</p>
+                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">km/h</p>
+                </div>
+                <div v-if="isCycling && activity.average_watts" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4">
+                    <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Leistung</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white leading-none">{{ Math.round(activity.average_watts) }}</p>
+                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">Watt</p>
                 </div>
                 <div v-if="activity.total_elevation_gain > 0" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4">
                     <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Höhenmeter</p>
