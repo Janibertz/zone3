@@ -210,14 +210,14 @@ class TrainingSessionController extends Controller
 
     /**
      * Download the session as a Garmin-compatible FIT workout file.
-     * Uses the official @garmin/fitsdk via Node.js; falls back to PHP generator.
+     * Tries Python FIT service first, falls back to PHP generator.
      */
     public function download(TrainingSession $session)
     {
         abort_if($session->user_id !== Auth::id(), 403);
 
         $steps    = $this->computeWorkoutSteps($session);
-        $fit      = $this->generateFitViaSdk($session, $steps) ?? $this->generateFit($session, $steps);
+        $fit      = $this->generateFitViaService($session, $steps) ?? $this->generateFit($session, $steps);
         $filename = Str::slug($session->title ?: 'training')
             . '-' . $session->planned_date->format('Y-m-d')
             . '.fit';
@@ -397,75 +397,42 @@ XML;
     // ── FIT generator ────────────────────────────────────────────────────────
 
     /**
-     * Generate FIT via the official @garmin/fitsdk Node.js script.
-     * Returns null if Node.js is unavailable or the script fails.
+     * Generate FIT via the Python fit-service microservice.
+     * Returns null if the service URL is not configured or the request fails.
      */
-    private function generateFitViaSdk(TrainingSession $session, array $steps): ?string
+    private function generateFitViaService(TrainingSession $session, array $steps): ?string
     {
-        $scriptPath = base_path('scripts/generate-workout-fit.mjs');
-        if (! file_exists($scriptPath)) {
+        $serviceUrl = env('FIT_SERVICE_URL');
+        if (! $serviceUrl) {
             return null;
         }
 
-        $payload = json_encode([
+        $payload = [
             'name'  => mb_substr($session->title ?: 'Training', 0, 15, 'UTF-8'),
             'steps' => array_map(fn ($s) => [
                 'name'     => $s['name'],
                 'meters'   => $s['meters'],
                 'speedMps' => $s['speedMps'],
             ], $steps),
-        ]);
-
-        $descriptors = [
-            0 => ['pipe', 'r'],
-            1 => ['pipe', 'w'],
-            2 => ['pipe', 'w'],
         ];
 
-        // Try which/where first, then known paths
-        $nodeBin = trim(shell_exec('which node 2>/dev/null') ?? '');
-        if (empty($nodeBin) || ! is_executable($nodeBin)) {
-            $nodeBin = null;
-            foreach ([
-                '/root/.nix-profile/bin/node',
-                '/usr/local/bin/node',
-                '/usr/bin/node',
-                '/opt/homebrew/bin/node',
-            ] as $candidate) {
-                if (is_executable($candidate)) {
-                    $nodeBin = $candidate;
-                    break;
-                }
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(10)
+                ->post(rtrim($serviceUrl, '/') . '/generate-fit', $payload);
+
+            if ($response->successful() && strlen($response->body()) > 14) {
+                return $response->body();
             }
-        }
-        if (! $nodeBin) {
-            \Log::info('FIT: node not found, using PHP fallback');
-            return null;
-        }
 
-        $proc = proc_open([$nodeBin, $scriptPath], $descriptors, $pipes, base_path());
-        if (! is_resource($proc)) {
-            \Log::error('FIT SDK: proc_open failed');
-            return null;
+            \Log::warning('FIT service returned unexpected response', [
+                'status' => $response->status(),
+                'body'   => substr($response->body(), 0, 200),
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('FIT service error: ' . $e->getMessage());
         }
 
-        fwrite($pipes[0], $payload);
-        fclose($pipes[0]);
-
-        $output = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-
-        $exitCode = proc_close($proc);
-
-        \Log::info('FIT SDK', [
-            'exit_code'   => $exitCode,
-            'output_bytes'=> strlen($output),
-            'stderr'      => $stderr,
-        ]);
-
-        return ($exitCode === 0 && ! empty($output)) ? $output : null;
+        return null;
     }
 
     /**
