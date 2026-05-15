@@ -74,8 +74,9 @@ class StravaController extends Controller
 
         $activities = $strava->fetchRecentActivities($account);
 
-        $newCount    = 0;
-        $newRunCount = 0;
+        $newCount      = 0;
+        $newRunCount   = 0;
+        $lapBackfilled = 0;
 
         foreach ($activities as $activityData) {
             $isNew = ! Activity::where('strava_id', $activityData['id'])
@@ -116,6 +117,19 @@ class StravaController extends Controller
                 if ($activity->type === 'Run') {
                     $newRunCount++;
                     $this->checkForPr($user->id, $activity);
+                }
+            } elseif ($activity->laps === null && $lapBackfilled < 10) {
+                // Backfill laps for existing activities imported before this feature existed
+                $laps = $strava->fetchActivityLaps($account, (int) $activityData['id']);
+                if (! empty($laps)) {
+                    $activity->laps = $this->normalizeLaps($laps);
+                    $activity->save();
+                    $lapBackfilled++;
+                } else {
+                    // Mark as "checked, no laps" to avoid re-checking every sync
+                    $activity->laps = [];
+                    $activity->save();
+                    $lapBackfilled++;
                 }
             }
 
