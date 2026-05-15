@@ -911,7 +911,7 @@ const groupedSteps = computed(() => {
                                         width:  ((s.duration_min || 0) / totalStepDuration * 100).toFixed(1) + '%',
                                         height: (stepHeightPct[s.type] ?? 60) + '%',
                                     }"
-                                    :class="[stepBarColor[s.type] ?? 'bg-indigo-400', 'rounded-t-sm opacity-85']"
+                                    :class="[stepBarColor[s.type] ?? 'bg-indigo-400', 'rounded-t-sm opacity-80']"
                                     :title="`${s.label}: ${s.duration_min} min`"
                                 />
                             </div>
