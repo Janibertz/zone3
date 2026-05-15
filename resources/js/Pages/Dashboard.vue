@@ -588,6 +588,7 @@ function formatSwimPace(metersPerSecond) {
 function activityPaceLabel(activity) {
     if (!activity.average_speed || activity.average_speed <= 0) return null;
     if (activity.type === 'Swim') return `${formatSwimPace(activity.average_speed)}/100m`;
+    if (['Ride', 'VirtualRide'].includes(activity.type)) return `${(activity.average_speed * 3.6).toFixed(1)} km/h`;
     return `${formatPaceFromSpeed(activity.average_speed)}/km`;
 }
 
@@ -1412,7 +1413,11 @@ function syncStrava() {
                                         </span>
                                         <span v-if="activity.average_speed > 0"
                                             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold"
-                                            :class="activity.type !== 'Swim' ? paceColor(activity.average_speed) : 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'">
+                                            :class="['Ride','VirtualRide'].includes(activity.type)
+                                                ? 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400'
+                                                : activity.type === 'Swim'
+                                                    ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                                                    : paceColor(activity.average_speed)">
                                             ⚡ {{ activityPaceLabel(activity) }}
                                         </span>
                                         <span v-if="activity.average_heartrate"
