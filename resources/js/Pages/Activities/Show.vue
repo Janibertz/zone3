@@ -370,8 +370,8 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <!-- Additional stats (max speed, elapsed time) -->
-            <div class="grid grid-cols-2 gap-2.5">
+            <!-- Additional stats (max speed, elapsed time) — not shown for cycling -->
+            <div v-if="!isCycling" class="grid grid-cols-2 gap-2.5">
                 <div v-if="activity.max_speed" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4">
                     <p class="text-xs text-gray-500 dark:text-slate-400 mb-1">Max. Pace</p>
                     <p class="text-xl font-bold text-gray-900 dark:text-white">{{ formatPace(activity.max_speed) }}</p>
