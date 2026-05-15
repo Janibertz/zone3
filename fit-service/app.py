@@ -82,7 +82,11 @@ def build_fit(name: str, steps: list[dict]) -> bytes:
 
 
 def build_garmin_json(name: str, sport: str, steps: list[dict]) -> dict:
-    """Convert workout steps to Garmin Connect JSON format."""
+    """Convert workout steps to Garmin Connect JSON format.
+
+    Step objects require "type": "ExecutableStepDTO" as Jackson polymorphic discriminator.
+    endCondition conditionTypeId: 2=time, 3=distance (from Garmin API reverse-engineering).
+    """
     sport_map = {
         "running": {"sportTypeId": 1, "sportTypeKey": "running",  "displayOrder": 1},
         "cycling": {"sportTypeId": 2, "sportTypeKey": "cycling",  "displayOrder": 2},
@@ -109,64 +113,44 @@ def build_garmin_json(name: str, sport: str, steps: list[dict]) -> dict:
         speed  = step.get("speedMps")
 
         if speed and speed > 0:
+            # pace.zone: targetValueOne = faster speed (m/s), targetValueTwo = slower speed (m/s)
             target_type = {"workoutTargetTypeId": 6, "workoutTargetTypeKey": "pace.zone", "displayOrder": 6}
-            # pace.zone: targetValueOne = faster (higher m/s), targetValueTwo = slower
-            target_one = round(speed * 1.05, 4)
-            target_two = round(speed * 0.95, 4)
+            target_one  = round(speed * 1.05, 4)
+            target_two  = round(speed * 0.95, 4)
         else:
             target_type = {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target", "displayOrder": 1}
-            target_one = None
-            target_two = None
+            target_one  = None
+            target_two  = None
 
-        workout_steps.append({
-            "stepOrder":               i + 1,
-            "stepType":                st,
-            "childStepId":             None,
-            "description":             None,
-            "endCondition":            {"conditionTypeId": 3, "conditionTypeKey": "distance", "displayOrder": 3, "displayable": True},
-            "endConditionValue":       meters,
-            "preferredEndConditionUnit": None,
-            "endConditionCompare":     None,
-            "targetType":              target_type,
-            "targetValueOne":          target_one,
-            "targetValueTwo":          target_two,
-            "zoneNumber":              None,
-            "secondaryTargetType":     None,
-            "secondaryTargetValueOne": None,
-            "secondaryTargetValueTwo": None,
-            "secondaryZoneNumber":     None,
-            "targetValueUnit":         None,
-            "secondaryTargetValueUnit":None,
-            "endConditionZone":        None,
-            "strokeType":              {"strokeTypeId": 0, "strokeTypeKey": None, "displayOrder": 0},
-            "equipmentType":           {"equipmentTypeId": 0, "equipmentTypeKey": None, "displayOrder": 0},
-            "category":                None,
-            "exerciseName":            None,
-            "workoutProvider":         None,
-        })
+        step_obj: dict = {
+            "type":               "ExecutableStepDTO",  # Jackson polymorphic type discriminator
+            "stepOrder":          i + 1,
+            "stepType":           st,
+            "childStepId":        None,
+            "endCondition":       {"conditionTypeId": 3, "conditionTypeKey": "distance",
+                                   "displayOrder": 3, "displayable": True},
+            "endConditionValue":  float(meters),
+            "targetType":         target_type,
+            "strokeType":         {"strokeTypeId": 0, "displayOrder": 0},
+            "equipmentType":      {"equipmentTypeId": 0, "displayOrder": 0},
+        }
+        if target_one is not None:
+            step_obj["targetValueOne"] = target_one
+            step_obj["targetValueTwo"] = target_two
+
+        workout_steps.append(step_obj)
+
+    total_meters = sum(max(100, int(s.get("meters") or 1000)) for s in steps)
 
     return {
-        "workoutName":     name or "Training",
-        "description":     None,
-        "sportType":       sport_type,
-        "subSportType":    "GENERIC",
-        "trainingPlanId":  None,
+        "workoutName":            name or "Training",
+        "sportType":              sport_type,
+        "estimatedDurationInSecs":0,
         "workoutSegments": [{
-            "segmentOrder":             1,
-            "sportType":                sport_type,
-            "poolLengthUnit":           None,
-            "poolLength":               None,
-            "avgTrainingSpeed":         None,
-            "estimatedDurationInSecs":  None,
-            "estimatedDistanceInMeters":None,
-            "estimatedDistanceUnit":    None,
-            "estimateType":             None,
-            "description":              None,
-            "workoutSteps":             workout_steps,
+            "segmentOrder": 1,
+            "sportType":    sport_type,
+            "workoutSteps": workout_steps,
         }],
-        "poolLength":      None,
-        "poolLengthUnit":  None,
-        "shared":          False,
     }
 
 
