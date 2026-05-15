@@ -21,6 +21,7 @@ class Activity extends Model
         'total_elevation_gain',
         'average_speed',
         'average_watts',
+        'laps',
         'max_speed',
         'average_heartrate',
         'max_heartrate',
@@ -33,7 +34,8 @@ class Activity extends Model
 
     protected $casts = [
         'start_date' => 'datetime',
-        'polyline' => 'array',
+        'polyline'   => 'array',
+        'laps'       => 'array',
     ];
 
     public function user()

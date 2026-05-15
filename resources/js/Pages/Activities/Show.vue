@@ -10,6 +10,59 @@ const props = defineProps({
     linkedSession: Object,
 });
 
+// ── Lap helpers ───────────────────────────────────────────────────────────────
+
+const hasLaps = computed(() => Array.isArray(props.activity.laps) && props.activity.laps.length > 1);
+const totalLapTime = computed(() => hasLaps.value
+    ? props.activity.laps.reduce((s, l) => s + (l.moving_time || l.elapsed_time || 0), 0)
+    : 0
+);
+
+function lapPace(lap) {
+    if (!lap.average_speed || lap.average_speed <= 0) return '–';
+    const sec = 1000 / lap.average_speed;
+    return `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2,'0')}`;
+}
+
+function lapSpeed(lap) {
+    if (!lap.average_speed || lap.average_speed <= 0) return '–';
+    return (lap.average_speed * 3.6).toFixed(1);
+}
+
+function lapDist(lap) {
+    return ((lap.distance || 0) / 1000).toFixed(2);
+}
+
+function lapTime(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+// Lap bar color by pace (for runs) or by index cycling (for others)
+const lapBarColors = [
+    'bg-indigo-500', 'bg-indigo-300', 'bg-violet-500', 'bg-violet-300',
+    'bg-blue-500', 'bg-blue-300', 'bg-sky-500', 'bg-sky-300',
+];
+
+function lapColor(lap, index) {
+    if (props.activity.type !== 'Run' || !lap.average_speed) {
+        return lapBarColors[index % lapBarColors.length];
+    }
+    if (!props.paceZones) return 'bg-indigo-400';
+    const paceSec = 1000 / lap.average_speed;
+    const zones = ['z1','z2','z3','z4','z5'];
+    const zoneBar = { z1: 'bg-blue-400', z2: 'bg-green-400', z3: 'bg-yellow-400', z4: 'bg-orange-400', z5: 'bg-red-400' };
+    for (const key of zones) {
+        const z = props.paceZones[key];
+        if (!z) continue;
+        const minSec = paceToSeconds(z.min_pace) ?? 0;
+        const maxSec = paceToSeconds(z.max_pace) ?? Infinity;
+        if (paceSec >= minSec && paceSec <= maxSec) return zoneBar[key];
+    }
+    return 'bg-indigo-400';
+}
+
 // ── Session rating ────────────────────────────────────────────────────────────
 const ratingValue  = ref(props.linkedSession?.rating          ?? 0);
 const effortValue  = ref(props.linkedSession?.effort_perceived ?? 0);
@@ -321,6 +374,65 @@ onUnmounted(() => {
                 <div v-if="activity.max_heartrate" class="flex justify-between mt-1">
                     <span class="text-xs text-gray-400 dark:text-slate-500">0</span>
                     <span class="text-xs text-gray-400 dark:text-slate-500">{{ Math.round(activity.max_heartrate) }} bpm max</span>
+                </div>
+            </div>
+
+            <!-- Lap chart -->
+            <div v-if="hasLaps" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+                    Runden <span class="text-xs font-normal text-gray-400 dark:text-slate-500 ml-1">{{ activity.laps.length }} Laps</span>
+                </h2>
+
+                <!-- Bar chart: each lap proportional to its moving_time -->
+                <div class="flex gap-0.5 h-10 mb-3 rounded-lg overflow-hidden">
+                    <div
+                        v-for="(lap, i) in activity.laps"
+                        :key="i"
+                        :style="{ width: ((lap.moving_time || lap.elapsed_time || 0) / totalLapTime * 100).toFixed(2) + '%' }"
+                        :class="lapColor(lap, i)"
+                        class="h-full rounded-sm first:rounded-l-lg last:rounded-r-lg opacity-80 hover:opacity-100 transition-opacity cursor-default"
+                        :title="activity.type === 'Run'
+                            ? `Lap ${lap.index ?? i+1}: ${lapDist(lap)} km · ${lapPace(lap)} min/km`
+                            : `Lap ${lap.index ?? i+1}: ${lapDist(lap)} km · ${lapSpeed(lap)} km/h`"
+                    />
+                </div>
+
+                <!-- Lap table -->
+                <div class="space-y-1">
+                    <div class="grid text-xs text-gray-400 dark:text-slate-500 font-medium px-1 mb-1"
+                         :class="activity.average_heartrate ? 'grid-cols-[1.5rem_1fr_auto_auto_auto]' : 'grid-cols-[1.5rem_1fr_auto_auto]'">
+                        <span>#</span>
+                        <span>Zeit</span>
+                        <span class="text-right">Distanz</span>
+                        <span class="text-right">{{ ['Ride','VirtualRide'].includes(activity.type) ? 'km/h' : 'Pace' }}</span>
+                        <span v-if="activity.average_heartrate" class="text-right">HF</span>
+                    </div>
+                    <div
+                        v-for="(lap, i) in activity.laps"
+                        :key="'row'+i"
+                        class="grid items-center gap-x-2 px-1 py-1.5 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors text-sm"
+                        :class="activity.average_heartrate ? 'grid-cols-[1.5rem_1fr_auto_auto_auto]' : 'grid-cols-[1.5rem_1fr_auto_auto]'"
+                    >
+                        <!-- Color dot + index -->
+                        <span class="flex items-center gap-1">
+                            <span class="h-2 w-2 rounded-full shrink-0" :class="lapColor(lap, i)" />
+                        </span>
+                        <!-- Duration -->
+                        <span class="font-medium text-gray-700 dark:text-slate-300 text-xs">
+                            {{ lapTime(lap.moving_time || lap.elapsed_time || 0) }}
+                        </span>
+                        <!-- Distance -->
+                        <span class="text-right text-xs text-gray-500 dark:text-slate-400">{{ lapDist(lap) }} km</span>
+                        <!-- Pace / Speed -->
+                        <span class="text-right text-xs font-semibold text-gray-900 dark:text-white">
+                            <template v-if="['Ride','VirtualRide'].includes(activity.type)">{{ lapSpeed(lap) }}</template>
+                            <template v-else>{{ lapPace(lap) }}</template>
+                        </span>
+                        <!-- HR -->
+                        <span v-if="activity.average_heartrate" class="text-right text-xs text-red-400">
+                            {{ lap.average_heartrate ? Math.round(lap.average_heartrate) : '–' }}
+                        </span>
+                    </div>
                 </div>
             </div>
 

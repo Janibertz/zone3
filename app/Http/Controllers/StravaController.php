@@ -107,6 +107,12 @@ class StravaController extends Controller
 
             if ($isNew) {
                 $newCount++;
+                // Fetch laps for new activities
+                $laps = $strava->fetchActivityLaps($account, (int) $activityData['id']);
+                if (! empty($laps)) {
+                    $activity->laps = $this->normalizeLaps($laps);
+                    $activity->save();
+                }
                 if ($activity->type === 'Run') {
                     $newRunCount++;
                     $this->checkForPr($user->id, $activity);
@@ -184,6 +190,7 @@ class StravaController extends Controller
                 'elapsed_time'         => $activityData['elapsed_time'] ?? 0,
                 'total_elevation_gain' => $activityData['total_elevation_gain'] ?? 0,
                 'average_speed'        => $activityData['average_speed'] ?? 0,
+                'average_watts'        => $activityData['average_watts'] ?? null,
                 'max_speed'            => $activityData['max_speed'] ?? 0,
                 'average_heartrate'    => $activityData['average_heartrate'] ?? null,
                 'max_heartrate'        => $activityData['max_heartrate'] ?? null,
@@ -192,6 +199,9 @@ class StravaController extends Controller
                 'location_state'       => $activityData['location_state'] ?? null,
                 'location_country'     => $activityData['location_country'] ?? null,
                 'polyline'             => $this->extractPolyline($activityData),
+                'laps'                 => ! empty($activityData['laps'])
+                    ? $this->normalizeLaps($activityData['laps'])
+                    : null,
             ]
         );
 
@@ -435,6 +445,26 @@ class StravaController extends Controller
                 $profile->save();
             }
         }
+    }
+
+    /**
+     * Normalize raw Strava lap data to a compact format for storage and display.
+     * Keeps only the fields needed for the UI.
+     */
+    private function normalizeLaps(array $rawLaps): array
+    {
+        return array_map(fn ($lap) => [
+            'index'             => $lap['lap_index']         ?? null,
+            'name'              => $lap['name']              ?? null,
+            'elapsed_time'      => $lap['elapsed_time']      ?? 0,
+            'moving_time'       => $lap['moving_time']       ?? 0,
+            'distance'          => $lap['distance']          ?? 0,
+            'average_speed'     => $lap['average_speed']     ?? null,
+            'max_speed'         => $lap['max_speed']         ?? null,
+            'average_heartrate' => $lap['average_heartrate'] ?? null,
+            'max_heartrate'     => $lap['max_heartrate']     ?? null,
+            'pace_zone'         => $lap['pace_zone']         ?? null,
+        ], $rawLaps);
     }
 
     /**

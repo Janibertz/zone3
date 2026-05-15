@@ -99,6 +99,31 @@ class TrainingSessionController extends Controller
     }
 
     /**
+     * Return structured workout steps for a session — served from DB cache, generated on first request.
+     * Only for non-rest, non-race sessions.
+     */
+    public function sessionSteps(TrainingSession $session, OpenAIService $openAI)
+    {
+        abort_if($session->user_id !== Auth::id(), 403);
+        abort_if(in_array($session->type, ['rest', 'race_prep']), 422);
+
+        if ($session->steps) {
+            return response()->json($session->steps);
+        }
+
+        $openAI->withCoach(Auth::user()->coach?->personality_prompt)->forUser(Auth::id());
+        $steps = $openAI->generateSessionSteps($session);
+
+        if (! $steps) {
+            return response()->json(['error' => 'Steps konnten nicht generiert werden.'], 500);
+        }
+
+        $session->update(['steps' => $steps]);
+
+        return response()->json($steps);
+    }
+
+    /**
      * Adjust a planned session harder or softer via AI.
      */
     public function adjustIntensity(Request $request, TrainingSession $session, OpenAIService $openAI)

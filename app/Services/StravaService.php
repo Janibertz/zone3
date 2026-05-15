@@ -118,4 +118,23 @@ class StravaService
 
         return $response->json();
     }
+
+    /**
+     * Fetch lap data for a single activity.
+     * Returns array of lap objects, each with distance, elapsed_time, moving_time,
+     * average_speed, average_heartrate, lap_index, pace_zone.
+     */
+    public function fetchActivityLaps(StravaAccount $account, int $activityId): array
+    {
+        if ($account->token_expires_at && $account->token_expires_at->isPast()) {
+            $account = $this->refreshToken($account);
+        }
+
+        $response = Http::withToken($account->access_token)
+            ->get("https://www.strava.com/api/v3/activities/{$activityId}/laps");
+
+        if ($response->failed()) return [];
+
+        return $response->json() ?? [];
+    }
 }

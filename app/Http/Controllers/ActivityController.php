@@ -42,6 +42,7 @@ class ActivityController extends Controller
                 'location_state'       => $activity->location_state,
                 'location_country'     => $activity->location_country,
                 'polyline'             => $activity->polyline['polyline'] ?? null,
+                'laps'                 => $activity->laps ?? null,
             ],
             'paceZones'     => $paceZones,
             'linkedSession' => $linkedSession ? [

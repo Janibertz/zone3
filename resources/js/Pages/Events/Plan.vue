@@ -309,6 +309,11 @@ const nutritionLoading   = ref(false);
 const nutritionError     = ref('');
 const nutritionCache     = {};
 
+const aiSteps        = ref(null);
+const stepsLoading   = ref(false);
+const stepsError     = ref('');
+const stepsCache     = {};
+
 // ── Rating ───────────────────────────────────────────────────────────────────
 const ratingValue  = ref(0);
 const effortValue  = ref(0);
@@ -346,31 +351,49 @@ async function openDetail(session) {
     if (session.type === 'rest') return;
     detailSession.value   = session;
     aiNutritionTips.value = null;
+    aiSteps.value         = null;
     nutritionError.value  = '';
+    stepsError.value      = '';
     ratingValue.value     = session.rating          || 0;
     effortValue.value     = session.effort_perceived || 0;
     feelingNotes.value    = session.feeling_notes    || '';
     ratingSaved.value     = false;
 
-    // Serve from cache if already loaded
+    // Load nutrition tips
     if (nutritionCache[session.id]) {
         aiNutritionTips.value = nutritionCache[session.id];
-        return;
+    } else {
+        nutritionLoading.value = true;
+        try {
+            const { data } = await axios.get(route('training-sessions.nutrition-tips', session.id));
+            nutritionCache[session.id] = data;
+            aiNutritionTips.value = data;
+        } catch {
+            nutritionError.value = 'Ernährungstipps konnten nicht geladen werden.';
+        } finally {
+            nutritionLoading.value = false;
+        }
     }
 
-    nutritionLoading.value = true;
-    try {
-        const { data } = await axios.get(route('training-sessions.nutrition-tips', session.id));
-        nutritionCache[session.id] = data;
-        aiNutritionTips.value = data;
-    } catch {
-        nutritionError.value = 'Ernährungstipps konnten nicht geladen werden.';
-    } finally {
-        nutritionLoading.value = false;
+    // Load workout steps (not for race_prep)
+    if (session.type !== 'race_prep') {
+        if (stepsCache[session.id]) {
+            aiSteps.value = stepsCache[session.id];
+        } else {
+            stepsLoading.value = true;
+            try {
+                const { data } = await axios.get(route('training-sessions.steps', session.id));
+                stepsCache[session.id] = data;
+                aiSteps.value = data;
+            } catch {
+                stepsError.value = '';
+            } finally {
+                stepsLoading.value = false;
+            }
+        }
     }
 }
 
-// Compute Aufwärmen / Hauptteil / Auslaufen from session data
 function parsePaceToSec(paceStr) {
     if (!paceStr || paceStr === 'null') return null;
     const parts = paceStr.split(':');
@@ -393,33 +416,56 @@ function estimatedTime(meters, paceStr) {
     return `~${m}:${String(s).padStart(2, '0')} min`;
 }
 
-const workoutSteps = computed(() => {
-    const s = detailSession.value;
-    if (!s || s.type === 'rest' || isRaceSession.value) return [];
+// Step bar colors by type
+const stepBarColor = {
+    warmup:   'bg-green-400',
+    work:     'bg-red-400',
+    rest:     'bg-slate-300 dark:bg-slate-600',
+    cooldown: 'bg-blue-400',
+};
+const stepBgColor = {
+    warmup:   'bg-green-50 dark:bg-green-500/10 border-green-100 dark:border-green-500/20',
+    work:     'bg-red-50 dark:bg-red-500/10 border-red-100 dark:border-red-500/20',
+    rest:     'bg-gray-50 dark:bg-slate-800 border-gray-100 dark:border-slate-700',
+    cooldown: 'bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20',
+};
+const stepLabel = { warmup: 'Aufwärmen', work: 'Intervall', rest: 'Pause', cooldown: 'Auslaufen' };
 
-    const distKm = s.distance_km || 5;
-    const paceSecPerKm = parsePaceToSec(s.pace_target);
-    const easySecPerKm = paceSecPerKm ? paceSecPerKm + 60 : null;
-    const easyPaceStr  = easySecPerKm ? secToPaceStr(easySecPerKm) : null;
+// Total duration of all AI steps (accounting for repetitions)
+const stepsWithReps = computed(() => {
+    if (!aiSteps.value) return [];
+    // Expand repeated steps for bar-chart proportions
+    const expanded = [];
+    aiSteps.value.forEach(s => {
+        const reps = s.repetitions || 1;
+        for (let i = 0; i < reps; i++) expanded.push(s);
+    });
+    return expanded;
+});
 
-    const configs = {
-        easy_run:  { wF: 0.10, wMax: 1.0, cF: 0.10, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Leichtes Einlaufen',              mName: 'Hauptteil',  mLabel: 'Lockeres Dauertempo',                     cName: 'Auslaufen', cLabel: 'Leichtes Auslaufen' },
-        tempo_run: { wF: 0.25, wMax: 2.0, cF: 0.12, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Lockeres Einlaufen',              mName: 'Hauptteil',  mLabel: 'Tempodauerlauf',                          cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen' },
-        interval:  { wF: 0.20, wMax: 2.0, cF: 0.10, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Lockeres Einlaufen',              mName: 'Intervalle', mLabel: 'Intervallarbeit (Details in Beschreibung)',cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen' },
-        long_run:  { wF: 0.05, wMax: 1.0, cF: 0.05, cMax: 1.0, wName: 'Einlaufen',  wLabel: 'Leichtes Einlaufen',              mName: 'Hauptteil',  mLabel: 'Langer gleichmäßiger Lauf',               cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen' },
-        race_prep: { wF: 0.30, wMax: 2.0, cF: 0.15, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Lockeres Einlaufen + Strides',    mName: 'Hauptteil',  mLabel: 'Renntempo-Abschnitte',                    cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen' },
-    };
+const totalStepDuration = computed(() =>
+    stepsWithReps.value.reduce((sum, s) => sum + (s.duration_min || 0), 0)
+);
 
-    const cfg = configs[s.type] || configs['easy_run'];
-    const warmupKm   = Math.min(cfg.wMax, distKm * cfg.wF);
-    const cooldownKm = Math.min(cfg.cMax, distKm * cfg.cF);
-    const mainKm     = Math.max(0, distKm - warmupKm - cooldownKm);
-
-    return [
-        { phase: cfg.wName, label: cfg.wLabel, km: Math.round(warmupKm * 10) / 10,   pace: easyPaceStr, color: 'green'  },
-        { phase: cfg.mName, label: cfg.mLabel, km: Math.round(mainKm * 10) / 10,     pace: s.pace_target && s.pace_target !== 'null' ? s.pace_target : easyPaceStr, color: 'main' },
-        { phase: cfg.cName, label: cfg.cLabel, km: Math.round(cooldownKm * 10) / 10, pace: easyPaceStr, color: 'blue'   },
-    ];
+// Grouped steps for list display (collapse repetitions)
+const groupedSteps = computed(() => {
+    if (!aiSteps.value) return [];
+    const result = [];
+    let i = 0;
+    while (i < aiSteps.value.length) {
+        const s = aiSteps.value[i];
+        if (s.type === 'work' && s.repetitions && s.repetitions > 1) {
+            // Look ahead for matching rest step
+            const rest = aiSteps.value[i + 1]?.type === 'rest' ? aiSteps.value[i + 1] : null;
+            result.push({ ...s, pairedRest: rest, isGroup: true });
+            if (rest) i += 2;
+            else i++;
+        } else {
+            result.push({ ...s, isGroup: false });
+            i++;
+        }
+    }
+    return result;
 });
 
 </script>
@@ -828,39 +874,68 @@ const workoutSteps = computed(() => {
                         </div>
                     </div>
 
-                    <!-- Warmup / Hauptteil / Cooldown -->
-                    <div>
+                    <!-- Trainingsstruktur -->
+                    <div v-if="!isRaceSession">
                         <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-2">Trainingsstruktur</h3>
-                        <div class="space-y-2">
-                            <div v-for="(step, idx) in workoutSteps" :key="idx"
-                                class="flex items-start gap-3 rounded-xl p-3.5"
-                                :class="{
-                                    'bg-green-50 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20': step.color === 'green',
-                                    'bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20': step.color === 'main',
-                                    'bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20': step.color === 'blue',
-                                }"
-                            >
-                                <!-- Phase number -->
-                                <div class="shrink-0 h-7 w-7 rounded-lg flex items-center justify-center text-xs font-bold"
-                                    :class="{
-                                        'bg-green-200 dark:bg-green-500/30 text-green-800 dark:text-green-300': step.color === 'green',
-                                        'bg-indigo-200 dark:bg-indigo-500/30 text-indigo-800 dark:text-indigo-300': step.color === 'main',
-                                        'bg-blue-200 dark:bg-blue-500/30 text-blue-800 dark:text-blue-300': step.color === 'blue',
-                                    }">
-                                    {{ idx + 1 }}
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ step.phase }}</p>
-                                    <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{{ step.label }}</p>
-                                    <div class="flex items-center gap-3 mt-1.5 flex-wrap">
-                                        <span class="text-xs font-medium text-gray-700 dark:text-slate-300">{{ step.km }} km</span>
-                                        <span v-if="step.pace && step.pace !== 'null'" class="text-xs text-gray-500 dark:text-slate-400">
-                                            {{ step.pace }} min/km
-                                        </span>
-                                        <span v-if="step.pace && step.km" class="text-xs text-gray-400 dark:text-slate-500">
-                                            {{ estimatedTime(step.km * 1000, step.pace) }}
-                                        </span>
-                                    </div>
+
+                        <!-- Loading -->
+                        <div v-if="stepsLoading" class="flex items-center gap-2 py-3 text-xs text-gray-400 dark:text-slate-500">
+                            <svg class="h-4 w-4 animate-spin shrink-0 text-indigo-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                            Struktur wird geladen…
+                        </div>
+
+                        <!-- AI steps visualization -->
+                        <div v-else-if="aiSteps && aiSteps.length">
+                            <!-- Bar chart -->
+                            <div class="flex gap-0.5 h-8 mb-3 rounded-lg overflow-hidden">
+                                <div
+                                    v-for="(s, i) in stepsWithReps"
+                                    :key="i"
+                                    :style="{ width: ((s.duration_min || 0) / totalStepDuration * 100).toFixed(1) + '%' }"
+                                    :class="[stepBarColor[s.type] ?? 'bg-indigo-400', 'h-full first:rounded-l-lg last:rounded-r-lg opacity-80']"
+                                    :title="`${s.label}: ${s.duration_min} min`"
+                                />
+                            </div>
+
+                            <!-- Step list (grouped) -->
+                            <div class="space-y-2">
+                                <div v-for="(step, idx) in groupedSteps" :key="idx"
+                                    class="rounded-xl border p-3"
+                                    :class="stepBgColor[step.type] ?? 'bg-gray-50 dark:bg-slate-800 border-gray-100 dark:border-slate-700'"
+                                >
+                                    <!-- Group: work + rest repeated -->
+                                    <template v-if="step.isGroup">
+                                        <div class="flex items-center gap-2 mb-2">
+                                            <span class="shrink-0 h-5 w-5 rounded bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300 text-[10px] font-bold flex items-center justify-center">×{{ step.repetitions }}</span>
+                                            <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ step.repetitions }}× Intervall</span>
+                                        </div>
+                                        <div class="ml-7 space-y-1.5">
+                                            <div class="flex items-center gap-3">
+                                                <span class="h-2 w-2 rounded-full bg-red-400 shrink-0" />
+                                                <span class="text-xs font-medium text-gray-700 dark:text-slate-300">{{ step.label }}</span>
+                                                <span class="text-xs text-gray-500 dark:text-slate-400 ml-auto">{{ step.duration_min }} min</span>
+                                                <span v-if="step.pace_target" class="text-xs font-semibold text-gray-900 dark:text-white">{{ step.pace_target }}/km</span>
+                                            </div>
+                                            <div v-if="step.pairedRest" class="flex items-center gap-3">
+                                                <span class="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-500 shrink-0" />
+                                                <span class="text-xs text-gray-500 dark:text-slate-400">{{ step.pairedRest.label }}</span>
+                                                <span class="text-xs text-gray-400 dark:text-slate-500 ml-auto">{{ step.pairedRest.duration_min }} min</span>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <!-- Single step -->
+                                    <template v-else>
+                                        <div class="flex items-center gap-3">
+                                            <span class="h-2.5 w-2.5 rounded-full shrink-0" :class="stepBarColor[step.type]" />
+                                            <div class="flex-1 min-w-0">
+                                                <span class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">{{ stepLabel[step.type] ?? step.type }}</span>
+                                                <span class="ml-1.5 text-sm font-medium text-gray-900 dark:text-white">{{ step.label }}</span>
+                                            </div>
+                                            <span class="text-xs text-gray-500 dark:text-slate-400 shrink-0">{{ step.duration_min }} min</span>
+                                            <span v-if="step.pace_target" class="text-xs font-semibold text-gray-900 dark:text-white shrink-0">{{ step.pace_target }}/km</span>
+                                        </div>
+                                    </template>
                                 </div>
                             </div>
                         </div>

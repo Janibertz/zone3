@@ -1274,6 +1274,64 @@ PROMPT;
     }
 
     /**
+     * Generate a structured step list for a planned training session.
+     * Steps include warmup, work intervals (with repetitions), rest, and cooldown.
+     * Returns array of step objects or null on failure.
+     */
+    public function generateSessionSteps(\App\Models\TrainingSession $session): ?array
+    {
+        $typeLabel = [
+            'interval'  => 'Intervalltraining',
+            'tempo_run' => 'Tempolauf',
+            'easy_run'  => 'Lockerer Lauf',
+            'long_run'  => 'Langer Lauf',
+            'race_prep' => 'Rennvorbereitung',
+        ][$session->type] ?? $session->type;
+
+        $distKm = $session->distance_km ? "{$session->distance_km} km" : 'nicht angegeben';
+        $durMin = $session->duration_min ? "{$session->duration_min} min" : 'nicht angegeben';
+        $pace   = ($session->pace_target && $session->pace_target !== 'null') ? "{$session->pace_target} min/km" : 'kein Ziel';
+        $zone   = $session->zone ? "Zone {$session->zone}" : 'nicht angegeben';
+        $desc   = $session->description ? "\nBeschreibung: {$session->description}" : '';
+
+        $prompt = <<<PROMPT
+Du bist ein präziser Lauf-Coach. Erstelle eine strukturierte Workout-Schritteliste für die folgende Trainingseinheit.
+
+Einheit: {$typeLabel} – {$session->title}
+Distanz: {$distKm} | Dauer: {$durMin} | Ziel-Pace: {$pace} | {$zone}{$desc}
+
+Regeln:
+- Aufwärmen (warmup), Hauptteil, Auslaufen (cooldown) immer enthalten
+- Für Intervalle: work + rest Steps mit gleichem "repetitions"-Wert für beide
+- "repetitions" = Anzahl Wiederholungen des Intervallpaares (work+rest)
+- Für Dauertempo/Easy-Läufe: work ohne repetitions (null)
+- Pace bei rest-Phasen: null
+- Maximal 6 Schritte
+
+Antworte NUR mit einem JSON-Array:
+[
+  {"type": "warmup",   "label": "Einlaufen",  "duration_min": 10, "pace_target": "6:00", "zone": 1, "repetitions": null},
+  {"type": "work",     "label": "Hartphase",  "duration_min": 5,  "pace_target": "4:10", "zone": 4, "repetitions": 3},
+  {"type": "rest",     "label": "Trabpause",  "duration_min": 2,  "pace_target": null,   "zone": 1, "repetitions": 3},
+  {"type": "cooldown", "label": "Auslaufen",  "duration_min": 8,  "pace_target": "6:30", "zone": 1, "repetitions": null}
+]
+PROMPT;
+
+        $text = $this->callOpenAI('session_steps', [
+            ['role' => 'system', 'content' => 'Du bist ein präziser Lauf-Coach. Antworte ausschließlich mit validem JSON-Array ohne zusätzlichen Text.'],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.4, 400, 25);
+
+        if ($text && preg_match('/\[.*\]/s', $text, $matches)) {
+            $steps = json_decode($matches[0], true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($steps) && count($steps) > 0) {
+                return $steps;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Generate a short celebratory PR message from the coach.
      */
     public function generatePrMessage(\App\Models\Activity $activity): ?string
