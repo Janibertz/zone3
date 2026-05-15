@@ -2,8 +2,9 @@
 Garmin FIT Workout File Generator — Python Microservice
 Uses the official garmin-fit-sdk (write_mesg API).
 
-POST /generate-fit  →  binary .fit file
-GET  /health        →  {"status": "ok"}
+POST /generate-fit      →  binary .fit file
+POST /send-to-garmin    →  sends structured workout to Garmin Connect + schedules in calendar
+GET  /health            →  {"status": "ok"}
 """
 
 from datetime import datetime, timezone
@@ -81,85 +82,138 @@ def build_fit(name: str, steps: list[dict]) -> bytes:
     return result
 
 
-def build_garmin_json(name: str, sport: str, steps: list[dict]) -> dict:
+# ── Garmin Connect JSON helpers ───────────────────────────────────────────────
+
+_STEP_TYPES = {
+    "warmup":   {"stepTypeId": 1, "stepTypeKey": "warmup",    "displayOrder": 1},
+    "cooldown": {"stepTypeId": 2, "stepTypeKey": "cooldown",  "displayOrder": 2},
+    "work":     {"stepTypeId": 3, "stepTypeKey": "interval",  "displayOrder": 3},
+    "interval": {"stepTypeId": 3, "stepTypeKey": "interval",  "displayOrder": 3},
+    "active":   {"stepTypeId": 3, "stepTypeKey": "interval",  "displayOrder": 3},
+    "rest":     {"stepTypeId": 4, "stepTypeKey": "recovery",  "displayOrder": 4},
+    "recovery": {"stepTypeId": 4, "stepTypeKey": "recovery",  "displayOrder": 4},
+}
+
+
+def _executable_step(step: dict, order: int) -> dict:
+    stype = step.get("step_type") or "active"
+    st    = _STEP_TYPES.get(stype, _STEP_TYPES["active"])
+    speed = step.get("speedMps")
+
+    if speed and speed > 0:
+        target_type = {"workoutTargetTypeId": 6, "workoutTargetTypeKey": "pace.zone", "displayOrder": 6}
+        tv1 = round(speed * 1.05, 4)
+        tv2 = round(speed * 0.95, 4)
+    else:
+        target_type = {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target", "displayOrder": 1}
+        tv1 = tv2 = None
+
+    duration_sec = step.get("duration_sec")
+    meters       = step.get("meters")
+
+    if duration_sec:
+        end_cond  = {"conditionTypeId": 2, "conditionTypeKey": "time",     "displayOrder": 2, "displayable": True}
+        end_value = float(duration_sec)
+    elif meters:
+        end_cond  = {"conditionTypeId": 3, "conditionTypeKey": "distance", "displayOrder": 3, "displayable": True}
+        end_value = float(max(100, meters))
+    else:
+        end_cond  = {"conditionTypeId": 1, "conditionTypeKey": "lap.button", "displayOrder": 1, "displayable": True}
+        end_value = None
+
+    obj: dict = {
+        "type":              "ExecutableStepDTO",
+        "stepOrder":         order,
+        "stepType":          st,
+        "childStepId":       None,
+        "endCondition":      end_cond,
+        "endConditionValue": end_value,
+        "targetType":        target_type,
+        "strokeType":        {"strokeTypeId": 0, "displayOrder": 0},
+        "equipmentType":     {"equipmentTypeId": 0, "displayOrder": 0},
+    }
+    if tv1 is not None:
+        obj["targetValueOne"] = tv1
+        obj["targetValueTwo"] = tv2
+    return obj
+
+
+def build_garmin_json(name: str, sport: str, steps: list[dict], description: str = None) -> dict:
     """Convert workout steps to Garmin Connect JSON format.
 
-    Step objects require "type": "ExecutableStepDTO" as Jackson polymorphic discriminator.
-    endCondition conditionTypeId: 2=time, 3=distance (from Garmin API reverse-engineering).
+    Supports:
+    - Flat steps (meters or duration_sec, no repetitions)
+    - Repeat groups: consecutive steps sharing the same repetitions value → RepeatGroupDTO
     """
     sport_map = {
         "running": {"sportTypeId": 1, "sportTypeKey": "running",  "displayOrder": 1},
         "cycling": {"sportTypeId": 2, "sportTypeKey": "cycling",  "displayOrder": 2},
-        "swimming":{"sportTypeId": 4, "sportTypeKey": "swimming",  "displayOrder": 5},
+        "swimming":{"sportTypeId": 4, "sportTypeKey": "swimming", "displayOrder": 5},
     }
-    step_type_map = {
-        "warmup":   {"stepTypeId": 1, "stepTypeKey": "warmup",   "displayOrder": 1},
-        "cooldown": {"stepTypeId": 2, "stepTypeKey": "cooldown",  "displayOrder": 2},
-        "interval": {"stepTypeId": 3, "stepTypeKey": "interval",  "displayOrder": 3},
-    }
-    sport_type = sport_map.get(sport, sport_map["running"])
-    n = len(steps)
+    sport_type    = sport_map.get(sport, sport_map["running"])
     workout_steps = []
+    outer_order   = 1
+    i = 0
 
-    for i, step in enumerate(steps):
-        if i == 0:
-            st = step_type_map["warmup"]
-        elif i == n - 1:
-            st = step_type_map["cooldown"]
+    while i < len(steps):
+        step  = steps[i]
+        reps  = step.get("repetitions")
+        stype = step.get("step_type", "active")
+
+        if reps and reps > 1 and stype in ("work", "interval", "active"):
+            # Collect all consecutive steps sharing the same repetitions count
+            group: list[dict] = []
+            while i < len(steps) and steps[i].get("repetitions") == reps:
+                group.append(steps[i])
+                i += 1
+
+            inner = [_executable_step(gs, j + 1) for j, gs in enumerate(group)]
+            workout_steps.append({
+                "type":               "RepeatGroupDTO",
+                "stepOrder":          outer_order,
+                "numberOfIterations": reps,
+                "smartRepeat":        False,
+                "childStepId":        1,
+                "workoutSteps":       inner,
+            })
         else:
-            st = step_type_map["interval"]
+            workout_steps.append(_executable_step(step, outer_order))
+            i += 1
 
-        meters = max(100, int(step.get("meters") or 1000))
-        speed  = step.get("speedMps")
+        outer_order += 1
 
-        if speed and speed > 0:
-            # pace.zone: targetValueOne = faster speed (m/s), targetValueTwo = slower speed (m/s)
-            target_type = {"workoutTargetTypeId": 6, "workoutTargetTypeKey": "pace.zone", "displayOrder": 6}
-            target_one  = round(speed * 1.05, 4)
-            target_two  = round(speed * 0.95, 4)
-        else:
-            target_type = {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target", "displayOrder": 1}
-            target_one  = None
-            target_two  = None
-
-        step_obj: dict = {
-            "type":               "ExecutableStepDTO",  # Jackson polymorphic type discriminator
-            "stepOrder":          i + 1,
-            "stepType":           st,
-            "childStepId":        None,
-            "endCondition":       {"conditionTypeId": 3, "conditionTypeKey": "distance",
-                                   "displayOrder": 3, "displayable": True},
-            "endConditionValue":  float(meters),
-            "targetType":         target_type,
-            "strokeType":         {"strokeTypeId": 0, "displayOrder": 0},
-            "equipmentType":      {"equipmentTypeId": 0, "displayOrder": 0},
-        }
-        if target_one is not None:
-            step_obj["targetValueOne"] = target_one
-            step_obj["targetValueTwo"] = target_two
-
-        workout_steps.append(step_obj)
-
-    total_meters = sum(max(100, int(s.get("meters") or 1000)) for s in steps)
-
-    return {
-        "workoutName":            name or "Training",
-        "sportType":              sport_type,
-        "estimatedDurationInSecs":0,
+    result: dict = {
+        "workoutName":             name or "Training",
+        "sportType":               sport_type,
+        "estimatedDurationInSecs": 0,
         "workoutSegments": [{
             "segmentOrder": 1,
             "sportType":    sport_type,
             "workoutSteps": workout_steps,
         }],
     }
+    if description:
+        result["description"] = description
+    return result
 
 
-# ── API ───────────────────────────────────────────────────────────────────────
+# ── API models ────────────────────────────────────────────────────────────────
 
 class Step(BaseModel):
+    """Used by /generate-fit (distance-based flat steps)."""
     name: str
     meters: int
     speedMps: Optional[float] = None
+
+
+class GarminStep(BaseModel):
+    """Used by /send-to-garmin (supports time-based steps + repeat groups)."""
+    name: str
+    step_type: str = "active"        # warmup | work | rest | cooldown | active | recovery
+    meters: Optional[int] = None     # distance-based condition (m)
+    duration_sec: Optional[int] = None  # time-based condition (s)
+    speedMps: Optional[float] = None
+    repetitions: Optional[int] = None   # >1 → RepeatGroupDTO
 
 
 class WorkoutRequest(BaseModel):
@@ -171,15 +225,23 @@ class GarminSendRequest(BaseModel):
     garmin_email:    str
     garmin_password: str
     name:            str
+    description:     Optional[str] = None
+    date:            Optional[str] = None   # YYYY-MM-DD → schedule in Garmin calendar
     sport:           str = "running"
-    steps:           list[Step]
+    steps:           list[GarminStep]
 
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @app.post("/send-to-garmin")
 def send_to_garmin(req: GarminSendRequest):
     from garminconnect import Garmin
 
-    workout_json = build_garmin_json(req.name, req.sport, [s.model_dump() for s in req.steps])
+    workout_json = build_garmin_json(
+        req.name, req.sport,
+        [s.model_dump() for s in req.steps],
+        req.description,
+    )
 
     try:
         api = Garmin(req.garmin_email, req.garmin_password)
@@ -192,13 +254,29 @@ def send_to_garmin(req: GarminSendRequest):
         raise HTTPException(status_code=401, detail=f"login_failed: {msg}")
 
     try:
-        result = api.upload_workout(workout_json)
+        result     = api.upload_workout(workout_json)
         workout_id = result.get("workoutId") if isinstance(result, dict) else None
         print(f"[Garmin] Workout uploaded, id={workout_id}", flush=True)
-        return {"success": True, "workoutId": workout_id}
     except Exception as e:
         print(f"[Garmin] Upload failed: {e}", flush=True)
         raise HTTPException(status_code=502, detail=str(e))
+
+    # Schedule in Garmin calendar for the planned date (non-fatal if it fails)
+    if req.date and workout_id:
+        try:
+            if hasattr(api, "schedule_workout"):
+                api.schedule_workout(workout_id, req.date)
+            else:
+                api.garth.post(
+                    "connectapi",
+                    f"/workout-service/schedule/{workout_id}",
+                    json={"date": req.date},
+                )
+            print(f"[Garmin] Scheduled for {req.date}", flush=True)
+        except Exception as e:
+            print(f"[Garmin] Schedule failed (non-fatal): {e}", flush=True)
+
+    return {"success": True, "workoutId": workout_id}
 
 
 @app.post("/generate-fit")
@@ -240,9 +318,7 @@ def debug():
     except Exception as e:
         return {"error": f"Encode failed: {e}"}
 
-    # Decode the generated FIT to verify it
     try:
-        # Find correct Stream factory method at runtime
         stream = None
         for method in ["from_byte_array", "from_bytes_array", "from_bytes"]:
             fn = getattr(Stream, method, None)

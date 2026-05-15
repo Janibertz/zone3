@@ -230,6 +230,7 @@ class TrainingSessionController extends Controller
 
     /**
      * Send the session as a structured workout directly to Garmin Connect.
+     * Uses AI-generated steps (with repeat groups) if available; falls back to computed flat steps.
      */
     public function sendToGarmin(Request $request, TrainingSession $session)
     {
@@ -240,8 +241,14 @@ class TrainingSessionController extends Controller
             'password' => 'required|string|min:1',
         ]);
 
-        $steps  = $this->computeWorkoutSteps($session);
-        $result = $this->sendToGarminViaService($session, $steps, $request->email, $request->password);
+        // Prefer AI-generated steps (they contain interval repeat structure).
+        // Fall back to computed flat steps if no AI steps cached yet.
+        $aiSteps     = $session->steps;
+        $garminSteps = $aiSteps
+            ? $this->convertAiStepsForGarmin($aiSteps)
+            : $this->convertComputedStepsForGarmin($this->computeWorkoutSteps($session));
+
+        $result = $this->sendToGarminViaService($session, $garminSteps, $request->email, $request->password);
 
         if ($result === null) {
             return response()->json(['error' => 'FIT-Service nicht verfügbar.'], 503);
@@ -254,7 +261,66 @@ class TrainingSessionController extends Controller
         return response()->json($result);
     }
 
-    private function sendToGarminViaService(TrainingSession $session, array $steps, string $email, string $password): ?array
+    /**
+     * Convert AI-generated session steps to Garmin payload format.
+     * AI format: {type, label, duration_min, pace_target, zone, repetitions}
+     * Garmin format: {name, step_type, duration_sec, speedMps, repetitions}
+     */
+    private function convertAiStepsForGarmin(array $aiSteps): array
+    {
+        return array_map(function (array $step) {
+            $durationSec = isset($step['duration_min'])
+                ? (int) round((float) $step['duration_min'] * 60)
+                : null;
+
+            $speedMps = null;
+            if (!empty($step['pace_target']) && $step['pace_target'] !== 'null') {
+                $parts = explode(':', (string) $step['pace_target']);
+                if (count($parts) === 2) {
+                    $secPerKm = (int) $parts[0] * 60 + (int) $parts[1];
+                    $speedMps = $secPerKm > 0 ? round(1000 / $secPerKm, 5) : null;
+                }
+            }
+
+            return [
+                'name'         => $step['label'] ?? ucfirst($step['type'] ?? 'Step'),
+                'step_type'    => $step['type'] ?? 'active',
+                'duration_sec' => $durationSec,
+                'meters'       => null,
+                'speedMps'     => $speedMps,
+                'repetitions'  => $step['repetitions'] ?? null,
+            ];
+        }, $aiSteps);
+    }
+
+    /**
+     * Convert computeWorkoutSteps() flat array to Garmin payload format.
+     */
+    private function convertComputedStepsForGarmin(array $computedSteps): array
+    {
+        $n = count($computedSteps);
+        $result = [];
+        foreach ($computedSteps as $i => $step) {
+            if ($i === 0) {
+                $type = 'warmup';
+            } elseif ($i === $n - 1) {
+                $type = 'cooldown';
+            } else {
+                $type = 'active';
+            }
+            $result[] = [
+                'name'         => $step['name'],
+                'step_type'    => $type,
+                'meters'       => $step['meters'],
+                'duration_sec' => null,
+                'speedMps'     => $step['speedMps'],
+                'repetitions'  => null,
+            ];
+        }
+        return $result;
+    }
+
+    private function sendToGarminViaService(TrainingSession $session, array $garminSteps, string $email, string $password): ?array
     {
         $serviceUrl = config('services.fit.service_url');
         if (! $serviceUrl) {
@@ -265,12 +331,10 @@ class TrainingSessionController extends Controller
             'garmin_email'    => $email,
             'garmin_password' => $password,
             'name'            => mb_substr($session->title ?: 'Training', 0, 50, 'UTF-8'),
+            'description'     => $session->description ?: null,
+            'date'            => $session->planned_date->format('Y-m-d'),
             'sport'           => 'running',
-            'steps'           => array_map(fn ($s) => [
-                'name'     => $s['name'],
-                'meters'   => $s['meters'],
-                'speedMps' => $s['speedMps'],
-            ], $steps),
+            'steps'           => $garminSteps,
         ];
 
         try {
