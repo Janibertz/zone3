@@ -228,6 +228,62 @@ class TrainingSessionController extends Controller
         ]);
     }
 
+    /**
+     * Send the session as a structured workout directly to Garmin Connect.
+     */
+    public function sendToGarmin(Request $request, TrainingSession $session)
+    {
+        abort_if($session->user_id !== Auth::id(), 403);
+
+        $request->validate([
+            'email'    => 'required|email',
+            'password' => 'required|string|min:1',
+        ]);
+
+        $steps  = $this->computeWorkoutSteps($session);
+        $result = $this->sendToGarminViaService($session, $steps, $request->email, $request->password);
+
+        if ($result === null) {
+            return response()->json(['error' => 'FIT-Service nicht verfügbar.'], 503);
+        }
+
+        if (isset($result['detail']) && $result['detail'] === 'mfa_required') {
+            return response()->json(['error' => 'mfa_required'], 401);
+        }
+
+        return response()->json($result);
+    }
+
+    private function sendToGarminViaService(TrainingSession $session, array $steps, string $email, string $password): ?array
+    {
+        $serviceUrl = config('services.fit.service_url');
+        if (! $serviceUrl) {
+            return null;
+        }
+
+        $payload = [
+            'garmin_email'    => $email,
+            'garmin_password' => $password,
+            'name'            => mb_substr($session->title ?: 'Training', 0, 50, 'UTF-8'),
+            'sport'           => 'running',
+            'steps'           => array_map(fn ($s) => [
+                'name'     => $s['name'],
+                'meters'   => $s['meters'],
+                'speedMps' => $s['speedMps'],
+            ], $steps),
+        ];
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(30)
+                ->post(rtrim($serviceUrl, '/') . '/send-to-garmin', $payload);
+
+            return $response->json() ?: ['error' => 'Leere Antwort'];
+        } catch (\Exception $e) {
+            \Log::error('Garmin Connect: service error: ' . $e->getMessage());
+            return ['error' => $e->getMessage()];
+        }
+    }
+
     public function downloadTcx(TrainingSession $session)
     {
         abort_if($session->user_id !== Auth::id(), 403);

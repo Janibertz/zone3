@@ -81,6 +81,95 @@ def build_fit(name: str, steps: list[dict]) -> bytes:
     return result
 
 
+def build_garmin_json(name: str, sport: str, steps: list[dict]) -> dict:
+    """Convert workout steps to Garmin Connect JSON format."""
+    sport_map = {
+        "running": {"sportTypeId": 1, "sportTypeKey": "running",  "displayOrder": 1},
+        "cycling": {"sportTypeId": 2, "sportTypeKey": "cycling",  "displayOrder": 2},
+        "swimming":{"sportTypeId": 4, "sportTypeKey": "swimming",  "displayOrder": 5},
+    }
+    step_type_map = {
+        "warmup":   {"stepTypeId": 1, "stepTypeKey": "warmup",   "displayOrder": 1},
+        "cooldown": {"stepTypeId": 2, "stepTypeKey": "cooldown",  "displayOrder": 2},
+        "interval": {"stepTypeId": 3, "stepTypeKey": "interval",  "displayOrder": 3},
+    }
+    sport_type = sport_map.get(sport, sport_map["running"])
+    n = len(steps)
+    workout_steps = []
+
+    for i, step in enumerate(steps):
+        if i == 0:
+            st = step_type_map["warmup"]
+        elif i == n - 1:
+            st = step_type_map["cooldown"]
+        else:
+            st = step_type_map["interval"]
+
+        meters = max(100, int(step.get("meters") or 1000))
+        speed  = step.get("speedMps")
+
+        if speed and speed > 0:
+            target_type = {"workoutTargetTypeId": 6, "workoutTargetTypeKey": "pace.zone", "displayOrder": 6}
+            # pace.zone: targetValueOne = faster (higher m/s), targetValueTwo = slower
+            target_one = round(speed * 1.05, 4)
+            target_two = round(speed * 0.95, 4)
+        else:
+            target_type = {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target", "displayOrder": 1}
+            target_one = None
+            target_two = None
+
+        workout_steps.append({
+            "stepOrder":               i + 1,
+            "stepType":                st,
+            "childStepId":             None,
+            "description":             None,
+            "endCondition":            {"conditionTypeId": 3, "conditionTypeKey": "distance", "displayOrder": 3, "displayable": True},
+            "endConditionValue":       meters,
+            "preferredEndConditionUnit": None,
+            "endConditionCompare":     None,
+            "targetType":              target_type,
+            "targetValueOne":          target_one,
+            "targetValueTwo":          target_two,
+            "zoneNumber":              None,
+            "secondaryTargetType":     None,
+            "secondaryTargetValueOne": None,
+            "secondaryTargetValueTwo": None,
+            "secondaryZoneNumber":     None,
+            "targetValueUnit":         None,
+            "secondaryTargetValueUnit":None,
+            "endConditionZone":        None,
+            "strokeType":              {"strokeTypeId": 0, "strokeTypeKey": None, "displayOrder": 0},
+            "equipmentType":           {"equipmentTypeId": 0, "equipmentTypeKey": None, "displayOrder": 0},
+            "category":                None,
+            "exerciseName":            None,
+            "workoutProvider":         None,
+        })
+
+    return {
+        "workoutName":     name or "Training",
+        "description":     None,
+        "sportType":       sport_type,
+        "subSportType":    "GENERIC",
+        "trainingPlanId":  None,
+        "workoutSegments": [{
+            "segmentOrder":             1,
+            "sportType":                sport_type,
+            "poolLengthUnit":           None,
+            "poolLength":               None,
+            "avgTrainingSpeed":         None,
+            "estimatedDurationInSecs":  None,
+            "estimatedDistanceInMeters":None,
+            "estimatedDistanceUnit":    None,
+            "estimateType":             None,
+            "description":              None,
+            "workoutSteps":             workout_steps,
+        }],
+        "poolLength":      None,
+        "poolLengthUnit":  None,
+        "shared":          False,
+    }
+
+
 # ── API ───────────────────────────────────────────────────────────────────────
 
 class Step(BaseModel):
@@ -92,6 +181,40 @@ class Step(BaseModel):
 class WorkoutRequest(BaseModel):
     name: str
     steps: list[Step]
+
+
+class GarminSendRequest(BaseModel):
+    garmin_email:    str
+    garmin_password: str
+    name:            str
+    sport:           str = "running"
+    steps:           list[Step]
+
+
+@app.post("/send-to-garmin")
+def send_to_garmin(req: GarminSendRequest):
+    from garminconnect import Garmin
+
+    workout_json = build_garmin_json(req.name, req.sport, [s.model_dump() for s in req.steps])
+
+    try:
+        api = Garmin(req.garmin_email, req.garmin_password)
+        api.login()
+    except Exception as e:
+        msg = str(e)
+        print(f"[Garmin] Login failed: {msg}", flush=True)
+        if "MFA" in msg.upper() or "mfa" in msg or "two" in msg.lower():
+            raise HTTPException(status_code=401, detail="mfa_required")
+        raise HTTPException(status_code=401, detail=f"login_failed: {msg}")
+
+    try:
+        result = api.upload_workout(workout_json)
+        workout_id = result.get("workoutId") if isinstance(result, dict) else None
+        print(f"[Garmin] Workout uploaded, id={workout_id}", flush=True)
+        return {"success": True, "workoutId": workout_id}
+    except Exception as e:
+        print(f"[Garmin] Upload failed: {e}", flush=True)
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @app.post("/generate-fit")
