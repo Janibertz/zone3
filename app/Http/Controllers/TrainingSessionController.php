@@ -422,15 +422,24 @@ XML;
             2 => ['pipe', 'w'],
         ];
 
-        $nodeBin = null;
-        foreach (['/root/.nix-profile/bin/node', '/usr/local/bin/node', '/usr/bin/node'] as $candidate) {
-            if (is_executable($candidate)) {
-                $nodeBin = $candidate;
-                break;
+        // Try which/where first, then known paths
+        $nodeBin = trim(shell_exec('which node 2>/dev/null') ?? '');
+        if (empty($nodeBin) || ! is_executable($nodeBin)) {
+            $nodeBin = null;
+            foreach ([
+                '/root/.nix-profile/bin/node',
+                '/usr/local/bin/node',
+                '/usr/bin/node',
+                '/opt/homebrew/bin/node',
+            ] as $candidate) {
+                if (is_executable($candidate)) {
+                    $nodeBin = $candidate;
+                    break;
+                }
             }
         }
         if (! $nodeBin) {
-            \Log::error('FIT SDK: node binary not found in known paths');
+            \Log::info('FIT: node not found, using PHP fallback');
             return null;
         }
 
@@ -546,11 +555,18 @@ XML;
         return $header . $data . pack('v', $fileCrc);
     }
 
-    /** Encode a string as a null-terminated, zero-padded FIT string field. */
+    /** Encode a string as a null-terminated, zero-padded ASCII FIT string field. */
     private function fitString(string $value, int $size): string
     {
-        // Convert to bytes, truncate to size-1 to leave room for null terminator
-        $bytes = substr($value, 0, $size - 1);
+        // FIT strings must be ASCII — normalize German umlauts
+        $value = str_replace(
+            ['ä','ö','ü','Ä','Ö','Ü','ß'],
+            ['ae','oe','ue','Ae','Oe','Ue','ss'],
+            $value
+        );
+        // Strip remaining non-ASCII chars, then truncate to size-1 (null terminator)
+        $ascii = preg_replace('/[^\x20-\x7E]/', '', $value);
+        $bytes = substr($ascii, 0, $size - 1);
         return str_pad($bytes . "\x00", $size, "\x00");
     }
 
