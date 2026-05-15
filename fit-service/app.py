@@ -189,16 +189,24 @@ def _garmin_api_from_session(session_str: str):
     """Restore a Garmin API instance from saved garth session tokens."""
     from garminconnect import Garmin
     api = Garmin()
+    if not hasattr(api, "garth"):
+        raise HTTPException(status_code=401, detail="session_expired")
     api.garth.loads(session_str)
     return api
 
 
 def _garmin_api_from_credentials(email: str, password: str):
-    """Authenticate with email/password and return (api, session_str)."""
+    """Authenticate with email/password and return (api, session_str or None)."""
     from garminconnect import Garmin
     api = Garmin(email, password)
     api.login()
-    return api, api.garth.dumps()
+    session_str = None
+    if hasattr(api, "garth"):
+        try:
+            session_str = api.garth.dumps()
+        except Exception as e:
+            print(f"[Garmin] Could not dump garth session: {e}", flush=True)
+    return api, session_str
 
 
 # ── API models ────────────────────────────────────────────────────────────────

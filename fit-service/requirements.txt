@@ -1,4 +1,5 @@
 fastapi==0.115.6
 uvicorn==0.32.1
 garmin-fit-sdk
-garminconnect
+garth>=0.4.42
+garminconnect>=0.2.19
