@@ -135,7 +135,21 @@ def debug():
 
     # Decode the generated FIT to verify it
     try:
-        stream   = Stream.from_bytes(fit_bytes)
+        # Find correct Stream factory method at runtime
+        stream = None
+        for method in ["from_byte_array", "from_bytes_array", "from_bytes"]:
+            fn = getattr(Stream, method, None)
+            if fn:
+                try:
+                    stream = fn(bytearray(fit_bytes))
+                    break
+                except Exception:
+                    continue
+
+        if stream is None:
+            return {"bytes": len(fit_bytes), "error": "no valid Stream factory found",
+                    "stream_methods": [m for m in dir(Stream) if not m.startswith("_")]}
+
         decoder  = Decoder(stream)
         messages, errors = decoder.read()
         return {
@@ -145,7 +159,8 @@ def debug():
         }
     except Exception as e:
         return {
-            "bytes":          len(fit_bytes),
-            "decode_error":   str(e),
-            "hex_preview":    fit_bytes[:32].hex(),
+            "bytes":        len(fit_bytes),
+            "decode_error": str(e),
+            "hex_preview":  fit_bytes[:64].hex(),
+            "stream_api":   [m for m in dir(Stream) if not m.startswith("_")],
         }
