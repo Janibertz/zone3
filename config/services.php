@@ -48,6 +48,10 @@ return [
         'model' => env('OPENAI_MODEL', 'gpt-4o'),
     ],
 
+    'fit' => [
+        'service_url' => env('FIT_SERVICE_URL'),
+    ],
+
     'webpush' => [
         'public_key'  => env('VAPID_PUBLIC_KEY'),
         'private_key' => env('VAPID_PRIVATE_KEY'),

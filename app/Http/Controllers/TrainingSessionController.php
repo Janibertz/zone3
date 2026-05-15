@@ -402,7 +402,7 @@ XML;
      */
     private function generateFitViaService(TrainingSession $session, array $steps): ?string
     {
-        $serviceUrl = env('FIT_SERVICE_URL');
+        $serviceUrl = config('services.fit.service_url');
         if (! $serviceUrl) {
             \Log::info('FIT: FIT_SERVICE_URL not set, using PHP fallback');
             return null;
