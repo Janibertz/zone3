@@ -404,8 +404,11 @@ XML;
     {
         $serviceUrl = env('FIT_SERVICE_URL');
         if (! $serviceUrl) {
+            \Log::info('FIT: FIT_SERVICE_URL not set, using PHP fallback');
             return null;
         }
+
+        \Log::info('FIT: calling Python service', ['url' => $serviceUrl]);
 
         $payload = [
             'name'  => mb_substr($session->title ?: 'Training', 0, 15, 'UTF-8'),
@@ -421,17 +424,19 @@ XML;
                 ->post(rtrim($serviceUrl, '/') . '/generate-fit', $payload);
 
             if ($response->successful() && strlen($response->body()) > 14) {
+                \Log::info('FIT: Python service succeeded', ['bytes' => strlen($response->body())]);
                 return $response->body();
             }
 
-            \Log::warning('FIT service returned unexpected response', [
+            \Log::warning('FIT: service returned unexpected response', [
                 'status' => $response->status(),
-                'body'   => substr($response->body(), 0, 200),
+                'body'   => substr($response->body(), 0, 500),
             ]);
         } catch (\Exception $e) {
-            \Log::error('FIT service error: ' . $e->getMessage());
+            \Log::error('FIT: service error: ' . $e->getMessage());
         }
 
+        \Log::info('FIT: falling back to PHP generator');
         return null;
     }
 
