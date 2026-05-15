@@ -34,8 +34,10 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'auth' => [
-                'user'    => $request->user(),
-                'isAdmin' => (bool) $request->user()?->is_admin,
+                'user'           => $request->user(),
+                'isAdmin'        => (bool) $request->user()?->is_admin,
+                'garminEmail'    => $request->user()?->garmin_email,
+                'garminConnected'=> !empty($request->user()?->garmin_session),
             ],
             'coach' => function () use ($request) {
                 $user = $request->user();

@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import Modal from '@/Components/Modal.vue';
-import { Head, Link, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
 
 import axios from 'axios';
@@ -329,30 +329,60 @@ const garminSending  = ref(false);
 const garminSuccess  = ref(false);
 const garminError    = ref('');
 
+const garminConnected = computed(() => !!usePage().props.auth.garminConnected);
+const garminSavedEmail = computed(() => usePage().props.auth.garminEmail);
+
+function openGarminModal() {
+    garminModal.value   = true;
+    garminError.value   = '';
+    garminSuccess.value = false;
+    garminEmail.value   = '';
+    garminPassword.value = '';
+}
+
 async function sendToGarminConnect() {
     if (!detailSession.value) return;
     garminSending.value = true;
     garminError.value   = '';
     garminSuccess.value = false;
     try {
+        const payload = garminConnected.value
+            ? {}
+            : { email: garminEmail.value, password: garminPassword.value };
+
         const { data } = await axios.post(
             route('training-sessions.send-to-garmin', detailSession.value.id),
-            { email: garminEmail.value, password: garminPassword.value }
+            payload
         );
         if (data.success) {
             garminSuccess.value = true;
+            // Reload page props to reflect newly saved garmin connection
+            router.reload({ only: [] });
             setTimeout(() => { garminModal.value = false; garminSuccess.value = false; }, 2500);
         } else {
             garminError.value = data.error || 'Unbekannter Fehler';
         }
     } catch (e) {
         const detail = e.response?.data?.error || e.response?.data?.detail || e.message;
-        garminError.value = detail === 'mfa_required'
-            ? 'Zwei-Faktor-Authentifizierung aktiv. Bitte deaktiviere 2FA temporär in deinem Garmin-Account.'
-            : (detail || 'Verbindung fehlgeschlagen');
+        if (detail === 'session_expired') {
+            // Tokens expired — reload to reset garminConnected, show form again
+            router.reload({ only: [] });
+            garminError.value = 'Sitzung abgelaufen. Bitte erneut einloggen.';
+        } else {
+            garminError.value = detail === 'mfa_required'
+                ? 'Zwei-Faktor-Authentifizierung aktiv. Bitte deaktiviere 2FA temporär in deinem Garmin-Account.'
+                : (detail || 'Verbindung fehlgeschlagen');
+        }
     } finally {
         garminSending.value = false;
     }
+}
+
+async function garminDisconnect() {
+    try {
+        await axios.delete(route('garmin.disconnect'));
+        router.reload({ only: [] });
+    } catch {}
 }
 
 async function saveRating() {
@@ -1106,7 +1136,7 @@ const groupedSteps = computed(() => {
                     <p class="text-xs text-gray-400 dark:text-slate-500 mb-3">Workout für Garmin</p>
                     <div class="flex flex-col gap-2">
                         <!-- Send to Garmin Connect -->
-                        <button @click="garminModal = true; garminError = ''; garminSuccess = false"
+                        <button @click="openGarminModal"
                             class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 transition-colors"
                         >
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1175,7 +1205,7 @@ const groupedSteps = computed(() => {
                 <div v-if="garminSuccess" class="rounded-xl bg-green-50 dark:bg-green-900/20 p-4 text-center">
                     <svg class="h-8 w-8 text-green-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
                     <p class="text-sm font-semibold text-green-700 dark:text-green-400">Workout erfolgreich übertragen!</p>
-                    <p class="text-xs text-green-600 dark:text-green-500 mt-1">Es erscheint jetzt in Garmin Connect und kann auf deine Uhr übertragen werden.</p>
+                    <p class="text-xs text-green-600 dark:text-green-500 mt-1">Es erscheint jetzt in Garmin Connect und ist im Kalender für heute eingetragen.</p>
                 </div>
 
                 <template v-else>
@@ -1184,7 +1214,18 @@ const groupedSteps = computed(() => {
                         <p class="text-sm text-red-700 dark:text-red-400">{{ garminError }}</p>
                     </div>
 
-                    <div class="space-y-3">
+                    <!-- Already connected: no credentials needed -->
+                    <div v-if="garminConnected && !garminError" class="flex items-center gap-3 rounded-xl bg-green-50 dark:bg-green-900/20 px-4 py-3 mb-4">
+                        <svg class="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs font-medium text-green-800 dark:text-green-300">Verbunden als</p>
+                            <p class="text-xs text-green-700 dark:text-green-400 truncate">{{ garminSavedEmail }}</p>
+                        </div>
+                        <button @click="garminDisconnect" class="text-xs text-green-600 dark:text-green-400 hover:underline shrink-0">Trennen</button>
+                    </div>
+
+                    <!-- Credential form (shown when not connected or after session expiry) -->
+                    <div v-if="!garminConnected || garminError === 'Sitzung abgelaufen. Bitte erneut einloggen.'" class="space-y-3">
                         <div>
                             <label class="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Garmin Connect E-Mail</label>
                             <input v-model="garminEmail" type="email" autocomplete="email"
@@ -1197,7 +1238,7 @@ const groupedSteps = computed(() => {
                                 class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 placeholder="••••••••" />
                         </div>
-                        <p class="text-xs text-gray-400 dark:text-slate-500">Dein Passwort wird nicht gespeichert und nur einmalig zur Übertragung verwendet.</p>
+                        <p class="text-xs text-gray-400 dark:text-slate-500">Zugangsdaten werden verschlüsselt gespeichert — beim nächsten Mal musst du dich nicht mehr einloggen.</p>
                     </div>
 
                     <div class="mt-5 flex gap-3 justify-end">
@@ -1205,7 +1246,8 @@ const groupedSteps = computed(() => {
                             class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
                             Abbrechen
                         </button>
-                        <button @click="sendToGarminConnect" :disabled="garminSending || !garminEmail || !garminPassword"
+                        <button @click="sendToGarminConnect"
+                            :disabled="garminSending || (!garminConnected && (!garminEmail || !garminPassword))"
                             class="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
                             <svg v-if="garminSending" class="inline h-4 w-4 animate-spin mr-1" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                             {{ garminSending ? 'Wird übertragen…' : 'Senden' }}

@@ -2,9 +2,10 @@
 Garmin FIT Workout File Generator — Python Microservice
 Uses the official garmin-fit-sdk (write_mesg API).
 
-POST /generate-fit      →  binary .fit file
-POST /send-to-garmin    →  sends structured workout to Garmin Connect + schedules in calendar
-GET  /health            →  {"status": "ok"}
+POST /garmin-login    →  authenticate and return garth session tokens
+POST /generate-fit    →  binary .fit file
+POST /send-to-garmin  →  sends structured workout to Garmin Connect + schedules in calendar
+GET  /health          →  {"status": "ok"}
 """
 
 from datetime import datetime, timezone
@@ -31,7 +32,6 @@ def build_fit(name: str, steps: list[dict]) -> bytes:
     now_fit  = int(datetime.now(tz=timezone.utc).timestamp()) - FIT_EPOCH_S
     n        = len(steps)
 
-    # ── file_id ───────────────────────────────────────────────────────────────
     encoder.write_mesg({
         "mesg_num":    Profile["mesg_num"]["FILE_ID"],
         "type":        "workout",
@@ -40,22 +40,15 @@ def build_fit(name: str, steps: list[dict]) -> bytes:
         "time_created": now_fit,
     })
 
-    # ── workout ───────────────────────────────────────────────────────────────
     encoder.write_mesg({
-        "mesg_num":       Profile["mesg_num"]["WORKOUT"],
-        "sport":          "running",
+        "mesg_num":        Profile["mesg_num"]["WORKOUT"],
+        "sport":           "running",
         "num_valid_steps": n,
-        "wkt_name":       _ascii(name or "Training"),
+        "wkt_name":        _ascii(name or "Training"),
     })
 
-    # ── workout_step (one per step) ───────────────────────────────────────────
     for i, step in enumerate(steps):
-        if i == 0:
-            intensity = "warmup"
-        elif i == n - 1:
-            intensity = "cooldown"
-        else:
-            intensity = "active"
+        intensity = "warmup" if i == 0 else ("cooldown" if i == n - 1 else "active")
 
         mesg = {
             "mesg_num":      Profile["mesg_num"]["WORKOUT_STEP"],
@@ -85,13 +78,13 @@ def build_fit(name: str, steps: list[dict]) -> bytes:
 # ── Garmin Connect JSON helpers ───────────────────────────────────────────────
 
 _STEP_TYPES = {
-    "warmup":   {"stepTypeId": 1, "stepTypeKey": "warmup",    "displayOrder": 1},
-    "cooldown": {"stepTypeId": 2, "stepTypeKey": "cooldown",  "displayOrder": 2},
-    "work":     {"stepTypeId": 3, "stepTypeKey": "interval",  "displayOrder": 3},
-    "interval": {"stepTypeId": 3, "stepTypeKey": "interval",  "displayOrder": 3},
-    "active":   {"stepTypeId": 3, "stepTypeKey": "interval",  "displayOrder": 3},
-    "rest":     {"stepTypeId": 4, "stepTypeKey": "recovery",  "displayOrder": 4},
-    "recovery": {"stepTypeId": 4, "stepTypeKey": "recovery",  "displayOrder": 4},
+    "warmup":   {"stepTypeId": 1, "stepTypeKey": "warmup",   "displayOrder": 1},
+    "cooldown": {"stepTypeId": 2, "stepTypeKey": "cooldown", "displayOrder": 2},
+    "work":     {"stepTypeId": 3, "stepTypeKey": "interval", "displayOrder": 3},
+    "interval": {"stepTypeId": 3, "stepTypeKey": "interval", "displayOrder": 3},
+    "active":   {"stepTypeId": 3, "stepTypeKey": "interval", "displayOrder": 3},
+    "rest":     {"stepTypeId": 4, "stepTypeKey": "recovery", "displayOrder": 4},
+    "recovery": {"stepTypeId": 4, "stepTypeKey": "recovery", "displayOrder": 4},
 }
 
 
@@ -139,11 +132,8 @@ def _executable_step(step: dict, order: int) -> dict:
 
 
 def build_garmin_json(name: str, sport: str, steps: list[dict], description: str = None) -> dict:
-    """Convert workout steps to Garmin Connect JSON format.
-
-    Supports:
-    - Flat steps (meters or duration_sec, no repetitions)
-    - Repeat groups: consecutive steps sharing the same repetitions value → RepeatGroupDTO
+    """Convert workout steps to Garmin Connect JSON.
+    Consecutive steps sharing the same repetitions value become a RepeatGroupDTO.
     """
     sport_map = {
         "running": {"sportTypeId": 1, "sportTypeKey": "running",  "displayOrder": 1},
@@ -161,12 +151,10 @@ def build_garmin_json(name: str, sport: str, steps: list[dict], description: str
         stype = step.get("step_type", "active")
 
         if reps and reps > 1 and stype in ("work", "interval", "active"):
-            # Collect all consecutive steps sharing the same repetitions count
             group: list[dict] = []
             while i < len(steps) and steps[i].get("repetitions") == reps:
                 group.append(steps[i])
                 i += 1
-
             inner = [_executable_step(gs, j + 1) for j, gs in enumerate(group)]
             workout_steps.append({
                 "type":               "RepeatGroupDTO",
@@ -197,23 +185,37 @@ def build_garmin_json(name: str, sport: str, steps: list[dict], description: str
     return result
 
 
+def _garmin_api_from_session(session_str: str):
+    """Restore a Garmin API instance from saved garth session tokens."""
+    from garminconnect import Garmin
+    api = Garmin()
+    api.garth.loads(session_str)
+    return api
+
+
+def _garmin_api_from_credentials(email: str, password: str):
+    """Authenticate with email/password and return (api, session_str)."""
+    from garminconnect import Garmin
+    api = Garmin(email, password)
+    api.login()
+    return api, api.garth.dumps()
+
+
 # ── API models ────────────────────────────────────────────────────────────────
 
 class Step(BaseModel):
-    """Used by /generate-fit (distance-based flat steps)."""
     name: str
     meters: int
     speedMps: Optional[float] = None
 
 
 class GarminStep(BaseModel):
-    """Used by /send-to-garmin (supports time-based steps + repeat groups)."""
     name: str
-    step_type: str = "active"        # warmup | work | rest | cooldown | active | recovery
-    meters: Optional[int] = None     # distance-based condition (m)
-    duration_sec: Optional[int] = None  # time-based condition (s)
+    step_type: str = "active"
+    meters: Optional[int] = None
+    duration_sec: Optional[int] = None
     speedMps: Optional[float] = None
-    repetitions: Optional[int] = None   # >1 → RepeatGroupDTO
+    repetitions: Optional[int] = None
 
 
 class WorkoutRequest(BaseModel):
@@ -221,37 +223,69 @@ class WorkoutRequest(BaseModel):
     steps: list[Step]
 
 
-class GarminSendRequest(BaseModel):
+class GarminLoginRequest(BaseModel):
     garmin_email:    str
     garmin_password: str
+
+
+class GarminSendRequest(BaseModel):
+    # Auth: either saved session OR fresh credentials
+    garmin_session:  Optional[str] = None
+    garmin_email:    Optional[str] = None
+    garmin_password: Optional[str] = None
     name:            str
     description:     Optional[str] = None
-    date:            Optional[str] = None   # YYYY-MM-DD → schedule in Garmin calendar
+    date:            Optional[str] = None
     sport:           str = "running"
     steps:           list[GarminStep]
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-@app.post("/send-to-garmin")
-def send_to_garmin(req: GarminSendRequest):
-    from garminconnect import Garmin
-
-    workout_json = build_garmin_json(
-        req.name, req.sport,
-        [s.model_dump() for s in req.steps],
-        req.description,
-    )
-
+@app.post("/garmin-login")
+def garmin_login(req: GarminLoginRequest):
+    """Authenticate and return garth session tokens to be stored by the caller."""
     try:
-        api = Garmin(req.garmin_email, req.garmin_password)
-        api.login()
+        api, session_str = _garmin_api_from_credentials(req.garmin_email, req.garmin_password)
+        print(f"[Garmin] Login OK for {req.garmin_email}", flush=True)
+        return {"session": session_str}
     except Exception as e:
         msg = str(e)
         print(f"[Garmin] Login failed: {msg}", flush=True)
         if "MFA" in msg.upper() or "mfa" in msg or "two" in msg.lower():
             raise HTTPException(status_code=401, detail="mfa_required")
         raise HTTPException(status_code=401, detail=f"login_failed: {msg}")
+
+
+@app.post("/send-to-garmin")
+def send_to_garmin(req: GarminSendRequest):
+    from garminconnect import Garmin
+
+    new_session: Optional[str] = None
+
+    if req.garmin_session:
+        try:
+            api = _garmin_api_from_session(req.garmin_session)
+        except Exception as e:
+            print(f"[Garmin] Session restore failed: {e}", flush=True)
+            raise HTTPException(status_code=401, detail="session_expired")
+    elif req.garmin_email and req.garmin_password:
+        try:
+            api, new_session = _garmin_api_from_credentials(req.garmin_email, req.garmin_password)
+        except Exception as e:
+            msg = str(e)
+            print(f"[Garmin] Login failed: {msg}", flush=True)
+            if "MFA" in msg.upper() or "mfa" in msg or "two" in msg.lower():
+                raise HTTPException(status_code=401, detail="mfa_required")
+            raise HTTPException(status_code=401, detail=f"login_failed: {msg}")
+    else:
+        raise HTTPException(status_code=422, detail="garmin_session or garmin_email+password required")
+
+    workout_json = build_garmin_json(
+        req.name, req.sport,
+        [s.model_dump() for s in req.steps],
+        req.description,
+    )
 
     try:
         result     = api.upload_workout(workout_json)
@@ -261,7 +295,6 @@ def send_to_garmin(req: GarminSendRequest):
         print(f"[Garmin] Upload failed: {e}", flush=True)
         raise HTTPException(status_code=502, detail=str(e))
 
-    # Schedule in Garmin calendar for the planned date (non-fatal if it fails)
     if req.date and workout_id:
         try:
             if hasattr(api, "schedule_workout"):
@@ -276,7 +309,8 @@ def send_to_garmin(req: GarminSendRequest):
         except Exception as e:
             print(f"[Garmin] Schedule failed (non-fatal): {e}", flush=True)
 
-    return {"success": True, "workoutId": workout_id}
+    # Return new_session so Laravel can save it (only set on fresh credential login)
+    return {"success": True, "workoutId": workout_id, "session": new_session}
 
 
 @app.post("/generate-fit")
@@ -335,11 +369,7 @@ def debug():
 
         decoder  = Decoder(stream)
         messages, errors = decoder.read()
-        return {
-            "bytes":    len(fit_bytes),
-            "errors":   errors,
-            "messages": messages,
-        }
+        return {"bytes": len(fit_bytes), "errors": errors, "messages": messages}
     except Exception as e:
         return {
             "bytes":        len(fit_bytes),

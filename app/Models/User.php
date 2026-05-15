@@ -17,7 +17,8 @@ use Illuminate\Notifications\Notifiable;
 
 #[Fillable(['name', 'email', 'password', 'onboarding_completed_at', 'is_admin', 'is_active',
     'push_notifications_enabled', 'wellbeing_reminder_time', 'notify_threshold_pace', 'notify_plan_updated',
-    'avatar', 'bio', 'location', 'birth_year', 'favorite_distance', 'coach_id'])]
+    'avatar', 'bio', 'location', 'birth_year', 'favorite_distance', 'coach_id',
+    'garmin_email', 'garmin_session'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -40,6 +41,7 @@ class User extends Authenticatable
             'push_notifications_enabled'    => 'boolean',
             'notify_threshold_pace'         => 'boolean',
             'notify_plan_updated'           => 'boolean',
+            'garmin_session'                => 'encrypted',
         ];
     }
 

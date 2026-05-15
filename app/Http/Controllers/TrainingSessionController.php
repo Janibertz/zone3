@@ -230,35 +230,65 @@ class TrainingSessionController extends Controller
 
     /**
      * Send the session as a structured workout directly to Garmin Connect.
-     * Uses AI-generated steps (with repeat groups) if available; falls back to computed flat steps.
+     * Uses saved garth session tokens if available; otherwise requires fresh credentials.
+     * Saves session tokens after a successful fresh login so future sends need no credentials.
      */
     public function sendToGarmin(Request $request, TrainingSession $session)
     {
         abort_if($session->user_id !== Auth::id(), 403);
 
-        $request->validate([
-            'email'    => 'required|email',
-            'password' => 'required|string|min:1',
-        ]);
+        $user             = Auth::user();
+        $hasSavedSession  = !empty($user->garmin_session);
 
-        // Prefer AI-generated steps (they contain interval repeat structure).
-        // Fall back to computed flat steps if no AI steps cached yet.
+        if (! $hasSavedSession) {
+            $request->validate([
+                'email'    => 'required|email',
+                'password' => 'required|string|min:1',
+            ]);
+        }
+
         $aiSteps     = $session->steps;
         $garminSteps = $aiSteps
             ? $this->convertAiStepsForGarmin($aiSteps)
             : $this->convertComputedStepsForGarmin($this->computeWorkoutSteps($session));
 
-        $result = $this->sendToGarminViaService($session, $garminSteps, $request->email, $request->password);
+        $result = $this->sendToGarminViaService(
+            $session,
+            $garminSteps,
+            $hasSavedSession ? null          : $request->email,
+            $hasSavedSession ? null          : $request->password,
+            $hasSavedSession ? $user->garmin_session : null,
+        );
 
         if ($result === null) {
             return response()->json(['error' => 'FIT-Service nicht verfügbar.'], 503);
         }
 
-        if (isset($result['detail']) && $result['detail'] === 'mfa_required') {
-            return response()->json(['error' => 'mfa_required'], 401);
+        // Session expired → clear stored tokens so frontend shows login form again
+        if (isset($result['error']) && $result['error'] === 'session_expired') {
+            $user->update(['garmin_email' => null, 'garmin_session' => null]);
+            return response()->json(['error' => 'session_expired'], 401);
         }
 
+        // Save session tokens returned from a fresh credential login
+        if (!empty($result['session'])) {
+            $user->update([
+                'garmin_email'   => $request->email,
+                'garmin_session' => $result['session'],
+            ]);
+        }
+        unset($result['session']);
+
         return response()->json($result);
+    }
+
+    /**
+     * Remove stored Garmin Connect session tokens for the current user.
+     */
+    public function garminDisconnect()
+    {
+        Auth::user()->update(['garmin_email' => null, 'garmin_session' => null]);
+        return response()->json(['success' => true]);
     }
 
     /**
@@ -320,22 +350,32 @@ class TrainingSessionController extends Controller
         return $result;
     }
 
-    private function sendToGarminViaService(TrainingSession $session, array $garminSteps, string $email, string $password): ?array
-    {
+    private function sendToGarminViaService(
+        TrainingSession $session,
+        array $garminSteps,
+        ?string $email,
+        ?string $password,
+        ?string $savedSession,
+    ): ?array {
         $serviceUrl = config('services.fit.service_url');
         if (! $serviceUrl) {
             return null;
         }
 
         $payload = [
-            'garmin_email'    => $email,
-            'garmin_password' => $password,
-            'name'            => mb_substr($session->title ?: 'Training', 0, 50, 'UTF-8'),
-            'description'     => $session->description ?: null,
-            'date'            => $session->planned_date->format('Y-m-d'),
-            'sport'           => 'running',
-            'steps'           => $garminSteps,
+            'name'        => mb_substr($session->title ?: 'Training', 0, 50, 'UTF-8'),
+            'description' => $session->description ?: null,
+            'date'        => $session->planned_date->format('Y-m-d'),
+            'sport'       => 'running',
+            'steps'       => $garminSteps,
         ];
+
+        if ($savedSession) {
+            $payload['garmin_session'] = $savedSession;
+        } else {
+            $payload['garmin_email']    = $email;
+            $payload['garmin_password'] = $password;
+        }
 
         try {
             $response = \Illuminate\Support\Facades\Http::timeout(30)
@@ -343,15 +383,12 @@ class TrainingSessionController extends Controller
 
             $json = $response->json() ?: [];
 
-            // FastAPI returns {"detail":"..."} for errors — normalize to {"error":"..."}
-            if (!isset($json['success']) && isset($json['detail'])) {
+            if (! isset($json['success']) && isset($json['detail'])) {
                 $detail = $json['detail'];
-                if ($detail === 'mfa_required') {
-                    return ['error' => 'mfa_required'];
-                }
-                if (str_starts_with($detail, 'login_failed:')) {
+                if ($detail === 'mfa_required')            return ['error' => 'mfa_required'];
+                if ($detail === 'session_expired')         return ['error' => 'session_expired'];
+                if (str_starts_with($detail, 'login_failed:'))
                     return ['error' => 'Falsche Zugangsdaten. Bitte E-Mail und Passwort prüfen.'];
-                }
                 return ['error' => $detail];
             }
 

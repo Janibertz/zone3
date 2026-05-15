@@ -367,6 +367,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/training-sessions/{session}/download',     [TrainingSessionController::class, 'download'])   ->name('training-sessions.download');
     Route::get('/training-sessions/{session}/download-tcx', [TrainingSessionController::class, 'downloadTcx'])->name('training-sessions.download-tcx');
     Route::post('/training-sessions/{session}/send-to-garmin', [TrainingSessionController::class, 'sendToGarmin'])->name('training-sessions.send-to-garmin');
+    Route::delete('/garmin/disconnect', [TrainingSessionController::class, 'garminDisconnect'])->name('garmin.disconnect');
     Route::get('/training-sessions/{session}/nutrition-tips', [TrainingSessionController::class, 'nutritionTips'])->name('training-sessions.nutrition-tips');
     Route::get('/training-sessions/{session}/steps', [TrainingSessionController::class, 'sessionSteps'])->name('training-sessions.steps');
     Route::patch('/training-sessions/{session}/rate', [TrainingSessionController::class, 'rate'])->name('training-sessions.rate');
