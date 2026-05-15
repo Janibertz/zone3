@@ -1303,7 +1303,23 @@ PROMPT;
     {
         $today = now()->toDateString();
 
-        // Recent activities
+        // Today's planned training session (most important context)
+        $todaySession = \App\Models\TrainingSession::where('user_id', $user->id)
+            ->whereDate('planned_date', $today)
+            ->where('status', '!=', 'skipped')
+            ->orderBy('sort_order')
+            ->first();
+
+        // Upcoming sessions (next 5 days)
+        $upcomingSessions = \App\Models\TrainingSession::where('user_id', $user->id)
+            ->whereDate('planned_date', '>', $today)
+            ->whereDate('planned_date', '<=', now()->addDays(5)->toDateString())
+            ->where('type', '!=', 'rest')
+            ->orderBy('planned_date')
+            ->limit(4)
+            ->get();
+
+        // Recent activities (last 5)
         $recentActivities = $user->activities()
             ->orderByDesc('start_date')
             ->limit(5)
@@ -1334,10 +1350,44 @@ PROMPT;
             ->whereDate('date', $today)
             ->first();
 
-        // Build context block
+        // Runner profile
+        $profile = $user->runnerProfile;
+
+        // Build context block — training plan comes first
         $ctx = [];
+
+        if ($todaySession) {
+            if ($todaySession->type === 'rest') {
+                $status = $todaySession->status === 'completed' ? ' (bereits als erledigt markiert)' : '';
+                $ctx[] = "Heutige geplante Trainingseinheit{$status}: Ruhetag";
+            } else {
+                $details = "Typ: {$todaySession->type}, Titel: \"{$todaySession->title}\"";
+                if ($todaySession->distance_km) $details .= ", Distanz: {$todaySession->distance_km} km";
+                if ($todaySession->duration_min) $details .= ", Dauer: {$todaySession->duration_min} min";
+                if ($todaySession->pace_target)  $details .= ", Pace-Ziel: {$todaySession->pace_target} min/km";
+                if ($todaySession->zone)         $details .= ", Zone: {$todaySession->zone}";
+                if ($todaySession->intensity)    $details .= ", Intensität: {$todaySession->intensity}";
+                $status = $todaySession->status === 'completed' ? ' (bereits absolviert)' : '';
+                $desc = $todaySession->description ? "\n  Details: {$todaySession->description}" : '';
+                $ctx[] = "Heutige geplante Trainingseinheit{$status}:\n  {$details}{$desc}";
+            }
+        } else {
+            $ctx[] = "Heutige geplante Trainingseinheit: Kein Training im Plan für heute.";
+        }
+
+        if ($upcomingSessions->isNotEmpty()) {
+            $lines = $upcomingSessions->map(fn ($s) => sprintf(
+                '- %s: %s (%s%s)',
+                $s->planned_date->format('d.m.'),
+                $s->title,
+                $s->type,
+                $s->distance_km ? ", {$s->distance_km} km" : ''
+            ))->implode("\n");
+            $ctx[] = "Nächste geplante Einheiten:\n{$lines}";
+        }
+
         if ($recentActivities) {
-            $ctx[] = "Letzte Aktivitäten:\n{$recentActivities}";
+            $ctx[] = "Letzte abgeschlossene Aktivitäten:\n{$recentActivities}";
         }
         if ($activeGoal) {
             $ctx[] = "Aktives Ziel: {$activeGoal->name} (bis {$activeGoal->end_date->format('d.m.Y')})";
@@ -1349,15 +1399,20 @@ PROMPT;
         if ($todayWellbeing) {
             $ctx[] = "Heutiges Wellbeing: Energie {$todayWellbeing->energy_level}/10, Schlaf {$todayWellbeing->sleep_quality}/10, Stimmung {$todayWellbeing->mood}/10";
         }
+        if ($profile && $profile->threshold_speed) {
+            $profileLine = "Schwellenpace: {$profile->threshold_speed} min/km";
+            if ($profile->threshold_heart_rate) $profileLine .= ", LTHR: {$profile->threshold_heart_rate} bpm";
+            $ctx[] = "Athletenprofil: {$profileLine}";
+        }
 
-        $contextBlock = $ctx
-            ? "\n\nAktueller Kontext des Athleten:\n" . implode("\n", $ctx)
-            : '';
+        $contextBlock = "\n\nAktueller Kontext des Athleten (Heute: {$today}):\n" . implode("\n\n", $ctx);
 
         $systemPrompt = $this->buildSystemPrompt(
             "Du bist ein persönlicher Lauf-Coach. Antworte immer auf Deutsch. Sei persönlich, direkt und motivierend. " .
             "Halte Antworten prägnant (2–4 Sätze), außer wenn konkrete Pläne oder Erklärungen verlangt werden. " .
-            "Sprich den Athleten direkt mit 'du' an.{$contextBlock}"
+            "Sprich den Athleten direkt mit 'du' an. " .
+            "WICHTIG: Stütze deine Antworten IMMER auf die Systemdaten im Kontext (Trainingsplan, Aktivitäten, Events, Wellbeing). " .
+            "Wenn heute eine konkrete Trainingseinheit geplant ist, beziehe dich auf DIESE Einheit — empfehle niemals etwas Gegensätzliches.{$contextBlock}"
         );
 
         // Build message array: system + history + new user message
