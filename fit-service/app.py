@@ -115,3 +115,37 @@ def generate_fit(req: WorkoutRequest):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/debug")
+def debug():
+    """Generate a sample workout FIT and decode it immediately to validate."""
+    from garmin_fit_sdk import Decoder, Stream
+
+    test_steps = [
+        {"name": "Warmup",   "meters": 1000, "speedMps": None},
+        {"name": "Main",     "meters": 5000, "speedMps": 3.33},
+        {"name": "Cooldown", "meters": 1000, "speedMps": None},
+    ]
+
+    try:
+        fit_bytes = build_fit("Debug Test", test_steps)
+    except Exception as e:
+        return {"error": f"Encode failed: {e}"}
+
+    # Decode the generated FIT to verify it
+    try:
+        stream   = Stream.from_bytes(fit_bytes)
+        decoder  = Decoder(stream)
+        messages, errors = decoder.read()
+        return {
+            "bytes":    len(fit_bytes),
+            "errors":   errors,
+            "messages": messages,
+        }
+    except Exception as e:
+        return {
+            "bytes":          len(fit_bytes),
+            "decode_error":   str(e),
+            "hex_preview":    fit_bytes[:32].hex(),
+        }
