@@ -63,6 +63,20 @@ function lapColor(lap, index) {
     return 'bg-indigo-400';
 }
 
+// Lap height as % of container: faster lap = taller bar (40%–100%)
+const lapHeightPct = computed(() => {
+    if (!hasLaps.value) return [];
+    const speeds = props.activity.laps.map(l => l.average_speed || 0).filter(s => s > 0);
+    if (speeds.length === 0) return props.activity.laps.map(() => 70);
+    const minSpeed = Math.min(...speeds);
+    const maxSpeed = Math.max(...speeds);
+    const range = maxSpeed - minSpeed;
+    return props.activity.laps.map(l => {
+        if (!l.average_speed || range === 0) return 70;
+        return Math.round(40 + ((l.average_speed - minSpeed) / range) * 60);
+    });
+});
+
 // ── Session rating ────────────────────────────────────────────────────────────
 const ratingValue  = ref(props.linkedSession?.rating          ?? 0);
 const effortValue  = ref(props.linkedSession?.effort_perceived ?? 0);
@@ -383,14 +397,17 @@ onUnmounted(() => {
                     Runden <span class="text-xs font-normal text-gray-400 dark:text-slate-500 ml-1">{{ activity.laps.length }} Laps</span>
                 </h2>
 
-                <!-- Bar chart: each lap proportional to its moving_time -->
-                <div class="flex gap-0.5 h-10 mb-3 rounded-lg overflow-hidden">
+                <!-- Bar chart: width = duration, height = relative speed (faster = taller) -->
+                <div class="flex gap-0.5 h-12 items-end mb-3">
                     <div
                         v-for="(lap, i) in activity.laps"
                         :key="i"
-                        :style="{ width: ((lap.moving_time || lap.elapsed_time || 0) / totalLapTime * 100).toFixed(2) + '%' }"
+                        :style="{
+                            width:  ((lap.moving_time || lap.elapsed_time || 0) / totalLapTime * 100).toFixed(2) + '%',
+                            height: lapHeightPct[i] + '%',
+                        }"
                         :class="lapColor(lap, i)"
-                        class="h-full rounded-sm first:rounded-l-lg last:rounded-r-lg opacity-80 hover:opacity-100 transition-opacity cursor-default"
+                        class="rounded-t-sm opacity-80 hover:opacity-100 transition-opacity cursor-default"
                         :title="activity.type === 'Run'
                             ? `Lap ${lap.index ?? i+1}: ${lapDist(lap)} km · ${lapPace(lap)} min/km`
                             : `Lap ${lap.index ?? i+1}: ${lapDist(lap)} km · ${lapSpeed(lap)} km/h`"

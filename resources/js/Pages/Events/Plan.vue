@@ -431,15 +431,31 @@ const stepBgColor = {
 };
 const stepLabel = { warmup: 'Aufwärmen', work: 'Intervall', rest: 'Pause', cooldown: 'Auslaufen' };
 
-// Total duration of all AI steps (accounting for repetitions)
+// Bar height % by step type (bars grow from bottom)
+const stepHeightPct = { warmup: 60, work: 100, rest: 28, cooldown: 60 };
+
+// Expand steps for bar chart — work+rest pairs are interleaved per repetition
 const stepsWithReps = computed(() => {
     if (!aiSteps.value) return [];
-    // Expand repeated steps for bar-chart proportions
     const expanded = [];
-    aiSteps.value.forEach(s => {
-        const reps = s.repetitions || 1;
-        for (let i = 0; i < reps; i++) expanded.push(s);
-    });
+    let i = 0;
+    while (i < aiSteps.value.length) {
+        const s = aiSteps.value[i];
+        const reps = s.repetitions && s.repetitions > 1 ? s.repetitions : 1;
+        if (s.type === 'work' && reps > 1) {
+            const rest = aiSteps.value[i + 1]?.type === 'rest' ? aiSteps.value[i + 1] : null;
+            for (let r = 0; r < reps; r++) {
+                expanded.push(s);
+                if (rest) expanded.push(rest);
+            }
+            i += rest ? 2 : 1;
+        } else if (s.type === 'rest' && (s.repetitions || 1) > 1) {
+            i++; // already consumed by the preceding work block
+        } else {
+            for (let r = 0; r < reps; r++) expanded.push(s);
+            i++;
+        }
+    }
     return expanded;
 });
 
@@ -886,13 +902,16 @@ const groupedSteps = computed(() => {
 
                         <!-- AI steps visualization -->
                         <div v-else-if="aiSteps && aiSteps.length">
-                            <!-- Bar chart -->
-                            <div class="flex gap-0.5 h-8 mb-3 rounded-lg overflow-hidden">
+                            <!-- Bar chart (bars grow from bottom, height = intensity) -->
+                            <div class="flex gap-0.5 h-12 items-end mb-3">
                                 <div
                                     v-for="(s, i) in stepsWithReps"
                                     :key="i"
-                                    :style="{ width: ((s.duration_min || 0) / totalStepDuration * 100).toFixed(1) + '%' }"
-                                    :class="[stepBarColor[s.type] ?? 'bg-indigo-400', 'h-full first:rounded-l-lg last:rounded-r-lg opacity-80']"
+                                    :style="{
+                                        width:  ((s.duration_min || 0) / totalStepDuration * 100).toFixed(1) + '%',
+                                        height: (stepHeightPct[s.type] ?? 60) + '%',
+                                    }"
+                                    :class="[stepBarColor[s.type] ?? 'bg-indigo-400', 'rounded-t-sm opacity-85']"
                                     :title="`${s.label}: ${s.duration_min} min`"
                                 />
                             </div>
