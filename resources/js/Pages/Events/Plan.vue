@@ -360,18 +360,22 @@ async function sendToGarminConnect() {
             router.reload({ only: [] });
             setTimeout(() => { garminModal.value = false; garminSuccess.value = false; }, 2500);
         } else {
-            garminError.value = data.error || 'Unbekannter Fehler';
+            const err = data.error || 'Unbekannter Fehler';
+            garminError.value = err.startsWith('login_failed:')
+                ? 'Login fehlgeschlagen: ' + err.replace('login_failed:', '').trim()
+                : err;
         }
     } catch (e) {
         const detail = e.response?.data?.error || e.response?.data?.detail || e.message;
         if (detail === 'session_expired') {
-            // Tokens expired — reload to reset garminConnected, show form again
             router.reload({ only: [] });
             garminError.value = 'Sitzung abgelaufen. Bitte erneut einloggen.';
+        } else if (detail === 'mfa_required') {
+            garminError.value = 'Zwei-Faktor-Authentifizierung aktiv. Bitte deaktiviere 2FA temporär in deinem Garmin-Account.';
+        } else if (detail?.startsWith('login_failed:')) {
+            garminError.value = 'Login fehlgeschlagen: ' + detail.replace('login_failed:', '').trim();
         } else {
-            garminError.value = detail === 'mfa_required'
-                ? 'Zwei-Faktor-Authentifizierung aktiv. Bitte deaktiviere 2FA temporär in deinem Garmin-Account.'
-                : (detail || 'Verbindung fehlgeschlagen');
+            garminError.value = detail || 'Verbindung fehlgeschlagen';
         }
     } finally {
         garminSending.value = false;

@@ -251,7 +251,7 @@ def garmin_login(req: GarminLoginRequest):
         return {"session": session_str}
     except Exception as e:
         msg = str(e)
-        print(f"[Garmin] Login failed: {msg}", flush=True)
+        print(f"[Garmin] Login failed ({type(e).__name__}): {msg}", flush=True)
         if "MFA" in msg.upper() or "mfa" in msg or "two" in msg.lower():
             raise HTTPException(status_code=401, detail="mfa_required")
         raise HTTPException(status_code=401, detail=f"login_failed: {msg}")

@@ -388,7 +388,7 @@ class TrainingSessionController extends Controller
                 if ($detail === 'mfa_required')            return ['error' => 'mfa_required'];
                 if ($detail === 'session_expired')         return ['error' => 'session_expired'];
                 if (str_starts_with($detail, 'login_failed:'))
-                    return ['error' => 'Falsche Zugangsdaten. Bitte E-Mail und Passwort prüfen.'];
+                    return ['error' => 'login_failed:' . substr($detail, strlen('login_failed:'))];
                 return ['error' => $detail];
             }
 
