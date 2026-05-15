@@ -277,7 +277,21 @@ class TrainingSessionController extends Controller
             $response = \Illuminate\Support\Facades\Http::timeout(30)
                 ->post(rtrim($serviceUrl, '/') . '/send-to-garmin', $payload);
 
-            return $response->json() ?: ['error' => 'Leere Antwort'];
+            $json = $response->json() ?: [];
+
+            // FastAPI returns {"detail":"..."} for errors — normalize to {"error":"..."}
+            if (!isset($json['success']) && isset($json['detail'])) {
+                $detail = $json['detail'];
+                if ($detail === 'mfa_required') {
+                    return ['error' => 'mfa_required'];
+                }
+                if (str_starts_with($detail, 'login_failed:')) {
+                    return ['error' => 'Falsche Zugangsdaten. Bitte E-Mail und Passwort prüfen.'];
+                }
+                return ['error' => $detail];
+            }
+
+            return $json ?: ['error' => 'Leere Antwort'];
         } catch (\Exception $e) {
             \Log::error('Garmin Connect: service error: ' . $e->getMessage());
             return ['error' => $e->getMessage()];
