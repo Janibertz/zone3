@@ -10,6 +10,11 @@ class WikiPage extends Model
         'slug', 'category', 'title', 'content', 'sort_order', 'updated_by',
     ];
 
+    public function getRouteKeyName(): string
+    {
+        return 'slug';
+    }
+
     public function editor()
     {
         return $this->belongsTo(User::class, 'updated_by');
