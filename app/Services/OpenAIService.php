@@ -1068,13 +1068,27 @@ PROMPT;
 
 ⚠️ **PFLICHT-SICHERHEITSREGEL — Wiederaufnahme nach {$triggerLabel} (letzte 7 Tage):**{$detailStr}
 
-MEDIZINISCHE WARNUNG: Nach Infekten, Verletzungen und starker Erschöpfung besteht erhöhtes Risiko einer Herzmuskelentzündung (Myokarditis) bei zu früher intensiver Belastung. Myokarditis kann bei Sportlern lebensbedrohlich sein.
+MEDIZINISCHE WARNUNG: Nach Infekten, Verletzungen und starker Erschöpfung besteht erhöhtes Risiko einer Herzmuskelentzündung (Myokarditis) bei zu früher intensiver Belastung.
 
-VERPFLICHTENDE PLANUNGSREGEL für die ersten 5 Tage ab heute:
-- Nur type="rest" (Ruhetage) oder type="easy_run" (Zone 1–2, max. 30–40 min, lockeres Tempo)
-- VERBOTEN in diesen 5 Tagen: tempo_run, interval, long_run, intensity="high" oder intensity="medium"
-- Ab Tag 6: erst dann schrittweise steigern — zunächst only easy_run, nach weiteren 3–5 Tagen moderate Intensität
-- Coach-Ton: Empathisch und fürsorglich — Erholung hat absoluten Vorrang
+VERPFLICHTENDE STUFENREGEL — zähle TRAININGSEINHEITEN, nicht Kalendertage (Ruhetage zählen nicht):
+
+Einheit 1 (erste Trainingseinheit nach der Pause):
+- type="easy_run", Zone 1–2, max. 30 min, sehr lockeres Tempo
+- intensity="low", KEIN Tempolauf, KEIN Intervall
+
+Einheit 2 (zweite Trainingseinheit):
+- type="easy_run", Zone 2, max. 40 min, lockeres Tempo
+- intensity="low"
+
+Ab Einheit 3 (dritte Trainingseinheit und danach):
+- Schrittweise Steigerung erlaubt — z.B. tempo_run mit reduziertem Umfang
+- Keine Intervalle oder Long Runs vor Einheit 4
+
+Ab Einheit 5:
+- Normale Intensität möglich
+
+Ruhetage zwischen den Einheiten zählen NICHT — es geht um Trainingsbelastungen, nicht um Kalendertage.
+Coach-Ton: Empathisch, fürsorglich, motivierend — Erholung ist Training.
 
 WARN;
         }
