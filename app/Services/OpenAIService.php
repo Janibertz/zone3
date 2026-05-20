@@ -804,6 +804,7 @@ PROMPT;
         ?array $trainingLoad = null,
         array $pastPlanResults = [],
         array $otherEvents = [],
+        array $finalizedSessions = [],
     ): ?array {
         $today        = now()->format('Y-m-d');
         $eventDate    = $event->event_date->format('Y-m-d');
@@ -970,7 +971,19 @@ PROMPT;
             $otherEventsText = "\n\n**Weitere Rennevents im Planungszeitraum (an diesen Tagen KEIN Training — type=\"rest\"):**\n" . implode("\n", $lines);
         }
 
-        // Per-date overrides are already included in $perDateAvailText above
+        // Finalized sessions (skipped / completed) — give the coach context, PHP will not overwrite them
+        $finalizedText = '';
+        if (! empty($finalizedSessions)) {
+            $lines = [];
+            foreach ($finalizedSessions as $s) {
+                $statusLabel = $s['status'] === 'skipped' ? 'Übersprungen' : 'Absolviert';
+                $reason      = ! empty($s['skip_reason']) ? " (Grund: {$s['skip_reason']})" : '';
+                $lines[]     = "- {$s['date']}: {$s['type']} — {$statusLabel}{$reason}";
+            }
+            $finalizedText = "\n\n**Bereits abgeschlossene Einheiten (nur als Kontext — du musst diese Tage NICHT im Array zurückgeben):**\n"
+                . implode("\n", $lines)
+                . "\nPasse die Folgetage entsprechend an (z.B. Erschöpfung → morgen leichter planen).";
+        }
 
         $totalDays = min(21, $daysUntil + 1); // number of entries the AI must produce
 
@@ -998,7 +1011,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 **Bisherige Einheitsbewertungen (Athleten-Feedback):**
 {$ratingsText}
 
-**{$availabilityText}**{$otherEventsText}{$perDateAvailText}
+**{$availabilityText}**{$otherEventsText}{$finalizedText}{$perDateAvailText}
 
 **Planungsregeln:**
 - Starte den Plan ab heute ({$today})
@@ -1019,7 +1032,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 - ANDERE RENNEVENTS: An Tagen mit anderen Rennevents im Planungszeitraum IMMER type="rest" — der Athlet läuft ein Rennen, kein zusätzliches Training.
 - VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die Trainingsdauer darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
 
-**Antworte ausschließlich mit einem JSON-Array mit GENAU {$totalDays} Einträgen — einen pro Tag von heute ({$today}) bis zum Renntag ({$eventDate}). Kein Tag darf fehlen. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
+**Antworte ausschließlich mit einem JSON-Array — einen Eintrag pro offenem Tag von heute ({$today}) bis zum Renntag ({$eventDate}). Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
 [
   {
     "date": "YYYY-MM-DD",

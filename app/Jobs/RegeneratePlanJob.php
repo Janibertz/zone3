@@ -150,13 +150,30 @@ class RegeneratePlanJob implements ShouldQueue
             ])
             ->toArray();
 
+        // ── Collect finalized sessions BEFORE calling AI ────────────────────────
+        // These are skipped/completed sessions that must be preserved across plan regeneration.
+        $oldPlanIds = TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->pluck('id');
+        $preservedSessions = TrainingSession::whereIn('training_plan_id', $oldPlanIds)
+            ->whereIn('status', ['skipped', 'completed'])
+            ->get();
+        $finalizedForAI = $preservedSessions
+            ->where('planned_date', '>=', now()->toDateString())
+            ->map(fn ($s) => [
+                'date'        => $s->planned_date->format('Y-m-d'),
+                'type'        => $s->type,
+                'status'      => $s->status,
+                'skip_reason' => $s->skip_reason,
+            ])
+            ->values()
+            ->toArray();
+
         // ── Call OpenAI ─────────────────────────────────────────────────────────
         $openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
         try {
             $aiSessions = $openAI->generateEventTrainingPlan(
                 $event, $profileData, $recentActivities, $wellbeingData,
                 $sessionRatings, $weeklyAvailability, $availabilityOverrides,
-                $trainingLoad, $pastPlanResults, $otherEvents
+                $trainingLoad, $pastPlanResults, $otherEvents, $finalizedForAI
             );
         } catch (\Throwable $e) {
             Log::error('RegeneratePlanJob: OpenAI error', ['error' => $e->getMessage(), 'user_id' => $this->userId]);
@@ -173,7 +190,7 @@ class RegeneratePlanJob implements ShouldQueue
 
         // ── Replace plan in DB ──────────────────────────────────────────────────
         try {
-            $oldPlanIds = TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->pluck('id');
+            // $oldPlanIds already computed above (before AI call)
             TrainingSession::whereIn('training_plan_id', $oldPlanIds)->where('status', 'planned')->delete();
             TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->delete();
 
@@ -194,7 +211,22 @@ class RegeneratePlanJob implements ShouldQueue
                 ->where('id', $newPlan->id)
                 ->update(['is_active' => true, 'needs_plan_update' => false]);
 
+            // Re-link preserved skipped/completed sessions to the new plan
+            $preservedDates = $preservedSessions
+                ->pluck('planned_date')
+                ->map(fn ($d) => $d->format('Y-m-d'))
+                ->unique()
+                ->flip()
+                ->toArray();
+            foreach ($preservedSessions as $session) {
+                $session->update(['training_plan_id' => $newPlan->id]);
+            }
+
+            // Create AI sessions — skip dates that already have a finalized session
             foreach ($aiSessions as $i => $s) {
+                if (isset($preservedDates[$s['date'] ?? ''])) {
+                    continue;
+                }
                 TrainingSession::create([
                     'user_id'          => $user->id,
                     'training_plan_id' => $newPlan->id,

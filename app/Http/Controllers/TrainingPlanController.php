@@ -216,6 +216,22 @@ class TrainingPlanController extends Controller
             ->first();
         $availabilityOverrides = $existingPlan?->availability_overrides ?? [];
 
+        // Collect finalized sessions from existing plans (preserved across regeneration)
+        $existingPlanIds = TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->pluck('id');
+        $preservedSessions = TrainingSession::whereIn('training_plan_id', $existingPlanIds)
+            ->whereIn('status', ['skipped', 'completed'])
+            ->get();
+        $finalizedForAI = $preservedSessions
+            ->where('planned_date', '>=', now()->toDateString())
+            ->map(fn ($s) => [
+                'date'        => $s->planned_date->format('Y-m-d'),
+                'type'        => $s->type,
+                'status'      => $s->status,
+                'skip_reason' => $s->skip_reason,
+            ])
+            ->values()
+            ->toArray();
+
         // ── Past race results (rated plans) ──────────────────────────────────
         $pastPlanResults = TrainingPlan::where('user_id', $user->id)
             ->whereNotNull('overall_rating')
@@ -257,7 +273,7 @@ class TrainingPlanController extends Controller
         // ── Call AI ──────────────────────────────────────────────────────────
         $openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
         try {
-            $aiSessions = $openAI->generateEventTrainingPlan($event, $profileData, $recentActivities, $wellbeingData, $sessionRatings, $weeklyAvailability, $availabilityOverrides, $trainingLoad, $pastPlanResults, $otherEvents);
+            $aiSessions = $openAI->generateEventTrainingPlan($event, $profileData, $recentActivities, $wellbeingData, $sessionRatings, $weeklyAvailability, $availabilityOverrides, $trainingLoad, $pastPlanResults, $otherEvents, $finalizedForAI);
         } catch (\Throwable $e) {
             return response()->json(['error' => 'OpenAI-Fehler: ' . $e->getMessage()], 500);
         }
@@ -275,8 +291,8 @@ class TrainingPlanController extends Controller
             TrainingPlan::where('user_id', $user->id)->update(['is_active' => false]);
 
             // ── Delete planned sessions of old plans for this event ──────────
-            $oldPlanIds = TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->pluck('id');
-            TrainingSession::whereIn('training_plan_id', $oldPlanIds)->where('status', 'planned')->delete();
+            // $existingPlanIds already computed above (preservedSessions uses them)
+            TrainingSession::whereIn('training_plan_id', $existingPlanIds)->where('status', 'planned')->delete();
             TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->delete();
 
             // ── Create new plan (without needs_plan_update — rely on DB default) ──
@@ -297,8 +313,22 @@ class TrainingPlanController extends Controller
                 ->where('id', $plan->id)
                 ->update(['is_active' => true, 'needs_plan_update' => false]);
 
-            // ── Create individual TrainingSession records ────────────────────
+            // ── Re-link preserved skipped/completed sessions to new plan ────
+            $preservedDates = $preservedSessions
+                ->pluck('planned_date')
+                ->map(fn ($d) => $d->format('Y-m-d'))
+                ->unique()
+                ->flip()
+                ->toArray();
+            foreach ($preservedSessions as $session) {
+                $session->update(['training_plan_id' => $plan->id]);
+            }
+
+            // ── Create individual TrainingSession records (skip finalized dates) ──
             foreach ($aiSessions as $i => $s) {
+                if (isset($preservedDates[$s['date'] ?? ''])) {
+                    continue;
+                }
                 TrainingSession::create([
                     'user_id'          => $user->id,
                     'training_plan_id' => $plan->id,
