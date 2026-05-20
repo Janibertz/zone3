@@ -1493,6 +1493,44 @@ PROMPT;
         $s = $seconds % 60;
         return sprintf('%02d:%02d:%02d', $h, $m, $s);
     }
+
+    /**
+     * Generate a German plain-language summary of a GitHub push for the admin wiki changelog.
+     */
+    public function generateChangelogSummary(array $commits, array $filesChanged): ?string
+    {
+        $commitLines = implode("\n", array_map(
+            fn ($c) => "- [{$c['id']}] {$c['message']} (von {$c['author']})",
+            array_slice($commits, 0, 10)
+        ));
+        $fileLines = implode(', ', array_slice($filesChanged, 0, 15));
+        if (count($filesChanged) > 15) {
+            $fileLines .= ' … (' . count($filesChanged) . ' Dateien gesamt)';
+        }
+
+        $prompt = <<<PROMPT
+Du bist der technische Dokumentations-Bot für Zone3, eine Laravel/Vue.js Lauf-Trainingsplattform.
+
+Fasse diese GitHub-Push-Zusammenfassung auf Deutsch zusammen:
+
+Commits:
+{$commitLines}
+
+Geänderte Dateien: {$fileLines}
+
+Schreibe eine kompakte, klare Zusammenfassung (3-5 Sätze) die erklärt:
+1. Was wurde geändert (technisch, aber verständlich)
+2. Was bedeutet das für den Nutzer / die Plattform
+3. Welche Bereiche des Systems sind betroffen
+
+Schreibe auf Deutsch, direkt und ohne Floskeln. Keine Überschrift, nur der Text.
+PROMPT;
+
+        return $this->callOpenAI('changelog_summary', [
+            ['role' => 'system', 'content' => 'Du bist ein technischer Dokumentations-Assistent. Antworte nur mit der reinen Zusammenfassung auf Deutsch.'],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.4, 400);
+    }
 }
 
 

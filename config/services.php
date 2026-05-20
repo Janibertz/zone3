@@ -58,4 +58,8 @@ return [
         'subject'     => env('VAPID_SUBJECT', 'mailto:admin@zone3.app'),
     ],
 
+    'github' => [
+        'webhook_secret' => env('GITHUB_WEBHOOK_SECRET'),
+    ],
+
 ];

@@ -17,6 +17,7 @@ use App\Models\TrainingSession;
 use App\Http\Controllers\StatisticsController;
 use App\Services\OpenAIService;
 use App\Http\Controllers\StravaController;
+use App\Http\Controllers\WebhookController;
 use App\Http\Controllers\WellbeingController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Models\WeeklyReview;
@@ -400,5 +401,8 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
 // Strava Webhook — no auth middleware (called by Strava servers)
 Route::get('/strava/webhook', [StravaController::class, 'webhookVerify'])->name('strava.webhook.verify');
 Route::post('/strava/webhook', [StravaController::class, 'webhook'])->name('strava.webhook');
+
+// GitHub Webhook — no auth middleware, signature-verified
+Route::post('/webhook/github', [WebhookController::class, 'github'])->name('webhook.github');
 
 require __DIR__.'/auth.php';

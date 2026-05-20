@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AdminCoachController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminSettingsController;
 use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\AdminWikiController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/admin/dashboard');
@@ -29,3 +30,11 @@ Route::put('/coaches/{coach}',   [AdminCoachController::class, 'update']) ->name
 
 Route::get('/settings',              [AdminSettingsController::class, 'index'])       ->name('settings.index');
 Route::post('/settings/test-push',   [AdminSettingsController::class, 'sendTestPush'])->name('settings.test-push');
+
+// Wiki
+Route::get('/wiki',                  [AdminWikiController::class, 'index'])   ->name('wiki.index');
+Route::get('/wiki/changelog',        [AdminWikiController::class, 'changelog'])->name('wiki.changelog');
+Route::post('/wiki',                 [AdminWikiController::class, 'store'])   ->name('wiki.store');
+Route::get('/wiki/{page}',           [AdminWikiController::class, 'page'])    ->name('wiki.page');
+Route::put('/wiki/{page}',           [AdminWikiController::class, 'update'])  ->name('wiki.update');
+Route::delete('/wiki/{page}',        [AdminWikiController::class, 'destroy']) ->name('wiki.destroy');
