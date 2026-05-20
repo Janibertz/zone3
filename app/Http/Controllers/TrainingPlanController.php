@@ -221,7 +221,8 @@ class TrainingPlanController extends Controller
         $preservedSessions = TrainingSession::whereIn('training_plan_id', $existingPlanIds)
             ->whereIn('status', ['skipped', 'completed'])
             ->get();
-        $finalizedForAI = $preservedSessions
+
+        $futureFinalized = $preservedSessions
             ->where('planned_date', '>=', now()->toDateString())
             ->map(fn ($s) => [
                 'date'        => $s->planned_date->format('Y-m-d'),
@@ -231,6 +232,23 @@ class TrainingPlanController extends Controller
             ])
             ->values()
             ->toArray();
+
+        // Past skipped sessions (last 7 days) — recovery context for illness / injury / exhaustion
+        $pastSkipped = TrainingSession::where('user_id', $user->id)
+            ->where('status', 'skipped')
+            ->where('planned_date', '>=', now()->subDays(7)->toDateString())
+            ->where('planned_date', '<', now()->toDateString())
+            ->get()
+            ->map(fn ($s) => [
+                'date'        => $s->planned_date->format('Y-m-d'),
+                'type'        => $s->type,
+                'status'      => 'skipped',
+                'skip_reason' => $s->skip_reason,
+            ])
+            ->values()
+            ->toArray();
+
+        $finalizedForAI = array_merge($pastSkipped, $futureFinalized);
 
         // ── Past race results (rated plans) ──────────────────────────────────
         $pastPlanResults = TrainingPlan::where('user_id', $user->id)

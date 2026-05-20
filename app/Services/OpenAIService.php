@@ -985,6 +985,100 @@ PROMPT;
                 . "\nPasse die Folgetage entsprechend an (z.B. Erschöpfung → morgen leichter planen).";
         }
 
+        // Recovery detection: illness / injury / exhaustion / poor wellbeing in the last 7 days
+        $recoveryWarning = '';
+        $recoveryTrigger = null; // 'sick' | 'injured' | 'exhausted' | 'poor_wellbeing'
+        $recoveryDetails = [];
+
+        // Check wellbeing entries (last 7 days)
+        $last7Wellbeing = array_slice($wellbeingData, 0, 7);
+        foreach ($last7Wellbeing as $w) {
+            if (! empty($w['is_sick'])) {
+                $recoveryTrigger = 'sick';
+                $recoveryDetails[] = "krank am {$w['date']}";
+                break;
+            }
+            if (! empty($w['is_injured'])) {
+                $recoveryTrigger = 'injured';
+                $recoveryDetails[] = "verletzt am {$w['date']}";
+                break;
+            }
+        }
+
+        // Check skipped sessions (last 7 days) for illness/injury/exhaustion reasons
+        if ($recoveryTrigger === null) {
+            $sevenDaysAgo = now()->subDays(7)->format('Y-m-d');
+            foreach ($finalizedSessions as $s) {
+                if (($s['status'] ?? '') !== 'skipped') continue;
+                if (($s['date'] ?? '') < $sevenDaysAgo) continue;
+                $reason = mb_strtolower($s['skip_reason'] ?? '');
+                if (str_contains($reason, 'krank') || str_contains($reason, 'sick')) {
+                    $recoveryTrigger = 'sick';
+                    $recoveryDetails[] = "Krank-Skip am {$s['date']}";
+                    break;
+                }
+                if (str_contains($reason, 'verletzt') || str_contains($reason, 'injur')) {
+                    $recoveryTrigger = 'injured';
+                    $recoveryDetails[] = "Verletzt-Skip am {$s['date']}";
+                    break;
+                }
+                if (str_contains($reason, 'erschöpft') || str_contains($reason, 'erschopft') || str_contains($reason, 'exhausted')) {
+                    $recoveryTrigger = 'exhausted';
+                    $recoveryDetails[] = "Erschöpft-Skip am {$s['date']}";
+                    break;
+                }
+            }
+        }
+
+        // Check sustained poor wellbeing over last 7 days (even without sick/injured flag)
+        if ($recoveryTrigger === null && count($last7Wellbeing) >= 3) {
+            $avgEnergy   = array_sum(array_column($last7Wellbeing, 'energy'))   / count($last7Wellbeing);
+            $avgSoreness = array_sum(array_column($last7Wellbeing, 'soreness')) / count($last7Wellbeing);
+            $avgSleep    = array_sum(array_column($last7Wellbeing, 'sleep'))    / count($last7Wellbeing);
+            $avgStress   = array_sum(array_column($last7Wellbeing, 'stress'))   / count($last7Wellbeing);
+
+            if ($avgEnergy < 4) {
+                $recoveryTrigger = 'poor_wellbeing';
+                $recoveryDetails[] = sprintf('Ø Energie %.1f/10 (letzte 7 Tage)', $avgEnergy);
+            }
+            if ($avgSoreness > 7) {
+                $recoveryTrigger = 'poor_wellbeing';
+                $recoveryDetails[] = sprintf('Ø Muskelkater %.1f/10 (letzte 7 Tage)', $avgSoreness);
+            }
+            if ($avgSleep < 4) {
+                $recoveryDetails[] = sprintf('Ø Schlaf %.1f/10 (letzte 7 Tage)', $avgSleep);
+                if ($recoveryTrigger === null) $recoveryTrigger = 'poor_wellbeing';
+            }
+            if ($avgStress > 7) {
+                $recoveryDetails[] = sprintf('Ø Stress %.1f/10 (letzte 7 Tage)', $avgStress);
+                if ($recoveryTrigger === null) $recoveryTrigger = 'poor_wellbeing';
+            }
+        }
+
+        if ($recoveryTrigger !== null) {
+            $triggerLabel = match($recoveryTrigger) {
+                'sick'          => 'Krankheit',
+                'injured'       => 'Verletzung',
+                'exhausted'     => 'starker Erschöpfung',
+                'poor_wellbeing'=> 'anhaltend schlechtem Wellbeing',
+            };
+            $detailStr = empty($recoveryDetails) ? '' : "\nErkannte Signale: " . implode(', ', $recoveryDetails);
+
+            $recoveryWarning = <<<WARN
+
+⚠️ **PFLICHT-SICHERHEITSREGEL — Wiederaufnahme nach {$triggerLabel} (letzte 7 Tage):**{$detailStr}
+
+MEDIZINISCHE WARNUNG: Nach Infekten, Verletzungen und starker Erschöpfung besteht erhöhtes Risiko einer Herzmuskelentzündung (Myokarditis) bei zu früher intensiver Belastung. Myokarditis kann bei Sportlern lebensbedrohlich sein.
+
+VERPFLICHTENDE PLANUNGSREGEL für die ersten 5 Tage ab heute:
+- Nur type="rest" (Ruhetage) oder type="easy_run" (Zone 1–2, max. 30–40 min, lockeres Tempo)
+- VERBOTEN in diesen 5 Tagen: tempo_run, interval, long_run, intensity="high" oder intensity="medium"
+- Ab Tag 6: erst dann schrittweise steigern — zunächst only easy_run, nach weiteren 3–5 Tagen moderate Intensität
+- Coach-Ton: Empathisch und fürsorglich — Erholung hat absoluten Vorrang
+
+WARN;
+        }
+
         $totalDays = min(21, $daysUntil + 1); // number of entries the AI must produce
 
         $prompt = <<<PROMPT
@@ -1011,7 +1105,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 **Bisherige Einheitsbewertungen (Athleten-Feedback):**
 {$ratingsText}
 
-**{$availabilityText}**{$otherEventsText}{$finalizedText}{$perDateAvailText}
+**{$availabilityText}**{$otherEventsText}{$finalizedText}{$recoveryWarning}{$perDateAvailText}
 
 **Planungsregeln:**
 - Starte den Plan ab heute ({$today})

@@ -156,7 +156,9 @@ class RegeneratePlanJob implements ShouldQueue
         $preservedSessions = TrainingSession::whereIn('training_plan_id', $oldPlanIds)
             ->whereIn('status', ['skipped', 'completed'])
             ->get();
-        $finalizedForAI = $preservedSessions
+
+        // Future finalized sessions (not to be overwritten)
+        $futureFinalized = $preservedSessions
             ->where('planned_date', '>=', now()->toDateString())
             ->map(fn ($s) => [
                 'date'        => $s->planned_date->format('Y-m-d'),
@@ -166,6 +168,23 @@ class RegeneratePlanJob implements ShouldQueue
             ])
             ->values()
             ->toArray();
+
+        // Past skipped sessions (last 7 days) — for recovery context (illness / injury / exhaustion)
+        $pastSkipped = TrainingSession::where('user_id', $user->id)
+            ->where('status', 'skipped')
+            ->where('planned_date', '>=', now()->subDays(7)->toDateString())
+            ->where('planned_date', '<', now()->toDateString())
+            ->get()
+            ->map(fn ($s) => [
+                'date'        => $s->planned_date->format('Y-m-d'),
+                'type'        => $s->type,
+                'status'      => 'skipped',
+                'skip_reason' => $s->skip_reason,
+            ])
+            ->values()
+            ->toArray();
+
+        $finalizedForAI = array_merge($pastSkipped, $futureFinalized);
 
         // ── Call OpenAI ─────────────────────────────────────────────────────────
         $openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
