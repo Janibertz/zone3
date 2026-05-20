@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\RegeneratePlanJob;
 use App\Models\TrainingSession;
 use App\Services\OpenAIService;
 use Illuminate\Http\Request;
@@ -11,7 +12,7 @@ use Illuminate\Support\Str;
 class TrainingSessionController extends Controller
 {
     /**
-     * Mark a session as completed.
+     * Mark a session as completed and let the coach adapt the remaining plan.
      */
     public function complete(TrainingSession $session)
     {
@@ -20,11 +21,13 @@ class TrainingSessionController extends Controller
 
         $session->update(['status' => 'completed']);
 
+        $this->triggerCoachReaction($session);
+
         return response()->json(['session' => $this->formatSession($session)]);
     }
 
     /**
-     * Mark a session as skipped.
+     * Mark a session as skipped and let the coach adapt the remaining plan.
      */
     public function skip(Request $request, TrainingSession $session)
     {
@@ -40,7 +43,31 @@ class TrainingSessionController extends Controller
             'skip_reason' => $request->reason,
         ]);
 
+        $this->triggerCoachReaction($session);
+
         return response()->json(['session' => $this->formatSession($session)]);
+    }
+
+    /**
+     * Flag the plan for regeneration and clear cached coaching messages
+     * so the dashboard shows a fresh, context-aware response on next load.
+     */
+    private function triggerCoachReaction(TrainingSession $session): void
+    {
+        $plan = $session->trainingPlan;
+        if ($plan) {
+            $plan->update(['needs_plan_update' => true]);
+            RegeneratePlanJob::dispatch($session->user_id, true)->delay(now()->addSeconds(10));
+        }
+
+        // Invalidate today's coaching message so it regenerates with the new context
+        $user = Auth::user();
+        $user->runnerProfile?->update([
+            'today_recommendation' => null,
+            'recommendation_date'  => null,
+            'daily_message'        => null,
+            'daily_message_date'   => null,
+        ]);
     }
 
     /**

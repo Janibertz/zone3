@@ -21,7 +21,10 @@ class RegeneratePlanJob implements ShouldQueue
     public int $tries   = 1;
     public int $timeout = 120;
 
-    public function __construct(public readonly int $userId) {}
+    public function __construct(
+        public readonly int  $userId,
+        public readonly bool $userTriggered = false, // bypass debounce for user actions (skip/complete)
+    ) {}
 
     public function handle(OpenAIService $openAI, WebPushService $webPush, TrainingLoadService $trainingLoadService): void
     {
@@ -35,8 +38,9 @@ class RegeneratePlanJob implements ShouldQueue
 
         if (! $plan) return;
 
-        // Debounce: plan was regenerated (created) less than 6 hours ago → skip
-        if ($plan->created_at->gt(now()->subHours(6))) {
+        // Debounce: skip if plan was regenerated less than 6 hours ago (batches Strava-sync triggers)
+        // User-triggered actions (skip/complete) bypass this debounce for immediate response
+        if (! $this->userTriggered && $plan->created_at->gt(now()->subHours(6))) {
             Log::info('RegeneratePlanJob: plan recently created, skipping', ['plan_id' => $plan->id]);
             $plan->update(['needs_plan_update' => false]);
             return;
@@ -294,6 +298,14 @@ class RegeneratePlanJob implements ShouldQueue
             Log::error('RegeneratePlanJob: database error', ['error' => $e->getMessage(), 'user_id' => $this->userId]);
             return;
         }
+
+        // Clear cached coaching messages so the dashboard regenerates them with the new plan context
+        $user->runnerProfile?->update([
+            'today_recommendation' => null,
+            'recommendation_date'  => null,
+            'daily_message'        => null,
+            'daily_message_date'   => null,
+        ]);
 
         if ($user->push_notifications_enabled && $user->notify_plan_updated) {
             $coachName = $user->coach?->name ?? 'Dein Coach';
