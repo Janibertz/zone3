@@ -20,6 +20,9 @@ const filteredEvents = computed(() => {
     return props.events.filter(e => e.priority === filterPriority.value);
 });
 
+const upcomingEvents = computed(() => filteredEvents.value.filter(e => e.days_until >= 0));
+const pastEvents     = computed(() => filteredEvents.value.filter(e => e.days_until < 0));
+
 // ── Modal state ──────────────────────────────────────────────────────────────
 const showModal   = ref(false);
 const editingEvent = ref(null);
@@ -189,10 +192,15 @@ watch(() => form.race_distance, (val) => {
                 </button>
             </div>
 
-            <!-- Event cards -->
+            <!-- ── Upcoming & active events ───────────────────────────────── -->
+            <div v-if="upcomingEvents.length === 0 && filteredEvents.length > 0" class="text-center py-10 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700 mb-3">
+                <p class="text-sm text-gray-400 dark:text-slate-500">Keine kommenden Events — füge dein nächstes Rennen hinzu.</p>
+                <button @click="openCreate" class="mt-3 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors">Event hinzufügen</button>
+            </div>
+
             <div class="space-y-3">
                 <div
-                    v-for="event in filteredEvents"
+                    v-for="event in upcomingEvents"
                     :key="event.id"
                     class="bg-white dark:bg-slate-900 rounded-2xl border shadow-sm overflow-hidden transition-all"
                     :class="priorityConfig[event.priority].border"
@@ -313,6 +321,64 @@ watch(() => form.race_distance, (val) => {
                     </div>
                 </div>
             </div>
+
+            <!-- ── Past events ────────────────────────────────────────────── -->
+            <div v-if="pastEvents.length > 0" class="mt-8">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="flex-1 h-px bg-gray-200 dark:bg-slate-700"></div>
+                    <span class="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-slate-500">Vergangene Events</span>
+                    <div class="flex-1 h-px bg-gray-200 dark:bg-slate-700"></div>
+                </div>
+
+                <div class="space-y-2 opacity-70">
+                    <div
+                        v-for="event in pastEvents"
+                        :key="event.id"
+                        class="bg-white dark:bg-slate-900 rounded-2xl border overflow-hidden grayscale-[30%]"
+                        :class="priorityConfig[event.priority].border"
+                    >
+                        <div class="h-0.5 w-full" :style="`background-color: ${event.priority === 'A' ? '#ef4444' : event.priority === 'B' ? '#f59e0b' : '#9ca3af'}`" />
+
+                        <div class="p-4 sm:p-5">
+                            <div class="flex items-start gap-3">
+                                <div class="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center font-bold text-base bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400">
+                                    {{ event.priority }}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div>
+                                            <h3 class="font-semibold text-gray-700 dark:text-slate-300 leading-tight">{{ event.name }}</h3>
+                                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+                                                <span class="text-sm text-gray-400 dark:text-slate-500">{{ formatDate(event.event_date) }}</span>
+                                                <span class="text-xs font-medium text-gray-400 dark:text-slate-500 bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">{{ event.distance_label }}</span>
+                                                <span v-if="event.target_time_formatted" class="text-xs text-gray-400 dark:text-slate-500">Ziel: {{ event.target_time_formatted }}</span>
+                                            </div>
+                                        </div>
+                                        <span class="text-xs font-medium text-gray-400 dark:text-slate-500 shrink-0">Vorbei</span>
+                                    </div>
+                                    <p v-if="event.notes" class="mt-1.5 text-xs text-gray-400 dark:text-slate-500 line-clamp-1">{{ event.notes }}</p>
+                                    <div class="flex items-center gap-2 mt-3">
+                                        <a v-if="event.plan_generated_at" :href="route('events.plan.show', event.id)"
+                                            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                                        >
+                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
+                                            Auswertung
+                                        </a>
+                                        <button @click="confirmingDelete = event"
+                                            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-400 dark:text-red-500 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
+                                        >
+                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
+                                            Löschen
+                                        </button>
+                                        <span v-if="event.plan_generated_at" class="ml-auto text-xs text-gray-400 dark:text-slate-600">Plan vom {{ event.plan_generated_at }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
         <!-- ── Create/Edit Modal ─────────────────────────────────────────── -->
