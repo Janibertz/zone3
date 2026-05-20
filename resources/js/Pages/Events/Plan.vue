@@ -86,6 +86,20 @@ onMounted(async () => {
         todayWellbeing.value = res.data;
     } catch { /* no wellbeing today — that's fine */ }
     finally { wellbeingLoaded.value = true; }
+
+    // Auto-open session detail modal when linked from dashboard (?open=SESSION_ID)
+    const params = new URLSearchParams(window.location.search);
+    const openId = params.get('open');
+    if (openId) {
+        const target = sessionList.value.find(s => String(s.id) === openId);
+        if (target && target.type !== 'rest') {
+            openDetail(target);
+        }
+        // Clean up URL without triggering navigation
+        const url = new URL(window.location.href);
+        url.searchParams.delete('open');
+        window.history.replaceState({}, '', url.toString());
+    }
 });
 
 // ── Wellbeing banner for today's session ─────────────────────────────────────

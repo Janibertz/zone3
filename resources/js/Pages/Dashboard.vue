@@ -970,9 +970,9 @@ function syncStrava() {
                             </a>
                         </div>
 
-                        <!-- Session card — klickbar, öffnet Plan-Detail -->
+                        <!-- Session card — klickbar, öffnet Session-Detail-Modal direkt -->
                         <a v-if="props.todayPlanSession"
-                            :href="props.todayPlanSession.event_id ? `/events/${props.todayPlanSession.event_id}/plan` : '/events'"
+                            :href="props.todayPlanSession.event_id ? `/events/${props.todayPlanSession.event_id}/plan?open=${props.todayPlanSession.id}` : '/events'"
                             class="block rounded-xl border overflow-hidden hover:shadow-sm transition-shadow cursor-pointer" :class="{
                                 'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800': props.todayPlanSession.type === 'rest',
                                 'border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10': props.todayPlanSession.type === 'easy_run',
