@@ -8,7 +8,7 @@ echo "[startup] Seeding coaches..."
 php artisan db:seed --class=CoachSeeder --force --no-interaction
 
 echo "[startup] Seeding wiki (initial docs)..."
-php artisan wiki:seed --force --no-interaction || true
+php artisan wiki:seed --no-interaction || true
 
 echo "[startup] Linking storage..."
 php artisan storage:link --force 2>/dev/null || true
