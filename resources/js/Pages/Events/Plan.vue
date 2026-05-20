@@ -91,7 +91,7 @@ onMounted(async () => {
     const params = new URLSearchParams(window.location.search);
     const openId = params.get('open');
     if (openId) {
-        const target = sessionList.value.find(s => String(s.id) === openId);
+        const target = currentSessions.value.find(s => String(s.id) === openId);
         if (target && target.type !== 'rest') {
             openDetail(target);
         }
