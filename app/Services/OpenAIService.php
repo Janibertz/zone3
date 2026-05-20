@@ -888,7 +888,8 @@ PROMPT;
         // Pre-compute per-date availability for each day in the plan window
         $isoToWeekday = [1 => 'monday', 2 => 'tuesday', 3 => 'wednesday', 4 => 'thursday', 5 => 'friday', 6 => 'saturday', 7 => 'sunday'];
         $perDateLines = [];
-        for ($i = 0; $i < 10; $i++) {
+        $planWindowDays = min(21, $daysUntil + 1); // cover every day up to race, max 21
+        for ($i = 0; $i < $planWindowDays; $i++) {
             $date    = now()->addDays($i);
             $dateStr = $date->format('Y-m-d');
             if ($dateStr > $eventDate) break;
@@ -971,8 +972,10 @@ PROMPT;
 
         // Per-date overrides are already included in $perDateAvailText above
 
+        $totalDays = min(21, $daysUntil + 1); // number of entries the AI must produce
+
         $prompt = <<<PROMPT
-Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan für folgendes Rennevent.
+Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute bis zum Renntag.
 
 **Event:**
 - Name: {$event->name}
@@ -1000,7 +1003,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan f�
 **Planungsregeln:**
 - Starte den Plan ab heute ({$today})
 - Der letzte Tag im Plan ist IMMER der Renntag ({$eventDate}) — niemals danach
-- Plane maximal bis {$eventDate}, auch wenn das weniger als 10 Tage sind
+- Plane GENAU jeden Tag von {$today} bis {$eventDate} — das sind {$totalDays} Tage
 - Am Renntag ({$eventDate}): type="race_prep", title="{$event->name}", beschreibe das Rennen selbst
 - Passe die Intensität an den Zeitraum bis zum Rennen an: {$daysUntil} Tage
 - Bei >30 Tagen: normaler Aufbau (Volumen + Tempo)
@@ -1016,7 +1019,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen 10-Tages-Trainingsplan f�
 - ANDERE RENNEVENTS: An Tagen mit anderen Rennevents im Planungszeitraum IMMER type="rest" — der Athlet läuft ein Rennen, kein zusätzliches Training.
 - VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die Trainingsdauer darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
 
-**Antworte ausschließlich mit einem JSON-Array (zwischen 1 und 10 Objekte, je nach verfügbaren Tagen bis zum Rennen):**
+**Antworte ausschließlich mit einem JSON-Array mit GENAU {$totalDays} Einträgen — einen pro Tag von heute ({$today}) bis zum Renntag ({$eventDate}). Kein Tag darf fehlen. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
 [
   {
     "date": "YYYY-MM-DD",
