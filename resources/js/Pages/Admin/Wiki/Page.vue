@@ -35,7 +35,17 @@ function deletePage() {
 // Minimal Markdown → HTML renderer (no npm dependency)
 function renderMarkdown(src) {
     if (!src) return '<p class="text-gray-400 italic">Noch kein Inhalt.</p>';
-    let html = src
+
+    // Split into blocks to handle fenced code blocks first (prevents inline-code
+    // regex from eating triple-backtick content across newlines)
+    const PRE = [];
+    let html = src.replace(/```([\w]*)\n([\s\S]*?)```/g, (_, _lang, code) => {
+        const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        PRE.push(`<pre class="my-4 p-4 rounded-xl bg-gray-900 text-gray-100 text-sm font-mono overflow-x-auto"><code>${escaped}</code></pre>`);
+        return `\x00PRE${PRE.length - 1}\x00`;
+    });
+
+    html = html
         // Headings
         .replace(/^### (.+)$/gm, '<h3 class="text-base font-semibold text-gray-900 dark:text-white mt-6 mb-2">$1</h3>')
         .replace(/^## (.+)$/gm,  '<h2 class="text-lg font-bold text-gray-900 dark:text-white mt-8 mb-3 border-b border-gray-100 dark:border-slate-800 pb-2">$1</h2>')
@@ -44,10 +54,19 @@ function renderMarkdown(src) {
         .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
         .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900 dark:text-white">$1</strong>')
         .replace(/\*(.+?)\*/g, '<em class="italic">$1</em>')
-        // Inline code
-        .replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-800 text-sm font-mono text-indigo-600 dark:text-indigo-400">$1</code>')
-        // Code blocks
-        .replace(/```[\w]*\n([\s\S]*?)```/g, '<pre class="my-4 p-4 rounded-xl bg-gray-900 text-gray-100 text-sm font-mono overflow-x-auto"><code>$1</code></pre>')
+        // Inline code (single-line only — [^`\n] prevents crossing newlines)
+        .replace(/`([^`\n]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-800 text-sm font-mono text-indigo-600 dark:text-indigo-400">$1</code>')
+        // Tables
+        .replace(/^\|(.+)\|\n\|[-| :]+\|\n((?:\|.+\|\n?)+)/gm, (_, header, body) => {
+            const th = header.split('|').map(c => c.trim()).filter(Boolean)
+                .map(c => `<th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase">${c}</th>`).join('');
+            const rows = body.trim().split('\n').map(row => {
+                const tds = row.split('|').map(c => c.trim()).filter(Boolean)
+                    .map(c => `<td class="px-3 py-2 text-sm text-gray-700 dark:text-slate-300 border-t border-gray-100 dark:border-slate-800">${c}</td>`).join('');
+                return `<tr>${tds}</tr>`;
+            }).join('');
+            return `<table class="w-full my-4 border-collapse"><thead><tr>${th}</tr></thead><tbody>${rows}</tbody></table>`;
+        })
         // Lists
         .replace(/^- (.+)$/gm, '<li class="flex gap-2 text-gray-700 dark:text-slate-300"><span class="text-indigo-400 mt-1">•</span><span>$1</span></li>')
         .replace(/^(\d+)\. (.+)$/gm, '<li class="flex gap-2 text-gray-700 dark:text-slate-300"><span class="text-indigo-400 font-mono text-sm min-w-[1.2rem]">$1.</span><span>$2</span></li>')
@@ -55,12 +74,15 @@ function renderMarkdown(src) {
         .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" class="text-indigo-600 dark:text-indigo-400 hover:underline" target="_blank">$1</a>')
         // Horizontal rule
         .replace(/^---$/gm, '<hr class="my-6 border-gray-100 dark:border-slate-800">')
-        // Paragraphs (wrap non-tag lines)
-        .replace(/^(?!<[hlip]|<pre|<hr)(.+)$/gm, '<p class="text-gray-700 dark:text-slate-300 leading-relaxed">$1</p>')
+        // Paragraphs (skip lines that are already HTML tags or placeholders)
+        .replace(/^(?!<|[\x00])(.+)$/gm, '<p class="text-gray-700 dark:text-slate-300 leading-relaxed">$1</p>')
         // Wrap consecutive <li> in <ul>
         .replace(/(<li[\s\S]*?<\/li>\n?)+/g, '<ul class="my-3 space-y-1 pl-2">$&</ul>')
-        // Blank lines → spacing
+        // Blank lines
         .replace(/^\s*$/gm, '');
+
+    // Restore code blocks
+    html = html.replace(/\x00PRE(\d+)\x00/g, (_, i) => PRE[i]);
     return html;
 }
 
