@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\GenerateRacePredictionJob;
 use App\Jobs\RegeneratePlanJob;
 use App\Models\TrainingSession;
 use App\Services\OpenAIService;
@@ -58,6 +59,11 @@ class TrainingSessionController extends Controller
         if ($plan) {
             $plan->update(['needs_plan_update' => true]);
             RegeneratePlanJob::dispatch($session->user_id, true)->delay(now()->addSeconds(10));
+
+            // Update race prediction when a session is completed (new performance data)
+            if ($session->status === 'completed') {
+                GenerateRacePredictionJob::dispatch($plan->id)->delay(now()->addSeconds(15));
+            }
         }
 
         // Invalidate today's coaching message so it regenerates with the new context

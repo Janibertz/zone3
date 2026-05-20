@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\GenerateRacePredictionJob;
 use App\Models\Event;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
@@ -39,6 +40,15 @@ class TrainingPlanController extends Controller
                 ->toArray()
             : [];
 
+        // Dispatch prediction refresh if active plan is stale (> 12 h) or missing
+        if ($plan && $plan->is_active && ! $isPastEvent) {
+            $stale = $plan->prediction_updated_at === null
+                || now()->diffInHours($plan->prediction_updated_at) > 12;
+            if ($stale) {
+                GenerateRacePredictionJob::dispatch($plan->id)->delay(now()->addSeconds(3));
+            }
+        }
+
         return Inertia::render('Events/Plan', [
             'event' => [
                 'id'                    => $event->id,
@@ -53,15 +63,21 @@ class TrainingPlanController extends Controller
                 'days_until'            => $event->days_until,
             ],
             'plan' => $plan ? [
-                'id'                  => $plan->id,
-                'is_active'           => (bool) $plan->is_active,
-                'generated_at'        => $plan->created_at->format('d.m.Y H:i'),
-                'context'             => $plan->context,
-                'needs_plan_update'   => $plan->needs_plan_update,
-                'actual_time_hours'   => $plan->actual_time_hours,
-                'actual_time_minutes' => $plan->actual_time_minutes,
-                'overall_rating'      => $plan->overall_rating,
-                'result_notes'        => $plan->result_notes,
+                'id'                          => $plan->id,
+                'is_active'                   => (bool) $plan->is_active,
+                'generated_at'                => $plan->created_at->format('d.m.Y H:i'),
+                'context'                     => $plan->context,
+                'needs_plan_update'           => $plan->needs_plan_update,
+                'actual_time_hours'           => $plan->actual_time_hours,
+                'actual_time_minutes'         => $plan->actual_time_minutes,
+                'overall_rating'              => $plan->overall_rating,
+                'result_notes'                => $plan->result_notes,
+                'predicted_finish_time'       => $plan->predicted_finish_time,
+                'predicted_pace'              => $plan->predicted_pace,
+                'prediction_trend'            => $plan->prediction_trend,
+                'prediction_target_delta_sec' => $plan->prediction_target_delta_sec,
+                'prediction_run_count'        => $plan->prediction_run_count,
+                'prediction_text'             => $plan->prediction_text,
             ] : null,
             'sessions'    => $sessions,
             'isPastEvent' => $isPastEvent,
@@ -479,6 +495,9 @@ class TrainingPlanController extends Controller
                 "/events/{$event->id}/plan"
             );
         }
+
+        // Dispatch race prediction in background
+        GenerateRacePredictionJob::dispatch($plan->id)->delay(now()->addSeconds(5));
 
         return response()->json([
             'plan' => [

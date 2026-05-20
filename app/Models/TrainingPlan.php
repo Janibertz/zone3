@@ -20,6 +20,13 @@ class TrainingPlan extends Model
         'actual_time_minutes',
         'overall_rating',
         'result_notes',
+        'predicted_finish_time',
+        'predicted_pace',
+        'prediction_trend',
+        'prediction_target_delta_sec',
+        'prediction_run_count',
+        'prediction_text',
+        'prediction_updated_at',
     ];
 
     protected $casts = [

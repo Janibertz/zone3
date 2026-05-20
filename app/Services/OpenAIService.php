@@ -1616,6 +1616,70 @@ PROMPT;
     }
 
     /**
+     * Generate a short AI coaching recommendation based on the race prediction.
+     *
+     * @param array $predictionData  Output from PredictFinishTimeService::predict()
+     * @param array $eventData       ['name', 'race_distance', 'target_time_formatted', 'days_until']
+     * @param array $recentSessions  Last 5 completed/planned sessions [{type, distance_km, status}]
+     * @return string|null
+     */
+    public function generateRacePredictionText(
+        array  $predictionData,
+        array  $eventData,
+        array  $recentSessions = [],
+    ): ?string {
+        $predicted = $predictionData['predicted_finish_time'];
+        $pace      = $predictionData['predicted_pace'];
+        $trend     = $predictionData['prediction_trend'];
+        $deltaSec  = $predictionData['prediction_target_delta_sec'] ?? null;
+        $runCount  = $predictionData['prediction_run_count'];
+
+        $trendText = match ($trend) {
+            'improving' => 'Der Athlet verbessert sich – aktuelle Läufe sind schneller als ältere.',
+            'declining' => 'Die Leistung sinkt leicht – aktuelle Läufe sind langsamer als ältere.',
+            default     => 'Die Leistung ist stabil.',
+        };
+
+        $deltaText = '';
+        if ($deltaSec !== null) {
+            $absSec    = abs($deltaSec);
+            $h         = (int)($absSec / 3600);
+            $m         = (int)(($absSec % 3600) / 60);
+            $s         = $absSec % 60;
+            $formatted = $h > 0
+                ? sprintf('%d:%02d:%02d', $h, $m, $s)
+                : sprintf('%d:%02d', $m, $s);
+            $deltaText = $deltaSec >= 0
+                ? "Die Prognose liegt {$formatted} unter der Zielzeit – der Athlet ist auf Kurs."
+                : "Der Athlet liegt {$formatted} hinter der Zielzeit zurück.";
+        }
+
+        $sessionsText = '';
+        if (! empty($recentSessions)) {
+            $lines = array_map(fn ($s) => "- {$s['type']} ({$s['distance_km']} km, Status: {$s['status']})", $recentSessions);
+            $sessionsText = "\nLetzte Trainingseinheiten:\n" . implode("\n", $lines);
+        }
+
+        $prompt = <<<PROMPT
+Du bist ein persönlicher Lauf-Coach. Schreibe eine kurze, motivierende Empfehlung (2–3 Sätze) auf Deutsch.
+
+Event: {$eventData['name']} ({$eventData['race_distance']}) in {$eventData['days_until']} Tagen
+Zielzeit: {$eventData['target_time_formatted']}
+Prognostizierte Finishzeit: {$predicted} (Pace: {$pace}/km)
+Basiert auf: {$runCount} Läufen der letzten 90 Tage
+Trend: {$trendText}
+{$deltaText}{$sessionsText}
+
+Schreibe die Empfehlung direkt (kein "Hallo", keine Einleitung). Maximal 3 Sätze. Sei konkret: Nenne welche Trainingsart hilft und warum. Keine Emojis.
+PROMPT;
+
+        return $this->callOpenAI('race_prediction_text', [
+            ['role' => 'system', 'content' => $this->buildSystemPrompt('Du bist ein erfahrener Lauf-Coach. Antworte immer auf Deutsch. Sei direkt, sachlich und motivierend. Keine Emojis. Max. 3 Sätze.')],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.6, 200, 30);
+    }
+
+    /**
      * Generate a German plain-language summary of a GitHub push for the admin wiki changelog.
      */
     public function generateChangelogSummary(array $commits, array $filesChanged): ?string

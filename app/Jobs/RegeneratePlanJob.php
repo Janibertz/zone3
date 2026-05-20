@@ -13,6 +13,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Jobs\GenerateRacePredictionJob;
 
 class RegeneratePlanJob implements ShouldQueue
 {
@@ -367,6 +368,9 @@ class RegeneratePlanJob implements ShouldQueue
                 "/events/{$event->id}/plan"
             );
         }
+
+        // Refresh race prediction in background
+        GenerateRacePredictionJob::dispatch($newPlan->id)->delay(now()->addSeconds(10));
 
         Log::info('RegeneratePlanJob: plan regenerated', ['user_id' => $this->userId, 'event_id' => $event->id]);
     }

@@ -476,6 +476,34 @@ async function openDetail(session) {
     }
 }
 
+// ── Race Prediction ───────────────────────────────────────────────────────────
+const prediction = computed(() => {
+    const p = currentPlan.value;
+    if (!p || !p.predicted_finish_time) return null;
+    return {
+        time:     p.predicted_finish_time,
+        pace:     p.predicted_pace,
+        trend:    p.prediction_trend,    // improving | stable | declining
+        delta:    p.prediction_target_delta_sec, // positive = ahead of goal
+        count:    p.prediction_run_count,
+        text:     p.prediction_text,
+    };
+});
+
+const predictionDeltaText = computed(() => {
+    if (!prediction.value || prediction.value.delta === null || prediction.value.delta === undefined) return null;
+    const abs = Math.abs(prediction.value.delta);
+    const h = Math.floor(abs / 3600);
+    const m = Math.floor((abs % 3600) / 60);
+    const s = abs % 60;
+    const fmt = h > 0
+        ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+        : `${m}:${String(s).padStart(2,'0')}`;
+    return prediction.value.delta >= 0
+        ? { label: `${fmt} unter Zielzeit`, positive: true }
+        : { label: `${fmt} über Zielzeit`, positive: false };
+});
+
 function parsePaceToSec(paceStr) {
     if (!paceStr || paceStr === 'null') return null;
     const parts = paceStr.split(':');
@@ -825,6 +853,64 @@ const groupedSteps = computed(() => {
                         class="bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800 px-3 py-2.5 text-center">
                         <div class="text-xl font-bold text-gray-900 dark:text-white">{{ val }}</div>
                         <div class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{{ lbl }}</div>
+                    </div>
+                </div>
+
+                <!-- Race prediction block -->
+                <div v-if="prediction && !isPastEvent"
+                    class="mb-4 bg-white dark:bg-slate-900 rounded-2xl border border-indigo-100 dark:border-indigo-500/20 shadow-sm overflow-hidden">
+                    <!-- Header stripe -->
+                    <div class="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-gray-100 dark:border-slate-800">
+                        <svg class="h-4 w-4 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
+                        <span class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Leistungsprognose</span>
+                    </div>
+
+                    <div class="px-4 py-4">
+                        <div class="flex flex-col sm:flex-row sm:items-start gap-4">
+                            <!-- Main numbers -->
+                            <div class="flex items-end gap-6">
+                                <!-- Predicted time -->
+                                <div>
+                                    <p class="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Prognose</p>
+                                    <div class="flex items-baseline gap-2">
+                                        <span class="text-3xl font-bold text-gray-900 dark:text-white tabular-nums">{{ prediction.time }}</span>
+                                        <!-- Trend arrow -->
+                                        <span v-if="prediction.trend === 'improving'" class="text-green-500 text-lg font-bold" title="Leistung verbessert sich">↗</span>
+                                        <span v-else-if="prediction.trend === 'declining'" class="text-red-500 text-lg font-bold" title="Leistung sinkt">↘</span>
+                                        <span v-else class="text-gray-400 text-lg font-bold" title="Stabile Leistung">→</span>
+                                    </div>
+                                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Pace {{ prediction.pace }}/km</p>
+                                </div>
+
+                                <!-- Delta to goal -->
+                                <div v-if="predictionDeltaText">
+                                    <p class="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">vs. Ziel</p>
+                                    <span class="inline-flex items-center gap-1 text-sm font-semibold rounded-lg px-2 py-1"
+                                        :class="predictionDeltaText.positive
+                                            ? 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-500/10'
+                                            : 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-500/10'">
+                                        <span>{{ predictionDeltaText.positive ? '−' : '+' }}</span>
+                                        <span>{{ predictionDeltaText.label }}</span>
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Coach recommendation text -->
+                            <div v-if="prediction.text" class="sm:flex-1 sm:border-l sm:border-gray-100 sm:dark:border-slate-800 sm:pl-4">
+                                <div class="flex items-center gap-1.5 mb-1.5">
+                                    <div class="h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" :class="coachAccent.avatar">
+                                        {{ coachName[0] }}
+                                    </div>
+                                    <span class="text-xs font-semibold text-gray-500 dark:text-slate-400">{{ coachName }}</span>
+                                </div>
+                                <p class="text-sm text-gray-700 dark:text-slate-300 leading-relaxed">{{ prediction.text }}</p>
+                            </div>
+                        </div>
+
+                        <!-- Confidence -->
+                        <p class="mt-3 text-[11px] text-gray-400 dark:text-slate-500">
+                            Basierend auf {{ prediction.count }} {{ prediction.count === 1 ? 'Lauf' : 'Läufen' }} der letzten 90 Tage · Riegel-Formel
+                        </p>
                     </div>
                 </div>
 
