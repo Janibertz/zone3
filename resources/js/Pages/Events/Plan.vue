@@ -531,6 +531,22 @@ const totalStepDuration = computed(() =>
     stepsWithReps.value.reduce((sum, s) => sum + (s.duration_min || 0), 0)
 );
 
+// Total distance estimated from step duration × pace (skips steps without pace)
+const totalStepDistanceKm = computed(() => {
+    if (!stepsWithReps.value.length) return null;
+    let km = 0;
+    for (const s of stepsWithReps.value) {
+        if (!s.pace_target || !s.duration_min) continue;
+        const paceStr = String(s.pace_target);
+        // Handle range like "5:30-6:00" → take midpoint
+        const parts = paceStr.includes('-') ? paceStr.split('-') : [paceStr, paceStr];
+        const toMin = p => { const [m, sec] = p.trim().split(':').map(Number); return m + (sec || 0) / 60; };
+        const paceMin = (toMin(parts[0]) + toMin(parts[1])) / 2;
+        if (paceMin > 0) km += s.duration_min / paceMin;
+    }
+    return km > 0 ? Math.round(km * 10) / 10 : null;
+});
+
 // Grouped steps for list display (collapse repetitions)
 const groupedSteps = computed(() => {
     if (!aiSteps.value) return [];
@@ -942,14 +958,14 @@ const groupedSteps = computed(() => {
                     <!-- Description -->
                     <p v-if="detailSession.description" class="text-sm text-gray-600 dark:text-slate-400 leading-relaxed">{{ detailSession.description }}</p>
 
-                    <!-- Overall metrics -->
+                    <!-- Overall metrics — prefer totals calculated from AI steps when available -->
                     <div class="grid grid-cols-3 gap-2">
-                        <div v-if="detailSession.distance_km" class="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 text-center">
-                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ detailSession.distance_km }}</p>
+                        <div v-if="totalStepDistanceKm || detailSession.distance_km" class="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 text-center">
+                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ totalStepDistanceKm ?? detailSession.distance_km }}</p>
                             <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">km</p>
                         </div>
-                        <div v-if="detailSession.duration_min" class="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 text-center">
-                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ detailSession.duration_min }}</p>
+                        <div v-if="totalStepDuration || detailSession.duration_min" class="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 text-center">
+                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ totalStepDuration || detailSession.duration_min }}</p>
                             <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">min</p>
                         </div>
                         <div v-if="detailSession.pace_target && detailSession.pace_target !== 'null'" class="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 text-center">
