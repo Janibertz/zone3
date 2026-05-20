@@ -958,25 +958,29 @@ function syncStrava() {
                 <!-- ═══ Heute: Trainingseinheit / Coach-Empfehlung ═══ -->
                 <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
 
-                    <!-- ── Aktiver Plan: heutige Session anzeigen ── -->
+                    <!-- ── Aktiver Plan: heutige / nächste Session anzeigen ── -->
                     <template v-if="props.hasActivePlan">
                         <div class="flex items-center justify-between mb-4">
-                            <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">📅 Heutige Trainingseinheit</h4>
+                            <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">
+                                📅 {{ props.todayPlanSession?.is_today ? 'Heutige Trainingseinheit' : 'Nächste Trainingseinheit' }}
+                            </h4>
                             <a :href="props.todayPlanSession?.event_id ? `/events/${props.todayPlanSession.event_id}/plan` : '/events'"
                                 class="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-800 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 rounded-md px-2 py-1 transition-colors">
                                 Zum Plan →
                             </a>
                         </div>
 
-                        <!-- Session card -->
-                        <div v-if="props.todayPlanSession" class="rounded-xl border overflow-hidden" :class="{
-                            'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800': props.todayPlanSession.type === 'rest',
-                            'border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10': props.todayPlanSession.type === 'easy_run',
-                            'border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10': props.todayPlanSession.type === 'tempo_run',
-                            'border-red-100 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10': props.todayPlanSession.type === 'interval',
-                            'border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10': props.todayPlanSession.type === 'long_run',
-                            'border-indigo-100 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10': props.todayPlanSession.type === 'race_prep',
-                        }">
+                        <!-- Session card — klickbar, öffnet Plan-Detail -->
+                        <a v-if="props.todayPlanSession"
+                            :href="props.todayPlanSession.event_id ? `/events/${props.todayPlanSession.event_id}/plan` : '/events'"
+                            class="block rounded-xl border overflow-hidden hover:shadow-sm transition-shadow cursor-pointer" :class="{
+                                'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800': props.todayPlanSession.type === 'rest',
+                                'border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10': props.todayPlanSession.type === 'easy_run',
+                                'border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10': props.todayPlanSession.type === 'tempo_run',
+                                'border-red-100 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10': props.todayPlanSession.type === 'interval',
+                                'border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10': props.todayPlanSession.type === 'long_run',
+                                'border-indigo-100 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10': props.todayPlanSession.type === 'race_prep',
+                            }">
                             <div class="px-4 py-3">
                                 <div class="flex items-start justify-between gap-2 mb-1">
                                     <p class="font-semibold text-sm" :class="{
@@ -989,8 +993,10 @@ function syncStrava() {
                                     }">{{ props.todayPlanSession.title }}</p>
                                     <div class="flex gap-1.5 shrink-0">
                                         <span v-if="props.todayPlanSession.status === 'completed'" class="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400">✓ Erledigt</span>
-                                        <span v-else-if="props.todayPlanSession.status === 'skipped'" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-500">Übersprungen</span>
-                                        <span v-else class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400">Heute</span>
+                                        <span v-else-if="props.todayPlanSession.is_today" class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400">Heute</span>
+                                        <span v-else class="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300">
+                                            {{ new Date(props.todayPlanSession.session_date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' }) }}
+                                        </span>
                                         <span v-if="props.todayPlanSession.activity_id" class="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-400">🔗 Strava</span>
                                     </div>
                                 </div>
@@ -1011,11 +1017,11 @@ function syncStrava() {
                                     <span v-if="props.todayPlanSession.zone" class="text-xs font-medium px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300">Zone {{ props.todayPlanSession.zone }}</span>
                                 </div>
                             </div>
-                        </div>
+                        </a>
 
-                        <!-- No session today -->
+                        <!-- Kein Training geplant (Rest-Tag oder kein Plan) -->
                         <div v-else class="rounded-xl bg-gray-50 dark:bg-slate-800 border border-dashed border-gray-200 dark:border-slate-600 p-6 text-center">
-                            <p class="text-sm text-gray-400 dark:text-slate-500">Für heute ist keine Trainingseinheit geplant.</p>
+                            <p class="text-sm text-gray-400 dark:text-slate-500">Heute kein Training geplant.</p>
                             <a href="/events" class="mt-2 inline-block text-xs text-indigo-500 hover:underline">Zum Plan →</a>
                         </div>
                     </template>

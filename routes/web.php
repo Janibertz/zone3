@@ -123,6 +123,23 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             ->where('planned_date', $todayStr)
             ->orderBy('sort_order')
             ->first();
+
+        // If today is skipped, fall through to show next upcoming session instead
+        if ($s && $s->status === 'skipped') {
+            $s = null;
+        }
+
+        // No session today (or skipped) → show next upcoming planned session
+        if (! $s) {
+            $s = TrainingSession::where('training_plan_id', $activePlan->id)
+                ->where('planned_date', '>', $todayStr)
+                ->where('status', 'planned')
+                ->where('type', '!=', 'rest')
+                ->orderBy('planned_date')
+                ->orderBy('sort_order')
+                ->first();
+        }
+
         if ($s) {
             $todayPlanSession = [
                 'id'           => $s->id,
@@ -139,6 +156,8 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 'event_id'     => $s->event_id,
                 'plan_id'      => $activePlan->id,
                 'event_name'   => $activePlan->event?->name,
+                'session_date' => $s->planned_date->format('Y-m-d'),
+                'is_today'     => $s->planned_date->toDateString() === $todayStr,
             ];
         }
     }
