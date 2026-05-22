@@ -338,7 +338,9 @@ class TrainingSessionController extends Controller
 
             $speedMps = null;
             if (!empty($step['pace_target']) && $step['pace_target'] !== 'null') {
-                $parts = explode(':', (string) $step['pace_target']);
+                // Handle range formats like "5:30-6:00" — use the faster (lower) bound
+                $paceStr  = trim(explode('-', (string) $step['pace_target'])[0]);
+                $parts    = explode(':', $paceStr);
                 if (count($parts) === 2) {
                     $secPerKm = (int) $parts[0] * 60 + (int) $parts[1];
                     $speedMps = $secPerKm > 0 ? round(1000 / $secPerKm, 5) : null;
@@ -783,6 +785,8 @@ XML;
     private function parsePaceToSeconds(?string $pace): ?int
     {
         if (! $pace || $pace === 'null') return null;
+        // Handle range formats like "5:30-6:00" — use the faster (lower) bound
+        $pace  = trim(explode('-', $pace)[0]);
         $parts = explode(':', $pace);
         if (count($parts) !== 2) return null;
         return (int) $parts[0] * 60 + (int) $parts[1];

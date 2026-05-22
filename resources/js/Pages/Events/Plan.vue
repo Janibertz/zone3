@@ -347,10 +347,10 @@ const garminConnected = computed(() => !!usePage().props.auth.garminConnected);
 const garminSavedEmail = computed(() => usePage().props.auth.garminEmail);
 
 function openGarminModal() {
-    garminModal.value   = true;
-    garminError.value   = '';
-    garminSuccess.value = false;
-    garminEmail.value   = '';
+    garminModal.value    = true;
+    garminError.value    = '';
+    garminSuccess.value  = false;
+    garminEmail.value    = garminSavedEmail.value || ''; // pre-fill known email
     garminPassword.value = '';
 }
 
@@ -539,7 +539,7 @@ const stepBgColor = {
     rest:     'bg-gray-50 dark:bg-slate-800 border-gray-100 dark:border-slate-700',
     cooldown: 'bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20',
 };
-const stepLabel = { warmup: 'Aufwärmen', work: 'Intervall', rest: 'Pause', cooldown: 'Auslaufen' };
+const stepLabel = { warmup: 'Aufwärmen', work: 'Hauptteil', rest: 'Pause', cooldown: 'Auslaufen' };
 
 // Bar height % by step type (bars grow from bottom)
 const stepHeightPct = { warmup: 60, work: 100, rest: 28, cooldown: 60 };
