@@ -247,13 +247,18 @@ class WorkoutController extends Controller
             $type = $block['type'];
 
             if ($type === 'repeat') {
-                $reps = max(1, (int) ($block['repetitions'] ?? 1));
-                for ($i = 0; $i < $reps; $i++) {
-                    foreach ($block['steps'] ?? [] as $sub) {
-                        $garminType = ($sub['type'] ?? '') === 'rest' ? 'rest' : 'active';
-                        $steps[]    = $this->blockToGarminStep($sub, $garminType, $threshSec);
-                    }
+                $reps     = max(1, (int) ($block['repetitions'] ?? 1));
+                $subSteps = [];
+                foreach ($block['steps'] ?? [] as $sub) {
+                    $garminType = ($sub['type'] ?? '') === 'rest' ? 'rest' : 'active';
+                    $subSteps[] = $this->blockToGarminStep($sub, $garminType, $threshSec);
                 }
+                $steps[] = [
+                    'step_type'   => 'repeat',
+                    'name'        => $block['label'] ?? 'Intervalle',
+                    'repetitions' => $reps,
+                    'steps'       => $subSteps,
+                ];
                 continue;
             }
 
