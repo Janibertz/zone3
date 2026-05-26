@@ -316,6 +316,36 @@ class TrainingSessionController extends Controller
     }
 
     /**
+     * Replace a planned session's content with a workout from the user's library.
+     */
+    public function applyWorkout(Request $request, TrainingSession $session)
+    {
+        abort_if($session->user_id !== Auth::id(), 403);
+        abort_if($session->status !== 'planned', 422);
+
+        $request->validate([
+            'workout_id' => 'required|integer|exists:workouts,id',
+        ]);
+
+        $workout = \App\Models\Workout::findOrFail($request->workout_id);
+        abort_if($workout->user_id !== Auth::id(), 403);
+
+        $session->update([
+            'title'        => $workout->name,
+            'description'  => $workout->description,
+            'type'         => $workout->type,
+            'distance_km'  => $workout->estimated_distance_km,
+            'duration_min' => $workout->estimated_duration_min,
+            'steps'        => null,
+        ]);
+
+        $workout->increment('times_used');
+        $workout->update(['last_used_at' => now()]);
+
+        return response()->json(['session' => $this->formatSession($session->fresh())]);
+    }
+
+    /**
      * Remove stored Garmin Connect session tokens for the current user.
      */
     public function garminDisconnect()

@@ -476,6 +476,61 @@ async function openDetail(session) {
     }
 }
 
+// ── Workout Picker ────────────────────────────────────────────────────────────
+const workoutPickerModal    = ref(false);
+const workoutPickerSession  = ref(null);
+const workoutLibrary        = ref([]);
+const workoutLibraryLoaded  = ref(false);
+const workoutLibraryLoading = ref(false);
+const workoutPickerSelected = ref(null);
+const workoutApplying       = ref(false);
+const workoutPickerError    = ref('');
+
+async function openWorkoutPicker(session) {
+    workoutPickerSession.value  = session;
+    workoutPickerSelected.value = null;
+    workoutPickerError.value    = '';
+    workoutPickerModal.value    = true;
+
+    if (!workoutLibraryLoaded.value) {
+        workoutLibraryLoading.value = true;
+        try {
+            const { data } = await axios.get(route('workouts.list'));
+            workoutLibrary.value       = data.workouts ?? [];
+            workoutLibraryLoaded.value = true;
+        } catch {
+            workoutPickerError.value = 'Workouts konnten nicht geladen werden.';
+        } finally {
+            workoutLibraryLoading.value = false;
+        }
+    }
+}
+
+async function applyWorkout() {
+    if (!workoutPickerSession.value || !workoutPickerSelected.value) return;
+    workoutApplying.value    = true;
+    workoutPickerError.value = '';
+    try {
+        const { data } = await axios.patch(
+            route('training-sessions.apply-workout', workoutPickerSession.value.id),
+            { workout_id: workoutPickerSelected.value.id }
+        );
+        updateSessionInList(data.session);
+        workoutPickerModal.value = false;
+    } catch (e) {
+        workoutPickerError.value = e?.response?.data?.error ?? 'Fehler beim Anwenden.';
+    } finally {
+        workoutApplying.value = false;
+    }
+}
+
+const workoutTypeLabel = {
+    easy_run:  'Lockerer Lauf',
+    tempo_run: 'Tempolauf',
+    interval:  'Intervall',
+    long_run:  'Langer Lauf',
+};
+
 // ── Race Prediction ───────────────────────────────────────────────────────────
 const prediction = computed(() => {
     const p = currentPlan.value;
@@ -987,6 +1042,16 @@ const groupedSteps = computed(() => {
                                         Details
                                     </button>
 
+                                    <!-- Eigenes Workout (planned sessions only) -->
+                                    <button
+                                        v-if="session.status === 'planned' && !isPastEvent"
+                                        @click="openWorkoutPicker(session)"
+                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors"
+                                    >
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
+                                        Eigenes Workout
+                                    </button>
+
                                     <!-- Kein Training (planned sessions, not race day) -->
                                     <button
                                         v-if="session.status === 'planned' && session.planned_date !== event.event_date"
@@ -1030,6 +1095,73 @@ const groupedSteps = computed(() => {
                     <button @click="confirmSkip" :disabled="skipLoading" class="rounded-xl bg-gray-700 dark:bg-slate-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors">
                         <svg v-if="skipLoading" class="inline h-4 w-4 animate-spin mr-1" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                         Bestätigen
+                    </button>
+                </div>
+            </div>
+        </Modal>
+
+        <!-- ── Workout Picker Modal ─────────────────────────────────────────── -->
+        <Modal :show="workoutPickerModal" @close="workoutPickerModal = false">
+            <div class="p-5 bg-white dark:bg-slate-900">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="h-9 w-9 rounded-xl bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center shrink-0">
+                        <svg class="h-5 w-5 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
+                    </div>
+                    <div>
+                        <h2 class="text-base font-bold text-gray-900 dark:text-white">Eigenes Workout wählen</h2>
+                        <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{{ workoutPickerSession?.title }}</p>
+                    </div>
+                </div>
+
+                <!-- Loading -->
+                <div v-if="workoutLibraryLoading" class="flex items-center gap-2 py-6 justify-center text-sm text-gray-400 dark:text-slate-500">
+                    <svg class="h-4 w-4 animate-spin text-indigo-400 shrink-0" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                    Workouts laden…
+                </div>
+
+                <!-- Empty library -->
+                <div v-else-if="!workoutPickerError && workoutLibrary.length === 0" class="py-8 text-center">
+                    <p class="text-sm font-medium text-gray-700 dark:text-slate-300">Noch keine Workouts gespeichert</p>
+                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">Erstelle dein erstes Workout im Workout-Baukasten.</p>
+                    <Link :href="route('workouts.create')" class="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors">
+                        Workout erstellen
+                    </Link>
+                </div>
+
+                <!-- Workout list -->
+                <div v-else-if="!workoutLibraryLoading" class="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    <button
+                        v-for="w in workoutLibrary"
+                        :key="w.id"
+                        @click="workoutPickerSelected = w"
+                        class="w-full text-left p-3 rounded-xl border transition-colors"
+                        :class="workoutPickerSelected?.id === w.id
+                            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10'
+                            : 'border-gray-100 dark:border-slate-700 hover:border-gray-200 dark:hover:border-slate-600 bg-white dark:bg-slate-900'"
+                    >
+                        <div class="flex items-start justify-between gap-2">
+                            <span class="text-sm font-semibold text-gray-900 dark:text-white leading-snug">{{ w.name }}</span>
+                            <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 shrink-0">{{ workoutTypeLabel[w.type] ?? w.type }}</span>
+                        </div>
+                        <div class="flex gap-3 mt-1.5 text-xs text-gray-400 dark:text-slate-500">
+                            <span v-if="w.estimated_distance_km">{{ w.estimated_distance_km }} km</span>
+                            <span v-if="w.estimated_duration_min">{{ w.estimated_duration_min }} min</span>
+                            <span v-if="!w.estimated_distance_km && !w.estimated_duration_min">Keine Zeitangabe</span>
+                        </div>
+                    </button>
+                </div>
+
+                <p v-if="workoutPickerError" class="mt-3 text-sm text-red-600 dark:text-red-400">{{ workoutPickerError }}</p>
+
+                <div class="mt-5 flex gap-3 justify-end">
+                    <button @click="workoutPickerModal = false" class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">Abbrechen</button>
+                    <button
+                        @click="applyWorkout"
+                        :disabled="!workoutPickerSelected || workoutApplying"
+                        class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >
+                        <svg v-if="workoutApplying" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                        Workout übernehmen
                     </button>
                 </div>
             </div>

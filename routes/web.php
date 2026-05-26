@@ -391,6 +391,18 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/training-sessions/{session}/nutrition-tips', [TrainingSessionController::class, 'nutritionTips'])->name('training-sessions.nutrition-tips');
     Route::get('/training-sessions/{session}/steps', [TrainingSessionController::class, 'sessionSteps'])->name('training-sessions.steps');
     Route::patch('/training-sessions/{session}/rate', [TrainingSessionController::class, 'rate'])->name('training-sessions.rate');
+    Route::patch('/training-sessions/{session}/apply-workout', [TrainingSessionController::class, 'applyWorkout'])->name('training-sessions.apply-workout');
+
+    // ── Workout Baukasten ─────────────────────────────────────────────────────
+    Route::get('/workouts',                        [\App\Http\Controllers\WorkoutController::class, 'index'])    ->name('workouts.index');
+    Route::get('/workouts/new',                    [\App\Http\Controllers\WorkoutController::class, 'create'])   ->name('workouts.create');
+    Route::get('/workouts/list',                   [\App\Http\Controllers\WorkoutController::class, 'list'])     ->name('workouts.list');
+    Route::get('/workouts/{workout}/edit',         [\App\Http\Controllers\WorkoutController::class, 'edit'])     ->name('workouts.edit');
+    Route::post('/workouts',                       [\App\Http\Controllers\WorkoutController::class, 'store'])    ->name('workouts.store');
+    Route::put('/workouts/{workout}',              [\App\Http\Controllers\WorkoutController::class, 'update'])   ->name('workouts.update');
+    Route::delete('/workouts/{workout}',           [\App\Http\Controllers\WorkoutController::class, 'destroy'])  ->name('workouts.destroy');
+    Route::post('/workouts/{workout}/duplicate',   [\App\Http\Controllers\WorkoutController::class, 'duplicate'])->name('workouts.duplicate');
+    Route::post('/workouts/{workout}/send-to-garmin', [\App\Http\Controllers\WorkoutController::class, 'sendToGarmin'])->name('workouts.send-to-garmin');
 
     Route::post('/plans/generate', [PlanController::class, 'generate'])->name('plans.generate');
 
