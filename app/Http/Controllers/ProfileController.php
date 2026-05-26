@@ -140,34 +140,45 @@ class ProfileController extends Controller
         }
 
         try {
+            // Send a minimal 1-step workout so the FIT-Service completes the full
+            // auth flow and returns a session token. Empty steps would fail validation
+            // before login, so at least one step is required.
             $response = \Illuminate\Support\Facades\Http::timeout(30)
                 ->post(rtrim($serviceUrl, '/') . '/send-to-garmin', [
-                    'name'            => 'Zone3 Auth',
+                    'name'            => 'Zone3 Verbindungstest',
                     'date'            => now()->toDateString(),
                     'sport'           => 'running',
-                    'steps'           => [],
+                    'steps'           => [[
+                        'name'         => 'Test',
+                        'step_type'    => 'warmup',
+                        'duration_sec' => 60,
+                        'meters'       => null,
+                        'speedMps'     => null,
+                        'lap_button'   => false,
+                    ]],
                     'garmin_email'    => $request->email,
                     'garmin_password' => $request->password,
                 ]);
 
             $json = $response->json() ?: [];
 
-            if (isset($json['detail'])) {
-                $detail = $json['detail'];
+            // Extract session even when detail/error is also present
+            $session = $json['session'] ?? null;
+
+            if (! $session) {
+                // Detect specific auth errors
+                $detail = is_string($json['detail'] ?? null) ? $json['detail'] : '';
                 if ($detail === 'mfa_required')
                     return response()->json(['error' => 'mfa_required'], 422);
                 if (str_starts_with($detail, 'login_failed:'))
                     return response()->json(['error' => 'login_failed'], 422);
-                // Other errors (e.g. empty steps) are OK if we got a session back
-            }
 
-            if (empty($json['session'])) {
-                return response()->json(['error' => 'Keine Session zurückgegeben. Bitte überprüfe deine Zugangsdaten.'], 422);
+                return response()->json(['error' => 'Keine Session zurückgegeben. Zugangsdaten prüfen oder MFA-Konto wird nicht unterstützt.'], 422);
             }
 
             Auth::user()->update([
                 'garmin_email'   => $request->email,
-                'garmin_session' => $json['session'],
+                'garmin_session' => $session,
             ]);
 
             return response()->json(['success' => true]);
