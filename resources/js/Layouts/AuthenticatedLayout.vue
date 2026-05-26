@@ -10,6 +10,8 @@ import CoachSlideOver from '@/Components/CoachSlideOver.vue';
 const { updateReady, startVersionPolling, reload } = useVersionCheck();
 onMounted(() => startVersionPolling());
 
+const moreOpen = ref(false);
+
 const page = usePage();
 const user       = computed(() => page.props.auth.user);
 const isAdmin    = computed(() => page.props.auth.isAdmin);
@@ -56,26 +58,38 @@ const navItems = [
     },
 ];
 
-// Mobile bottom bar: max 5 tabs so each touch target stays ≥ 44 px wide.
-// When a plan is active it replaces "Statistiken" to keep the most relevant items.
+// Mobile bottom bar: 4 primary tabs + "Mehr" button that opens a full sheet.
 const mobileNavItems = computed(() => {
-    const base = activePlan.value
-        ? [
+    if (activePlan.value) {
+        return [
             navItems[0], // Dashboard
             navItems[1], // Aktivitäten
             { label: 'Plan', routeName: 'events.plan.show', planId: activePlan.value.event_id,
               icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />` },
             navItems[4], // Kalender
-            navItems[6], // Profil
-          ]
-        : [
-            navItems[0], // Dashboard
-            navItems[1], // Aktivitäten
-            navItems[4], // Kalender
-            navItems[2], // Statistiken
-            navItems[6], // Profil
-          ];
-    return base;
+        ];
+    }
+    return [
+        navItems[0], // Dashboard
+        navItems[1], // Aktivitäten
+        navItems[4], // Kalender
+        navItems[6], // Profil
+    ];
+});
+
+// Items shown in the "Mehr" sheet
+const moreNavItems = computed(() => {
+    const items = [
+        navItems[2], // Statistiken
+        navItems[3], // Events
+        navItems[5], // Workouts
+        navItems[6], // Profil
+    ];
+    if (activePlan.value) items.splice(0, 0, {
+        label: activePlan.value.event_name, routeName: 'events.plan.show', planId: activePlan.value.event_id,
+        icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />`,
+    });
+    return items;
 });
 </script>
 
@@ -290,7 +304,7 @@ const mobileNavItems = computed(() => {
         <CoachSlideOver />
 
         <!-- ══════════════════════════════════════
-             MOBILE BOTTOM TAB BAR (max 5 items)
+             MOBILE BOTTOM TAB BAR
              ══════════════════════════════════════ -->
         <nav class="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 pb-safe-tabbar">
             <div class="flex items-center h-16">
@@ -299,19 +313,131 @@ const mobileNavItems = computed(() => {
                     :key="item.routeName"
                     :href="item.planId ? route(item.routeName, item.planId) : route(item.routeName)"
                     class="flex-1 flex flex-col items-center justify-center gap-1 h-full min-w-0 transition-colors relative"
-                    :class="(item.planId ? route().current(item.routeName) : route().current(item.routeName))
+                    :class="route().current(item.routeName)
                         ? 'text-indigo-600 dark:text-indigo-400'
                         : 'text-gray-400 dark:text-slate-500'"
                 >
                     <span
-                        v-if="item.planId ? route().current(item.routeName) : route().current(item.routeName)"
+                        v-if="route().current(item.routeName)"
                         class="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 bg-indigo-500 dark:bg-indigo-400 rounded-b-full"
                     />
                     <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
                     <span class="text-[10px] font-medium leading-none truncate max-w-full px-0.5">{{ item.label }}</span>
                 </Link>
+
+                <!-- Mehr button -->
+                <button
+                    @click="moreOpen = true"
+                    class="flex-1 flex flex-col items-center justify-center gap-1 h-full min-w-0 transition-colors relative"
+                    :class="moreOpen ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-slate-500'"
+                >
+                    <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                    </svg>
+                    <span class="text-[10px] font-medium leading-none">Mehr</span>
+                </button>
             </div>
         </nav>
+
+        <!-- ══════════════════════════════════════
+             MOBILE "MEHR" SHEET
+             ══════════════════════════════════════ -->
+        <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="opacity-0"
+            enter-to-class="opacity-100"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
+        >
+            <div v-if="moreOpen" class="lg:hidden fixed inset-0 z-40 bg-black/40" @click="moreOpen = false" />
+        </Transition>
+
+        <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="translate-y-full"
+            enter-to-class="translate-y-0"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="translate-y-0"
+            leave-to-class="translate-y-full"
+        >
+            <div v-if="moreOpen"
+                class="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-white dark:bg-slate-900 rounded-t-2xl shadow-2xl pb-safe-tabbar overflow-hidden"
+            >
+                <!-- Sheet handle -->
+                <div class="flex justify-center pt-3 pb-1">
+                    <div class="h-1 w-10 rounded-full bg-gray-200 dark:bg-slate-700" />
+                </div>
+
+                <!-- Header -->
+                <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-slate-800">
+                    <span class="text-sm font-semibold text-gray-900 dark:text-white">Menü</span>
+                    <button @click="moreOpen = false"
+                        class="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Nav links -->
+                <nav class="px-3 py-3 space-y-0.5">
+                    <Link
+                        v-for="item in moreNavItems"
+                        :key="item.routeName"
+                        :href="item.planId ? route(item.routeName, item.planId) : route(item.routeName)"
+                        @click="moreOpen = false"
+                        class="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors"
+                        :class="route().current(item.routeName)
+                            ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400'
+                            : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800'"
+                    >
+                        <span class="h-9 w-9 rounded-xl flex items-center justify-center shrink-0"
+                            :class="route().current(item.routeName)
+                                ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400'
+                                : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
+                        </span>
+                        <span class="truncate">{{ item.label }}</span>
+                        <svg v-if="route().current(item.routeName)" class="ml-auto h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                        </svg>
+                    </Link>
+
+                    <!-- Admin link -->
+                    <Link
+                        v-if="isAdmin"
+                        :href="route('admin.dashboard')"
+                        @click="moreOpen = false"
+                        class="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                    >
+                        <span class="h-9 w-9 rounded-xl flex items-center justify-center shrink-0 bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                            </svg>
+                        </span>
+                        Admin-Bereich
+                    </Link>
+                </nav>
+
+                <!-- User info + dark mode -->
+                <div class="mx-3 mt-1 mb-2 rounded-xl bg-gray-50 dark:bg-slate-800 px-3 py-2.5 flex items-center gap-3">
+                    <UserAvatar :user="user" size="sm" />
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ user.name }}</p>
+                    </div>
+                    <button @click="toggle; moreOpen = false"
+                        class="h-8 w-8 flex items-center justify-center rounded-xl bg-white dark:bg-slate-700 text-gray-500 dark:text-slate-400 shadow-sm transition-colors">
+                        <svg v-if="isDark" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+                        </svg>
+                        <svg v-else class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </Transition>
 
     </div>
 </template>
