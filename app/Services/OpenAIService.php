@@ -63,9 +63,8 @@ class OpenAIService
                 'Authorization' => 'Bearer ' . $this->apiKey,
                 'Content-Type'  => 'application/json',
             ])->timeout($timeout)->post($this->baseUrl . '/chat/completions', [
-                'model'       => $this->model,
-                'messages'    => $messages,
-                'temperature' => $temperature,
+                'model'                 => $this->model,
+                'messages'              => $messages,
                 'max_completion_tokens' => $maxTokens,
             ]);
 
