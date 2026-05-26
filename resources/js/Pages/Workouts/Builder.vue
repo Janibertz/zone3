@@ -85,6 +85,7 @@ function addBlock(def) {
         _id: id, type: def.type, label: def.label,
         duration_mode: 'time', duration_sec: def.type === 'rest' ? 120 : 600,
         distance_m: null, pace_zone: def.zone, pace: '',
+        ...(def.type === 'warmup' || def.type === 'cooldown' ? { lap_button: false } : {}),
     };
     if (def.hasRampSteps) {
         block.steps = def.type === 'ramp_down'
@@ -220,7 +221,7 @@ const previewSteps = computed(() => blocks.value.map((b, idx) => {
     if (b.duration_mode === 'distance' && b.distance_m) durLabel = fmtDist(b.distance_m);
     else if (b.duration_sec) durLabel = fmtDur(b.duration_sec);
     const zoneStr = zone > 0 ? zonePaceLabel(zone) : null;
-    return { key: b._id ?? idx, label: b.label, sublabel: [durLabel, zoneStr].filter(Boolean).join(' · '), dot: ZONE_COLORS[zone]?.dot ?? 'bg-gray-400' };
+    return { key: b._id ?? idx, label: b.label, sublabel: [durLabel, zoneStr].filter(Boolean).join(' · '), dot: ZONE_COLORS[zone]?.dot ?? 'bg-gray-400', lapButton: !!b.lap_button };
 }));
 
 async function save() {
@@ -340,6 +341,10 @@ async function save() {
                                         class="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400">
                                         {{ step.reps }}×
                                     </span>
+                                    <span v-if="step.lapButton"
+                                        class="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-sky-100 dark:bg-sky-500/15 text-sky-600 dark:text-sky-400 tracking-wide">
+                                        LAP
+                                    </span>
                                 </div>
                             </div>
 
@@ -380,6 +385,10 @@ async function save() {
                                 </div>
                                 <div class="flex-1 min-w-0">
                                     <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ block.label }}</span>
+                                    <span v-if="block.lap_button"
+                                        class="text-[10px] font-bold ml-2 px-1.5 py-0.5 rounded-full bg-sky-100 dark:bg-sky-500/15 text-sky-600 dark:text-sky-400 tracking-wide">
+                                        LAP
+                                    </span>
                                     <span class="text-xs text-gray-400 dark:text-slate-500 ml-2">
                                         <template v-if="block.type === 'repeat'">{{ block.repetitions }}× · {{ block.steps?.length }} Schritte</template>
                                         <template v-else-if="block.type === 'ramp_up' || block.type === 'ramp_down'">{{ block.steps?.length }} Stufen</template>
@@ -465,6 +474,23 @@ async function save() {
                                             <label class="block text-[11px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">Pace-Ziel (MM:SS)</label>
                                             <input v-model="block.pace" type="text" placeholder="z.B. 5:30"
                                                 class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Lap-Taste (nur Aufwärmen + Auslaufen) -->
+                                    <div v-if="block.type === 'warmup' || block.type === 'cooldown'"
+                                        class="flex items-start gap-3 rounded-xl bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/30 px-3 py-2.5">
+                                        <button type="button" @click="block.lap_button = !block.lap_button"
+                                            class="mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors duration-200 relative focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"
+                                            :class="block.lap_button ? 'bg-sky-500' : 'bg-gray-200 dark:bg-slate-700'">
+                                            <span class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200"
+                                                :class="block.lap_button ? 'translate-x-4' : 'translate-x-0.5'" />
+                                        </button>
+                                        <div>
+                                            <p class="text-xs font-semibold text-sky-700 dark:text-sky-400">Lap-Taste aktivieren</p>
+                                            <p class="text-[11px] text-sky-600/70 dark:text-sky-400/60 mt-0.5 leading-snug">
+                                                Ermöglicht das frühzeitige Beenden per Lap-Taste auf der Uhr und springt direkt in den nächsten Block.
+                                            </p>
                                         </div>
                                     </div>
                                 </template>

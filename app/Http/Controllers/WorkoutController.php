@@ -302,6 +302,7 @@ class WorkoutController extends Controller
             'duration_sec' => $durationSec ? (int) $durationSec : null,
             'meters'       => $meters ? (int) $meters : null,
             'speedMps'     => $speedMps,
+            'lap_button'   => !empty($block['lap_button']),
         ];
     }
 
