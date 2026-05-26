@@ -28,6 +28,7 @@ const tabs = [
     { key: 'coach',          label: 'Mein Coach',         icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />' },
     { key: 'athlete',        label: 'Athletenprofil',     icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />' },
     { key: 'notifications',  label: 'Benachrichtigungen', icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />' },
+    { key: 'connections',    label: 'Verbindungen',       icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />' },
     { key: 'security',       label: 'Sicherheit',         icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />' },
     { key: 'account',        label: 'Konto',              icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />' },
 ];
@@ -356,6 +357,58 @@ const closeDeleteModal = () => { confirmingDeletion.value = false; deleteForm.cl
 const confirmStravaDisconnect = ref(false);
 const stravaDisconnectForm = useForm({});
 const disconnectStrava = () => { stravaDisconnectForm.delete(route('strava.disconnect'), { onSuccess: () => { confirmStravaDisconnect.value = false; } }); };
+
+// ── Garmin connection ─────────────────────────────────────────────────────────
+const garminConnected   = computed(() => !!page.props.auth.garminConnected);
+const garminSavedEmail  = computed(() => page.props.auth.garminEmail ?? '');
+const garminEmail       = ref('');
+const garminPassword    = ref('');
+const garminConnecting  = ref(false);
+const garminConnectError= ref('');
+const garminConnectOk   = ref(false);
+const garminDisconnecting = ref(false);
+const showGarminForm    = ref(false);
+
+async function connectGarmin() {
+    if (!garminEmail.value || !garminPassword.value) return;
+    garminConnecting.value   = true;
+    garminConnectError.value = '';
+    garminConnectOk.value    = false;
+    try {
+        await axios.post(route('profile.garmin-connect'), {
+            email: garminEmail.value,
+            password: garminPassword.value,
+        });
+        garminConnectOk.value  = true;
+        showGarminForm.value   = false;
+        garminPassword.value   = '';
+        // Update shared Inertia props so the connected state reflects immediately
+        page.props.auth.garminConnected = true;
+        page.props.auth.garminEmail     = garminEmail.value;
+    } catch (e) {
+        const err = e.response?.data?.error ?? 'Verbindung fehlgeschlagen.';
+        garminConnectError.value = err === 'login_failed'
+            ? 'Falsche E-Mail oder Passwort.'
+            : err === 'mfa_required'
+                ? 'Zwei-Faktor-Authentifizierung aktiviert – derzeit nicht unterstützt.'
+                : err;
+    } finally {
+        garminConnecting.value = false;
+    }
+}
+
+async function disconnectGarmin() {
+    garminDisconnecting.value = true;
+    try {
+        await axios.delete(route('garmin.disconnect'));
+        page.props.auth.garminConnected = false;
+        page.props.auth.garminEmail     = null;
+        garminConnectOk.value           = false;
+        garminEmail.value               = '';
+    } catch { /* ignore */ } finally {
+        garminDisconnecting.value = false;
+    }
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:border-indigo-400 dark:focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors';
@@ -820,6 +873,119 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                                 <span v-if="notifSaved" class="text-sm text-green-600 dark:text-green-400 font-medium">Gespeichert</span>
                             </Transition>
                         </div>
+                    </div>
+                </template>
+
+                <!-- ── VERBINDUNGEN ── -->
+                <template v-else-if="activeTab === 'connections'">
+                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 dark:border-slate-800">
+                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Verbindungen</h2>
+                        <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Drittanbieter-Dienste mit Zone3 verbinden</p>
+                    </div>
+                    <div class="p-4 sm:p-6 space-y-4">
+
+                        <!-- Garmin Card -->
+                        <div class="rounded-2xl border border-gray-100 dark:border-slate-800 overflow-hidden">
+                            <div class="flex items-center justify-between gap-4 px-4 py-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
+                                        :class="garminConnected ? 'bg-green-50 dark:bg-green-500/10' : 'bg-gray-100 dark:bg-slate-800'">
+                                        <svg class="h-6 w-6" :class="garminConnected ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-slate-500'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-semibold text-gray-900 dark:text-white">Garmin Connect</p>
+                                        <p v-if="garminConnected" class="text-xs text-green-600 dark:text-green-400 mt-0.5">Verbunden · {{ garminSavedEmail }}</p>
+                                        <p v-else class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Nicht verbunden</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center gap-2 shrink-0">
+                                    <!-- Erfolgreich verbunden -->
+                                    <Transition enter-active-class="transition duration-300" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0">
+                                        <span v-if="garminConnectOk" class="text-xs font-semibold text-green-600 dark:text-green-400">Verbunden ✓</span>
+                                    </Transition>
+                                    <!-- Trennen -->
+                                    <button v-if="garminConnected" @click="disconnectGarmin" :disabled="garminDisconnecting"
+                                        class="rounded-xl border border-red-200 dark:border-red-500/30 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 transition-colors">
+                                        {{ garminDisconnecting ? 'Trenne…' : 'Trennen' }}
+                                    </button>
+                                    <!-- Verbinden / Aktualisieren -->
+                                    <button @click="showGarminForm = !showGarminForm"
+                                        class="rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors"
+                                        :class="garminConnected
+                                            ? 'border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800'
+                                            : 'bg-indigo-600 text-white hover:bg-indigo-700'">
+                                        {{ garminConnected ? 'Aktualisieren' : 'Verbinden' }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Login-Formular (ausklappbar) -->
+                            <Transition
+                                enter-active-class="transition duration-150 ease-out"
+                                enter-from-class="opacity-0 -translate-y-1"
+                                enter-to-class="opacity-100 translate-y-0"
+                                leave-active-class="transition duration-100 ease-in"
+                                leave-from-class="opacity-100 translate-y-0"
+                                leave-to-class="opacity-0 -translate-y-1">
+                                <div v-if="showGarminForm" class="border-t border-gray-100 dark:border-slate-800 px-4 py-4 bg-gray-50 dark:bg-slate-800/50 space-y-3">
+                                    <p class="text-xs text-gray-500 dark:text-slate-400">
+                                        Gib deine Garmin Connect Zugangsdaten ein. Die Session wird verschlüsselt gespeichert — du musst dich nur einmalig einloggen.
+                                    </p>
+                                    <div v-if="garminConnectError" class="rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-3 py-2.5 text-xs text-red-700 dark:text-red-400">
+                                        {{ garminConnectError }}
+                                    </div>
+                                    <input v-model="garminEmail" type="email" placeholder="Garmin E-Mail" autocomplete="email"
+                                        :class="inputClass" />
+                                    <input v-model="garminPassword" type="password" placeholder="Passwort" autocomplete="current-password"
+                                        @keydown.enter="connectGarmin"
+                                        :class="inputClass" />
+                                    <div class="flex gap-2">
+                                        <button @click="connectGarmin" :disabled="garminConnecting || !garminEmail || !garminPassword"
+                                            class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                                            <svg v-if="garminConnecting" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                            {{ garminConnecting ? 'Verbinde…' : 'Verbinden' }}
+                                        </button>
+                                        <button @click="showGarminForm = false; garminConnectError = ''"
+                                            class="rounded-xl border border-gray-200 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+                                            Abbrechen
+                                        </button>
+                                    </div>
+                                </div>
+                            </Transition>
+                        </div>
+
+                        <!-- Strava Card (umgezogen von Security) -->
+                        <div class="rounded-2xl border border-gray-100 dark:border-slate-800 overflow-hidden">
+                            <div class="flex items-center justify-between gap-4 px-4 py-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
+                                        :class="props.stravaConnected ? 'bg-orange-50 dark:bg-orange-500/10' : 'bg-gray-100 dark:bg-slate-800'">
+                                        <svg class="h-6 w-6" :class="props.stravaConnected ? 'text-orange-500' : 'text-gray-400 dark:text-slate-500'" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-semibold text-gray-900 dark:text-white">Strava</p>
+                                        <p v-if="props.stravaConnected" class="text-xs text-green-600 dark:text-green-400 mt-0.5">Verbunden · {{ props.stravaAccount?.username }}</p>
+                                        <p v-else class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Nicht verbunden</p>
+                                    </div>
+                                </div>
+                                <div class="flex gap-2 shrink-0">
+                                    <button v-if="props.stravaConnected" @click="confirmStravaDisconnect = true"
+                                        class="rounded-xl border border-red-200 dark:border-red-500/30 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
+                                        Trennen
+                                    </button>
+                                    <Link v-else href="/strava/connect"
+                                        class="rounded-xl bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 transition-colors">
+                                        Verbinden
+                                    </Link>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </template>
 

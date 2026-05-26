@@ -127,6 +127,57 @@ class ProfileController extends Controller
         return Redirect::to('/');
     }
 
+    public function garminConnect(Request $request)
+    {
+        $request->validate([
+            'email'    => 'required|email',
+            'password' => 'required|string|min:1',
+        ]);
+
+        $serviceUrl = config('services.fit.service_url');
+        if (! $serviceUrl) {
+            return response()->json(['error' => 'FIT-Service nicht verfügbar.'], 503);
+        }
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(30)
+                ->post(rtrim($serviceUrl, '/') . '/send-to-garmin', [
+                    'name'            => 'Zone3 Auth',
+                    'date'            => now()->toDateString(),
+                    'sport'           => 'running',
+                    'steps'           => [],
+                    'garmin_email'    => $request->email,
+                    'garmin_password' => $request->password,
+                ]);
+
+            $json = $response->json() ?: [];
+
+            if (isset($json['detail'])) {
+                $detail = $json['detail'];
+                if ($detail === 'mfa_required')
+                    return response()->json(['error' => 'mfa_required'], 422);
+                if (str_starts_with($detail, 'login_failed:'))
+                    return response()->json(['error' => 'login_failed'], 422);
+                // Other errors (e.g. empty steps) are OK if we got a session back
+            }
+
+            if (empty($json['session'])) {
+                return response()->json(['error' => 'Keine Session zurückgegeben. Bitte überprüfe deine Zugangsdaten.'], 422);
+            }
+
+            Auth::user()->update([
+                'garmin_email'   => $request->email,
+                'garmin_session' => $json['session'],
+            ]);
+
+            return response()->json(['success' => true]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Garmin connect error: ' . $e->getMessage());
+            return response()->json(['error' => 'Verbindung fehlgeschlagen: ' . $e->getMessage()], 503);
+        }
+    }
+
     private function speedToPace(float $speed): string
     {
         if ($speed <= 0) return '–';
