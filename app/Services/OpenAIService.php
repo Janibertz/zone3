@@ -66,7 +66,7 @@ class OpenAIService
                 'model'       => $this->model,
                 'messages'    => $messages,
                 'temperature' => $temperature,
-                'max_tokens'  => $maxTokens,
+                'max_completion_tokens' => $maxTokens,
             ]);
 
             $durationMs = (int) round(microtime(true) * 1000) - $startMs;
