@@ -44,6 +44,11 @@
                 window.addEventListener('load', () => {
                     navigator.serviceWorker.register('/sw.js').catch(() => {});
                 });
+                // When a new SW takes control (after update), reload to apply new assets
+                let swRefreshing = false;
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    if (!swRefreshing) { swRefreshing = true; window.location.reload(); }
+                });
             }
         </script>
     </body>

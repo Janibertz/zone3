@@ -28,6 +28,14 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
+// App version endpoint — used by frontend to detect new deployments
+Route::get('/app-version', function () {
+    $manifest = public_path('build/manifest.json');
+    $version  = file_exists($manifest) ? substr(md5_file($manifest), 0, 12) : 'dev';
+    return response()->json(['version' => $version])
+        ->header('Cache-Control', 'no-store, no-cache');
+})->name('app.version');
+
 Route::get('/', function () {
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),

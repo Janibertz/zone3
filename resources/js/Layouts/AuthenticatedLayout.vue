@@ -1,10 +1,14 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useDarkMode } from '@/Composables/useDarkMode';
 import { useCoachChat } from '@/Composables/useCoachChat';
+import { useVersionCheck } from '@/Composables/useVersionCheck';
 import UserAvatar from '@/Components/UserAvatar.vue';
 import CoachSlideOver from '@/Components/CoachSlideOver.vue';
+
+const { updateReady, startVersionPolling, reload } = useVersionCheck();
+onMounted(() => startVersionPolling());
 
 const page = usePage();
 const user       = computed(() => page.props.auth.user);
@@ -77,6 +81,27 @@ const mobileNavItems = computed(() => {
 
 <template>
     <div class="min-h-screen bg-gray-50 dark:bg-slate-950">
+
+        <!-- ══════════════════════════════════════
+             UPDATE BANNER
+             ══════════════════════════════════════ -->
+        <div
+            v-if="updateReady"
+            class="fixed top-0 inset-x-0 z-50 flex items-center justify-between gap-3 px-4 py-2.5 bg-indigo-600 text-white text-sm shadow-lg"
+        >
+            <div class="flex items-center gap-2">
+                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                </svg>
+                <span class="font-medium">Neue Version verfügbar</span>
+            </div>
+            <button
+                @click="reload"
+                class="shrink-0 rounded-lg bg-white/20 hover:bg-white/30 px-3 py-1 text-xs font-semibold transition-colors"
+            >
+                Jetzt aktualisieren
+            </button>
+        </div>
 
         <!-- ══════════════════════════════════════
              DESKTOP SIDEBAR (hidden on mobile)
