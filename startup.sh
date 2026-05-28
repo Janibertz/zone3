@@ -13,6 +13,9 @@ php artisan wiki:seed --no-interaction || true
 echo "[startup] Linking storage..."
 php artisan storage:link --force 2>/dev/null || true
 
+echo "[startup] Generating PWA icons..."
+php artisan pwa:icons --no-interaction || true
+
 echo "[startup] Caching config/routes/views..."
 php artisan config:cache
 php artisan route:cache
