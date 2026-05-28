@@ -768,7 +768,10 @@ const chartData = computed(() => {
     // Fill area below curve
     const fillD = pathD + ` L ${points[points.length - 1].x} ${H - padY} L ${padX} ${H - padY} Z`;
 
-    return { points, pathD, fillD, W, H, minPace, maxPace, padX, padY };
+    // Show fewer pace labels when many points to avoid clutter
+    const labelStep = points.length <= 8 ? 1 : points.length <= 15 ? 2 : points.length <= 25 ? 4 : 6;
+
+    return { points, pathD, fillD, W, H, minPace, maxPace, padX, padY, labelStep };
 });
 
 // CTL/ATL chart — dual-line SVG over last 60 days
@@ -1643,13 +1646,13 @@ function syncStrava() {
                         <!-- SVG History Chart -->
                         <div v-if="chartData" class="mt-4 pt-4 border-t border-white border-opacity-20">
                             <p class="text-xs font-semibold text-indigo-200 uppercase tracking-wider mb-3">📈 Entwicklung Schwellenpace</p>
-                            <div class="w-full overflow-hidden">
-                                <svg :viewBox="`0 0 ${chartData.W} ${chartData.H}`" class="w-full" preserveAspectRatio="none" style="height:100px">
+                            <div class="w-full rounded-lg overflow-hidden" style="aspect-ratio: 560 / 120;">
+                                <svg :viewBox="`0 0 ${chartData.W} ${chartData.H}`" class="w-full h-full" preserveAspectRatio="none">
                                     <path :d="chartData.fillD" fill="rgba(255,255,255,0.08)" />
                                     <path :d="chartData.pathD" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round" />
                                     <g v-for="(p, i) in chartData.points" :key="i">
                                         <circle :cx="p.x" :cy="p.y" r="4" fill="white" opacity="0.9" />
-                                        <text v-if="i === 0 || i === chartData.points.length - 1 || i % 3 === 0"
+                                        <text v-if="i === 0 || i === chartData.points.length - 1 || i % chartData.labelStep === 0"
                                             :x="p.x" :y="p.y - 8"
                                             text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.85)"
                                             font-family="monospace">
