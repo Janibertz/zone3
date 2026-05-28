@@ -41,6 +41,9 @@ function triggerWeeklyReview() {
     showWeeklyModal.value = false;
     router.post(route('admin.users.trigger-weekly-review', props.user.id), {}, { preserveScroll: true });
 }
+function recalculateThreshold() {
+    router.post(route('admin.users.recalculate-threshold', props.user.id), {}, { preserveScroll: true });
+}
 function sendPasswordReset() {
     router.post(route('admin.users.reset-password', props.user.id), {}, { preserveScroll: true });
 }
@@ -201,6 +204,9 @@ const zoneColors = [
                     <button @click="confirmWeeklyReview"
                         class="px-3 py-1.5 text-xs rounded-xl border border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
                     >Weekly Review triggern</button>
+                    <button @click="recalculateThreshold"
+                        class="px-3 py-1.5 text-xs rounded-xl border border-purple-200 dark:border-purple-500/30 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-colors"
+                    >Schwellenpace berechnen</button>
                     <button @click="sendPasswordReset"
                         class="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
                     >Passwort-Reset senden</button>

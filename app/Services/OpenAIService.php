@@ -615,77 +615,89 @@ PROMPT;
             return null;
         }
 
-        // ── Mathematical pre-estimate ──────────────────────────────────────────
-        // Sort by total weight descending — highest-confidence activities first
-        $sorted = $processed;
-        usort($sorted, fn($a, $b) => $b['total_weight'] <=> $a['total_weight']);
-
-        // Take top 50% by weight for the math estimate
-        $topHalf      = array_slice($sorted, 0, max(1, (int)(count($sorted) * 0.5)));
-        $weightSum    = array_sum(array_column($topHalf, 'total_weight'));
-        $weightedPace = array_sum(array_map(fn($a) => $a['pace_sec'] * $a['total_weight'], $topHalf));
-        $avgPaceSec   = $weightSum > 0 ? $weightedPace / $weightSum : 0;
-
-        // If top activities are mostly above LTHR (too fast), nudge pace down slightly
-        $aboveLTHR = array_filter($topHalf, fn($a) => ($a['hr_diff_to_lthr'] ?? 0) > 5);
-        if (count($aboveLTHR) / count($topHalf) > 0.5) {
-            $avgPaceSec *= 1.04; // race pace → slightly slower to threshold pace
-        }
-
-        // If top activities are tempo (20-35 min) without HR, adjust to threshold
-        $tempoOnly = !$lthr || !$hasAnyHR;
-        $avgDuration = array_sum(array_column($topHalf, 'duration_min')) / count($topHalf);
-        if ($tempoOnly && $avgDuration < 35) {
-            $avgPaceSec *= 1.06;
-        }
-
-        $mathMins     = (int)($avgPaceSec / 60);
-        $mathSecs     = (int)($avgPaceSec % 60);
-        $mathEstimate = sprintf('%d:%02d', $mathMins, $mathSecs);
-
-        // ── Build AI prompt ────────────────────────────────────────────────────
-        $lthrContext = $lthr
-            ? "Schwellen-Herzfrequenz (LTHR) des Athleten: **{$lthr} bpm**"
-            : 'Keine LTHR hinterlegt — nur Dauer-basierte Analyse.';
-
-        $hrContext = $hasAnyHR
-            ? 'Herzfrequenzdaten vorhanden — Pace/HF-Analyse möglich.'
-            : 'Keine HF-Daten in diesen Aktivitäten.';
-
+        // ── Build activity list for prompt ────────────────────────────────────
         $activityLines = [];
         foreach ($processed as $a) {
             $hrStr = $a['avg_hr']
-                ? "HF: {$a['avg_hr']} bpm" . ($a['hr_diff_to_lthr'] !== null ? ' (' . sprintf('%+d', $a['hr_diff_to_lthr']) . ' bpm zu LTHR)' : '')
+                ? "HF: {$a['avg_hr']} bpm" . ($a['hr_diff_to_lthr'] !== null ? ' (' . sprintf('%+d', $a['hr_diff_to_lthr']) . ' bpm zur LTHR)' : '')
                 : 'HF: keine Daten';
             $activityLines[] = sprintf(
-                '- [%s] %s: %.2f km, %.0f min, Pace: %s min/km, %s | %s | Gewicht: %.2f | %s',
-                $a['date'], $a['name'], $a['distance_km'], $a['duration_min'],
-                $a['pace'], $hrStr, $a['hr_category'], $a['total_weight'], $a['hr_note']
+                '- [%s] %s: %.2f km, %.0f min, Pace: %s min/km, %s',
+                $a['date'], $a['name'], $a['distance_km'], $a['duration_min'], $a['pace'], $hrStr
             );
         }
         $activitiesText = implode("\n", $activityLines);
+        $lthrText       = $lthr ? "{$lthr}" : 'nicht hinterlegt';
 
         $prompt = <<<PROMPT
-Du bist ein Sportwissenschaftler und Lauf-Coach spezialisiert auf Laktatschwellen-Diagnostik.
+Du bist ein Sportwissenschaftler und Lauf-Coach spezialisiert auf Laktatschwellen-Diagnostik (LT2 / Lactate Threshold).
 
-**{$lthrContext}**
-{$hrContext}
+Ziel:
+Bestimme die physiologisch plausibelste Schwellenpace (Threshold Pace / LT2 Pace) des Athleten anhand der Trainings- und Wettkampfdaten.
 
-**Definition Schwellenpace (LTHR-Pace):** Die Pace, bei der der Athlet exakt an seiner Laktatschwelle läuft — die Herzfrequenz entspricht dann der LTHR. Maximal 45-60 Minuten haltbar.
+Definition Schwellenpace:
+Die Schwellenpace ist die maximale Pace, die typischerweise etwa 45–70 Minuten haltbar ist. Sie entspricht ungefähr der Intensität an der Laktatschwelle (LT2).
 
-**Aktivitäten (absteigend nach Relevanz gewichtet):**
+Wichtige physiologische Regeln:
+
+* Aktivitäten mit Herzfrequenz nahe der LTHR sind relevant, dürfen aber NICHT automatisch direkt als Schwellenpace interpretiert werden.
+* Lange Wettkämpfe (>75 Minuten) liegen häufig leicht unterhalb der tatsächlichen Schwellenpace.
+* Halbmarathon-Pace ist typischerweise ca. 3–6 % langsamer als die tatsächliche Schwellenpace.
+* Wenn eine Pace länger als 75 Minuten gehalten wurde, muss die Schwellenpace entsprechend etwas schneller geschätzt werden.
+* Durchschnitts-Herzfrequenz allein reicht NICHT zur Schwellenbestimmung aus:
+
+  * Cardiac Drift
+  * Wettkampfadrenalin
+  * Temperatur
+  * Ermüdung
+  * Koffein
+    können die HF verfälschen.
+* Neuere Aktivitäten sind wichtiger als ältere.
+* Intervalle, Tempodauerläufe und Wettkämpfe sind relevanter als lockere Dauerläufe.
+
+Analyse-Logik:
+
+1. Aktivitäten mit HF innerhalb ±5 bpm zur LTHR:
+
+   * sehr relevant
+   * aber Dauer berücksichtigen
+2. Aktivitäten mit HF innerhalb ±10 bpm:
+
+   * unterstützende Datenpunkte
+3. Aktivitäten mehr als 10 bpm unter LTHR:
+
+   * meist Easy/Recovery
+   * nur gering gewichten
+4. Läufe >75 Minuten:
+
+   * Pace typischerweise 3–8 % schneller auf Schwelle hochrechnen
+5. Läufe zwischen 35–70 Minuten:
+
+   * höchste physiologische Relevanz
+6. Intervall- und Tempoeinheiten:
+
+   * stärker gewichten als lockere Läufe
+7. Ziel:
+
+   * physiologisch plausible LT2-Pace
+   * keine reine HF-Gleichsetzung
+
+Wichtige Regeln:
+
+* Nutze keine einfache Durchschnittsbildung.
+* Nutze keine lineare HF-zu-Pace-Umrechnung.
+* Berücksichtige Dauer, Belastungsart und physiologische Plausibilität.
+* Ignoriere offensichtlich lockere Läufe weit unterhalb der Schwelle weitgehend.
+* Wenn Wettkampfdaten vorhanden sind, nutze sie intelligent zur Hochrechnung der Schwellenpace.
+
+Athletendaten:
+Schwellen-Herzfrequenz (LTHR): {$lthrText} bpm
+
+Aktivitäten:
 {$activitiesText}
 
-**Analyse-Logik:**
-1. Aktivitäten mit HF direkt an LTHR (±5 bpm) → ihre Pace IST die Schwellenpace (höchste Priorität)
-2. Aktivitäten mit HF ±10 bpm um LTHR → nahe der Schwellenpace, leicht korrigieren
-3. Aktivitäten mit HF >10 bpm unter LTHR → Easy-Lauf, ignorieren
-4. Aktivitäten ohne HF → nach Dauer beurteilen (35-75 min = Schwellenbereich)
-5. Neuere Aktivitäten (höheres Gewicht) stärker berücksichtigen
-6. Mathematische Vorberechnung: **{$mathEstimate} min/km** — als Anker verwenden
-
-**Gib ausschließlich dieses JSON zurück:**
-{"threshold_pace": "M:SS"}
+Gib ausschließlich dieses JSON zurück:
+{"threshold_pace":"M:SS"}
 PROMPT;
 
         $text = $this->callOpenAI('threshold_pace', [
@@ -699,19 +711,18 @@ PROMPT;
                 $result = $this->paceStringToFloat($json['threshold_pace']);
                 if ($result !== null) {
                     Log::info('Threshold pace calculated', [
-                        'lthr'          => $lthr,
-                        'has_hr_data'   => $hasAnyHR,
-                        'math_estimate' => $mathEstimate,
-                        'ai_result'     => $json['threshold_pace'],
-                        'activities'    => count($processed),
+                        'lthr'        => $lthr,
+                        'has_hr_data' => $hasAnyHR,
+                        'ai_result'   => $json['threshold_pace'],
+                        'activities'  => count($processed),
                     ]);
                     return $result;
                 }
             }
         }
 
-        Log::warning('Threshold pace AI parse failed, using math estimate', ['text' => $text]);
-        return $this->paceStringToFloat($mathEstimate);
+        Log::warning('Threshold pace AI parse failed', ['text' => $text]);
+        return null;
     }
 
     /**

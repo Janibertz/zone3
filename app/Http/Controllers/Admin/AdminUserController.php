@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\CalculateThresholdPaceJob;
 use App\Models\AiLog;
+use App\Models\RunnerProfile;
 use App\Models\User;
 use App\Models\WeeklyReview;
 use App\Services\OpenAIService;
@@ -164,6 +166,30 @@ class AdminUserController extends Controller
         }
 
         return back()->with('error', 'Weekly Review konnte nicht generiert werden (keine Trainingsdaten vorhanden).');
+    }
+
+    public function recalculateThreshold(User $user)
+    {
+        $activities = $user->activities()
+            ->where('type', 'Run')
+            ->where('average_speed', '>', 0)
+            ->where('distance', '>', 0)
+            ->count();
+
+        if ($activities === 0) {
+            return back()->with('error', 'Keine Lauf-Aktivitäten vorhanden.');
+        }
+
+        $profile = RunnerProfile::firstOrCreate(
+            ['user_id' => $user->id],
+            ['has_completed_setup' => false]
+        );
+        $profile->threshold_pace_calculating = true;
+        $profile->save();
+
+        CalculateThresholdPaceJob::dispatch($user->id);
+
+        return back()->with('success', 'Schwellenpace-Berechnung wurde gestartet.');
     }
 
     public function resetPassword(User $user)
