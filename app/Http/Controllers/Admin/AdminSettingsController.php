@@ -57,13 +57,14 @@ class AdminSettingsController extends Controller
     private function systemConfig(): array
     {
         return [
-            'openai_model'    => config('services.openai.model', 'gpt-4o'),
-            'openai_key_set'  => !empty(config('services.openai.api_key')),
-            'push_key_set'    => !empty(config('services.webpush.public_key')),
-            'app_env'         => app()->environment(),
-            'app_url'         => config('app.url'),
-            'php_version'     => PHP_VERSION,
-            'laravel_version' => app()->version(),
+            'openai_model'      => config('services.openai.model',      'gpt-5.5-2026-04-23'),
+            'openai_model_mini' => config('services.openai.model_mini', 'gpt-5.4-mini'),
+            'openai_key_set'    => !empty(config('services.openai.api_key')),
+            'push_key_set'      => !empty(config('services.webpush.public_key')),
+            'app_env'           => app()->environment(),
+            'app_url'           => config('app.url'),
+            'php_version'       => PHP_VERSION,
+            'laravel_version'   => app()->version(),
         ];
     }
 }

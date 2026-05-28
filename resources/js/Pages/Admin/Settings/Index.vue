@@ -22,8 +22,10 @@ function sendTestPush() {
 }
 
 const modelLabels = {
-    'gpt-4o':      { label: 'GPT-4o',      sub: 'Leistungsstärkstes Modell — höhere Kosten' },
-    'gpt-4o-mini': { label: 'GPT-4o mini', sub: 'Schnell & günstig — leicht reduzierte Qualität' },
+    'gpt-5.5-2026-04-23': { label: 'GPT-5.5',      sub: 'Event-Plan, Schwellenpace, Profil, Coach-Chat' },
+    'gpt-5.4-mini':        { label: 'GPT-5.4 mini', sub: 'Empfehlung, Review, Messages, Ernährung u.a.' },
+    'gpt-4o':              { label: 'GPT-4o',        sub: 'Leistungsstärkstes GPT-4 Modell' },
+    'gpt-4o-mini':         { label: 'GPT-4o mini',   sub: 'Schnell & günstig' },
 };
 </script>
 
@@ -51,19 +53,32 @@ const modelLabels = {
             <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl divide-y divide-gray-100 dark:divide-slate-800">
                 <div class="px-6 py-4">
                     <h2 class="text-sm font-semibold text-gray-700 dark:text-slate-300">KI-Konfiguration</h2>
-                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Konfiguration via Umgebungsvariablen (OPENAI_API_KEY, OPENAI_MODEL)</p>
+                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Konfiguration via OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MODEL_MINI</p>
                 </div>
 
-                <!-- Modell -->
+                <!-- Hauptmodell -->
                 <div class="px-6 py-4 flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-800 dark:text-slate-200">Aktives Modell</p>
+                        <p class="text-sm font-medium text-gray-800 dark:text-slate-200">Hauptmodell</p>
                         <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-                            {{ modelLabels[config.openai_model]?.sub ?? config.openai_model }}
+                            {{ modelLabels[config.openai_model]?.sub ?? 'OPENAI_MODEL' }}
                         </p>
                     </div>
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300">
                         {{ modelLabels[config.openai_model]?.label ?? config.openai_model }}
+                    </span>
+                </div>
+
+                <!-- Mini-Modell -->
+                <div class="px-6 py-4 flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-800 dark:text-slate-200">Mini-Modell</p>
+                        <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+                            {{ modelLabels[config.openai_model_mini]?.sub ?? 'OPENAI_MODEL_MINI' }}
+                        </p>
+                    </div>
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-sky-100 dark:bg-sky-500/20 text-sky-700 dark:text-sky-300">
+                        {{ modelLabels[config.openai_model_mini]?.label ?? config.openai_model_mini }}
                     </span>
                 </div>
 
