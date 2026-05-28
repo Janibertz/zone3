@@ -10,14 +10,16 @@ class OpenAIService
 {
     protected string $apiKey;
     protected string $model;
+    protected string $modelMini;
     protected string $baseUrl = 'https://api.openai.com/v1';
     protected ?string $coachPersonality = null;
     protected ?int $userId = null;
 
     public function __construct()
     {
-        $this->apiKey = config('services.openai.api_key');
-        $this->model = config('services.openai.model', 'gpt-4o');
+        $this->apiKey     = config('services.openai.api_key');
+        $this->model      = config('services.openai.model',      'gpt-5.5-2026-04-23');
+        $this->modelMini  = config('services.openai.model_mini', 'gpt-5.4-mini');
     }
 
     public function withCoach(?string $personalityPrompt): static
@@ -45,12 +47,14 @@ class OpenAIService
      * Returns content string from choices[0].message.content, or null on failure.
      */
     protected function callOpenAI(
-        string $callType,
-        array  $messages,
-        float  $temperature,
-        int    $maxTokens,
-        int    $timeout = 30
+        string  $callType,
+        array   $messages,
+        float   $temperature,
+        int     $maxTokens,
+        int     $timeout = 30,
+        ?string $model   = null
     ): ?string {
+        $model   = $model ?? $this->model;
         $startMs = (int) round(microtime(true) * 1000);
 
         $userContent = '';
@@ -63,7 +67,7 @@ class OpenAIService
                 'Authorization' => 'Bearer ' . $this->apiKey,
                 'Content-Type'  => 'application/json',
             ])->timeout($timeout)->post($this->baseUrl . '/chat/completions', [
-                'model'                 => $this->model,
+                'model'                 => $model,
                 'messages'              => $messages,
                 'max_completion_tokens' => $maxTokens,
             ]);
@@ -80,7 +84,7 @@ class OpenAIService
             AiLog::create([
                 'user_id'          => $this->userId,
                 'call_type'        => $callType,
-                'model'            => $this->model,
+                'model'            => $model,
                 'prompt_tokens'    => $promptTok,
                 'completion_tokens'=> $compTok,
                 'total_tokens'     => $totalTok,
@@ -109,7 +113,7 @@ class OpenAIService
             AiLog::create([
                 'user_id'       => $this->userId,
                 'call_type'     => $callType,
-                'model'         => $this->model,
+                'model'         => $model,
                 'duration_ms'   => $durationMs,
                 'status'        => 'error',
                 'error_message' => $e->getMessage(),
@@ -136,7 +140,7 @@ class OpenAIService
         $content = $this->callOpenAI('goal_analysis', [
             ['role' => 'system', 'content' => $this->buildSystemPrompt('Gib kurze, ermutigende und actionable Trainingsanalysen auf Deutsch. Sei präzise und praktisch. Verwende Emojis für bessere Readability. Beachte die Wellbeing-Daten des Athleten und passe deine Empfehlungen entsprechend an.')],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.7, 900);
+        ], 0.7, 900, 30, $this->modelMini);
 
         return $content ?? 'KI-Analyse konnte nicht geladen werden.';
     }
@@ -278,7 +282,7 @@ PROMPT;
         $content = $this->callOpenAI('plan', [
             ['role' => 'system', 'content' => 'Du bist ein erfahrener Lauf-Coach. Erstelle praktische, machbare Trainingspläne auf Deutsch.'],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.7, 1200);
+        ], 0.7, 1200, 30, $this->modelMini);
 
         return $content ?? 'Trainingsplan konnte nicht erstellt werden.';
     }
@@ -316,7 +320,7 @@ PROMPT;
             $text = $this->callOpenAI('pace_zones', [
                 ['role' => 'system', 'content' => 'Du bist ein präziser Lauf-Coach. Antworte nur mit JSON.'],
                 ['role' => 'user',   'content' => $prompt],
-            ], 0.2, 1000);
+            ], 0.2, 1000, 30, $this->modelMini);
 
             if ($text && preg_match('/\{.*\}/s', $text, $matches)) {
                 $json = json_decode($matches[0], true);
@@ -409,7 +413,7 @@ PROMPT;
         $content = $this->callOpenAI('recommendation', [
             ['role' => 'system', 'content' => $this->buildSystemPrompt('Antworte ausschließlich mit dem angeforderten JSON-Objekt.')],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.4, 1000);
+        ], 0.4, 1000, 30, $this->modelMini);
 
         if (!$content) return null;
 
@@ -448,7 +452,7 @@ PROMPT;
         $content = $this->callOpenAI('adjust_recommendation', [
             ['role' => 'system', 'content' => 'Du bist ein Lauf-Coach. Antworte ausschließlich mit dem angeforderten JSON-Objekt.'],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.3, 1000);
+        ], 0.3, 1000, 30, $this->modelMini);
 
         if (!$content) return null;
 
@@ -484,7 +488,7 @@ PROMPT;
         $content = $this->callOpenAI('daily_message', [
             ['role' => 'system', 'content' => $this->buildSystemPrompt('Du bist ein ermutigender Lauf-Coach. Antworte nur mit dem reinen Motivationstext.')],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.8, 700);
+        ], 0.8, 700, 30, $this->modelMini);
 
         return $content ? trim($content) : null;
     }
@@ -1237,7 +1241,7 @@ PROMPT;
         $text = $this->callOpenAI('adjust_session', [
             ['role' => 'system', 'content' => 'Du bist ein präziser Lauf-Coach. Antworte ausschließlich mit validem JSON.'],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.4, 1000);
+        ], 0.4, 1000, 30, $this->modelMini);
 
         if ($text && preg_match('/\{.*\}/s', $text, $matches)) {
             $json = json_decode($matches[0], true);
@@ -1307,7 +1311,7 @@ PROMPT;
         $text = $this->callOpenAI('nutrition', [
             ['role' => 'system', 'content' => 'Du bist ein Ernährungs- und Laufexperte. Antworte ausschließlich mit validem JSON. Alle Texte im JSON müssen auf Deutsch sein.'],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.5, 1500);
+        ], 0.5, 1500, 30, $this->modelMini);
 
         if ($text && preg_match('/\{.*\}/s', $text, $matches)) {
             $json = json_decode($matches[0], true);
@@ -1402,7 +1406,7 @@ PROMPT;
         $text = $this->callOpenAI('weekly_review', [
             ['role' => 'system', 'content' => $this->buildSystemPrompt('Antworte auf Deutsch, kurz und präzise.')],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.7, 1000, 60);
+        ], 0.7, 1000, 60, $this->modelMini);
 
         return ($text && trim($text) !== '') ? trim($text) : null;
     }
@@ -1454,7 +1458,7 @@ PROMPT;
         $text = $this->callOpenAI('session_steps', [
             ['role' => 'system', 'content' => 'Du bist ein präziser Lauf-Coach. Antworte ausschließlich mit validem JSON-Array ohne zusätzlichen Text.'],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.4, 1200, 45);
+        ], 0.4, 1200, 45, $this->modelMini);
 
         if ($text && preg_match('/\[.*\]/s', $text, $matches)) {
             $steps = json_decode($matches[0], true);
@@ -1483,7 +1487,7 @@ PROMPT;
         return $this->callOpenAI('coach_pr', [
             ['role' => 'system', 'content' => $this->buildSystemPrompt('Du bist ein begeisterter Lauf-Coach. Feiere echte Leistungen deines Athleten.')],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.9, 700, 30);
+        ], 0.9, 700, 30, $this->modelMini);
     }
 
     /**
@@ -1686,7 +1690,7 @@ PROMPT;
         return $this->callOpenAI('race_prediction_text', [
             ['role' => 'system', 'content' => $this->buildSystemPrompt('Du bist ein erfahrener Lauf-Coach. Antworte immer auf Deutsch. Sei direkt, sachlich und motivierend. Keine Emojis. Max. 3 Sätze.')],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.6, 800, 45);
+        ], 0.6, 800, 45, $this->modelMini);
     }
 
     /**
@@ -1724,7 +1728,7 @@ PROMPT;
         return $this->callOpenAI('changelog_summary', [
             ['role' => 'system', 'content' => 'Du bist ein technischer Dokumentations-Assistent. Antworte nur mit der reinen Zusammenfassung auf Deutsch.'],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.4, 1200);
+        ], 0.4, 1200, 30, $this->modelMini);
     }
 }
 
