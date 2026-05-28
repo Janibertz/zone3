@@ -536,12 +536,11 @@ const prediction = computed(() => {
     const p = currentPlan.value;
     if (!p || !p.predicted_finish_time) return null;
     return {
-        time:     p.predicted_finish_time,
-        pace:     p.predicted_pace,
-        trend:    p.prediction_trend,    // improving | stable | declining
-        delta:    p.prediction_target_delta_sec, // positive = ahead of goal
-        count:    p.prediction_run_count,
-        text:     p.prediction_text,
+        time:   p.predicted_finish_time,
+        pace:   p.predicted_pace,
+        delta:  p.prediction_target_delta_sec,
+        text:   p.prediction_text,
+        source: p.prediction_source ?? 'threshold',
     };
 });
 
@@ -929,10 +928,6 @@ const groupedSteps = computed(() => {
                                     <p class="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Prognose</p>
                                     <div class="flex items-baseline gap-2">
                                         <span class="text-3xl font-bold text-gray-900 dark:text-white tabular-nums">{{ prediction.time }}</span>
-                                        <!-- Trend arrow -->
-                                        <span v-if="prediction.trend === 'improving'" class="text-green-500 text-lg font-bold" title="Leistung verbessert sich">↗</span>
-                                        <span v-else-if="prediction.trend === 'declining'" class="text-red-500 text-lg font-bold" title="Leistung sinkt">↘</span>
-                                        <span v-else class="text-gray-400 text-lg font-bold" title="Stabile Leistung">→</span>
                                     </div>
                                     <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Pace {{ prediction.pace }}/km</p>
                                 </div>
@@ -962,9 +957,9 @@ const groupedSteps = computed(() => {
                             </div>
                         </div>
 
-                        <!-- Confidence -->
+                        <!-- Source -->
                         <p class="mt-3 text-[11px] text-gray-400 dark:text-slate-500">
-                            Basierend auf {{ prediction.count }} {{ prediction.count === 1 ? 'Lauf' : 'Läufen' }} der letzten 90 Tage · Riegel-Formel
+                            Basierend auf berechneter Schwellenpace · Jack Daniels T-Pace
                         </p>
                     </div>
                 </div>
