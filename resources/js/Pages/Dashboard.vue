@@ -580,13 +580,84 @@ const recNutritionTips    = ref(null);
 const recNutritionLoading = ref(false);
 const recNutritionError   = ref('');
 
+const recSteps        = ref(null);
+const recStepsLoading = ref(false);
+const recStepsError   = ref('');
+
+const stepBarColor = {
+    warmup:   'bg-green-400',
+    work:     'bg-red-400',
+    rest:     'bg-slate-300 dark:bg-slate-600',
+    cooldown: 'bg-blue-400',
+};
+const stepBgColor = {
+    warmup:   'bg-green-50 dark:bg-green-500/10 border-green-100 dark:border-green-500/20',
+    work:     'bg-red-50 dark:bg-red-500/10 border-red-100 dark:border-red-500/20',
+    rest:     'bg-gray-50 dark:bg-slate-800 border-gray-100 dark:border-slate-700',
+    cooldown: 'bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20',
+};
+const stepLabel    = { warmup: 'Aufwärmen', work: 'Hauptteil', rest: 'Pause', cooldown: 'Auslaufen' };
+const stepHeightPct = { warmup: 60, work: 100, rest: 28, cooldown: 60 };
+
+const recStepsWithReps = computed(() => {
+    if (!recSteps.value) return [];
+    const expanded = [];
+    let i = 0;
+    while (i < recSteps.value.length) {
+        const s = recSteps.value[i];
+        const reps = s.repetitions && s.repetitions > 1 ? s.repetitions : 1;
+        if (s.type === 'work' && reps > 1) {
+            const rest = recSteps.value[i + 1]?.type === 'rest' ? recSteps.value[i + 1] : null;
+            for (let r = 0; r < reps; r++) { expanded.push(s); if (rest) expanded.push(rest); }
+            i += rest ? 2 : 1;
+        } else if (s.type === 'rest' && (s.repetitions || 1) > 1) {
+            i++;
+        } else {
+            for (let r = 0; r < reps; r++) expanded.push(s);
+            i++;
+        }
+    }
+    return expanded;
+});
+
+const recTotalStepDuration = computed(() =>
+    recStepsWithReps.value.reduce((sum, s) => sum + (s.duration_min || 0), 0)
+);
+
+const recGroupedSteps = computed(() => {
+    if (!recSteps.value) return [];
+    const result = [];
+    let i = 0;
+    while (i < recSteps.value.length) {
+        const s = recSteps.value[i];
+        if (s.type === 'work' && s.repetitions && s.repetitions > 1) {
+            const rest = recSteps.value[i + 1]?.type === 'rest' ? recSteps.value[i + 1] : null;
+            result.push({ ...s, pairedRest: rest, isGroup: true });
+            if (rest) i += 2; else i++;
+        } else {
+            result.push({ ...s, isGroup: false });
+            i++;
+        }
+    }
+    return result;
+});
+
 onMounted(() => {
-    if (props.todayRecommendationSession && props.todayRecommendationSession.type !== 'rest') {
+    const rec = props.todayRecommendationSession;
+    if (rec && rec.type !== 'rest') {
         recNutritionLoading.value = true;
-        axios.get(route('training-sessions.nutrition-tips', props.todayRecommendationSession.id))
+        axios.get(route('training-sessions.nutrition-tips', rec.id))
             .then(({ data }) => { recNutritionTips.value = data; })
             .catch(() => { recNutritionError.value = 'Verpflegungstipps konnten nicht geladen werden.'; })
             .finally(() => { recNutritionLoading.value = false; });
+
+        if (rec.type !== 'race_prep') {
+            recStepsLoading.value = true;
+            axios.get(route('training-sessions.steps', rec.id))
+                .then(({ data }) => { recSteps.value = data; })
+                .catch(() => { recStepsError.value = 'Struktur konnte nicht geladen werden.'; })
+                .finally(() => { recStepsLoading.value = false; });
+        }
     }
 });
 
@@ -1134,33 +1205,68 @@ function syncStrava() {
                                 </div>
                             </div>
 
-                            <!-- Workout-Struktur (aufklappbar) -->
-                            <div v-if="props.todayRecommendationSession.type !== 'rest'" class="rounded-xl border border-gray-100 dark:border-slate-700 overflow-hidden">
-                                <button
-                                    @click="showRecommendationDetail = !showRecommendationDetail"
-                                    class="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-left"
-                                >
+                            <!-- Trainingsstruktur -->
+                            <div v-if="props.todayRecommendationSession.type !== 'rest' && props.todayRecommendationSession.type !== 'race_prep'" class="rounded-xl border border-gray-100 dark:border-slate-700 overflow-hidden">
+                                <div class="px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border-b border-gray-100 dark:border-slate-700">
                                     <span class="text-xs font-semibold text-gray-600 dark:text-slate-300 uppercase tracking-wider">Trainingsstruktur</span>
-                                    <svg class="h-4 w-4 text-gray-400 transition-transform duration-200" :class="showRecommendationDetail ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                                    </svg>
-                                </button>
-                                <div v-if="showRecommendationDetail" class="divide-y divide-gray-100 dark:divide-slate-700/50">
-                                    <div v-for="step in recommendationWorkoutSteps(props.todayRecommendationSession)" :key="step.phase"
-                                        class="flex items-center gap-3 px-4 py-2.5">
-                                        <div class="h-2 w-2 rounded-full shrink-0"
-                                            :class="{
-                                                'bg-green-400': step.color === 'green',
-                                                'bg-indigo-500': step.color === 'main',
-                                                'bg-blue-400': step.color === 'blue',
-                                            }"></div>
-                                        <div class="flex-1 min-w-0">
-                                            <p class="text-xs font-semibold text-gray-700 dark:text-slate-200">{{ step.phase }}</p>
-                                            <p class="text-xs text-gray-400 dark:text-slate-500">{{ step.label }}</p>
+                                </div>
+                                <div class="px-4 py-3">
+                                    <div v-if="recStepsLoading" class="flex items-center gap-2 py-2 text-xs text-gray-400 dark:text-slate-500">
+                                        <svg class="h-4 w-4 animate-spin shrink-0 text-indigo-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                        Struktur wird geladen…
+                                    </div>
+                                    <p v-else-if="recStepsError" class="text-xs text-red-500 dark:text-red-400">{{ recStepsError }}</p>
+                                    <div v-else-if="recSteps && recSteps.length">
+                                        <!-- Bar chart -->
+                                        <div class="flex gap-0.5 h-12 items-end mb-3">
+                                            <div
+                                                v-for="(s, i) in recStepsWithReps"
+                                                :key="i"
+                                                :style="{
+                                                    width:  ((s.duration_min || 0) / recTotalStepDuration * 100).toFixed(1) + '%',
+                                                    height: (stepHeightPct[s.type] ?? 60) + '%',
+                                                }"
+                                                :class="[stepBarColor[s.type] ?? 'bg-indigo-400', 'rounded-t-sm opacity-80']"
+                                                :title="`${s.label}: ${s.duration_min} min`"
+                                            />
                                         </div>
-                                        <div class="text-right shrink-0">
-                                            <p class="text-xs font-semibold text-gray-700 dark:text-slate-200 tabular-nums">{{ step.km }} km</p>
-                                            <p v-if="step.pace" class="text-xs text-gray-400 dark:text-slate-500 tabular-nums">{{ step.pace }} /km</p>
+                                        <!-- Step list -->
+                                        <div class="space-y-2">
+                                            <div v-for="(step, idx) in recGroupedSteps" :key="idx"
+                                                class="rounded-xl border p-3"
+                                                :class="stepBgColor[step.type] ?? 'bg-gray-50 dark:bg-slate-800 border-gray-100 dark:border-slate-700'"
+                                            >
+                                                <template v-if="step.isGroup">
+                                                    <div class="flex items-center gap-2 mb-2">
+                                                        <span class="shrink-0 h-5 w-5 rounded bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300 text-[10px] font-bold flex items-center justify-center">×{{ step.repetitions }}</span>
+                                                        <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ step.repetitions }}× Intervall</span>
+                                                    </div>
+                                                    <div class="ml-7 space-y-1.5">
+                                                        <div class="flex items-center gap-3">
+                                                            <span class="h-2 w-2 rounded-full bg-red-400 shrink-0" />
+                                                            <span class="text-xs font-medium text-gray-700 dark:text-slate-300">{{ step.label }}</span>
+                                                            <span class="text-xs text-gray-500 dark:text-slate-400 ml-auto">{{ step.duration_min }} min</span>
+                                                            <span v-if="step.pace_target" class="text-xs font-semibold text-gray-900 dark:text-white">{{ step.pace_target }}/km</span>
+                                                        </div>
+                                                        <div v-if="step.pairedRest" class="flex items-center gap-3">
+                                                            <span class="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-500 shrink-0" />
+                                                            <span class="text-xs text-gray-500 dark:text-slate-400">{{ step.pairedRest.label }}</span>
+                                                            <span class="text-xs text-gray-400 dark:text-slate-500 ml-auto">{{ step.pairedRest.duration_min }} min</span>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                                <template v-else>
+                                                    <div class="flex items-center gap-3">
+                                                        <span class="h-2.5 w-2.5 rounded-full shrink-0" :class="stepBarColor[step.type]" />
+                                                        <div class="flex-1 min-w-0">
+                                                            <span class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">{{ stepLabel[step.type] ?? step.type }}</span>
+                                                            <span class="ml-1.5 text-sm font-medium text-gray-900 dark:text-white">{{ step.label }}</span>
+                                                        </div>
+                                                        <span class="text-xs text-gray-500 dark:text-slate-400 shrink-0">{{ step.duration_min }} min</span>
+                                                        <span v-if="step.pace_target" class="text-xs font-semibold text-gray-900 dark:text-white shrink-0">{{ step.pace_target }}/km</span>
+                                                    </div>
+                                                </template>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
