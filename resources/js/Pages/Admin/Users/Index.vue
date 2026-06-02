@@ -138,7 +138,7 @@ const filterOptions = [
                                 </td>
 
                                 <td class="px-4 py-3 text-right text-gray-600 dark:text-slate-300">{{ u.activities_count }}</td>
-                                <td class="px-4 py-3 text-right text-gray-600 dark:text-slate-300">{{ u.goals_count }}</td>
+                                <td class="px-4 py-3 text-right text-gray-600 dark:text-slate-300">{{ u.events_count }}</td>
                                 <td class="px-4 py-3 text-right text-xs text-gray-400 dark:text-slate-500 whitespace-nowrap">{{ formatDate(u.created_at) }}</td>
 
                                 <!-- Actions -->

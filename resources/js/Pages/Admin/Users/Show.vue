@@ -7,7 +7,7 @@ import { ref, computed } from 'vue';
 const props = defineProps({
     user:             Object,
     activities:       Array,
-    goals:            Array,
+    events:           Array,
     wellbeingEntries: Array,
     wellbeingChart:   Array,
     activityStats:    Object,
@@ -319,31 +319,57 @@ const zoneColors = [
                     </div>
                 </div>
 
-                <!-- Goals -->
+                <!-- Events / Race Goals -->
                 <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl p-6">
-                    <h2 class="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-4">Ziele ({{ goals.length }})</h2>
-                    <div v-if="goals.length" class="space-y-3">
+                    <h2 class="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-4">Rennen & Ziele ({{ events.length }})</h2>
+                    <div v-if="events.length" class="space-y-3">
                         <div
-                            v-for="goal in goals" :key="goal.id"
-                            class="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-slate-800/50"
+                            v-for="event in events" :key="event.id"
+                            class="flex items-start justify-between p-3 rounded-xl bg-gray-50 dark:bg-slate-800/50 gap-3"
                         >
-                            <div>
-                                <p class="text-sm font-medium text-gray-900 dark:text-white">{{ goal.name }}</p>
-                                <p class="text-xs text-gray-400 dark:text-slate-500">{{ goal.target_value }} {{ goal.unit }} · {{ formatDate(goal.end_date) }}</p>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <p class="text-sm font-medium text-gray-900 dark:text-white">{{ event.name }}</p>
+                                    <span class="text-xs px-1.5 py-0.5 rounded font-bold"
+                                        :class="event.priority === 'A'
+                                            ? 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300'
+                                            : event.priority === 'B'
+                                                ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'
+                                                : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400'"
+                                    >Prio {{ event.priority }}</span>
+                                </div>
+                                <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+                                    {{ event.distance_label }}
+                                    <span v-if="event.target_time_hours > 0 || event.target_time_minutes > 0">
+                                        · Ziel: {{ event.target_time_hours > 0 ? event.target_time_hours + 'h ' : '' }}{{ event.target_time_minutes }}min
+                                    </span>
+                                    · {{ formatDate(event.event_date) }}
+                                </p>
+                                <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                    <span v-if="event.training_plans?.some(p => p.is_active)"
+                                        class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 font-medium">
+                                        ✓ Aktiver Plan
+                                    </span>
+                                    <span v-else-if="event.training_plans?.length"
+                                        class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 font-medium">
+                                        {{ event.training_plans.length }} Plan(e)
+                                    </span>
+                                    <span v-else
+                                        class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-medium">
+                                        Kein Plan
+                                    </span>
+                                </div>
                             </div>
-                            <span
-                                class="text-xs px-2 py-0.5 rounded-full"
-                                :class="goal.end_date && new Date(goal.end_date) < new Date()
+                            <span class="text-xs px-2 py-0.5 rounded-full shrink-0 mt-0.5"
+                                :class="new Date(event.event_date) < new Date()
                                     ? 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
-                                    : goal.active
-                                        ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400'
-                                        : 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-slate-400'"
+                                    : 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300'"
                             >
-                                {{ goal.end_date && new Date(goal.end_date) < new Date() ? 'Abgeschlossen' : goal.active ? 'Aktiv' : 'Inaktiv' }}
+                                {{ new Date(event.event_date) < new Date() ? 'Vergangen' : 'Geplant' }}
                             </span>
                         </div>
                     </div>
-                    <p v-else class="text-sm text-gray-400 dark:text-slate-500">Keine Ziele vorhanden.</p>
+                    <p v-else class="text-sm text-gray-400 dark:text-slate-500">Keine Rennen / Ziele vorhanden.</p>
                 </div>
             </template>
 

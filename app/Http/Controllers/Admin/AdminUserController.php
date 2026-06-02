@@ -18,7 +18,7 @@ class AdminUserController extends Controller
 {
     public function index(Request $request)
     {
-        $query = User::withCount(['activities', 'goals'])
+        $query = User::withCount(['activities', 'events'])
             ->with('stravaAccount:id,user_id,username,last_synced_at')
             ->latest();
 
@@ -56,7 +56,10 @@ class AdminUserController extends Controller
             ->limit(20)
             ->get(['id', 'name', 'type', 'distance', 'moving_time', 'average_heartrate', 'average_speed', 'start_date']);
 
-        $goals = $user->goals()->orderByDesc('created_at')->get();
+        $events = $user->events()
+            ->with('trainingPlans:id,event_id,is_active,created_at')
+            ->orderByDesc('event_date')
+            ->get();
 
         $wellbeingEntries = $user->wellbeingEntries()
             ->orderByDesc('date')
@@ -103,7 +106,7 @@ class AdminUserController extends Controller
         return Inertia::render('Admin/Users/Show', [
             'user'             => $user,
             'activities'       => $activities,
-            'goals'            => $goals,
+            'events'           => $events,
             'wellbeingEntries' => $wellbeingEntries,
             'wellbeingChart'   => $wellbeingChart,
             'activityStats'    => $activityStats,

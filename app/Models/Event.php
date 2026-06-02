@@ -9,6 +9,8 @@ class Event extends Model
 {
     use HasFactory;
 
+    protected $appends = ['distance_label', 'target_time_formatted'];
+
     protected $fillable = [
         'user_id',
         'name',
