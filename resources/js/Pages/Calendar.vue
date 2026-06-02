@@ -158,18 +158,22 @@ function selectDay(d) {
 const sessionTypeLabels = {
     rest: 'Ruhetag', easy_run: 'Lockerer Lauf', tempo_run: 'Tempolauf',
     interval: 'Intervall', long_run: 'Langer Lauf', race_prep: 'Rennvorbereitung',
+    progressive_run: 'Progressiver Lauf', test_run: 'Testlauf',
 };
 const sessionTypeColors = {
-    rest:      'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400',
-    easy_run:  'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400',
-    tempo_run: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400',
-    interval:  'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400',
-    long_run:  'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400',
-    race_prep: 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400',
+    rest:            'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400',
+    easy_run:        'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400',
+    tempo_run:       'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400',
+    interval:        'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400',
+    long_run:        'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400',
+    race_prep:       'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400',
+    progressive_run: 'bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-400',
+    test_run:        'bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-400',
 };
 const sessionDotColors = {
     rest: 'bg-gray-400', easy_run: 'bg-green-500', tempo_run: 'bg-amber-500',
     interval: 'bg-red-500', long_run: 'bg-blue-500', race_prep: 'bg-indigo-500',
+    progressive_run: 'bg-teal-500', test_run: 'bg-violet-500',
 };
 </script>
 

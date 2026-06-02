@@ -386,7 +386,7 @@ PROMPT;
             } elseif ($daysUntil <= 3) {
                 $taperWarning = "WICHTIG: Wettkampf in {$daysUntil} Tagen! Nur leichtes Regenerationstraining, kein intensiver Reiz. Maximal easy_run, Zone 1–2.\n";
             } elseif ($daysUntil <= 7) {
-                $taperWarning = "WICHTIG: Wettkampf in {$daysUntil} Tagen — Tapering-Phase! Kein hartes Training (kein interval, kein tempo_run). Nur easy_run oder rest.\n";
+                $taperWarning = "WICHTIG: Wettkampf in {$daysUntil} Tagen — Tapering-Phase! Kein hartes Training (kein interval, kein tempo_run, kein progressive_run, kein test_run). Nur easy_run oder rest.\n";
             }
         } else {
             $eventsText = "Keine kommenden Wettkämpfe.\n";
@@ -417,7 +417,7 @@ Du bist ein präziser Lauf-Coach. Erstelle eine Trainingsempfehlung für heute a
 {$availabilityText}
 Antworte NUR mit einem JSON-Objekt (kein Markdown, kein Text davor/danach):
 {
-  "type": "easy_run|tempo_run|interval|long_run|rest",
+  "type": "easy_run|tempo_run|interval|long_run|progressive_run|test_run|rest",
   "title": "Kurzer Titel der Einheit",
   "description": "2-3 Sätze Erklärung warum und wie. Nur auf bevorstehende Wettkämpfe eingehen, keine vergangenen Ereignisse erwähnen.",
   "distance_km": 8.0,
@@ -1171,12 +1171,14 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 - Lerne aus vergangenen Rennergebnissen: Ziel verfehlt → mehr spezifisches Tempotraining für diese Distanz; Ziel erreicht/übertroffen → Plan funktioniert, ähnliche Struktur beibehalten
 - ANDERE RENNEVENTS: An Tagen mit anderen Rennevents im Planungszeitraum IMMER type="rest" — der Athlet läuft ein Rennen, kein zusätzliches Training.
 - VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die Trainingsdauer darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
+- PROGRESSIVE LÄUFE (progressive_run): Lauf beginnt in Zone 1–2 und steigert sich Kilometer für Kilometer bis Zone 3–4 gegen Ende. Ideal für Tempoaufbau ohne volle Belastung. Max. 1× pro Woche, nur in Build- und Peak-Phase, nicht im Tapering.
+- TESTLÄUFE (test_run): 5k oder 10k Zeitversuch bei maximalem persönlichen Effort (Zone 4–5) — so schnell wie möglich über die gesamte Distanz. Zweck: objektive Fortschrittsmessung und automatische Neukalibrierung der Schwellenpace. Plane exakt alle 4–6 Wochen — niemals in den letzten 14 Tagen vor dem A-Event. Nach einem test_run folgt IMMER ein easy_run als Regeneration. Kündige den Testlauf im title-Feld deutlich an, z.B. "5k Zeitversuch".
 
 **Antworte ausschließlich mit einem JSON-Array — einen Eintrag pro offenem Tag von heute ({$today}) bis zum Renntag ({$eventDate}). Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
 [
   {
     "date": "YYYY-MM-DD",
-    "type": "rest|easy_run|tempo_run|interval|long_run|race_prep",
+    "type": "rest|easy_run|tempo_run|interval|long_run|progressive_run|test_run|race_prep",
     "title": "Kurzer Titel (max 40 Zeichen)",
     "description": "Beschreibung der Einheit (2-3 Sätze, konkrete Anweisungen)",
     "distance_km": 0,
@@ -1437,11 +1439,13 @@ PROMPT;
     public function generateSessionSteps(\App\Models\TrainingSession $session): ?array
     {
         $typeLabel = [
-            'interval'  => 'Intervalltraining',
-            'tempo_run' => 'Tempolauf',
-            'easy_run'  => 'Lockerer Lauf',
-            'long_run'  => 'Langer Lauf',
-            'race_prep' => 'Rennvorbereitung',
+            'interval'       => 'Intervalltraining',
+            'tempo_run'      => 'Tempolauf',
+            'easy_run'       => 'Lockerer Lauf',
+            'long_run'       => 'Langer Lauf',
+            'race_prep'      => 'Rennvorbereitung',
+            'progressive_run'=> 'Progressiver Lauf',
+            'test_run'       => 'Testlauf (Zeitversuch)',
         ][$session->type] ?? $session->type;
 
         $distKm = $session->distance_km ? "{$session->distance_km} km" : 'nicht angegeben';
@@ -1463,6 +1467,8 @@ Regeln:
 - Für Dauertempo/Easy-Läufe: work ohne repetitions (null)
 - Pace bei rest-Phasen: null
 - Maximal 6 Schritte
+- Progressiver Lauf (progressive_run): Aufwärmen Zone 1, dann 2–3 work-Steps mit steigender Pace/Zone (Z2 → Z3 → Z4)
+- Testlauf (test_run): Ausgiebiges Aufwärmen + Strides, dann ein einzelner work-Step "Zeitversuch" auf voller Distanz bei maximalem Effort (Zone 4–5)
 
 Antworte NUR mit einem JSON-Array:
 [

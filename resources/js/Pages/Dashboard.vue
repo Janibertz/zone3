@@ -561,11 +561,13 @@ function recommendationWorkoutSteps(session) {
     const easySecPerKm = paceSecPerKm ? paceSecPerKm + 60 : null;
     const easyPaceStr  = easySecPerKm ? secToPaceStr(easySecPerKm) : null;
     const configs = {
-        easy_run:  { wF: 0.10, wMax: 1.0, cF: 0.10, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Leichtes Einlaufen',           mName: 'Hauptteil',  mLabel: 'Lockeres Dauertempo',      cName: 'Auslaufen', cLabel: 'Leichtes Auslaufen'  },
-        tempo_run: { wF: 0.25, wMax: 2.0, cF: 0.12, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Lockeres Einlaufen',           mName: 'Hauptteil',  mLabel: 'Tempodauerlauf',           cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
-        interval:  { wF: 0.20, wMax: 2.0, cF: 0.10, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Lockeres Einlaufen',           mName: 'Intervalle', mLabel: 'Intervallarbeit',          cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
-        long_run:  { wF: 0.05, wMax: 1.0, cF: 0.05, cMax: 1.0, wName: 'Einlaufen',  wLabel: 'Leichtes Einlaufen',           mName: 'Hauptteil',  mLabel: 'Langer gleichmäßiger Lauf',cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
-        race_prep: { wF: 0.30, wMax: 2.0, cF: 0.15, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Einlaufen + Strides',          mName: 'Hauptteil',  mLabel: 'Renntempo-Abschnitte',     cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
+        easy_run:        { wF: 0.10, wMax: 1.0, cF: 0.10, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Leichtes Einlaufen',             mName: 'Hauptteil',    mLabel: 'Lockeres Dauertempo',        cName: 'Auslaufen', cLabel: 'Leichtes Auslaufen'  },
+        tempo_run:       { wF: 0.25, wMax: 2.0, cF: 0.12, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Lockeres Einlaufen',             mName: 'Hauptteil',    mLabel: 'Tempodauerlauf',             cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
+        interval:        { wF: 0.20, wMax: 2.0, cF: 0.10, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Lockeres Einlaufen',             mName: 'Intervalle',   mLabel: 'Intervallarbeit',            cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
+        long_run:        { wF: 0.05, wMax: 1.0, cF: 0.05, cMax: 1.0, wName: 'Einlaufen',  wLabel: 'Leichtes Einlaufen',             mName: 'Hauptteil',    mLabel: 'Langer gleichmäßiger Lauf',  cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
+        race_prep:       { wF: 0.30, wMax: 2.0, cF: 0.15, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Einlaufen + Strides',            mName: 'Hauptteil',    mLabel: 'Renntempo-Abschnitte',       cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
+        progressive_run: { wF: 0.15, wMax: 1.5, cF: 0.10, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Lockeres Einlaufen (Zone 1–2)',  mName: 'Progression',  mLabel: 'Steigern Zone 1 → Zone 3–4',  cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
+        test_run:        { wF: 0.20, wMax: 2.0, cF: 0.15, cMax: 1.5, wName: 'Aufwärmen',  wLabel: 'Einlaufen + Strides (Zone 1–2)', mName: 'Zeitversuch',  mLabel: 'Maximal-Effort (Zone 4–5)',   cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
     };
     const cfg = configs[session.type] || configs['easy_run'];
     const warmupKm   = Math.min(cfg.wMax, distKm * cfg.wF);
@@ -1101,12 +1103,14 @@ function syncStrava() {
                         <a v-if="props.todayPlanSession"
                             :href="props.todayPlanSession.event_id ? `/events/${props.todayPlanSession.event_id}/plan?open=${props.todayPlanSession.id}` : '/events'"
                             class="block rounded-xl border overflow-hidden hover:shadow-sm transition-shadow cursor-pointer" :class="{
-                                'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800': props.todayPlanSession.type === 'rest',
-                                'border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10': props.todayPlanSession.type === 'easy_run',
-                                'border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10': props.todayPlanSession.type === 'tempo_run',
-                                'border-red-100 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10': props.todayPlanSession.type === 'interval',
-                                'border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10': props.todayPlanSession.type === 'long_run',
+                                'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800':                   props.todayPlanSession.type === 'rest',
+                                'border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10':     props.todayPlanSession.type === 'easy_run',
+                                'border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10':     props.todayPlanSession.type === 'tempo_run',
+                                'border-red-100 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10':             props.todayPlanSession.type === 'interval',
+                                'border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10':         props.todayPlanSession.type === 'long_run',
                                 'border-indigo-100 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10': props.todayPlanSession.type === 'race_prep',
+                                'border-teal-100 dark:border-teal-500/20 bg-teal-50 dark:bg-teal-500/10':         props.todayPlanSession.type === 'progressive_run',
+                                'border-violet-100 dark:border-violet-500/20 bg-violet-50 dark:bg-violet-500/10': props.todayPlanSession.type === 'test_run',
                             }">
                             <div class="px-4 py-3">
                                 <div class="flex items-start justify-between gap-2 mb-1">
@@ -1117,6 +1121,8 @@ function syncStrava() {
                                         'text-red-700 dark:text-red-400': props.todayPlanSession.type === 'interval',
                                         'text-blue-700 dark:text-blue-400': props.todayPlanSession.type === 'long_run',
                                         'text-indigo-700 dark:text-indigo-400': props.todayPlanSession.type === 'race_prep',
+                                        'text-teal-700 dark:text-teal-400':     props.todayPlanSession.type === 'progressive_run',
+                                        'text-violet-700 dark:text-violet-400': props.todayPlanSession.type === 'test_run',
                                     }">{{ props.todayPlanSession.title }}</p>
                                     <div class="flex gap-1.5 shrink-0">
                                         <span v-if="props.todayPlanSession.status === 'completed'" class="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400">✓ Erledigt</span>
@@ -1174,12 +1180,14 @@ function syncStrava() {
                         <div v-if="props.todayRecommendationSession" class="space-y-3">
                             <!-- Session-Karte -->
                             <div class="rounded-xl border overflow-hidden" :class="{
-                                'border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10':    props.todayRecommendationSession.type === 'easy_run',
-                                'border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10':   props.todayRecommendationSession.type === 'tempo_run',
-                                'border-red-100 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10':           props.todayRecommendationSession.type === 'interval',
-                                'border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10':       props.todayRecommendationSession.type === 'long_run',
+                                'border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10':       props.todayRecommendationSession.type === 'easy_run',
+                                'border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10':     props.todayRecommendationSession.type === 'tempo_run',
+                                'border-red-100 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10':             props.todayRecommendationSession.type === 'interval',
+                                'border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10':         props.todayRecommendationSession.type === 'long_run',
                                 'border-indigo-100 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10': props.todayRecommendationSession.type === 'race_prep',
-                                'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800':           props.todayRecommendationSession.type === 'rest',
+                                'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800':             props.todayRecommendationSession.type === 'rest',
+                                'border-teal-100 dark:border-teal-500/20 bg-teal-50 dark:bg-teal-500/10':         props.todayRecommendationSession.type === 'progressive_run',
+                                'border-violet-100 dark:border-violet-500/20 bg-violet-50 dark:bg-violet-500/10': props.todayRecommendationSession.type === 'test_run',
                             }">
                                 <div class="px-4 py-3">
                                     <div class="flex items-start justify-between gap-2 mb-1">
@@ -1190,6 +1198,8 @@ function syncStrava() {
                                             'text-blue-700 dark:text-blue-400':      props.todayRecommendationSession.type === 'long_run',
                                             'text-indigo-700 dark:text-indigo-400':  props.todayRecommendationSession.type === 'race_prep',
                                             'text-gray-500 dark:text-slate-400':     props.todayRecommendationSession.type === 'rest',
+                                            'text-teal-700 dark:text-teal-400':      props.todayRecommendationSession.type === 'progressive_run',
+                                            'text-violet-700 dark:text-violet-400':  props.todayRecommendationSession.type === 'test_run',
                                         }">{{ props.todayRecommendationSession.title }}</p>
                                         <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 shrink-0">✓ Geplant</span>
                                     </div>
@@ -1374,12 +1384,14 @@ function syncStrava() {
                             <!-- Strukturierte Empfehlungs-Karte -->
                             <div v-else-if="showRecommendation && trainingRecommendation" class="space-y-3">
                                 <div class="rounded-xl border overflow-hidden" :class="{
-                                    'border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10':    trainingRecommendation.type === 'easy_run',
-                                    'border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10':   trainingRecommendation.type === 'tempo_run',
-                                    'border-red-100 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10':           trainingRecommendation.type === 'interval',
-                                    'border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10':       trainingRecommendation.type === 'long_run',
+                                    'border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10':       trainingRecommendation.type === 'easy_run',
+                                    'border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10':     trainingRecommendation.type === 'tempo_run',
+                                    'border-red-100 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10':             trainingRecommendation.type === 'interval',
+                                    'border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10':         trainingRecommendation.type === 'long_run',
                                     'border-indigo-100 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10': trainingRecommendation.type === 'race_prep',
-                                    'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800':           trainingRecommendation.type === 'rest',
+                                    'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800':             trainingRecommendation.type === 'rest',
+                                    'border-teal-100 dark:border-teal-500/20 bg-teal-50 dark:bg-teal-500/10':         trainingRecommendation.type === 'progressive_run',
+                                    'border-violet-100 dark:border-violet-500/20 bg-violet-50 dark:bg-violet-500/10': trainingRecommendation.type === 'test_run',
                                 }">
                                     <div class="px-4 py-3">
                                         <div class="flex items-start justify-between gap-2 mb-1">
@@ -1390,6 +1402,8 @@ function syncStrava() {
                                                 'text-blue-700 dark:text-blue-400':      trainingRecommendation.type === 'long_run',
                                                 'text-indigo-700 dark:text-indigo-400':  trainingRecommendation.type === 'race_prep',
                                                 'text-gray-500 dark:text-slate-400':     trainingRecommendation.type === 'rest',
+                                                'text-teal-700 dark:text-teal-400':      trainingRecommendation.type === 'progressive_run',
+                                                'text-violet-700 dark:text-violet-400':  trainingRecommendation.type === 'test_run',
                                             }">{{ trainingRecommendation.title }}</p>
                                             <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 shrink-0">{{ coach ? coach.name : 'Coach' }}</span>
                                         </div>
@@ -1979,7 +1993,7 @@ function syncStrava() {
                                 >
                                     <div class="flex items-center gap-2.5 min-w-0">
                                         <span class="shrink-0 text-sm">
-                                            {{ {'easy_run':'🟢','tempo_run':'🟡','interval':'🔴','long_run':'🔵','race_prep':'🏁'}[session.type] ?? '🏃' }}
+                                            {{ {'easy_run':'🟢','tempo_run':'🟡','interval':'🔴','long_run':'🔵','race_prep':'🏁','progressive_run':'📈','test_run':'⏱️'}[session.type] ?? '🏃' }}
                                         </span>
                                         <div class="min-w-0">
                                             <p class="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{{ session.activity_name || session.title || 'Einheit' }}</p>
@@ -1997,7 +2011,7 @@ function syncStrava() {
                                     <!-- Session title + close -->
                                     <div class="flex items-center justify-between mb-3">
                                         <div class="flex items-center gap-2 min-w-0">
-                                            <span class="text-sm shrink-0">{{ {'easy_run':'🟢','tempo_run':'🟡','interval':'🔴','long_run':'🔵','race_prep':'🏁'}[session.type] ?? '🏃' }}</span>
+                                            <span class="text-sm shrink-0">{{ {'easy_run':'🟢','tempo_run':'🟡','interval':'🔴','long_run':'🔵','race_prep':'🏁','progressive_run':'📈','test_run':'⏱️'}[session.type] ?? '🏃' }}</span>
                                             <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate">{{ session.activity_name || session.title || 'Einheit' }}</p>
                                         </div>
                                         <button @click="ratingOpenId = null" class="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 text-lg leading-none shrink-0 ml-2">✕</button>

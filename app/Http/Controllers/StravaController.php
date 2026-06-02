@@ -322,6 +322,11 @@ class StravaController extends Controller
                     'duration_min' => $durMin ?? $session->duration_min,
                     'pace_target'  => $pace ?? $session->pace_target,
                 ]);
+
+                // Test run completed: bypass 24h cooldown and recalculate threshold immediately
+                if ($session->type === 'test_run') {
+                    $this->dispatchCalculationForTestRun($userId);
+                }
             }
             // Flag plan for recalculation
             $session->trainingPlan?->update(['needs_plan_update' => true]);
@@ -479,6 +484,23 @@ class StravaController extends Controller
             'max_heartrate'     => $lap['max_heartrate']     ?? null,
             'pace_zone'         => $lap['pace_zone']         ?? null,
         ], $rawLaps);
+    }
+
+    /**
+     * Dispatch threshold recalculation for a test run, bypassing the 24h cooldown.
+     * Called when a planned test_run session is matched to a Strava activity.
+     */
+    private function dispatchCalculationForTestRun(int $userId): void
+    {
+        $profile = RunnerProfile::firstOrCreate(
+            ['user_id' => $userId],
+            ['has_completed_setup' => false]
+        );
+        if (! $profile->threshold_pace_calculating) {
+            $profile->threshold_pace_calculating = true;
+            $profile->save();
+            CalculateThresholdPaceJob::dispatch($userId);
+        }
     }
 
     /**
