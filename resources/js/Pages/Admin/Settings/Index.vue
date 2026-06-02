@@ -127,6 +127,29 @@ const modelLabels = {
                 </div>
             </div>
 
+            <!-- ── E-Mail ───────────────────────────────────────── -->
+            <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl divide-y divide-gray-100 dark:divide-slate-800">
+                <div class="px-6 py-4">
+                    <h2 class="text-sm font-semibold text-gray-700 dark:text-slate-300">E-Mail</h2>
+                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Konfiguration via MAIL_MAILER, MAIL_HOST, MAIL_FROM_ADDRESS</p>
+                </div>
+
+                <div v-for="row in [
+                    { label: 'Mailer',    value: config.mail_mailer },
+                    { label: 'SMTP-Host', value: config.mail_host },
+                    { label: 'Absender',  value: config.mail_from },
+                ]" :key="row.label" class="px-6 py-3 flex items-center justify-between">
+                    <p class="text-sm text-gray-500 dark:text-slate-400">{{ row.label }}</p>
+                    <span class="text-sm font-mono font-medium"
+                        :class="row.label === 'Mailer' && row.value === 'log'
+                            ? 'text-amber-600 dark:text-amber-400'
+                            : 'text-gray-800 dark:text-slate-200'">
+                        {{ row.value }}
+                        <span v-if="row.label === 'Mailer' && row.value === 'log'" class="text-xs font-sans font-normal text-amber-500"> ⚠ Mails werden nur geloggt</span>
+                    </span>
+                </div>
+            </div>
+
             <!-- ── Push-Benachrichtigungen ───────────────────────── -->
             <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl divide-y divide-gray-100 dark:divide-slate-800">
                 <div class="px-6 py-4">
