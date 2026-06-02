@@ -28,9 +28,9 @@ import { Head, Link } from '@inertiajs/vue3';
             <section class="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6">
                 <h2 class="text-xl font-bold mb-4">Kontakt & Support</h2>
                 <p class="text-white/60 mb-4">Bei Fragen, Problemen oder Feedback erreichst du uns per E-Mail:</p>
-                <a href="mailto:jan.anders@me.com"
+                <a href="mailto:jan.anders@zone3.run"
                     class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-sm font-semibold transition">
-                    jan.anders@me.com
+                    jan.anders@zone3.run
                 </a>
                 <p class="text-white/40 text-sm mt-4">Wir antworten in der Regel innerhalb von 24–48 Stunden.</p>
             </section>
@@ -63,7 +63,7 @@ import { Head, Link } from '@inertiajs/vue3';
                 <div class="space-y-6 text-white/60">
                     <div>
                         <h3 class="text-base font-semibold text-white mb-2">Verantwortlicher</h3>
-                        <p>Jan Anders<br>Kontakt: <a href="mailto:jan.anders@me.com" class="text-indigo-400 hover:underline">jan.anders@me.com</a></p>
+                        <p>Jan Anders<br>Kontakt: <a href="mailto:jan.anders@zone3.run" class="text-indigo-400 hover:underline">jan.anders@zone3.run</a></p>
                     </div>
 
                     <div>
@@ -86,7 +86,7 @@ import { Head, Link } from '@inertiajs/vue3';
 
                     <div>
                         <h3 class="text-base font-semibold text-white mb-2">Deine Rechte</h3>
-                        <p>Du hast das Recht auf Auskunft, Berichtigung und Löschung deiner Daten. Kontaktiere uns unter <a href="mailto:jan.anders@me.com" class="text-indigo-400 hover:underline">jan.anders@me.com</a>.</p>
+                        <p>Du hast das Recht auf Auskunft, Berichtigung und Löschung deiner Daten. Kontaktiere uns unter <a href="mailto:jan.anders@zone3.run" class="text-indigo-400 hover:underline">jan.anders@zone3.run</a>.</p>
                     </div>
 
                     <div>
