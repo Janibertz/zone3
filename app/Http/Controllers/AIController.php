@@ -251,7 +251,7 @@ class AIController extends Controller
             'distance_km'  => 'nullable|numeric|min:0',
             'duration_min' => 'nullable|integer|min:0',
             'pace_target'  => 'nullable|string|max:20',
-            'zone'         => 'nullable|integer|min:1|max:5',
+            'zone'         => 'nullable|integer|min:0|max:5',
             'intensity'    => 'nullable|string|in:low,medium,high',
         ]);
 
