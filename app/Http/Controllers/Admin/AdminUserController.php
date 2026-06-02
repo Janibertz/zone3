@@ -194,9 +194,17 @@ class AdminUserController extends Controller
 
     public function resetPassword(User $user)
     {
-        Password::sendResetLink(['email' => $user->email]);
+        try {
+            $status = Password::sendResetLink(['email' => $user->email]);
 
-        return back()->with('success', 'Passwort-Reset-E-Mail wurde an ' . $user->email . ' gesendet.');
+            if ($status === Password::RESET_LINK_SENT) {
+                return back()->with('success', 'Passwort-Reset-E-Mail wurde an ' . $user->email . ' gesendet.');
+            }
+
+            return back()->with('error', 'Konnte keinen Reset-Link senden: ' . __($status));
+        } catch (\Exception $e) {
+            return back()->with('error', 'Mail-Fehler: ' . $e->getMessage());
+        }
     }
 
     public function destroy(User $user)
