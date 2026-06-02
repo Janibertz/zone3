@@ -22,8 +22,8 @@ function sendTestPush() {
 }
 
 const modelLabels = {
-    'gpt-5.5-2026-04-23': { label: 'GPT-5.5',      sub: 'Event-Plan, Schwellenpace, Profil, Coach-Chat' },
-    'gpt-5.4-mini':        { label: 'GPT-5.4 mini', sub: 'Empfehlung, Review, Messages, Ernährung u.a.' },
+    'gpt-5.5-2026-04-23': { label: 'GPT-5.5',      sub: 'Event-Plan, Schwellenpace, Coach-Chat' },
+    'gpt-5.4-mini':        { label: 'GPT-5.4 mini', sub: 'Profil-Schätzung, Empfehlung, Review, Messages, Ernährung u.a.' },
     'gpt-4o':              { label: 'GPT-4o',        sub: 'Leistungsstärkstes GPT-4 Modell' },
     'gpt-4o-mini':         { label: 'GPT-4o mini',   sub: 'Schnell & günstig' },
 };

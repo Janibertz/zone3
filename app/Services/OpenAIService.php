@@ -780,7 +780,7 @@ PROMPT;
         $text = $this->callOpenAI('profile_estimation', [
             ['role' => 'system', 'content' => 'Du bist ein präziser Sportwissenschaftler. Antworte ausschließlich mit validem JSON.'],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.2, 1000, 60);
+        ], 0.2, 1000, 60, $this->modelMini);
 
         if ($text && preg_match('/\{.*?\}/s', $text, $matches)) {
             $json = json_decode($matches[0], true);
