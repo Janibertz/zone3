@@ -196,6 +196,8 @@ class OnboardingController extends Controller
 
         $user->save();
 
-        return redirect()->route('strava.connect');
+        // Inertia::location() triggers a full browser navigation (window.location.href)
+        // instead of an XHR follow — required so the external Strava redirect works correctly.
+        return Inertia::location(route('strava.connect'));
     }
 }
