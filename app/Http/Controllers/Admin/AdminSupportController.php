@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketReply;
 use App\Models\User;
-use App\Notifications\NewTicketReplyNotification;
+use App\Notifications\AdminRepliedNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -57,9 +57,14 @@ class AdminSupportController extends Controller
 
         $reply->load('user');
 
-        $ticket->user->notify(new NewTicketReplyNotification($ticket, $reply));
+        try {
+            $ticket->load('user');
+            $ticket->user->notify(new AdminRepliedNotification($ticket, $reply));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Admin reply notification failed: ' . $e->getMessage());
+        }
 
-        return back();
+        return back()->with('success', 'Antwort gesendet.');
     }
 
     public function updateStatus(Request $request, SupportTicket $ticket)

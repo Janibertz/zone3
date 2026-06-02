@@ -38,9 +38,13 @@ class SupportTicketController extends Controller
 
         $ticket->load('user');
 
-        User::where('is_admin', true)->each(function (User $admin) use ($ticket) {
-            $admin->notify(new NewSupportTicketNotification($ticket));
-        });
+        try {
+            User::where('is_admin', true)->each(function (User $admin) use ($ticket) {
+                $admin->notify(new NewSupportTicketNotification($ticket));
+            });
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Ticket notification failed: ' . $e->getMessage());
+        }
 
         return back()->with('success', 'Ticket #' . $ticket->id . ' wurde erstellt. Wir melden uns so schnell wie möglich!');
     }
@@ -72,9 +76,13 @@ class SupportTicketController extends Controller
 
         $reply->load('user');
 
-        User::where('is_admin', true)->each(function (User $admin) use ($ticket, $reply) {
-            $admin->notify(new NewTicketReplyNotification($ticket, $reply));
-        });
+        try {
+            User::where('is_admin', true)->each(function (User $admin) use ($ticket, $reply) {
+                $admin->notify(new NewTicketReplyNotification($ticket, $reply));
+            });
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Ticket reply notification failed: ' . $e->getMessage());
+        }
 
         return back();
     }
