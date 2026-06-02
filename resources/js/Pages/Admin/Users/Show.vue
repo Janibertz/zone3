@@ -13,6 +13,7 @@ const props = defineProps({
     activityStats:    Object,
     aiLogs:           Array,
     aiStats:          Object,
+    aiTodayUsed:      Number,
 });
 
 const page  = usePage();
@@ -46,6 +47,11 @@ function recalculateThreshold() {
 }
 function sendPasswordReset() {
     router.post(route('admin.users.reset-password', props.user.id), {}, { preserveScroll: true });
+}
+
+const aiLimitInput = ref(props.user.ai_daily_limit ?? 20);
+function saveAiLimit() {
+    router.patch(route('admin.users.ai-limit', props.user.id), { ai_daily_limit: aiLimitInput.value }, { preserveScroll: true });
 }
 
 // ── Formatters ────────────────────────────────────────────────
@@ -345,6 +351,19 @@ const zoneColors = [
                  TAB: AI-AKTIVITÄT
                  ══════════════════════════════════════════════════ -->
             <template v-if="activeTab === 'ai'">
+
+                <!-- AI Rate Limit -->
+                <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl px-5 py-4 flex items-center justify-between gap-4">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-800 dark:text-slate-200">AI-Tageslimit</p>
+                        <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Heute genutzt: <strong class="text-gray-700 dark:text-slate-300">{{ aiTodayUsed }}</strong> / {{ user.ai_daily_limit ?? 20 }} Calls</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input v-model.number="aiLimitInput" type="number" min="0" max="500"
+                            class="w-20 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-gray-900 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                        <button @click="saveAiLimit" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold text-white transition-colors">Speichern</button>
+                    </div>
+                </div>
 
                 <!-- AI KPIs -->
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">

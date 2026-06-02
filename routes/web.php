@@ -20,6 +20,7 @@ use App\Http\Controllers\StravaController;
 use App\Http\Controllers\WebhookController;
 use App\Http\Controllers\WellbeingController;
 use App\Http\Controllers\PushSubscriptionController;
+use App\Http\Controllers\SupportTicketController;
 use App\Models\WeeklyReview;
 use App\Services\ProgressService;
 use App\Services\TrainingLoadService;
@@ -46,6 +47,14 @@ Route::get('/', function () {
 });
 
 Route::get('/support', fn() => Inertia::render('Support'))->name('support');
+
+// Support Tickets
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/support/tickets',                         [SupportTicketController::class, 'index']) ->name('support.tickets.index');
+    Route::post('/support/tickets',                        [SupportTicketController::class, 'store']) ->name('support.tickets.store');
+    Route::get('/support/tickets/{ticket}',                [SupportTicketController::class, 'show'])  ->name('support.tickets.show');
+    Route::post('/support/tickets/{ticket}/reply',         [SupportTicketController::class, 'reply']) ->name('support.tickets.reply');
+});
 Route::get('/privacy', fn() => redirect()->route('support'))->name('privacy');
 
 // ── Onboarding (auth required, no onboarding-complete check) ──────────────
@@ -286,6 +295,11 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             }
 
             return $message;
+        })(),
+
+        'aiUsage' => (function () use ($user) {
+            $limit = $user->ai_daily_limit ?? 20;
+            return ['used' => \App\Models\AiLog::todayCountForUser($user->id), 'limit' => $limit];
         })(),
     ]);
 })->middleware(['auth', 'verified', 'onboarding'])->name('dashboard');

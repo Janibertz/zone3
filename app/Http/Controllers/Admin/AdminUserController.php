@@ -109,6 +109,7 @@ class AdminUserController extends Controller
             'activityStats'    => $activityStats,
             'aiLogs'           => $aiLogs,
             'aiStats'          => $aiStats,
+            'aiTodayUsed'      => AiLog::todayCountForUser($user->id),
         ]);
     }
 
@@ -205,6 +206,13 @@ class AdminUserController extends Controller
         } catch (\Exception $e) {
             return back()->with('error', 'Mail-Fehler: ' . $e->getMessage());
         }
+    }
+
+    public function updateAiLimit(Request $request, User $user)
+    {
+        $request->validate(['ai_daily_limit' => 'required|integer|min:0|max:500']);
+        $user->update(['ai_daily_limit' => $request->ai_daily_limit]);
+        return back()->with('success', 'AI-Tageslimit auf ' . $request->ai_daily_limit . ' gesetzt.');
     }
 
     public function destroy(User $user)

@@ -37,6 +37,14 @@ class AiLog extends Model
         return $this->belongsTo(User::class);
     }
 
+    public static function todayCountForUser(int $userId): int
+    {
+        return static::where('user_id', $userId)
+            ->where('status', 'success')
+            ->whereDate('created_at', today())
+            ->count();
+    }
+
     /**
      * GPT-4o pricing (EUR, as of 2025): $2.50/1M input, $10.00/1M output
      * Converted at ~0.92 USD/EUR

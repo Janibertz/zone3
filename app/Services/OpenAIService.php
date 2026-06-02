@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AiLog;
+use App\Models\User;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -32,6 +33,23 @@ class OpenAIService
     {
         $this->userId = $userId;
         return $this;
+    }
+
+    public function isRateLimited(): bool
+    {
+        if (!$this->userId) return false;
+        $user  = User::find($this->userId);
+        if (!$user) return false;
+        $limit = $user->ai_daily_limit ?? 20;
+        return AiLog::todayCountForUser($this->userId) >= $limit;
+    }
+
+    public function todayUsage(): array
+    {
+        if (!$this->userId) return ['used' => 0, 'limit' => 20];
+        $user  = User::find($this->userId);
+        $limit = $user?->ai_daily_limit ?? 20;
+        return ['used' => AiLog::todayCountForUser($this->userId), 'limit' => $limit];
     }
 
     protected function buildSystemPrompt(string $base): string

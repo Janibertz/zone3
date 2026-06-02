@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AppSetting;
+use App\Models\User;
 use App\Services\WebPushService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -27,7 +29,34 @@ class AdminSettingsController extends Controller
             return back()->with('success', 'Test-Push wurde gesendet.');
         }
 
-        return back()->with('error', 'Kein aktives Push-Abo für deinen Account gefunden. Bitte Push-Benachrichtigungen in der App aktivieren.');
+        return back()->with('error', 'Kein aktives Push-Abo für deinen Account gefunden.');
+    }
+
+    public function toggleMaintenance(Request $request)
+    {
+        $current = AppSetting::get('maintenance_mode', '0');
+        $new     = $current === '1' ? '0' : '1';
+        AppSetting::set('maintenance_mode', $new);
+
+        $msg = $new === '1' ? 'Wartungsmodus aktiviert.' : 'Wartungsmodus deaktiviert.';
+        return back()->with('success', $msg);
+    }
+
+    public function broadcastPush(Request $request, WebPushService $push)
+    {
+        $request->validate([
+            'title'   => 'required|string|max:100',
+            'message' => 'required|string|max:255',
+            'url'     => 'nullable|string|max:255',
+        ]);
+
+        $sent = $push->broadcast(
+            $request->title,
+            $request->message,
+            $request->url ?? '/dashboard'
+        );
+
+        return back()->with('success', "Push-Nachricht an {$sent} Nutzer gesendet.");
     }
 
     private function pingOpenAI(): array
@@ -57,17 +86,18 @@ class AdminSettingsController extends Controller
     private function systemConfig(): array
     {
         return [
-            'openai_model'      => config('services.openai.model',      'gpt-5.5-2026-04-23'),
-            'openai_model_mini' => config('services.openai.model_mini', 'gpt-5.4-mini'),
-            'openai_key_set'    => !empty(config('services.openai.api_key')),
-            'push_key_set'      => !empty(config('services.webpush.public_key')),
-            'mail_mailer'       => config('mail.default', 'log'),
-            'mail_host'         => config('mail.mailers.smtp.host', '–'),
-            'mail_from'         => config('mail.from.address', '–'),
-            'app_env'           => app()->environment(),
-            'app_url'           => config('app.url'),
-            'php_version'       => PHP_VERSION,
-            'laravel_version'   => app()->version(),
+            'openai_model'        => config('services.openai.model',      'gpt-5.5-2026-04-23'),
+            'openai_model_mini'   => config('services.openai.model_mini', 'gpt-5.4-mini'),
+            'openai_key_set'      => !empty(config('services.openai.api_key')),
+            'push_key_set'        => !empty(config('services.webpush.public_key')),
+            'mail_mailer'         => config('mail.default', 'log'),
+            'mail_host'           => config('mail.mailers.smtp.host', '–'),
+            'mail_from'           => config('mail.from.address', '–'),
+            'maintenance_mode'    => AppSetting::get('maintenance_mode', '0') === '1',
+            'app_env'             => app()->environment(),
+            'app_url'             => config('app.url'),
+            'php_version'         => PHP_VERSION,
+            'laravel_version'     => app()->version(),
         ];
     }
 }

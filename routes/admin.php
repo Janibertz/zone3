@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AdminAiLogController;
 use App\Http\Controllers\Admin\AdminCoachController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminSettingsController;
+use App\Http\Controllers\Admin\AdminSupportController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminWikiController;
 use Illuminate\Support\Facades\Route;
@@ -20,6 +21,7 @@ Route::post('/users/{user}/reset-recommendation',    [AdminUserController::class
 Route::post('/users/{user}/trigger-weekly-review',  [AdminUserController::class, 'triggerWeeklyReview'])  ->name('users.trigger-weekly-review');
 Route::post('/users/{user}/recalculate-threshold',  [AdminUserController::class, 'recalculateThreshold']) ->name('users.recalculate-threshold');
 Route::post('/users/{user}/reset-password',         [AdminUserController::class, 'resetPassword'])        ->name('users.reset-password');
+Route::patch('/users/{user}/ai-limit',              [AdminUserController::class, 'updateAiLimit'])         ->name('users.ai-limit');
 Route::delete('/users/{user}',                     [AdminUserController::class, 'destroy'])             ->name('users.destroy');
 
 Route::get('/ai-logs',           [AdminAiLogController::class, 'index']) ->name('ai-logs.index');
@@ -29,8 +31,16 @@ Route::get('/coaches',           [AdminCoachController::class, 'index'])  ->name
 Route::get('/coaches/{coach}',   [AdminCoachController::class, 'show'])   ->name('coaches.show');
 Route::put('/coaches/{coach}',   [AdminCoachController::class, 'update']) ->name('coaches.update');
 
-Route::get('/settings',              [AdminSettingsController::class, 'index'])       ->name('settings.index');
-Route::post('/settings/test-push',   [AdminSettingsController::class, 'sendTestPush'])->name('settings.test-push');
+Route::get('/settings',                    [AdminSettingsController::class, 'index'])          ->name('settings.index');
+Route::post('/settings/test-push',         [AdminSettingsController::class, 'sendTestPush'])   ->name('settings.test-push');
+Route::post('/settings/maintenance',       [AdminSettingsController::class, 'toggleMaintenance'])->name('settings.maintenance');
+Route::post('/settings/broadcast-push',    [AdminSettingsController::class, 'broadcastPush'])  ->name('settings.broadcast-push');
+
+// Support Tickets
+Route::get('/support',                     [AdminSupportController::class, 'index'])       ->name('support.index');
+Route::get('/support/{ticket}',            [AdminSupportController::class, 'show'])        ->name('support.show');
+Route::post('/support/{ticket}/reply',     [AdminSupportController::class, 'reply'])       ->name('support.reply');
+Route::patch('/support/{ticket}/status',   [AdminSupportController::class, 'updateStatus'])->name('support.status');
 
 // Wiki
 Route::get('/wiki',                  [AdminWikiController::class, 'index'])   ->name('wiki.index');

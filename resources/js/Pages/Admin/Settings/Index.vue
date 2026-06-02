@@ -11,13 +11,33 @@ const props = defineProps({
 const page  = usePage();
 const flash = computed(() => page.props.flash ?? {});
 
-const sendingPush = ref(false);
+const sendingPush      = ref(false);
+const togglingMaintenance = ref(false);
+const broadcastForm    = ref({ title: '', message: '', url: '' });
+const broadcasting     = ref(false);
 
 function sendTestPush() {
     sendingPush.value = true;
     router.post(route('admin.settings.test-push'), {}, {
         preserveScroll: true,
         onFinish: () => { sendingPush.value = false; },
+    });
+}
+
+function toggleMaintenance() {
+    togglingMaintenance.value = true;
+    router.post(route('admin.settings.maintenance'), {}, {
+        preserveScroll: true,
+        onFinish: () => { togglingMaintenance.value = false; },
+    });
+}
+
+function broadcastPush() {
+    broadcasting.value = true;
+    router.post(route('admin.settings.broadcast-push'), broadcastForm.value, {
+        preserveScroll: true,
+        onSuccess: () => { broadcastForm.value = { title: '', message: '', url: '' }; },
+        onFinish: () => { broadcasting.value = false; },
     });
 }
 
@@ -192,6 +212,50 @@ const modelLabels = {
                             : 'bg-red-600 hover:bg-red-700'"
                     >
                         {{ sendingPush ? 'Wird gesendet…' : 'Test senden' }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- ── Broadcast Push ──────────────────────────────── -->
+            <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl divide-y divide-gray-100 dark:divide-slate-800">
+                <div class="px-6 py-4">
+                    <h2 class="text-sm font-semibold text-gray-700 dark:text-slate-300">Push-Broadcast</h2>
+                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Nachricht an alle Nutzer mit aktivierten Push-Benachrichtigungen senden</p>
+                </div>
+                <div class="px-6 py-4 space-y-3">
+                    <input v-model="broadcastForm.title" type="text" placeholder="Titel…"
+                        class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <input v-model="broadcastForm.message" type="text" placeholder="Nachricht…"
+                        class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <input v-model="broadcastForm.url" type="text" placeholder="URL (optional, z.B. /dashboard)"
+                        class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <button @click="broadcastPush" :disabled="broadcasting || !broadcastForm.title || !broadcastForm.message || !config.push_key_set"
+                        class="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-colors"
+                        :class="(broadcasting || !broadcastForm.title || !broadcastForm.message || !config.push_key_set)
+                            ? 'bg-gray-300 dark:bg-slate-700 cursor-not-allowed text-gray-500'
+                            : 'bg-indigo-600 hover:bg-indigo-700'">
+                        {{ broadcasting ? 'Wird gesendet…' : 'An alle senden' }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- ── Wartungsmodus ────────────────────────────────── -->
+            <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl divide-y divide-gray-100 dark:divide-slate-800">
+                <div class="px-6 py-4">
+                    <h2 class="text-sm font-semibold text-gray-700 dark:text-slate-300">Wartungsmodus</h2>
+                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Normale Nutzer sehen eine Wartungsseite. Admins haben weiterhin Zugriff.</p>
+                </div>
+                <div class="px-6 py-4 flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-800 dark:text-slate-200">Status</p>
+                        <p class="text-xs mt-0.5" :class="config.maintenance_mode ? 'text-amber-500' : 'text-gray-400 dark:text-slate-500'">
+                            {{ config.maintenance_mode ? '⚠ Wartungsmodus aktiv' : 'App läuft normal' }}
+                        </p>
+                    </div>
+                    <button @click="toggleMaintenance" :disabled="togglingMaintenance"
+                        class="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-50"
+                        :class="config.maintenance_mode ? 'bg-green-600 hover:bg-green-700' : 'bg-amber-500 hover:bg-amber-600'">
+                        {{ togglingMaintenance ? '…' : config.maintenance_mode ? 'Deaktivieren' : 'Aktivieren' }}
                     </button>
                 </div>
             </div>

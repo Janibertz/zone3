@@ -86,6 +86,10 @@ const props = defineProps({
         type: String,
         default: null,
     },
+    aiUsage: {
+        type: Object,
+        default: () => ({ used: 0, limit: 20 }),
+    },
 });
 
 // PR banner dismissed state (local — dismissal is persisted server-side)
@@ -1157,10 +1161,13 @@ function syncStrava() {
                                 <div v-else class="shrink-0 h-7 w-7 rounded-lg bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center text-sm">🧭</div>
                                 <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">{{ coach ? coach.name + 's Empfehlung für heute' : 'Trainings-Empfehlung für heute' }}</h4>
                             </div>
-                            <button v-if="!props.todayRecommendationSession" @click="getTodayRecommendation"
-                                class="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-800 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 rounded-md px-2 py-1 transition-colors">
-                                Aktualisieren
-                            </button>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-gray-400 dark:text-slate-500">{{ props.aiUsage.used }}/{{ props.aiUsage.limit }} AI heute</span>
+                                <button v-if="!props.todayRecommendationSession" @click="getTodayRecommendation"
+                                    class="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-800 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 rounded-md px-2 py-1 transition-colors">
+                                    Aktualisieren
+                                </button>
+                            </div>
                         </div>
 
                         <!-- ══ Bereits angenommene Empfehlung (nach Reload) ══ -->

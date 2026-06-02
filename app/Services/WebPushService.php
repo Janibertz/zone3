@@ -68,4 +68,16 @@ class WebPushService
             '/dashboard'
         );
     }
+
+    public function broadcast(string $title, string $body, string $url = '/dashboard'): int
+    {
+        $sent = 0;
+        User::where('push_notifications_enabled', true)
+            ->whereHas('pushSubscriptions')
+            ->each(function (User $user) use ($title, $body, $url, &$sent) {
+                $this->sendToUser($user, $title, $body, $url);
+                $sent++;
+            });
+        return $sent;
+    }
 }
