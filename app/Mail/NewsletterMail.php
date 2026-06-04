@@ -12,7 +12,7 @@ class NewsletterMail extends Mailable
 {
 
     public function __construct(
-        public readonly string $subject,
+        public readonly string $mailSubject,
         public readonly string $htmlContent,
         public readonly string $recipientName,
         public readonly string $unsubscribeUrl,
@@ -20,7 +20,7 @@ class NewsletterMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: $this->subject);
+        return new Envelope(subject: $this->mailSubject);
     }
 
     public function content(): Content

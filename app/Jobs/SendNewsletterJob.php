@@ -35,7 +35,7 @@ class SendNewsletterJob implements ShouldQueue
             $unsubscribeUrl = route('newsletter.unsubscribe', ['token' => $user->unsubscribe_token]);
 
             Mail::to($user->email, $user->name)->send(new NewsletterMail(
-                subject: $newsletter->subject,
+                mailSubject: $newsletter->subject,
                 htmlContent: $newsletter->html_content,
                 recipientName: $user->name,
                 unsubscribeUrl: $unsubscribeUrl,
