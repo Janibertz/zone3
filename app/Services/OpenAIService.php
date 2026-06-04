@@ -1448,49 +1448,107 @@ PROMPT;
             'test_run'       => 'Testlauf (Zeitversuch)',
         ][$session->type] ?? $session->type;
 
-        $distKm = $session->distance_km ? "{$session->distance_km} km" : 'nicht angegeben';
-        $durMin = $session->duration_min ? "{$session->duration_min} min" : 'nicht angegeben';
-        $pace   = ($session->pace_target && $session->pace_target !== 'null') ? "{$session->pace_target} min/km" : 'kein Ziel';
-        $zone   = $session->zone ? "Zone {$session->zone}" : 'nicht angegeben';
-        $desc   = $session->description ? "\nBeschreibung: {$session->description}" : '';
+        $totalMin    = (int)($session->duration_min ?? 0);
+        $distKm      = $session->distance_km ? "{$session->distance_km} km" : 'nicht angegeben';
+        $pace        = ($session->pace_target && $session->pace_target !== 'null') ? "{$session->pace_target} min/km" : null;
+        $zone        = $session->zone ? "Zone {$session->zone}" : null;
+        $desc        = $session->description ? "\nBeschreibung: {$session->description}" : '';
+
+        // Provide threshold pace so AI can calculate zone-specific paces
+        $profile       = $session->user?->runnerProfile;
+        $thresholdLine = '';
+        if ($profile?->threshold_speed) {
+            $ts = $profile->threshold_speed;
+            $tPace = sprintf('%d:%02d', (int)$ts, (int)round(($ts - (int)$ts) * 60));
+            $thresholdLine = "\nSchwellenpace des Athleten: {$tPace} min/km";
+        }
+
+        // Proportional warmup/cooldown budgets
+        $warmupMin   = $totalMin > 0 ? max(3, (int)round($totalMin * 0.15)) : 5;
+        $cooldownMin = $totalMin > 0 ? max(3, (int)round($totalMin * 0.12)) : 5;
+        $mainMin     = $totalMin > 0 ? $totalMin - $warmupMin - $cooldownMin : 0;
+
+        $durationRule = $totalMin > 0
+            ? "ZEITBUDGET (ABSOLUT VERBINDLICH): Gesamtdauer = {$totalMin} Minuten.\n" .
+              "Rechnung: warmup + (work × reps) + (rest × reps) + cooldown = {$totalMin}\n" .
+              "Empfehlung: Aufwärmen ~{$warmupMin} min, Hauptteil ~{$mainMin} min gesamt, Auslaufen ~{$cooldownMin} min.\n" .
+              "Prüfe deine Rechnung bevor du antwortest!"
+            : "Wähle eine sinnvolle Gesamtdauer.";
 
         $prompt = <<<PROMPT
-Du bist ein präziser Lauf-Coach. Erstelle eine strukturierte Workout-Schritteliste für die folgende Trainingseinheit.
+Du bist ein präziser Lauf-Coach. Erstelle eine strukturierte Workout-Schritteliste.
 
 Einheit: {$typeLabel} – {$session->title}
-Distanz: {$distKm} | Dauer: {$durMin} | Ziel-Pace: {$pace} | {$zone}{$desc}
+Distanz: {$distKm} | Dauer: {$totalMin} min | Pace-Ziel: {$pace} | {$zone}{$desc}{$thresholdLine}
+
+{$durationRule}
 
 Regeln:
-- Aufwärmen (warmup), Hauptteil, Auslaufen (cooldown) immer enthalten
-- Für Intervalle: work + rest Steps mit gleichem "repetitions"-Wert für beide
-- "repetitions" = Anzahl Wiederholungen des Intervallpaares (work+rest)
-- Für Dauertempo/Easy-Läufe: work ohne repetitions (null)
-- Pace bei rest-Phasen: null
-- Maximal 6 Schritte
-- Progressiver Lauf (progressive_run): Aufwärmen Zone 1, dann 2–3 work-Steps mit steigender Pace/Zone (Z2 → Z3 → Z4)
-- Testlauf (test_run): Ausgiebiges Aufwärmen + Strides, dann ein einzelner work-Step "Zeitversuch" auf voller Distanz bei maximalem Effort (Zone 4–5)
+- warmup + cooldown immer enthalten
+- duration_min: NUR positive GANZE ZAHLEN (kein 0.33, kein 1.5 – nur 1, 2, 3 …)
+- Intervalle: work + rest Steps mit gleichem "repetitions"-Wert
+- work-Steps: pace_target MUSS konkrete Pace "M:SS" enthalten (nie null oder "locker")
+- rest-Steps: pace_target = null, zone = 1
+- Easy/Tempo-Läufe: ein work-Step ohne repetitions (null)
+- Maximal 6 Schritte total
+- Progressiver Lauf: warmup Z1, dann 2–3 work-Steps steigend (Z2→Z3→Z4)
+- Testlauf: ausgiebiges warmup + Strides, dann 1 work-Step Zeitversuch (Z4–5)
 
-Antworte NUR mit einem JSON-Array:
+Antworte NUR mit JSON-Array:
 [
-  {"type": "warmup",   "label": "Einlaufen",  "duration_min": 10, "pace_target": "6:00", "zone": 1, "repetitions": null},
-  {"type": "work",     "label": "Hartphase",  "duration_min": 5,  "pace_target": "4:10", "zone": 4, "repetitions": 3},
-  {"type": "rest",     "label": "Trabpause",  "duration_min": 2,  "pace_target": null,   "zone": 1, "repetitions": 3},
-  {"type": "cooldown", "label": "Auslaufen",  "duration_min": 8,  "pace_target": "6:30", "zone": 1, "repetitions": null}
+  {"type": "warmup",   "label": "Einlaufen",  "duration_min": 5,  "pace_target": "6:00", "zone": 1, "repetitions": null},
+  {"type": "work",     "label": "Intervall",  "duration_min": 3,  "pace_target": "4:10", "zone": 4, "repetitions": 4},
+  {"type": "rest",     "label": "Trabpause",  "duration_min": 1,  "pace_target": null,   "zone": 1, "repetitions": 4},
+  {"type": "cooldown", "label": "Auslaufen",  "duration_min": 5,  "pace_target": "6:30", "zone": 1, "repetitions": null}
 ]
 PROMPT;
 
         $text = $this->callOpenAI('session_steps', [
-            ['role' => 'system', 'content' => 'Du bist ein präziser Lauf-Coach. Antworte ausschließlich mit validem JSON-Array ohne zusätzlichen Text.'],
+            ['role' => 'system', 'content' => 'Antworte ausschließlich mit validem JSON-Array ohne Text. duration_min sind ganze Zahlen ≥ 1.'],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.4, 1200, 45, $this->modelMini);
+        ], 0.3, 1200, 45, $this->modelMini);
 
         if ($text && preg_match('/\[.*\]/s', $text, $matches)) {
             $steps = json_decode($matches[0], true);
             if (json_last_error() === JSON_ERROR_NONE && is_array($steps) && count($steps) > 0) {
-                return $steps;
+                return $this->normalizeStepDurations($steps, $totalMin ?: null);
             }
         }
         return null;
+    }
+
+    /** Round all step durations to integers and adjust the largest work step so the total matches target. */
+    private function normalizeStepDurations(array $steps, ?int $targetMin): array
+    {
+        foreach ($steps as &$step) {
+            $step['duration_min'] = max(1, (int)round($step['duration_min'] ?? 1));
+        }
+        unset($step);
+
+        if (!$targetMin) return $steps;
+
+        $total = array_sum(array_map(
+            fn ($s) => $s['duration_min'] * max(1, (int)($s['repetitions'] ?? 1)),
+            $steps
+        ));
+
+        if ($total === $targetMin) return $steps;
+
+        // Adjust the highest-contribution non-rest step
+        $adjustIdx  = null;
+        $maxContrib = 0;
+        foreach ($steps as $i => $step) {
+            if ($step['type'] === 'rest') continue;
+            $contrib = $step['duration_min'] * max(1, (int)($step['repetitions'] ?? 1));
+            if ($contrib > $maxContrib) { $maxContrib = $contrib; $adjustIdx = $i; }
+        }
+
+        if ($adjustIdx !== null) {
+            $reps = max(1, (int)($steps[$adjustIdx]['repetitions'] ?? 1));
+            $steps[$adjustIdx]['duration_min'] = max(1, $steps[$adjustIdx]['duration_min'] + (int)round(($targetMin - $total) / $reps));
+        }
+
+        return $steps;
     }
 
     /**
