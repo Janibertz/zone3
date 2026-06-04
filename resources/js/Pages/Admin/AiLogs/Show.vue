@@ -69,7 +69,7 @@ const prettyResponse = computed(() => {
             </div>
         </template>
 
-        <div class="p-6 space-y-6 max-w-5xl">
+        <div class="p-4 sm:p-6 space-y-6 max-w-5xl">
 
             <!-- ── Meta Card ── -->
             <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl p-6">

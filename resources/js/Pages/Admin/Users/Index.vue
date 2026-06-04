@@ -76,7 +76,7 @@ const filterOptions = [
             <h1 class="text-xl font-bold text-gray-900 dark:text-white">Nutzerverwaltung</h1>
         </template>
 
-        <div class="p-6 space-y-6">
+        <div class="p-4 sm:p-6 space-y-6">
 
             <!-- Filter bar -->
             <div class="flex flex-col sm:flex-row gap-3">
@@ -207,7 +207,7 @@ const filterOptions = [
 
         <!-- Delete confirmation modal -->
         <Modal :show="!!deleteTarget" @close="deleteTarget = null">
-            <div class="p-6 space-y-4">
+            <div class="p-4 sm:p-6 space-y-4">
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white">Nutzer löschen</h3>
                 <p class="text-gray-600 dark:text-slate-400">
                     Soll <strong class="text-gray-900 dark:text-white">{{ deleteTarget?.name }}</strong> wirklich unwiderruflich gelöscht werden? Alle Daten dieses Nutzers werden entfernt.

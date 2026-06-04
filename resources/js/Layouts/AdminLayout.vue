@@ -1,11 +1,13 @@
 <script setup>
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useDarkMode } from '@/Composables/useDarkMode';
 
 const page = usePage();
 const user = computed(() => page.props.auth.user);
 const { isDark, toggle } = useDarkMode();
+
+const moreOpen = ref(false);
 
 const navItems = [
     {
@@ -28,6 +30,9 @@ const navItems = [
         routeName: 'admin.support.index',
         icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />`,
     },
+];
+
+const moreNavItems = [
     {
         label: 'Coaches',
         routeName: 'admin.coaches.index',
@@ -44,6 +49,8 @@ const navItems = [
         icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />`,
     },
 ];
+
+const allNavItems = [...navItems, ...moreNavItems];
 </script>
 
 <template>
@@ -68,7 +75,7 @@ const navItems = [
             <nav class="flex-1 overflow-y-auto px-3 py-5 space-y-0.5">
                 <p class="px-3 mb-3 text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-slate-500">Verwaltung</p>
                 <Link
-                    v-for="item in navItems"
+                    v-for="item in allNavItems"
                     :key="item.routeName"
                     :href="route(item.routeName)"
                     class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
@@ -84,7 +91,6 @@ const navItems = [
 
             <!-- Footer -->
             <div class="shrink-0 border-t border-gray-100 dark:border-slate-800 p-4 space-y-1">
-                <!-- Back to app -->
                 <Link
                     :href="route('dashboard')"
                     class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white transition-colors"
@@ -132,16 +138,30 @@ const navItems = [
         <!-- ══════════════════════════════════════
              MOBILE TOP BAR
              ══════════════════════════════════════ -->
-        <header class="lg:hidden fixed top-0 inset-x-0 z-20 h-14 flex items-center justify-between bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800 px-4">
-            <div class="flex items-center gap-2.5">
-                <div class="h-7 w-7 rounded-lg bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center shadow-sm">
-                    <span class="text-white text-xs font-bold">Z3</span>
-                </div>
-                <div class="flex flex-col">
-                    <span class="text-sm font-bold text-gray-900 dark:text-white tracking-tight leading-tight">Zone3</span>
-                    <span class="text-[9px] font-semibold text-red-500 dark:text-red-400 uppercase tracking-widest leading-tight">Admin</span>
+        <header class="lg:hidden fixed top-0 inset-x-0 z-20 h-14 flex items-center justify-between bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800 px-3">
+            <!-- Left: back to app + logo -->
+            <div class="flex items-center gap-2">
+                <Link
+                    :href="route('dashboard')"
+                    class="h-9 w-9 flex items-center justify-center rounded-xl text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                    title="Zurück zur App"
+                >
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+                    </svg>
+                </Link>
+                <div class="flex items-center gap-2">
+                    <div class="h-7 w-7 rounded-lg bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center shadow-sm">
+                        <span class="text-white text-xs font-bold">Z3</span>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-sm font-bold text-gray-900 dark:text-white tracking-tight leading-tight">Zone3</span>
+                        <span class="text-[9px] font-semibold text-red-500 dark:text-red-400 uppercase tracking-widest leading-tight">Admin</span>
+                    </div>
                 </div>
             </div>
+
+            <!-- Right: dark mode + logout -->
             <div class="flex items-center gap-1">
                 <button
                     @click="toggle"
@@ -171,21 +191,20 @@ const navItems = [
              MAIN CONTENT
              ══════════════════════════════════════ -->
         <div class="lg:pl-64 flex flex-col min-h-screen">
-            <header v-if="$slots.header" class="hidden lg:block bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800">
-                <div class="px-6 py-4">
+            <header v-if="$slots.header" class="bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800">
+                <div class="px-4 sm:px-6 py-3 lg:py-4">
                     <slot name="header" />
                 </div>
             </header>
-            <main class="flex-1 pt-14 pb-20 lg:pt-0 lg:pb-0">
+            <main class="flex-1 pt-14 pb-24 lg:pt-0 lg:pb-0">
                 <slot />
             </main>
         </div>
 
         <!-- ══════════════════════════════════════
-             MOBILE BOTTOM TAB BAR
+             MOBILE BOTTOM TAB BAR (4 primary + Mehr)
              ══════════════════════════════════════ -->
-        <nav class="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800"
-             style="padding-bottom: env(safe-area-inset-bottom);">
+        <nav class="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 pb-safe-tabbar">
             <div class="flex items-center h-16">
                 <Link
                     v-for="item in navItems"
@@ -194,16 +213,121 @@ const navItems = [
                     class="flex-1 flex flex-col items-center justify-center gap-1 h-full transition-colors relative"
                     :class="route().current(item.routeName)
                         ? 'text-red-600 dark:text-red-400'
-                        : 'text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300'"
+                        : 'text-gray-400 dark:text-slate-500'"
                 >
                     <span v-if="route().current(item.routeName)"
-                        class="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-10 bg-red-500 dark:bg-red-400 rounded-b-full"
+                        class="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 bg-red-500 dark:bg-red-400 rounded-b-full"
                     />
                     <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
                     <span class="text-[10px] font-medium leading-none">{{ item.label }}</span>
                 </Link>
+
+                <!-- Mehr button -->
+                <button
+                    @click="moreOpen = true"
+                    class="flex-1 flex flex-col items-center justify-center gap-1 h-full transition-colors relative"
+                    :class="moreOpen ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-slate-500'"
+                >
+                    <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                    </svg>
+                    <span class="text-[10px] font-medium leading-none">Mehr</span>
+                </button>
             </div>
         </nav>
+
+        <!-- ══════════════════════════════════════
+             MOBILE "MEHR" SHEET
+             ══════════════════════════════════════ -->
+        <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="opacity-0"
+            enter-to-class="opacity-100"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
+        >
+            <div v-if="moreOpen" class="lg:hidden fixed inset-0 z-40 bg-black/40" @click="moreOpen = false" />
+        </Transition>
+
+        <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="translate-y-full"
+            enter-to-class="translate-y-0"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="translate-y-0"
+            leave-to-class="translate-y-full"
+        >
+            <div v-if="moreOpen"
+                class="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-white dark:bg-slate-900 rounded-t-2xl shadow-2xl pb-safe-tabbar overflow-hidden"
+            >
+                <!-- Sheet handle -->
+                <div class="flex justify-center pt-3 pb-1">
+                    <div class="h-1 w-10 rounded-full bg-gray-200 dark:bg-slate-700" />
+                </div>
+
+                <!-- Header -->
+                <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-slate-800">
+                    <span class="text-sm font-semibold text-gray-900 dark:text-white">Admin-Menü</span>
+                    <button @click="moreOpen = false"
+                        class="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- More nav links -->
+                <nav class="px-3 py-3 space-y-0.5">
+                    <Link
+                        v-for="item in moreNavItems"
+                        :key="item.routeName"
+                        :href="route(item.routeName)"
+                        @click="moreOpen = false"
+                        class="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors"
+                        :class="route().current(item.routeName)
+                            ? 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400'
+                            : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800'"
+                    >
+                        <span class="h-9 w-9 rounded-xl flex items-center justify-center shrink-0"
+                            :class="route().current(item.routeName)
+                                ? 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400'
+                                : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
+                        </span>
+                        <span>{{ item.label }}</span>
+                    </Link>
+
+                    <!-- Divider -->
+                    <div class="my-2 border-t border-gray-100 dark:border-slate-800" />
+
+                    <!-- Zurück zur App -->
+                    <Link
+                        :href="route('dashboard')"
+                        @click="moreOpen = false"
+                        class="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
+                    >
+                        <span class="h-9 w-9 rounded-xl flex items-center justify-center shrink-0 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                            </svg>
+                        </span>
+                        <span class="font-semibold">Zurück zur App</span>
+                    </Link>
+                </nav>
+
+                <!-- User info -->
+                <div class="mx-3 mt-1 mb-2 rounded-xl bg-gray-50 dark:bg-slate-800 px-3 py-2.5 flex items-center gap-3">
+                    <div class="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center">
+                        <span class="text-xs font-bold text-white">{{ user.name.charAt(0).toUpperCase() }}</span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ user.name }}</p>
+                        <p class="text-xs text-red-500 dark:text-red-400 font-medium">Administrator</p>
+                    </div>
+                </div>
+            </div>
+        </Transition>
 
     </div>
 </template>

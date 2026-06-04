@@ -64,7 +64,7 @@ const maxWellbeing = computed(() => 10);
             <h1 class="text-xl font-bold text-gray-900 dark:text-white">Übersicht</h1>
         </template>
 
-        <div class="p-6 space-y-8">
+        <div class="p-4 sm:p-6 space-y-8">
 
             <!-- ── Primäre KPIs ──────────────────────────────────── -->
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -232,6 +232,7 @@ const maxWellbeing = computed(() => 10);
                         Alle Nutzer →
                     </Link>
                 </div>
+                <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <tbody class="divide-y divide-gray-50 dark:divide-slate-800">
                         <tr v-for="u in recentUsers" :key="u.id" class="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
@@ -258,6 +259,7 @@ const maxWellbeing = computed(() => 10);
                         </tr>
                     </tbody>
                 </table>
+                </div>
             </div>
 
         </div>

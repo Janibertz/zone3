@@ -142,7 +142,7 @@ const zoneColors = [
             </div>
         </template>
 
-        <div class="p-6 space-y-5">
+        <div class="p-4 sm:p-6 space-y-5">
 
             <!-- ── Flash banner ──────────────────────────────────── -->
             <div v-if="flash.success" class="flex items-center gap-3 px-4 py-3 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-xl text-sm text-green-700 dark:text-green-300">
@@ -547,7 +547,7 @@ const zoneColors = [
 
         <!-- ── Modals ────────────────────────────────────────── -->
         <Modal :show="showDeleteModal" @close="showDeleteModal = false">
-            <div class="p-6 space-y-4">
+            <div class="p-4 sm:p-6 space-y-4">
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white">Nutzer löschen</h3>
                 <p class="text-gray-600 dark:text-slate-400">
                     Soll <strong class="text-gray-900 dark:text-white">{{ user.name }}</strong> wirklich unwiderruflich gelöscht werden? Alle Aktivitäten, Ziele und Daten werden entfernt.
@@ -560,7 +560,7 @@ const zoneColors = [
         </Modal>
 
         <Modal :show="showWeeklyModal" @close="showWeeklyModal = false">
-            <div class="p-6 space-y-4">
+            <div class="p-4 sm:p-6 space-y-4">
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white">Weekly Review triggern</h3>
                 <p class="text-gray-600 dark:text-slate-400">
                     Soll für <strong class="text-gray-900 dark:text-white">{{ user.name }}</strong> der Wochenrückblick der letzten Woche manuell generiert werden? Ein bereits vorhandener Review dieser Woche wird überschrieben.

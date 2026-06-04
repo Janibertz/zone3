@@ -37,7 +37,7 @@ function formatTokens(n) {
             <h1 class="text-xl font-bold text-gray-900 dark:text-white">Coaches</h1>
         </template>
 
-        <div class="p-6 space-y-6">
+        <div class="p-4 sm:p-6 space-y-6">
 
             <p class="text-sm text-gray-500 dark:text-slate-400">
                 Hier kannst du die Persönlichkeits-Prompts der AI-Coaches bearbeiten und ihre Nutzungsstatistiken einsehen.

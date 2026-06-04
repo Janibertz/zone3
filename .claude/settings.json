@@ -73,7 +73,21 @@
       "Bash(php -l /c/Users/janan/Desktop/zone3/app/Http/Controllers/TrainingSessionController.php)",
       "Bash(php -l /c/Users/janan/Desktop/zone3/app/Models/User.php)",
       "Bash(php -l /c/Users/janan/Desktop/zone3/app/Http/Middleware/HandleInertiaRequests.php)",
-      "Bash(php -l /c/Users/janan/Desktop/zone3/routes/web.php)"
+      "Bash(php -l /c/Users/janan/Desktop/zone3/routes/web.php)",
+      "Bash(powershell -Command *)",
+      "Bash(php -l app/Console/Commands/SeedWiki.php)",
+      "Bash(python -c ' *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\janan\\\\Desktop\\\\zone3\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(xargs ls)",
+      "Bash(php -l app/Http/Controllers/Admin/AdminUserController.php)",
+      "Bash(grep -E \"^\\\\-\\\\-$|[0-9]+, [0-9]+\")",
+      "Bash(php -l app/Http/Controllers/Admin/AdminSettingsController.php)",
+      "Bash(grep -r \"STRAVA_CLIENT_ID\\\\|strava_client_id\" .env*)",
+      "Bash(grep \"STRAVA_CLIENT_ID\" .env)",
+      "Bash(Get-ChildItem -Path . -Depth 1)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(git reset *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\janan\\.claude\\projects\\c--Users-janan-Desktop-zone3\\memory"

@@ -58,7 +58,7 @@ function formatDate(dt) {
             </div>
         </template>
 
-        <div class="p-6 max-w-3xl space-y-5">
+        <div class="p-4 sm:p-6 max-w-3xl space-y-5">
 
             <!-- Flash -->
             <div v-if="flash.success" class="px-4 py-3 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-xl text-sm text-green-700 dark:text-green-300">

@@ -96,7 +96,7 @@ const maxTypeCalls = computed(() => Math.max(...(props.byType?.map(t => t.count)
             <h1 class="text-xl font-bold text-gray-900 dark:text-white">AI Logs</h1>
         </template>
 
-        <div class="p-6 space-y-6">
+        <div class="p-4 sm:p-6 space-y-6">
 
             <!-- ── KPI Row ── -->
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
