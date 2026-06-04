@@ -96,6 +96,14 @@ function cancelEdit() {
     setHtml('');
 }
 
+// Paste handler: prefer HTML clipboard data so pasted HTML renders correctly
+function handlePaste(e) {
+    e.preventDefault();
+    const html  = e.clipboardData.getData('text/html');
+    const plain = e.clipboardData.getData('text/plain');
+    document.execCommand('insertHTML', false, html || plain);
+}
+
 // ── Send ──────────────────────────────────────────────────────────────────────
 function confirmSend(nl) { sendConfirm.value = nl; }
 function cancelSend()    { sendConfirm.value = null; }
@@ -219,6 +227,7 @@ function formatDate(d) {
                             spellcheck="true"
                             class="min-h-[280px] w-full border border-gray-200 dark:border-slate-700 rounded-b-xl bg-white dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 newsletter-editor"
                             @input="() => {}"
+                            @paste="handlePaste"
                         />
                         <p class="mt-1 text-xs text-gray-400 dark:text-slate-500">
                             Opt-Out-Link wird automatisch an jede E-Mail angehängt.
