@@ -4,11 +4,14 @@ import { Link, usePage } from '@inertiajs/vue3';
 import { useDarkMode } from '@/Composables/useDarkMode';
 import { useCoachChat } from '@/Composables/useCoachChat';
 import { useVersionCheck } from '@/Composables/useVersionCheck';
+import { useInstallPrompt } from '@/Composables/useInstallPrompt';
 import UserAvatar from '@/Components/UserAvatar.vue';
 import CoachSlideOver from '@/Components/CoachSlideOver.vue';
 
 const { updateReady, startVersionPolling, reload } = useVersionCheck();
 onMounted(() => startVersionPolling());
+
+const { isInstallable, installApp, dismiss: dismissInstall } = useInstallPrompt();
 
 const moreOpen = ref(false);
 
@@ -116,6 +119,42 @@ const moreNavItems = computed(() => {
                 Jetzt aktualisieren
             </button>
         </div>
+
+        <!-- ══════════════════════════════════════
+             PWA INSTALL BANNER (mobile, dismissable)
+             ══════════════════════════════════════ -->
+        <Transition
+            enter-active-class="transition duration-300 ease-out"
+            enter-from-class="-translate-y-full opacity-0"
+            enter-to-class="translate-y-0 opacity-100"
+            leave-active-class="transition duration-200 ease-in"
+            leave-from-class="translate-y-0 opacity-100"
+            leave-to-class="-translate-y-full opacity-0"
+        >
+            <div
+                v-if="isInstallable"
+                class="lg:hidden fixed top-0 inset-x-0 z-50 flex items-center gap-3 px-4 py-3 bg-indigo-600 text-white shadow-lg"
+            >
+                <button @click="dismissInstall" class="shrink-0 text-white/70 hover:text-white transition-colors" aria-label="Schließen">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                </button>
+                <div class="h-8 w-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                    <span class="text-white text-xs font-bold">Z3</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold leading-tight">Zone3 installieren</p>
+                    <p class="text-xs text-white/75 leading-tight">Kostenlos · direkt auf dem Homescreen</p>
+                </div>
+                <button
+                    @click="installApp"
+                    class="shrink-0 rounded-full bg-white text-indigo-700 text-xs font-bold px-4 py-1.5 hover:bg-indigo-50 transition-colors"
+                >
+                    Installieren
+                </button>
+            </div>
+        </Transition>
 
         <!-- ══════════════════════════════════════
              DESKTOP SIDEBAR (hidden on mobile)
@@ -429,6 +468,30 @@ const moreNavItems = computed(() => {
                         Admin-Bereich
                     </Link>
                 </nav>
+
+                <!-- PWA Install Card -->
+                <div v-if="isInstallable" class="mx-3 mt-2 mb-1 rounded-xl bg-indigo-600 px-4 py-4">
+                    <div class="flex items-start gap-3 mb-3">
+                        <div class="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                            <span class="text-white text-base font-bold">Z3</span>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-bold text-white leading-tight">Zone3 immer griffbereit</p>
+                            <p class="text-xs text-white/75 leading-snug mt-0.5">Kostenlos als App auf deinem Homescreen – kein Speicherplatz nötig</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-end gap-3">
+                        <button @click="dismissInstall" class="text-xs text-white/70 font-medium hover:text-white transition-colors py-1">
+                            Nicht jetzt
+                        </button>
+                        <button
+                            @click="installApp"
+                            class="rounded-full bg-white text-indigo-700 text-xs font-bold px-5 py-2 hover:bg-indigo-50 transition-colors"
+                        >
+                            Installieren
+                        </button>
+                    </div>
+                </div>
 
                 <!-- User info + dark mode -->
                 <div class="mx-3 mt-1 mb-2 rounded-xl bg-gray-50 dark:bg-slate-800 px-3 py-2.5 flex items-center gap-3">
