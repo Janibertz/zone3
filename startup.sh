@@ -28,7 +28,7 @@ echo "[startup] Starting queue worker in background..."
     php artisan queue:work \
       --sleep=3 \
       --tries=3 \
-      --timeout=60 \
+      --timeout=1800 \
       --max-jobs=500
     echo "[worker] Restarting queue worker..."
     sleep 2
