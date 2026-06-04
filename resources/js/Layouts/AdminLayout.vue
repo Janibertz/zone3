@@ -138,7 +138,7 @@ const allNavItems = [...navItems, ...moreNavItems];
         <!-- ══════════════════════════════════════
              MOBILE TOP BAR
              ══════════════════════════════════════ -->
-        <header class="lg:hidden fixed top-0 inset-x-0 z-20 h-14 flex items-center justify-between bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800 px-3">
+        <header class="lg:hidden fixed top-0 inset-x-0 z-20 h-mobile-header pt-safe flex items-end justify-between bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800 px-3 pb-2">
             <!-- Left: back to app + logo -->
             <div class="flex items-center gap-2">
                 <Link
@@ -190,8 +190,8 @@ const allNavItems = [...navItems, ...moreNavItems];
         <!-- ══════════════════════════════════════
              MAIN CONTENT
              ══════════════════════════════════════ -->
-        <!-- pt-14 on the outer wrapper pushes ALL content (header + main) below the fixed mobile top bar -->
-        <div class="lg:pl-64 flex flex-col min-h-screen pt-14 lg:pt-0">
+        <!-- pt-mobile-header accounts for h-14 + env(safe-area-inset-top) (Dynamic Island) -->
+        <div class="lg:pl-64 flex flex-col min-h-screen pt-mobile-header lg:pt-0">
             <header v-if="$slots.header" class="bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800">
                 <div class="px-4 sm:px-6 py-3 lg:py-4">
                     <slot name="header" />

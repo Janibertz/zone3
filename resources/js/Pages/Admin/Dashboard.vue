@@ -136,9 +136,9 @@ const maxWellbeing = computed(() => 10);
                 <!-- AI Kosten letzte 30 Tage -->
                 <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl p-6">
                     <h2 class="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-4">AI-Kosten pro Tag (letzte 30 Tage)</h2>
-                    <div v-if="aiCostsPerDay.length" class="overflow-x-auto -mx-2 px-2">
-                    <div class="flex items-end gap-1 h-32 min-w-[480px]">
-                        <div v-for="item in aiCostsPerDay" :key="item.day" class="flex-1 flex flex-col items-center gap-1 group relative">
+                    <div v-if="aiCostsPerDay.length" class="w-full overflow-x-auto">
+                    <div class="flex items-end gap-1 h-32 w-max min-w-full">
+                        <div v-for="item in aiCostsPerDay" :key="item.day" class="w-5 shrink-0 flex flex-col items-center gap-1 group relative">
                             <div class="w-full rounded-t bg-violet-400 dark:bg-violet-500 transition-all cursor-default"
                                 :style="{ height: barHeight(parseFloat(item.cost), maxAiCost) + 'px' }">
                             </div>
@@ -149,8 +149,8 @@ const maxWellbeing = computed(() => 10);
                         </div>
                     </div>
                     <p v-else class="text-sm text-gray-400 dark:text-slate-500 py-8 text-center">Noch keine KI-Calls</p>
-                    </div><!-- end min-w flex -->
-                    </div><!-- end overflow-x-auto -->
+                    </div>
+                    </div>
                     <div v-if="aiCostsPerDay.length" class="flex justify-between mt-1">
                         <span class="text-[10px] text-gray-400 dark:text-slate-500">{{ formatShortDate(aiCostsPerDay[0]?.day) }}</span>
                         <span class="text-[10px] text-gray-400 dark:text-slate-500">{{ formatShortDate(aiCostsPerDay[aiCostsPerDay.length - 1]?.day) }}</span>
@@ -194,9 +194,9 @@ const maxWellbeing = computed(() => 10);
                         <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm bg-red-400 dark:bg-red-500 inline-block"></span>&lt; 5</span>
                     </div>
                 </div>
-                <div v-if="wellbeingTrend.length" class="overflow-x-auto -mx-2 px-2">
-                <div class="flex items-end gap-2 h-28 min-w-[520px]">
-                    <div v-for="item in wellbeingTrend" :key="item.date" class="flex-1 flex flex-col items-center gap-1 group relative">
+                <div v-if="wellbeingTrend.length" class="w-full overflow-x-auto">
+                <div class="flex items-end gap-1.5 h-28 w-max min-w-full">
+                    <div v-for="item in wellbeingTrend" :key="item.date" class="w-8 shrink-0 flex flex-col items-center gap-1 group relative">
                         <span class="text-xs text-gray-500 dark:text-slate-400">{{ item.avg_score }}</span>
                         <div class="w-full rounded-t-md transition-all"
                             :class="wellbeingColor(item.avg_score)"
@@ -208,8 +208,8 @@ const maxWellbeing = computed(() => 10);
                         </div>
                         <span class="text-[10px] text-gray-400 dark:text-slate-500">{{ formatShortDate(item.date) }}</span>
                     </div>
-                </div><!-- end min-w flex -->
-                </div><!-- end overflow-x-auto -->
+                </div>
+                </div>
                 <p v-else class="text-sm text-gray-400 dark:text-slate-500 py-8 text-center">Keine Wellbeing-Einträge in den letzten 14 Tagen</p>
             </div>
 
