@@ -137,20 +137,19 @@ const maxWellbeing = computed(() => 10);
                 <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl p-6">
                     <h2 class="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-4">AI-Kosten pro Tag (letzte 30 Tage)</h2>
                     <div v-if="aiCostsPerDay.length" class="w-full overflow-x-auto">
-                    <div class="flex items-end gap-1 h-32 w-max min-w-full">
-                        <div v-for="item in aiCostsPerDay" :key="item.day" class="w-5 shrink-0 flex flex-col items-center gap-1 group relative">
-                            <div class="w-full rounded-t bg-violet-400 dark:bg-violet-500 transition-all cursor-default"
-                                :style="{ height: barHeight(parseFloat(item.cost), maxAiCost) + 'px' }">
-                            </div>
-                            <!-- Tooltip -->
-                            <div class="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 hidden group-hover:block z-10 bg-gray-900 dark:bg-slate-700 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap pointer-events-none">
-                                {{ formatShortDate(item.day) }}: {{ formatCost(item.cost) }} ({{ item.calls }} Calls)
+                        <div class="flex items-end gap-1 h-32 w-max min-w-full">
+                            <div v-for="item in aiCostsPerDay" :key="item.day" class="w-5 shrink-0 flex flex-col items-center gap-1 group relative">
+                                <div class="w-full rounded-t bg-violet-400 dark:bg-violet-500 transition-all cursor-default"
+                                    :style="{ height: barHeight(parseFloat(item.cost), maxAiCost) + 'px' }">
+                                </div>
+                                <!-- Tooltip -->
+                                <div class="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 hidden group-hover:block z-10 bg-gray-900 dark:bg-slate-700 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap pointer-events-none">
+                                    {{ formatShortDate(item.day) }}: {{ formatCost(item.cost) }} ({{ item.calls }} Calls)
+                                </div>
                             </div>
                         </div>
                     </div>
                     <p v-else class="text-sm text-gray-400 dark:text-slate-500 py-8 text-center">Noch keine KI-Calls</p>
-                    </div>
-                    </div>
                     <div v-if="aiCostsPerDay.length" class="flex justify-between mt-1">
                         <span class="text-[10px] text-gray-400 dark:text-slate-500">{{ formatShortDate(aiCostsPerDay[0]?.day) }}</span>
                         <span class="text-[10px] text-gray-400 dark:text-slate-500">{{ formatShortDate(aiCostsPerDay[aiCostsPerDay.length - 1]?.day) }}</span>
