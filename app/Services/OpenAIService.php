@@ -1797,6 +1797,9 @@ PROMPT;
                 foreach (['type','title','description','distance_km','duration_min','pace_target','zone'] as $f) {
                     if (array_key_exists($f, $args)) $session->{$f} = $args[$f];
                 }
+                // Clear cached steps and nutrition tips so they get regenerated with the new parameters
+                $session->steps         = null;
+                $session->nutrition_tips = null;
                 $session->save();
                 $label = $session->title ?? ($args['type'] ?? 'Training');
                 return ['message' => 'Einheit aktualisiert.', 'action' => ['type' => 'session_modified', 'label' => 'Training angepasst: ' . $label, 'reload' => true]];
