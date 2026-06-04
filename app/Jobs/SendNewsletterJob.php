@@ -22,17 +22,12 @@ class SendNewsletterJob implements ShouldQueue
     {
         $newsletter = Newsletter::findOrFail($this->newsletterId);
 
-        if ($newsletter->isSent()) {
-            return;
-        }
-
         $recipients = User::where('newsletter_opt_in', true)
             ->whereNotNull('email')
             ->get(['id', 'name', 'email', 'unsubscribe_token']);
 
         $count = 0;
         foreach ($recipients as $user) {
-            // Ensure token exists
             if (! $user->unsubscribe_token) {
                 $user->update(['unsubscribe_token' => Str::random(64)]);
             }
@@ -49,9 +44,7 @@ class SendNewsletterJob implements ShouldQueue
             $count++;
         }
 
-        $newsletter->update([
-            'sent_at'    => now(),
-            'sent_count' => $count,
-        ]);
+        // Update actual sent count (was pre-set by controller as estimate)
+        $newsletter->update(['sent_count' => $count]);
     }
 }

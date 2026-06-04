@@ -67,9 +67,17 @@ class AdminNewsletterController extends Controller
             return back()->withErrors(['error' => 'Dieser Newsletter wurde bereits versendet.']);
         }
 
+        $recipientCount = User::where('newsletter_opt_in', true)->count();
+
+        // Mark as sent immediately so the UI reflects it at once
+        $newsletter->update([
+            'sent_at'    => now(),
+            'sent_count' => $recipientCount,
+        ]);
+
         SendNewsletterJob::dispatch($newsletter->id);
 
-        return back()->with('success', "Newsletter wird versendet. Empfänger: " . User::where('newsletter_opt_in', true)->count());
+        return back()->with('success', "Newsletter versendet an {$recipientCount} Abonnenten.");
     }
 
     public function destroy(Newsletter $newsletter)
