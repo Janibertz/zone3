@@ -1522,127 +1522,206 @@ PROMPT;
     public function chatWithCoach(\App\Models\User $user, array $history, string $newMessage): ?string
     {
         $today = now()->toDateString();
+        $profile = $user->runnerProfile;
 
-        // Today's planned training session (most important context)
+        // Helper: Strava m/s → "M:SS min/km"
+        $mpsToMSS = function (float $mps): string {
+            if ($mps <= 0) return '—';
+            $secPerKm = 1000 / $mps;
+            return sprintf('%d:%02d', (int)($secPerKm / 60), (int)$secPerKm % 60);
+        };
+
+        // Helper: threshold_speed float (e.g. 5.5) → "5:30"
+        $floatMinToMSS = function (?float $min): string {
+            if (!$min) return '—';
+            $m = (int)$min;
+            $s = (int)round(($min - $m) * 60);
+            return sprintf('%d:%02d', $m, $s);
+        };
+
+        // ── Runner profile ────────────────────────────────────────────────
+        $profileLines = [];
+        if ($profile) {
+            if ($profile->threshold_speed) {
+                $profileLines[] = 'Schwellenpace: ' . $floatMinToMSS($profile->threshold_speed) . ' min/km';
+            }
+            if ($profile->threshold_heart_rate) $profileLines[] = 'LTHR: ' . $profile->threshold_heart_rate . ' bpm';
+            if ($profile->max_heart_rate)       $profileLines[] = 'Max HR: ' . $profile->max_heart_rate . ' bpm';
+
+            if (!empty($profile->pace_zones)) {
+                $zoneStr = collect($profile->pace_zones)->map(
+                    fn ($r, $z) => "Z{$z}: " . $floatMinToMSS($r['min'] ?? null) . '–' . $floatMinToMSS($r['max'] ?? null)
+                )->implode(' | ');
+                if ($zoneStr) $profileLines[] = 'Pace-Zonen: ' . $zoneStr;
+            }
+        }
+
+        // Running experience from first Strava run
+        $firstRun = $user->activities()->where('type', 'Run')->oldest('start_date')->first();
+        if ($firstRun) {
+            $months = (int)$firstRun->start_date->diffInMonths(now());
+            $since  = $months < 24 ? "{$months} Monate" : round($months / 12, 1) . ' Jahre';
+            $profileLines[] = "Läuft seit: ca. {$since} (erste Aktivität: {$firstRun->start_date->format('M Y')})";
+        }
+
+        // ── Weekly km (last 4 calendar weeks) ────────────────────────────
+        $weeklyLines = [];
+        for ($w = 0; $w < 4; $w++) {
+            $wStart = now()->startOfWeek()->subWeeks($w);
+            $wEnd   = (clone $wStart)->addWeek();
+            $km     = round($user->activities()
+                ->where('type', 'Run')
+                ->whereBetween('start_date', [$wStart, $wEnd])
+                ->sum('distance') / 1000, 1);
+            $label = match ($w) { 0 => 'Aktuelle Woche', 1 => 'Letzte Woche', default => "Vor {$w} Wochen" };
+            $weeklyLines[] = "{$label}: {$km} km";
+        }
+
+        // ── Training distribution last 30 days (completed) ───────────────
+        $typeMap = [
+            'easy_run' => 'Lockere Läufe', 'tempo_run' => 'Tempoläufe',
+            'interval' => 'Intervalle', 'long_run' => 'Lange Läufe',
+            'progressive_run' => 'Progressive Läufe', 'test_run' => 'Testläufe',
+            'race_prep' => 'Rennvorbereitung',
+        ];
+        $completedByType = \App\Models\TrainingSession::where('user_id', $user->id)
+            ->where('status', 'completed')
+            ->where('planned_date', '>=', now()->subDays(30)->toDateString())
+            ->selectRaw('type, count(*) as cnt')
+            ->groupBy('type')
+            ->pluck('cnt', 'type')
+            ->toArray();
+        $distLines = array_map(
+            fn ($type, $cnt) => ($typeMap[$type] ?? $type) . ': ' . $cnt . '×',
+            array_keys($completedByType), $completedByType
+        );
+
+        // ── Recent runs (last 10) with full metrics ───────────────────────
+        $recentRuns = $user->activities()
+            ->where('type', 'Run')
+            ->orderByDesc('start_date')
+            ->limit(10)
+            ->get()
+            ->map(function ($a) use ($mpsToMSS) {
+                $km    = number_format(($a->distance ?? 0) / 1000, 1);
+                $pace  = $a->average_speed > 0 ? $mpsToMSS((float)$a->average_speed) . ' min/km' : '—';
+                $dur   = $a->moving_time ? (int)round($a->moving_time / 60) . ' min' : '';
+                $hr    = $a->average_heartrate ? (int)$a->average_heartrate . ' bpm' : '';
+                $hrMax = $a->max_heartrate    ? '/ ' . (int)$a->max_heartrate . ' max' : '';
+                $parts = array_filter([$km . ' km', $pace, $dur, trim($hr . ' ' . $hrMax)]);
+                return '- ' . $a->start_date->format('d.m.') . ' "' . $a->name . '": ' . implode(' | ', $parts);
+            })
+            ->implode("\n");
+
+        // ── Today's planned session ───────────────────────────────────────
         $todaySession = \App\Models\TrainingSession::where('user_id', $user->id)
             ->whereDate('planned_date', $today)
             ->where('status', '!=', 'skipped')
             ->orderBy('sort_order')
             ->first();
 
-        // Upcoming sessions (next 5 days)
+        // ── Upcoming sessions (next 7 days) ───────────────────────────────
         $upcomingSessions = \App\Models\TrainingSession::where('user_id', $user->id)
             ->whereDate('planned_date', '>', $today)
-            ->whereDate('planned_date', '<=', now()->addDays(5)->toDateString())
+            ->whereDate('planned_date', '<=', now()->addDays(7)->toDateString())
             ->where('type', '!=', 'rest')
             ->orderBy('planned_date')
+            ->limit(5)
+            ->get();
+
+        // ── Upcoming events (all) ─────────────────────────────────────────
+        $events = $user->events()
+            ->where('event_date', '>=', $today)
+            ->orderBy('event_date')
             ->limit(4)
             ->get();
 
-        // Recent activities (last 5)
-        $recentActivities = $user->activities()
-            ->orderByDesc('start_date')
-            ->limit(5)
-            ->get()
-            ->map(fn ($a) => sprintf(
-                '- %s: %s (%s km)',
-                $a->start_date->format('d.m.'),
-                $a->name,
-                number_format(($a->distance ?? 0) / 1000, 1)
-            ))
-            ->implode("\n");
+        // ── Today's wellbeing ─────────────────────────────────────────────
+        $todayWellbeing = $user->wellbeingEntries()->whereDate('date', $today)->first();
 
-        // Active goal
-        $activeGoal = $user->goals()
-            ->where('active', true)
-            ->where('end_date', '>=', $today)
-            ->orderBy('end_date')
-            ->first();
-
-        // Nearest upcoming event
-        $upcomingEvent = $user->events()
-            ->where('event_date', '>=', $today)
-            ->orderBy('event_date')
-            ->first();
-
-        // Today's wellbeing
-        $todayWellbeing = $user->wellbeingEntries()
-            ->whereDate('date', $today)
-            ->first();
-
-        // Runner profile
-        $profile = $user->runnerProfile;
-
-        // Build context block — training plan comes first
+        // ── Assemble context sections ─────────────────────────────────────
         $ctx = [];
+
+        if ($profileLines) {
+            $ctx[] = "ATHLETENPROFIL:\n" . implode("\n", $profileLines);
+        }
+
+        if ($weeklyLines) {
+            $ctx[] = "WOCHENKILOMETER:\n" . implode("\n", $weeklyLines);
+        }
+
+        if ($distLines) {
+            $ctx[] = "TRAININGSVERTEILUNG (letzte 30 Tage, abgeschlossen):\n" . implode(', ', $distLines);
+        }
+
+        if ($recentRuns) {
+            $ctx[] = "LETZTE LÄUFE (inkl. Pace & HR):\n{$recentRuns}";
+        }
 
         if ($todaySession) {
             if ($todaySession->type === 'rest') {
-                $status = $todaySession->status === 'completed' ? ' (bereits als erledigt markiert)' : '';
-                $ctx[] = "Heutige geplante Trainingseinheit{$status}: Ruhetag";
+                $s = $todaySession->status === 'completed' ? ' (bereits erledigt)' : '';
+                $ctx[] = "HEUTIGES TRAINING{$s}: Ruhetag";
             } else {
-                $details = "Typ: {$todaySession->type}, Titel: \"{$todaySession->title}\"";
-                if ($todaySession->distance_km) $details .= ", Distanz: {$todaySession->distance_km} km";
-                if ($todaySession->duration_min) $details .= ", Dauer: {$todaySession->duration_min} min";
-                if ($todaySession->pace_target)  $details .= ", Pace-Ziel: {$todaySession->pace_target} min/km";
-                if ($todaySession->zone)         $details .= ", Zone: {$todaySession->zone}";
-                if ($todaySession->intensity)    $details .= ", Intensität: {$todaySession->intensity}";
-                $status = $todaySession->status === 'completed' ? ' (bereits absolviert)' : '';
+                $d = "Typ: {$todaySession->type}, Titel: \"{$todaySession->title}\"";
+                if ($todaySession->distance_km) $d .= ", {$todaySession->distance_km} km";
+                if ($todaySession->duration_min) $d .= ", {$todaySession->duration_min} min";
+                if ($todaySession->pace_target && $todaySession->pace_target !== 'null') $d .= ", Pace-Ziel: {$todaySession->pace_target} min/km";
+                if ($todaySession->zone)         $d .= ", Zone {$todaySession->zone}";
+                $s    = $todaySession->status === 'completed' ? ' (bereits absolviert)' : '';
                 $desc = $todaySession->description ? "\n  Details: {$todaySession->description}" : '';
-                $ctx[] = "Heutige geplante Trainingseinheit{$status}:\n  {$details}{$desc}";
+                $ctx[] = "HEUTIGES TRAINING{$s}:\n  {$d}{$desc}";
             }
         } else {
-            $ctx[] = "Heutige geplante Trainingseinheit: Kein Training im Plan für heute.";
+            $ctx[] = "HEUTIGES TRAINING: Kein Training geplant.";
         }
 
         if ($upcomingSessions->isNotEmpty()) {
             $lines = $upcomingSessions->map(fn ($s) => sprintf(
                 '- %s: %s (%s%s)',
-                $s->planned_date->format('d.m.'),
-                $s->title,
-                $s->type,
+                $s->planned_date->format('d.m.'), $s->title, $s->type,
                 $s->distance_km ? ", {$s->distance_km} km" : ''
             ))->implode("\n");
-            $ctx[] = "Nächste geplante Einheiten:\n{$lines}";
+            $ctx[] = "NÄCHSTE EINHEITEN (7 Tage):\n{$lines}";
         }
 
-        if ($recentActivities) {
-            $ctx[] = "Letzte abgeschlossene Aktivitäten:\n{$recentActivities}";
+        if ($events->isNotEmpty()) {
+            $lines = $events->map(function ($e) {
+                $days   = (int)now()->startOfDay()->diffInDays($e->event_date->copy()->startOfDay(), false);
+                $priStr = match ($e->priority) { 'A' => '★ A-Event', 'B' => 'B-Event', default => 'C-Event' };
+                $target = $e->target_time_formatted ? ", Ziel: {$e->target_time_formatted}" : '';
+                return "- {$e->name} ({$e->distance_label}) – {$e->event_date->format('d.m.Y')} (in {$days} Tagen) [{$priStr}{$target}]";
+            })->implode("\n");
+            $ctx[] = "KOMMENDE EVENTS:\n{$lines}";
         }
-        if ($activeGoal) {
-            $ctx[] = "Aktives Ziel: {$activeGoal->name} (bis {$activeGoal->end_date->format('d.m.Y')})";
-        }
-        if ($upcomingEvent) {
-            $days = (int) now()->diffInDays($upcomingEvent->event_date, false);
-            $ctx[] = "Nächstes Event: {$upcomingEvent->name} am {$upcomingEvent->event_date->format('d.m.Y')} (in {$days} Tagen)";
-        }
+
         if ($todayWellbeing) {
-            $ctx[] = "Heutiges Wellbeing: Energie {$todayWellbeing->energy_level}/10, Schlaf {$todayWellbeing->sleep_quality}/10, Stimmung {$todayWellbeing->mood}/10";
-        }
-        if ($profile && $profile->threshold_speed) {
-            $profileLine = "Schwellenpace: {$profile->threshold_speed} min/km";
-            if ($profile->threshold_heart_rate) $profileLine .= ", LTHR: {$profile->threshold_heart_rate} bpm";
-            $ctx[] = "Athletenprofil: {$profileLine}";
+            $ctx[] = "WELLBEING HEUTE: Energie {$todayWellbeing->energy_level}/10, Schlaf {$todayWellbeing->sleep_quality}/10, Stimmung {$todayWellbeing->mood}/10";
         }
 
-        $contextBlock = "\n\nAktueller Kontext des Athleten (Heute: {$today}):\n" . implode("\n\n", $ctx);
+        $contextBlock = "\n\n=== ATHLETEN-DATEN (Stand: {$today}) ===\n" . implode("\n\n", $ctx) . "\n=== ENDE ===";
+
+        $coachName = $user->coach?->name ?? 'Coach';
 
         $systemPrompt = $this->buildSystemPrompt(
-            "Du bist ein persönlicher Lauf-Coach. Antworte immer auf Deutsch. Sei persönlich, direkt und motivierend. " .
-            "Halte Antworten prägnant (2–4 Sätze), außer wenn konkrete Pläne oder Erklärungen verlangt werden. " .
-            "Sprich den Athleten direkt mit 'du' an. " .
-            "WICHTIG: Stütze deine Antworten IMMER auf die Systemdaten im Kontext (Trainingsplan, Aktivitäten, Events, Wellbeing). " .
-            "Wenn heute eine konkrete Trainingseinheit geplant ist, beziehe dich auf DIESE Einheit — empfehle niemals etwas Gegensätzliches.{$contextBlock}"
+            "Du bist {$coachName}, der persönliche Lauf-Coach von {$user->name}. " .
+            "Du kennst alle Trainingsdaten deines Athleten — Paces, Herzfrequenzen, Schwellenpace, Wochenkilometer, Events — und nutzt sie für präzise, datenbasierte Antworten wie ein echter Trainer, der seinen Athleten wirklich kennt. " .
+            "Antworte immer auf Deutsch. Sprich den Athleten direkt mit 'du' an. " .
+            "Passe die Antwortlänge der Frage an: Kurze Fragen → 1–3 Sätze. Analysefragen, Trainingsempfehlungen oder 'Was soll ich trainieren?' → ausführlich und strukturiert mit konkreten Zahlen aus den Daten (Paces, HR, km). " .
+            "Nutze Markdown (Listen, Fettschrift, Tabellen) für strukturierte Antworten. " .
+            "Wenn du für eine präzisere Antwort mehr Daten brauchst (z.B. Km-Splits, genaue Streckenbeschaffenheit), frag gezielt danach. " .
+            "Stütze dich IMMER auf die echten Zahlen aus den Athleten-Daten — niemals auf generische Empfehlungen. " .
+            "Wenn heute eine Trainingseinheit geplant ist, empfehle niemals etwas Gegensätzliches." .
+            $contextBlock
         );
 
-        // Build message array: system + history + new user message
         $messages = [['role' => 'system', 'content' => $systemPrompt]];
         foreach ($history as $msg) {
             $messages[] = ['role' => $msg['role'], 'content' => $msg['content']];
         }
         $messages[] = ['role' => 'user', 'content' => $newMessage];
 
-        return $this->callOpenAI('coach_chat', $messages, 0.8, 1500, 60);
+        return $this->callOpenAI('coach_chat', $messages, 0.8, 2500, 60);
     }
 
     private function formatSeconds(int $seconds): string
