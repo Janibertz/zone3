@@ -1859,6 +1859,10 @@ PROMPT;
                 $session->steps         = null;
                 $session->nutrition_tips = null;
                 $session->save();
+
+                // Clear cached daily message so it's regenerated with the new session context
+                $profile = $user->runnerProfile ?? \App\Models\RunnerProfile::firstOrCreate(['user_id' => $user->id]);
+                $profile->update(['daily_message' => null, 'daily_message_date' => null]);
                 $label = $session->title ?? ($args['type'] ?? 'Training');
                 return ['message' => 'Einheit aktualisiert.', 'action' => ['type' => 'session_modified', 'label' => 'Training angepasst: ' . $label, 'reload' => true]];
             }
