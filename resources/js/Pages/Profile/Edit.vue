@@ -185,6 +185,22 @@ const notifSettings = ref({
 const notifSaving = ref(false);
 const notifSaved  = ref(false);
 
+// Newsletter opt-in/out
+const newsletterOptIn  = ref(user.value?.newsletter_opt_in ?? true);
+const newsletterSaving = ref(false);
+const newsletterSaved  = ref(false);
+
+async function toggleNewsletter() {
+    newsletterSaving.value = true;
+    try {
+        await axios.post(route('newsletter.preference'), { newsletter_opt_in: newsletterOptIn.value });
+        newsletterSaved.value = true;
+        setTimeout(() => { newsletterSaved.value = false; }, 2500);
+    } finally {
+        newsletterSaving.value = false;
+    }
+}
+
 onMounted(async () => {
     if (!pushSupported.value) return;
     try {
@@ -872,6 +888,38 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                             <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
                                 <span v-if="notifSaved" class="text-sm text-green-600 dark:text-green-400 font-medium">Gespeichert</span>
                             </Transition>
+                        </div>
+                    </div>
+
+                    <!-- Newsletter -->
+                    <div class="px-4 sm:px-6 pt-5 pb-5 border-t border-gray-100 dark:border-slate-800 space-y-3">
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Newsletter</h3>
+                            <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                                Gelegentliche Updates, Trainingstipps und Zone3-Neuigkeiten per E-Mail.
+                            </p>
+                        </div>
+                        <div class="flex items-center justify-between gap-4">
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-gray-900 dark:text-white">Newsletter abonnieren</p>
+                                <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                                    An <span class="font-medium">{{ user.email }}</span>
+                                </p>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
+                                    <span v-if="newsletterSaved" class="text-xs text-green-600 dark:text-green-400 font-medium">Gespeichert</span>
+                                </Transition>
+                                <button
+                                    @click="newsletterOptIn = !newsletterOptIn; toggleNewsletter()"
+                                    :disabled="newsletterSaving"
+                                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50"
+                                    :class="newsletterOptIn ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-slate-700'"
+                                >
+                                    <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200"
+                                        :class="newsletterOptIn ? 'translate-x-5' : 'translate-x-0'" />
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </template>

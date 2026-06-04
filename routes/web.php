@@ -21,6 +21,7 @@ use App\Http\Controllers\WebhookController;
 use App\Http\Controllers\WellbeingController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\SupportTicketController;
+use App\Http\Controllers\NewsletterController;
 use App\Models\WeeklyReview;
 use App\Services\ProgressService;
 use App\Services\TrainingLoadService;
@@ -47,6 +48,10 @@ Route::get('/', function () {
 });
 
 Route::get('/support', fn() => Inertia::render('Support'))->name('support');
+
+// Newsletter unsubscribe — public, no auth required
+Route::get('/newsletter/unsubscribe/{token}', [NewsletterController::class, 'unsubscribe'])->name('newsletter.unsubscribe');
+Route::post('/newsletter/resubscribe',        [NewsletterController::class, 'resubscribe'])->name('newsletter.resubscribe');
 
 // Support Tickets
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -416,6 +421,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::patch('/training-sessions/{session}/rate', [TrainingSessionController::class, 'rate'])->name('training-sessions.rate');
     Route::patch('/training-sessions/{session}/apply-workout', [TrainingSessionController::class, 'applyWorkout'])->name('training-sessions.apply-workout');
     Route::post('/training-sessions/{session}/reset-cache', [TrainingSessionController::class, 'resetCache'])->name('training-sessions.reset-cache');
+    Route::post('/newsletter/preference', [NewsletterController::class, 'updatePreference'])->name('newsletter.preference');
 
     // ── Workout Baukasten ─────────────────────────────────────────────────────
     Route::get('/workouts',                        [\App\Http\Controllers\WorkoutController::class, 'index'])    ->name('workouts.index');

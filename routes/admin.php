@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AdminAiLogController;
 use App\Http\Controllers\Admin\AdminCoachController;
 use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\AdminNewsletterController;
 use App\Http\Controllers\Admin\AdminSettingsController;
 use App\Http\Controllers\Admin\AdminSupportController;
 use App\Http\Controllers\Admin\AdminUserController;
@@ -41,6 +42,13 @@ Route::get('/support',                     [AdminSupportController::class, 'inde
 Route::get('/support/{ticket}',            [AdminSupportController::class, 'show'])        ->name('support.show');
 Route::post('/support/{ticket}/reply',     [AdminSupportController::class, 'reply'])       ->name('support.reply');
 Route::patch('/support/{ticket}/status',   [AdminSupportController::class, 'updateStatus'])->name('support.status');
+
+// Newsletter
+Route::get('/newsletter',                           [AdminNewsletterController::class, 'index'])  ->name('newsletter.index');
+Route::post('/newsletter',                          [AdminNewsletterController::class, 'store'])  ->name('newsletter.store');
+Route::put('/newsletter/{newsletter}',              [AdminNewsletterController::class, 'update']) ->name('newsletter.update');
+Route::post('/newsletter/{newsletter}/send',        [AdminNewsletterController::class, 'send'])   ->name('newsletter.send');
+Route::delete('/newsletter/{newsletter}',           [AdminNewsletterController::class, 'destroy'])->name('newsletter.destroy');
 
 // Wiki
 Route::get('/wiki',                  [AdminWikiController::class, 'index'])   ->name('wiki.index');
