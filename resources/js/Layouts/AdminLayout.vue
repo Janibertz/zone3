@@ -190,13 +190,14 @@ const allNavItems = [...navItems, ...moreNavItems];
         <!-- ══════════════════════════════════════
              MAIN CONTENT
              ══════════════════════════════════════ -->
-        <div class="lg:pl-64 flex flex-col min-h-screen">
+        <!-- pt-14 on the outer wrapper pushes ALL content (header + main) below the fixed mobile top bar -->
+        <div class="lg:pl-64 flex flex-col min-h-screen pt-14 lg:pt-0">
             <header v-if="$slots.header" class="bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800">
                 <div class="px-4 sm:px-6 py-3 lg:py-4">
                     <slot name="header" />
                 </div>
             </header>
-            <main class="flex-1 pt-14 pb-24 lg:pt-0 lg:pb-0">
+            <main class="flex-1 pb-24 lg:pb-0">
                 <slot />
             </main>
         </div>

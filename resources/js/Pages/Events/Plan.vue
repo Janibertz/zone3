@@ -1191,9 +1191,43 @@ const groupedSteps = computed(() => {
             </div>
         </Modal>
 
-        <!-- ── Session Detail Modal ───────────────────────────────────────── -->
-        <Modal :show="!!detailSession" @close="detailSession = null">
-            <div v-if="detailSession" class="bg-white dark:bg-slate-900 max-h-[90vh] overflow-y-auto">
+        <!-- ── Session Detail Sheet / Modal ─────────────────────────────────
+             Mobile: bottom sheet sliding up from the bottom, clears tab bar.
+             Desktop: centered modal via sm: overrides.
+             ─────────────────────────────────────────────────────────────── -->
+        <Teleport to="body">
+            <!-- Backdrop -->
+            <Transition
+                enter-active-class="transition duration-200 ease-out"
+                enter-from-class="opacity-0"
+                enter-to-class="opacity-100"
+                leave-active-class="transition duration-150 ease-in"
+                leave-from-class="opacity-100"
+                leave-to-class="opacity-0"
+            >
+                <div v-if="!!detailSession" class="fixed inset-0 z-40 bg-black/50" @click="detailSession = null" />
+            </Transition>
+
+            <!-- Sheet / Modal panel -->
+            <Transition
+                enter-active-class="transition duration-250 ease-out"
+                enter-from-class="translate-y-full sm:translate-y-0 sm:opacity-0 sm:scale-95"
+                enter-to-class="translate-y-0 sm:opacity-100 sm:scale-100"
+                leave-active-class="transition duration-200 ease-in"
+                leave-from-class="translate-y-0 sm:opacity-100 sm:scale-100"
+                leave-to-class="translate-y-full sm:translate-y-0 sm:opacity-0 sm:scale-95"
+            >
+                <div
+                    v-if="detailSession"
+                    class="fixed inset-x-0 bottom-0 z-50 bg-white dark:bg-slate-900 rounded-t-2xl shadow-2xl
+                           sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-2xl sm:rounded-2xl"
+                >
+                    <!-- Drag handle (mobile only) -->
+                    <div class="flex justify-center pt-3 pb-0 sm:hidden">
+                        <div class="h-1 w-10 rounded-full bg-gray-300 dark:bg-slate-600" />
+                    </div>
+
+                    <div class="overflow-y-auto" style="max-height: min(88dvh, 88vh); padding-bottom: max(calc(env(safe-area-inset-bottom) + 5rem), 1.5rem)">
 
                 <!-- Header -->
                 <div class="flex items-start justify-between px-5 pt-5 pb-4 border-b border-gray-100 dark:border-slate-800">
@@ -1436,9 +1470,10 @@ const groupedSteps = computed(() => {
                             </a>
                         </div>
                     </div>
-                </div>
-            </div>
-        </Modal>
+                    </div><!-- end overflow-y-auto -->
+                </div><!-- end panel -->
+            </Transition>
+        </Teleport>
 
         <!-- Cancel plan modal -->
         <Modal :show="cancelModal" @close="cancelModal = false">
