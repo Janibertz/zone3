@@ -3,9 +3,27 @@ import { ref, onMounted, onUnmounted } from 'vue';
 const DISMISS_KEY = 'pwa_install_dismissed_at';
 const DISMISS_DAYS = 30;
 
+function getPWADisplayMode() {
+    if (document.referrer.startsWith('android-app://')) return 'twa';
+    if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) return 'standalone';
+    if (window.matchMedia('(display-mode: minimal-ui)').matches) return 'minimal-ui';
+    if (window.matchMedia('(display-mode: fullscreen)').matches) return 'fullscreen';
+    if (window.matchMedia('(display-mode: browser)').matches) return 'browser';
+    return 'unknown';
+}
+
+function isIOSSafari() {
+    const ua = navigator.userAgent;
+    const isIOS = /iPhone|iPad|iPod/.test(ua) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPad OS 13+
+    const isSafari = /WebKit/.test(ua) && !/CriOS|FxiOS|OPiOS|mercury/.test(ua);
+    return isIOS && isSafari;
+}
+
 export function useInstallPrompt() {
     const deferredPrompt = ref(null);
-    const isInstallable = ref(false);
+    const isInstallable = ref(false);   // Android: native prompt available
+    const isIOSHint = ref(false);       // iOS: show manual instructions
     const isInstalled = ref(false);
 
     function isDismissed() {
@@ -25,6 +43,7 @@ export function useInstallPrompt() {
     function handleAppInstalled() {
         deferredPrompt.value = null;
         isInstallable.value = false;
+        isIOSHint.value = false;
         isInstalled.value = true;
     }
 
@@ -40,16 +59,22 @@ export function useInstallPrompt() {
     function dismiss() {
         localStorage.setItem(DISMISS_KEY, String(Date.now()));
         isInstallable.value = false;
+        isIOSHint.value = false;
     }
 
     onMounted(() => {
-        if (
-            window.matchMedia('(display-mode: standalone)').matches ||
-            window.navigator.standalone
-        ) {
+        const mode = getPWADisplayMode();
+        if (mode === 'standalone' || mode === 'twa' || mode === 'minimal-ui' || mode === 'fullscreen') {
             isInstalled.value = true;
             return;
         }
+
+        // iOS: no beforeinstallprompt, show manual hint
+        if (isIOSSafari() && !isDismissed()) {
+            isIOSHint.value = true;
+            return;
+        }
+
         window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
         window.addEventListener('appinstalled', handleAppInstalled);
     });
@@ -59,5 +84,5 @@ export function useInstallPrompt() {
         window.removeEventListener('appinstalled', handleAppInstalled);
     });
 
-    return { isInstallable, isInstalled, installApp, dismiss };
+    return { isInstallable, isIOSHint, isInstalled, installApp, dismiss };
 }
