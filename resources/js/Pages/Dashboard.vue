@@ -723,7 +723,10 @@ function relativeDate(dateString) {
     if (!dateString) return '—';
     const d = new Date(dateString);
     const now = new Date();
-    const diffDays = Math.floor((now - d) / 86400000);
+    // Normalize to calendar days (local time) to avoid off-by-one from sub-24h differences
+    const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diffDays = Math.round((nowDay - dDay) / 86400000);
     if (diffDays === 0) return 'Heute';
     if (diffDays === 1) return 'Gestern';
     if (diffDays < 7)  return `vor ${diffDays} Tagen`;
