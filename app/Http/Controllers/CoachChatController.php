@@ -45,14 +45,16 @@ class CoachChatController extends Controller
             'content' => $userInput,
         ]);
 
-        // Generate coach response
+        // Generate coach response with tool use
         $this->openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
 
         if ($this->openAI->isRateLimited()) {
             return response()->json(['error' => 'rate_limited', 'message' => 'Tageslimit erreicht.'], 429);
         }
 
-        $reply = $this->openAI->chatWithCoach($user, $history, $userInput);
+        $result = $this->openAI->chatWithCoachTools($user, $history, $userInput);
+        $reply  = $result['reply'] ?? null;
+        $actions = $result['actions'] ?? [];
 
         if ($reply) {
             CoachMessage::create([
@@ -63,8 +65,9 @@ class CoachChatController extends Controller
         }
 
         return response()->json([
-            'response' => $reply,
-            'timestamp' => now()->toIso8601String(),
+            'response'       => $reply,
+            'actions_taken'  => $actions,
+            'timestamp'      => now()->toIso8601String(),
         ]);
     }
 }

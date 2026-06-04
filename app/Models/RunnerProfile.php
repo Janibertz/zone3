@@ -28,6 +28,7 @@ class RunnerProfile extends Model
         'daily_message_date',
         'pending_pr_activity_id',
         'pending_pr_message',
+        'coach_notes',
     ];
 
     protected $casts = [

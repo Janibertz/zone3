@@ -18,8 +18,10 @@ const inputEl          = ref(null);
 const quickPrompts = [
     'Analysiere mein letztes Training',
     'Bin ich auf Kurs für mein Rennen?',
+    'Das heutige Training ist zu leicht – mach es schwerer',
+    'Ich liege mit Grippe im Bett und kann eine Woche nicht trainieren',
+    'Ich möchte meine Zielzeit für das nächste Rennen anpassen',
     'Was soll ich heute trainieren?',
-    'Tipps für mehr Grundlagenausdauer',
 ];
 
 // Show a placeholder greeting when no messages exist yet
@@ -66,6 +68,7 @@ async function sendMessage(text) {
             messages.value.push({
                 role: 'assistant',
                 content: res.data.response,
+                actions: res.data.actions_taken ?? [],
                 created_at: res.data.timestamp ?? new Date().toISOString(),
             });
             await nextTick();
@@ -100,6 +103,27 @@ function formatTime(dateStr) {
     if (!dateStr) return '';
     return new Date(dateStr).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
+
+// Simple markdown → HTML (bold, lists, inline code, line breaks)
+function renderMarkdown(text) {
+    if (!text) return '';
+    return text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`([^`]+)`/g, '<code class="bg-black/10 rounded px-0.5 text-[0.85em]">$1</code>')
+        .replace(/^#{1,3} (.+)$/gm, '<p class="font-semibold mt-2 mb-0.5">$1</p>')
+        .replace(/^- (.+)$/gm, '<li class="ml-4 list-disc">$1</li>')
+        .replace(/(<li[\s\S]+?<\/li>)/g, '<ul class="space-y-0.5 my-1">$1</ul>')
+        .replace(/\n\n/g, '</p><p class="mt-2">')
+        .replace(/\n/g, '<br>');
+}
+
+const actionIcons = {
+    memory:           '🧠',
+    session_modified: '✏️',
+    sessions_skipped: '⏸️',
+    event_updated:    '🎯',
+};
 
 watch(isOpen, async (val) => {
     if (val) {
@@ -189,15 +213,32 @@ watch(isOpen, async (val) => {
                         </div>
 
                         <div class="max-w-[80%]">
+                            <!-- Message bubble -->
                             <div
-                                class="rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap"
+                                class="rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed"
                                 :class="msg.role === 'user'
-                                    ? 'bg-indigo-600 text-white rounded-br-sm'
+                                    ? 'bg-indigo-600 text-white rounded-br-sm whitespace-pre-wrap'
                                     : msg.isError
-                                        ? 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 rounded-bl-sm'
+                                        ? 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 rounded-bl-sm whitespace-pre-wrap'
                                         : 'bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-white rounded-bl-sm'"
-                            >
-                                {{ msg.content }}
+                                v-html="msg.role === 'assistant' && !msg.isError ? renderMarkdown(msg.content) : msg.content"
+                            />
+                            <!-- Action confirmation cards -->
+                            <div v-if="msg.actions && msg.actions.length" class="mt-1.5 space-y-1">
+                                <div
+                                    v-for="(action, ai) in msg.actions"
+                                    :key="ai"
+                                    class="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium"
+                                    :class="{
+                                        'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300': action.type === 'memory',
+                                        'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300': action.type === 'session_modified',
+                                        'bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-300': action.type === 'sessions_skipped',
+                                        'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300': action.type === 'event_updated',
+                                    }"
+                                >
+                                    <span>{{ actionIcons[action.type] ?? '✓' }}</span>
+                                    <span>{{ action.label }}</span>
+                                </div>
                             </div>
                             <p
                                 v-if="msg.created_at"
