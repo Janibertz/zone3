@@ -6,7 +6,8 @@ import { ref, computed, onMounted } from 'vue';
 
 import axios from 'axios';
 
-const coach = computed(() => usePage().props.coach ?? null);
+const coach   = computed(() => usePage().props.coach ?? null);
+const isAdmin = computed(() => usePage().props.auth?.isAdmin ?? false);
 const coachName = computed(() => coach.value?.name ?? 'Dein Coach');
 
 const coachAccentColors = {
@@ -176,6 +177,19 @@ async function completeSession(session) {
         updateSessionInList(res.data.session);
     } catch (e) {
         errorMsg.value = 'Fehler beim Speichern.';
+    }
+}
+
+// ── Admin: reset steps/nutrition cache ────────────────────────────────────────
+async function resetSessionCache(session) {
+    try {
+        await axios.post(route('training-sessions.reset-cache', session.id));
+        // Clear from local state so UI reflects the reset
+        const s = sessions.value?.find(x => x.id === session.id) ?? session;
+        s.steps         = null;
+        s.nutrition_tips = null;
+    } catch {
+        errorMsg.value = 'Fehler beim Zurücksetzen des Caches.';
     }
 }
 
@@ -1059,6 +1073,17 @@ const groupedSteps = computed(() => {
                                     >
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
                                         Kein Training
+                                    </button>
+
+                                    <!-- Admin: reset AI cache -->
+                                    <button
+                                        v-if="isAdmin && session.type !== 'rest'"
+                                        @click="resetSessionCache(session)"
+                                        title="Admin: Steps & Nutrition-Cache leeren"
+                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-500/20 transition-colors"
+                                    >
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
+                                        AI Reset
                                     </button>
                                 </div>
                             </div>

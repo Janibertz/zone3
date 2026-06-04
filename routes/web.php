@@ -415,6 +415,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/training-sessions/{session}/steps', [TrainingSessionController::class, 'sessionSteps'])->name('training-sessions.steps');
     Route::patch('/training-sessions/{session}/rate', [TrainingSessionController::class, 'rate'])->name('training-sessions.rate');
     Route::patch('/training-sessions/{session}/apply-workout', [TrainingSessionController::class, 'applyWorkout'])->name('training-sessions.apply-workout');
+    Route::post('/training-sessions/{session}/reset-cache', [TrainingSessionController::class, 'resetCache'])->name('training-sessions.reset-cache');
 
     // ── Workout Baukasten ─────────────────────────────────────────────────────
     Route::get('/workouts',                        [\App\Http\Controllers\WorkoutController::class, 'index'])    ->name('workouts.index');

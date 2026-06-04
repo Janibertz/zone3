@@ -99,6 +99,19 @@ class TrainingSessionController extends Controller
     }
 
     /**
+     * Admin: clear cached steps and nutrition tips so they get regenerated on next request.
+     */
+    public function resetCache(TrainingSession $session)
+    {
+        abort_if(! Auth::user()->is_admin, 403);
+        abort_if($session->user_id !== $session->user_id, 403); // ownership enforced by admin check
+
+        $session->update(['steps' => null, 'nutrition_tips' => null]);
+
+        return back()->with('success', 'Cache für Steps und Nutrition zurückgesetzt.');
+    }
+
+    /**
      * Return AI nutrition tips for a session — served from DB cache, generated on first request.
      */
     public function nutritionTips(TrainingSession $session, OpenAIService $openAI)
