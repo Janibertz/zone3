@@ -154,7 +154,10 @@ class TrainingSessionController extends Controller
         abort_if(in_array($session->type, ['rest', 'race_prep']), 422);
 
         if ($session->steps) {
-            return response()->json($session->steps);
+            return response()->json([
+                'steps'       => $session->steps,
+                'description' => $session->description,
+            ]);
         }
 
         $openAI->withCoach(Auth::user()->coach?->personality_prompt)->forUser(Auth::id());
@@ -164,9 +167,74 @@ class TrainingSessionController extends Controller
             return response()->json(['error' => 'Steps konnten nicht generiert werden.'], 500);
         }
 
-        $session->update(['steps' => $steps]);
+        // Rebuild description from actual steps so text and structure always match.
+        $workoutDesc     = $this->buildDescriptionFromSteps($steps);
+        $wellbeingComment = $session->description ? $this->extractWellbeingComment($session->description) : '';
+        $newDescription  = $wellbeingComment ? $workoutDesc . ' ' . $wellbeingComment : $workoutDesc;
 
-        return response()->json($steps);
+        $session->update(['steps' => $steps, 'description' => $newDescription]);
+
+        return response()->json([
+            'steps'       => $steps,
+            'description' => $newDescription,
+        ]);
+    }
+
+    /** Build a German workout description sentence from structured steps. */
+    private function buildDescriptionFromSteps(array $steps): string
+    {
+        $parts = [];
+        $count = count($steps);
+
+        for ($i = 0; $i < $count; $i++) {
+            $step     = $steps[$i];
+            $type     = $step['type'];
+            $duration = (int) ($step['duration_min'] ?? 1);
+            $pace     = $step['pace_target'] ?? null;
+            $reps     = (int) ($step['repetitions'] ?? 1);
+
+            if ($type === 'warmup') {
+                $parts[] = "{$duration} Minuten einlaufen";
+            } elseif ($type === 'work') {
+                $restDuration = null;
+                if (isset($steps[$i + 1]) && $steps[$i + 1]['type'] === 'rest') {
+                    $restDuration = (int) ($steps[$i + 1]['duration_min'] ?? 1);
+                    $i++;
+                }
+
+                if ($pace && preg_match('/^\d+:\d{2}$/', $pace)) {
+                    [$minStr, $secStr] = explode(':', $pace);
+                    $paceFloat = (int)$minStr + (int)$secStr / 60;
+                    $distKm    = $paceFloat > 0 ? round($duration / $paceFloat, 1) : 0;
+                    $distStr   = ($distKm == (int)$distKm) ? (int)$distKm . ' km' : $distKm . ' km';
+                    $part      = $reps > 1
+                        ? "dann {$reps}× {$distStr} bei {$pace}/km"
+                        : "dann {$duration} min bei {$pace}/km";
+                } else {
+                    $part = $reps > 1
+                        ? "dann {$reps}× {$duration} min"
+                        : "dann {$duration} Minuten";
+                }
+
+                if ($restDuration !== null) {
+                    $part .= " mit {$restDuration} min locker traben";
+                }
+                $parts[] = $part;
+            } elseif ($type === 'cooldown') {
+                $parts[] = "danach {$duration} Minuten auslaufen";
+            }
+        }
+
+        return ucfirst(implode(', ', $parts)) . '.';
+    }
+
+    /** Extract any wellbeing/context comment that follows the first sentence of a description. */
+    private function extractWellbeingComment(string $description): string
+    {
+        if (preg_match('/\.\s+([A-ZÄÖÜ].*)$/su', $description, $matches)) {
+            return trim($matches[1]);
+        }
+        return '';
     }
 
     /**

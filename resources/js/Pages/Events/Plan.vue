@@ -188,6 +188,8 @@ async function resetSessionCache(session) {
         const s = sessions.value?.find(x => x.id === session.id) ?? session;
         s.steps         = null;
         s.nutrition_tips = null;
+        delete stepsCache[session.id];
+        delete nutritionCache[session.id];
     } catch {
         errorMsg.value = 'Fehler beim Zurücksetzen des Caches.';
     }
@@ -476,13 +478,22 @@ async function openDetail(session) {
     // Load workout steps (not for race_prep)
     if (session.type !== 'race_prep') {
         if (stepsCache[session.id]) {
-            aiSteps.value = stepsCache[session.id];
+            const cached = stepsCache[session.id];
+            aiSteps.value = cached.steps ?? cached;
+            if (cached.description) detailSession.value.description = cached.description;
         } else {
             stepsLoading.value = true;
             try {
                 const { data } = await axios.get(route('training-sessions.steps', session.id));
                 stepsCache[session.id] = data;
-                aiSteps.value = data;
+                // Backend returns { steps, description }; update both local state and session list
+                const steps = data.steps ?? data;
+                aiSteps.value = steps;
+                if (data.description) {
+                    detailSession.value.description = data.description;
+                    const s = currentSessions.value?.find(x => x.id === session.id);
+                    if (s) s.description = data.description;
+                }
             } catch {
                 stepsError.value = '';
             } finally {
