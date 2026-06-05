@@ -648,7 +648,14 @@ const recGroupedSteps = computed(() => {
     return result;
 });
 
+const weather = ref(null);
+
 onMounted(() => {
+    // Weather chip — loaded async so it never blocks the dashboard render.
+    axios.get(route('weather.today'))
+        .then(({ data }) => { weather.value = data.weather; })
+        .catch(() => {});
+
     const rec = props.todayRecommendationSession;
     if (rec && rec.type !== 'rest') {
         recNutritionLoading.value = true;
@@ -1089,6 +1096,15 @@ function syncStrava() {
 
                 <!-- ═══ Heute: Trainingseinheit / Coach-Empfehlung ═══ -->
                 <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+
+                    <!-- ── Wetter-Chip am Trainingsort ── -->
+                    <div v-if="weather" class="flex items-center gap-1.5 mb-3 w-fit text-xs font-medium bg-gray-50 dark:bg-slate-800/60 rounded-lg px-2.5 py-1.5">
+                        <span class="text-sm">{{ weather.emoji }}</span>
+                        <span class="font-bold text-gray-800 dark:text-slate-100">{{ weather.temp_c }}°</span>
+                        <span class="text-gray-500 dark:text-slate-400">{{ weather.description }}</span>
+                        <span v-if="weather.precip_prob != null && weather.precip_prob >= 30" class="text-blue-500 dark:text-blue-400">· 💧 {{ weather.precip_prob }}%</span>
+                        <span v-if="weather.wind_kmh != null && weather.wind_kmh >= 25" class="text-gray-400 dark:text-slate-500">· 💨 {{ weather.wind_kmh }} km/h</span>
+                    </div>
 
                     <!-- ── Aktiver Plan: heutige / nächste Session anzeigen ── -->
                     <template v-if="props.hasActivePlan">

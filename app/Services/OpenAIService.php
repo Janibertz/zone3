@@ -362,7 +362,36 @@ PROMPT;
      * distance_km, duration_min, pace_target, zone, intensity.
      * Returns null on failure.
      */
-    public function generateTodayRecommendation(?array $runnerProfile, ?array $yesterdayActivity, ?array $wellbeingEntry, ?array $goal, array $progress, array $upcomingEvents = [], ?array $todayAvailability = null): ?array
+    /**
+     * Build a German weather context block for coaching prompts.
+     * Returns '' when no weather is available so prompts stay clean.
+     */
+    private function weatherContext(?array $weather, bool $coachingHint = true): string
+    {
+        if (! $weather || ! isset($weather['temp_c'])) {
+            return '';
+        }
+
+        $parts = ["{$weather['description']}, {$weather['temp_c']}°C"];
+        if (($weather['apparent_c'] ?? null) !== null && $weather['apparent_c'] !== $weather['temp_c']) {
+            $parts[] = "gefühlt {$weather['apparent_c']}°C";
+        }
+        if (($weather['precip_prob'] ?? null) !== null) {
+            $parts[] = "Regenwahrscheinlichkeit {$weather['precip_prob']}%";
+        }
+        if (($weather['wind_kmh'] ?? null) !== null) {
+            $parts[] = "Wind {$weather['wind_kmh']} km/h";
+        }
+        $line = implode(', ', $parts);
+
+        $hint = $coachingHint
+            ? ' Berücksichtige das in der Empfehlung (bei Hitze >25°C langsamere Pace, Hydration, frühere Tageszeit; bei Kälte <2°C längeres Aufwärmen/Kleidung; bei Regen/Sturm/Gewitter Vorsicht oder Indoor-Alternative).'
+            : '';
+
+        return "Wetter heute am Trainingsort: {$line}.{$hint}\n";
+    }
+
+    public function generateTodayRecommendation(?array $runnerProfile, ?array $yesterdayActivity, ?array $wellbeingEntry, ?array $goal, array $progress, array $upcomingEvents = [], ?array $todayAvailability = null, ?array $weather = null): ?array
     {
         $profileText = $runnerProfile ? "Runner Profile:\n- LTHR: {$runnerProfile['threshold_heart_rate']} bpm\n- Max HR: {$runnerProfile['max_heart_rate']} bpm\n- Schwellenpace: {$runnerProfile['threshold_speed']} min/km\n" : "Kein Runner Profile vorhanden.\n";
         $activityText = $yesterdayActivity ? "Letzte Aktivität (gestern):\n- " . round($yesterdayActivity['distance']/1000,2) . " km in " . $this->formatSeconds($yesterdayActivity['moving_time']) . " · Pace: " . ($yesterdayActivity['average_speed'] ? $this->calculatePace($yesterdayActivity['average_speed']) : '—') . "\n" : "Keine Aktivität von gestern.\n";
@@ -405,6 +434,8 @@ PROMPT;
             }
         }
 
+        $weatherText = $this->weatherContext($weather);
+
         $prompt = <<<PROMPT
 Du bist ein präziser Lauf-Coach. Erstelle eine Trainingsempfehlung für heute als JSON-Objekt.
 
@@ -415,6 +446,7 @@ Du bist ein präziser Lauf-Coach. Erstelle eine Trainingsempfehlung für heute a
 {$eventsText}
 {$taperWarning}
 {$availabilityText}
+{$weatherText}
 Antworte NUR mit einem JSON-Objekt (kein Markdown, kein Text davor/danach):
 {
   "type": "easy_run|tempo_run|interval|long_run|progressive_run|test_run|rest",
@@ -486,7 +518,7 @@ PROMPT;
      * Considers today's session type, upcoming events, and coach personality.
      * Returns a plain string (1–2 sentences) or null on failure.
      */
-    public function generateDailyMessage(?string $sessionType, ?string $sessionTitle, ?array $upcomingEvents): ?string
+    public function generateDailyMessage(?string $sessionType, ?string $sessionTitle, ?array $upcomingEvents, ?array $weather = null): ?string
     {
         $sessionText = $sessionType
             ? "Heutige geplante Einheit: {$sessionTitle} (Typ: {$sessionType}).\n"
@@ -498,9 +530,11 @@ PROMPT;
             $eventsText = "Nächster Wettkampf: {$nearest['name']} in {$nearest['days_until']} Tagen.\n";
         }
 
+        $weatherText = $this->weatherContext($weather, false);
+
         $prompt = <<<PROMPT
-{$sessionText}{$eventsText}
-Schreib eine kurze, motivierende Botschaft (1–2 Sätze) für den Läufer für heute. Sprich ihn direkt an (du). Kein Emoji, keine Anführungszeichen. Nur den reinen Text.
+{$sessionText}{$eventsText}{$weatherText}
+Schreib eine kurze, motivierende Botschaft (1–2 Sätze) für den Läufer für heute. Sprich ihn direkt an (du). Beziehe das Wetter nur ein, wenn es bemerkenswert ist (sehr warm, kalt, Regen, Sturm). Kein Emoji, keine Anführungszeichen. Nur den reinen Text.
 PROMPT;
 
         $content = $this->callOpenAI('daily_message', [

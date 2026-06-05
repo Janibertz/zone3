@@ -113,6 +113,7 @@ class StravaController extends Controller
                 // list endpoint carries neither).
                 $detail = $strava->fetchActivity($account, (int) $activityData['id']);
                 if ($detail) {
+                    $this->applyStartCoords($activity, $detail);
                     if (! empty($detail['laps'])) {
                         $activity->laps = $this->normalizeLaps($detail['laps']);
                         $activity->save();
@@ -133,6 +134,7 @@ class StravaController extends Controller
                 // No celebration for these historical runs.
                 $detail = $strava->fetchActivity($account, (int) $activityData['id']);
                 if ($detail) {
+                    $this->applyStartCoords($activity, $detail);
                     if ($activity->laps === null) {
                         $activity->laps = ! empty($detail['laps'])
                             ? $this->normalizeLaps($detail['laps'])
@@ -231,6 +233,8 @@ class StravaController extends Controller
                 'laps'                 => ! empty($activityData['laps'])
                     ? $this->normalizeLaps($activityData['laps'])
                     : null,
+                'start_lat'            => $activityData['start_latlng'][0] ?? null,
+                'start_lng'            => $activityData['start_latlng'][1] ?? null,
             ]
         );
 
@@ -440,6 +444,20 @@ class StravaController extends Controller
      * Flag an activity as the source of a fresh personal record so the dashboard
      * celebrates it (message generated lazily by GeneratePrMessageJob).
      */
+    /**
+     * Store the activity's start coordinates (from Strava's start_latlng)
+     * so the weather feature can resolve the user's training location.
+     */
+    private function applyStartCoords(Activity $activity, array $detail): void
+    {
+        $latlng = $detail['start_latlng'] ?? null;
+        if (is_array($latlng) && count($latlng) === 2 && $latlng[0] !== null) {
+            $activity->start_lat = $latlng[0];
+            $activity->start_lng = $latlng[1];
+            $activity->save();
+        }
+    }
+
     private function flagPendingPr(int $userId, int $activityId): void
     {
         $profile = RunnerProfile::where('user_id', $userId)->first();

@@ -7,6 +7,7 @@ use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Services\OpenAIService;
 use App\Services\ProgressService;
+use App\Services\WeatherService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,8 @@ class AIController extends Controller
 {
     public function __construct(
         protected OpenAIService $openAI,
-        protected ProgressService $progress
+        protected ProgressService $progress,
+        protected WeatherService $weather
     ) {}
 
     /**
@@ -218,7 +220,8 @@ class AIController extends Controller
                     $goalData,
                     $progressData,
                     $upcomingEvents,
-                    $todayAvailability
+                    $todayAvailability,
+                    $this->weather->forUser($user)
                 );
 
                 if ($runnerProfile && $recommendation) {
@@ -342,7 +345,8 @@ class AIController extends Controller
         $message = $this->openAI->generateDailyMessage(
             $todaySession?->type,
             $todaySession?->title,
-            $upcomingEvents
+            $upcomingEvents,
+            $this->weather->forUser($user)
         );
 
         if ($runnerProfile && $message) {

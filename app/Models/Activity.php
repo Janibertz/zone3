@@ -31,6 +31,8 @@ class Activity extends Model
         'location_country',
         'polyline',
         'best_efforts_synced_at',
+        'start_lat',
+        'start_lng',
     ];
 
     protected $casts = [
@@ -38,6 +40,8 @@ class Activity extends Model
         'polyline'               => 'array',
         'laps'                   => 'array',
         'best_efforts_synced_at' => 'datetime',
+        'start_lat'              => 'float',
+        'start_lng'              => 'float',
     ];
 
     /**

@@ -298,6 +298,7 @@ Route::get('/api/ai/recommendation/today', [AIController::class, 'recommendToday
 Route::post('/api/ai/recommendation/accept', [AIController::class, 'acceptRecommendation'])->middleware(['auth', 'verified'])->name('ai.recommendation.accept');
 Route::post('/api/ai/recommendation/adjust', [AIController::class, 'adjustRecommendation'])->middleware(['auth', 'verified'])->name('ai.recommendation.adjust');
 Route::get('/api/ai/daily-message', [AIController::class, 'dailyMessage'])->middleware(['auth', 'verified'])->name('ai.daily-message');
+Route::get('/api/weather/today', [\App\Http\Controllers\WeatherController::class, 'today'])->middleware(['auth', 'verified'])->name('weather.today');
 
 Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
