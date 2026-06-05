@@ -15,7 +15,6 @@ use App\Models\Activity;
 use App\Models\Event;
 use App\Models\TrainingSession;
 use App\Http\Controllers\StatisticsController;
-use App\Services\OpenAIService;
 use App\Http\Controllers\StravaController;
 use App\Http\Controllers\WebhookController;
 use App\Http\Controllers\WellbeingController;
@@ -219,7 +218,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             'last_synced_at' => $user->stravaAccount->last_synced_at,
         ] : null,
         'events' => $upcomingEvents,
-        'recentActivities' => Activity::where('user_id', $user->id)->orderByDesc('start_date')->limit(20)->get(),
+        'recentActivities' => Activity::where('user_id', $user->id)->orderByDesc('start_date')->limit(20)->get(Activity::SUMMARY_COLUMNS),
         'suggestions' => $progressService->generateTrainingSuggestions($user),
         'thresholdPace' => $thresholdPaceFormatted,
         'thresholdPaceCalculatedAt' => $runnerProfile?->threshold_pace_calculated_at?->format('d.m.Y H:i'),
@@ -271,7 +270,9 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             return $review ? ['content' => $review->content, 'week_start' => $weekStart] : null;
         })(),
 
-        // Pending PR celebration from coach
+        // Pending PR celebration from coach — generated off-request by a job
+        // so the dashboard render never blocks on an OpenAI call. The message
+        // appears on the next load once the job has cached it.
         'coachPrMessage' => (function () use ($user) {
             $profile = $user->runnerProfile;
             if (! $profile || ! $profile->pending_pr_activity_id) return null;
@@ -281,25 +282,9 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 return $profile->pending_pr_message;
             }
 
-            // Generate and cache the message
-            $prActivity = Activity::find($profile->pending_pr_activity_id);
-            if (! $prActivity) {
-                $profile->pending_pr_activity_id = null;
-                $profile->save();
-                return null;
-            }
-
-            $message = app(OpenAIService::class)
-                ->withCoach($user->coach?->personality_prompt)
-                ->forUser($user->id)
-                ->generatePrMessage($prActivity);
-
-            if ($message) {
-                $profile->pending_pr_message = $message;
-                $profile->save();
-            }
-
-            return $message;
+            // Not generated yet → kick off background generation, show nothing for now.
+            \App\Jobs\GeneratePrMessageJob::dispatch($user->id);
+            return null;
         })(),
 
         'aiUsage' => (function () use ($user) {
@@ -374,7 +359,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
         ])->toArray();
 
         return Inertia::render('Calendar', [
-            'activities' => Activity::where('user_id', $user->id)->orderByDesc('start_date')->get(),
+            'activities' => Activity::where('user_id', $user->id)->orderByDesc('start_date')->get(Activity::SUMMARY_COLUMNS),
             'events'     => $user->events()->orderBy('event_date')->get()->map(fn($e) => [
                 'id'                    => $e->id,
                 'name'                  => $e->name,

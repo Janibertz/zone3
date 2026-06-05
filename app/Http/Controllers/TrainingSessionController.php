@@ -103,8 +103,7 @@ class TrainingSessionController extends Controller
      */
     public function resetCache(TrainingSession $session)
     {
-        abort_if(! Auth::user()->is_admin, 403);
-        abort_if($session->user_id !== $session->user_id, 403); // ownership enforced by admin check
+        abort_if(! Auth::user()->is_admin, 403); // admin-only; ownership intentionally not required
 
         $session->update(['steps' => null, 'nutrition_tips' => null]);
 

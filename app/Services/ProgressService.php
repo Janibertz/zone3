@@ -31,9 +31,10 @@ class ProgressService
         $endDate = Carbon::parse($goal->end_date);
 
         // Get activities for this goal within the date range
+        // Only the numeric columns are needed — avoid loading large polyline/laps JSON.
         $activities = Activity::where('user_id', $goal->user_id)
             ->whereBetween('start_date', [$startDate, $endDate])
-            ->get();
+            ->get(['id', 'distance', 'moving_time']);
 
         // Calculate metrics
         $completedDistanceKm = $activities->sum('distance') / 1000; // Convert from meters
@@ -231,21 +232,22 @@ class ProgressService
                     'priority' => 'low',
                 ];
             }
+        }
 
-            // Suggestion 4: Rest recommendation
-            $recentActivitiesCount = Activity::where('user_id', $user->id)
-                ->where('start_date', '>=', Carbon::now()->subDays(7))
-                ->count();
+        // Suggestion 4: Rest recommendation — independent of any goal,
+        // so compute the weekly count once instead of per-goal (was N+1 + duplicate suggestions).
+        $recentActivitiesCount = Activity::where('user_id', $user->id)
+            ->where('start_date', '>=', Carbon::now()->subDays(7))
+            ->count();
 
-            if ($recentActivitiesCount >= 6) {
-                $suggestions[] = [
-                    'type' => 'rest_day_recommended',
-                    'title' => '😴 Zeit zum Ausruhen?',
-                    'message' => 'Du hast in der letzten Woche ' . $recentActivitiesCount . ' Trainingseinheiten absolviert. Ein Ruhetag könnte gut für die Regeneration sein.',
-                    'goal_id' => null,
-                    'priority' => 'normal',
-                ];
-            }
+        if ($recentActivitiesCount >= 6) {
+            $suggestions[] = [
+                'type' => 'rest_day_recommended',
+                'title' => '😴 Zeit zum Ausruhen?',
+                'message' => 'Du hast in der letzten Woche ' . $recentActivitiesCount . ' Trainingseinheiten absolviert. Ein Ruhetag könnte gut für die Regeneration sein.',
+                'goal_id' => null,
+                'priority' => 'normal',
+            ];
         }
 
         // Sort by priority

@@ -80,7 +80,7 @@ class ActivityController extends Controller
             $query->where('name', 'like', '%' . $request->search . '%');
         }
 
-        $activities = $query->paginate(20)->withQueryString();
+        $activities = $query->paginate(20, Activity::SUMMARY_COLUMNS)->withQueryString();
 
         return Inertia::render('Activities', [
             'activities' => $activities,

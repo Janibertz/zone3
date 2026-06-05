@@ -180,7 +180,7 @@ class TrainingPlanController extends Controller
             ->where('start_date', '>=', now()->subWeeks(4))
             ->orderByDesc('start_date')
             ->limit(20)
-            ->get()
+            ->get(\App\Models\Activity::SUMMARY_COLUMNS)
             ->map(fn ($a) => [
                 'date'         => $a->start_date?->format('Y-m-d') ?? '',
                 'name'         => $a->name,
@@ -405,7 +405,7 @@ class TrainingPlanController extends Controller
                     ->where('type', 'Run')
                     ->whereDate('start_date', '>=', $planStart)
                     ->whereDate('start_date', '<=', $planEnd)
-                    ->get();
+                    ->get(\App\Models\Activity::SUMMARY_COLUMNS);
 
                 foreach ($recentRuns as $run) {
                     $date = $run->start_date->toDateString();

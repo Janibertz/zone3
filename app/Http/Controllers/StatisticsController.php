@@ -20,7 +20,7 @@ class StatisticsController extends Controller
             ->where('type', 'Run')
             ->where('start_date', '>=', $since)
             ->orderBy('start_date')
-            ->get();
+            ->get(['id', 'start_date', 'distance', 'moving_time']);
 
         // Monthly volume (km + time)
         $monthlyStats = [];
@@ -65,7 +65,7 @@ class StatisticsController extends Controller
             ->where('average_speed', '>', 0)
             ->orderByDesc('start_date')
             ->limit(20)
-            ->get()
+            ->get(['id', 'start_date', 'average_speed', 'distance', 'name'])
             ->reverse()
             ->values();
 

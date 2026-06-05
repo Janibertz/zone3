@@ -35,7 +35,7 @@ class PredictFinishTimeService
             ->where('average_speed', '>', 0)
             ->orderByDesc('start_date')
             ->limit(30)
-            ->get();
+            ->get(Activity::SUMMARY_COLUMNS);
 
         if ($runs->count() < 2) {
             return null;

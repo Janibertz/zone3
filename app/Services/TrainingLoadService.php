@@ -34,11 +34,12 @@ class TrainingLoadService
         $thresholdPaceSec = $profile?->threshold_speed ? $profile->threshold_speed * 60 : null;
         $thresholdHr      = $profile?->threshold_heart_rate;
 
-        // Fetch 180 days of activities — enough to warm up the 42-day EMA
+        // Fetch 180 days of activities — enough to warm up the 42-day EMA.
+        // Only the columns used by activityTSS() — skip large polyline/laps JSON.
         $activities = Activity::where('user_id', $userId)
             ->where('start_date', '>=', Carbon::now()->subDays(180))
             ->orderBy('start_date')
-            ->get();
+            ->get(['id', 'start_date', 'moving_time', 'average_speed', 'distance', 'average_heartrate']);
 
         // Aggregate TSS per calendar day
         $dailyTSS = [];
