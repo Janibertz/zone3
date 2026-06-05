@@ -388,6 +388,8 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::patch('/events/{event}', [EventController::class, 'update'])->name('events.update');
     Route::delete('/events/{event}', [EventController::class, 'destroy'])->name('events.destroy');
     Route::get('/events/{event}/plan', [TrainingPlanController::class, 'show'])->name('events.plan.show');
+    Route::get('/events/{event}/race-strategy', [TrainingPlanController::class, 'raceStrategy'])->name('events.plan.strategy');
+    Route::get('/events/{event}/race-analysis', [TrainingPlanController::class, 'raceAnalysis'])->name('events.plan.analysis');
     Route::post('/events/{event}/plan/generate', [TrainingPlanController::class, 'generate'])->name('events.plan.generate');
     Route::post('/events/{event}/plan/cancel', [TrainingPlanController::class, 'cancel'])->name('events.plan.cancel');
     Route::patch('/events/{event}/plan/availability', [TrainingPlanController::class, 'updateAvailabilityOverride'])->name('events.plan.availability');

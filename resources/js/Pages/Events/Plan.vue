@@ -323,6 +323,31 @@ async function saveResult() {
     }
 }
 
+// ── Renntag-Strategie + Post-Race-Analyse ─────────────────────────────────────
+const raceStrategy        = ref(null);   // { pace, splits[], strategy_text }
+const raceStrategyLoading = ref(false);
+const raceAnalysis        = ref(null);   // { found, analysis_text, actual_time }
+const raceAnalysisLoading = ref(false);
+
+onMounted(() => {
+    // Race-day strategy: auto-loaded in the race week (next ~10 days).
+    if (!props.isPastEvent && props.event.days_until >= 0 && props.event.days_until <= 10) {
+        raceStrategyLoading.value = true;
+        axios.get(route('events.plan.strategy', props.event.id))
+            .then(({ data }) => { if (data.available) raceStrategy.value = data; })
+            .catch(() => {})
+            .finally(() => { raceStrategyLoading.value = false; });
+    }
+    // Post-race analysis: auto-loaded once the event is in the past.
+    if (props.isPastEvent && props.plan) {
+        raceAnalysisLoading.value = true;
+        axios.get(route('events.plan.analysis', props.event.id))
+            .then(({ data }) => { raceAnalysis.value = data; })
+            .catch(() => {})
+            .finally(() => { raceAnalysisLoading.value = false; });
+    }
+});
+
 const weeklyLoad = computed(() => {
     const all  = currentSessions.value; // stats over full plan
     const runs = all.filter(s => s.type !== 'rest' && s.status !== 'skipped');
@@ -741,6 +766,42 @@ const groupedSteps = computed(() => {
                 </div>
             </div>
 
+            <!-- ── Renntag-Strategie (Race Week) ──────────────────────────────── -->
+            <div v-if="!isPastEvent && (raceStrategyLoading || raceStrategy)" class="mb-5 bg-white dark:bg-slate-900 rounded-2xl border border-red-100 dark:border-red-500/20 shadow-sm p-4 sm:p-5">
+                <div class="flex items-center gap-2 mb-4">
+                    <div class="h-8 w-8 rounded-xl bg-red-100 dark:bg-red-500/15 flex items-center justify-center shrink-0 text-base">🏁</div>
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-900 dark:text-white">Renntag-Strategie</h3>
+                        <p class="text-xs text-gray-400 dark:text-slate-500">Dein Pacing-Plan für die Zielzeit {{ event.target_time_formatted || '—' }}</p>
+                    </div>
+                </div>
+
+                <div v-if="raceStrategyLoading" class="flex items-center gap-2 text-sm text-gray-400 dark:text-slate-500 py-3">
+                    <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                    Strategie wird erstellt…
+                </div>
+
+                <template v-else-if="raceStrategy">
+                    <div class="flex items-baseline gap-2 mb-4">
+                        <span class="text-3xl font-bold tabular-nums text-gray-900 dark:text-white">{{ raceStrategy.pace }}</span>
+                        <span class="text-sm text-gray-500 dark:text-slate-400">/km Zielpace</span>
+                    </div>
+
+                    <div class="rounded-xl border border-gray-100 dark:border-slate-800 overflow-hidden mb-4">
+                        <div v-for="(s, i) in raceStrategy.splits" :key="i"
+                            class="flex items-center justify-between px-3 py-2 text-sm"
+                            :class="[s.is_finish ? 'font-bold bg-red-50 dark:bg-red-500/10 text-gray-900 dark:text-white' : (i % 2 ? 'bg-gray-50/60 dark:bg-slate-800/30' : '')]">
+                            <span class="text-gray-600 dark:text-slate-300">{{ s.is_finish ? '🏁 ' : '' }}{{ s.label }}</span>
+                            <span class="tabular-nums text-gray-900 dark:text-white">{{ s.cumulative_time }}</span>
+                        </div>
+                    </div>
+
+                    <div v-if="raceStrategy.strategy_text" class="rounded-xl bg-gray-50 dark:bg-slate-800/60 p-3 text-sm text-gray-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+                        {{ raceStrategy.strategy_text }}
+                    </div>
+                </template>
+            </div>
+
             <!-- ── Race Result Form (past events only) ──────────────────────── -->
             <div v-if="isPastEvent && plan" class="mb-5 bg-white dark:bg-slate-900 rounded-2xl border border-indigo-100 dark:border-indigo-500/20 shadow-sm p-4 sm:p-5">
                 <div class="flex items-center gap-2 mb-4">
@@ -824,6 +885,28 @@ const groupedSteps = computed(() => {
                     <svg v-else-if="resultSaved" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
                     {{ resultSaved ? 'Gespeichert!' : resultSaving ? 'Speichern…' : 'Ergebnis speichern' }}
                 </button>
+            </div>
+
+            <!-- ── Post-Race-Analyse (past events) ──────────────────────────── -->
+            <div v-if="isPastEvent && plan && (raceAnalysisLoading || raceAnalysis)" class="mb-5 bg-white dark:bg-slate-900 rounded-2xl border border-indigo-100 dark:border-indigo-500/20 shadow-sm p-4 sm:p-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="h-8 w-8 rounded-xl bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center shrink-0 text-base">📊</div>
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-900 dark:text-white">Renn-Analyse von {{ coachName }}</h3>
+                        <p v-if="raceAnalysis?.found" class="text-xs text-gray-400 dark:text-slate-500">Auswertung deines Strava-Laufs · Zeit {{ raceAnalysis.actual_time }}</p>
+                    </div>
+                </div>
+
+                <div v-if="raceAnalysisLoading" class="flex items-center gap-2 text-sm text-gray-400 dark:text-slate-500 py-3">
+                    <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                    Analyse wird erstellt…
+                </div>
+                <div v-else-if="raceAnalysis?.found && raceAnalysis.analysis_text" class="rounded-xl bg-gray-50 dark:bg-slate-800/60 p-3 text-sm text-gray-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+                    {{ raceAnalysis.analysis_text }}
+                </div>
+                <div v-else class="text-sm text-gray-400 dark:text-slate-500 py-2">
+                    Kein Renn-Lauf von Strava gefunden. Sobald deine Aktivität synchronisiert ist, erstellt {{ coachName }} hier automatisch die Auswertung.
+                </div>
             </div>
 
             <!-- Wellbeing banner for today's session -->

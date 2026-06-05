@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\GenerateRacePredictionJob;
+use App\Models\Activity;
 use App\Models\Event;
 use App\Models\RunnerProfile;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Services\OpenAIService;
 use App\Services\TrainingLoadService;
+use App\Services\WeatherService;
 use App\Services\WebPushService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -551,6 +553,211 @@ class TrainingPlanController extends Controller
         $plan->update(['availability_overrides' => $overrides, 'needs_plan_update' => true]);
 
         return response()->json(['success' => true, 'overrides' => $overrides]);
+    }
+
+    /**
+     * Race-day pacing strategy: deterministic km splits for the target time
+     * plus a cached AI strategy text (generated on first view during race week).
+     */
+    public function raceStrategy(Event $event, OpenAIService $openAI, WeatherService $weather)
+    {
+        abort_if($event->user_id !== Auth::id(), 403);
+
+        $distanceKm = $this->raceDistanceKm($event);
+        $targetSec  = ($event->target_time_hours * 3600) + ($event->target_time_minutes * 60);
+
+        if (! $distanceKm || $targetSec <= 0) {
+            return response()->json(['available' => false]);
+        }
+
+        $pacing = $this->pacingSplits($distanceKm, $targetSec);
+
+        $plan = TrainingPlan::where('event_id', $event->id)
+            ->where('user_id', Auth::id())
+            ->latest()
+            ->first();
+
+        $strategyText = $plan?->race_strategy_text;
+        if ($plan && ! $strategyText) {
+            $user        = Auth::user();
+            $weatherData = ($event->days_until >= 0 && $event->days_until <= 7) ? $weather->forUser($user) : null;
+
+            $openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
+            $strategyText = $openAI->generateRaceStrategy([
+                'name'                  => $event->name,
+                'race_distance'         => $event->distance_label,
+                'target_time_formatted' => $event->target_time_formatted ?? 'nicht gesetzt',
+                'days_until'            => $event->days_until,
+            ], $pacing['pace'], $weatherData);
+
+            if ($strategyText) {
+                $plan->update(['race_strategy_text' => $strategyText]);
+            }
+        }
+
+        return response()->json([
+            'available'     => true,
+            'pace'          => $pacing['pace'],
+            'splits'        => $pacing['splits'],
+            'strategy_text' => $strategyText,
+        ]);
+    }
+
+    /**
+     * Post-race analysis: matches the Strava race run and returns a cached AI
+     * analysis (generated on first view after the race).
+     */
+    public function raceAnalysis(Event $event, OpenAIService $openAI)
+    {
+        abort_if($event->user_id !== Auth::id(), 403);
+
+        if ($event->days_until >= 0) {
+            return response()->json(['found' => false, 'reason' => 'not_past']);
+        }
+
+        $plan = TrainingPlan::where('event_id', $event->id)
+            ->where('user_id', Auth::id())
+            ->latest()
+            ->first();
+        if (! $plan) {
+            return response()->json(['found' => false]);
+        }
+
+        $activity = $this->findRaceActivity($event, $this->raceDistanceKm($event));
+        if (! $activity) {
+            return response()->json(['found' => false]);
+        }
+
+        $analysisText = $plan->race_analysis_text;
+
+        // Regenerate when not yet generated or the matched activity changed.
+        if (! $analysisText || $plan->race_analysis_activity_id !== $activity->id) {
+            $user = Auth::user();
+            $openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
+            $analysisText = $openAI->generateRaceAnalysis([
+                'name'          => $event->name,
+                'race_distance' => $event->distance_label,
+            ], $event->target_time_formatted, [
+                'time'        => $this->secToClock((int) $activity->moving_time),
+                'pace'        => $this->paceFromSpeed($activity->average_speed) ?? '—',
+                'distance_km' => round($activity->distance / 1000, 2),
+                'splits_text' => $this->lapsSplitsText($activity),
+            ]);
+
+            if ($analysisText) {
+                $plan->update([
+                    'race_analysis_text'        => $analysisText,
+                    'race_analysis_activity_id' => $activity->id,
+                ]);
+            }
+        }
+
+        return response()->json([
+            'found'            => true,
+            'analysis_text'    => $analysisText,
+            'actual_time'      => $this->secToClock((int) $activity->moving_time),
+            'race_activity_id' => $activity->id,
+        ]);
+    }
+
+    /** Canonical race distance in km, or the custom distance. */
+    private function raceDistanceKm(Event $event): ?float
+    {
+        return match ($event->race_distance) {
+            '5km'           => 5.0,
+            '10km'          => 10.0,
+            'half_marathon' => 21.0975,
+            'marathon'      => 42.195,
+            default         => $event->distance_km ?: null,
+        };
+    }
+
+    /**
+     * Even-pace km splits for a target time.
+     * @return array{pace: string, splits: array<int, array{label: string, cumulative_time: string, is_finish?: bool}>}
+     */
+    private function pacingSplits(float $distanceKm, int $targetSec): array
+    {
+        $avgPaceSec = $targetSec / $distanceKm;
+        $step       = $distanceKm <= 12 ? 1 : 5;
+
+        $splits = [];
+        for ($km = $step; $km < $distanceKm - 0.05; $km += $step) {
+            $splits[] = [
+                'label'           => $km . ' km',
+                'cumulative_time' => $this->secToClock((int) round($km * $avgPaceSec)),
+            ];
+        }
+        $splits[] = [
+            'label'           => $this->kmLabel($distanceKm),
+            'cumulative_time' => $this->secToClock($targetSec),
+            'is_finish'       => true,
+        ];
+
+        return ['pace' => $this->secToPace((int) round($avgPaceSec)), 'splits' => $splits];
+    }
+
+    /** Most plausible race run: a Run within ±1 day of the event, closest to the race distance. */
+    private function findRaceActivity(Event $event, ?float $distanceKm): ?Activity
+    {
+        $candidates = Activity::where('user_id', Auth::id())
+            ->where('type', 'Run')
+            ->whereDate('start_date', '>=', $event->event_date->copy()->subDay()->toDateString())
+            ->whereDate('start_date', '<=', $event->event_date->copy()->addDay()->toDateString())
+            ->get();
+
+        if ($candidates->isEmpty()) {
+            return null;
+        }
+        if (! $distanceKm) {
+            return $candidates->sortByDesc('distance')->first();
+        }
+        return $candidates->sortBy(fn ($a) => abs(($a->distance / 1000) - $distanceKm))->first();
+    }
+
+    /** Build a per-lap split summary from an activity's stored laps. */
+    private function lapsSplitsText(Activity $activity): ?string
+    {
+        $laps = $activity->laps;
+        if (! is_array($laps) || count($laps) < 2) {
+            return null;
+        }
+
+        $lines = [];
+        foreach ($laps as $i => $lap) {
+            $distKm = isset($lap['distance']) ? round($lap['distance'] / 1000, 2) : null;
+            $sec    = (int) ($lap['moving_time'] ?? $lap['elapsed_time'] ?? 0);
+            if (! $distKm || $distKm <= 0 || $sec <= 0) {
+                continue;
+            }
+            $paceSec = (int) round($sec / $distKm);
+            $lines[] = 'Runde ' . ($i + 1) . ": {$distKm} km in " . $this->secToClock($sec)
+                . ' (' . $this->secToPace($paceSec) . '/km)';
+            if (count($lines) >= 30) {
+                break;
+            }
+        }
+
+        return $lines ? implode("\n", $lines) : null;
+    }
+
+    private function secToClock(int $sec): string
+    {
+        $h = intdiv($sec, 3600);
+        $m = intdiv($sec % 3600, 60);
+        $s = $sec % 60;
+        return $h > 0 ? sprintf('%d:%02d:%02d', $h, $m, $s) : sprintf('%d:%02d', $m, $s);
+    }
+
+    private function secToPace(int $sec): string
+    {
+        return sprintf('%d:%02d', intdiv($sec, 60), $sec % 60);
+    }
+
+    private function kmLabel(float $km): string
+    {
+        $str = rtrim(rtrim(number_format(round($km, 3), 2, '.', ''), '0'), '.');
+        return $str . ' km';
     }
 
     private function formatSession(TrainingSession $s): array

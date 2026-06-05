@@ -27,6 +27,9 @@ class TrainingPlan extends Model
         'prediction_run_count',
         'prediction_text',
         'prediction_updated_at',
+        'race_strategy_text',
+        'race_analysis_text',
+        'race_analysis_activity_id',
     ];
 
     protected $casts = [

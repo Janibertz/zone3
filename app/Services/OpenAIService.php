@@ -2179,6 +2179,67 @@ PROMPT;
     }
 
     /**
+     * Race-day pacing & fueling strategy text.
+     *
+     * @param array       $eventData ['name', 'race_distance', 'target_time_formatted', 'days_until']
+     * @param string      $goalPace  e.g. "5:00"
+     * @param array|null  $weather   Output of WeatherService::forUser(), optional
+     */
+    public function generateRaceStrategy(array $eventData, string $goalPace, ?array $weather = null): ?string
+    {
+        $weatherText = '';
+        if ($weather && isset($weather['temp_c'])) {
+            $weatherText = "\nWetter am Ort: {$weather['description']}, {$weather['temp_c']}°C"
+                . (($weather['precip_prob'] ?? null) !== null ? ", Regen {$weather['precip_prob']}%" : '')
+                . (($weather['wind_kmh'] ?? null) !== null ? ", Wind {$weather['wind_kmh']} km/h" : '')
+                . '.';
+        }
+
+        $prompt = <<<PROMPT
+Du bist ein persönlicher Lauf-Coach. Schreibe eine kompakte Renntag-Strategie (3–5 Sätze) auf Deutsch.
+
+Wettkampf: {$eventData['name']} ({$eventData['race_distance']}) in {$eventData['days_until']} Tagen
+Zielzeit: {$eventData['target_time_formatted']}
+Zielpace: {$goalPace}/km{$weatherText}
+
+Gehe konkret ein auf: (1) Pacing — gleichmäßig oder leicht negativer Split, erste Kilometer bewusst kontrolliert; (2) Verpflegung passend zur Distanz (bei Halbmarathon/Marathon Gels/Kohlenhydrate + Trinken, bei 5–10 km kaum nötig); (3) ein mentaler Cue für die harte Phase. Falls Wetter genannt und relevant ist (Hitze/Kälte/Regen/Wind), gib einen kurzen Hinweis. Direkt, ohne Einleitung, keine Emojis.
+PROMPT;
+
+        return $this->callOpenAI('race_strategy', [
+            ['role' => 'system', 'content' => $this->buildSystemPrompt('Du bist ein erfahrener Lauf-Coach. Antworte auf Deutsch, direkt und konkret. Keine Emojis. Max. 5 Sätze.')],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.6, 900, 45, $this->modelMini);
+    }
+
+    /**
+     * Post-race analysis text comparing target vs. actual and pacing.
+     *
+     * @param array       $eventData  ['name', 'race_distance']
+     * @param string|null $targetTime formatted target time (or null)
+     * @param array       $actual     ['time', 'pace', 'distance_km', 'splits_text'?]
+     */
+    public function generateRaceAnalysis(array $eventData, ?string $targetTime, array $actual): ?string
+    {
+        $targetText = $targetTime ? "Zielzeit: {$targetTime}" : 'Keine Zielzeit gesetzt';
+        $splitsText = ! empty($actual['splits_text']) ? "\nSplits (km-weise):\n{$actual['splits_text']}" : '';
+
+        $prompt = <<<PROMPT
+Du bist ein persönlicher Lauf-Coach. Schreibe eine Renn-Auswertung (4–6 Sätze) auf Deutsch.
+
+Wettkampf: {$eventData['name']} ({$eventData['race_distance']})
+{$targetText}
+Tatsächliche Zeit: {$actual['time']} (Pace {$actual['pace']}/km, {$actual['distance_km']} km){$splitsText}
+
+Werte konkret aus: (1) Ziel vs. Ist — Ziel erreicht? Wie groß die Abweichung; (2) Pacing-Konsistenz — gleichmäßig gelaufen oder am Ende eingebrochen (nutze die Splits, falls vorhanden); (3) was gut lief; (4) 1–2 konkrete Learnings fürs nächste Rennen. Direkt, ehrlich und motivierend. Keine Emojis.
+PROMPT;
+
+        return $this->callOpenAI('race_analysis', [
+            ['role' => 'system', 'content' => $this->buildSystemPrompt('Du bist ein erfahrener Lauf-Coach. Antworte auf Deutsch, ehrlich und konstruktiv. Keine Emojis. 4–6 Sätze.')],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.6, 1000, 45, $this->modelMini);
+    }
+
+    /**
      * Generate a German plain-language summary of a GitHub push for the admin wiki changelog.
      */
     public function generateChangelogSummary(array $commits, array $filesChanged): ?string
