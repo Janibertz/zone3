@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Models\Activity;
 use App\Models\Coach;
+use App\Services\BestEffortService;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,7 +17,7 @@ use Inertia\Response;
 
 class ProfileController extends Controller
 {
-    public function edit(Request $request): Response
+    public function edit(Request $request, BestEffortService $bestEfforts): Response
     {
         $user = $request->user();
 
@@ -59,6 +60,9 @@ class ProfileController extends Controller
                 'longest_km'      => round($stats->longest_run / 1000, 2),
                 'avg_pace'        => $this->speedToPace($stats->avg_speed),
             ],
+            // Personal records (top 3 per distance) + per-distance history for the chart
+            'personalRecords' => $bestEfforts->topThree($user->id),
+            'prHistory'       => $bestEfforts->history($user->id),
         ]);
     }
 

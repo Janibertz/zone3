@@ -10,6 +10,7 @@ use App\Models\StravaAccount;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
+use App\Services\BestEffortService;
 use App\Services\OpenAIService;
 use App\Services\StravaService;
 use App\Services\WebPushService;
@@ -63,7 +64,7 @@ class StravaController extends Controller
     /**
      * Manual sync: saves activities immediately, dispatches AI job if rate limit allows.
      */
-    public function sync(Request $request, StravaService $strava): RedirectResponse
+    public function sync(Request $request, StravaService $strava, BestEffortService $bestEfforts): RedirectResponse
     {
         $user    = $request->user();
         $account = $user->stravaAccount;
@@ -108,29 +109,43 @@ class StravaController extends Controller
 
             if ($isNew) {
                 $newCount++;
-                // Fetch laps for new activities
-                $laps = $strava->fetchActivityLaps($account, (int) $activityData['id']);
-                if (! empty($laps)) {
-                    $activity->laps = $this->normalizeLaps($laps);
-                    $activity->save();
+                // One detail call yields both laps and best_efforts (the activity
+                // list endpoint carries neither).
+                $detail = $strava->fetchActivity($account, (int) $activityData['id']);
+                if ($detail) {
+                    if (! empty($detail['laps'])) {
+                        $activity->laps = $this->normalizeLaps($detail['laps']);
+                        $activity->save();
+                    }
+                    if ($activity->type === 'Run') {
+                        $newRunCount++;
+                        $newRecords = $bestEfforts->syncFromActivityData($activity, $detail);
+                        if (! empty($newRecords)) {
+                            $this->flagPendingPr($user->id, $activity->id);
+                        }
+                    } else {
+                        // Mark non-runs as processed so the backfill skips them.
+                        $activity->forceFill(['best_efforts_synced_at' => now()])->save();
+                    }
                 }
-                if ($activity->type === 'Run') {
-                    $newRunCount++;
-                    $this->checkForPr($user->id, $activity);
+            } elseif ($activity->best_efforts_synced_at === null && $lapBackfilled < 10) {
+                // Backfill laps + best efforts for activities imported before this feature.
+                // No celebration for these historical runs.
+                $detail = $strava->fetchActivity($account, (int) $activityData['id']);
+                if ($detail) {
+                    if ($activity->laps === null) {
+                        $activity->laps = ! empty($detail['laps'])
+                            ? $this->normalizeLaps($detail['laps'])
+                            : [];
+                        $activity->save();
+                    }
+                    if ($activity->type === 'Run') {
+                        $bestEfforts->syncFromActivityData($activity, $detail);
+                    } else {
+                        $activity->forceFill(['best_efforts_synced_at' => now()])->save();
+                    }
                 }
-            } elseif ($activity->laps === null && $lapBackfilled < 10) {
-                // Backfill laps for existing activities imported before this feature existed
-                $laps = $strava->fetchActivityLaps($account, (int) $activityData['id']);
-                if (! empty($laps)) {
-                    $activity->laps = $this->normalizeLaps($laps);
-                    $activity->save();
-                    $lapBackfilled++;
-                } else {
-                    // Mark as "checked, no laps" to avoid re-checking every sync
-                    $activity->laps = [];
-                    $activity->save();
-                    $lapBackfilled++;
-                }
+                $lapBackfilled++;
             }
 
             // Match to plan sessions or create unplanned entry for all activity types
@@ -174,7 +189,7 @@ class StravaController extends Controller
     /**
      * Strava webhook event handler (POST) — triggered automatically when a new activity is created.
      */
-    public function webhook(Request $request, StravaService $strava, WebPushService $webPush): Response
+    public function webhook(Request $request, StravaService $strava, WebPushService $webPush, BestEffortService $bestEfforts): Response
     {
         $data = $request->all();
 
@@ -224,7 +239,11 @@ class StravaController extends Controller
         $this->matchActivityToSession($userId, $activity);
         $this->dispatchPlanRegenerationIfNeeded($userId);
         if ($isRun) {
-            $this->checkForPr($userId, $activity);
+            // Webhook payload is the full activity detail → best_efforts present.
+            $newRecords = $bestEfforts->syncFromActivityData($activity, $activityData);
+            if (! empty($newRecords)) {
+                $this->flagPendingPr($userId, $activity->id);
+            }
         }
 
         // Push notification for the user
@@ -418,51 +437,16 @@ class StravaController extends Controller
     }
 
     /**
-     * Check if a new activity is a personal record in a standard distance bucket.
-     * If so, stores pending_pr_activity_id on the runner profile for the dashboard to celebrate.
-     * Distance buckets: 5k (4.5–5.5 km), 10k (9–11 km), HM (19–23 km), Marathon (39–44 km).
+     * Flag an activity as the source of a fresh personal record so the dashboard
+     * celebrates it (message generated lazily by GeneratePrMessageJob).
      */
-    private function checkForPr(int $userId, Activity $activity): void
+    private function flagPendingPr(int $userId, int $activityId): void
     {
-        if ($activity->type !== 'Run' || ($activity->distance ?? 0) <= 0 || ($activity->average_speed ?? 0) <= 0) {
-            return;
-        }
-
-        $distKm = $activity->distance / 1000;
-
-        $buckets = [
-            '5k'       => [4.5, 5.5],
-            '10k'      => [9.0, 11.0],
-            'half'     => [19.0, 23.0],
-            'marathon' => [39.0, 44.0],
-        ];
-
-        $bucket = null;
-        foreach ($buckets as $name => [$min, $max]) {
-            if ($distKm >= $min && $distKm <= $max) {
-                $bucket = [$min, $max];
-                break;
-            }
-        }
-
-        if (! $bucket) return;
-
-        // Need at least one previous activity in this bucket for it to be a real PR
-        $bestPrevious = Activity::where('user_id', $userId)
-            ->where('id', '!=', $activity->id)
-            ->where('type', 'Run')
-            ->whereBetween('distance', [$bucket[0] * 1000, $bucket[1] * 1000])
-            ->max('average_speed');
-
-        if ($bestPrevious === null) return; // No previous reference — not a PR event
-
-        if ($activity->average_speed > $bestPrevious) {
-            $profile = RunnerProfile::where('user_id', $userId)->first();
-            if ($profile) {
-                $profile->pending_pr_activity_id = $activity->id;
-                $profile->pending_pr_message     = null; // generated lazily on dashboard load
-                $profile->save();
-            }
+        $profile = RunnerProfile::where('user_id', $userId)->first();
+        if ($profile) {
+            $profile->pending_pr_activity_id = $activityId;
+            $profile->pending_pr_message     = null; // generated lazily on dashboard load
+            $profile->save();
         }
     }
 

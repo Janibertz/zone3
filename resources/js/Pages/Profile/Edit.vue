@@ -17,6 +17,8 @@ const props = defineProps({
     athleteStats:          Object,
     coaches:               { type: Array, default: () => [] },
     activeCoach:           { type: Object, default: null },
+    personalRecords:       { type: Array, default: () => [] },
+    prHistory:             { type: Object, default: () => ({}) },
 });
 
 const page = usePage();
@@ -298,6 +300,26 @@ const submitAthlete = () => { athleteForm.post(route('runner.profile.store'), { 
 const paceZones   = computed(() => props.runnerProfile?.pace_zones ?? []);
 const athleteSaved = computed(() => props.status === 'athlete-saved');
 
+// ── Persönliche Rekorde ─────────────────────────────────────────────────────
+const hasAnyPr = computed(() => (props.personalRecords ?? []).some(d => d.entries.length > 0));
+const prDistances = computed(() => (props.personalRecords ?? []).filter(d => d.entries.length > 0));
+const medal = (rank) => (rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉');
+
+// Compact inverted sparkline path (faster time → higher) for a distance's history.
+function prSparkline(key) {
+    const pts = props.prHistory?.[key] ?? [];
+    if (pts.length < 2) return null;
+    const times = pts.map(p => p.elapsed_time);
+    const min = Math.min(...times);
+    const range = (Math.max(...times) - min) || 1;
+    const w = 120, h = 32, n = pts.length;
+    return pts.map((p, i) => {
+        const x = (i / (n - 1)) * w;
+        const y = ((p.elapsed_time - min) / range) * (h - 4) + 2; // invert: lower time = smaller y
+        return (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1);
+    }).join(' ');
+}
+
 // ── Weekly availability ──────────────────────────────────────────────────────
 const availabilityDays = [
     { key: 'monday',    label: 'Mo', full: 'Montag' },
@@ -519,6 +541,44 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                             <p class="text-xl sm:text-2xl font-black text-gray-900 dark:text-white">{{ athleteStats?.avg_pace ?? '–' }}</p>
                             <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Ø Pace</p>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══ PERSÖNLICHE REKORDE ══ -->
+            <div v-if="hasAnyPr" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 dark:border-slate-800 flex items-center gap-3">
+                    <span class="text-xl">🏆</span>
+                    <div>
+                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Persönliche Rekorde</h2>
+                        <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Deine schnellsten Zeiten je Distanz – aus deinen Strava-Läufen</p>
+                    </div>
+                </div>
+                <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div
+                        v-for="dist in prDistances"
+                        :key="dist.key"
+                        class="rounded-2xl border border-gray-100 dark:border-slate-800 p-4"
+                    >
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-sm font-bold text-gray-900 dark:text-white">{{ dist.label }}</h3>
+                            <svg v-if="prSparkline(dist.key)" viewBox="0 0 120 32" class="h-6 w-24 text-indigo-500" preserveAspectRatio="none">
+                                <path :d="prSparkline(dist.key)" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                        </div>
+                        <ul class="space-y-1">
+                            <li v-for="entry in dist.entries" :key="entry.rank">
+                                <Link
+                                    :href="`/activities/${entry.activity_id}`"
+                                    class="flex items-center gap-3 rounded-xl px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors"
+                                >
+                                    <span class="text-base w-6 text-center shrink-0">{{ medal(entry.rank) }}</span>
+                                    <span class="font-black tabular-nums text-gray-900 dark:text-white">{{ entry.time_formatted }}</span>
+                                    <span class="text-xs text-gray-500 dark:text-slate-400">{{ entry.pace }}/km</span>
+                                    <span class="ml-auto text-xs text-gray-400 dark:text-slate-500 shrink-0">{{ entry.date }}</span>
+                                </Link>
+                            </li>
+                        </ul>
                     </div>
                 </div>
             </div>

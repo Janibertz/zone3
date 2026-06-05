@@ -30,12 +30,14 @@ class Activity extends Model
         'location_state',
         'location_country',
         'polyline',
+        'best_efforts_synced_at',
     ];
 
     protected $casts = [
-        'start_date' => 'datetime',
-        'polyline'   => 'array',
-        'laps'       => 'array',
+        'start_date'             => 'datetime',
+        'polyline'               => 'array',
+        'laps'                   => 'array',
+        'best_efforts_synced_at' => 'datetime',
     ];
 
     /**
@@ -54,5 +56,10 @@ class Activity extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function bestEfforts()
+    {
+        return $this->hasMany(BestEffort::class);
     }
 }
