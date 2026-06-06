@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { Link } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 
 const props = defineProps({
@@ -42,9 +43,15 @@ function fmtPace(sec) {
         <div class="max-w-3xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
 
             <!-- Header -->
-            <div class="mb-4 sm:mb-6">
-                <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Statistiken</h1>
-                <p class="mt-0.5 text-xs sm:text-sm text-gray-500 dark:text-slate-400">Deine Laufanalyse auf einen Blick</p>
+            <div class="mb-4 sm:mb-6 flex items-start justify-between gap-3">
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Statistiken</h1>
+                    <p class="mt-0.5 text-xs sm:text-sm text-gray-500 dark:text-slate-400">Deine Laufanalyse auf einen Blick</p>
+                </div>
+                <Link :href="route('wrapped.index')"
+                    class="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 transition-opacity">
+                    🎁 Rückblick
+                </Link>
             </div>
 
             <!-- KPI Grid — 2x2 on mobile, 4-col on sm+ -->

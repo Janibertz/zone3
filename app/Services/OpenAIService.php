@@ -2296,6 +2296,44 @@ PROMPT;
     }
 
     /**
+     * Personal "Wrapped" retrospective text for a period.
+     *
+     * @param array  $stats       Output of WrappedService::generate()
+     * @param string $periodLabel e.g. "2026" or "Juni 2026"
+     */
+    public function generateWrappedReview(array $stats, string $periodLabel): ?string
+    {
+        $t = $stats['totals'] ?? [];
+        $lines = [
+            "Zeitraum: {$periodLabel}",
+            'Läufe: ' . ($t['runs'] ?? 0) . ', Distanz: ' . ($t['km'] ?? 0) . ' km, Zeit: ' . ($t['hours'] ?? 0)
+                . ' h, Höhenmeter: ' . ($t['elevation'] ?? 0) . ' m, aktive Tage: ' . ($t['active_days'] ?? 0),
+        ];
+        if (! empty($stats['longest_run']))      $lines[] = "Längster Lauf: {$stats['longest_run']['km']} km";
+        if (! empty($stats['fastest_run']))      $lines[] = "Schnellster Lauf: Pace {$stats['fastest_run']['pace']}/km über {$stats['fastest_run']['km']} km";
+        if (! empty($stats['favorite_weekday'])) $lines[] = "Lieblings-Wochentag: {$stats['favorite_weekday']['label']}";
+        if (! empty($stats['longest_streak']))   $lines[] = "Längste Serie: {$stats['longest_streak']} Tage in Folge";
+        if (! empty($stats['prs']['count']))     $lines[] = "Neue persönliche Rekorde: {$stats['prs']['count']}";
+        if (! empty($stats['vs_previous'])) {
+            $d = $stats['vs_previous']['delta_pct'];
+            $lines[] = "Vergleich zu {$stats['vs_previous']['prev_label']}: " . ($d >= 0 ? "+{$d}" : $d) . '% km';
+        }
+        $data = implode("\n", $lines);
+
+        $prompt = <<<PROMPT
+Daten des Athleten für den Rückblick:
+{$data}
+
+Schreibe einen kurzen, persönlichen und motivierenden Rückblick (3–5 Sätze) auf Deutsch. Sprich den Athleten direkt an (du). Hebe 1–2 Highlights hervor und schließe ermutigend ab. Keine Aufzählung, kein Markdown, nur Fließtext.
+PROMPT;
+
+        return $this->callOpenAI('wrapped_review', [
+            ['role' => 'system', 'content' => $this->buildSystemPrompt('Du bist ein motivierender Lauf-Coach. Antworte auf Deutsch, warm und persönlich. Nur Fließtext.')],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.8, 900, 45, $this->modelMini);
+    }
+
+    /**
      * Generate a German plain-language summary of a GitHub push for the admin wiki changelog.
      */
     public function generateChangelogSummary(array $commits, array $filesChanged): ?string

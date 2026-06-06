@@ -326,6 +326,11 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/activities', [ActivityController::class, 'index'])->name('activities.index');
     Route::get('/activities/{activity}', [ActivityController::class, 'show'])->name('activities.show');
     Route::get('/statistics', [StatisticsController::class, 'index'])->name('statistics.index');
+
+    // Wrapped / Rückblick
+    Route::get('/rueckblick',         [\App\Http\Controllers\WrappedController::class, 'index'])->name('wrapped.index');
+    Route::get('/api/wrapped',        [\App\Http\Controllers\WrappedController::class, 'stats'])->name('wrapped.stats');
+    Route::get('/api/wrapped/review', [\App\Http\Controllers\WrappedController::class, 'review'])->name('wrapped.review');
     Route::get('/calendar', function () {
         $user = auth()->user();
 
