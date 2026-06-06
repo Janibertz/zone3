@@ -29,6 +29,7 @@ class RunnerProfile extends Model
         'pending_pr_activity_id',
         'pending_pr_message',
         'coach_notes',
+        'return_to_run_dismissed_at',
     ];
 
     protected $casts = [
@@ -39,6 +40,7 @@ class RunnerProfile extends Model
         'threshold_pace_calculated_at' => 'datetime',
         'threshold_pace_calculating' => 'boolean',
         'weekly_availability'        => 'array',
+        'return_to_run_dismissed_at' => 'datetime',
     ];
 
     public function user()

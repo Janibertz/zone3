@@ -23,6 +23,7 @@ use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\NewsletterController;
 use App\Models\WeeklyReview;
 use App\Services\ProgressService;
+use App\Services\ReturnToRunService;
 use App\Services\TrainingLoadService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Application;
@@ -74,7 +75,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/onboarding/complete-strava', [OnboardingController::class, 'completeAndConnectStrava'])->name('onboarding.complete-strava');
 });
 
-Route::get('/dashboard', function (ProgressService $progressService, TrainingLoadService $trainingLoadService) {
+Route::get('/dashboard', function (ProgressService $progressService, TrainingLoadService $trainingLoadService, ReturnToRunService $returnToRunService) {
     $user = auth()->user();
 
     $upcomingEvents = $user->events()
@@ -230,6 +231,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         'todayPlanSession' => $todayPlanSession,
         'todayRecommendationSession' => $todayRecommendationSession,
         'hasActivePlan' => (bool) $activePlan,
+        'returnToRun' => $returnToRunService->statusFor($user),
         'hasWellbeingToday' => $user->wellbeingEntries()
             ->where('date', now()->toDateString())
             ->exists(),
@@ -299,6 +301,7 @@ Route::post('/api/ai/recommendation/accept', [AIController::class, 'acceptRecomm
 Route::post('/api/ai/recommendation/adjust', [AIController::class, 'adjustRecommendation'])->middleware(['auth', 'verified'])->name('ai.recommendation.adjust');
 Route::get('/api/ai/daily-message', [AIController::class, 'dailyMessage'])->middleware(['auth', 'verified'])->name('ai.daily-message');
 Route::get('/api/weather/today', [\App\Http\Controllers\WeatherController::class, 'today'])->middleware(['auth', 'verified'])->name('weather.today');
+Route::post('/api/return-to-run/dismiss', [\App\Http\Controllers\ReturnToRunController::class, 'dismiss'])->middleware(['auth', 'verified'])->name('return-to-run.dismiss');
 
 Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

@@ -90,6 +90,10 @@ const props = defineProps({
         type: Object,
         default: () => ({ used: 0, limit: 20 }),
     },
+    returnToRun: {
+        type: Object,
+        default: null,
+    },
 });
 
 // PR banner dismissed state (local — dismissal is persisted server-side)
@@ -98,6 +102,14 @@ const prDismissed = ref(false);
 async function dismissPr() {
     prDismissed.value = true;
     await axios.post(route('coach.pr.dismiss'));
+}
+
+// Return-to-run card dismissed state (local — dismissal is persisted server-side)
+const returnToRunDismissed = ref(false);
+
+async function dismissReturnToRun() {
+    returnToRunDismissed.value = true;
+    await axios.post(route('return-to-run.dismiss'));
 }
 
 const coachColors = {
@@ -1026,6 +1038,44 @@ function syncStrava() {
                         </button>
                     </div>
                 </Transition>
+
+                <!-- ─── Wiedereinstieg (Return-to-Run) ───────────────────────── -->
+                <div v-if="returnToRun && !returnToRunDismissed"
+                    class="rounded-2xl border border-teal-200 dark:border-teal-500/30 bg-teal-50/70 dark:bg-teal-500/10 p-4">
+                    <div class="flex items-start gap-3">
+                        <div class="text-2xl shrink-0">🔄</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-2">
+                                <p class="text-sm font-bold text-teal-800 dark:text-teal-300">Wiedereinstieg nach {{ returnToRun.trigger_label }}</p>
+                                <span class="shrink-0 text-xs font-semibold text-teal-700 dark:text-teal-300 bg-teal-100 dark:bg-teal-500/20 rounded-full px-2 py-0.5">Stufe {{ returnToRun.step }}/{{ returnToRun.total_steps }}</span>
+                            </div>
+                            <p class="text-xs text-teal-700/80 dark:text-teal-300/70 mt-0.5">Behutsam zurück — Erholung ist Training. Steigere dich Schritt für Schritt.</p>
+
+                            <!-- Stufen-Fortschritt -->
+                            <div class="flex items-center gap-1.5 mt-3">
+                                <div v-for="s in returnToRun.steps" :key="s.n"
+                                    class="flex-1 h-1.5 rounded-full"
+                                    :class="s.n < returnToRun.step ? 'bg-teal-500' : s.n === returnToRun.step ? 'bg-teal-400' : 'bg-teal-200/60 dark:bg-teal-500/20'">
+                                </div>
+                            </div>
+
+                            <!-- Aktuelle Stufe -->
+                            <div class="mt-3 rounded-xl bg-white/70 dark:bg-slate-900/40 border border-teal-100 dark:border-teal-500/20 p-3">
+                                <p class="text-xs font-semibold text-gray-800 dark:text-slate-200">{{ returnToRun.current.label }}</p>
+                                <p class="text-xs text-gray-600 dark:text-slate-400 mt-0.5">{{ returnToRun.current.rule }}</p>
+                                <div v-if="returnToRun.current.max_min" class="flex flex-wrap gap-2 mt-2 text-[11px] text-gray-500 dark:text-slate-400">
+                                    <span class="bg-gray-100 dark:bg-slate-800 rounded-md px-2 py-0.5">⏱️ max. {{ returnToRun.current.max_min }} min</span>
+                                    <span v-if="returnToRun.current.zone" class="bg-gray-100 dark:bg-slate-800 rounded-md px-2 py-0.5">❤️ Zone {{ returnToRun.current.zone }}</span>
+                                </div>
+                            </div>
+
+                            <button @click="dismissReturnToRun"
+                                class="mt-3 text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
+                                Wiedereinstieg abschließen
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- ─── Coach Badge ──────────────────────────────────────────── -->
                 <button

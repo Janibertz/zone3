@@ -406,7 +406,7 @@ PROMPT;
         return "Wetter heute am Trainingsort: {$line}.{$hint}\n";
     }
 
-    public function generateTodayRecommendation(?array $runnerProfile, ?array $yesterdayActivity, ?array $wellbeingEntry, ?array $goal, array $progress, array $upcomingEvents = [], ?array $todayAvailability = null, ?array $weather = null): ?array
+    public function generateTodayRecommendation(?array $runnerProfile, ?array $yesterdayActivity, ?array $wellbeingEntry, ?array $goal, array $progress, array $upcomingEvents = [], ?array $todayAvailability = null, ?array $weather = null, ?array $returnToRun = null): ?array
     {
         $profileText = $runnerProfile ? "Runner Profile:\n- LTHR: {$runnerProfile['threshold_heart_rate']} bpm\n- Max HR: {$runnerProfile['max_heart_rate']} bpm\n- Schwellenpace: {$runnerProfile['threshold_speed']} min/km\n" : "Kein Runner Profile vorhanden.\n";
         $activityText = $yesterdayActivity ? "Letzte Aktivität (gestern):\n- " . round($yesterdayActivity['distance']/1000,2) . " km in " . $this->formatSeconds($yesterdayActivity['moving_time']) . " · Pace: " . ($yesterdayActivity['average_speed'] ? $this->calculatePace($yesterdayActivity['average_speed']) : '—') . "\n" : "Keine Aktivität von gestern.\n";
@@ -451,6 +451,22 @@ PROMPT;
 
         $weatherText = $this->weatherContext($weather);
 
+        // Return-to-run build-up: today's session must respect the current step.
+        $returnToRunText = '';
+        if ($returnToRun && isset($returnToRun['step'])) {
+            $label = $returnToRun['trigger_label'] ?? 'Pause';
+            $step  = (int) $returnToRun['step'];
+            $total = (int) ($returnToRun['total_steps'] ?? 5);
+            if ($step >= $total) {
+                $returnToRunText = "WIEDEREINSTIEG (nach {$label}): Stufe {$step}/{$total} — der Athlet ist zurück im Normalbetrieb, normale Intensität ist wieder möglich.\n";
+            } else {
+                $c = $returnToRun['current'] ?? [];
+                $returnToRunText = "WICHTIG — WIEDEREINSTIEG nach {$label} (Stufe {$step} von {$total}): Der Athlet baut nach einer Pause behutsam wieder auf. "
+                    . "Die heutige Empfehlung MUSS dieser Stufe entsprechen: type=\"" . ($c['type'] ?? 'easy_run') . "\", Zone " . ($c['zone'] ?? '1–2') . ", maximal " . ($c['max_min'] ?? 30) . " Minuten. "
+                    . ($c['rule'] ?? '') . " Diese Vorgabe hat Vorrang vor anderen Überlegungen (außer ein Ruhetag ist nötig).\n";
+            }
+        }
+
         $prompt = <<<PROMPT
 Du bist ein präziser Lauf-Coach. Erstelle eine Trainingsempfehlung für heute als JSON-Objekt.
 
@@ -461,6 +477,7 @@ Du bist ein präziser Lauf-Coach. Erstelle eine Trainingsempfehlung für heute a
 {$eventsText}
 {$taperWarning}
 {$availabilityText}
+{$returnToRunText}
 {$weatherText}
 Antworte NUR mit einem JSON-Objekt (kein Markdown, kein Text davor/danach):
 {
