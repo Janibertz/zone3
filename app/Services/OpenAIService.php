@@ -1912,9 +1912,8 @@ PROMPT;
                 $session->nutrition_tips = null;
                 $session->save();
 
-                // Clear cached daily message so it's regenerated with the new session context
-                $profile = $user->runnerProfile ?? \App\Models\RunnerProfile::firstOrCreate(['user_id' => $user->id]);
-                $profile->update(['daily_message' => null, 'daily_message_date' => null]);
+                // Regenerate the dashboard recommendation + daily message with the new context
+                $this->invalidateCoachCaches($user);
                 $label = $session->title ?? ($args['type'] ?? 'Training');
                 return ['message' => 'Einheit aktualisiert.', 'action' => ['type' => 'session_modified', 'label' => 'Training angepasst: ' . $label, 'reload' => true]];
             }
@@ -1925,6 +1924,12 @@ PROMPT;
                 $reason = $args['reason']    ?? '';
                 $count  = \App\Models\TrainingSession::where('user_id', $user->id)
                     ->whereBetween('planned_date', [$from, $to])->where('status', 'planned')->update(['status' => 'skipped']);
+
+                // A skipped session changes today's context → refresh recommendation + daily message
+                if ($count > 0) {
+                    $this->invalidateCoachCaches($user);
+                }
+
                 $detail = $reason ? " ($reason)" : '';
                 return ['message' => "{$count} Einheiten übersprungen.", 'action' => ['type' => 'sessions_skipped', 'label' => "{$count} " . ($count === 1 ? 'Einheit' : 'Einheiten') . " übersprungen{$detail}", 'reload' => true]];
             }
@@ -1935,6 +1940,7 @@ PROMPT;
                 $event->target_time_hours   = max(0, (int)($args['target_hours'] ?? 0));
                 $event->target_time_minutes = max(0, min(59, (int)($args['target_minutes'] ?? 0)));
                 $event->save();
+                $this->invalidateCoachCaches($user);
                 $formatted = $event->target_time_formatted ?? 'aktualisiert';
                 return ['message' => "Zielzeit gespeichert: {$formatted}.", 'action' => ['type' => 'event_updated', 'label' => "Zielzeit {$event->name}: {$formatted}", 'reload' => true]];
             }
@@ -1942,6 +1948,21 @@ PROMPT;
             default:
                 return ['message' => 'Unbekanntes Tool.', 'action' => null];
         }
+    }
+
+    /**
+     * Invalidate cached coach outputs (dashboard recommendation + daily message)
+     * so they regenerate with fresh context after a plan/session change.
+     */
+    private function invalidateCoachCaches(\App\Models\User $user): void
+    {
+        $profile = $user->runnerProfile ?? \App\Models\RunnerProfile::firstOrCreate(['user_id' => $user->id]);
+        $profile->update([
+            'today_recommendation' => null,
+            'recommendation_date'  => null,
+            'daily_message'        => null,
+            'daily_message_date'   => null,
+        ]);
     }
 
     /**
