@@ -90,14 +90,22 @@ class OpenAIService
                 'max_completion_tokens' => $maxTokens,
             ]);
 
-            $durationMs = (int) round(microtime(true) * 1000) - $startMs;
-            $body       = $response->json() ?? [];
-            $content    = data_get($body, 'choices.0.message.content', '');
-            $usage      = $body['usage'] ?? [];
-            $promptTok  = $usage['prompt_tokens']     ?? 0;
-            $compTok    = $usage['completion_tokens'] ?? 0;
-            $totalTok   = $usage['total_tokens']      ?? ($promptTok + $compTok);
-            $cost       = AiLog::calculateCost($this->model, $promptTok, $compTok);
+            $durationMs   = (int) round(microtime(true) * 1000) - $startMs;
+            $body         = $response->json() ?? [];
+            $content      = data_get($body, 'choices.0.message.content', '');
+            $finishReason = data_get($body, 'choices.0.finish_reason');
+            $usage        = $body['usage'] ?? [];
+            $promptTok    = $usage['prompt_tokens']     ?? 0;
+            $compTok      = $usage['completion_tokens'] ?? 0;
+            $totalTok     = $usage['total_tokens']      ?? ($promptTok + $compTok);
+            $cost         = AiLog::calculateCost($model, $promptTok, $compTok);
+
+            // A 200 response can still be unusable: a reasoning model may burn the
+            // entire max_completion_tokens budget on internal reasoning and return
+            // empty content (finish_reason "length"). Treat that as a failure so it
+            // shows up in the AI log instead of a misleading "success".
+            $failed          = $response->failed();
+            $emptyCompletion = ! $failed && trim((string) $content) === '';
 
             AiLog::create([
                 'user_id'          => $this->userId,
@@ -112,14 +120,21 @@ class OpenAIService
                 'response_preview' => mb_substr($content, 0, 500),
                 'full_prompt'      => $userContent,
                 'full_response'    => $content,
-                'status'           => $response->failed() ? 'error' : 'success',
-                'error_message'    => $response->failed()
-                    ? ('HTTP ' . $response->status() . ': ' . mb_substr($response->body(), 0, 500))
-                    : null,
+                'status'           => ($failed || $emptyCompletion) ? 'error' : 'success',
+                'error_message'    => match (true) {
+                    $failed          => 'HTTP ' . $response->status() . ': ' . mb_substr($response->body(), 0, 500),
+                    $emptyCompletion => "Leere Antwort (finish_reason: " . ($finishReason ?? 'unbekannt') . ", completion_tokens: {$compTok}) – Token-Budget vermutlich durch Reasoning erschöpft, max_completion_tokens erhöhen.",
+                    default          => null,
+                },
             ]);
 
-            if ($response->failed()) {
+            if ($failed) {
                 Log::error("OpenAI {$callType} Error", ['status' => $response->status(), 'body' => $response->body()]);
+                return null;
+            }
+
+            if ($emptyCompletion) {
+                Log::warning("OpenAI {$callType} empty completion", ['finish_reason' => $finishReason, 'completion_tokens' => $compTok]);
                 return null;
             }
 
@@ -756,10 +771,13 @@ Gib ausschließlich dieses JSON zurück:
 {"threshold_pace":"M:SS"}
 PROMPT;
 
+        // gpt-5.5 is a reasoning model: the JSON output is tiny but the internal
+        // reasoning over ~20 activities needs plenty of headroom, otherwise the
+        // whole budget is spent on reasoning and the content comes back empty.
         $text = $this->callOpenAI('threshold_pace', [
             ['role' => 'system', 'content' => 'Du bist ein präziser Sportwissenschaftler. Antworte ausschließlich mit JSON.'],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.1, 800);
+        ], 0.1, 3000);
 
         if ($text && preg_match('/\{.*?\}/s', $text, $matches)) {
             $json = json_decode($matches[0], true);
