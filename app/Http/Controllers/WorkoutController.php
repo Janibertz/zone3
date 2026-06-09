@@ -291,11 +291,8 @@ class WorkoutController extends Controller
     private function blockToGarminStep(array $block, string $garminType, ?int $threshSec): array
     {
         $mode        = $block['duration_mode'] ?? 'time';
-        $lapButton   = !empty($block['lap_button']);
-
-        // If lap_button is enabled, ignore duration_sec/distance to signal "lap" end condition
-        $durationSec = $lapButton ? null : ($mode === 'time' ? ($block['duration_sec'] ?? null) : null);
-        $meters      = $lapButton ? null : ($mode === 'distance' ? ($block['distance_m'] ?? null) : null);
+        $durationSec = $mode === 'time' ? ($block['duration_sec'] ?? null) : null;
+        $meters      = $mode === 'distance' ? ($block['distance_m'] ?? null) : null;
 
         $speedMps = null;
         if (!empty($block['pace'])) {
@@ -310,7 +307,7 @@ class WorkoutController extends Controller
             'duration_sec' => $durationSec ? (int) $durationSec : null,
             'meters'       => $meters ? (int) $meters : null,
             'speedMps'     => $speedMps,
-            'lap_button'   => $lapButton,
+            'lap_button'   => !empty($block['lap_button']),
         ];
     }
 
