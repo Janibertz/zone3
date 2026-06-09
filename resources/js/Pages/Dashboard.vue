@@ -1412,13 +1412,6 @@ function syncStrava() {
 
                             <!-- Aktions-Buttons: Export (nur bei Nicht-Ruhetag) -->
                             <div v-if="props.todayRecommendationSession.type !== 'rest'" class="flex items-center gap-2">
-                                <a :href="route('training-sessions.download', props.todayRecommendationSession.id)"
-                                    class="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 px-3 py-2.5 text-xs font-semibold text-gray-700 dark:text-slate-300 transition-colors">
-                                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                                    </svg>
-                                    .fit herunterladen
-                                </a>
                                 <button @click="openGarminModal"
                                     class="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-3 py-2.5 text-xs font-semibold text-white transition-colors">
                                     <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

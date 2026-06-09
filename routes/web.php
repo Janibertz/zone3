@@ -408,8 +408,6 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::patch('/training-sessions/{session}/skip', [TrainingSessionController::class, 'skip'])->name('training-sessions.skip');
     Route::post('/training-sessions/{session}/adjust', [TrainingSessionController::class, 'adjust'])->name('training-sessions.adjust');
     Route::post('/training-sessions/{session}/adjust-intensity', [TrainingSessionController::class, 'adjustIntensity'])->name('training-sessions.adjust-intensity');
-    Route::get('/training-sessions/{session}/download',     [TrainingSessionController::class, 'download'])   ->name('training-sessions.download');
-    Route::get('/training-sessions/{session}/download-tcx', [TrainingSessionController::class, 'downloadTcx'])->name('training-sessions.download-tcx');
     Route::post('/training-sessions/{session}/send-to-garmin', [TrainingSessionController::class, 'sendToGarmin'])->name('training-sessions.send-to-garmin');
     Route::delete('/garmin/disconnect', [TrainingSessionController::class, 'garminDisconnect'])->name('garmin.disconnect');
     Route::get('/training-sessions/{session}/nutrition-tips', [TrainingSessionController::class, 'nutritionTips'])->name('training-sessions.nutrition-tips');
