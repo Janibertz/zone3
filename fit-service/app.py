@@ -150,7 +150,20 @@ def build_garmin_json(name: str, sport: str, steps: list[dict], description: str
         reps  = step.get("repetitions")
         stype = step.get("step_type", "active")
 
-        if reps and reps > 1 and stype in ("work", "interval", "active"):
+        if stype == "repeat" and reps and reps > 1:
+            # Repeat block: extract and expand inner steps
+            inner_steps = step.get("steps", [])
+            inner = [_executable_step(gs, j + 1) for j, gs in enumerate(inner_steps)]
+            workout_steps.append({
+                "type":               "RepeatGroupDTO",
+                "stepOrder":          outer_order,
+                "numberOfIterations": reps,
+                "smartRepeat":        False,
+                "childStepId":        1,
+                "workoutSteps":       inner,
+            })
+            i += 1
+        elif reps and reps > 1 and stype in ("work", "interval", "active"):
             group: list[dict] = []
             while i < len(steps) and steps[i].get("repetitions") == reps:
                 group.append(steps[i])
