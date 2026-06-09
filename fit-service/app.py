@@ -103,8 +103,13 @@ def _executable_step(step: dict, order: int) -> dict:
 
     duration_sec = step.get("duration_sec")
     meters       = step.get("meters")
+    lap_button   = step.get("lap_button")
 
-    if duration_sec:
+    if lap_button:
+        # LAP button explicitly enabled in zone3 → end condition is "press lap" regardless of any duration
+        end_cond  = {"conditionTypeId": 1, "conditionTypeKey": "lap.button", "displayOrder": 1, "displayable": True}
+        end_value = None
+    elif duration_sec:
         end_cond  = {"conditionTypeId": 2, "conditionTypeKey": "time",     "displayOrder": 2, "displayable": True}
         end_value = float(duration_sec)
     elif meters:
