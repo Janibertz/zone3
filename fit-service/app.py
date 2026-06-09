@@ -237,6 +237,11 @@ class GarminStep(BaseModel):
     duration_sec: Optional[int] = None
     speedMps: Optional[float] = None
     repetitions: Optional[int] = None
+    steps: Optional[list] = None
+    lap_button: Optional[bool] = None
+
+    class Config:
+        extra = "allow"  # Allow extra fields
 
 
 class WorkoutRequest(BaseModel):
@@ -281,6 +286,11 @@ def garmin_login(req: GarminLoginRequest):
 @app.post("/send-to-garmin")
 def send_to_garmin(req: GarminSendRequest):
     from garminconnect import Garmin
+
+    try:
+        print(f"[DEBUG] Incoming steps: {req.steps}", flush=True)
+    except Exception as e:
+        print(f"[DEBUG] Could not print steps: {e}", flush=True)
 
     new_session: Optional[str] = None
 
