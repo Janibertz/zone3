@@ -103,8 +103,12 @@ def _executable_step(step: dict, order: int) -> dict:
 
     duration_sec = step.get("duration_sec")
     meters       = step.get("meters")
+    lap_button   = step.get("lap_button", False)
 
-    if duration_sec:
+    if lap_button:
+        end_cond  = {"conditionTypeId": 1, "conditionTypeKey": "lap.button", "displayOrder": 1, "displayable": True}
+        end_value = None
+    elif duration_sec:
         end_cond  = {"conditionTypeId": 2, "conditionTypeKey": "time",     "displayOrder": 2, "displayable": True}
         end_value = float(duration_sec)
     elif meters:
@@ -150,12 +154,10 @@ def build_garmin_json(name: str, sport: str, steps: list[dict], description: str
         reps  = step.get("repetitions")
         stype = step.get("step_type", "active")
 
-        if reps and reps > 1 and stype in ("work", "interval", "active"):
-            group: list[dict] = []
-            while i < len(steps) and steps[i].get("repetitions") == reps:
-                group.append(steps[i])
-                i += 1
-            inner = [_executable_step(gs, j + 1) for j, gs in enumerate(group)]
+        if stype == "repeat" and reps and reps > 1:
+            # Repeat block: extract inner steps and create RepeatGroupDTO
+            inner_steps = step.get("steps", [])
+            inner = [_executable_step(gs, j + 1) for j, gs in enumerate(inner_steps)]
             workout_steps.append({
                 "type":               "RepeatGroupDTO",
                 "stepOrder":          outer_order,
@@ -164,6 +166,7 @@ def build_garmin_json(name: str, sport: str, steps: list[dict], description: str
                 "childStepId":        1,
                 "workoutSteps":       inner,
             })
+            i += 1
         else:
             workout_steps.append(_executable_step(step, outer_order))
             i += 1
