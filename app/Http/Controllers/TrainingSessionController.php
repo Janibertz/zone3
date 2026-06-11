@@ -116,6 +116,8 @@ class TrainingSessionController extends Controller
     public function nutritionTips(TrainingSession $session, OpenAIService $openAI)
     {
         abort_if($session->user_id !== Auth::id(), 403);
+        // Completed sessions show real Strava splits — no nutrition tips generated.
+        abort_if($session->status === 'completed', 422);
 
         // Return cached tips if available
         if ($session->nutrition_tips) {
@@ -151,6 +153,8 @@ class TrainingSessionController extends Controller
     {
         abort_if($session->user_id !== Auth::id(), 403);
         abort_if(in_array($session->type, ['rest', 'race_prep']), 422);
+        // Completed sessions show real Strava splits — no planned structure generated.
+        abort_if($session->status === 'completed', 422);
 
         if ($session->steps) {
             return response()->json([

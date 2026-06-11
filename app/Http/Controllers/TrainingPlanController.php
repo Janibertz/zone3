@@ -36,6 +36,7 @@ class TrainingPlanController extends Controller
 
         $sessions = $plan
             ? TrainingSession::where('training_plan_id', $plan->id)
+                ->with('activity:id,laps')
                 ->orderBy('planned_date')
                 ->get()
                 ->map(fn ($s) => $this->formatSession($s))
@@ -493,6 +494,7 @@ class TrainingPlanController extends Controller
         // ── Reload and return sessions ───────────────────────────────────────
         $plan->refresh();
         $sessions = TrainingSession::where('training_plan_id', $plan->id)
+            ->with('activity:id,laps')
             ->orderBy('planned_date')
             ->orderBy('sort_order')
             ->get()
@@ -780,7 +782,22 @@ class TrainingPlanController extends Controller
             'rating'           => $s->rating,
             'effort_perceived' => $s->effort_perceived,
             'feeling_notes'    => $s->feeling_notes,
+            // Real splits from the matched Strava activity (completed sessions only).
+            'laps'             => $this->sessionLaps($s),
         ];
+    }
+
+    /**
+     * Raw per-lap splits from the matched Strava activity, for completed sessions only.
+     * Returns null when there are no usable laps (so the UI hides the splits block).
+     */
+    private function sessionLaps(TrainingSession $s): ?array
+    {
+        if ($s->status !== 'completed' || ! $s->relationLoaded('activity')) {
+            return null;
+        }
+        $laps = $s->activity?->laps;
+        return (is_array($laps) && count($laps) > 1) ? array_values($laps) : null;
     }
 
     private function formatPace(float $mps): string

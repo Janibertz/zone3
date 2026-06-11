@@ -484,6 +484,10 @@ async function openDetail(session) {
     feelingNotes.value    = session.feeling_notes    || '';
     ratingSaved.value     = false;
 
+    // Completed sessions show the real Strava splits instead of planned
+    // structure/nutrition — skip all AI generation for them.
+    if (session.status === 'completed') return;
+
     // Load nutrition tips
     if (nutritionCache[session.id]) {
         aiNutritionTips.value = nutritionCache[session.id];
@@ -716,6 +720,44 @@ const groupedSteps = computed(() => {
         }
     }
     return result;
+});
+
+// ── Splits (real laps from the matched Strava activity, completed sessions) ─────
+const isCompletedSession = computed(() => detailSession.value?.status === 'completed');
+
+const detailLaps = computed(() => {
+    const laps = detailSession.value?.laps;
+    return Array.isArray(laps) && laps.length > 1 ? laps : [];
+});
+
+const totalLapTime = computed(() =>
+    detailLaps.value.reduce((s, l) => s + (l.moving_time || l.elapsed_time || 0), 0)
+);
+
+function lapPace(lap) {
+    if (!lap.average_speed || lap.average_speed <= 0) return '–';
+    return secToPaceStr(1000 / lap.average_speed);
+}
+function lapDist(lap) {
+    return ((lap.distance || 0) / 1000).toFixed(2);
+}
+function lapTime(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// Lap bar height as % of container: faster lap = taller bar (40%–100%).
+const lapHeightPct = computed(() => {
+    const laps = detailLaps.value;
+    if (!laps.length) return [];
+    const speeds = laps.map(l => l.average_speed || 0).filter(s => s > 0);
+    if (!speeds.length) return laps.map(() => 70);
+    const min = Math.min(...speeds), max = Math.max(...speeds);
+    return laps.map(l => {
+        if (!l.average_speed || max === min) return 70;
+        return 40 + ((l.average_speed - min) / (max - min)) * 60;
+    });
 });
 
 </script>
@@ -1325,8 +1367,8 @@ const groupedSteps = computed(() => {
                         </div>
                     </div>
 
-                    <!-- Trainingsstruktur -->
-                    <div v-if="!isRaceSession">
+                    <!-- Trainingsstruktur (nur für geplante Einheiten — abgeschlossene zeigen echte Splits) -->
+                    <div v-if="!isRaceSession && !isCompletedSession">
                         <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-2">Trainingsstruktur</h3>
 
                         <!-- Loading -->
@@ -1395,8 +1437,45 @@ const groupedSteps = computed(() => {
                         </div>
                     </div>
 
-                    <!-- Verpflegungsplan -->
-                    <div>
+                    <!-- Splits (echte Strava-Runden, nur für abgeschlossene Einheiten) -->
+                    <div v-if="isCompletedSession && detailLaps.length">
+                        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-2">
+                            Splits <span class="text-gray-400 dark:text-slate-500 normal-case">· {{ detailLaps.length }} Runden</span>
+                        </h3>
+
+                        <!-- Bar chart: taller bar = schneller -->
+                        <div class="flex gap-0.5 h-12 items-end mb-3">
+                            <div
+                                v-for="(lap, i) in detailLaps"
+                                :key="i"
+                                :style="{
+                                    width:  ((lap.moving_time || lap.elapsed_time || 0) / totalLapTime * 100).toFixed(2) + '%',
+                                    height: lapHeightPct[i] + '%',
+                                }"
+                                class="bg-orange-400 rounded-t-sm opacity-80"
+                                :title="`Runde ${lap.index ?? i + 1}: ${lapDist(lap)} km · ${lapPace(lap)} min/km`"
+                            />
+                        </div>
+
+                        <!-- Split-Tabelle -->
+                        <div class="space-y-1">
+                            <div
+                                v-for="(lap, i) in detailLaps"
+                                :key="i"
+                                class="flex items-center gap-3 rounded-xl bg-gray-50 dark:bg-slate-800 px-3 py-2"
+                            >
+                                <span class="shrink-0 w-6 text-xs font-semibold text-gray-400 dark:text-slate-500">{{ lap.index ?? i + 1 }}</span>
+                                <span class="h-2 w-2 rounded-full bg-orange-400 shrink-0" />
+                                <span class="text-xs text-gray-500 dark:text-slate-400">{{ lapTime(lap.moving_time || lap.elapsed_time || 0) }}</span>
+                                <span class="text-xs text-gray-500 dark:text-slate-400 ml-auto">{{ lapDist(lap) }} km</span>
+                                <span class="text-sm font-semibold text-gray-900 dark:text-white w-16 text-right">{{ lapPace(lap) }}</span>
+                                <span class="text-xs text-gray-400 dark:text-slate-500 w-12 text-right">{{ lap.average_heartrate ? Math.round(lap.average_heartrate) + ' bpm' : '–' }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Verpflegungsplan (nur für geplante Einheiten) -->
+                    <div v-if="!isCompletedSession">
                         <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-2">Verpflegungsplan</h3>
 
                         <!-- Loading -->
