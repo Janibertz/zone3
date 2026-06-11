@@ -105,6 +105,26 @@ function onKey(e) {
     else if (e.key === 'ArrowLeft') prev();
 }
 
+// ── Tap- + Wisch-Gesten ───────────────────────────────────────────────────────
+// Ein Overlay vereint Tap (linkes Drittel = zurück, sonst weiter) und horizontales
+// Wischen, damit ein Swipe nicht zusätzlich einen Tap auslöst (Doppel-Navigation).
+let pStartX = 0, pStartY = 0, pStartT = 0;
+function onPointerDown(e) {
+    pStartX = e.clientX; pStartY = e.clientY; pStartT = Date.now();
+}
+function onPointerUp(e) {
+    const dx = e.clientX - pStartX;
+    const dy = e.clientY - pStartY;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
+        dx < 0 ? next() : prev();
+        return;
+    }
+    if (Date.now() - pStartT < 500 && Math.abs(dx) < 12 && Math.abs(dy) < 12) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        (e.clientX - rect.left) < rect.width / 3 ? prev() : next();
+    }
+}
+
 onMounted(() => {
     window.addEventListener('keydown', onKey);
     fetchReview(periodParams());
@@ -123,9 +143,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                         <div v-for="(s, i) in slides" :key="i" class="h-1 flex-1 rounded-full" :class="i <= index ? 'bg-white' : 'bg-white/30'"></div>
                     </div>
 
-                    <!-- Tap-Zonen -->
-                    <button class="absolute inset-y-0 left-0 w-1/3 z-10" @click="prev" aria-label="Zurück"></button>
-                    <button class="absolute inset-y-0 right-0 w-2/3 z-10" @click="next" aria-label="Weiter"></button>
+                    <!-- Tap-Zonen + Wisch-Gesten (Tap links/rechts, horizontal wischen) -->
+                    <div class="absolute inset-0 z-10 touch-pan-y" @pointerdown="onPointerDown" @pointerup="onPointerUp"></div>
 
                     <!-- Inhalt -->
                     <div class="absolute inset-0 z-20 flex flex-col items-center justify-center text-center px-8 pointer-events-none">
