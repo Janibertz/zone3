@@ -183,6 +183,7 @@ const notifSettings = ref({
     wellbeing_reminder_time: props.notificationSettings?.wellbeing_reminder_time ?? '08:00',
     notify_threshold_pace:   props.notificationSettings?.notify_threshold_pace ?? true,
     notify_plan_updated:     props.notificationSettings?.notify_plan_updated ?? true,
+    notify_monthly_review:   props.notificationSettings?.notify_monthly_review ?? true,
 });
 const notifSaving = ref(false);
 const notifSaved  = ref(false);
@@ -938,6 +939,15 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                             </div>
                             <button @click="notifSettings.notify_plan_updated = !notifSettings.notify_plan_updated" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none" :class="notifSettings.notify_plan_updated ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-slate-700'">
                                 <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200" :class="notifSettings.notify_plan_updated ? 'translate-x-5' : 'translate-x-0'" />
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between gap-4">
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-gray-900 dark:text-white">Monatsrückblick</p>
+                                <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Am Monatsanfang per Push &amp; E-Mail mit deinen Fakten</p>
+                            </div>
+                            <button @click="notifSettings.notify_monthly_review = !notifSettings.notify_monthly_review" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none" :class="notifSettings.notify_monthly_review ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-slate-700'">
+                                <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200" :class="notifSettings.notify_monthly_review ? 'translate-x-5' : 'translate-x-0'" />
                             </button>
                         </div>
                         <div class="flex items-center gap-3 pt-2">

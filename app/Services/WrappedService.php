@@ -148,7 +148,14 @@ class WrappedService
 
         $years = $dates->map(fn ($d) => (int) Carbon::parse($d)->year)->unique()->values()->all();
 
-        $months = $dates->map(fn ($d) => Carbon::parse($d)->format('Y-m'))->unique()->take(12)
+        // The current month is only shown once it is over (e.g. June appears on
+        // July 1st) — a month's review should reflect the complete month.
+        $currentMonth = now()->format('Y-m');
+
+        $months = $dates->map(fn ($d) => Carbon::parse($d)->format('Y-m'))
+            ->unique()
+            ->reject(fn ($ym) => $ym >= $currentMonth)
+            ->take(12)
             ->map(function ($ym) {
                 [$y, $m] = explode('-', $ym);
                 return ['value' => $ym, 'label' => self::MONTHS[(int) $m - 1] . ' ' . $y];

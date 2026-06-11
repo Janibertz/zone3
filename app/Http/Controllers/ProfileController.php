@@ -43,6 +43,7 @@ class ProfileController extends Controller
                 'wellbeing_reminder_time' => $user->wellbeing_reminder_time ?? '08:00',
                 'notify_threshold_pace'   => (bool) ($user->notify_threshold_pace ?? true),
                 'notify_plan_updated'     => (bool) ($user->notify_plan_updated ?? true),
+                'notify_monthly_review'   => (bool) ($user->notify_monthly_review ?? true),
             ],
             'vapidPublicKey' => config('services.webpush.public_key'),
             'coaches'   => Coach::all(['id', 'name', 'slug', 'specialty', 'tagline', 'description', 'avatar_color', 'avatar_initials']),

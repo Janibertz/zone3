@@ -66,12 +66,14 @@ class PushSubscriptionController extends Controller
             'wellbeing_reminder_time' => 'nullable|date_format:H:i',
             'notify_threshold_pace'   => 'boolean',
             'notify_plan_updated'     => 'boolean',
+            'notify_monthly_review'   => 'boolean',
         ]);
 
         Auth::user()->update($request->only([
             'wellbeing_reminder_time',
             'notify_threshold_pace',
             'notify_plan_updated',
+            'notify_monthly_review',
         ]));
 
         return response()->json(['ok' => true]);
