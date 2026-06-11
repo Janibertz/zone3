@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
@@ -76,6 +76,14 @@ const lapHeightPct = computed(() => {
         return Math.round(40 + ((l.average_speed - minSpeed) / range) * 60);
     });
 });
+
+// ── Lap ↔ chart ↔ map interaction ─────────────────────────────────────────────
+// Hovering (desktop) or tapping (mobile) a lap highlights it across the bar
+// chart, the table row, and the route segment on the map.
+const activeLap = ref(null);
+function setActiveLap(i)    { activeLap.value = i; }
+function clearActiveLap()   { activeLap.value = null; }
+function toggleActiveLap(i) { activeLap.value = activeLap.value === i ? null : i; }
 
 // ── Session rating ────────────────────────────────────────────────────────────
 const ratingValue  = ref(props.linkedSession?.rating          ?? 0);
@@ -222,16 +230,81 @@ function decodePolyline(encoded) {
 // ── Leaflet map ───────────────────────────────────────────────────────────────
 
 const mapContainer = ref(null);
-let mapInstance = null;
+let mapInstance    = null;
+let L              = null;       // Leaflet module, kept for the highlight watcher
+let routeCoords    = [];         // decoded polyline points [[lat,lng], …]
+let polyCum        = [];         // cumulative distance (m) up to each point
+let polyTotal      = 0;          // total polyline length (m)
+let lapFractions   = [];         // [{start, end}] distance fraction per lap (0–1)
+let highlightLayer = null;       // currently drawn lap-segment polyline
+
+// Great-circle distance between two [lat,lng] points in metres.
+function haversine(a, b) {
+    const R = 6371000;
+    const dLat = (b[0] - a[0]) * Math.PI / 180;
+    const dLng = (b[1] - a[1]) * Math.PI / 180;
+    const lat1 = a[0] * Math.PI / 180, lat2 = b[0] * Math.PI / 180;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+// Map a lap onto the route by distance fraction (approximate — the stored
+// polyline may be a simplified summary, so we scale by fraction of total length
+// rather than absolute metres).
+function buildLapSegment(i) {
+    if (routeCoords.length < 2 || !lapFractions[i] || polyTotal <= 0) return [];
+    const startD = lapFractions[i].start * polyTotal;
+    const endD   = lapFractions[i].end   * polyTotal;
+    let a = -1, b = -1;
+    for (let k = 0; k < routeCoords.length; k++) {
+        if (a === -1 && polyCum[k] >= startD) a = k;
+        if (polyCum[k] <= endD) b = k;
+    }
+    if (a === -1) a = b;
+    a = Math.max(0, a - 1);                              // include neighbours so
+    b = Math.min(routeCoords.length - 1, b + 1);         // segments stay connected
+    return a < b ? routeCoords.slice(a, b + 1) : [];
+}
+
+// Redraw the orange highlight whenever the active lap changes.
+watch(activeLap, (i) => {
+    if (!mapInstance || !L) return;
+    if (highlightLayer) { highlightLayer.remove(); highlightLayer = null; }
+    if (i === null || i === undefined) return;
+    const seg = buildLapSegment(i);
+    if (seg.length < 2) return;
+    highlightLayer = L.polyline(seg, { color: '#f97316', weight: 6, opacity: 1 }).addTo(mapInstance);
+    highlightLayer.bringToFront();
+});
 
 onMounted(async () => {
+    // Precompute per-lap distance fractions (independent of the map).
+    if (hasLaps.value) {
+        const dists  = props.activity.laps.map(l => l.distance || 0);
+        const totalD = dists.reduce((s, d) => s + d, 0) || 1;
+        let cum = 0;
+        lapFractions = dists.map(d => {
+            const start = cum / totalD;
+            cum += d;
+            return { start, end: cum / totalD };
+        });
+    }
+
     if (!props.activity.polyline || !mapContainer.value) return;
 
     try {
-        const coords = decodePolyline(props.activity.polyline);
-        if (coords.length === 0) return;
+        routeCoords = decodePolyline(props.activity.polyline);
+        if (routeCoords.length === 0) return;
 
-        const L = (await import('leaflet')).default;
+        // Cumulative distance along the route, for lap-segment lookup.
+        polyCum = new Array(routeCoords.length);
+        polyCum[0] = 0;
+        for (let k = 1; k < routeCoords.length; k++) {
+            polyCum[k] = polyCum[k - 1] + haversine(routeCoords[k - 1], routeCoords[k]);
+        }
+        polyTotal = polyCum[routeCoords.length - 1];
+
+        L = (await import('leaflet')).default;
         await import('leaflet/dist/leaflet.css');
 
         // Fix Leaflet default icon paths broken by Vite
@@ -249,12 +322,20 @@ onMounted(async () => {
             maxZoom: 18,
         }).addTo(mapInstance);
 
-        const polyline = L.polyline(coords, { color: '#4f46e5', weight: 3, opacity: 0.85 }).addTo(mapInstance);
+        const polyline = L.polyline(routeCoords, { color: '#4f46e5', weight: 3, opacity: 0.85 }).addTo(mapInstance);
         mapInstance.fitBounds(polyline.getBounds(), { padding: [16, 16] });
 
         // Start + End markers
-        L.circleMarker(coords[0], { radius: 7, color: '#16a34a', fillColor: '#16a34a', fillOpacity: 1, weight: 2 }).addTo(mapInstance);
-        L.circleMarker(coords[coords.length - 1], { radius: 7, color: '#dc2626', fillColor: '#dc2626', fillOpacity: 1, weight: 2 }).addTo(mapInstance);
+        L.circleMarker(routeCoords[0], { radius: 7, color: '#16a34a', fillColor: '#16a34a', fillOpacity: 1, weight: 2 }).addTo(mapInstance);
+        L.circleMarker(routeCoords[routeCoords.length - 1], { radius: 7, color: '#dc2626', fillColor: '#dc2626', fillOpacity: 1, weight: 2 }).addTo(mapInstance);
+
+        // If a lap was already activated before the map finished loading, draw it.
+        if (activeLap.value !== null) {
+            const seg = buildLapSegment(activeLap.value);
+            if (seg.length >= 2) {
+                highlightLayer = L.polyline(seg, { color: '#f97316', weight: 6, opacity: 1 }).addTo(mapInstance);
+            }
+        }
     } catch (e) {
         console.warn('Leaflet init failed:', e);
     }
@@ -406,8 +487,16 @@ onUnmounted(() => {
                             width:  ((lap.moving_time || lap.elapsed_time || 0) / totalLapTime * 100).toFixed(2) + '%',
                             height: lapHeightPct[i] + '%',
                         }"
-                        :class="lapColor(lap, i)"
-                        class="rounded-t-sm opacity-80 hover:opacity-100 transition-opacity cursor-default"
+                        :class="[
+                            lapColor(lap, i),
+                            activeLap === i
+                                ? 'opacity-100 ring-2 ring-orange-400 ring-offset-1 ring-offset-white dark:ring-offset-slate-900'
+                                : (activeLap !== null ? 'opacity-25' : 'opacity-80'),
+                        ]"
+                        class="rounded-t-sm transition-all cursor-pointer"
+                        @mouseenter="setActiveLap(i)"
+                        @mouseleave="clearActiveLap"
+                        @click="toggleActiveLap(i)"
                         :title="activity.type === 'Run'
                             ? `Lap ${lap.index ?? i+1}: ${lapDist(lap)} km · ${lapPace(lap)} min/km`
                             : `Lap ${lap.index ?? i+1}: ${lapDist(lap)} km · ${lapSpeed(lap)} km/h`"
@@ -417,7 +506,7 @@ onUnmounted(() => {
                 <!-- Lap table -->
                 <div class="space-y-1">
                     <div class="grid text-xs text-gray-400 dark:text-slate-500 font-medium px-1 mb-1"
-                         :class="activity.average_heartrate ? 'grid-cols-[1.5rem_1fr_auto_auto_auto]' : 'grid-cols-[1.5rem_1fr_auto_auto]'">
+                         :class="activity.average_heartrate ? 'grid-cols-[2.5rem_1fr_auto_auto_auto]' : 'grid-cols-[2.5rem_1fr_auto_auto]'">
                         <span>#</span>
                         <span>Zeit</span>
                         <span class="text-right">Distanz</span>
@@ -427,12 +516,21 @@ onUnmounted(() => {
                     <div
                         v-for="(lap, i) in activity.laps"
                         :key="'row'+i"
-                        class="grid items-center gap-x-2 px-1 py-1.5 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors text-sm"
-                        :class="activity.average_heartrate ? 'grid-cols-[1.5rem_1fr_auto_auto_auto]' : 'grid-cols-[1.5rem_1fr_auto_auto]'"
+                        class="grid items-center gap-x-2 px-1 py-1.5 rounded-xl transition-colors text-sm cursor-pointer"
+                        :class="[
+                            activity.average_heartrate ? 'grid-cols-[2.5rem_1fr_auto_auto_auto]' : 'grid-cols-[2.5rem_1fr_auto_auto]',
+                            activeLap === i
+                                ? 'bg-orange-50 dark:bg-orange-500/10 ring-1 ring-orange-200 dark:ring-orange-500/30'
+                                : 'hover:bg-gray-50 dark:hover:bg-slate-800',
+                        ]"
+                        @mouseenter="setActiveLap(i)"
+                        @mouseleave="clearActiveLap"
+                        @click="toggleActiveLap(i)"
                     >
                         <!-- Color dot + index -->
-                        <span class="flex items-center gap-1">
+                        <span class="flex items-center gap-1.5">
                             <span class="h-2 w-2 rounded-full shrink-0" :class="lapColor(lap, i)" />
+                            <span class="text-xs text-gray-400 dark:text-slate-500">{{ lap.index ?? i + 1 }}</span>
                         </span>
                         <!-- Duration -->
                         <span class="font-medium text-gray-700 dark:text-slate-300 text-xs">
