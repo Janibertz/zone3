@@ -5,11 +5,15 @@ import { useDarkMode } from '@/Composables/useDarkMode';
 import { useCoachChat } from '@/Composables/useCoachChat';
 import { useVersionCheck } from '@/Composables/useVersionCheck';
 import { useInstallPrompt } from '@/Composables/useInstallPrompt';
+import { usePullToRefresh } from '@/Composables/usePullToRefresh';
 import UserAvatar from '@/Components/UserAvatar.vue';
 import CoachSlideOver from '@/Components/CoachSlideOver.vue';
 
 const { updateReady, startVersionPolling, reload } = useVersionCheck();
 onMounted(() => startVersionPolling());
+
+// Pull-to-refresh (touch devices only)
+const { pullDistance, refreshing, threshold: ptrThreshold } = usePullToRefresh();
 
 const { isInstallable, isIOSHint, installApp, dismiss: dismissInstall } = useInstallPrompt();
 
@@ -93,6 +97,26 @@ const moreNavItems = computed(() => {
 
 <template>
     <div class="min-h-screen bg-gray-50 dark:bg-slate-950">
+
+        <!-- ══════════════════════════════════════
+             PULL-TO-REFRESH INDICATOR (mobile)
+             ══════════════════════════════════════ -->
+        <div
+            v-if="pullDistance > 0 || refreshing"
+            class="lg:hidden fixed inset-x-0 z-40 flex justify-center pointer-events-none"
+            :style="{ top: 'calc(3.5rem + env(safe-area-inset-top) - 1.5rem)', transform: `translateY(${Math.min(pullDistance, ptrThreshold) + 8}px)` }"
+        >
+            <div class="h-9 w-9 rounded-full bg-white dark:bg-slate-800 shadow-lg border border-gray-100 dark:border-slate-700 flex items-center justify-center">
+                <svg
+                    class="h-5 w-5 text-indigo-500"
+                    :class="refreshing ? 'animate-spin' : ''"
+                    :style="refreshing ? '' : { transform: `rotate(${pullDistance / ptrThreshold * 270}deg)` }"
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
+            </div>
+        </div>
 
         <!-- ══════════════════════════════════════
              UPDATE BANNER
