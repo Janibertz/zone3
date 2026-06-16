@@ -23,6 +23,7 @@ const props = defineProps({
     plan:         Object,   // { id, is_active, generated_at, context, actual_time_hours, ... }
     sessions:     Array,    // TrainingSession records from DB
     backyard:     { type: Object, default: null }, // { readiness, rhythm } for Backyard Ultra events
+    planIsRolling: { type: Boolean, default: false }, // race beyond the rolling window → plan extends over time
     isPastEvent:  { type: Boolean, default: false },
 });
 
@@ -1215,6 +1216,15 @@ const lapHeightPct = computed(() => {
                             Basierend auf berechneter Schwellenpace · Jack Daniels T-Pace
                         </p>
                     </div>
+                </div>
+
+                <!-- Rolling-window hint: race is beyond the current plan window -->
+                <div v-if="planIsRolling && currentPlan && !generating"
+                    class="mb-3 flex items-start gap-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 px-3.5 py-2.5">
+                    <svg class="h-4 w-4 mt-0.5 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
+                    <p class="text-xs text-indigo-700 dark:text-indigo-300 leading-relaxed">
+                        Bis zum Renntag ist es noch eine Weile — {{ coachName }} plant zunächst die kommenden zwei Wochen und verlängert den Plan dann laufend automatisch bis zum Rennen.
+                    </p>
                 </div>
 
                 <div class="space-y-2">

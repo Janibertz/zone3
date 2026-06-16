@@ -990,7 +990,7 @@ PROMPT;
         // Pre-compute per-date availability for each day in the plan window
         $isoToWeekday = [1 => 'monday', 2 => 'tuesday', 3 => 'wednesday', 4 => 'thursday', 5 => 'friday', 6 => 'saturday', 7 => 'sunday'];
         $perDateLines = [];
-        $planWindowDays = min(21, $daysUntil + 1); // cover every day up to race, max 21
+        $planWindowDays = min(\App\Models\Event::PLAN_HORIZON_DAYS, $daysUntil + 1); // rolling window
         for ($i = 0; $i < $planWindowDays; $i++) {
             $date    = now()->addDays($i);
             $dateStr = $date->format('Y-m-d');
@@ -1194,7 +1194,22 @@ Coach-Ton: Empathisch, fürsorglich, motivierend — Erholung ist Training.
 WARN;
         }
 
-        $totalDays = min(21, $daysUntil + 1); // number of entries the AI must produce
+        // ── Rolling planning window ──────────────────────────────────────────
+        // Only plan the next N days instead of all the way to race day. The plan is
+        // regenerated regularly anyway, so far-future detail just wastes tokens. The
+        // race day + taper are added once the race falls inside the window.
+        $horizon     = \App\Models\Event::PLAN_HORIZON_DAYS;
+        $totalDays   = min($horizon, $daysUntil + 1);            // number of day-entries to produce
+        $reachesRace = ($daysUntil + 1) <= $horizon;            // window includes race day?
+        $planEndDate = $reachesRace ? $eventDate : now()->addDays($totalDays - 1)->format('Y-m-d');
+
+        // Window-end rule wording (race day only included when the race is inside the window)
+        $endRuleBackyard = $reachesRace
+            ? "Am Renntag ({$eventDate}): type=\"race_prep\", title=\"{$event->name}\", beschreibe die Renn-Strategie (langsames, konstantes Rundentempo, Verpflegung pro Runde, Pausen-Management)."
+            : "Das Rennen ist noch {$daysUntil} Tage entfernt — plane NUR bis {$planEndDate}, KEIN Renntag-Eintrag, KEIN race_prep. Der Plan wird später automatisch verlängert. Setze den aktuellen Trainingsblock fort (Volumen/Back-to-Back/Time-on-Feet).";
+        $endRuleStandard = $reachesRace
+            ? "Am Renntag ({$eventDate}): type=\"race_prep\", title=\"{$event->name}\", beschreibe das Rennen selbst."
+            : "Das Rennen ist noch {$daysUntil} Tage entfernt — plane NUR bis {$planEndDate}, KEIN Renntag-Eintrag, KEIN race_prep. Der Plan wird später automatisch verlängert. Plane den dem Zeitraum entsprechenden Trainingsblock.";
 
         if ($event->isBackyard()) {
             $targetYards  = (int) $event->target_yards;
@@ -1234,8 +1249,8 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 
 **Planungsregeln (Backyard-spezifisch):**
 - Starte den Plan ab heute ({$today})
-- Plane GENAU jeden Tag von {$today} bis {$eventDate} — das sind {$totalDays} Tage. Der letzte Tag ist IMMER der Renntag.
-- Am Renntag ({$eventDate}): type="race_prep", title="{$event->name}", beschreibe Renn-Strategie (langsames, konstantes Rundentempo, Verpflegung pro Runde, Pausen-Management).
+- Plane GENAU jeden Tag von {$today} bis {$planEndDate} — das sind {$totalDays} Tage. KEIN Tag nach {$planEndDate}.
+- {$endRuleBackyard}
 - HAUPTFOKUS: hohes, lockeres aerobes Volumen (Zone 1–2). Tempo/Intervalle sind NICHT der limitierende Faktor — maximal selten und nur leicht.
 - LONGRUNS: wöchentlich mind. ein langer, lockerer Lauf, schrittweise verlängert (time_on_feet zählt mehr als Tempo).
 - BACK-TO-BACK (back_to_back_long): an aufeinanderfolgenden Tagen (z.B. Sa+So) zwei längere Läufe — trainiert das Laufen auf müden Beinen, zentral fürs Format. Mind. alle 1–2 Wochen in Build/Peak.
@@ -1249,7 +1264,7 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 - VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die Trainingsdauer darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
 - ANDERE RENNEVENTS: An Tagen mit anderen Rennevents im Planungszeitraum IMMER type="rest".
 
-**Antworte ausschließlich mit einem JSON-Array — einen Eintrag pro offenem Tag von heute ({$today}) bis zum Renntag ({$eventDate}). Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
+**Antworte ausschließlich mit einem JSON-Array — einen Eintrag pro offenem Tag von heute ({$today}) bis {$planEndDate}. Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
 [
   {
     "date": "YYYY-MM-DD",
@@ -1294,9 +1309,8 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 
 **Planungsregeln:**
 - Starte den Plan ab heute ({$today})
-- Der letzte Tag im Plan ist IMMER der Renntag ({$eventDate}) — niemals danach
-- Plane GENAU jeden Tag von {$today} bis {$eventDate} — das sind {$totalDays} Tage
-- Am Renntag ({$eventDate}): type="race_prep", title="{$event->name}", beschreibe das Rennen selbst
+- Plane GENAU jeden Tag von {$today} bis {$planEndDate} — das sind {$totalDays} Tage. Kein Tag nach {$planEndDate}.
+- {$endRuleStandard}
 - Passe die Intensität an den Zeitraum bis zum Rennen an: {$daysUntil} Tage
 - Bei >30 Tagen: normaler Aufbau (Volumen + Tempo)
 - Bei 10-30 Tagen: Tapering einleiten (Volumen reduzieren, Qualität halten)
@@ -1305,7 +1319,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 - Berücksichtige die Trainingsbelastung: TSB < −30 (Übermüdet) → Volumen stark reduzieren, mehr Ruhetage; TSB > +15 (zu frisch) → Volumen erhöhen
 - Mindestens ein Ruhetag pro Woche
 - A-Events: max. Leistungsoptimierung; C-Events: Trainingsrennen, moderate Belastung
-- WICHTIG: Plane nur Tage von heute ({$today}) bis zum Renntag ({$eventDate}). Kein Tag nach {$eventDate}.
+- WICHTIG: Plane nur Tage von heute ({$today}) bis {$planEndDate}. Kein Tag nach {$planEndDate}.
 - Lerne aus den Athleten-Bewertungen: niedrige Bewertungen (1-2⭐) oder hohe RPE (≥8) bei bestimmten Typen → weniger davon oder leichter planen; hohe Bewertungen (4-5⭐) → mehr davon
 - Lerne aus vergangenen Rennergebnissen: Ziel verfehlt → mehr spezifisches Tempotraining für diese Distanz; Ziel erreicht/übertroffen → Plan funktioniert, ähnliche Struktur beibehalten
 - ANDERE RENNEVENTS: An Tagen mit anderen Rennevents im Planungszeitraum IMMER type="rest" — der Athlet läuft ein Rennen, kein zusätzliches Training.
@@ -1313,7 +1327,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 - PROGRESSIVE LÄUFE (progressive_run): Lauf beginnt in Zone 1–2 und steigert sich Kilometer für Kilometer bis Zone 3–4 gegen Ende. Ideal für Tempoaufbau ohne volle Belastung. Max. 1× pro Woche, nur in Build- und Peak-Phase, nicht im Tapering.
 - TESTLÄUFE (test_run): 5k oder 10k Zeitversuch bei maximalem persönlichen Effort (Zone 4–5) — so schnell wie möglich über die gesamte Distanz. Zweck: objektive Fortschrittsmessung und automatische Neukalibrierung der Schwellenpace. Plane exakt alle 4–6 Wochen — niemals in den letzten 14 Tagen vor dem A-Event. Nach einem test_run folgt IMMER ein easy_run als Regeneration. Kündige den Testlauf im title-Feld deutlich an, z.B. "5k Zeitversuch".
 
-**Antworte ausschließlich mit einem JSON-Array — einen Eintrag pro offenem Tag von heute ({$today}) bis zum Renntag ({$eventDate}). Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
+**Antworte ausschließlich mit einem JSON-Array — einen Eintrag pro offenem Tag von heute ({$today}) bis {$planEndDate}. Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
 [
   {
     "date": "YYYY-MM-DD",

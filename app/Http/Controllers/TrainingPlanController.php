@@ -95,6 +95,9 @@ class TrainingPlanController extends Controller
                 'plan_error'            => $event->plan_error,
             ],
             'backyard' => $backyard,
+            // True when the race is beyond the rolling window, so the plan only covers
+            // the next stretch and will be extended automatically over time.
+            'planIsRolling' => (bool) ($plan && ! $isPastEvent && $event->days_until >= Event::PLAN_HORIZON_DAYS),
             'plan' => $plan ? [
                 'id'                          => $plan->id,
                 'is_active'                   => (bool) $plan->is_active,

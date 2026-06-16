@@ -20,7 +20,7 @@ class RegeneratePlanJob implements ShouldQueue
     use Queueable;
 
     public int $tries   = 1;
-    public int $timeout = 120;
+    public int $timeout = 600; // reasoning model + OpenAI latency can exceed 2 min
 
     public function __construct(
         public readonly int  $userId,

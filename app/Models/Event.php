@@ -12,6 +12,16 @@ class Event extends Model
     /** Standard Backyard Ultra loop distance in km (4.167 mi). */
     public const BACKYARD_LAP_KM = 6.706;
 
+    /**
+     * Rolling training-plan window. Plans only cover the next N days instead of all
+     * the way to race day — they get regenerated regularly anyway, so planning months
+     * ahead just wastes tokens. The window slides forward (see AutoUpdatePlans) once it
+     * covers fewer than REFRESH days ahead; the race day + taper are added once the race
+     * falls inside the window.
+     */
+    public const PLAN_HORIZON_DAYS  = 14;
+    public const PLAN_REFRESH_DAYS   = 6;
+
     protected $appends = ['distance_label', 'target_time_formatted'];
 
     protected $fillable = [
