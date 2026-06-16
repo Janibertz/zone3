@@ -1331,10 +1331,13 @@ Für Ruhetage: distance_km=0, duration_min=0, pace_target=null, zone=null.
 PROMPT;
         }
 
+        // gpt-5.5 is a reasoning model: internal reasoning tokens eat into the budget,
+        // so a full multi-week plan needs a high cap or the completion comes back empty
+        // (finish_reason: length). Runs in a queued job, so the longer timeout is fine.
         $text = $this->callOpenAI('event_plan', [
             ['role' => 'system', 'content' => $this->buildSystemPrompt('Antworte ausschließlich mit einem validen JSON-Array ohne zusätzlichen Text.')],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.6, 6000, 120);
+        ], 0.6, 16000, 240);
 
         if ($text && preg_match('/\[.*\]/s', $text, $matches)) {
             $sessions = json_decode($matches[0], true);

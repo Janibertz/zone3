@@ -29,8 +29,8 @@ const props = defineProps({
 // ── State ─────────────────────────────────────────────────────────────────────
 const currentPlan     = ref(props.plan);
 const currentSessions = ref(props.sessions ?? []);
-const generating      = ref(false);
-const errorMsg        = ref('');
+const generating      = ref(props.event.plan_generating ?? false);
+const errorMsg        = ref(props.event.plan_error ?? '');
 const todayWellbeing  = ref(null);
 const wellbeingLoaded = ref(false);
 
@@ -158,18 +158,49 @@ const wellbeingBanner = computed(() => {
 });
 
 // ── Generate plan ─────────────────────────────────────────────────────────────
+let pollTimer = null;
+
 async function generatePlan() {
     generating.value = true;
     errorMsg.value   = '';
     try {
-        const res = await axios.post(route('events.plan.generate', props.event.id));
-        currentPlan.value     = res.data.plan;
-        currentSessions.value = res.data.sessions;
+        await axios.post(route('events.plan.generate', props.event.id));
+        pollGenerateStatus();
     } catch (e) {
-        errorMsg.value = e?.response?.data?.error ?? 'Fehler beim Erstellen des Plans.';
-    } finally {
         generating.value = false;
+        errorMsg.value = e?.response?.data?.error ?? 'Fehler beim Starten der Plan-Erstellung.';
     }
+}
+
+// Plan generation runs asynchronously in a queue job (so it never blocks the
+// single-threaded web server). Poll the status until it's ready or fails.
+function pollGenerateStatus() {
+    const startedAt = Date.now();
+    clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+        // Hard stop after 6 minutes so the spinner never hangs forever
+        if (Date.now() - startedAt > 6 * 60 * 1000) {
+            clearInterval(pollTimer);
+            generating.value = false;
+            errorMsg.value = 'Zeitüberschreitung bei der Plan-Erstellung. Bitte versuche es erneut.';
+            return;
+        }
+        try {
+            const { data } = await axios.get(route('events.plan.generate-status', props.event.id));
+            if (data.status === 'ready') {
+                clearInterval(pollTimer);
+                // Reload so the new plan, sessions and readiness card render fresh
+                window.location.reload();
+            } else if (data.status === 'failed') {
+                clearInterval(pollTimer);
+                generating.value = false;
+                errorMsg.value = data.error ?? 'Plan konnte nicht erstellt werden. Bitte versuche es erneut.';
+            }
+            // status === 'generating' → keep polling
+        } catch (e) {
+            // transient network error → keep polling until the timeout guard fires
+        }
+    }, 4000);
 }
 
 // ── Complete session ──────────────────────────────────────────────────────────
@@ -336,6 +367,10 @@ const raceAnalysis        = ref(null);   // { found, analysis_text, actual_time 
 const raceAnalysisLoading = ref(false);
 
 onMounted(() => {
+    // Resume polling if a plan generation is already running (e.g. started on another device).
+    if (props.event.plan_generating) {
+        pollGenerateStatus();
+    }
     // Race-day strategy: auto-loaded in the race week (next ~10 days).
     if (!props.isPastEvent && props.event.days_until >= 0 && props.event.days_until <= 10) {
         raceStrategyLoading.value = true;

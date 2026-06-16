@@ -24,6 +24,8 @@ class Event extends Model
         'target_time_hours',
         'target_time_minutes',
         'target_yards',
+        'plan_generating',
+        'plan_error',
         'notes',
     ];
 
@@ -33,6 +35,7 @@ class Event extends Model
         'target_time_hours'   => 'integer',
         'target_time_minutes' => 'integer',
         'target_yards'        => 'integer',
+        'plan_generating'     => 'boolean',
     ];
 
     public function isBackyard(): bool

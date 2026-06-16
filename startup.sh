@@ -44,4 +44,7 @@ echo "[startup] Starting scheduler in background..."
 ) &
 
 echo "[startup] Starting web server..."
+# Run the built-in server with multiple worker processes so a single slow request
+# can never block the whole site for other users (defense in depth — heavy work is queued).
+export PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-8}"
 exec php artisan serve --host=0.0.0.0 --port="${PORT:-8000}"

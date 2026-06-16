@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\GenerateEventTrainingPlanJob;
 use App\Jobs\GenerateRacePredictionJob;
 use App\Models\Activity;
 use App\Models\Event;
@@ -90,6 +91,8 @@ class TrainingPlanController extends Controller
                 'target_distance_km'    => $event->target_distance_km,
                 'target_time_formatted' => $event->target_time_formatted,
                 'days_until'            => $event->days_until,
+                'plan_generating'       => (bool) $event->plan_generating,
+                'plan_error'            => $event->plan_error,
             ],
             'backyard' => $backyard,
             'plan' => $plan ? [
@@ -169,7 +172,7 @@ class TrainingPlanController extends Controller
         return response()->json(['success' => true]);
     }
 
-    public function generate(Event $event, OpenAIService $openAI, WebPushService $webPush, TrainingLoadService $trainingLoadService)
+    public function generate(Event $event)
     {
         abort_if($event->user_id !== Auth::id(), 403);
 
@@ -189,357 +192,33 @@ class TrainingPlanController extends Controller
             ], 422);
         }
 
-        $user = Auth::user();
-
-        // ── Gather context data ──────────────────────────────────────────────
-        $recentActivities = $user->activities()
-            ->where('start_date', '>=', now()->subWeeks(4))
-            ->orderByDesc('start_date')
-            ->limit(20)
-            ->get(\App\Models\Activity::SUMMARY_COLUMNS)
-            ->map(fn ($a) => [
-                'date'         => $a->start_date?->format('Y-m-d') ?? '',
-                'name'         => $a->name,
-                'distance_km'  => round($a->distance / 1000, 2),
-                'duration_min' => (int) round($a->moving_time / 60),
-                'pace'         => $a->average_speed > 0 ? $this->formatPace($a->average_speed) : null,
-                'avg_hr'       => $a->average_heartrate ? (int) $a->average_heartrate : null,
-            ])
-            ->toArray();
-
-        $wellbeingData = $user->wellbeingEntries()
-            ->where('date', '>=', now()->subDays(14)->toDateString())
-            ->orderByDesc('date')
-            ->limit(14)
-            ->get()
-            ->map(fn ($w) => [
-                'date'       => $w->date->format('Y-m-d'),
-                'energy'     => $w->energy_level,
-                'sleep'      => $w->sleep_quality,
-                'soreness'   => $w->muscle_soreness,
-                'stress'     => $w->stress_level,
-                'is_sick'    => $w->is_sick,
-                'is_injured' => $w->is_injured,
-            ])
-            ->toArray();
-
-        $profileData = null;
-        if ($rp = $user->runnerProfile) {
-            $pace = $rp->threshold_speed;
-            $mins = (int) $pace;
-            $secs = (int) (($pace - $mins) * 60);
-            $profileData = [
-                'threshold_pace' => sprintf('%d:%02d', $mins, $secs),
-                'threshold_hr'   => $rp->threshold_heart_rate,
-                'max_hr'         => $rp->max_heart_rate,
-            ];
+        // Already running for this event → don't queue a second job
+        if ($event->plan_generating) {
+            return response()->json(['generating' => true]);
         }
 
-        // ── Session ratings from previous plans (for AI learning) ───────────
-        $sessionRatings = TrainingSession::where('user_id', $user->id)
-            ->whereNotNull('rating')
-            ->where('status', 'completed')
-            ->orderByDesc('planned_date')
-            ->limit(30)
-            ->get()
-            ->map(fn ($s) => [
-                'date'             => $s->planned_date->format('Y-m-d'),
-                'type'             => $s->type,
-                'distance_km'      => $s->distance_km,
-                'rating'           => $s->rating,           // 1–5
-                'effort_perceived' => $s->effort_perceived, // RPE 1–10
-                'feeling_notes'    => $s->feeling_notes,
-            ])
-            ->toArray();
+        // Dispatch the heavy AI generation to the queue so the single-threaded
+        // web process is never blocked by the 100s+ OpenAI reasoning call.
+        $event->update(['plan_generating' => true, 'plan_error' => null]);
+        GenerateEventTrainingPlanJob::dispatch($event->id, Auth::id());
 
-        // ── Availability ─────────────────────────────────────────────────────
-        $weeklyAvailability  = $user->runnerProfile?->weekly_availability ?? null;
+        return response()->json(['generating' => true]);
+    }
 
-        // Get existing plan's overrides if regenerating
-        $existingPlan = TrainingPlan::where('event_id', $event->id)
-            ->where('user_id', $user->id)
-            ->latest()
-            ->first();
-        $availabilityOverrides = $existingPlan?->availability_overrides ?? [];
+    /**
+     * Poll the async plan-generation status for an event (frontend polling).
+     */
+    public function generateStatus(Event $event)
+    {
+        abort_if($event->user_id !== Auth::id(), 403);
 
-        // Collect finalized sessions from existing plans (preserved across regeneration)
-        $existingPlanIds = TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->pluck('id');
-        $preservedSessions = TrainingSession::whereIn('training_plan_id', $existingPlanIds)
-            ->whereIn('status', ['skipped', 'completed'])
-            ->get();
-
-        $futureFinalized = $preservedSessions
-            ->where('planned_date', '>=', now()->toDateString())
-            ->map(fn ($s) => [
-                'date'        => $s->planned_date->format('Y-m-d'),
-                'type'        => $s->type,
-                'status'      => $s->status,
-                'skip_reason' => $s->skip_reason,
-            ])
-            ->values()
-            ->toArray();
-
-        // Past skipped sessions (last 7 days) — recovery context for illness / injury / exhaustion
-        $pastSkipped = TrainingSession::where('user_id', $user->id)
-            ->where('status', 'skipped')
-            ->where('planned_date', '>=', now()->subDays(7)->toDateString())
-            ->where('planned_date', '<', now()->toDateString())
-            ->get()
-            ->map(fn ($s) => [
-                'date'        => $s->planned_date->format('Y-m-d'),
-                'type'        => $s->type,
-                'status'      => 'skipped',
-                'skip_reason' => $s->skip_reason,
-            ])
-            ->values()
-            ->toArray();
-
-        $finalizedForAI = array_merge($pastSkipped, $futureFinalized);
-
-        // ── Past race results (rated plans) ──────────────────────────────────
-        $pastPlanResults = TrainingPlan::where('user_id', $user->id)
-            ->whereNotNull('overall_rating')
-            ->whereHas('event', fn ($q) => $q->where('event_date', '<', now()->toDateString()))
-            ->with('event:id,name,race_distance,target_time_hours,target_time_minutes')
-            ->latest()
-            ->limit(3)
-            ->get()
-            ->map(fn ($p) => [
-                'event_name'     => $p->event->name,
-                'race_distance'  => $p->event->race_distance,
-                'target_time'    => sprintf('%d:%02d', $p->event->target_time_hours, $p->event->target_time_minutes),
-                'actual_time'    => $p->actual_time_hours !== null
-                    ? sprintf('%d:%02d', $p->actual_time_hours, $p->actual_time_minutes)
-                    : null,
-                'overall_rating' => $p->overall_rating,
-                'result_notes'   => $p->result_notes,
-            ])
-            ->toArray();
-
-        // ── Training load metrics (CTL / ATL / TSB) ──────────────────────────
-        $trainingLoad = $trainingLoadService->calculate($user->id);
-
-        // ── Other events in the plan window (race days → no training) ────────
-        $planEnd = now()->addDays(10)->format('Y-m-d');
-        $otherEvents = Event::where('user_id', $user->id)
-            ->where('id', '!=', $event->id)
-            ->where('event_date', '>=', now()->toDateString())
-            ->where('event_date', '<=', $planEnd)
-            ->get()
-            ->map(fn ($e) => [
-                'date'     => $e->event_date->format('Y-m-d'),
-                'name'     => $e->name,
-                'distance' => $e->distance_label,
-                'priority' => $e->priority,
-            ])
-            ->toArray();
-
-        // ── Call AI ──────────────────────────────────────────────────────────
-        $openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
-        try {
-            $aiSessions = $openAI->generateEventTrainingPlan($event, $profileData, $recentActivities, $wellbeingData, $sessionRatings, $weeklyAvailability, $availabilityOverrides, $trainingLoad, $pastPlanResults, $otherEvents, $finalizedForAI);
-        } catch (\Throwable $e) {
-            return response()->json(['error' => 'OpenAI-Fehler: ' . $e->getMessage()], 500);
+        if ($event->plan_generating) {
+            return response()->json(['status' => 'generating']);
         }
-
-        if (! $aiSessions) {
-            return response()->json(['error' => 'Plan konnte nicht erstellt werden. Bitte versuche es erneut.'], 500);
+        if ($event->plan_error) {
+            return response()->json(['status' => 'failed', 'error' => $event->plan_error]);
         }
-
-        // Strip any sessions the AI placed after the event date
-        $eventDateStr = $event->event_date->format('Y-m-d');
-        $aiSessions = array_values(array_filter($aiSessions, fn ($s) => ($s['date'] ?? '') <= $eventDateStr));
-
-        try {
-            // ── One-active-plan rule: deactivate all other plans ─────────────
-            TrainingPlan::where('user_id', $user->id)->update(['is_active' => false]);
-
-            // ── Delete planned sessions of old plans for this event ──────────
-            // $existingPlanIds already computed above (preservedSessions uses them)
-            TrainingSession::whereIn('training_plan_id', $existingPlanIds)->where('status', 'planned')->delete();
-            TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->delete();
-
-            // ── Create new plan (without needs_plan_update — rely on DB default) ──
-            $plan = TrainingPlan::create([
-                'user_id'  => $user->id,
-                'event_id' => $event->id,
-                'sessions' => $aiSessions,
-                'context'  => [
-                    'activities_used'    => count($recentActivities),
-                    'wellbeing_entries'  => count($wellbeingData),
-                    'has_runner_profile' => (bool) $profileData,
-                    'days_until_event'   => $event->days_until,
-                ],
-            ]);
-
-            // Set is_active via direct update (not in $fillable)
-            \Illuminate\Support\Facades\DB::table('training_plans')
-                ->where('id', $plan->id)
-                ->update(['is_active' => true, 'needs_plan_update' => false]);
-
-            // ── Re-link preserved skipped/completed sessions to new plan ────
-            $preservedDates = $preservedSessions
-                ->pluck('planned_date')
-                ->map(fn ($d) => $d->format('Y-m-d'))
-                ->unique()
-                ->flip()
-                ->toArray();
-            foreach ($preservedSessions as $session) {
-                $session->update(['training_plan_id' => $plan->id]);
-            }
-
-            // ── Create individual TrainingSession records (skip finalized dates) ──
-            foreach ($aiSessions as $i => $s) {
-                if (isset($preservedDates[$s['date'] ?? ''])) {
-                    continue;
-                }
-                TrainingSession::create([
-                    'user_id'          => $user->id,
-                    'training_plan_id' => $plan->id,
-                    'event_id'         => $event->id,
-                    'planned_date'     => $s['date'],
-                    'type'             => $s['type'] ?? 'easy_run',
-                    'title'            => $s['title'] ?? '',
-                    'description'      => $s['description'] ?? '',
-                    'distance_km'      => ($s['distance_km'] ?? 0) ?: null,
-                    'duration_min'     => ($s['duration_min'] ?? 0) ?: null,
-                    'pace_target'      => ($s['pace_target'] === 'null' || empty($s['pace_target'])) ? null : $s['pace_target'],
-                    'zone'             => $s['zone'] ?? null,
-                    'intensity'        => $s['intensity'] ?? 'low',
-                    'status'           => 'planned',
-                    'sort_order'       => $i,
-                ]);
-            }
-
-            // ── Retroactively match Strava runs in plan window ───────────────
-            $planDates = collect($aiSessions)->pluck('date');
-            $planStart = $planDates->min();
-            $planEnd   = $planDates->max();
-
-            if ($planStart && $planEnd) {
-                $recentRuns = $user->activities()
-                    ->where('type', 'Run')
-                    ->whereDate('start_date', '>=', $planStart)
-                    ->whereDate('start_date', '<=', $planEnd)
-                    ->get(\App\Models\Activity::SUMMARY_COLUMNS);
-
-                foreach ($recentRuns as $run) {
-                    $date = $run->start_date->toDateString();
-
-                    // Find any planned session on this date (including rest days)
-                    $sessionOnDate = TrainingSession::where('training_plan_id', $plan->id)
-                        ->where('planned_date', $date)
-                        ->where('status', 'planned')
-                        ->first();
-
-                    $distKm  = $run->distance > 0 ? round($run->distance / 1000, 2) : null;
-                    $durMin  = $run->moving_time > 0 ? (int) round($run->moving_time / 60) : null;
-                    $pace    = $this->paceFromSpeed($run->average_speed);
-
-                    if ($sessionOnDate && $sessionOnDate->type !== 'rest') {
-                        // Replace planned session data with actual Strava data
-                        $sessionOnDate->update([
-                            'status'      => 'completed',
-                            'activity_id' => $run->id,
-                            'distance_km' => $distKm ?? $sessionOnDate->distance_km,
-                            'duration_min'=> $durMin ?? $sessionOnDate->duration_min,
-                            'pace_target' => $pace ?? $sessionOnDate->pace_target,
-                        ]);
-                        // Remove orphaned completed sessions from old plans for this activity
-                        TrainingSession::where('user_id', $user->id)
-                            ->where('activity_id', $run->id)
-                            ->where('id', '!=', $sessionOnDate->id)
-                            ->delete();
-                    } elseif ($sessionOnDate && $sessionOnDate->type === 'rest') {
-                        // User ran on a planned rest day — remove rest day, add actual run
-                        $sessionOnDate->delete();
-                        TrainingSession::create([
-                            'user_id'          => $user->id,
-                            'training_plan_id' => $plan->id,
-                            'event_id'         => $plan->event_id,
-                            'activity_id'      => $run->id,
-                            'planned_date'     => $date,
-                            'type'             => 'easy_run',
-                            'title'            => $run->name,
-                            'distance_km'      => $distKm,
-                            'duration_min'     => $durMin,
-                            'pace_target'      => $pace,
-                            'zone'             => null,
-                            'intensity'        => 'medium',
-                            'status'           => 'completed',
-                            'sort_order'       => 0,
-                        ]);
-                    } else {
-                        // No session on this date — re-link existing or create unplanned entry
-                        $existingSession = TrainingSession::where('user_id', $user->id)
-                            ->where('activity_id', $run->id)
-                            ->first();
-
-                        if ($existingSession) {
-                            // Re-link existing session to new plan (preserves rating/notes)
-                            $existingSession->update(['training_plan_id' => $plan->id, 'event_id' => $plan->event_id]);
-                        } else {
-                            TrainingSession::create([
-                                'user_id'          => $user->id,
-                                'training_plan_id' => $plan->id,
-                                'event_id'         => $plan->event_id,
-                                'activity_id'      => $run->id,
-                                'planned_date'     => $date,
-                                'type'             => 'easy_run',
-                                'title'            => $run->name,
-                                'distance_km'      => $distKm,
-                                'duration_min'     => $durMin,
-                                'pace_target'      => $pace,
-                                'zone'             => null,
-                                'intensity'        => 'medium',
-                                'status'           => 'completed',
-                                'sort_order'       => 999,
-                            ]);
-                        }
-                    }
-                }
-            }
-
-        } catch (\Throwable $e) {
-            return response()->json(['error' => 'Datenbankfehler: ' . $e->getMessage()], 500);
-        }
-
-        // ── Reload and return sessions ───────────────────────────────────────
-        $plan->refresh();
-        $sessions = TrainingSession::where('training_plan_id', $plan->id)
-            ->with('activity:id,laps')
-            ->orderBy('planned_date')
-            ->orderBy('sort_order')
-            ->get()
-            ->map(fn ($s) => $this->formatSession($s))
-            ->values()
-            ->toArray();
-
-        // Notify user if they have push + plan-update notifications enabled
-        $user = Auth::user();
-        if ($user->push_notifications_enabled && $user->notify_plan_updated) {
-            $coachName = $user->coach?->name ?? 'Dein Coach';
-            $webPush->sendToUser(
-                $user,
-                "{$coachName} hat deinen Plan aktualisiert 🗓️",
-                "Dein Trainingsplan für {$event->name} wurde neu berechnet.",
-                "/events/{$event->id}/plan"
-            );
-        }
-
-        // Dispatch race prediction in background
-        GenerateRacePredictionJob::dispatch($plan->id)->delay(now()->addSeconds(5));
-
-        return response()->json([
-            'plan' => [
-                'id'                => $plan->id,
-                'is_active'         => true,
-                'generated_at'      => $plan->created_at->format('d.m.Y H:i'),
-                'context'           => $plan->context,
-                'needs_plan_update' => false,
-            ],
-            'sessions' => $sessions,
-        ]);
+        return response()->json(['status' => 'ready']);
     }
 
     /**
