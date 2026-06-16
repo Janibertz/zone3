@@ -472,6 +472,7 @@ class TrainingPlanController extends Controller
             'pace_target'  => $s->pace_target,
             'zone'         => $s->zone,
             'intensity'    => $s->intensity,
+            'exercises'    => $s->exercises,
             'status'           => $s->status,
             'skip_reason'      => $s->skip_reason,
             'sort_order'       => $s->sort_order,

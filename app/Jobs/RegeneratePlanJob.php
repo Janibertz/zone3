@@ -94,6 +94,12 @@ class RegeneratePlanJob implements ShouldQueue
                 'threshold_pace' => sprintf('%d:%02d', $mins, $secs),
                 'threshold_hr'   => $rp->threshold_heart_rate,
                 'max_hr'         => $rp->max_heart_rate,
+                'strength'       => [
+                    'enabled'       => (bool) $rp->strength_enabled,
+                    'days_per_week' => $rp->strength_days_per_week,
+                    'equipment'     => $rp->strength_equipment ?? [],
+                    'experience'    => $rp->strength_experience,
+                ],
             ];
         }
 
@@ -260,6 +266,7 @@ class RegeneratePlanJob implements ShouldQueue
                     'pace_target'      => ($s['pace_target'] === 'null' || empty($s['pace_target'])) ? null : $s['pace_target'],
                     'zone'             => $s['zone'] ?? null,
                     'intensity'        => $s['intensity'] ?? 'low',
+                    'exercises'        => ! empty($s['exercises']) && is_array($s['exercises']) ? $s['exercises'] : null,
                     'status'           => 'planned',
                     'sort_order'       => $i,
                 ]);

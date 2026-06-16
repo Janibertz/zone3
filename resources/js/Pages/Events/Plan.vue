@@ -298,6 +298,9 @@ const typeConfig = {
     time_on_feet:    { label: 'Time on Feet',       bg: 'bg-purple-50 dark:bg-purple-500/10', text: 'text-purple-700 dark:text-purple-400', badge: 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400', border: 'border-purple-100 dark:border-purple-500/20', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />` },
     yard_simulation: { label: 'Yard-Simulation',    bg: 'bg-purple-50 dark:bg-purple-500/10', text: 'text-purple-700 dark:text-purple-400', badge: 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400', border: 'border-purple-100 dark:border-purple-500/20', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-5.25v5.25l3.5 2" />` },
     night_run:       { label: 'Nachtlauf',          bg: 'bg-indigo-50 dark:bg-indigo-500/10', text: 'text-indigo-700 dark:text-indigo-400', badge: 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400', border: 'border-indigo-100 dark:border-indigo-500/20', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />` },
+    strength:        { label: 'Kraft',              bg: 'bg-rose-50 dark:bg-rose-500/10',     text: 'text-rose-700 dark:text-rose-400',   badge: 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400',   border: 'border-rose-100 dark:border-rose-500/20',   icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M6.115 5.19l.319 1.913A6 6 0 008.11 10.36L9.75 12l-.387.775c-.217.433-.132.956.21 1.298l1.348 1.348c.21.21.329.497.329.795v1.089c0 .426.24.815.622 1.006l.153.076c.433.217.956.132 1.298-.21l.723-.723a8.7 8.7 0 002.288-4.042 1.087 1.087 0 00-.358-1.099l-1.33-1.108c-.251-.21-.582-.299-.905-.245l-1.17.195a1.125 1.125 0 01-.98-.314l-.295-.295a1.125 1.125 0 010-1.591l.13-.132a1.125 1.125 0 011.3-.21l.603.302a.809.809 0 001.086-1.086L14.25 7.5l1.256-.837a4.5 4.5 0 001.528-1.732l.146-.292M6.115 5.19A9 9 0 1017.18 4.64M6.115 5.19A8.965 8.965 0 0112 3c1.929 0 3.716.607 5.18 1.64" />` },
+    core:            { label: 'Core',               bg: 'bg-rose-50 dark:bg-rose-500/10',     text: 'text-rose-700 dark:text-rose-400',   badge: 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400',   border: 'border-rose-100 dark:border-rose-500/20',   icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8" />` },
+    mobility:        { label: 'Mobility',           bg: 'bg-teal-50 dark:bg-teal-500/10',     text: 'text-teal-700 dark:text-teal-400',   badge: 'bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-400',   border: 'border-teal-100 dark:border-teal-500/20',   icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8" />` },
 };
 const typeOf = (t) => typeConfig[t] ?? typeConfig['easy_run'];
 
@@ -633,6 +636,9 @@ const workoutTypeLabel = {
     time_on_feet:      'Time on Feet',
     yard_simulation:   'Yard-Simulation',
     night_run:         'Nachtlauf',
+    strength:          'Kraft',
+    core:              'Core',
+    mobility:          'Mobility',
 };
 
 // ── Race Prediction ───────────────────────────────────────────────────────────
@@ -1288,6 +1294,17 @@ const lapHeightPct = computed(() => {
                                         {{ session.pace_target }} min/km
                                     </span>
                                     <span v-if="session.zone" class="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded" :class="typeOf(session.type).badge">Zone {{ session.zone }}</span>
+                                </div>
+
+                                <!-- Exercises (strength / core / mobility) -->
+                                <div v-if="session.exercises && session.exercises.length && session.status !== 'skipped'" class="mt-2.5 space-y-1">
+                                    <div v-for="(ex, i) in session.exercises" :key="i" class="flex items-baseline gap-1.5 text-xs">
+                                        <span class="text-rose-400 dark:text-rose-500 shrink-0">▪</span>
+                                        <span class="text-gray-700 dark:text-slate-300 font-medium">{{ ex.name }}</span>
+                                        <span v-if="ex.sets || ex.reps" class="text-gray-500 dark:text-slate-400 tabular-nums">{{ [ex.sets, ex.reps].filter(Boolean).join('×') }}</span>
+                                        <span v-if="ex.load" class="text-gray-400 dark:text-slate-500">· {{ ex.load }}</span>
+                                        <span v-if="ex.note" class="text-gray-400 dark:text-slate-500 italic truncate">({{ ex.note }})</span>
+                                    </div>
                                 </div>
 
                                 <!-- Action buttons -->

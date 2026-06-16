@@ -369,6 +369,40 @@ async function saveAvailability() {
     }
 }
 
+// ── Strength & core ──────────────────────────────────────────────────────────
+const equipmentOptions = [
+    { value: 'kettlebell', label: 'Kettlebell',    icon: '🏋️' },
+    { value: 'dumbbells',  label: 'Kurzhanteln',   icon: '💪' },
+    { value: 'gym',        label: 'Gym',           icon: '🏟️' },
+    { value: 'bodyweight', label: 'Körpergewicht', icon: '🤸' },
+    { value: 'band',       label: 'Band',          icon: '➰' },
+];
+const strength = ref({
+    strength_enabled:       props.runnerProfile?.strength_enabled ?? false,
+    strength_days_per_week: props.runnerProfile?.strength_days_per_week ?? 2,
+    strength_equipment:     [...(props.runnerProfile?.strength_equipment ?? [])],
+    strength_experience:    props.runnerProfile?.strength_experience ?? 'intermediate',
+});
+const strengthSaving = ref(false);
+const strengthSaved  = ref(false);
+
+function toggleStrengthEquipment(value) {
+    const arr = strength.value.strength_equipment;
+    const i = arr.indexOf(value);
+    if (i === -1) arr.push(value); else arr.splice(i, 1);
+}
+
+async function saveStrength() {
+    strengthSaving.value = true;
+    try {
+        await axios.post(route('onboarding.strength'), { ...strength.value });
+        strengthSaved.value = true;
+        setTimeout(() => { strengthSaved.value = false; }, 2500);
+    } finally {
+        strengthSaving.value = false;
+    }
+}
+
 const zoneColors = [
     'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-500/10 dark:border-blue-500/30 dark:text-blue-300',
     'bg-green-50 border-green-200 text-green-700 dark:bg-green-500/10 dark:border-green-500/30 dark:text-green-300',
@@ -874,6 +908,61 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                                 >
                                     <svg v-if="availSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                                     Verfügbarkeit speichern
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Strength & core -->
+                        <div class="border-t border-gray-100 dark:border-slate-800 pt-5">
+                            <div class="flex items-center justify-between mb-3">
+                                <div>
+                                    <h3 class="text-sm font-semibold text-gray-700 dark:text-slate-300">Kraft & Core</h3>
+                                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Ergänzendes Kraft-/Rumpftraining im Plan</p>
+                                </div>
+                                <button type="button" @click="strength.strength_enabled = !strength.strength_enabled"
+                                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0"
+                                    :class="strength.strength_enabled ? 'bg-rose-600' : 'bg-gray-300 dark:bg-slate-600'">
+                                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                                        :class="strength.strength_enabled ? 'translate-x-6' : 'translate-x-1'"></span>
+                                </button>
+                            </div>
+
+                            <template v-if="strength.strength_enabled">
+                                <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Equipment <span class="text-gray-400 font-normal">(Mehrfachauswahl)</span></label>
+                                <div class="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
+                                    <button v-for="opt in equipmentOptions" :key="opt.value" type="button" @click="toggleStrengthEquipment(opt.value)"
+                                        class="py-2.5 px-2 rounded-xl border-2 transition-all text-center"
+                                        :class="strength.strength_equipment.includes(opt.value)
+                                            ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-500 text-rose-700 dark:text-rose-300'
+                                            : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:border-rose-300 dark:hover:border-rose-600'">
+                                        <div class="text-lg mb-0.5">{{ opt.icon }}</div>
+                                        <div class="text-[11px] font-semibold">{{ opt.label }}</div>
+                                    </button>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3 mb-4">
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Einheiten / Woche</label>
+                                        <select v-model.number="strength.strength_days_per_week" :class="inputClass">
+                                            <option v-for="n in 4" :key="n" :value="n">{{ n }}×</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Erfahrung</label>
+                                        <select v-model="strength.strength_experience" :class="inputClass">
+                                            <option value="beginner">Anfänger</option>
+                                            <option value="intermediate">Mittel</option>
+                                            <option value="advanced">Fortgeschritten</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <div class="flex items-center justify-end gap-3">
+                                <span v-if="strengthSaved" class="text-xs text-green-600 dark:text-green-400">Gespeichert ✓</span>
+                                <button type="button" @click="saveStrength" :disabled="strengthSaving"
+                                    class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm">
+                                    <svg v-if="strengthSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                    Kraft speichern
                                 </button>
                             </div>
                         </div>

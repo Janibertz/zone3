@@ -125,6 +125,31 @@ class OnboardingController extends Controller
     }
 
     /**
+     * Save strength & core training preferences.
+     */
+    public function saveStrength(Request $request)
+    {
+        $validated = $request->validate([
+            'strength_enabled'       => 'required|boolean',
+            'strength_days_per_week' => 'nullable|integer|min:1|max:4',
+            'strength_equipment'     => 'nullable|array',
+            'strength_equipment.*'   => 'string|in:kettlebell,dumbbells,gym,bodyweight,band',
+            'strength_experience'    => 'nullable|in:beginner,intermediate,advanced',
+        ]);
+
+        $user    = Auth::user();
+        $profile = $user->runnerProfile ?? new RunnerProfile(['user_id' => $user->id]);
+        $profile->user_id                = $user->id;
+        $profile->strength_enabled       = $validated['strength_enabled'];
+        $profile->strength_days_per_week = $validated['strength_days_per_week'] ?? 2;
+        $profile->strength_equipment     = $validated['strength_equipment'] ?? [];
+        $profile->strength_experience    = $validated['strength_experience'] ?? null;
+        $profile->save();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
      * Save race goal as an Event (A-priority by default).
      */
     public function saveGoal(Request $request)

@@ -1211,6 +1211,31 @@ WARN;
             ? "Am Renntag ({$eventDate}): type=\"race_prep\", title=\"{$event->name}\", beschreibe das Rennen selbst."
             : "Das Rennen ist noch {$daysUntil} Tage entfernt — plane NUR bis {$planEndDate}, KEIN Renntag-Eintrag, KEIN race_prep. Der Plan wird später automatisch verlängert. Plane den dem Zeitraum entsprechenden Trainingsblock.";
 
+        // ── Strength & core context + rules (only when the athlete enabled it) ──
+        $strength = $profile['strength'] ?? null;
+        if ($strength && ! empty($strength['enabled'])) {
+            $equipMap = [
+                'kettlebell' => 'Kettlebell', 'dumbbells' => 'Kurzhanteln',
+                'gym' => 'Gym (Langhantel/Maschinen)', 'bodyweight' => 'Körpergewicht', 'band' => 'Widerstandsband',
+            ];
+            $equipList = ! empty($strength['equipment'])
+                ? implode(', ', array_map(fn ($e) => $equipMap[$e] ?? $e, $strength['equipment']))
+                : 'Körpergewicht';
+            $expLabel = match ($strength['experience'] ?? null) {
+                'beginner' => 'Anfänger', 'advanced' => 'Fortgeschritten', default => 'Mittel',
+            };
+            $strengthDays = (int) ($strength['days_per_week'] ?? 2);
+            $strengthBlock = "\n\n**Kraft & Core (vom Athleten gewünscht):**\n"
+                . "- Frequenz: {$strengthDays}× pro Woche eine strength- oder core-Einheit (zusätzlich zum Laufen).\n"
+                . "- Verfügbares Equipment — NUR dieses verwenden: {$equipList}. Level: {$expLabel}.\n"
+                . "- Übungen passend zum Equipment wählen (z.B. Kettlebell: Swing, Goblet Squat, Turkish Get-up, Clean&Press, Romanian Deadlift; Gym: Kniebeuge, Kreuzheben, Ausfallschritte, Wadenheben; Körpergewicht: Liegestütz, Ausfallschritte, Plank, Side-Plank, Bird-Dog, Glute Bridge).\n"
+                . "- INTERFERENZ vermeiden: KEINE Kraft am Tag VOR einem Long Run oder Schlüssel-Workout; schwere Beinkraft nicht direkt vor/nach Tempo-/Intervalltagen. Lege Kraft eher nach einem easy_run oder als eigenständige Einheit. Mind. 1 Tag Abstand zwischen schwerer Beinkraft und Qualitätsläufen.\n"
+                . "- TAPER: in der Race Week (<7 Tage bis Rennen) nur noch leichtes core/mobility; in den letzten 3 Tagen KEINE Kraft.\n"
+                . "- Für strength/core/mobility: distance_km=0, duration_min gesetzt, pace_target=null, zone=null UND ein \"exercises\"-Array mit konkreten Übungen ({name, sets, reps, load, note}). load-Beispiele: \"16 kg\", \"2×20 kg\", \"Körpergewicht\", \"RPE 7\".";
+        } else {
+            $strengthBlock = "\n\n**Kraft & Core:** Nicht gewünscht — plane KEINE strength/core/mobility-Einheiten.";
+        }
+
         if ($event->isBackyard()) {
             $targetYards  = (int) $event->target_yards;
             $targetDistKm = number_format($event->target_distance_km, 1, ',', '.');
@@ -1245,7 +1270,7 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 **Bisherige Einheitsbewertungen (Athleten-Feedback):**
 {$ratingsText}
 
-**{$availabilityText}**{$otherEventsText}{$finalizedText}{$recoveryWarning}{$perDateAvailText}
+**{$availabilityText}**{$otherEventsText}{$finalizedText}{$recoveryWarning}{$perDateAvailText}{$strengthBlock}
 
 **Planungsregeln (Backyard-spezifisch):**
 - Starte den Plan ab heute ({$today})
@@ -1268,17 +1293,19 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 [
   {
     "date": "YYYY-MM-DD",
-    "type": "rest|easy_run|long_run|back_to_back_long|time_on_feet|yard_simulation|night_run|progressive_run|race_prep",
+    "type": "rest|easy_run|long_run|back_to_back_long|time_on_feet|yard_simulation|night_run|progressive_run|strength|core|mobility|race_prep",
     "title": "Kurzer Titel (max 40 Zeichen)",
     "description": "Beschreibung der Einheit (2-3 Sätze, konkrete Anweisungen inkl. Verpflegungshinweis bei langen Läufen)",
     "distance_km": 0,
     "duration_min": 0,
     "pace_target": "6:30-7:30 oder null bei Ruhetag",
     "zone": 2,
-    "intensity": "rest|low|medium|high"
+    "intensity": "rest|low|medium|high",
+    "exercises": [{ "name": "Kettlebell Swing", "sets": 4, "reps": "15", "load": "16 kg", "note": "explosiv" }]
   }
 ]
 Für Ruhetage: distance_km=0, duration_min=0, pace_target=null, zone=null.
+Nur bei strength/core/mobility das "exercises"-Array füllen; bei allen Lauf-Einheiten weglassen oder leer lassen.
 PROMPT;
         } else {
         $prompt = <<<PROMPT
@@ -1305,7 +1332,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 **Bisherige Einheitsbewertungen (Athleten-Feedback):**
 {$ratingsText}
 
-**{$availabilityText}**{$otherEventsText}{$finalizedText}{$recoveryWarning}{$perDateAvailText}
+**{$availabilityText}**{$otherEventsText}{$finalizedText}{$recoveryWarning}{$perDateAvailText}{$strengthBlock}
 
 **Planungsregeln:**
 - Starte den Plan ab heute ({$today})
@@ -1331,17 +1358,19 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 [
   {
     "date": "YYYY-MM-DD",
-    "type": "rest|easy_run|tempo_run|interval|long_run|progressive_run|test_run|race_prep",
+    "type": "rest|easy_run|tempo_run|interval|long_run|progressive_run|test_run|strength|core|mobility|race_prep",
     "title": "Kurzer Titel (max 40 Zeichen)",
     "description": "Beschreibung der Einheit (2-3 Sätze, konkrete Anweisungen)",
     "distance_km": 0,
     "duration_min": 0,
     "pace_target": "5:30-6:00 oder null bei Ruhetag",
     "zone": 2,
-    "intensity": "rest|low|medium|high"
+    "intensity": "rest|low|medium|high",
+    "exercises": [{ "name": "Goblet Squat", "sets": 3, "reps": "10", "load": "20 kg", "note": "" }]
   }
 ]
 Für Ruhetage: distance_km=0, duration_min=0, pace_target=null, zone=null.
+Nur bei strength/core/mobility das "exercises"-Array füllen; bei allen Lauf-Einheiten weglassen oder leer lassen.
 PROMPT;
         }
 

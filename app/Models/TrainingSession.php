@@ -32,6 +32,7 @@ class TrainingSession extends Model
         'feeling_notes',
         'nutrition_tips',
         'steps',
+        'exercises',
     ];
 
     protected $casts = [
@@ -43,6 +44,7 @@ class TrainingSession extends Model
         'effort_perceived' => 'integer',
         'nutrition_tips'   => 'array',
         'steps'            => 'array',
+        'exercises'        => 'array',
     ];
 
     public function user()        { return $this->belongsTo(User::class); }

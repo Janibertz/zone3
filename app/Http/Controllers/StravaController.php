@@ -274,16 +274,40 @@ class StravaController extends Controller
     {
         $date = $activity->start_date->toDateString();
 
-        // Non-Run activities (swim, bike, etc.) skip planned-session matching
+        // Strength activities (gym, kettlebell, …) come in as WeightTraining/Workout.
+        $isStrength = in_array($activity->type, ['WeightTraining', 'Workout'], true);
+
+        // Non-Run activities skip the run-session matching below.
         if ($activity->type !== 'Run') {
+            $distKm = $activity->distance > 0 ? round($activity->distance / 1000, 2) : null;
+            $durMin = $activity->moving_time > 0 ? (int) round($activity->moving_time / 60) : null;
+
+            // Strength activity → complete a planned strength/core/mobility session on this date
+            if ($isStrength) {
+                $strengthSession = TrainingSession::where('user_id', $userId)
+                    ->where('planned_date', $date)
+                    ->where('status', 'planned')
+                    ->whereIn('type', ['strength', 'core', 'mobility'])
+                    ->whereHas('trainingPlan', fn ($q) => $q->where('is_active', true))
+                    ->first();
+
+                if ($strengthSession) {
+                    $strengthSession->update([
+                        'status'       => 'completed',
+                        'activity_id'  => $activity->id,
+                        'duration_min' => $durMin ?? $strengthSession->duration_min,
+                    ]);
+                    $strengthSession->trainingPlan?->update(['needs_plan_update' => true]);
+                    return;
+                }
+            }
+
+            // No matching planned session → create an unplanned completed entry
             if (TrainingSession::where('user_id', $userId)->where('activity_id', $activity->id)->exists()) {
                 return;
             }
             $activePlan = TrainingPlan::where('user_id', $userId)->where('is_active', true)->latest()->first();
             if (! $activePlan) return;
-
-            $distKm = $activity->distance > 0 ? round($activity->distance / 1000, 2) : null;
-            $durMin = $activity->moving_time > 0 ? (int) round($activity->moving_time / 60) : null;
 
             TrainingSession::create([
                 'user_id'          => $userId,
@@ -291,9 +315,9 @@ class StravaController extends Controller
                 'event_id'         => $activePlan->event_id,
                 'activity_id'      => $activity->id,
                 'planned_date'     => $date,
-                'type'             => 'easy_run',
+                'type'             => $isStrength ? 'strength' : 'easy_run',
                 'title'            => $activity->name,
-                'distance_km'      => $distKm,
+                'distance_km'      => $isStrength ? null : $distKm,
                 'duration_min'     => $durMin,
                 'pace_target'      => null,
                 'zone'             => null,
@@ -304,10 +328,12 @@ class StravaController extends Controller
             return;
         }
 
-        // 1. Find any planned session in the active plan on the same date
+        // 1. Find any planned RUN session in the active plan on the same date
+        //    (strength/core/mobility sessions are only completed by strength activities)
         $session = TrainingSession::where('user_id', $userId)
             ->where('planned_date', $date)
             ->where('status', 'planned')
+            ->whereNotIn('type', ['strength', 'core', 'mobility'])
             ->whereHas('trainingPlan', fn ($q) => $q->where('is_active', true))
             ->first();
 

@@ -10,14 +10,15 @@ const user = computed(() => page.props.auth.user);
 
 // ── Steps ─────────────────────────────────────────────────────────────────
 const currentStep = ref(1);
-const totalSteps  = 6;
+const totalSteps  = 7;
 const steps = [
     { number: 1, label: 'Willkommen'    },
     { number: 2, label: 'Dein Coach'    },
     { number: 3, label: 'Dein Profil'   },
     { number: 4, label: 'Verfügbarkeit' },
-    { number: 5, label: 'Dein Ziel'     },
-    { number: 6, label: 'Strava'        },
+    { number: 5, label: 'Kraft & Core'  },
+    { number: 6, label: 'Dein Ziel'     },
+    { number: 7, label: 'Strava'        },
 ];
 function nextStep() { if (currentStep.value < totalSteps) currentStep.value++; }
 
@@ -235,6 +236,38 @@ const targetTimeFormatted = computed(() => {
 const selectedRace = computed(() =>
     raceOptions.find(r => r.value === goalForm.value.race_distance)
 );
+
+// ── Strength & Core (Step 5) ─────────────────────────────────────────────
+const equipmentOptions = [
+    { value: 'kettlebell', label: 'Kettlebell',    icon: '🏋️' },
+    { value: 'dumbbells',  label: 'Kurzhanteln',   icon: '💪' },
+    { value: 'gym',        label: 'Gym',           icon: '🏟️' },
+    { value: 'bodyweight', label: 'Körpergewicht', icon: '🤸' },
+    { value: 'band',       label: 'Band',          icon: '➰' },
+];
+const strengthForm = ref({
+    strength_enabled:       false,
+    strength_days_per_week: 2,
+    strength_equipment:     [],
+    strength_experience:    'intermediate',
+});
+const strengthLoading = ref(false);
+function toggleEquipment(value) {
+    const arr = strengthForm.value.strength_equipment;
+    const i = arr.indexOf(value);
+    if (i === -1) arr.push(value); else arr.splice(i, 1);
+}
+async function submitStrength() {
+    strengthLoading.value = true;
+    try {
+        await axios.post(route('onboarding.strength'), { ...strengthForm.value });
+    } catch (e) {
+        // non-blocking — strength is optional
+    } finally {
+        strengthLoading.value = false;
+        nextStep();
+    }
+}
 
 async function submitGoal() {
     goalErrors.value  = {};
@@ -695,7 +728,82 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                 <!-- ══════════════════════════════════════════
                      STEP 5 — Race goal
                      ══════════════════════════════════════════ -->
+                <!-- ══════════════════════════════════════════
+                     STEP 5 — Kraft & Core
+                     ══════════════════════════════════════════ -->
                 <div v-else-if="currentStep === 5" class="space-y-5">
+                    <div class="text-center">
+                        <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-rose-500 to-rose-700 flex items-center justify-center shadow-lg text-3xl">💪</div>
+                        <h2 class="mt-4 text-2xl font-bold text-gray-900 dark:text-white">Kraft & Core</h2>
+                        <p class="mt-2 text-gray-500 dark:text-slate-400">Läufer:innen vernachlässigen oft Kraft & Rumpf — dabei beugt es Verletzungen vor und macht dich schneller. Soll dein Coach Kraft- & Core-Einheiten in den Plan einbauen?</p>
+                    </div>
+
+                    <!-- Toggle -->
+                    <div class="bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 rounded-2xl p-5 flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-semibold text-gray-700 dark:text-slate-200">Kraft & Core einplanen</p>
+                            <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Ergänzend zum Lauftraining</p>
+                        </div>
+                        <button type="button" @click="strengthForm.strength_enabled = !strengthForm.strength_enabled"
+                            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0"
+                            :class="strengthForm.strength_enabled ? 'bg-rose-600' : 'bg-gray-300 dark:bg-slate-600'">
+                            <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                                :class="strengthForm.strength_enabled ? 'translate-x-6' : 'translate-x-1'"></span>
+                        </button>
+                    </div>
+
+                    <template v-if="strengthForm.strength_enabled">
+                        <!-- Equipment -->
+                        <div class="bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 rounded-2xl p-5 space-y-3">
+                            <label class="block text-sm font-semibold text-gray-700 dark:text-slate-300">Welches Equipment hast du?</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button v-for="opt in equipmentOptions" :key="opt.value" type="button" @click="toggleEquipment(opt.value)"
+                                    class="py-3 px-2 rounded-xl border-2 transition-all text-center"
+                                    :class="strengthForm.strength_equipment.includes(opt.value)
+                                        ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-500 text-rose-700 dark:text-rose-300'
+                                        : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:border-rose-300 dark:hover:border-rose-600'">
+                                    <div class="text-xl mb-1">{{ opt.icon }}</div>
+                                    <div class="text-xs font-semibold">{{ opt.label }}</div>
+                                </button>
+                            </div>
+                            <p class="text-[11px] text-gray-400 dark:text-slate-500">Mehrfachauswahl möglich. Keine Auswahl = nur Körpergewicht.</p>
+                        </div>
+
+                        <!-- Frequency + experience -->
+                        <div class="bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 rounded-2xl p-5 grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs text-gray-400 dark:text-slate-500 mb-1.5">Einheiten / Woche</label>
+                                <select v-model.number="strengthForm.strength_days_per_week" class="input-field border-gray-200 dark:border-slate-600">
+                                    <option v-for="n in 4" :key="n" :value="n">{{ n }}×</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-400 dark:text-slate-500 mb-1.5">Erfahrung</label>
+                                <select v-model="strengthForm.strength_experience" class="input-field border-gray-200 dark:border-slate-600">
+                                    <option value="beginner">Anfänger</option>
+                                    <option value="intermediate">Mittel</option>
+                                    <option value="advanced">Fortgeschritten</option>
+                                </select>
+                            </div>
+                        </div>
+                    </template>
+
+                    <div class="flex gap-3">
+                        <button @click="nextStep"
+                            class="flex-1 py-2.5 px-4 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 border border-gray-200 dark:border-slate-700 rounded-xl transition-colors">
+                            Überspringen
+                        </button>
+                        <button @click="submitStrength" :disabled="strengthLoading"
+                            class="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors">
+                            {{ strengthLoading ? 'Speichern…' : 'Weiter' }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ══════════════════════════════════════════
+                     STEP 6 — Ziel
+                     ══════════════════════════════════════════ -->
+                <div v-else-if="currentStep === 6" class="space-y-5">
                     <div class="text-center">
                         <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Was ist dein Ziel?</h2>
                         <p class="mt-2 text-gray-500 dark:text-slate-400">
@@ -817,7 +925,7 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                 <!-- ══════════════════════════════════════════
                      STEP 6 — Strava
                      ══════════════════════════════════════════ -->
-                <div v-else-if="currentStep === 6" class="space-y-6 text-center">
+                <div v-else-if="currentStep === 7" class="space-y-6 text-center">
                     <div class="w-20 h-20 mx-auto rounded-3xl bg-orange-500 flex items-center justify-center shadow-lg">
                         <svg class="w-10 h-10 text-white" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066l-2.084 4.116z"/>

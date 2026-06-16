@@ -358,7 +358,7 @@ const weekStats = computed(() => {
 
     const weekActs = props.recentActivities.filter(a => a.start_date && new Date(a.start_date) >= startOfWeek);
     const km = (weekActs.reduce((s, a) => s + (a.distance || 0), 0) / 1000).toFixed(1);
-    const runs = weekActs.length;
+    const runs = weekActs.filter(a => ['Run', 'VirtualRun', 'TrailRun'].includes(a.type)).length;
     const runSpeeds = weekActs.filter(a => a.type === 'Run' && a.average_speed > 0).map(a => a.average_speed);
     const avgPace = runSpeeds.length
         ? formatPaceFromSpeed(runSpeeds.reduce((s, v) => s + v, 0) / runSpeeds.length)
@@ -376,7 +376,7 @@ const monthStats = computed(() => {
     });
     return {
         km: (acts.reduce((s, a) => s + (a.distance || 0), 0) / 1000).toFixed(1),
-        runs: acts.length,
+        runs: acts.filter(a => ['Run', 'VirtualRun', 'TrailRun'].includes(a.type)).length,
     };
 });
 
@@ -1660,8 +1660,11 @@ function syncStrava() {
                                         <span class="text-[11px] text-gray-400 dark:text-slate-500 flex-shrink-0">{{ relativeDate(activity.start_date) }}</span>
                                     </div>
                                     <div class="flex flex-wrap gap-1.5">
-                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 text-xs font-bold">
+                                        <span v-if="activity.distance > 0" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 text-xs font-bold">
                                             📍 {{ round2(formatDistance(activity.distance)) }} km
+                                        </span>
+                                        <span v-else-if="['WeightTraining','Workout'].includes(activity.type)" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 text-xs font-bold">
+                                            💪 Kraft
                                         </span>
                                         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-medium">
                                             ⏱ {{ formatTime(activity.moving_time) }}
@@ -1741,7 +1744,7 @@ function syncStrava() {
                                             @click="pickCalendarActivity(act)"
                                             class="w-full px-3 py-2 text-left hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors">
                                             <p class="text-xs font-semibold text-gray-800 dark:text-slate-200 truncate">{{ act.name }}</p>
-                                            <p class="text-xs text-gray-400 dark:text-slate-500">{{ formatDistance(act.distance) }} km · {{ formatTime(act.moving_time) }}</p>
+                                            <p class="text-xs text-gray-400 dark:text-slate-500"><template v-if="act.distance > 0">{{ formatDistance(act.distance) }} km · </template>{{ formatTime(act.moving_time) }}</p>
                                         </button>
                                     </div>
                                 </div>

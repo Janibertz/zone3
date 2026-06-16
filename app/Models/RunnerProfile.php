@@ -24,6 +24,10 @@ class RunnerProfile extends Model
         'threshold_pace_history',
         'threshold_pace_calculating',
         'weekly_availability',
+        'strength_enabled',
+        'strength_days_per_week',
+        'strength_equipment',
+        'strength_experience',
         'daily_message',
         'daily_message_date',
         'pending_pr_activity_id',
@@ -40,6 +44,9 @@ class RunnerProfile extends Model
         'threshold_pace_calculated_at' => 'datetime',
         'threshold_pace_calculating' => 'boolean',
         'weekly_availability'        => 'array',
+        'strength_enabled'           => 'boolean',
+        'strength_days_per_week'     => 'integer',
+        'strength_equipment'         => 'array',
         'return_to_run_dismissed_at' => 'datetime',
     ];
 
