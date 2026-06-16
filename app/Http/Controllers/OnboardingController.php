@@ -131,10 +131,11 @@ class OnboardingController extends Controller
     {
         $validated = $request->validate([
             'name'                => 'required|string|max:150',
-            'race_distance'       => 'required|string|in:5km,10km,half_marathon,marathon,custom',
+            'race_distance'       => 'required|string|in:5km,10km,half_marathon,marathon,custom,backyard_ultra',
             'distance_km'         => 'nullable|numeric|min:0.1',
-            'target_time_hours'   => 'required|integer|min:0|max:23',
-            'target_time_minutes' => 'required|integer|min:0|max:59',
+            'target_time_hours'   => 'required_unless:race_distance,backyard_ultra|integer|min:0|max:23',
+            'target_time_minutes' => 'required_unless:race_distance,backyard_ultra|integer|min:0|max:59',
+            'target_yards'        => 'required_if:race_distance,backyard_ultra|nullable|integer|min:1|max:100',
             'race_date'           => 'required|date|after:today',
         ]);
 
@@ -145,8 +146,9 @@ class OnboardingController extends Controller
             'race_distance'       => $validated['race_distance'],
             'distance_km'         => $validated['distance_km'] ?? null,
             'priority'            => 'A',
-            'target_time_hours'   => $validated['target_time_hours'],
-            'target_time_minutes' => $validated['target_time_minutes'],
+            'target_time_hours'   => $validated['target_time_hours'] ?? 0,
+            'target_time_minutes' => $validated['target_time_minutes'] ?? 0,
+            'target_yards'        => $validated['target_yards'] ?? null,
         ]);
 
         return response()->json(['success' => true]);

@@ -47,7 +47,7 @@ function wellbeingColor(score) {
     return 'bg-red-400 dark:bg-red-500';
 }
 
-const coachBg = { orange: 'bg-orange-500', blue: 'bg-blue-600', green: 'bg-green-600' };
+const coachBg = { orange: 'bg-orange-500', blue: 'bg-blue-600', green: 'bg-green-600', purple: 'bg-purple-600' };
 
 const maxReg      = computed(() => Math.max(...(props.registrationsPerMonth?.map(r => r.count)           ?? [0]), 1));
 const maxAct      = computed(() => Math.max(...(props.activitiesPerMonth?.map(a => a.count)              ?? [0]), 1));

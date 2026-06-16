@@ -36,6 +36,7 @@ const form = useForm({
     priority:            'B',
     target_time_hours:   0,
     target_time_minutes: 0,
+    target_yards:        '',
     notes:               '',
 });
 
@@ -46,6 +47,7 @@ function openCreate() {
     form.priority = 'B';
     form.target_time_hours = 0;
     form.target_time_minutes = 0;
+    form.target_yards = '';
     showModal.value = true;
 }
 
@@ -58,6 +60,7 @@ function openEdit(event) {
     form.priority            = event.priority;
     form.target_time_hours   = event.target_time_hours;
     form.target_time_minutes = event.target_time_minutes;
+    form.target_yards        = event.target_yards ?? '';
     form.notes               = event.notes ?? '';
     showModal.value = true;
 }
@@ -102,12 +105,20 @@ function deleteEvent(event) {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const raceDistances = [
-    { value: '5km',           label: '5 km' },
-    { value: '10km',          label: '10 km' },
-    { value: 'half_marathon', label: 'Halbmarathon' },
-    { value: 'marathon',      label: 'Marathon' },
-    { value: 'custom',        label: 'Eigene Distanz' },
+    { value: '5km',            label: '5 km' },
+    { value: '10km',           label: '10 km' },
+    { value: 'half_marathon',  label: 'Halbmarathon' },
+    { value: 'marathon',       label: 'Marathon' },
+    { value: 'custom',         label: 'Eigene Distanz' },
+    { value: 'backyard_ultra', label: 'Backyard Ultra' },
 ];
+
+// Standard Backyard loop distance (km) — mirrors Event::BACKYARD_LAP_KM
+const BACKYARD_LAP_KM = 6.706;
+const isBackyard = computed(() => form.race_distance === 'backyard_ultra');
+const backyardTargetKm = computed(() =>
+    form.target_yards ? (Number(form.target_yards) * BACKYARD_LAP_KM).toFixed(1).replace('.', ',') : null
+);
 
 const priorityConfig = {
     A: { label: 'A', title: 'A-Event',  desc: 'Hauptrennen',       bg: 'bg-red-100 dark:bg-red-500/15',    text: 'text-red-700 dark:text-red-400',    border: 'border-red-200 dark:border-red-500/30',   dot: 'bg-red-500' },
@@ -472,8 +483,23 @@ watch(() => form.race_distance, (val) => {
                         />
                     </div>
 
-                    <!-- Target time -->
-                    <div>
+                    <!-- Backyard Ultra: goal in hours/yards -->
+                    <div v-if="isBackyard">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Ziel: Anzahl Stunden (Yards)</label>
+                        <div class="flex items-center gap-2">
+                            <input v-model="form.target_yards" type="number" step="1" min="1" max="100" placeholder="z.B. 24"
+                                class="block w-32 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors"
+                            />
+                            <span class="text-sm text-gray-500 dark:text-slate-400">
+                                Std<template v-if="backyardTargetKm"> · ≈ {{ backyardTargetKm }} km</template>
+                            </span>
+                        </div>
+                        <p class="mt-1.5 text-xs text-gray-400 dark:text-slate-500">1 Yard = 1 Stunde = eine 6,706-km-Runde. Jede Runde startet zur vollen Stunde.</p>
+                        <p v-if="form.errors.target_yards" class="mt-1 text-xs text-red-500">{{ form.errors.target_yards }}</p>
+                    </div>
+
+                    <!-- Target time (not for Backyard) -->
+                    <div v-if="!isBackyard">
                         <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Zielzeit <span class="text-gray-400 font-normal">(optional)</span></label>
                         <div class="flex items-center gap-2">
                             <select v-model.number="form.target_time_hours"

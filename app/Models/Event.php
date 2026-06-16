@@ -9,6 +9,9 @@ class Event extends Model
 {
     use HasFactory;
 
+    /** Standard Backyard Ultra loop distance in km (4.167 mi). */
+    public const BACKYARD_LAP_KM = 6.706;
+
     protected $appends = ['distance_label', 'target_time_formatted'];
 
     protected $fillable = [
@@ -20,6 +23,7 @@ class Event extends Model
         'priority',
         'target_time_hours',
         'target_time_minutes',
+        'target_yards',
         'notes',
     ];
 
@@ -28,7 +32,21 @@ class Event extends Model
         'distance_km'         => 'float',
         'target_time_hours'   => 'integer',
         'target_time_minutes' => 'integer',
+        'target_yards'        => 'integer',
     ];
+
+    public function isBackyard(): bool
+    {
+        return $this->race_distance === 'backyard_ultra';
+    }
+
+    /** Total target distance in km derived from the yard goal. */
+    public function getTargetDistanceKmAttribute(): ?float
+    {
+        return $this->isBackyard() && $this->target_yards
+            ? round($this->target_yards * self::BACKYARD_LAP_KM, 1)
+            : null;
+    }
 
     public function user()
     {
@@ -52,12 +70,19 @@ class Event extends Model
             '10km'          => '10 km',
             'half_marathon' => 'Halbmarathon',
             'marathon'      => 'Marathon',
+            'backyard_ultra'=> 'Backyard Ultra',
             default         => $this->distance_km ? number_format($this->distance_km, 1, ',', '.') . ' km' : 'Eigene Distanz',
         };
     }
 
     public function getTargetTimeFormattedAttribute(): ?string
     {
+        if ($this->isBackyard()) {
+            if (! $this->target_yards) return null;
+            $km = number_format($this->target_distance_km, 1, ',', '.');
+            return "{$this->target_yards} Std (≈ {$km} km)";
+        }
+
         $h = $this->target_time_hours;
         $m = $this->target_time_minutes;
         if ($h === 0 && $m === 0) return null;

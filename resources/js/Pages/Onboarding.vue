@@ -32,6 +32,7 @@ const coachColors = {
     orange: { bg: 'bg-orange-500', ring: 'ring-orange-400', light: 'bg-orange-50 dark:bg-orange-500/10', border: 'border-orange-300 dark:border-orange-500/50', badge: 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300' },
     blue:   { bg: 'bg-blue-600',   ring: 'ring-blue-400',   light: 'bg-blue-50 dark:bg-blue-500/10',   border: 'border-blue-300 dark:border-blue-500/50',   badge: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'   },
     green:  { bg: 'bg-green-600',  ring: 'ring-green-400',  light: 'bg-green-50 dark:bg-green-500/10',  border: 'border-green-300 dark:border-green-500/50',  badge: 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300'  },
+    purple: { bg: 'bg-purple-600', ring: 'ring-purple-400', light: 'bg-purple-50 dark:bg-purple-500/10', border: 'border-purple-300 dark:border-purple-500/50', badge: 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' },
 };
 
 const specialtyLabels = { motivator: 'Motivator', strategist: 'Stratege', companion: 'Begleiter' };
@@ -181,12 +182,15 @@ async function submitAvailability() {
 // STEP 4 — Race goal with target time
 // ════════════════════════════════════════════════════════════════════════
 const raceOptions = [
-    { value: '5km',           label: '5 km',         distance: 5,        icon: '🏃' },
-    { value: '10km',          label: '10 km',         distance: 10,       icon: '🏅' },
-    { value: 'half_marathon', label: 'Halbmarathon',  distance: 21.0975,  icon: '🥈' },
-    { value: 'marathon',      label: 'Marathon',      distance: 42.195,   icon: '🏆' },
-    { value: 'custom',        label: 'Andere Distanz',distance: null,     icon: '📍' },
+    { value: '5km',            label: '5 km',          distance: 5,        icon: '🏃' },
+    { value: '10km',           label: '10 km',         distance: 10,       icon: '🏅' },
+    { value: 'half_marathon',  label: 'Halbmarathon',  distance: 21.0975,  icon: '🥈' },
+    { value: 'marathon',       label: 'Marathon',      distance: 42.195,   icon: '🏆' },
+    { value: 'custom',         label: 'Andere Distanz',distance: null,     icon: '📍' },
+    { value: 'backyard_ultra', label: 'Backyard Ultra',distance: null,     icon: '🔁' },
 ];
+
+const BACKYARD_LAP_KM = 6.706;
 
 const goalForm = ref({
     name:                '',
@@ -194,8 +198,14 @@ const goalForm = ref({
     distance_km:         null,
     target_time_hours:   1,
     target_time_minutes: 45,
+    target_yards:        null,
     race_date:           '',
 });
+
+const isBackyardGoal = computed(() => goalForm.value.race_distance === 'backyard_ultra');
+const backyardGoalKm = computed(() =>
+    goalForm.value.target_yards ? (Number(goalForm.value.target_yards) * BACKYARD_LAP_KM).toFixed(1).replace('.', ',') : null
+);
 const goalErrors  = ref({});
 const goalLoading = ref(false);
 
@@ -716,6 +726,21 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                                 <input v-model="goalForm.distance_km" type="number" min="0.1" step="0.1" placeholder="z.B. 15"
                                     class="input-field border-gray-200 dark:border-slate-600" />
                             </div>
+
+                            <!-- Backyard goal: hours/yards -->
+                            <div v-if="isBackyardGoal" class="mt-1">
+                                <label class="block text-xs text-gray-500 dark:text-slate-400 mb-1.5">Ziel: Anzahl Stunden (Yards)</label>
+                                <div class="flex items-center gap-2">
+                                    <input v-model="goalForm.target_yards" type="number" min="1" max="100" step="1" placeholder="z.B. 24"
+                                        class="input-field border-gray-200 dark:border-slate-600 w-32"
+                                        :class="goalErrors.target_yards ? 'border-red-400' : ''" />
+                                    <span class="text-sm text-gray-500 dark:text-slate-400">
+                                        Std<template v-if="backyardGoalKm"> · ≈ {{ backyardGoalKm }} km</template>
+                                    </span>
+                                </div>
+                                <p class="mt-1.5 text-[11px] text-gray-400 dark:text-slate-500">1 Yard = 1 Stunde = eine 6,706-km-Runde, jede Runde startet zur vollen Stunde.</p>
+                                <p v-if="goalErrors.target_yards" class="mt-1 text-xs text-red-500">{{ goalErrors.target_yards[0] }}</p>
+                            </div>
                         </div>
 
                         <!-- Race details -->
@@ -736,8 +761,8 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                                 <p v-if="goalErrors.race_date" class="mt-1 text-xs text-red-500">{{ goalErrors.race_date[0] }}</p>
                             </div>
 
-                            <!-- Target time -->
-                            <div>
+                            <!-- Target time (not for Backyard) -->
+                            <div v-if="!isBackyardGoal">
                                 <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                                     Zielzeit:
                                     <span class="text-indigo-600 dark:text-indigo-400 font-bold">{{ targetTimeFormatted }}</span>
@@ -766,7 +791,10 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                             class="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20">
                             <p class="text-sm text-indigo-700 dark:text-indigo-300 font-medium">
                                 {{ selectedRace.icon }} {{ goalForm.name || selectedRace.label }}
-                                in {{ targetTimeFormatted }}
+                                <template v-if="isBackyardGoal">
+                                    <template v-if="goalForm.target_yards">— Ziel {{ goalForm.target_yards }} Std<template v-if="backyardGoalKm"> (≈ {{ backyardGoalKm }} km)</template></template>
+                                </template>
+                                <template v-else>in {{ targetTimeFormatted }}</template>
                                 am {{ new Date(goalForm.race_date).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' }) }}
                             </p>
                         </div>

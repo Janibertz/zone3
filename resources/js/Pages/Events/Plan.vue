@@ -14,6 +14,7 @@ const coachAccentColors = {
     orange: { stripe: 'bg-orange-400', badge: 'bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-500/30', avatar: 'bg-orange-500' },
     blue:   { stripe: 'bg-blue-500',   badge: 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30',             avatar: 'bg-blue-600'   },
     green:  { stripe: 'bg-green-500',  badge: 'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300 border-green-200 dark:border-green-500/30',       avatar: 'bg-green-600'  },
+    purple: { stripe: 'bg-purple-500', badge: 'bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500/30', avatar: 'bg-purple-600' },
 };
 const coachAccent = computed(() => coachAccentColors[coach.value?.avatar_color] ?? coachAccentColors.blue);
 
@@ -21,6 +22,7 @@ const props = defineProps({
     event:        Object,
     plan:         Object,   // { id, is_active, generated_at, context, actual_time_hours, ... }
     sessions:     Array,    // TrainingSession records from DB
+    backyard:     { type: Object, default: null }, // { readiness, rhythm } for Backyard Ultra events
     isPastEvent:  { type: Boolean, default: false },
 });
 
@@ -260,6 +262,10 @@ const typeConfig = {
     race_prep:       { label: 'Rennvorbereitung', bg: 'bg-indigo-50 dark:bg-indigo-500/10', text: 'text-indigo-700 dark:text-indigo-400', badge: 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400', border: 'border-indigo-100 dark:border-indigo-500/20', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />` },
     progressive_run: { label: 'Progressiver Lauf', bg: 'bg-teal-50 dark:bg-teal-500/10',   text: 'text-teal-700 dark:text-teal-400',   badge: 'bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-400',   border: 'border-teal-100 dark:border-teal-500/20',   icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.281-2.28 5.941" />` },
     test_run:        { label: 'Testlauf',           bg: 'bg-violet-50 dark:bg-violet-500/10', text: 'text-violet-700 dark:text-violet-400', badge: 'bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-400', border: 'border-violet-100 dark:border-violet-500/20', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />` },
+    back_to_back_long: { label: 'Back-to-Back',     bg: 'bg-blue-50 dark:bg-blue-500/10',    text: 'text-blue-700 dark:text-blue-400',   badge: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400',   border: 'border-blue-100 dark:border-blue-500/20',   icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" />` },
+    time_on_feet:    { label: 'Time on Feet',       bg: 'bg-purple-50 dark:bg-purple-500/10', text: 'text-purple-700 dark:text-purple-400', badge: 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400', border: 'border-purple-100 dark:border-purple-500/20', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />` },
+    yard_simulation: { label: 'Yard-Simulation',    bg: 'bg-purple-50 dark:bg-purple-500/10', text: 'text-purple-700 dark:text-purple-400', badge: 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400', border: 'border-purple-100 dark:border-purple-500/20', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-5.25v5.25l3.5 2" />` },
+    night_run:       { label: 'Nachtlauf',          bg: 'bg-indigo-50 dark:bg-indigo-500/10', text: 'text-indigo-700 dark:text-indigo-400', badge: 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400', border: 'border-indigo-100 dark:border-indigo-500/20', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />` },
 };
 const typeOf = (t) => typeConfig[t] ?? typeConfig['easy_run'];
 
@@ -581,12 +587,16 @@ async function applyWorkout() {
 }
 
 const workoutTypeLabel = {
-    easy_run:        'Lockerer Lauf',
-    tempo_run:       'Tempolauf',
-    interval:        'Intervall',
-    long_run:        'Langer Lauf',
-    progressive_run: 'Progressiver Lauf',
-    test_run:        'Testlauf',
+    easy_run:          'Lockerer Lauf',
+    tempo_run:         'Tempolauf',
+    interval:          'Intervall',
+    long_run:          'Langer Lauf',
+    progressive_run:   'Progressiver Lauf',
+    test_run:          'Testlauf',
+    back_to_back_long: 'Back-to-Back',
+    time_on_feet:      'Time on Feet',
+    yard_simulation:   'Yard-Simulation',
+    night_run:         'Nachtlauf',
 };
 
 // ── Race Prediction ───────────────────────────────────────────────────────────
@@ -1064,8 +1074,62 @@ const lapHeightPct = computed(() => {
                     </div>
                 </div>
 
+                <!-- Backyard Ultra: yard readiness + lap rhythm -->
+                <div v-if="backyard && !isPastEvent"
+                    class="mb-4 bg-white dark:bg-slate-900 rounded-2xl border border-purple-100 dark:border-purple-500/20 shadow-sm overflow-hidden">
+                    <div class="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-gray-100 dark:border-slate-800">
+                        <svg class="h-4 w-4 text-purple-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-5.25v5.25l3.5 2" /></svg>
+                        <span class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Yard-Readiness</span>
+                    </div>
+
+                    <div class="px-4 py-4">
+                        <!-- No data yet -->
+                        <p v-if="!backyard.readiness.has_data" class="text-sm text-gray-600 dark:text-slate-300 leading-relaxed">
+                            {{ backyard.readiness.advice }}
+                        </p>
+
+                        <template v-else>
+                            <div class="flex flex-wrap items-end gap-x-8 gap-y-3">
+                                <div>
+                                    <p class="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Geschätzte Yards</p>
+                                    <div class="flex items-baseline gap-2">
+                                        <span class="text-3xl font-bold text-gray-900 dark:text-white tabular-nums">{{ backyard.readiness.estimated_yards }}</span>
+                                        <span class="text-sm text-gray-400 dark:text-slate-500 tabular-nums">({{ backyard.readiness.range_low }}–{{ backyard.readiness.range_high }})</span>
+                                    </div>
+                                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Ziel: {{ backyard.readiness.target_yards }} Yards</p>
+                                </div>
+                                <div>
+                                    <p class="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Längster Lauf</p>
+                                    <span class="text-lg font-semibold text-gray-900 dark:text-white tabular-nums">{{ backyard.readiness.longest_run_km }} km</span>
+                                </div>
+                                <div>
+                                    <p class="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Peak-Wochenvolumen</p>
+                                    <span class="text-lg font-semibold text-gray-900 dark:text-white tabular-nums">{{ backyard.readiness.peak_weekly_km }} km</span>
+                                </div>
+                            </div>
+                            <p class="mt-3 text-sm text-gray-700 dark:text-slate-300 leading-relaxed">{{ backyard.readiness.advice }}</p>
+                        </template>
+
+                        <!-- Lap rhythm table -->
+                        <div class="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800">
+                            <p class="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-2">Runden-Rhythmus (6,706 km / Stunde)</p>
+                            <div class="grid grid-cols-3 gap-px bg-gray-100 dark:bg-slate-800 rounded-lg overflow-hidden text-sm">
+                                <div class="bg-gray-50 dark:bg-slate-800/60 px-3 py-1.5 text-[11px] font-semibold text-gray-400 dark:text-slate-500">Pace/km</div>
+                                <div class="bg-gray-50 dark:bg-slate-800/60 px-3 py-1.5 text-[11px] font-semibold text-gray-400 dark:text-slate-500">Rundenzeit</div>
+                                <div class="bg-gray-50 dark:bg-slate-800/60 px-3 py-1.5 text-[11px] font-semibold text-gray-400 dark:text-slate-500">Pause/Std</div>
+                                <template v-for="(r, i) in backyard.rhythm" :key="i">
+                                    <div class="bg-white dark:bg-slate-900 px-3 py-1.5 tabular-nums text-gray-700 dark:text-slate-300">{{ r.pace }}</div>
+                                    <div class="bg-white dark:bg-slate-900 px-3 py-1.5 tabular-nums text-gray-700 dark:text-slate-300">{{ r.lap_time }}</div>
+                                    <div class="bg-white dark:bg-slate-900 px-3 py-1.5 tabular-nums font-medium text-purple-700 dark:text-purple-400">{{ r.rest_min }} min</div>
+                                </template>
+                            </div>
+                            <p class="mt-2 text-[11px] text-gray-400 dark:text-slate-500">Langsamer laufen = mehr Pause. Konstanz schlägt Tempo — jede gesparte Minute ist Erholung.</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Race prediction block -->
-                <div v-if="prediction && !isPastEvent"
+                <div v-if="prediction && !isPastEvent && !backyard"
                     class="mb-4 bg-white dark:bg-slate-900 rounded-2xl border border-indigo-100 dark:border-indigo-500/20 shadow-sm overflow-hidden">
                     <!-- Header stripe -->
                     <div class="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-gray-100 dark:border-slate-800">

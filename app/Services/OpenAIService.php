@@ -1196,6 +1196,76 @@ WARN;
 
         $totalDays = min(21, $daysUntil + 1); // number of entries the AI must produce
 
+        if ($event->isBackyard()) {
+            $targetYards  = (int) $event->target_yards;
+            $targetDistKm = number_format($event->target_distance_km, 1, ',', '.');
+            $lapKm        = number_format(\App\Models\Event::BACKYARD_LAP_KM, 3, ',', '.');
+
+            $prompt = <<<PROMPT
+Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan von heute bis zum Renntag für einen **Backyard Ultra** (Last-One-Standing-Format).
+
+**Format-Erklärung (wichtig für die Planung):**
+- Eine Runde („Yard") = {$lapKm} km, die zu jeder vollen Stunde gestartet wird. Wer die Runde innerhalb der Stunde schafft, darf in die nächste Stunde — die Restzeit ist Pause.
+- Es gibt KEINE Zielzeit und KEIN Tempo-Rennen. Wer zu schnell läuft, verbrennt unnötig Körner. Ziel ist: möglichst viele Stunden durchhalten und am Ende übrig bleiben.
+- Erfolg = Ausdauer, Pacing-Disziplin (langsam genug für Pause), Verpflegung, Magen-Training, mentale Stärke und Umgang mit Müdigkeit/Dunkelheit.
+
+**Event:**
+- Name: {$event->name}
+- Datum: {$eventDate} (in {$daysUntil} Tagen)
+- Format: Backyard Ultra
+- Ziel: {$targetYards} Yards / Stunden (≈ {$targetDistKm} km)
+- Priorität: {$priorityText}
+
+**{$profileText}**
+
+**Letzte Aktivitäten (4 Wochen):**
+{$activitiesText}
+
+**{$wellbeingText}**
+
+**{$loadText}**
+
+**{$pastResultsText}**
+
+**Bisherige Einheitsbewertungen (Athleten-Feedback):**
+{$ratingsText}
+
+**{$availabilityText}**{$otherEventsText}{$finalizedText}{$recoveryWarning}{$perDateAvailText}
+
+**Planungsregeln (Backyard-spezifisch):**
+- Starte den Plan ab heute ({$today})
+- Plane GENAU jeden Tag von {$today} bis {$eventDate} — das sind {$totalDays} Tage. Der letzte Tag ist IMMER der Renntag.
+- Am Renntag ({$eventDate}): type="race_prep", title="{$event->name}", beschreibe Renn-Strategie (langsames, konstantes Rundentempo, Verpflegung pro Runde, Pausen-Management).
+- HAUPTFOKUS: hohes, lockeres aerobes Volumen (Zone 1–2). Tempo/Intervalle sind NICHT der limitierende Faktor — maximal selten und nur leicht.
+- LONGRUNS: wöchentlich mind. ein langer, lockerer Lauf, schrittweise verlängert (time_on_feet zählt mehr als Tempo).
+- BACK-TO-BACK (back_to_back_long): an aufeinanderfolgenden Tagen (z.B. Sa+So) zwei längere Läufe — trainiert das Laufen auf müden Beinen, zentral fürs Format. Mind. alle 1–2 Wochen in Build/Peak.
+- TIME ON FEET (time_on_feet): lange, sehr lockere Einheiten mit bewusst niedrigem Tempo, ggf. Geh-Pausen — Dauer wichtiger als Distanz.
+- YARD-SIMULATION (yard_simulation): mehrere {$lapKm}-km-Runden im echten Stundenrhythmus (Runde laufen, Rest der Stunde Pause, dann wieder los). Übt Rhythmus, Verpflegung und Pausen-Management. Etwa alle 2–3 Wochen in Build/Peak, NIE in den letzten 10 Tagen. Beschreibe Anzahl der Runden im description.
+- NACHTLAUF (night_run): mind. ein Lauf in Dunkelheit/Abend zur Vorbereitung auf Schlafentzug und Nachtstunden — in der Build/Peak-Phase.
+- VERPFLEGUNG: weise bei langen Einheiten ausdrücklich auf Ess-/Trink-Training (Magen-Training) hin.
+- TAPER: in den letzten 10–14 Tagen Volumen deutlich reduzieren, aber etwas Time-on-Feet halten — ausgeruht und ohne Müdigkeit an den Start.
+- Berücksichtige Wellbeing & Trainingsbelastung: schlechter Schlaf/hoher Stress oder TSB < −30 → leichtere Einheiten / mehr Ruhe.
+- Mindestens ein Ruhetag pro Woche.
+- VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die Trainingsdauer darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
+- ANDERE RENNEVENTS: An Tagen mit anderen Rennevents im Planungszeitraum IMMER type="rest".
+
+**Antworte ausschließlich mit einem JSON-Array — einen Eintrag pro offenem Tag von heute ({$today}) bis zum Renntag ({$eventDate}). Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
+[
+  {
+    "date": "YYYY-MM-DD",
+    "type": "rest|easy_run|long_run|back_to_back_long|time_on_feet|yard_simulation|night_run|progressive_run|race_prep",
+    "title": "Kurzer Titel (max 40 Zeichen)",
+    "description": "Beschreibung der Einheit (2-3 Sätze, konkrete Anweisungen inkl. Verpflegungshinweis bei langen Läufen)",
+    "distance_km": 0,
+    "duration_min": 0,
+    "pace_target": "6:30-7:30 oder null bei Ruhetag",
+    "zone": 2,
+    "intensity": "rest|low|medium|high"
+  }
+]
+Für Ruhetage: distance_km=0, duration_min=0, pace_target=null, zone=null.
+PROMPT;
+        } else {
         $prompt = <<<PROMPT
 Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute bis zum Renntag.
 
@@ -1259,6 +1329,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 ]
 Für Ruhetage: distance_km=0, duration_min=0, pace_target=null, zone=null.
 PROMPT;
+        }
 
         $text = $this->callOpenAI('event_plan', [
             ['role' => 'system', 'content' => $this->buildSystemPrompt('Antworte ausschließlich mit einem validen JSON-Array ohne zusätzlichen Text.')],

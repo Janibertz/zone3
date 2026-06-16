@@ -44,8 +44,9 @@ class TrainingPlanController extends Controller
                 ->toArray()
             : [];
 
-        // Keep AI prediction text fresh via async job (only the text, not the numbers)
-        if ($plan && $plan->is_active && ! $isPastEvent) {
+        // Keep AI prediction text fresh via async job (only the text, not the numbers).
+        // Skipped for Backyard Ultra — it uses the deterministic yard-readiness estimate.
+        if ($plan && $plan->is_active && ! $isPastEvent && ! $event->isBackyard()) {
             $stale = $plan->prediction_updated_at === null
                 || now()->diffInHours($plan->prediction_updated_at) > 12;
             if ($stale) {
@@ -53,9 +54,10 @@ class TrainingPlanController extends Controller
             }
         }
 
-        // Calculate prediction from threshold pace (same formula as Dashboard)
+        // Calculate prediction from threshold pace (same formula as Dashboard).
+        // Backyard Ultra uses a separate yard-readiness estimate instead.
         $profile    = RunnerProfile::where('user_id', Auth::id())->first();
-        $threshPred = $profile?->threshold_speed
+        $threshPred = (! $event->isBackyard() && $profile?->threshold_speed)
             ? $this->calcThresholdPrediction($profile->threshold_speed, $event->race_distance, $event->distance_km)
             : null;
 
@@ -65,6 +67,14 @@ class TrainingPlanController extends Controller
         if ($threshPred && $targetSec > 0) {
             $deltaSec = $targetSec - $threshPred['total_sec'];
         }
+
+        // Backyard-specific: yard readiness + lap rhythm table
+        $backyard = $event->isBackyard()
+            ? [
+                'readiness' => $this->calcBackyardReadiness(Auth::id(), $event),
+                'rhythm'    => $this->yardRhythmTable(),
+            ]
+            : null;
 
         return Inertia::render('Events/Plan', [
             'event' => [
@@ -76,9 +86,12 @@ class TrainingPlanController extends Controller
                 'priority'              => $event->priority,
                 'target_time_hours'     => $event->target_time_hours,
                 'target_time_minutes'   => $event->target_time_minutes,
+                'target_yards'          => $event->target_yards,
+                'target_distance_km'    => $event->target_distance_km,
                 'target_time_formatted' => $event->target_time_formatted,
                 'days_until'            => $event->days_until,
             ],
+            'backyard' => $backyard,
             'plan' => $plan ? [
                 'id'                          => $plan->id,
                 'is_active'                   => (bool) $plan->is_active,
@@ -568,7 +581,8 @@ class TrainingPlanController extends Controller
         $distanceKm = $this->raceDistanceKm($event);
         $targetSec  = ($event->target_time_hours * 3600) + ($event->target_time_minutes * 60);
 
-        if (! $distanceKm || $targetSec <= 0) {
+        // Backyard Ultra has no target finish time — it uses the yard-rhythm card instead.
+        if ($event->isBackyard() || ! $distanceKm || $targetSec <= 0) {
             return response()->json(['available' => false]);
         }
 
@@ -670,6 +684,7 @@ class TrainingPlanController extends Controller
             '10km'          => 10.0,
             'half_marathon' => 21.0975,
             'marathon'      => 42.195,
+            'backyard_ultra'=> $event->target_distance_km,
             default         => $event->distance_km ?: null,
         };
     }
@@ -857,5 +872,105 @@ class TrainingPlanController extends Controller
             'pace'      => sprintf('%d:%02d', $paceMin, $paceSecs),
             'total_sec' => $totalSec,
         ];
+    }
+
+    /**
+     * Heuristic yard-readiness estimate for a Backyard Ultra.
+     * Blends single-run endurance (longest run) with weekly volume — no AI call.
+     * A backyard runner can typically exceed their longest continuous run because
+     * of the rest banked between loops, so the long-run term gets a modest multiplier.
+     */
+    private function calcBackyardReadiness(int $userId, Event $event): array
+    {
+        $lap    = Event::BACKYARD_LAP_KM;
+        $target = (int) $event->target_yards;
+
+        $runs = Activity::where('user_id', $userId)
+            ->where('type', 'Run')
+            ->whereDate('start_date', '>=', now()->subDays(84)->toDateString())
+            ->get(['distance', 'start_date']);
+
+        if ($runs->isEmpty()) {
+            return [
+                'has_data'       => false,
+                'target_yards'   => $target,
+                'estimated_yards'=> null,
+                'advice'         => 'Noch keine Laufdaten der letzten 12 Wochen — verbinde Strava oder absolviere erste Läufe für eine Einschätzung.',
+            ];
+        }
+
+        $longestRunKm = round($runs->max('distance') / 1000, 1);
+
+        // Peak weekly volume (km) over the last 12 weeks
+        $weekly = [];
+        foreach ($runs as $r) {
+            $wk = $r->start_date->format('o-W');
+            $weekly[$wk] = ($weekly[$wk] ?? 0) + $r->distance / 1000;
+        }
+        $peakWeeklyKm = round(max($weekly), 1);
+
+        // Blend: long-run endurance (with rest bonus) + a share of weekly volume
+        $estYards = (int) round(($longestRunKm / $lap) * 1.5 + ($peakWeeklyKm / $lap) * 0.25);
+        $estYards = max(1, $estYards);
+
+        // Limiting factor relative to the goal
+        $longrunYards = ($longestRunKm / $lap) * 1.5;
+        $volumeYards  = $peakWeeklyKm / $lap;
+        if ($longrunYards < $target * 0.6) {
+            $limiter = 'longrun';
+        } elseif ($volumeYards < $target * 0.8) {
+            $limiter = 'volume';
+        } else {
+            $limiter = 'ready';
+        }
+
+        // Advice tone based on estimate vs. goal
+        if ($estYards >= $target) {
+            $advice = 'Dein Training trägt das Ziel — jetzt zählen Pacing-Disziplin (langsam genug für Pause) und Verpflegung.';
+        } elseif ($estYards >= $target * 0.7) {
+            $advice = match ($limiter) {
+                'longrun' => 'Auf gutem Weg — verlängere deine Longruns und plane Back-to-Back-Wochenenden.',
+                'volume'  => 'Auf gutem Weg — steigere schrittweise dein Wochenvolumen.',
+                default   => 'Auf gutem Weg — halte das Volumen und übe den Stundenrhythmus.',
+            };
+        } else {
+            $advice = 'Noch eine Lücke zum Ziel — Schwerpunkt auf aerobes Volumen und Time-on-Feet, Tempo ist zweitrangig.';
+        }
+
+        return [
+            'has_data'        => true,
+            'target_yards'    => $target,
+            'estimated_yards' => $estYards,
+            'range_low'       => max(1, $estYards - 2),
+            'range_high'      => $estYards + 2,
+            'longest_run_km'  => $longestRunKm,
+            'peak_weekly_km'  => $peakWeeklyKm,
+            'limiter'         => $limiter,
+            'advice'          => $advice,
+        ];
+    }
+
+    /**
+     * Lap-rhythm table for a Backyard Ultra: for a set of candidate paces, show how
+     * long one 6.706 km loop takes and how much rest remains within the hour.
+     * Helps the athlete pick a sustainable pace — every minute saved is banked rest.
+     */
+    private function yardRhythmTable(): array
+    {
+        $lap  = Event::BACKYARD_LAP_KM;
+        $rows = [];
+        foreach ([360, 390, 420, 450, 480] as $paceSec) { // 6:00 … 8:00 min/km
+            $lapSec = (int) round($paceSec * $lap);
+            if ($lapSec >= 3600) {
+                continue; // too slow to make the hourly cutoff
+            }
+            $restSec = 3600 - $lapSec;
+            $rows[] = [
+                'pace'        => $this->secToPace($paceSec),
+                'lap_time'    => $this->secToClock($lapSec),
+                'rest_min'    => (int) round($restSec / 60),
+            ];
+        }
+        return $rows;
     }
 }

@@ -42,11 +42,12 @@ class EventController extends Controller
         $validated = $request->validate([
             'name'                => 'required|string|max:150',
             'event_date'          => 'required|date|after:today',
-            'race_distance'       => 'required|string|in:5km,10km,half_marathon,marathon,custom',
+            'race_distance'       => 'required|string|in:5km,10km,half_marathon,marathon,custom,backyard_ultra',
             'distance_km'         => 'nullable|numeric|min:0.1',
             'priority'            => 'required|in:A,B,C',
-            'target_time_hours'   => 'required|integer|min:0|max:23',
-            'target_time_minutes' => 'required|integer|min:0|max:59',
+            'target_time_hours'   => 'required_unless:race_distance,backyard_ultra|integer|min:0|max:23',
+            'target_time_minutes' => 'required_unless:race_distance,backyard_ultra|integer|min:0|max:59',
+            'target_yards'        => 'required_if:race_distance,backyard_ultra|nullable|integer|min:1|max:100',
             'notes'               => 'nullable|string|max:1000',
         ]);
 
@@ -62,11 +63,12 @@ class EventController extends Controller
         $validated = $request->validate([
             'name'                => 'required|string|max:150',
             'event_date'          => 'required|date',
-            'race_distance'       => 'required|string|in:5km,10km,half_marathon,marathon,custom',
+            'race_distance'       => 'required|string|in:5km,10km,half_marathon,marathon,custom,backyard_ultra',
             'distance_km'         => 'nullable|numeric|min:0.1',
             'priority'            => 'required|in:A,B,C',
-            'target_time_hours'   => 'required|integer|min:0|max:23',
-            'target_time_minutes' => 'required|integer|min:0|max:59',
+            'target_time_hours'   => 'required_unless:race_distance,backyard_ultra|integer|min:0|max:23',
+            'target_time_minutes' => 'required_unless:race_distance,backyard_ultra|integer|min:0|max:59',
+            'target_yards'        => 'required_if:race_distance,backyard_ultra|nullable|integer|min:1|max:100',
             'notes'               => 'nullable|string|max:1000',
         ]);
 
@@ -97,6 +99,7 @@ class EventController extends Controller
             'priority'               => $e->priority,
             'target_time_hours'      => $e->target_time_hours,
             'target_time_minutes'    => $e->target_time_minutes,
+            'target_yards'           => $e->target_yards,
             'target_time_formatted'  => $e->target_time_formatted,
             'notes'                  => $e->notes,
             'days_until'             => $e->days_until,

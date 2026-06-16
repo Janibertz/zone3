@@ -10,6 +10,7 @@ const coachColors = {
     orange: { bg: 'bg-orange-500',  light: 'bg-orange-50 dark:bg-orange-500/10',  border: 'border-orange-200 dark:border-orange-500/30',  badge: 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300' },
     blue:   { bg: 'bg-blue-600',    light: 'bg-blue-50 dark:bg-blue-500/10',      border: 'border-blue-200 dark:border-blue-500/30',      badge: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'         },
     green:  { bg: 'bg-green-600',   light: 'bg-green-50 dark:bg-green-500/10',    border: 'border-green-200 dark:border-green-500/30',    badge: 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300'     },
+    purple: { bg: 'bg-purple-600',  light: 'bg-purple-50 dark:bg-purple-500/10',  border: 'border-purple-200 dark:border-purple-500/30',  badge: 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300'  },
 };
 
 const specialtyLabels = { motivator: 'Motivator', strategist: 'Stratege', companion: 'Begleiter' };

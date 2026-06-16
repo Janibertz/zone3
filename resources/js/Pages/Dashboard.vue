@@ -116,6 +116,7 @@ const coachColors = {
     orange: { bg: 'bg-orange-500', light: 'bg-orange-50 dark:bg-orange-500/10', border: 'border-orange-200 dark:border-orange-500/30', text: 'text-orange-700 dark:text-orange-300' },
     blue:   { bg: 'bg-blue-600',   light: 'bg-blue-50 dark:bg-blue-500/10',   border: 'border-blue-200 dark:border-blue-500/30',   text: 'text-blue-700 dark:text-blue-300'   },
     green:  { bg: 'bg-green-600',  light: 'bg-green-50 dark:bg-green-500/10',  border: 'border-green-200 dark:border-green-500/30',  text: 'text-green-700 dark:text-green-300'  },
+    purple: { bg: 'bg-purple-600', light: 'bg-purple-50 dark:bg-purple-500/10', border: 'border-purple-200 dark:border-purple-500/30', text: 'text-purple-700 dark:text-purple-300' },
 };
 
 const page = usePage();
