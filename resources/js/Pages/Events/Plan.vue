@@ -205,12 +205,18 @@ function pollGenerateStatus() {
 }
 
 // ── Complete session ──────────────────────────────────────────────────────────
+const completingId = ref(null);
 async function completeSession(session) {
+    completingId.value = session.id;
     try {
         const res = await axios.patch(route('training-sessions.complete', session.id));
         updateSessionInList(res.data.session);
+        // Reflect in the open detail modal (manual completion from there)
+        if (detailSession.value?.id === session.id) detailSession.value = res.data.session;
     } catch (e) {
         errorMsg.value = 'Fehler beim Speichern.';
+    } finally {
+        completingId.value = null;
     }
 }
 
@@ -1332,6 +1338,18 @@ const lapHeightPct = computed(() => {
                                         Details
                                     </button>
 
+                                    <!-- Erledigt (Kraft/Core/Mobility manuell abhaken — kein Strava-Tracking) -->
+                                    <button
+                                        v-if="session.status === 'planned' && isStrengthType(session.type) && session.planned_date <= today && !isPastEvent"
+                                        @click="completeSession(session)"
+                                        :disabled="completingId === session.id"
+                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-500/20 disabled:opacity-50 transition-colors"
+                                    >
+                                        <svg v-if="completingId === session.id" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                        <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                                        Erledigt
+                                    </button>
+
                                     <!-- Eigenes Workout (planned run sessions only — not strength/core) -->
                                     <button
                                         v-if="session.status === 'planned' && !isPastEvent && !isStrengthType(session.type)"
@@ -1509,7 +1527,7 @@ const lapHeightPct = computed(() => {
                     </div>
 
                     <!-- Übungen (Kraft / Core / Mobility) -->
-                    <div v-if="detailIsStrength && !isCompletedSession && detailSession.exercises && detailSession.exercises.length">
+                    <div v-if="detailIsStrength && detailSession.exercises && detailSession.exercises.length">
                         <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-2">Übungen</h3>
                         <div class="space-y-2">
                             <div v-for="(ex, i) in detailSession.exercises" :key="i"
@@ -1740,6 +1758,18 @@ const lapHeightPct = computed(() => {
                         :class="ratingSaved ? 'bg-green-500 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'">
                         <svg v-if="ratingSaving" class="inline h-4 w-4 animate-spin mr-1" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                         {{ ratingSaved ? '✓ Gespeichert' : ratingSaving ? 'Speichern…' : 'Bewertung speichern' }}
+                    </button>
+                </div>
+
+                <!-- Erledigt-Footer (Kraft/Core manuell abhaken — kein Strava-Tracking) -->
+                <div v-if="detailIsStrength && detailSession.status === 'planned' && !isPastEvent"
+                     class="px-5 pb-5 border-t border-gray-100 dark:border-slate-800 pt-4">
+                    <button @click="completeSession(detailSession)" :disabled="completingId === detailSession.id"
+                        class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2.5 disabled:opacity-50 transition-colors"
+                    >
+                        <svg v-if="completingId === detailSession.id" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                        <svg v-else class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                        Als erledigt markieren
                     </button>
                 </div>
 
