@@ -217,10 +217,11 @@ async function completeSession(session) {
 // ── Admin: reset steps/nutrition cache ────────────────────────────────────────
 async function resetSessionCache(session) {
     try {
-        await axios.post(route('training-sessions.reset-cache', session.id));
-        // Clear from local state so UI reflects the reset
-        const s = sessions.value?.find(x => x.id === session.id) ?? session;
-        s.steps         = null;
+        const { data } = await axios.post(route('training-sessions.reset-cache', session.id));
+        // Reflect the reset (and a possibly rebuilt strength description) in local state
+        if (data?.session) updateSessionInList(data.session);
+        const s = currentSessions.value?.find(x => x.id === session.id) ?? session;
+        s.steps          = null;
         s.nutrition_tips = null;
         delete stepsCache[session.id];
         delete nutritionCache[session.id];
@@ -303,6 +304,17 @@ const typeConfig = {
     mobility:        { label: 'Mobility',           bg: 'bg-teal-50 dark:bg-teal-500/10',     text: 'text-teal-700 dark:text-teal-400',   badge: 'bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-400',   border: 'border-teal-100 dark:border-teal-500/20',   icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8" />` },
 };
 const typeOf = (t) => typeConfig[t] ?? typeConfig['easy_run'];
+
+// Strength / core / mobility sessions carry an "exercises" list instead of a run
+// structure — they get a different detail view (no run steps, no Garmin export).
+const STRENGTH_TYPES = ['strength', 'core', 'mobility'];
+const isStrengthType = (t) => STRENGTH_TYPES.includes(t);
+
+// YouTube search link so the athlete can look up how to perform an exercise.
+function exerciseVideoUrl(name) {
+    return 'https://www.youtube.com/results?search_query=' +
+        encodeURIComponent((name || '') + ' Übung richtige Ausführung');
+}
 
 const priorityColors = { A: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10', B: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10', C: 'text-gray-600 dark:text-slate-300 bg-gray-100 dark:bg-slate-700' };
 
@@ -517,6 +529,8 @@ const isRaceSession = computed(() => {
     return s.type === 'race' || s.planned_date === props.event.event_date;
 });
 
+const detailIsStrength = computed(() => isStrengthType(detailSession.value?.type));
+
 async function openDetail(session) {
     if (session.type === 'rest') return;
     detailSession.value   = session;
@@ -549,8 +563,9 @@ async function openDetail(session) {
         }
     }
 
-    // Load workout steps (not for race_prep)
-    if (session.type !== 'race_prep') {
+    // Load workout steps (not for race_prep or strength/core/mobility — those
+    // have their own exercise list, not a run structure).
+    if (session.type !== 'race_prep' && !isStrengthType(session.type)) {
         if (stepsCache[session.id]) {
             const cached = stepsCache[session.id];
             aiSteps.value = cached.steps ?? cached;
@@ -1317,9 +1332,9 @@ const lapHeightPct = computed(() => {
                                         Details
                                     </button>
 
-                                    <!-- Eigenes Workout (planned sessions only) -->
+                                    <!-- Eigenes Workout (planned run sessions only — not strength/core) -->
                                     <button
-                                        v-if="session.status === 'planned' && !isPastEvent"
+                                        v-if="session.status === 'planned' && !isPastEvent && !isStrengthType(session.type)"
                                         @click="openWorkoutPicker(session)"
                                         class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors"
                                     >
@@ -1493,8 +1508,29 @@ const lapHeightPct = computed(() => {
                         </div>
                     </div>
 
-                    <!-- Trainingsstruktur (nur für geplante Einheiten — abgeschlossene zeigen echte Splits) -->
-                    <div v-if="!isRaceSession && !isCompletedSession">
+                    <!-- Übungen (Kraft / Core / Mobility) -->
+                    <div v-if="detailIsStrength && !isCompletedSession && detailSession.exercises && detailSession.exercises.length">
+                        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-2">Übungen</h3>
+                        <div class="space-y-2">
+                            <div v-for="(ex, i) in detailSession.exercises" :key="i"
+                                class="rounded-xl border border-rose-100 dark:border-rose-500/20 bg-rose-50 dark:bg-rose-500/10 p-3">
+                                <div class="flex items-baseline gap-2 flex-wrap">
+                                    <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ ex.name }}</span>
+                                    <span v-if="ex.sets || ex.reps" class="text-xs font-medium text-rose-700 dark:text-rose-300 tabular-nums">{{ [ex.sets, ex.reps].filter(Boolean).join('×') }}</span>
+                                    <span v-if="ex.load" class="text-xs text-gray-500 dark:text-slate-400">· {{ ex.load }}</span>
+                                </div>
+                                <p v-if="ex.note" class="text-xs text-gray-500 dark:text-slate-400 italic mt-0.5">{{ ex.note }}</p>
+                                <a :href="exerciseVideoUrl(ex.name)" target="_blank" rel="noopener noreferrer"
+                                    class="inline-flex items-center gap-1 mt-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline">
+                                    <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M21.582 6.186a2.506 2.506 0 0 0-1.768-1.768C18.254 4 12 4 12 4s-6.254 0-7.814.418c-.86.23-1.538.908-1.768 1.768C2 7.746 2 12 2 12s0 4.254.418 5.814c.23.86.908 1.538 1.768 1.768C5.746 20 12 20 12 20s6.254 0 7.814-.418a2.506 2.506 0 0 0 1.768-1.768C22 16.254 22 12 22 12s0-4.254-.418-5.814ZM10 15.464V8.536L16 12l-6 3.464Z"/></svg>
+                                    Video ansehen
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Trainingsstruktur (nur für geplante Lauf-Einheiten — abgeschlossene zeigen echte Splits) -->
+                    <div v-if="!isRaceSession && !isCompletedSession && !detailIsStrength">
                         <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-2">Trainingsstruktur</h3>
 
                         <!-- Loading -->
@@ -1631,7 +1667,7 @@ const lapHeightPct = computed(() => {
 
                             <div class="rounded-xl border border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10 overflow-hidden">
                                 <div class="flex items-center gap-2 px-3.5 py-2 border-b border-blue-100 dark:border-blue-500/20">
-                                    <span class="text-sm">🏃</span>
+                                    <span class="text-sm">{{ detailIsStrength ? '💪' : '🏃' }}</span>
                                     <span class="text-xs font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide">{{ isRaceSession ? 'Während des Rennens' : 'Während des Trainings' }}</span>
                                 </div>
                                 <ul class="px-3.5 py-2.5 space-y-1.5">
@@ -1707,8 +1743,8 @@ const lapHeightPct = computed(() => {
                     </button>
                 </div>
 
-                <!-- Download footer -->
-                <div class="px-5 pb-5 border-t border-gray-100 dark:border-slate-800 pt-4">
+                <!-- Download footer (nur Lauf-Einheiten — Kraft/Core wird nicht an Garmin gesendet) -->
+                <div v-if="!detailIsStrength" class="px-5 pb-5 border-t border-gray-100 dark:border-slate-800 pt-4">
                     <p class="text-xs text-gray-400 dark:text-slate-500 mb-3">Workout für Garmin</p>
                     <div class="flex flex-col gap-2">
                         <!-- Send to Garmin Connect -->

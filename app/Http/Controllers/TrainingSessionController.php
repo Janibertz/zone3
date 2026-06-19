@@ -105,9 +105,39 @@ class TrainingSessionController extends Controller
     {
         abort_if(! Auth::user()->is_admin, 403); // admin-only; ownership intentionally not required
 
-        $session->update(['steps' => null, 'nutrition_tips' => null]);
+        $update = ['steps' => null, 'nutrition_tips' => null];
 
-        return back()->with('success', 'Cache für Steps und Nutrition zurückgesetzt.');
+        // Strength/core/mobility sessions may carry a run description that was wrongly
+        // overwritten by an earlier steps generation — rebuild it from the exercises.
+        if (in_array($session->type, ['strength', 'core', 'mobility']) && ! empty($session->exercises)) {
+            $update['description'] = $this->buildDescriptionFromExercises($session);
+        }
+
+        $session->update($update);
+
+        return response()->json(['session' => $this->formatSession($session->fresh())]);
+    }
+
+    /** Build a German strength-session description from the structured exercise list. */
+    private function buildDescriptionFromExercises(TrainingSession $session): string
+    {
+        $label = [
+            'strength' => 'Krafttraining',
+            'core'     => 'Core-Training',
+            'mobility' => 'Mobility-Einheit',
+        ][$session->type] ?? 'Krafttraining';
+
+        $parts = [];
+        foreach ((array) $session->exercises as $ex) {
+            $name = $ex['name'] ?? null;
+            if (! $name) continue;
+            $setsReps = trim(implode('×', array_filter([$ex['sets'] ?? null, $ex['reps'] ?? null])));
+            $parts[]  = $setsReps ? "{$name} ({$setsReps})" : $name;
+        }
+
+        return $parts
+            ? "{$label}: " . implode(', ', $parts) . '.'
+            : "{$label}.";
     }
 
     /**
@@ -133,6 +163,8 @@ class TrainingSessionController extends Controller
             'pace_target'  => $session->pace_target,
             'intensity'    => $session->intensity,
             'is_race'      => $session->type === 'race_prep' ? 'Ja' : 'Nein',
+            'is_strength'  => in_array($session->type, ['strength', 'core', 'mobility']),
+            'exercises'    => $session->exercises,
         ]);
 
         if (! $tips) {
@@ -152,7 +184,9 @@ class TrainingSessionController extends Controller
     public function sessionSteps(TrainingSession $session, OpenAIService $openAI)
     {
         abort_if($session->user_id !== Auth::id(), 403);
-        abort_if(in_array($session->type, ['rest', 'race_prep']), 422);
+        // Strength/core/mobility sessions carry their own "exercises" list — no run
+        // structure is generated for them (it would also overwrite the description).
+        abort_if(in_array($session->type, ['rest', 'race_prep', 'strength', 'core', 'mobility']), 422);
         // Completed sessions show real Strava splits — no planned structure generated.
         abort_if($session->status === 'completed', 422);
 
@@ -932,6 +966,7 @@ XML;
             'effort_perceived' => $s->effort_perceived,
             'feeling_notes'    => $s->feeling_notes,
             'nutrition_tips'   => $s->nutrition_tips,
+            'exercises'        => $s->exercises,
         ];
     }
 }

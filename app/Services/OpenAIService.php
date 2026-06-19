@@ -1472,6 +1472,12 @@ PROMPT;
         $intens  = $session['intensity'] ?? 'medium';
         $pace    = $session['pace_target'] ?? 'keine Angabe';
 
+        // Strength / core / mobility sessions need a completely different protocol
+        // (muscle protein synthesis, no race fueling) — handle them separately.
+        if (! empty($session['is_strength'])) {
+            return $this->generateStrengthNutritionTips($session);
+        }
+
         $prompt = <<<PROMPT
 Du bist Ernährungsberater für Leistungssportler. Erstelle präzise, athletengerechte Verpflegungstipps für die folgende Laufeinheit. Verzichte auf allgemeine Ratschläge — der Athlet kennt die Basics. Gib stattdessen konkrete Mengen, exaktes Timing und bewährte Sportprodukte.
 
@@ -1516,6 +1522,86 @@ PROMPT;
 
         $text = $this->callOpenAI('nutrition', [
             ['role' => 'system', 'content' => 'Du bist ein Ernährungs- und Laufexperte. Antworte ausschließlich mit validem JSON. Alle Texte im JSON müssen auf Deutsch sein.'],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.5, 1500, 30, $this->modelMini);
+
+        if ($text && preg_match('/\{.*\}/s', $text, $matches)) {
+            $json = json_decode($matches[0], true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $json;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Nutrition tips tailored to strength / core / mobility sessions.
+     * Focus: pre-workout fuel, intra-workout hydration, post-workout muscle recovery.
+     */
+    private function generateStrengthNutritionTips(array $session): ?array
+    {
+        $type   = $session['type']         ?? 'strength';
+        $durMin = (int) ($session['duration_min'] ?? 0);
+        $intens = $session['intensity']    ?? 'medium';
+
+        $typeLabel = [
+            'strength' => 'Krafttraining',
+            'core'     => 'Core-/Rumpftraining',
+            'mobility' => 'Mobility-/Beweglichkeitstraining',
+        ][$type] ?? 'Krafttraining';
+
+        // Compact list of the planned exercises so tips can reference the load.
+        $exerciseLines = '';
+        if (! empty($session['exercises']) && is_array($session['exercises'])) {
+            $lines = [];
+            foreach ($session['exercises'] as $ex) {
+                $name = $ex['name'] ?? null;
+                if (! $name) continue;
+                $setsReps = trim(implode('×', array_filter([$ex['sets'] ?? null, $ex['reps'] ?? null])));
+                $load     = ! empty($ex['load']) ? " @ {$ex['load']}" : '';
+                $lines[]  = "- {$name}" . ($setsReps ? " ({$setsReps})" : '') . $load;
+            }
+            if ($lines) {
+                $exerciseLines = "\n\n**Übungen:**\n" . implode("\n", $lines);
+            }
+        }
+
+        $prompt = <<<PROMPT
+Du bist Ernährungsberater für Kraft- und Athletiktraining von Ausdauersportlern. Erstelle präzise, athletengerechte Verpflegungstipps für die folgende Kraft-/Core-Einheit. KEINE Lauf-/Renn-Ernährung (keine Gels, keine Renn-Kohlenhydrate während der Einheit). Fokus: Energie für die Einheit, Hydration während der Einheit, Muskelregeneration (Proteinsynthese) danach. Verzichte auf Allgemeinplätze — gib konkrete Mengen, Timing und Produkte.
+
+**Einheit:**
+- Typ: {$typeLabel}
+- Dauer: {$durMin} min
+- Intensität: {$intens}{$exerciseLines}
+
+**Protokoll für Kraft-/Core-Training:**
+
+Vorher (vor dem Training):
+- 1,5–2h vorher ausgewogene Mahlzeit mit Kohlenhydraten + Protein (z.B. Reis/Kartoffeln + Hähnchen/Tofu, oder Haferflocken + Skyr)
+- Bei Low-Intervall/nüchtern: 1–2h nach einer normalen Mahlzeit starten reicht; alternativ kleiner Snack (Banane, Handvoll Nüsse)
+- Optional 30 min vorher Koffein (3–5 mg/kg KG) für Maximalkraft
+
+Während (während des Trainings):
+- Hauptsächlich Wasser (150–300 ml über die Einheit), bei Hitze Elektrolyte
+- KEINE Gels, kein Sportgetränk nötig bei <60 min
+- Bei sehr langen/intensiven Einheiten: EAA/BCAA optional, aber nicht zwingend
+
+Nachher (nach dem Training):
+- Innerhalb von 30–60 min 25–35 g hochwertiges Protein (Whey-Shake, Skyr 300–400 g, oder 500 ml fettarme Milch) für die Muskelproteinsynthese
+- Dazu Kohlenhydrate zur Glykogen-Auffüllung (30–60 g, z.B. Banane, Toast, Reis)
+- Ausreichend trinken; ggf. 3 g Kreatin-Monohydrat als tägliche Routine
+
+Antworte ausschließlich mit JSON (kein anderer Text):
+{
+  "before": [{"icon": "🍚", "text": "..."}, ...],
+  "during": [{"icon": "💧", "text": "..."}, ...],
+  "after":  [{"icon": "🥩", "text": "..."}, ...]
+}
+Max. 3 Punkte pro Abschnitt. Konkrete Mengen, Produkte, Zeitangaben. Kein Allgemeinwissen. Alle Texte auf Deutsch.
+PROMPT;
+
+        $text = $this->callOpenAI('nutrition', [
+            ['role' => 'system', 'content' => 'Du bist ein Ernährungsexperte für Kraft- und Athletiktraining. Antworte ausschließlich mit validem JSON. Alle Texte im JSON müssen auf Deutsch sein.'],
             ['role' => 'user',   'content' => $prompt],
         ], 0.5, 1500, 30, $this->modelMini);
 
