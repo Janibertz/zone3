@@ -906,6 +906,7 @@ PROMPT;
         array $pastPlanResults = [],
         array $otherEvents = [],
         array $finalizedSessions = [],
+        ?array $followUpGoal = null,
     ): ?array {
         $today        = now()->format('Y-m-d');
         $eventDate    = $event->event_date->format('Y-m-d');
@@ -1070,6 +1071,16 @@ PROMPT;
                 $lines[] = "- {$e['date']}: {$e['name']} ({$e['distance']}, Priorität {$e['priority']})";
             }
             $otherEventsText = "\n\n**Weitere Rennevents im Planungszeitraum (an diesen Tagen KEIN Training — type=\"rest\"):**\n" . implode("\n", $lines);
+        }
+
+        // Follow-up goal: the next A/B race AFTER this event. Used to shape how much speed
+        // a Backyard/Ultra block must preserve (e.g. a marathon afterwards → keep threshold).
+        $followUpGoalText = '';
+        if (! empty($followUpGoal)) {
+            $fg = $followUpGoal;
+            $followUpGoalText = "\n\n**Anschlussziel nach diesem Event:** {$fg['name']} am {$fg['date']} ({$fg['distance']}, Priorität {$fg['priority']}).\n"
+                . "Der Athlet bereitet sich danach spezifisch auf dieses Ziel vor — die Schnelligkeit/Tempofähigkeit darf jetzt NICHT verloren gehen. "
+                . "Richte die wöchentliche Qualitätseinheit an den Anforderungen dieses Ziels aus (Marathon → Marathon-/Schwellentempo; Halbmarathon/10k → schärfere Schwelle bzw. VO2-Intervalle).";
         }
 
         // Finalized sessions (skipped / completed) — give the coach context, PHP will not overwrite them
@@ -1270,20 +1281,21 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 **Bisherige Einheitsbewertungen (Athleten-Feedback):**
 {$ratingsText}
 
-**{$availabilityText}**{$otherEventsText}{$finalizedText}{$recoveryWarning}{$perDateAvailText}{$strengthBlock}
+**{$availabilityText}**{$otherEventsText}{$followUpGoalText}{$finalizedText}{$recoveryWarning}{$perDateAvailText}{$strengthBlock}
 
 **Planungsregeln (Backyard-spezifisch):**
 - Starte den Plan ab heute ({$today})
 - Plane GENAU jeden Tag von {$today} bis {$planEndDate} — das sind {$totalDays} Tage. KEIN Tag nach {$planEndDate}.
 - {$endRuleBackyard}
-- HAUPTFOKUS: hohes, lockeres aerobes Volumen (Zone 1–2). Tempo/Intervalle sind NICHT der limitierende Faktor — maximal selten und nur leicht.
+- HAUPTFOKUS: hohes, lockeres aerobes Volumen (Zone 1–2) ist die Basis und macht den Großteil des Umfangs aus (ca. 80 %).
+- TEMPOERHALT (wichtig): Plane GENAU EINE Qualitätseinheit pro Woche zum Erhalt der Schwellenpace/Schnelligkeit — entweder tempo_run (Schwelle, z.B. 3×10 min) ODER interval (z.B. 6×1000 m bzw. längere Marathon-Intervalle). NIEMALS zwei harte Einheiten in derselben Woche. Die Qualitätseinheit NICHT direkt vor/nach einer yard_simulation oder einem back_to_back_long legen (Ermüdung). Bei schlechtem Wellbeing oder hoher Trainingsbelastung entfällt sie zugunsten von Ruhe.
 - LONGRUNS: wöchentlich mind. ein langer, lockerer Lauf, schrittweise verlängert (time_on_feet zählt mehr als Tempo).
 - BACK-TO-BACK (back_to_back_long): an aufeinanderfolgenden Tagen (z.B. Sa+So) zwei längere Läufe — trainiert das Laufen auf müden Beinen, zentral fürs Format. Mind. alle 1–2 Wochen in Build/Peak.
 - TIME ON FEET (time_on_feet): lange, sehr lockere Einheiten mit bewusst niedrigem Tempo, ggf. Geh-Pausen — Dauer wichtiger als Distanz.
 - YARD-SIMULATION (yard_simulation): mehrere {$lapKm}-km-Runden im echten Stundenrhythmus (Runde laufen, Rest der Stunde Pause, dann wieder los). Übt Rhythmus, Verpflegung und Pausen-Management. Etwa alle 2–3 Wochen in Build/Peak, NIE in den letzten 10 Tagen. Beschreibe Anzahl der Runden im description.
 - NACHTLAUF (night_run): mind. ein Lauf in Dunkelheit/Abend zur Vorbereitung auf Schlafentzug und Nachtstunden — in der Build/Peak-Phase.
 - VERPFLEGUNG: weise bei langen Einheiten ausdrücklich auf Ess-/Trink-Training (Magen-Training) hin.
-- TAPER: in den letzten 10–14 Tagen Volumen deutlich reduzieren, aber etwas Time-on-Feet halten — ausgeruht und ohne Müdigkeit an den Start.
+- TAPER: in den letzten 10–14 Tagen Volumen deutlich reduzieren, aber etwas Time-on-Feet halten — ausgeruht und ohne Müdigkeit an den Start. Die Qualitätseinheit in dieser Phase auf kurze, lockere Schärfe-Reize (z.B. ein paar Steigerungen) reduzieren — keine harten Intervalle mehr.
 - Berücksichtige Wellbeing & Trainingsbelastung: schlechter Schlaf/hoher Stress oder TSB < −30 → leichtere Einheiten / mehr Ruhe.
 - Mindestens ein Ruhetag pro Woche.
 - VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die Trainingsdauer darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
@@ -1293,7 +1305,7 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 [
   {
     "date": "YYYY-MM-DD",
-    "type": "rest|easy_run|long_run|back_to_back_long|time_on_feet|yard_simulation|night_run|progressive_run|strength|core|mobility|race_prep",
+    "type": "rest|easy_run|tempo_run|interval|long_run|back_to_back_long|time_on_feet|yard_simulation|night_run|progressive_run|strength|core|mobility|race_prep",
     "title": "Kurzer Titel (max 40 Zeichen)",
     "description": "Beschreibung der Einheit (2-3 Sätze, konkrete Anweisungen inkl. Verpflegungshinweis bei langen Läufen)",
     "distance_km": 0,

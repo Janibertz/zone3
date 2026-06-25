@@ -188,13 +188,30 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
             ])
             ->toArray();
 
+        // Follow-up goal: the next A/B race AFTER this event (even far in the future).
+        // Lets the coach preserve the speed this athlete will need next — e.g. a marathon
+        // after a Backyard block, so threshold pace doesn't decay.
+        $followUpEvent = Event::where('user_id', $user->id)
+            ->where('id', '!=', $event->id)
+            ->whereDate('event_date', '>', $event->event_date->toDateString())
+            ->whereIn('priority', ['A', 'B'])
+            ->orderBy('event_date')
+            ->first();
+        $followUpGoal = $followUpEvent ? [
+            'date'     => $followUpEvent->event_date->format('Y-m-d'),
+            'name'     => $followUpEvent->name,
+            'distance' => $followUpEvent->distance_label,
+            'priority' => $followUpEvent->priority,
+        ] : null;
+
         // ── Call AI ──────────────────────────────────────────────────────────
         $openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
         try {
             $aiSessions = $openAI->generateEventTrainingPlan(
                 $event, $profileData, $recentActivities, $wellbeingData,
                 $sessionRatings, $weeklyAvailability, $availabilityOverrides,
-                $trainingLoad, $pastPlanResults, $otherEvents, $finalizedForAI
+                $trainingLoad, $pastPlanResults, $otherEvents, $finalizedForAI,
+                $followUpGoal
             );
         } catch (\Throwable $e) {
             Log::error('GenerateEventTrainingPlanJob: OpenAI error', ['error' => $e->getMessage(), 'event_id' => $event->id]);

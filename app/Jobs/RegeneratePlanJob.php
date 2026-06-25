@@ -157,6 +157,21 @@ class RegeneratePlanJob implements ShouldQueue
             ])
             ->toArray();
 
+        // Follow-up goal: the next A/B race after this event — keeps speed preservation
+        // intact when the rolling window auto-extends a Backyard/Ultra plan.
+        $followUpEvent = Event::where('user_id', $user->id)
+            ->where('id', '!=', $event->id)
+            ->whereDate('event_date', '>', $event->event_date->toDateString())
+            ->whereIn('priority', ['A', 'B'])
+            ->orderBy('event_date')
+            ->first();
+        $followUpGoal = $followUpEvent ? [
+            'date'     => $followUpEvent->event_date->format('Y-m-d'),
+            'name'     => $followUpEvent->name,
+            'distance' => $followUpEvent->distance_label,
+            'priority' => $followUpEvent->priority,
+        ] : null;
+
         // ── Collect finalized sessions BEFORE calling AI ────────────────────────
         // These are skipped/completed sessions that must be preserved across plan regeneration.
         $oldPlanIds = TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->pluck('id');
@@ -199,7 +214,8 @@ class RegeneratePlanJob implements ShouldQueue
             $aiSessions = $openAI->generateEventTrainingPlan(
                 $event, $profileData, $recentActivities, $wellbeingData,
                 $sessionRatings, $weeklyAvailability, $availabilityOverrides,
-                $trainingLoad, $pastPlanResults, $otherEvents, $finalizedForAI
+                $trainingLoad, $pastPlanResults, $otherEvents, $finalizedForAI,
+                $followUpGoal
             );
         } catch (\Throwable $e) {
             Log::error('RegeneratePlanJob: OpenAI error', ['error' => $e->getMessage(), 'user_id' => $this->userId]);
