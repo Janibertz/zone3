@@ -1722,14 +1722,26 @@ PROMPT;
      */
     public function generateSessionSteps(\App\Models\TrainingSession $session): ?array
     {
+        // Backyard yard simulations follow an hourly rhythm (run one loop, then rest the
+        // remainder of the hour) — not a warmup/interval/cooldown structure. They are built
+        // deterministically so loop distance, pace and pauses stay consistent. The generic
+        // interval prompt below produced nonsensical output here (e.g. a "1-min loop").
+        // No warmup/cooldown — there is none in the race either.
+        if ($session->type === 'yard_simulation') {
+            return $this->buildYardSimulationSteps($session);
+        }
+
         $typeLabel = [
-            'interval'       => 'Intervalltraining',
-            'tempo_run'      => 'Tempolauf',
-            'easy_run'       => 'Lockerer Lauf',
-            'long_run'       => 'Langer Lauf',
-            'race_prep'      => 'Rennvorbereitung',
-            'progressive_run'=> 'Progressiver Lauf',
-            'test_run'       => 'Testlauf (Zeitversuch)',
+            'interval'         => 'Intervalltraining',
+            'tempo_run'        => 'Tempolauf',
+            'easy_run'         => 'Lockerer Lauf',
+            'long_run'         => 'Langer Lauf',
+            'race_prep'        => 'Rennvorbereitung',
+            'progressive_run'  => 'Progressiver Lauf',
+            'test_run'         => 'Testlauf (Zeitversuch)',
+            'back_to_back_long'=> 'Back-to-Back Longrun',
+            'time_on_feet'     => 'Time on Feet (sehr locker)',
+            'night_run'        => 'Nachtlauf (locker)',
         ][$session->type] ?? $session->type;
 
         $totalMin    = (int)($session->duration_min ?? 0);
@@ -1799,6 +1811,70 @@ PROMPT;
             }
         }
         return null;
+    }
+
+    /**
+     * Build the step structure for a Backyard "yard simulation" deterministically.
+     *
+     * A "yard" is one Backyard loop of {@see Event::BACKYARD_LAP_KM} km, started on every
+     * full hour: run the loop deliberately slowly, then rest the remainder of the hour
+     * (eat/drink/recover) before the next one. So the structure is simply N × (run loop +
+     * rest of hour) — no warmup, no cooldown. The frontend derives total distance/duration
+     * from these steps, so they stay consistent with the displayed loop distance and pace.
+     */
+    private function buildYardSimulationSteps(\App\Models\TrainingSession $session): array
+    {
+        $lapKm = \App\Models\Event::BACKYARD_LAP_KM; // 6.706 km per loop
+
+        // Number of loops: prefer an explicit "N-Yard"/"N Yards" mention in the title or
+        // description, else derive from the planned distance, else fall back to 3.
+        $yards    = null;
+        $haystack = trim(($session->title ?? '') . ' ' . ($session->description ?? ''));
+        if (preg_match('/(\d+)\s*[-\s]?yards?/i', $haystack, $m)) {
+            $yards = (int) $m[1];
+        } elseif ($session->distance_km) {
+            $yards = (int) round($session->distance_km / $lapKm);
+        }
+        $yards = max(2, min(24, $yards ?: 3));
+
+        // Run pace per km (midpoint of a range like "6:40-7:30"); fall back to 7:00/km.
+        $paceMin = $this->parsePaceToMinutes($session->pace_target) ?? 7.0;
+
+        // Minutes to run one loop, clamped so the rest-of-hour stays realistic.
+        $runMin  = (int) round($paceMin * $lapKm);
+        $runMin  = max(30, min(54, $runMin));
+        $restMin = 60 - $runMin; // hourly rhythm: each loop is started on the full hour
+
+        $kmLabel = number_format($lapKm, 1, ',', '.'); // "6,7"
+
+        return [
+            [
+                'type'         => 'work',
+                'label'        => "Laufen · {$kmLabel} km",
+                'duration_min' => $runMin,
+                'pace_target'  => ($session->pace_target && $session->pace_target !== 'null') ? $session->pace_target : null,
+                'zone'         => 2,
+                'repetitions'  => $yards,
+                'group_label'  => 'Yard',
+            ],
+            [
+                'type'         => 'rest',
+                'label'        => 'Pause bis zur vollen Stunde',
+                'duration_min' => $restMin,
+                'pace_target'  => null,
+                'zone'         => 1,
+                'repetitions'  => $yards,
+            ],
+        ];
+    }
+
+    /** Parse a pace string ("M:SS" or a range "M:SS-M:SS") to minutes/km; range → midpoint. Null if unparseable. */
+    private function parsePaceToMinutes(?string $pace): ?float
+    {
+        if (! $pace || $pace === 'null') return null;
+        if (! preg_match_all('/(\d+):(\d{1,2})/', $pace, $mm, PREG_SET_ORDER)) return null;
+        $vals = array_map(fn ($p) => (int) $p[1] + (int) $p[2] / 60, $mm);
+        return array_sum($vals) / count($vals);
     }
 
     /** Round all step durations to integers and adjust the largest work step so the total matches target. */

@@ -1583,7 +1583,7 @@ const lapHeightPct = computed(() => {
                                     <template v-if="step.isGroup">
                                         <div class="flex items-center gap-2 mb-2">
                                             <span class="shrink-0 h-5 w-5 rounded bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300 text-[10px] font-bold flex items-center justify-center">×{{ step.repetitions }}</span>
-                                            <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ step.repetitions }}× Intervall</span>
+                                            <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ step.repetitions }}× {{ step.group_label || 'Intervall' }}</span>
                                         </div>
                                         <div class="ml-7 space-y-1.5">
                                             <div class="flex items-center gap-3">
