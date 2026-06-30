@@ -1,6 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import Modal from '@/Components/Modal.vue';
+import SwipeRow from '@/Components/SwipeRow.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
 
@@ -330,6 +331,9 @@ function formatDate(dateStr) {
 }
 const isToday  = (d) => d === today;
 const isPast   = (d) => d < today;
+
+// A session can be skipped (swipe → "Kein Training") only while planned and not the race day.
+const canSkip = (s) => s.status === 'planned' && s.planned_date !== props.event.event_date;
 
 // Past events: show all sessions as history; future: only today + forward
 const visibleSessions = computed(() =>
@@ -1255,11 +1259,32 @@ const lapHeightPct = computed(() => {
                 </div>
 
                 <div class="space-y-2">
-                    <div v-for="session in visibleSessions" :key="session.id"
+                    <SwipeRow
+                        v-for="session in visibleSessions"
+                        :key="session.id"
+                        content-class=""
+                        :right-width="canSkip(session) ? 88 : 0"
+                        :disabled="!canSkip(session)"
+                        :class="[
+                            'rounded-2xl',
+                            isToday(session.planned_date) && session.status === 'planned' ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-950' : '',
+                        ]"
+                    >
+                        <!-- Swipe links → Kein Training (nur planbare, nicht der Renntag) -->
+                        <template #right="{ close }">
+                            <button
+                                @click="openSkipModal(session); close()"
+                                class="w-full bg-gray-500 dark:bg-slate-600 text-white flex flex-col items-center justify-center gap-1 text-[11px] font-semibold"
+                            >
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                Kein Training
+                            </button>
+                        </template>
+
+                    <div
                         class="rounded-2xl border overflow-hidden transition-all"
                         :class="[
                             typeOf(session.type).border,
-                            isToday(session.planned_date) && session.status === 'planned' ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-950' : '',
                             session.status === 'completed' ? 'opacity-60' : '',
                             session.status === 'skipped' ? 'opacity-40' : '',
                         ]"
@@ -1384,6 +1409,7 @@ const lapHeightPct = computed(() => {
                             </div>
                         </div>
                     </div>
+                    </SwipeRow>
                 </div>
 
                 <p class="mt-5 text-center text-xs text-gray-400 dark:text-slate-500">
