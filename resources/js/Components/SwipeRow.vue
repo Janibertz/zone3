@@ -4,7 +4,7 @@
 // Swipe right → reveals the `left`  slot (e.g. edit / complete).
 // The content layer is opaque and slides over the action zones. On desktop the
 // row is untouched — actions there should still be reachable via normal buttons.
-import { ref } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 
 const props = defineProps({
     leftWidth:  { type: Number, default: 0 }, // px, revealed by swiping right
@@ -12,6 +12,17 @@ const props = defineProps({
     contentClass: { type: String, default: 'bg-white dark:bg-slate-900' },
     disabled:   { type: Boolean, default: false },
 });
+
+// Swipe is a touch-only affordance. On desktop (no touch / fine pointer) the action
+// zones are not rendered at all — otherwise they sit permanently behind the content and
+// bleed through translucent cards. Desktop reaches the same actions via inline buttons.
+const isTouch = ref(false);
+onMounted(() => {
+    isTouch.value = typeof window !== 'undefined' &&
+        (window.matchMedia?.('(pointer: coarse)').matches ?? ('ontouchstart' in window));
+});
+const leftW  = computed(() => (isTouch.value ? props.leftWidth  : 0));
+const rightW = computed(() => (isTouch.value ? props.rightWidth : 0));
 
 const offset   = ref(0);
 const dragging = ref(false);
@@ -33,13 +44,13 @@ function onMove(e) {
         horizontal = Math.abs(dx) > Math.abs(dy);
         if (!horizontal) { dragging.value = false; return; } // let vertical scroll win
     }
-    offset.value = Math.max(-props.rightWidth, Math.min(props.leftWidth, startOffset + dx));
+    offset.value = Math.max(-rightW.value, Math.min(leftW.value, startOffset + dx));
 }
 function onEnd() {
     if (!dragging.value) return;
     dragging.value = false;
-    if (offset.value <= -props.rightWidth / 2 && props.rightWidth) offset.value = -props.rightWidth;
-    else if (offset.value >= props.leftWidth / 2 && props.leftWidth)  offset.value = props.leftWidth;
+    if (offset.value <= -rightW.value / 2 && rightW.value) offset.value = -rightW.value;
+    else if (offset.value >= leftW.value / 2 && leftW.value)  offset.value = leftW.value;
     else offset.value = 0;
 }
 function close() { offset.value = 0; }
@@ -49,11 +60,11 @@ defineExpose({ close });
 <template>
     <div class="relative overflow-hidden">
         <!-- Left action zone (revealed by swiping right) -->
-        <div v-if="leftWidth" class="absolute inset-y-0 left-0 flex items-stretch" :style="{ width: leftWidth + 'px' }">
+        <div v-if="leftW" class="absolute inset-y-0 left-0 flex items-stretch" :style="{ width: leftW + 'px' }">
             <slot name="left" :close="close" />
         </div>
         <!-- Right action zone (revealed by swiping left) -->
-        <div v-if="rightWidth" class="absolute inset-y-0 right-0 flex items-stretch" :style="{ width: rightWidth + 'px' }">
+        <div v-if="rightW" class="absolute inset-y-0 right-0 flex items-stretch" :style="{ width: rightW + 'px' }">
             <slot name="right" :close="close" />
         </div>
         <!-- Sliding content -->

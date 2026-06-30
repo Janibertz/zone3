@@ -1262,7 +1262,7 @@ const lapHeightPct = computed(() => {
                     <SwipeRow
                         v-for="session in visibleSessions"
                         :key="session.id"
-                        content-class=""
+                        content-class="bg-gray-50 dark:bg-slate-950 rounded-2xl"
                         :right-width="canSkip(session) ? 88 : 0"
                         :disabled="!canSkip(session)"
                         :class="[
