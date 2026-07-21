@@ -1765,10 +1765,14 @@ PROMPT;
         $mainMin     = $totalMin > 0 ? $totalMin - $warmupMin - $cooldownMin : 0;
 
         $durationRule = $totalMin > 0
-            ? "ZEITBUDGET (ABSOLUT VERBINDLICH): Gesamtdauer = {$totalMin} Minuten.\n" .
-              "Rechnung: warmup + (work × reps) + (rest × reps) + cooldown = {$totalMin}\n" .
-              "Empfehlung: Aufwärmen ~{$warmupMin} min, Hauptteil ~{$mainMin} min gesamt, Auslaufen ~{$cooldownMin} min.\n" .
-              "Prüfe deine Rechnung bevor du antwortest!"
+            ? "ZEITBUDGET: Gesamtdauer = {$totalMin} Minuten.\n" .
+              "WICHTIG: Nennt die Beschreibung konkrete Intervall-Dauern oder -Wiederholungen " .
+              "(z.B. \"3×12 Min bei 4:58-5:05 mit 6 Min locker dazwischen\"), MUSST du EXAKT diese Werte übernehmen " .
+              "(work duration_min = 12, repetitions = 3, rest duration_min = 6). Verändere sie NIEMALS, um das Zeitbudget zu füllen!\n" .
+              "Die verbleibende Zeit ist lockeres Dauerlaufen und wird über längeres Ein-/Auslaufen verteilt " .
+              "— NICHT indem du die harten Intervalle streckst.\n" .
+              "Empfehlung (nur wenn die Beschreibung KEINE konkreten Dauern nennt): " .
+              "Aufwärmen ~{$warmupMin} min, Hauptteil ~{$mainMin} min gesamt, Auslaufen ~{$cooldownMin} min."
             : "Wähle eine sinnvolle Gesamtdauer.";
 
         $prompt = <<<PROMPT
@@ -1780,6 +1784,7 @@ Distanz: {$distKm} | Dauer: {$totalMin} min | Pace-Ziel: {$pace} | {$zone}{$desc
 {$durationRule}
 
 Regeln:
+- Konkrete Dauern/Wiederholungen aus der Beschreibung haben IMMER Vorrang vor dem Zeitbudget
 - warmup + cooldown immer enthalten
 - duration_min: NUR positive GANZE ZAHLEN (kein 0.33, kein 1.5 – nur 1, 2, 3 …)
 - Intervalle: work + rest Steps mit gleichem "repetitions"-Wert
@@ -1894,18 +1899,42 @@ PROMPT;
 
         if ($total === $targetMin) return $steps;
 
-        // Adjust the highest-contribution non-rest step
-        $adjustIdx  = null;
-        $maxContrib = 0;
+        $diff = $targetMin - $total;
+
+        // Absorb the leftover time in the EASY/continuous portion — never by
+        // stretching a repeated work interval. Its per-rep duration is
+        // prescribed by the coach (e.g. 3×12 min MP); inflating it to hit the
+        // budget corrupts the workout (12 min → 26 min). The extra minutes of a
+        // long run are easy filler and belong in warmup/cooldown/continuous work.
+        $isRepeatedWork = fn ($s) => ($s['type'] ?? '') === 'work' && (int)($s['repetitions'] ?? 1) > 1;
+
+        $adjustIdx = null;
+
+        // 1) A continuous work step (tempo/easy/long single effort) absorbs first.
         foreach ($steps as $i => $step) {
-            if ($step['type'] === 'rest') continue;
-            $contrib = $step['duration_min'] * max(1, (int)($step['repetitions'] ?? 1));
-            if ($contrib > $maxContrib) { $maxContrib = $contrib; $adjustIdx = $i; }
+            if (($step['type'] ?? '') === 'work' && !$isRepeatedWork($step)) { $adjustIdx = $i; break; }
+        }
+        // 2) Otherwise the easy filler around intervals: cooldown, then warmup.
+        if ($adjustIdx === null) {
+            foreach (['cooldown', 'warmup'] as $wantType) {
+                foreach ($steps as $i => $step) {
+                    if (($step['type'] ?? '') === $wantType) { $adjustIdx = $i; break 2; }
+                }
+            }
+        }
+        // 3) Last resort (only intervals, no easy step): highest-contribution work step.
+        if ($adjustIdx === null) {
+            $maxContrib = 0;
+            foreach ($steps as $i => $step) {
+                if (($step['type'] ?? '') === 'rest') continue;
+                $contrib = $step['duration_min'] * max(1, (int)($step['repetitions'] ?? 1));
+                if ($contrib > $maxContrib) { $maxContrib = $contrib; $adjustIdx = $i; }
+            }
         }
 
         if ($adjustIdx !== null) {
             $reps = max(1, (int)($steps[$adjustIdx]['repetitions'] ?? 1));
-            $steps[$adjustIdx]['duration_min'] = max(1, $steps[$adjustIdx]['duration_min'] + (int)round(($targetMin - $total) / $reps));
+            $steps[$adjustIdx]['duration_min'] = max(1, $steps[$adjustIdx]['duration_min'] + (int)round($diff / $reps));
         }
 
         return $steps;
