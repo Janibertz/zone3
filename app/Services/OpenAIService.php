@@ -52,12 +52,27 @@ class OpenAIService
         return ['used' => AiLog::todayCountForUser($this->userId), 'limit' => $limit];
     }
 
+    /**
+     * Shared coaching stance injected into every coaching-text prompt (chat, daily
+     * message, weekly review, race messages, plan generation). Makes the coach
+     * ambitious and honest instead of merely reassuring: it takes the athlete's
+     * goal seriously, warns clearly when the goal is at risk, and pushes the
+     * athlete to aim higher when the data shows they are ahead — while staying
+     * supportive and fair, never demeaning.
+     */
+    protected const COACHING_PHILOSOPHY =
+        'Coaching-Grundhaltung: Sei ehrgeizig, ehrlich und anspornend. Nimm das Ziel des Athleten ernst und arbeite zielgerichtet darauf hin. '
+        . 'Zeigen Daten/Fortschritt, dass das Ziel beim aktuellen Training gefährdet ist, benenne das klar und respektvoll und sag konkret, was sich ändern muss (mehr Umfang, Tempoeinheiten nicht auslassen o.Ä.). '
+        . 'Ist der Athlet besser als sein Ziel, ermutige ihn ausdrücklich, sich ein ehrgeizigeres Ziel zu setzen. '
+        . 'Motiviere, fordere und spornt an – bleib dabei immer unterstützend, fair und respektvoll, niemals abwertend oder entmutigend.';
+
     protected function buildSystemPrompt(string $base): string
     {
+        $philosophy = self::COACHING_PHILOSOPHY;
         if ($this->coachPersonality) {
-            return $this->coachPersonality . ' ' . $base;
+            return $this->coachPersonality . ' ' . $philosophy . ' ' . $base;
         }
-        return $base;
+        return $philosophy . ' ' . $base;
     }
 
     /**
@@ -1298,10 +1313,11 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 - TAPER: in den letzten 10–14 Tagen Volumen deutlich reduzieren, aber etwas Time-on-Feet halten — ausgeruht und ohne Müdigkeit an den Start. Die Qualitätseinheit in dieser Phase auf kurze, lockere Schärfe-Reize (z.B. ein paar Steigerungen) reduzieren — keine harten Intervalle mehr.
 - Berücksichtige Wellbeing & Trainingsbelastung: schlechter Schlaf/hoher Stress oder TSB < −30 → leichtere Einheiten / mehr Ruhe.
 - Mindestens ein Ruhetag pro Woche.
-- VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die Trainingsdauer darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
+- VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die GESAMTE Trainingsdauer eines Tages (bei zwei Einheiten die Summe) darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
+- DOPPEL-EINHEITEN (zwei Einheiten pro Tag): An Tagen mit viel verfügbarer Zeit (Tages-Max ≥ 120 min) DARFST du ZWEI Einträge mit demselben "date" planen. Die zweite Einheit ist IMMER ergänzend/regenerativ — strength/core/mobility ODER ein kurzer lockerer Lauf (easy_run/time_on_feet). NIEMALS zwei harte Einheiten am selben Tag und NICHT zusätzlich zu einer yard_simulation oder einem back_to_back_long. Kennzeichne die Tageszeit im title ("Morgens: …", "Abends: …"), liste die Morgen-Einheit ZUERST, und die Summe beider duration_min ≤ Tages-Max. Bei wenig Zeit oder schlechtem Wellbeing bleibt es bei EINER Einheit pro Tag.
 - ANDERE RENNEVENTS: An Tagen mit anderen Rennevents im Planungszeitraum IMMER type="rest".
 
-**Antworte ausschließlich mit einem JSON-Array — einen Eintrag pro offenem Tag von heute ({$today}) bis {$planEndDate}. Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
+**Antworte ausschließlich mit einem JSON-Array — in der Regel EIN Eintrag pro offenem Tag von heute ({$today}) bis {$planEndDate}. An Tagen mit viel Zeit sind ausnahmsweise ZWEI Einträge mit demselben "date" erlaubt (siehe Doppel-Einheiten-Regel). Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
 [
   {
     "date": "YYYY-MM-DD",
@@ -1362,11 +1378,13 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 - Lerne aus den Athleten-Bewertungen: niedrige Bewertungen (1-2⭐) oder hohe RPE (≥8) bei bestimmten Typen → weniger davon oder leichter planen; hohe Bewertungen (4-5⭐) → mehr davon
 - Lerne aus vergangenen Rennergebnissen: Ziel verfehlt → mehr spezifisches Tempotraining für diese Distanz; Ziel erreicht/übertroffen → Plan funktioniert, ähnliche Struktur beibehalten
 - ANDERE RENNEVENTS: An Tagen mit anderen Rennevents im Planungszeitraum IMMER type="rest" — der Athlet läuft ein Rennen, kein zusätzliches Training.
-- VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die Trainingsdauer darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
+- VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die GESAMTE Trainingsdauer eines Tages (bei zwei Einheiten die Summe) darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
+- ZIELORIENTIERUNG (wichtig): Plane ehrgeizig und zielgerichtet auf die Zielzeit {$targetTime} hin — mit klarer Progression aus Umfang und spezifischem Tempo an der Zielpace. Sei nicht unnötig konservativ, solange Wellbeing und Trainingsbelastung es zulassen. Zeigt der aktuelle Leistungsstand (Aktivitäten, Schwellenpace), dass die Zielzeit deutlich zu leicht ODER unrealistisch ist, spiegle das in der description der Schlüssel-Einheiten wider (was nötig ist, um das Ziel zu erreichen bzw. dass ein ehrgeizigeres Ziel drin wäre).
+- DOPPEL-EINHEITEN (zwei Einheiten pro Tag): An Tagen mit viel verfügbarer Zeit (Tages-Max ≥ 120 min) DARFST du ZWEI Einträge mit demselben "date" planen, um die Zeit sinnvoll zu nutzen. Regeln dafür: (a) Die zweite Einheit ist IMMER ergänzend/regenerativ — entweder strength/core/mobility ODER ein kurzer lockerer Lauf (easy_run). NIEMALS zwei harte Einheiten (tempo_run/interval/long_run/progressive_run/test_run) am selben Tag. (b) Kennzeichne die Tageszeit im title (z.B. "Morgens: Core", "Abends: Long Run") und liste die Morgen-Einheit ZUERST im Array. (c) Die Summe beider duration_min ≤ Tages-Max. (d) Interferenz beachten: keine schwere Beinkraft direkt vor einem Long Run / Schlüssel-Workout am selben Tag. Bei wenig Zeit oder schlechtem Wellbeing bleibt es bei EINER Einheit pro Tag.
 - PROGRESSIVE LÄUFE (progressive_run): Lauf beginnt in Zone 1–2 und steigert sich Kilometer für Kilometer bis Zone 3–4 gegen Ende. Ideal für Tempoaufbau ohne volle Belastung. Max. 1× pro Woche, nur in Build- und Peak-Phase, nicht im Tapering.
 - TESTLÄUFE (test_run): 5k oder 10k Zeitversuch bei maximalem persönlichen Effort (Zone 4–5) — so schnell wie möglich über die gesamte Distanz. Zweck: objektive Fortschrittsmessung und automatische Neukalibrierung der Schwellenpace. Plane exakt alle 4–6 Wochen — niemals in den letzten 14 Tagen vor dem A-Event. Nach einem test_run folgt IMMER ein easy_run als Regeneration. Kündige den Testlauf im title-Feld deutlich an, z.B. "5k Zeitversuch".
 
-**Antworte ausschließlich mit einem JSON-Array — einen Eintrag pro offenem Tag von heute ({$today}) bis {$planEndDate}. Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
+**Antworte ausschließlich mit einem JSON-Array — in der Regel EIN Eintrag pro offenem Tag von heute ({$today}) bis {$planEndDate}. An Tagen mit viel Zeit sind ausnahmsweise ZWEI Einträge mit demselben "date" erlaubt (siehe Doppel-Einheiten-Regel). Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
 [
   {
     "date": "YYYY-MM-DD",

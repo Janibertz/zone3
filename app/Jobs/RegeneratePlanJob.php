@@ -302,10 +302,17 @@ class RegeneratePlanJob implements ShouldQueue
 
                 foreach ($recentRuns as $run) {
                     $date          = $run->start_date->toDateString();
-                    $sessionOnDate = TrainingSession::where('training_plan_id', $newPlan->id)
+                    $plannedOnDate = TrainingSession::where('training_plan_id', $newPlan->id)
                         ->where('planned_date', $date)
                         ->where('status', 'planned')
-                        ->first();
+                        ->orderBy('sort_order')
+                        ->get();
+                    // A day can hold two sessions (e.g. run + strength). Match the imported
+                    // run to the RUNNING session, never a strength/core/mobility block. If the
+                    // day is only strength (no run planned), leave it null so the run is added
+                    // as a separate completed session below instead of overwriting the strength.
+                    $sessionOnDate = $plannedOnDate->first(fn ($s) => ! in_array($s->type, ['rest', 'strength', 'core', 'mobility']))
+                        ?? $plannedOnDate->first(fn ($s) => $s->type === 'rest');
 
                     $distKm = $run->distance > 0 ? round($run->distance / 1000, 2) : null;
                     $durMin = $run->moving_time > 0 ? (int) round($run->moving_time / 60) : null;
