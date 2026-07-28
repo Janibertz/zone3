@@ -145,22 +145,10 @@ class ProfileController extends Controller
         }
 
         try {
-            // Send a minimal 1-step workout so the FIT-Service completes the full
-            // auth flow and returns a session token. Empty steps would fail validation
-            // before login, so at least one step is required.
+            // Login only — the fit-service authenticates via garth and returns the
+            // session token. No workout is sent (nothing lands in the Garmin calendar).
             $response = \Illuminate\Support\Facades\Http::timeout(30)
-                ->post(rtrim($serviceUrl, '/') . '/send-to-garmin', [
-                    'name'            => 'Zone3 Verbindungstest',
-                    'date'            => now()->toDateString(),
-                    'sport'           => 'running',
-                    'steps'           => [[
-                        'name'         => 'Test',
-                        'step_type'    => 'warmup',
-                        'duration_sec' => 60,
-                        'meters'       => null,
-                        'speedMps'     => null,
-                        'lap_button'   => false,
-                    ]],
+                ->post(rtrim($serviceUrl, '/') . '/garmin-login', [
                     'garmin_email'    => $request->email,
                     'garmin_password' => $request->password,
                 ]);

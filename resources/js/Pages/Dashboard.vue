@@ -1080,7 +1080,7 @@ function garminDeltaClass(t) {
             </div>
         </template>
 
-        <div class="py-4 lg:py-6">
+        <div class="dark bauhaus-dash py-4 lg:py-6">
             <div class="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8 space-y-3 lg:space-y-4">
 
                 <!-- Sync result banner -->
@@ -2532,5 +2532,105 @@ function garminDeltaClass(t) {
 <style scoped>
 .activities-scroll::-webkit-scrollbar {
     display: none;
+}
+</style>
+
+<!--
+  Bauhaus theme layer for the dashboard. Not scoped: it must reach the compiled
+  Tailwind utility classes on the markup, but every selector is prefixed with
+  .bauhaus-dash so it stays confined to this page's content wrapper.
+  Principle: black canvas, off-white ink, Helvetica, hard rectangles, flat
+  surfaces, thin neutral grid, four meaning-colours (blue/red/yellow/green).
+-->
+<style>
+.bauhaus-dash {
+    background: #08080A;
+    color: #F5F5F5;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    letter-spacing: -0.01em;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Hard rectangles everywhere — kills all rounding incl. pills → squares */
+.bauhaus-dash [class*="rounded"] { border-radius: 0 !important; }
+
+/* Flat: no soft shadows, Bauhaus is function not atmosphere */
+.bauhaus-dash [class*="shadow"] { box-shadow: none !important; }
+
+/* Numbers bold & tightly tracked */
+.bauhaus-dash .tabular-nums { font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+
+/* Headings & small labels lowercase (a deliberate Bauhaus quote) */
+.bauhaus-dash h1, .bauhaus-dash h2, .bauhaus-dash h3,
+.bauhaus-dash h4, .bauhaus-dash h5 { text-transform: lowercase; }
+
+/* ── Surfaces: dark slate panels → near-black modules, thin neutral grid ── */
+.bauhaus-dash .dark\:bg-slate-900 { background-color: #0d0d10 !important; }
+.bauhaus-dash .dark\:bg-slate-800 { background-color: #141418 !important; }
+.bauhaus-dash .dark\:bg-slate-700 { background-color: #1c1c22 !important; }
+.bauhaus-dash .dark\:border-slate-800,
+.bauhaus-dash .dark\:border-slate-700 { border-color: #26262c !important; }
+
+/* Light-tint banners/badges (no dark variant) → dark accent panels */
+.bauhaus-dash .bg-white           { background-color: #0d0d10 !important; }
+.bauhaus-dash .bg-gray-50,
+.bauhaus-dash .bg-gray-100        { background-color: #141418 !important; }
+.bauhaus-dash .bg-indigo-50,
+.bauhaus-dash .bg-blue-50         { background-color: rgba(61,123,255,.10) !important; }
+.bauhaus-dash .bg-green-50        { background-color: rgba(0,196,106,.10) !important; }
+.bauhaus-dash .bg-red-50          { background-color: rgba(240,64,47,.10) !important; }
+.bauhaus-dash .bg-amber-50,
+.bauhaus-dash .bg-yellow-50,
+.bauhaus-dash .bg-orange-50       { background-color: rgba(255,196,0,.10) !important; }
+.bauhaus-dash .border-gray-100,
+.bauhaus-dash .border-gray-200    { border-color: #26262c !important; }
+.bauhaus-dash .border-indigo-200,
+.bauhaus-dash .border-blue-200    { border-color: rgba(61,123,255,.30) !important; }
+.bauhaus-dash .border-green-200   { border-color: rgba(0,196,106,.30) !important; }
+.bauhaus-dash .border-red-200     { border-color: rgba(240,64,47,.30) !important; }
+.bauhaus-dash .border-amber-200   { border-color: rgba(255,196,0,.30) !important; }
+
+/* ── Ink ramp ── */
+.bauhaus-dash .dark\:text-white,
+.bauhaus-dash .dark\:text-slate-100,
+.bauhaus-dash .dark\:text-slate-200,
+.bauhaus-dash .text-gray-900,
+.bauhaus-dash .text-gray-800      { color: #F5F5F5 !important; }
+.bauhaus-dash .text-gray-700,
+.bauhaus-dash .text-gray-600,
+.bauhaus-dash .dark\:text-slate-300 { color: #c5c5cc !important; }
+.bauhaus-dash .text-gray-500,
+.bauhaus-dash .text-gray-400,
+.bauhaus-dash .dark\:text-slate-400 { color: #8a8a92 !important; }
+.bauhaus-dash .text-gray-300,
+.bauhaus-dash .dark\:text-slate-500,
+.bauhaus-dash .dark\:text-slate-600 { color: #6c6c74 !important; }
+
+/* ── Four meaning-colours: normalise the app's accents onto the Bauhaus palette ── */
+/* blue = fitness/volume/HRV */
+.bauhaus-dash .text-indigo-300,
+.bauhaus-dash .text-indigo-400,
+.bauhaus-dash .text-indigo-700,
+.bauhaus-dash .text-blue-800      { color: #3D7BFF !important; }
+.bauhaus-dash .bg-indigo-500      { background-color: #3D7BFF !important; }
+/* red = load/heart */
+.bauhaus-dash .text-red-800,
+.bauhaus-dash .text-red-600,
+.bauhaus-dash .dark\:text-red-400 { color: #F0402F !important; }
+/* green = energy/form good */
+.bauhaus-dash .text-green-800,
+.bauhaus-dash .text-green-600,
+.bauhaus-dash .dark\:text-green-400 { color: #00C46A !important; }
+/* yellow/amber = sleep/attention */
+.bauhaus-dash .text-amber-600,
+.bauhaus-dash .dark\:text-amber-400,
+.bauhaus-dash .text-orange-600,
+.bauhaus-dash .dark\:text-orange-400 { color: #FFC400 !important; }
+
+/* Thin, non-decorative borders on all modules */
+.bauhaus-dash .border { border-width: 1px !important; }
+
+@media (prefers-reduced-motion: reduce) {
+    .bauhaus-dash * { animation: none !important; transition: none !important; }
 }
 </style>
