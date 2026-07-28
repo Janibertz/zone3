@@ -19,3 +19,6 @@ Schedule::command('plan:auto-update')->dailyAt('05:00');
 
 // 1st of each month at 09:00: send the previous month's running review (push + email)
 Schedule::command('review:monthly')->monthlyOn(1, '09:00');
+
+// Every day at 06:00: pull the last 7 days of Garmin recovery data for connected users
+Schedule::command('garmin:sync-health --days=7')->dailyAt('06:00');

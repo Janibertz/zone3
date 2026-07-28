@@ -94,6 +94,10 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    garminMetrics: {
+        type: Object,
+        default: null,
+    },
 });
 
 // PR banner dismissed state (local — dismissal is persisted server-side)
@@ -976,6 +980,91 @@ function syncStrava() {
     router.post('/strava/sync', {}, {
         onFinish: () => { syncing.value = false; },
     });
+}
+
+// ── Garmin recovery data (HRV, sleep, RHR, Body Battery, stress, readiness) ──
+const garminSyncing = ref(false);
+const garminSeries  = computed(() => props.garminMetrics?.series ?? []);
+const garminLatest  = computed(() => props.garminMetrics?.latest ?? null);
+const hasGarminData = computed(() => garminSeries.value.length > 0);
+
+function syncGarmin() {
+    garminSyncing.value = true;
+    axios.post('/profile/garmin-sync-health', { days: 7 })
+        .catch(() => {})
+        .finally(() => {
+            // The sync runs in the queue; give it a moment, then refresh the prop.
+            setTimeout(() => {
+                garminSyncing.value = false;
+                router.reload({ only: ['garminMetrics'] });
+            }, 5000);
+        });
+}
+
+// Build one metric tile: latest value, sparkline path (gaps preserved), and a
+// period-over-period delta that is only highlighted on a meaningful move (>0.6 SD).
+function buildGarminTile(key, opts) {
+    const series = garminSeries.value;
+    const vals = series.map(d => d[key]).filter(v => v !== null && v !== undefined);
+    const base = { ...opts, value: vals.length ? vals[vals.length - 1] : null, spark: null, delta: null, highlight: false };
+    if (vals.length < 2) return base;
+
+    const mean = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+    const half = Math.floor(vals.length / 2);
+    const delta = mean(vals.slice(half)) - mean(vals.slice(0, half));
+    const m = mean(vals);
+    const sd = Math.sqrt(mean(vals.map(v => (v - m) ** 2)));
+    const highlight = sd > 0 && Math.abs(delta) > 0.6 * sd;
+
+    // Sparkline across the full series; a null value breaks the line (no interpolation).
+    const W = 100, H = 28, pad = 2;
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const range = (max - min) || 1;
+    const n = series.length;
+    let d = '', open = false;
+    series.forEach((row, i) => {
+        const v = row[key];
+        if (v === null || v === undefined) { open = false; return; }
+        const x = pad + (n > 1 ? (i / (n - 1)) : 0) * (W - pad * 2);
+        const y = pad + (H - pad * 2) - ((v - min) / range) * (H - pad * 2);
+        d += (open ? ' L ' : ' M ') + x.toFixed(1) + ' ' + y.toFixed(1);
+        open = true;
+    });
+
+    return { ...base, delta, highlight, spark: d };
+}
+
+const garminTiles = computed(() => {
+    if (!hasGarminData.value) return [];
+    return [
+        buildGarminTile('hrv',         { label: 'HRV',      color: '#3D7BFF', unit: ' ms',  digits: 0 }),
+        buildGarminTile('resting_hr',  { label: 'Ruhepuls', color: '#F0402F', unit: ' bpm', digits: 0, invert: true }),
+        buildGarminTile('sleep_hours', { label: 'Schlaf',   color: '#FFC400', unit: ' h',   digits: 1 }),
+        buildGarminTile('stress_avg',  { label: 'Stress',   color: '#00C46A', unit: '',     digits: 0, invert: true }),
+    ];
+});
+
+const readinessLabel = computed(() => {
+    const r = garminLatest.value?.training_readiness;
+    if (r == null) return '';
+    if (r >= 75) return 'bereit für harte Reize';
+    if (r >= 50) return 'moderat belastbar';
+    if (r >= 25) return 'eher locker halten';
+    return 'Erholung priorisieren';
+});
+
+const readinessColor = computed(() => {
+    const r = garminLatest.value?.training_readiness ?? 0;
+    if (r >= 75) return '#00C46A';
+    if (r >= 50) return '#FFC400';
+    if (r >= 25) return '#F59E0B';
+    return '#F0402F';
+});
+
+function garminDeltaClass(t) {
+    // invert=true → an increase is unfavourable (resting HR, stress)
+    const good = t.invert ? t.delta < 0 : t.delta > 0;
+    return good ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
 }
 
 </script>
@@ -2035,6 +2124,78 @@ function syncStrava() {
                         <strong class="text-gray-500 dark:text-slate-400">Form = Fitness − Ermüdung.</strong>
                         Optimal (−10 bis +5): Wettkampfbereit. Belastet (−30 bis −10): Trainingsblock. Frisch (+5 bis +25): Tapering.
                     </p>
+                </div>
+
+                <!-- ═══ ROW 4a-b: Garmin Erholung ═══ -->
+                <div v-if="props.garminMetrics" class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <div class="h-7 w-7 rounded-lg bg-blue-100 dark:bg-blue-500/15 flex items-center justify-center text-sm shrink-0">⌚</div>
+                            <div>
+                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Erholung</h4>
+                                <p class="text-xs text-gray-400 dark:text-slate-500">Aus deiner Garmin · nur lesend</p>
+                            </div>
+                        </div>
+                        <button
+                            @click="syncGarmin"
+                            :disabled="garminSyncing"
+                            class="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+                        >{{ garminSyncing ? 'Synchronisiere…' : 'Aktualisieren' }}</button>
+                    </div>
+
+                    <!-- No data yet -->
+                    <div v-if="!hasGarminData" class="text-sm text-gray-400 dark:text-slate-500 py-4 text-center">
+                        Noch keine Garmin-Daten. Tippe auf „Aktualisieren“ — der erste Sync holt die letzten Tage.
+                    </div>
+
+                    <template v-else>
+                        <!-- Training Readiness (prominent) -->
+                        <div v-if="garminLatest?.training_readiness != null" class="mb-4 rounded-xl bg-gray-50 dark:bg-slate-800 p-4">
+                            <div class="flex items-end justify-between">
+                                <div>
+                                    <p class="text-xs text-gray-500 dark:text-slate-400 mb-1">Training Readiness</p>
+                                    <p class="text-3xl font-bold tabular-nums text-gray-800 dark:text-slate-100">
+                                        {{ garminLatest.training_readiness }}<span class="text-base font-normal text-gray-400">/100</span>
+                                    </p>
+                                </div>
+                                <p class="text-xs text-gray-400 dark:text-slate-500 text-right max-w-[9rem]">{{ readinessLabel }}</p>
+                            </div>
+                            <div class="mt-2 h-1.5 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden">
+                                <div class="h-full rounded-full transition-all" :style="{ width: garminLatest.training_readiness + '%', background: readinessColor }"></div>
+                            </div>
+                        </div>
+
+                        <!-- HRV / Ruhepuls / Schlaf / Stress tiles -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div
+                                v-for="t in garminTiles"
+                                :key="t.label"
+                                class="rounded-xl border p-3"
+                                :class="t.highlight ? 'border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-800' : 'border-gray-100 dark:border-slate-800'"
+                            >
+                                <div class="flex items-center gap-1.5 mb-1">
+                                    <span class="inline-block h-2.5 w-2.5" :style="{ background: t.color }"></span>
+                                    <span class="text-xs text-gray-500 dark:text-slate-400">{{ t.label }}</span>
+                                </div>
+                                <div class="flex items-end justify-between gap-2">
+                                    <p class="text-xl font-bold tabular-nums text-gray-800 dark:text-slate-100">
+                                        {{ t.value == null ? '–' : Number(t.value).toFixed(t.digits) }}<span class="text-xs font-normal text-gray-400">{{ t.unit }}</span>
+                                    </p>
+                                    <svg v-if="t.spark" viewBox="0 0 100 28" class="w-16 h-7 shrink-0" preserveAspectRatio="none">
+                                        <path :d="t.spark" fill="none" :stroke="t.color" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                </div>
+                                <p v-if="t.highlight && t.delta != null" class="mt-1 text-[11px]" :class="garminDeltaClass(t)">
+                                    {{ t.delta > 0 ? '▲' : '▼' }} {{ Math.abs(t.delta).toFixed(t.digits || 1) }} ggü. Vorperiode
+                                </p>
+                                <p v-else class="mt-1 text-[11px] text-gray-300 dark:text-slate-600">stabil</p>
+                            </div>
+                        </div>
+
+                        <p class="mt-3 text-[11px] text-gray-400 dark:text-slate-500 leading-relaxed">
+                            Hervorgehoben nur bei deutlicher Abweichung (&gt; 0,6 Standardabweichung). Fehlende Tage bleiben Lücken, keine Nullwerte.
+                        </p>
+                    </template>
                 </div>
 
                 <!-- ═══ ROW 4b: Unrated Sessions + Weekly Review ═══ -->

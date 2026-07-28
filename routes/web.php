@@ -294,6 +294,38 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             $limit = $user->ai_daily_limit ?? 20;
             return ['used' => \App\Models\AiLog::todayCountForUser($user->id), 'limit' => $limit];
         })(),
+
+        // Garmin recovery data (HRV, sleep, RHR, Body Battery, stress, readiness).
+        // Synced read-only via SyncGarminHealthJob. Missing values stay null ("keine Daten").
+        'garminMetrics' => (function () use ($user) {
+            if (empty($user->garmin_session)) return null;
+
+            $rows = \App\Models\GarminDailyMetric::where('user_id', $user->id)
+                ->where('date', '>=', now()->subDays(30)->toDateString())
+                ->orderBy('date')
+                ->get([
+                    'date', 'hrv', 'resting_hr', 'sleep_hours', 'sleep_score',
+                    'body_battery_low', 'body_battery_high', 'stress_avg',
+                    'steps', 'training_readiness',
+                ]);
+
+            if ($rows->isEmpty()) return ['latest' => null, 'series' => []];
+
+            $series = $rows->map(fn ($r) => [
+                'date'               => $r->date->format('Y-m-d'),
+                'hrv'                => $r->hrv,
+                'resting_hr'         => $r->resting_hr,
+                'sleep_hours'        => $r->sleep_hours,
+                'sleep_score'        => $r->sleep_score,
+                'body_battery_low'   => $r->body_battery_low,
+                'body_battery_high'  => $r->body_battery_high,
+                'stress_avg'         => $r->stress_avg,
+                'steps'              => $r->steps,
+                'training_readiness' => $r->training_readiness,
+            ])->values();
+
+            return ['latest' => $series->last(), 'series' => $series];
+        })(),
     ]);
 })->middleware(['auth', 'verified', 'onboarding'])->name('dashboard');
 
@@ -310,6 +342,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar');
     Route::patch('/profile/coach', [ProfileController::class, 'updateCoach'])->name('profile.coach');
     Route::post('/profile/garmin-connect', [ProfileController::class, 'garminConnect'])->name('profile.garmin-connect');
+    Route::post('/profile/garmin-sync-health', [ProfileController::class, 'garminSyncHealth'])->name('profile.garmin-sync-health');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // Push Notifications
@@ -415,6 +448,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/training-sessions/{session}/nutrition-tips', [TrainingSessionController::class, 'nutritionTips'])->name('training-sessions.nutrition-tips');
     Route::get('/training-sessions/{session}/steps', [TrainingSessionController::class, 'sessionSteps'])->name('training-sessions.steps');
     Route::patch('/training-sessions/{session}/rate', [TrainingSessionController::class, 'rate'])->name('training-sessions.rate');
+    Route::patch('/training-sessions/{session}/review-feedback', [TrainingSessionController::class, 'reviewFeedback'])->name('training-sessions.review-feedback');
     Route::patch('/training-sessions/{session}/apply-workout', [TrainingSessionController::class, 'applyWorkout'])->name('training-sessions.apply-workout');
     Route::post('/training-sessions/{session}/reset-cache', [TrainingSessionController::class, 'resetCache'])->name('training-sessions.reset-cache');
     Route::post('/newsletter/preference', [NewsletterController::class, 'updatePreference'])->name('newsletter.preference');

@@ -349,6 +349,154 @@ def send_to_garmin(req: GarminSendRequest):
     return {"success": True, "workoutId": workout_id, "session": new_session}
 
 
+# ── Garmin health / recovery data (read-only) ─────────────────────────────────
+
+class GarminHealthRequest(BaseModel):
+    # Auth: either saved session OR fresh credentials
+    garmin_session:  Optional[str] = None
+    garmin_email:    Optional[str] = None
+    garmin_password: Optional[str] = None
+    days:            int = 60          # how many days back from `end` to fetch
+    end:             Optional[str] = None  # YYYY-MM-DD, defaults to today
+
+
+def _safe(fn):
+    """Run a single Garmin call in isolation. A missing value never aborts the
+    whole day — it becomes None ("keine Daten"), never 0."""
+    try:
+        return fn()
+    except Exception:
+        return None
+
+
+def _num(v):
+    """Coerce to a number or None. Empty/invalid → None (never 0)."""
+    if v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f
+
+
+def _fetch_day(api, cdate: str) -> dict:
+    """Fetch one day's recovery metrics. Every field guarded individually."""
+    summary = _safe(lambda: api.get_user_summary(cdate)) or {}
+
+    # HRV — last night average
+    hrv = None
+    hrv_data = _safe(lambda: api.get_hrv_data(cdate))
+    if isinstance(hrv_data, dict):
+        s = hrv_data.get("hrvSummary") or {}
+        hrv = _num(s.get("lastNightAvg"))
+
+    # Resting heart rate
+    resting_hr = _num(summary.get("restingHeartRate"))
+    if resting_hr is None:
+        rhr = _safe(lambda: api.get_rhr_day(cdate))
+        if isinstance(rhr, dict):
+            resting_hr = _num(rhr.get("restingHeartRate"))
+
+    # Sleep — hours + score
+    sleep_hours = None
+    sleep_score = None
+    sleep_data = _safe(lambda: api.get_sleep_data(cdate))
+    if isinstance(sleep_data, dict):
+        dto = sleep_data.get("dailySleepDTO") or {}
+        secs = _num(dto.get("sleepTimeSeconds"))
+        if secs is not None:
+            sleep_hours = round(secs / 3600, 2)
+        scores = dto.get("sleepScores") or {}
+        overall = scores.get("overall") or {}
+        sleep_score = _num(overall.get("value"))
+
+    # Body Battery — daily low / high
+    bb_low = None
+    bb_high = None
+    bb = _safe(lambda: api.get_body_battery(cdate, cdate))
+    if isinstance(bb, list) and bb:
+        arr = (bb[0] or {}).get("bodyBatteryValuesArray") or []
+        vals = [_num(p[1]) for p in arr if isinstance(p, list) and len(p) > 1]
+        vals = [v for v in vals if v is not None]
+        if vals:
+            bb_low, bb_high = min(vals), max(vals)
+
+    # Stress — daily average
+    stress_avg = _num(summary.get("averageStressLevel"))
+    if stress_avg is not None and stress_avg < 0:
+        stress_avg = None  # Garmin uses -1/-2 for "no data"
+
+    # Steps
+    steps = _num(summary.get("totalSteps"))
+
+    # Training Readiness — score
+    readiness = None
+    tr = _safe(lambda: api.get_training_readiness(cdate))
+    if isinstance(tr, list) and tr:
+        readiness = _num((tr[0] or {}).get("score"))
+
+    return {
+        "date":                cdate,
+        "hrv":                 hrv,
+        "resting_hr":          resting_hr,
+        "sleep_hours":         sleep_hours,
+        "sleep_score":         sleep_score,
+        "body_battery_low":    bb_low,
+        "body_battery_high":   bb_high,
+        "stress_avg":          stress_avg,
+        "steps":               steps,
+        "training_readiness":  readiness,
+    }
+
+
+@app.post("/garmin-health")
+def garmin_health(req: GarminHealthRequest):
+    """Read-only pull of daily recovery metrics for the last `days` days.
+    Never writes to Garmin. Returns one record per day; missing values are null."""
+    from datetime import date as _date, timedelta
+
+    new_session: Optional[str] = None
+
+    if req.garmin_session:
+        try:
+            api = _garmin_api_from_session(req.garmin_session)
+        except Exception as e:
+            print(f"[Garmin] Session restore failed: {e}", flush=True)
+            raise HTTPException(status_code=401, detail="session_expired")
+    elif req.garmin_email and req.garmin_password:
+        try:
+            api, new_session = _garmin_api_from_credentials(req.garmin_email, req.garmin_password)
+        except Exception as e:
+            msg = str(e)
+            print(f"[Garmin] Login failed: {msg}", flush=True)
+            if "MFA" in msg.upper() or "mfa" in msg or "two" in msg.lower():
+                raise HTTPException(status_code=401, detail="mfa_required")
+            raise HTTPException(status_code=401, detail=f"login_failed: {msg}")
+    else:
+        raise HTTPException(status_code=422, detail="garmin_session or garmin_email+password required")
+
+    try:
+        end = _date.fromisoformat(req.end) if req.end else _date.today()
+    except ValueError:
+        end = _date.today()
+    span = max(1, min(req.days, 400))
+
+    days = []
+    filled = 0
+    for i in range(span):
+        cdate = (end - timedelta(days=i)).isoformat()
+        rec = _fetch_day(api, cdate)
+        days.append(rec)
+        if any(rec[k] is not None for k in (
+            "hrv", "resting_hr", "sleep_hours", "body_battery_high",
+            "stress_avg", "steps", "training_readiness")):
+            filled += 1
+
+    print(f"[Garmin] Health sync: {filled}/{span} days with data", flush=True)
+    return {"days": days, "days_with_data": filled, "session": new_session}
+
+
 @app.post("/generate-fit")
 def generate_fit(req: WorkoutRequest):
     if not req.steps:

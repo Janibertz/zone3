@@ -186,12 +186,33 @@ class ProfileController extends Controller
                 'garmin_session' => $session,
             ]);
 
+            // Backfill 60 days of recovery history so there is something to compare against.
+            \App\Jobs\SyncGarminHealthJob::dispatch(Auth::id(), 60);
+
             return response()->json(['success' => true]);
 
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Garmin connect error: ' . $e->getMessage());
             return response()->json(['error' => 'Verbindung fehlgeschlagen: ' . $e->getMessage()], 503);
         }
+    }
+
+    /**
+     * Manually queue a read-only Garmin recovery-data sync for the current user.
+     */
+    public function garminSyncHealth(Request $request)
+    {
+        $user = Auth::user();
+        if (empty($user->garmin_session)) {
+            return response()->json(['error' => 'Garmin nicht verbunden.'], 422);
+        }
+
+        $days = (int) $request->input('days', 7);
+        $days = max(1, min($days, 400));
+
+        \App\Jobs\SyncGarminHealthJob::dispatch($user->id, $days);
+
+        return response()->json(['success' => true, 'days' => $days]);
     }
 
     private function speedToPace(float $speed): string
