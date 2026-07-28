@@ -1121,6 +1121,69 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                             </div>
                         </div>
 
+                        <!-- Garmin Connect Card -->
+                        <div class="rounded-2xl border border-gray-100 dark:border-slate-800 overflow-hidden">
+                            <div class="flex items-center justify-between gap-4 px-4 py-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
+                                        :class="garminConnected ? 'bg-blue-50 dark:bg-blue-500/10' : 'bg-gray-100 dark:bg-slate-800'">
+                                        <svg class="h-6 w-6" :class="garminConnected ? 'text-blue-500' : 'text-gray-400 dark:text-slate-500'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                            <rect x="7" y="6" width="10" height="12" rx="2" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 6l.5-2.5h5L15 6M9 18l.5 2.5h5L15 18" />
+                                            <circle cx="12" cy="12" r="2.2" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-semibold text-gray-900 dark:text-white">Garmin Connect</p>
+                                        <p v-if="garminConnected" class="text-xs text-green-600 dark:text-green-400 mt-0.5">Verbunden · {{ garminSavedEmail }}</p>
+                                        <p v-else class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Nicht verbunden</p>
+                                    </div>
+                                </div>
+                                <div class="flex gap-2 shrink-0">
+                                    <button v-if="garminConnected" @click="disconnectGarmin" :disabled="garminDisconnecting"
+                                        class="rounded-xl border border-red-200 dark:border-red-500/30 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50">
+                                        {{ garminDisconnecting ? 'Trenne…' : 'Trennen' }}
+                                    </button>
+                                    <button v-else @click="showGarminForm = !showGarminForm"
+                                        class="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors">
+                                        Verbinden
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Einmaliger Login (kein Passwort wird gespeichert) -->
+                            <div v-if="showGarminForm && !garminConnected" class="border-t border-gray-100 dark:border-slate-800 p-4 space-y-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Garmin Connect E-Mail</label>
+                                    <input v-model="garminEmail" type="email" autocomplete="username"
+                                        class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        placeholder="deine@email.de" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Passwort</label>
+                                    <input v-model="garminPassword" type="password" autocomplete="current-password" @keyup.enter="connectGarmin"
+                                        class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        placeholder="••••••••" />
+                                </div>
+                                <p v-if="garminConnectError" class="text-xs text-red-600 dark:text-red-400">{{ garminConnectError }}</p>
+                                <div class="flex items-center gap-3 pt-1">
+                                    <button @click="connectGarmin" :disabled="garminConnecting || !garminEmail || !garminPassword"
+                                        class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                                        <svg v-if="garminConnecting" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                        {{ garminConnecting ? 'Verbinde…' : 'Einmalig anmelden' }}
+                                    </button>
+                                    <button @click="showGarminForm = false" class="text-xs font-medium text-gray-500 dark:text-slate-400 hover:underline">Abbrechen</button>
+                                </div>
+                                <p class="text-xs text-gray-400 dark:text-slate-500 leading-relaxed">
+                                    🔒 Dein Passwort wird <strong class="text-gray-500 dark:text-slate-300">nicht gespeichert</strong>. Es dient nur der einmaligen Anmeldung — danach speichert Zone3 ausschließlich einen verschlüsselten Login-Token (hält ca. ein Jahr). Bei aktiver Zwei-Faktor-Authentifizierung ist der Login derzeit nicht möglich.
+                                </p>
+                            </div>
+
+                            <div v-if="garminConnectOk && garminConnected" class="border-t border-gray-100 dark:border-slate-800 px-4 py-3">
+                                <p class="text-xs text-green-600 dark:text-green-400">Verbunden! Die letzten 60 Tage Erholungsdaten werden im Hintergrund geladen und erscheinen dann im Dashboard.</p>
+                            </div>
+                        </div>
+
                     </div>
                 </template>
 

@@ -2509,7 +2509,7 @@ function garminDeltaClass(t) {
                                 class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 placeholder="••••••••" />
                         </div>
-                        <p class="text-xs text-gray-400 dark:text-slate-500">Zugangsdaten werden verschlüsselt gespeichert — beim nächsten Mal musst du dich nicht mehr einloggen.</p>
+                        <p class="text-xs text-gray-400 dark:text-slate-500">Dein Passwort wird nicht gespeichert — nur ein verschlüsselter Login-Token. Beim nächsten Mal musst du dich nicht mehr einloggen.</p>
                     </div>
                     <div class="mt-5 flex gap-3 justify-end">
                         <button @click="garminModal = false"
