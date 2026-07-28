@@ -203,27 +203,59 @@ def build_garmin_json(name: str, sport: str, steps: list[dict], description: str
     return result
 
 
+class GarminMfaRequired(Exception):
+    """The account needs a 2FA code — impossible in a headless server context."""
+
+
+def _token_client(api):
+    """Return the serialisable token client across garminconnect versions.
+    v0.3+ exposes api.client; older v0.2 exposed api.garth (which is None on 0.3)."""
+    for attr in ("client", "garth"):
+        c = getattr(api, attr, None)
+        if c is not None and hasattr(c, "dumps") and hasattr(c, "loads"):
+            return c
+    return None
+
+
 def _garmin_api_from_session(session_str: str):
-    """Restore a Garmin API instance from saved garth session tokens."""
+    """Restore a fully-initialised Garmin API from a saved token string.
+
+    Uses login(tokenstore=<token>) which loads the tokens AND the user profile
+    (display_name). Health endpoints require display_name, so a bare client.loads()
+    is not enough. Raises on an expired/invalid token."""
     from garminconnect import Garmin
     api = Garmin()
-    if not hasattr(api, "garth"):
-        raise HTTPException(status_code=401, detail="session_expired")
-    api.garth.loads(session_str)
+    # A dumped token JSON is well over 512 chars, so garminconnect treats the
+    # argument as inline token data (not a filesystem path) and calls loads().
+    api.login(tokenstore=session_str)
     return api
 
 
 def _garmin_api_from_credentials(email: str, password: str):
-    """Authenticate with email/password and return (api, session_str or None)."""
+    """Log in once with credentials and return (api, session_str).
+
+    The password is never stored or logged. return_on_mfa=True makes login()
+    report a 2FA requirement instead of blocking on an interactive prompt the
+    server cannot answer. The returned api is rebuilt from the fresh token so it
+    has the profile loaded and is immediately usable for data/workout calls."""
     from garminconnect import Garmin
-    api = Garmin(email, password)
-    api.login()
-    session_str = None
-    if hasattr(api, "garth"):
-        try:
-            session_str = api.garth.dumps()
-        except Exception as e:
-            print(f"[Garmin] Could not dump garth session: {e}", flush=True)
+    api = Garmin(email=email, password=password, return_on_mfa=True)
+    result = api.login()
+    mfa_status = result[0] if isinstance(result, (tuple, list)) else result
+    if mfa_status == "needs_mfa":
+        raise GarminMfaRequired("mfa_required")
+
+    client = _token_client(api)
+    if client is None:
+        return api, None
+    session_str = client.dumps()
+
+    # return_on_mfa login skips profile loading; rebuild from the token so the
+    # api has display_name set (needed by upload_workout / health calls).
+    try:
+        api = _garmin_api_from_session(session_str)
+    except Exception as e:
+        print(f"[Garmin] Profile reload after login failed (non-fatal): {e}", flush=True)
     return api, session_str
 
 
@@ -336,7 +368,7 @@ def send_to_garmin(req: GarminSendRequest):
             if hasattr(api, "schedule_workout"):
                 api.schedule_workout(workout_id, req.date)
             else:
-                api.garth.post(
+                _token_client(api).post(
                     "connectapi",
                     f"/workout-service/schedule/{workout_id}",
                     json={"date": req.date},
