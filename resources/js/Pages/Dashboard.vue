@@ -1,8 +1,11 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import WellbeingModal from '@/Components/WellbeingModal.vue';
+import WellbeingSheet from '@/Components/WellbeingSheet.vue';
 import UserAvatar from '@/Components/UserAvatar.vue';
-import Modal from '@/Components/Modal.vue';
+import AppSheet from '@/Components/UI/AppSheet.vue';
+import AppButton from '@/Components/UI/AppButton.vue';
+import GarminSendSheet from '@/Components/UI/GarminSendSheet.vue';
+import GarminRecovery from '@/Components/GarminRecovery.vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import { Inertia } from '@inertiajs/inertia';
 import { router } from '@inertiajs/vue3';
@@ -97,6 +100,10 @@ const props = defineProps({
     garminMetrics: {
         type: Object,
         default: null,
+    },
+    recoveryActivities: {
+        type: Array,
+        default: () => [],
     },
 });
 
@@ -297,8 +304,6 @@ const acceptingRecommendation = ref(false);
 
 // Garmin send for recommendation session
 const garminModal    = ref(false);
-const garminEmail    = ref('');
-const garminPassword = ref('');
 const garminSending  = ref(false);
 const garminSuccess  = ref(false);
 const garminError    = ref('');
@@ -309,18 +314,14 @@ function openGarminModal() {
     garminModal.value    = true;
     garminError.value    = '';
     garminSuccess.value  = false;
-    garminEmail.value    = garminSavedEmail.value || '';
-    garminPassword.value = '';
 }
 
-async function sendToGarminConnect() {
+async function sendToGarminConnect({ email, password } = {}) {
     garminSending.value = true;
     garminError.value   = '';
     garminSuccess.value = false;
     try {
-        const payload = garminConnected.value
-            ? {}
-            : { email: garminEmail.value, password: garminPassword.value };
+        const payload = garminConnected.value ? {} : { email, password };
         await axios.post(
             route('training-sessions.send-to-garmin', props.todayRecommendationSession.id),
             payload
@@ -1098,6 +1099,9 @@ function garminDeltaClass(t) {
                 <div v-if="flash.error && showFlash" class="rounded-lg border border-red-200 bg-red-50 p-4">
                     <p class="text-sm font-medium text-red-800">{{ flash.error }}</p>
                 </div>
+
+                <!-- ═══ Garmin Erholungs-Dashboard (ganz oben) ═══ -->
+                <GarminRecovery v-if="props.garminMetrics" :metrics="props.garminMetrics" :activities="props.recoveryActivities" />
 
                 <!-- ─── PR-Glückwunsch vom Coach ─────────────────────────── -->
                 <Transition
@@ -2126,78 +2130,6 @@ function garminDeltaClass(t) {
                     </p>
                 </div>
 
-                <!-- ═══ ROW 4a-b: Garmin Erholung ═══ -->
-                <div v-if="props.garminMetrics" class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="flex items-center gap-2">
-                            <div class="h-7 w-7 rounded-lg bg-blue-100 dark:bg-blue-500/15 flex items-center justify-center text-sm shrink-0">⌚</div>
-                            <div>
-                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Erholung</h4>
-                                <p class="text-xs text-gray-400 dark:text-slate-500">Aus deiner Garmin · nur lesend</p>
-                            </div>
-                        </div>
-                        <button
-                            @click="syncGarmin"
-                            :disabled="garminSyncing"
-                            class="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
-                        >{{ garminSyncing ? 'Synchronisiere…' : 'Aktualisieren' }}</button>
-                    </div>
-
-                    <!-- No data yet -->
-                    <div v-if="!hasGarminData" class="text-sm text-gray-400 dark:text-slate-500 py-4 text-center">
-                        Noch keine Garmin-Daten. Tippe auf „Aktualisieren“ — der erste Sync holt die letzten Tage.
-                    </div>
-
-                    <template v-else>
-                        <!-- Training Readiness (prominent) -->
-                        <div v-if="garminLatest?.training_readiness != null" class="mb-4 rounded-xl bg-gray-50 dark:bg-slate-800 p-4">
-                            <div class="flex items-end justify-between">
-                                <div>
-                                    <p class="text-xs text-gray-500 dark:text-slate-400 mb-1">Training Readiness</p>
-                                    <p class="text-3xl font-bold tabular-nums text-gray-800 dark:text-slate-100">
-                                        {{ garminLatest.training_readiness }}<span class="text-base font-normal text-gray-400">/100</span>
-                                    </p>
-                                </div>
-                                <p class="text-xs text-gray-400 dark:text-slate-500 text-right max-w-[9rem]">{{ readinessLabel }}</p>
-                            </div>
-                            <div class="mt-2 h-1.5 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden">
-                                <div class="h-full rounded-full transition-all" :style="{ width: garminLatest.training_readiness + '%', background: readinessColor }"></div>
-                            </div>
-                        </div>
-
-                        <!-- HRV / Ruhepuls / Schlaf / Stress tiles -->
-                        <div class="grid grid-cols-2 gap-3">
-                            <div
-                                v-for="t in garminTiles"
-                                :key="t.label"
-                                class="rounded-xl border p-3"
-                                :class="t.highlight ? 'border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-800' : 'border-gray-100 dark:border-slate-800'"
-                            >
-                                <div class="flex items-center gap-1.5 mb-1">
-                                    <span class="inline-block h-2.5 w-2.5" :style="{ background: t.color }"></span>
-                                    <span class="text-xs text-gray-500 dark:text-slate-400">{{ t.label }}</span>
-                                </div>
-                                <div class="flex items-end justify-between gap-2">
-                                    <p class="text-xl font-bold tabular-nums text-gray-800 dark:text-slate-100">
-                                        {{ t.value == null ? '–' : Number(t.value).toFixed(t.digits) }}<span class="text-xs font-normal text-gray-400">{{ t.unit }}</span>
-                                    </p>
-                                    <svg v-if="t.spark" viewBox="0 0 100 28" class="w-16 h-7 shrink-0" preserveAspectRatio="none">
-                                        <path :d="t.spark" fill="none" :stroke="t.color" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                                    </svg>
-                                </div>
-                                <p v-if="t.highlight && t.delta != null" class="mt-1 text-[11px]" :class="garminDeltaClass(t)">
-                                    {{ t.delta > 0 ? '▲' : '▼' }} {{ Math.abs(t.delta).toFixed(t.digits || 1) }} ggü. Vorperiode
-                                </p>
-                                <p v-else class="mt-1 text-[11px] text-gray-300 dark:text-slate-600">stabil</p>
-                            </div>
-                        </div>
-
-                        <p class="mt-3 text-[11px] text-gray-400 dark:text-slate-500 leading-relaxed">
-                            Hervorgehoben nur bei deutlicher Abweichung (&gt; 0,6 Standardabweichung). Fehlende Tage bleiben Lücken, keine Nullwerte.
-                        </p>
-                    </template>
-                </div>
-
                 <!-- ═══ ROW 4b: Unrated Sessions + Weekly Review ═══ -->
                 <div v-if="pendingRatingSessions.length > 0 || props.weeklyReview" class="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
 
@@ -2416,34 +2348,27 @@ function garminDeltaClass(t) {
             </div>
         </div>
 
-        <!-- ═══ AI Modal ═══ -->
-        <div v-if="showAIModal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4">
-            <div class="max-h-[92vh] w-full sm:max-w-2xl overflow-y-auto rounded-t-3xl sm:rounded-2xl bg-white dark:bg-slate-900 shadow-2xl">
-                <div class="sticky top-0 flex items-center justify-between border-b border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-4">
-                    <h2 class="text-lg font-bold text-gray-900 dark:text-white">
-                        {{ aiModalType === 'analysis' ? '📊 Analyse' : ('🎯 ' + (coach ? coach.name + 's Trainingsplan' : 'Trainingsplan')) }}
-                    </h2>
-                    <button @click="closeAIModal" class="h-8 w-8 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center justify-center transition-colors">✕</button>
-                </div>
-                <div class="p-6">
-                    <div v-if="aiLoading" class="flex flex-col items-center justify-center py-16 gap-3">
-                        <div v-if="coach" class="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-xl" :class="coachColor.bg">{{ coach.avatar_initials }}</div>
-                        <div v-else class="text-5xl">🏃</div>
-                        <p class="text-gray-500 dark:text-slate-400 text-sm">{{ coach ? coach.name + ' analysiert…' : 'Wird berechnet…' }}</p>
-                    </div>
-                    <div v-else>
-                        <div v-if="aiModalType === 'analysis'" class="rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-800/30 p-5 text-sm text-gray-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">{{ aiAnalysis }}</div>
-                        <div v-if="aiModalType === 'plan'" class="rounded-xl bg-purple-50 dark:bg-purple-500/10 border border-purple-100 dark:border-purple-800/30 p-5 text-sm text-gray-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">{{ aiPlan }}</div>
-                    </div>
-                    <div class="mt-5 border-t border-gray-100 dark:border-slate-800 pt-5">
-                        <button @click="closeAIModal"
-                            class="w-full rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
-                            Schließen
-                        </button>
-                    </div>
-                </div>
+        <!-- ═══ KI-Auswertung ═══ -->
+        <AppSheet
+            :show="showAIModal"
+            :title="aiModalType === 'analysis' ? '📊 Analyse' : ('🎯 ' + (coach ? coach.name + 's Trainingsplan' : 'Trainingsplan'))"
+            max-width="2xl"
+            @close="closeAIModal"
+        >
+            <div v-if="aiLoading" class="flex flex-col items-center justify-center gap-3 py-16">
+                <div v-if="coach" class="flex h-16 w-16 items-center justify-center rounded-card text-xl font-bold text-white" :class="coachColor.bg">{{ coach.avatar_initials }}</div>
+                <div v-else class="text-5xl">🏃</div>
+                <p class="text-sm text-ink-3">{{ coach ? coach.name + ' analysiert…' : 'Wird berechnet…' }}</p>
             </div>
-        </div>
+            <div v-else class="whitespace-pre-wrap rounded-card p-5 text-sm leading-relaxed"
+                :class="aiModalType === 'analysis' ? 'bg-info-soft text-info-ink' : 'bg-accent-soft text-accent-ink'">
+                {{ aiModalType === 'analysis' ? aiAnalysis : aiPlan }}
+            </div>
+
+            <template #footer>
+                <AppButton variant="secondary" block @click="closeAIModal">Schließen</AppButton>
+            </template>
+        </AppSheet>
 
         <!-- Wellbeing Modal -->
         <!-- Wellbeing / plan-adjust toast -->
@@ -2458,74 +2383,24 @@ function garminDeltaClass(t) {
             </div>
         </Transition>
 
-        <WellbeingModal
+        <WellbeingSheet
             :show="showWellbeingModal"
             @close="showWellbeingModal = false"
             @saved="onWellbeingSaved"
         />
 
-        <!-- Garmin Connect Modal -->
-        <Modal :show="garminModal" @close="garminModal = false">
-            <div class="p-6 bg-white dark:bg-slate-900">
-                <div class="flex items-center gap-3 mb-4">
-                    <div class="h-10 w-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                        <svg class="h-5 w-5 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-                        </svg>
-                    </div>
-                    <div>
-                        <h2 class="text-base font-bold text-gray-900 dark:text-white">Zu Garmin Connect senden</h2>
-                        <p class="text-xs text-gray-500 dark:text-slate-400">Das Workout erscheint in deiner Garmin Connect Bibliothek</p>
-                    </div>
-                </div>
-
-                <div v-if="garminSuccess" class="rounded-xl bg-green-50 dark:bg-green-900/20 p-4 text-center">
-                    <svg class="h-8 w-8 text-green-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                    <p class="text-sm font-semibold text-green-700 dark:text-green-400">Workout erfolgreich übertragen!</p>
-                    <p class="text-xs text-green-600 dark:text-green-500 mt-1">Es erscheint jetzt in Garmin Connect und ist im Kalender für heute eingetragen.</p>
-                </div>
-
-                <template v-else>
-                    <div v-if="garminError" class="mb-4 rounded-xl bg-red-50 dark:bg-red-900/20 p-3">
-                        <p class="text-sm text-red-700 dark:text-red-400">{{ garminError }}</p>
-                    </div>
-                    <div v-if="garminConnected && !garminError" class="flex items-center gap-3 rounded-xl bg-green-50 dark:bg-green-900/20 px-4 py-3 mb-4">
-                        <svg class="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                        <div class="flex-1 min-w-0">
-                            <p class="text-xs font-medium text-green-800 dark:text-green-300">Verbunden als</p>
-                            <p class="text-xs text-green-700 dark:text-green-400 truncate">{{ garminSavedEmail }}</p>
-                        </div>
-                    </div>
-                    <div v-if="!garminConnected || garminError === 'Sitzung abgelaufen. Bitte erneut einloggen.'" class="space-y-3">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Garmin Connect E-Mail</label>
-                            <input v-model="garminEmail" type="email" autocomplete="email"
-                                class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                placeholder="deine@email.de" />
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Passwort</label>
-                            <input v-model="garminPassword" type="password" autocomplete="current-password"
-                                class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                placeholder="••••••••" />
-                        </div>
-                        <p class="text-xs text-gray-400 dark:text-slate-500">Dein Passwort wird nicht gespeichert — nur ein verschlüsselter Login-Token. Beim nächsten Mal musst du dich nicht mehr einloggen.</p>
-                    </div>
-                    <div class="mt-5 flex gap-3 justify-end">
-                        <button @click="garminModal = false"
-                            class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
-                            Abbrechen
-                        </button>
-                        <button @click="sendToGarminConnect"
-                            :disabled="garminSending || (!garminConnected && (!garminEmail || !garminPassword))"
-                            class="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
-                            <svg v-if="garminSending" class="inline h-4 w-4 animate-spin mr-1" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                            {{ garminSending ? 'Wird übertragen…' : 'Senden' }}
-                        </button>
-                    </div>
-                </template>
-            </div>
-        </Modal>
+        <!-- Zu Garmin senden -->
+        <GarminSendSheet
+            :show="garminModal"
+            :connected="garminConnected"
+            :saved-email="garminSavedEmail"
+            :sending="garminSending"
+            :error="garminError"
+            :success="garminSuccess"
+            success-text="Es erscheint jetzt in Garmin Connect und ist im Kalender für heute eingetragen."
+            @send="sendToGarminConnect"
+            @close="garminModal = false"
+        />
     </AuthenticatedLayout>
 </template>
 

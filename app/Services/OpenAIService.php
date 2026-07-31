@@ -1734,6 +1734,62 @@ PROMPT;
     }
 
     /**
+     * Post-session coach review from the real data of a completed session.
+     * The job assembles $factsBlock (actual metrics, baseline comparison, aerobic
+     * decoupling, wellbeing, training load, weather, athlete rating). The coach
+     * writes a short personal review, highlights anything unusual (e.g. HR higher
+     * than usual) with a plausible cause, and — when a deviation has several
+     * possible reasons — asks ONE follow-up question with tap-answer options.
+     *
+     * @return array{review:string, question:?string, options:array<string>}|null
+     */
+    public function generateSessionReview(\App\Models\User $user, string $sessionLabel, string $factsBlock): ?array
+    {
+        $prompt = <<<PROMPT
+Der Athlet hat gerade eine Trainingseinheit absolviert. Analysiere sie ausschließlich auf Basis der ECHTEN Daten unten und schreibe ein kurzes, persönliches Review.
+
+Absolvierte Einheit: {$sessionLabel}
+
+**Daten:**
+{$factsBlock}
+
+Aufgabe:
+- 2–4 Sätze Review in direkter Ansprache (du). Konkret mit Zahlen aus den Daten, ehrlich und motivierend — niemals generisch.
+- Hebe AUFFÄLLIGKEITEN hervor (z.B. Puls deutlich höher/niedriger als sonst, ungewöhnliche Pace, starke aerobe Entkopplung/Puls-Drift) und nenne eine plausible Ursache aus den Kontextdaten (Schlaf, Stress, Wetter, Ermüdung/Belastung).
+- Hat eine Auffälligkeit MEHRERE plausible Ursachen, stelle dem Athleten EINE kurze, konkrete Rückfrage ("question") und biete 2–4 knappe Antwortoptionen ("options") an (z.B. "Schlecht geschlafen", "Wetter", "Müde Beine", "Alles normal").
+- Gibt es nichts Auffälliges, setze "question" auf null und "options" auf [].
+
+Antworte AUSSCHLIESSLICH mit einem JSON-Objekt, alle Texte auf Deutsch:
+{"review": "…", "question": "… oder null", "options": ["…", "…"]}
+PROMPT;
+
+        $this->forUser($user->id);
+
+        $text = $this->callOpenAI('session_review', [
+            ['role' => 'system', 'content' => $this->buildSystemPrompt('Antworte ausschließlich mit dem angeforderten JSON-Objekt. Alle Texte auf Deutsch.')],
+            ['role' => 'user',   'content' => $prompt],
+        ], 0.6, 1200, 60, $this->modelMini);
+
+        if ($text && preg_match('/\{.*\}/s', $text, $m)) {
+            $data = json_decode($m[0], true);
+            if (json_last_error() === JSON_ERROR_NONE && ! empty($data['review'])) {
+                $question = ! empty($data['question']) && $data['question'] !== 'null' ? trim($data['question']) : null;
+                $options  = (! empty($data['options']) && is_array($data['options']))
+                    ? array_values(array_filter(array_map('trim', $data['options'])))
+                    : [];
+                // A question without options (or vice versa) is not a usable dialog — drop both.
+                if (! $question || empty($options)) {
+                    $question = null;
+                    $options  = [];
+                }
+                return ['review' => trim($data['review']), 'question' => $question, 'options' => $options];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Generate a structured step list for a planned training session.
      * Steps include warmup, work intervals (with repetitions), rest, and cooldown.
      * Returns array of step objects or null on failure.

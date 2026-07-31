@@ -480,6 +480,10 @@ class TrainingPlanController extends Controller
             'rating'           => $s->rating,
             'effort_perceived' => $s->effort_perceived,
             'feeling_notes'    => $s->feeling_notes,
+            'coach_review'     => $s->coach_review,
+            'review_question'  => $s->review_question,
+            'review_options'   => $s->review_options,
+            'review_feedback'  => $s->review_feedback,
             // Real splits from the matched Strava activity (completed sessions only).
             'laps'             => $this->sessionLaps($s),
         ];

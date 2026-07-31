@@ -17,7 +17,24 @@
       "Bash(git push:*)",
       "Bash(sqlite3 database/database.sqlite \".tables\")",
       "Bash(git fetch:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(ls app/Console/Commands)",
+      "Bash(ls app/Http/Middleware)",
+      "Bash(grep -n \"polyline\" resources/js/Pages/Dashboard.vue)",
+      "Bash(grep -n \"polyline\" resources/js/Pages/Calendar.vue)",
+      "Bash(grep -rln \"polyline\" resources/js/)",
+      "Bash(grep -rln \"\\\\blaps\\\\b\" resources/js/)",
+      "Bash(grep -iE \"Tests\\\\\\\\\\\\\\\\|⨯|✗\")",
+      "Bash(grep -vE \"^\\\\s*$\")",
+      "Bash('/c/Program Files/Google/Chrome/Application/chrome.exe' --headless=new --disable-gpu --no-sandbox --hide-scrollbars --force-color-profile=srgb --window-size=760,1000 --user-data-dir=C:/Users/janan/AppData/Local/Temp/claude/c--Users-janan-Desktop-zone3/ebc874d9-e9a5-4fd8-a1fe-910b498364c6/scratchpad/cprofile --screenshot=C:/Users/janan/AppData/Local/Temp/claude/c--Users-janan-Desktop-zone3/ebc874d9-e9a5-4fd8-a1fe-910b498364c6/scratchpad/preview.png file:///C:/Users/janan/AppData/Local/Temp/claude/c--Users-janan-Desktop-zone3/ebc874d9-e9a5-4fd8-a1fe-910b498364c6/scratchpad/preview.html)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(npm run *)",
+      "Bash('/c/Program Files/Google/Chrome/Application/chrome.exe' --headless=new --disable-gpu --no-sandbox --hide-scrollbars --force-color-profile=srgb --window-size=700,520 --user-data-dir=C:/Users/janan/AppData/Local/Temp/claude/c--Users-janan-Desktop-zone3/ebc874d9-e9a5-4fd8-a1fe-910b498364c6/scratchpad/cprofile --screenshot=C:/Users/janan/AppData/Local/Temp/claude/c--Users-janan-Desktop-zone3/ebc874d9-e9a5-4fd8-a1fe-910b498364c6/scratchpad/garmin_card.png file:///C:/Users/janan/AppData/Local/Temp/claude/c--Users-janan-Desktop-zone3/ebc874d9-e9a5-4fd8-a1fe-910b498364c6/scratchpad/garmin_card.html)",
+      "Bash(python -m venv gcvenv)",
+      "Bash(./gcvenv/Scripts/pip install *)",
+      "Bash(./gcvenv/Scripts/python -c ' *)"
     ]
   }
 }

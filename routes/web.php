@@ -301,7 +301,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             if (empty($user->garmin_session)) return null;
 
             $rows = \App\Models\GarminDailyMetric::where('user_id', $user->id)
-                ->where('date', '>=', now()->subDays(30)->toDateString())
+                ->where('date', '>=', now()->subDays(60)->toDateString())
                 ->orderBy('date')
                 ->get([
                     'date', 'hrv', 'resting_hr', 'sleep_hours', 'sleep_score',
@@ -325,6 +325,27 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             ])->values();
 
             return ['latest' => $series->last(), 'series' => $series];
+        })(),
+
+        // Activities for the recovery dashboard's logbook + weekly-km chart (last 60 days).
+        'recoveryActivities' => (function () use ($user) {
+            if (empty($user->garmin_session) && ! $user->stravaAccount) return [];
+
+            return Activity::where('user_id', $user->id)
+                ->where('start_date', '>=', now()->subDays(60))
+                ->orderByDesc('start_date')
+                ->limit(200)
+                ->get(['id', 'name', 'type', 'distance', 'moving_time', 'average_speed', 'average_heartrate', 'start_date'])
+                ->map(fn ($a) => [
+                    'date'        => $a->start_date?->format('Y-m-d'),
+                    'name'        => $a->name,
+                    'type'        => $a->type,
+                    'distance_km' => $a->distance ? round($a->distance / 1000, 2) : null,
+                    'moving_time' => $a->moving_time,
+                    'speed'       => $a->average_speed,   // m/s
+                    'avg_hr'      => $a->average_heartrate,
+                ])
+                ->values();
         })(),
     ]);
 })->middleware(['auth', 'verified', 'onboarding'])->name('dashboard');

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\CalculateThresholdPaceJob;
+use App\Jobs\GenerateSessionReviewJob;
 use App\Jobs\RegeneratePlanJob;
 use App\Models\Activity;
 use App\Models\RunnerProfile;
@@ -242,6 +243,14 @@ class StravaController extends Controller
         $this->dispatchCalculationIfDue($userId, $isRun ? 1 : 0);
         $this->matchActivityToSession($userId, $activity);
         $this->dispatchPlanRegenerationIfNeeded($userId);
+
+        // Generate a coach review for every session this activity just completed.
+        TrainingSession::where('user_id', $userId)
+            ->where('activity_id', $activity->id)
+            ->where('status', 'completed')
+            ->whereNull('reviewed_at')
+            ->pluck('id')
+            ->each(fn ($id) => GenerateSessionReviewJob::dispatch($id)->delay(now()->addSeconds(20)));
         if ($isRun) {
             // Webhook payload is the full activity detail → best_efforts present.
             $newRecords = $bestEfforts->syncFromActivityData($activity, $activityData);

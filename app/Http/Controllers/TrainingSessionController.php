@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\GenerateRacePredictionJob;
+use App\Jobs\GenerateSessionReviewJob;
 use App\Jobs\RegeneratePlanJob;
 use App\Models\TrainingSession;
 use App\Services\OpenAIService;
@@ -23,6 +24,11 @@ class TrainingSessionController extends Controller
         $session->update(['status' => 'completed']);
 
         $this->triggerCoachReaction($session);
+
+        // Coach review of the completed session. Delayed so a matching Strava import
+        // (webhook) can attach the activity first and enrich the review with real
+        // metrics; the job is idempotent (reviewed_at guard) if the webhook wins.
+        GenerateSessionReviewJob::dispatch($session->id)->delay(now()->addSeconds(120));
 
         return response()->json(['session' => $this->formatSession($session)]);
     }
@@ -74,6 +80,34 @@ class TrainingSessionController extends Controller
             'daily_message'        => null,
             'daily_message_date'   => null,
         ]);
+    }
+
+    /**
+     * Store the athlete's answer to the coach's review follow-up question and
+     * remember it on the runner profile so future plan generation picks it up.
+     */
+    public function reviewFeedback(Request $request, TrainingSession $session)
+    {
+        abort_if($session->user_id !== Auth::id(), 403);
+        abort_if(empty($session->review_question), 422);
+
+        $request->validate([
+            'feedback' => 'required|string|max:300',
+        ]);
+
+        $answer = trim($request->input('feedback'));
+        $session->update(['review_feedback' => $answer]);
+
+        // Persist as a coach note → flows into the next plan generation & chat context.
+        $profile = Auth::user()->runnerProfile;
+        if ($profile) {
+            $date     = $session->planned_date->format('d.m.Y');
+            $note     = "Rückmeldung zu \"{$session->review_question}\" ({$session->title}, {$date}): {$answer}";
+            $existing = $profile->coach_notes ?? '';
+            $profile->update(['coach_notes' => trim($existing . "\n- " . $note)]);
+        }
+
+        return response()->json(['session' => $this->formatSession($session->fresh())]);
     }
 
     /**
@@ -907,6 +941,10 @@ XML;
             'rating'           => $s->rating,
             'effort_perceived' => $s->effort_perceived,
             'feeling_notes'    => $s->feeling_notes,
+            'coach_review'     => $s->coach_review,
+            'review_question'  => $s->review_question,
+            'review_options'   => $s->review_options,
+            'review_feedback'  => $s->review_feedback,
             'nutrition_tips'   => $s->nutrition_tips,
             'exercises'        => $s->exercises,
         ];

@@ -1,6 +1,10 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import Modal from '@/Components/Modal.vue';
+import AppSheet from '@/Components/UI/AppSheet.vue';
+import AppButton from '@/Components/UI/AppButton.vue';
+import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
+import EmptyState from '@/Components/UI/EmptyState.vue';
+import GarminSendSheet from '@/Components/UI/GarminSendSheet.vue';
 import SwipeRow from '@/Components/SwipeRow.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
@@ -445,10 +449,32 @@ const feelingNotes = ref('');
 const ratingSaving = ref(false);
 const ratingSaved  = ref(false);
 
-// Garmin Connect modal
+// ── Coach review feedback ─────────────────────────────────────────────────────
+const reviewFeedbackText   = ref('');
+const reviewFeedbackSaving = ref(false);
+
+async function submitReviewFeedback(answer) {
+    if (!detailSession.value || reviewFeedbackSaving.value) return;
+    const value = (answer ?? reviewFeedbackText.value ?? '').trim();
+    if (!value) return;
+    reviewFeedbackSaving.value = true;
+    try {
+        const { data } = await axios.patch(
+            route('training-sessions.review-feedback', detailSession.value.id),
+            { feedback: value },
+        );
+        updateSessionInList(data.session);
+        detailSession.value = data.session;
+        reviewFeedbackText.value = '';
+    } catch {
+        errorMsg.value = 'Antwort konnte nicht gespeichert werden.';
+    } finally {
+        reviewFeedbackSaving.value = false;
+    }
+}
+
+// Garmin Connect sheet
 const garminModal    = ref(false);
-const garminEmail    = ref('');
-const garminPassword = ref('');
 const garminSending  = ref(false);
 const garminSuccess  = ref(false);
 const garminError    = ref('');
@@ -460,19 +486,15 @@ function openGarminModal() {
     garminModal.value    = true;
     garminError.value    = '';
     garminSuccess.value  = false;
-    garminEmail.value    = garminSavedEmail.value || ''; // pre-fill known email
-    garminPassword.value = '';
 }
 
-async function sendToGarminConnect() {
+async function sendToGarminConnect({ email, password } = {}) {
     if (!detailSession.value) return;
     garminSending.value = true;
     garminError.value   = '';
     garminSuccess.value = false;
     try {
-        const payload = garminConnected.value
-            ? {}
-            : { email: garminEmail.value, password: garminPassword.value };
+        const payload = garminConnected.value ? {} : { email, password };
 
         const { data } = await axios.post(
             route('training-sessions.send-to-garmin', detailSession.value.id),
@@ -523,8 +545,7 @@ async function saveRating() {
             effort_perceived: effortValue.value  || null,
             feeling_notes:    feelingNotes.value || null,
         });
-        const idx = sessionList.value.findIndex(s => s.id === data.session.id);
-        if (idx !== -1) sessionList.value[idx] = data.session;
+        updateSessionInList(data.session);
         detailSession.value = data.session;
         ratingSaved.value = true;
         setTimeout(() => ratingSaved.value = false, 2500);
@@ -552,6 +573,7 @@ async function openDetail(session) {
     effortValue.value     = session.effort_perceived || 0;
     feelingNotes.value    = session.feeling_notes    || '';
     ratingSaved.value     = false;
+    reviewFeedbackText.value = '';
 
     // Completed sessions show the real Strava splits instead of planned
     // structure/nutrition — skip all AI generation for them.
@@ -1418,120 +1440,95 @@ const lapHeightPct = computed(() => {
             </template>
         </div>
 
-        <!-- Kein Training modal -->
-        <Modal :show="skipModal" @close="skipModal = false">
-            <div class="p-6 bg-white dark:bg-slate-900">
-                <h2 class="text-lg font-bold text-gray-900 dark:text-white">Kein Training</h2>
-                <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">{{ skipSession?.title }}</p>
-                <div class="mt-4">
-                    <p class="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Grund (optional)</p>
-                    <div class="flex flex-wrap gap-2 mb-3">
-                        <button v-for="r in skipReasons" :key="r" @click="skipReason = r"
-                            class="rounded-lg px-3 py-1.5 text-xs font-medium border transition-colors"
-                            :class="skipReason === r ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 hover:border-gray-300 dark:hover:border-slate-600'"
-                        >{{ r }}</button>
-                    </div>
-                    <input v-model="skipReason" type="text" placeholder="Oder eigenen Grund eingeben..."
-                        class="block w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors"
-                    />
-                </div>
-                <div class="mt-5 flex gap-3 justify-end">
-                    <button @click="skipModal = false" class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">Abbrechen</button>
-                    <button @click="confirmSkip" :disabled="skipLoading" class="rounded-xl bg-gray-700 dark:bg-slate-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors">
-                        <svg v-if="skipLoading" class="inline h-4 w-4 animate-spin mr-1" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                        Bestätigen
-                    </button>
-                </div>
+        <!-- Kein Training -->
+        <AppSheet :show="skipModal" title="Kein Training" :subtitle="skipSession?.title" @close="skipModal = false">
+            <p class="z-label">Grund (optional)</p>
+            <div class="mb-3 flex flex-wrap gap-2">
+                <button v-for="r in skipReasons" :key="r" @click="skipReason = r"
+                    class="rounded-field border px-3 py-1.5 text-xs font-medium transition-colors active:scale-95"
+                    :class="skipReason === r ? 'border-accent bg-accent text-white' : 'border-line text-ink-2 hover:border-line-strong'"
+                >{{ r }}</button>
             </div>
-        </Modal>
+            <input v-model="skipReason" type="text" placeholder="Oder eigenen Grund eingeben…" class="z-input" />
 
-        <!-- ── Workout Picker Modal ─────────────────────────────────────────── -->
-        <Modal :show="workoutPickerModal" @close="workoutPickerModal = false">
-            <div class="p-5 bg-white dark:bg-slate-900">
-                <div class="flex items-center gap-3 mb-4">
-                    <div class="h-9 w-9 rounded-xl bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center shrink-0">
-                        <svg class="h-5 w-5 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
+            <template #footer>
+                <div class="flex gap-3">
+                    <AppButton variant="secondary" block @click="skipModal = false">Abbrechen</AppButton>
+                    <AppButton block :loading="skipLoading" @click="confirmSkip">Bestätigen</AppButton>
+                </div>
+            </template>
+        </AppSheet>
+
+        <!-- ── Workout-Auswahl ──────────────────────────────────────────────── -->
+        <AppSheet
+            :show="workoutPickerModal"
+            title="Eigenes Workout wählen"
+            :subtitle="workoutPickerSession?.title"
+            @close="workoutPickerModal = false"
+        >
+            <!-- Loading -->
+            <div v-if="workoutLibraryLoading" class="flex items-center justify-center gap-2 py-6 text-sm text-ink-3">
+                <svg class="h-4 w-4 shrink-0 animate-spin text-accent" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                Workouts laden…
+            </div>
+
+            <!-- Empty library -->
+            <EmptyState
+                v-else-if="!workoutPickerError && workoutLibrary.length === 0"
+                title="Noch keine Workouts gespeichert"
+                description="Erstelle dein erstes Workout im Workout-Baukasten."
+            >
+                <AppButton :href="route('workouts.create')">Workout erstellen</AppButton>
+            </EmptyState>
+
+            <!-- Workout list -->
+            <div v-else class="space-y-2">
+                <button
+                    v-for="w in workoutLibrary"
+                    :key="w.id"
+                    @click="workoutPickerSelected = w"
+                    class="w-full rounded-card border p-3 text-left transition-colors"
+                    :class="workoutPickerSelected?.id === w.id
+                        ? 'border-accent bg-accent-soft'
+                        : 'border-line hover:border-line-strong'"
+                >
+                    <div class="flex items-start justify-between gap-2">
+                        <span class="text-sm font-semibold leading-snug text-ink">{{ w.name }}</span>
+                        <span class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium bg-surface-2 text-ink-3">{{ workoutTypeLabel[w.type] ?? w.type }}</span>
                     </div>
-                    <div>
-                        <h2 class="text-base font-bold text-gray-900 dark:text-white">Eigenes Workout wählen</h2>
-                        <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{{ workoutPickerSession?.title }}</p>
+                    <div class="mt-1.5 flex gap-3 text-xs text-ink-3">
+                        <span v-if="w.estimated_distance_km">{{ w.estimated_distance_km }} km</span>
+                        <span v-if="w.estimated_duration_min">{{ w.estimated_duration_min }} min</span>
+                        <span v-if="!w.estimated_distance_km && !w.estimated_duration_min">Keine Zeitangabe</span>
                     </div>
-                </div>
+                </button>
+            </div>
 
-                <!-- Loading -->
-                <div v-if="workoutLibraryLoading" class="flex items-center gap-2 py-6 justify-center text-sm text-gray-400 dark:text-slate-500">
-                    <svg class="h-4 w-4 animate-spin text-indigo-400 shrink-0" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                    Workouts laden…
-                </div>
+            <p v-if="workoutPickerError" class="mt-3 text-sm text-danger">{{ workoutPickerError }}</p>
 
-                <!-- Empty library -->
-                <div v-else-if="!workoutPickerError && workoutLibrary.length === 0" class="py-8 text-center">
-                    <p class="text-sm font-medium text-gray-700 dark:text-slate-300">Noch keine Workouts gespeichert</p>
-                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">Erstelle dein erstes Workout im Workout-Baukasten.</p>
-                    <Link :href="route('workouts.create')" class="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors">
-                        Workout erstellen
-                    </Link>
-                </div>
-
-                <!-- Workout list -->
-                <div v-else-if="!workoutLibraryLoading" class="space-y-2 max-h-72 overflow-y-auto pr-1">
-                    <button
-                        v-for="w in workoutLibrary"
-                        :key="w.id"
-                        @click="workoutPickerSelected = w"
-                        class="w-full text-left p-3 rounded-xl border transition-colors"
-                        :class="workoutPickerSelected?.id === w.id
-                            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10'
-                            : 'border-gray-100 dark:border-slate-700 hover:border-gray-200 dark:hover:border-slate-600 bg-white dark:bg-slate-900'"
-                    >
-                        <div class="flex items-start justify-between gap-2">
-                            <span class="text-sm font-semibold text-gray-900 dark:text-white leading-snug">{{ w.name }}</span>
-                            <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 shrink-0">{{ workoutTypeLabel[w.type] ?? w.type }}</span>
-                        </div>
-                        <div class="flex gap-3 mt-1.5 text-xs text-gray-400 dark:text-slate-500">
-                            <span v-if="w.estimated_distance_km">{{ w.estimated_distance_km }} km</span>
-                            <span v-if="w.estimated_duration_min">{{ w.estimated_duration_min }} min</span>
-                            <span v-if="!w.estimated_distance_km && !w.estimated_duration_min">Keine Zeitangabe</span>
-                        </div>
-                    </button>
-                </div>
-
-                <p v-if="workoutPickerError" class="mt-3 text-sm text-red-600 dark:text-red-400">{{ workoutPickerError }}</p>
-
-                <div class="mt-5 flex gap-3 justify-end">
-                    <button @click="workoutPickerModal = false" class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">Abbrechen</button>
-                    <button
-                        @click="applyWorkout"
-                        :disabled="!workoutPickerSelected || workoutApplying"
-                        class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                    >
-                        <svg v-if="workoutApplying" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+            <template #footer>
+                <div class="flex gap-3">
+                    <AppButton variant="secondary" block @click="workoutPickerModal = false">Abbrechen</AppButton>
+                    <AppButton block :disabled="!workoutPickerSelected" :loading="workoutApplying" @click="applyWorkout">
                         Workout übernehmen
-                    </button>
+                    </AppButton>
                 </div>
-            </div>
-        </Modal>
+            </template>
+        </AppSheet>
 
-        <!-- ── Session Detail Modal ───────────────────────────────────────── -->
-        <Modal :show="!!detailSession" @close="detailSession = null">
-            <div v-if="detailSession" class="bg-white dark:bg-slate-900 overflow-y-auto"
-                 style="max-height: min(88dvh, 88vh)">
+        <!-- ── Session-Detail ─────────────────────────────────────────────── -->
+        <AppSheet :show="!!detailSession" tall @close="detailSession = null">
+            <template #header>
+                <span v-if="detailSession" class="rounded-full px-2 py-0.5 text-xs font-semibold" :class="typeOf(detailSession.type).badge">
+                    {{ typeOf(detailSession.type).label }}
+                </span>
+                <h2 v-if="detailSession" class="mt-2 text-lg font-bold leading-snug text-ink">{{ detailSession.title }}</h2>
+                <p v-if="detailSession" class="mt-0.5 text-sm text-ink-3">{{ formatDate(detailSession.planned_date) }}</p>
+            </template>
 
-                <!-- Header -->
-                <div class="flex items-start justify-between px-5 pt-5 pb-4 border-b border-gray-100 dark:border-slate-800">
-                    <div class="flex-1 min-w-0 pr-3">
-                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full" :class="typeOf(detailSession.type).badge">
-                            {{ typeOf(detailSession.type).label }}
-                        </span>
-                        <h2 class="mt-2 text-lg font-bold text-gray-900 dark:text-white leading-snug">{{ detailSession.title }}</h2>
-                        <p class="text-sm text-gray-500 dark:text-slate-400 mt-0.5">{{ formatDate(detailSession.planned_date) }}</p>
-                    </div>
-                    <button @click="detailSession = null" class="shrink-0 h-8 w-8 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
-                        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/></svg>
-                    </button>
-                </div>
+            <div v-if="detailSession" class="-mx-5">
 
-                <div class="px-5 py-4 space-y-4">
+                <div class="space-y-4 px-5 py-4">
 
                     <!-- Description -->
                     <p v-if="detailSession.description" class="text-sm text-gray-600 dark:text-slate-400 leading-relaxed">{{ detailSession.description }}</p>
@@ -1639,6 +1636,50 @@ const lapHeightPct = computed(() => {
                                         </div>
                                     </template>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Coach-Review (nach absolvierter Einheit, KI-generiert) -->
+                    <div v-if="isCompletedSession && detailSession.coach_review"
+                         class="rounded-xl border border-indigo-100 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10 overflow-hidden">
+                        <div class="flex items-center gap-2 px-3.5 py-2 border-b border-indigo-100 dark:border-indigo-500/20">
+                            <span class="text-sm">📋</span>
+                            <span class="text-xs font-bold text-indigo-800 dark:text-indigo-300 uppercase tracking-wide">{{ coachName }} · Review</span>
+                        </div>
+                        <div class="px-3.5 py-3 space-y-3">
+                            <p class="text-sm text-indigo-900 dark:text-indigo-200 leading-relaxed whitespace-pre-line">{{ detailSession.coach_review }}</p>
+
+                            <!-- Rückfrage + Antwort-Chips (solange nicht beantwortet) -->
+                            <div v-if="detailSession.review_question && !detailSession.review_feedback" class="pt-1 border-t border-indigo-100 dark:border-indigo-500/20">
+                                <p class="text-sm font-semibold text-indigo-900 dark:text-indigo-200 mt-2 mb-2">{{ detailSession.review_question }}</p>
+                                <div v-if="detailSession.review_options && detailSession.review_options.length" class="flex flex-wrap gap-1.5 mb-2">
+                                    <button v-for="opt in detailSession.review_options" :key="opt"
+                                        @click="submitReviewFeedback(opt)"
+                                        :disabled="reviewFeedbackSaving"
+                                        class="text-xs font-semibold px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors disabled:opacity-50">
+                                        {{ opt }}
+                                    </button>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <input v-model="reviewFeedbackText" type="text" maxlength="300"
+                                        placeholder="…oder eigene Antwort"
+                                        @keyup.enter="submitReviewFeedback()"
+                                        class="flex-1 text-xs rounded-lg border-indigo-200 dark:border-indigo-500/30 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-indigo-500 focus:border-indigo-500" />
+                                    <button @click="submitReviewFeedback()" :disabled="reviewFeedbackSaving || !reviewFeedbackText.trim()"
+                                        class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50">
+                                        Senden
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Beantwortet -->
+                            <div v-else-if="detailSession.review_feedback" class="pt-1 border-t border-indigo-100 dark:border-indigo-500/20">
+                                <p v-if="detailSession.review_question" class="text-sm font-semibold text-indigo-900 dark:text-indigo-200 mt-2">{{ detailSession.review_question }}</p>
+                                <p class="text-xs text-indigo-700 dark:text-indigo-300 mt-1 flex items-center gap-1.5">
+                                    <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                                    Deine Antwort: <span class="font-semibold">{{ detailSession.review_feedback }}</span>
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -1787,127 +1828,55 @@ const lapHeightPct = computed(() => {
                     </button>
                 </div>
 
-                <!-- Erledigt-Footer (Kraft/Core manuell abhaken — kein Strava-Tracking) -->
-                <div v-if="detailIsStrength && detailSession.status === 'planned' && !isPastEvent"
-                     class="px-5 pb-5 border-t border-gray-100 dark:border-slate-800 pt-4">
-                    <button @click="completeSession(detailSession)" :disabled="completingId === detailSession.id"
-                        class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2.5 disabled:opacity-50 transition-colors"
-                    >
-                        <svg v-if="completingId === detailSession.id" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                        <svg v-else class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                        Als erledigt markieren
-                    </button>
-                </div>
-
-                <!-- Download footer (nur Lauf-Einheiten — Kraft/Core wird nicht an Garmin gesendet) -->
-                <div v-if="!detailIsStrength" class="px-5 pb-5 border-t border-gray-100 dark:border-slate-800 pt-4">
-                    <p class="text-xs text-gray-400 dark:text-slate-500 mb-3">Workout für Garmin</p>
-                    <div class="flex flex-col gap-2">
-                        <!-- Send to Garmin Connect -->
-                        <button @click="openGarminModal"
-                            class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 transition-colors"
-                        >
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-                            </svg>
-                            Zu Garmin Connect senden
-                        </button>
-                    </div>
-                </div>
             </div>
-        </Modal>
 
-        <!-- Cancel plan modal -->
-        <Modal :show="cancelModal" @close="cancelModal = false">
-            <div class="p-6 bg-white dark:bg-slate-900">
-                <h2 class="text-lg font-bold text-gray-900 dark:text-white">Plan wirklich abbrechen?</h2>
-                <p class="mt-2 text-sm text-gray-500 dark:text-slate-400">
-                    Der Plan wird deaktiviert. Deine bereits absolvierten Einheiten bleiben erhalten.
-                    Du kannst danach für jedes Event einen neuen Plan erstellen.
-                </p>
-                <div class="mt-5 flex gap-3 justify-end">
-                    <button @click="cancelModal = false"
-                        class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
-                        Nicht abbrechen
-                    </button>
-                    <button @click="cancelPlan" :disabled="cancelLoading"
-                        class="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
-                        <svg v-if="cancelLoading" class="inline h-4 w-4 animate-spin mr-1" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                        Ja, Plan abbrechen
-                    </button>
-                </div>
-            </div>
-        </Modal>
+            <!-- Aktionen -->
+            <template v-if="detailSession" #footer>
+                <!-- Kraft/Core manuell abhaken — kein Strava-Tracking -->
+                <AppButton
+                    v-if="detailIsStrength && detailSession.status === 'planned' && !isPastEvent"
+                    block
+                    :loading="completingId === detailSession.id"
+                    @click="completeSession(detailSession)"
+                >
+                    Als erledigt markieren
+                </AppButton>
 
-        <!-- Garmin Connect Modal -->
-        <Modal :show="garminModal" @close="garminModal = false">
-            <div class="p-6 bg-white dark:bg-slate-900">
-                <div class="flex items-center gap-3 mb-4">
-                    <div class="h-10 w-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                        <svg class="h-5 w-5 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-                        </svg>
-                    </div>
-                    <div>
-                        <h2 class="text-base font-bold text-gray-900 dark:text-white">Zu Garmin Connect senden</h2>
-                        <p class="text-xs text-gray-500 dark:text-slate-400">Das Workout erscheint in deiner Garmin Connect Bibliothek</p>
-                    </div>
-                </div>
+                <!-- Nur Lauf-Einheiten — Kraft/Core geht nicht an Garmin -->
+                <AppButton v-else-if="!detailIsStrength" block @click="openGarminModal">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                    </svg>
+                    Zu Garmin Connect senden
+                </AppButton>
+            </template>
+        </AppSheet>
 
-                <!-- Success -->
-                <div v-if="garminSuccess" class="rounded-xl bg-green-50 dark:bg-green-900/20 p-4 text-center">
-                    <svg class="h-8 w-8 text-green-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                    <p class="text-sm font-semibold text-green-700 dark:text-green-400">Workout erfolgreich übertragen!</p>
-                    <p class="text-xs text-green-600 dark:text-green-500 mt-1">Es erscheint jetzt in Garmin Connect und ist im Kalender für heute eingetragen.</p>
-                </div>
+        <!-- Plan abbrechen -->
+        <ConfirmSheet
+            :show="cancelModal"
+            title="Plan wirklich abbrechen?"
+            message="Der Plan wird deaktiviert. Deine bereits absolvierten Einheiten bleiben erhalten. Du kannst danach für jedes Event einen neuen Plan erstellen."
+            cancel-label="Nicht abbrechen"
+            confirm-label="Ja, Plan abbrechen"
+            :loading="cancelLoading"
+            @confirm="cancelPlan"
+            @close="cancelModal = false"
+        />
 
-                <template v-else>
-                    <!-- Error -->
-                    <div v-if="garminError" class="mb-4 rounded-xl bg-red-50 dark:bg-red-900/20 p-3">
-                        <p class="text-sm text-red-700 dark:text-red-400">{{ garminError }}</p>
-                    </div>
-
-                    <!-- Already connected: no credentials needed -->
-                    <div v-if="garminConnected && !garminError" class="flex items-center gap-3 rounded-xl bg-green-50 dark:bg-green-900/20 px-4 py-3 mb-4">
-                        <svg class="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                        <div class="flex-1 min-w-0">
-                            <p class="text-xs font-medium text-green-800 dark:text-green-300">Verbunden als</p>
-                            <p class="text-xs text-green-700 dark:text-green-400 truncate">{{ garminSavedEmail }}</p>
-                        </div>
-                        <button @click="garminDisconnect" class="text-xs text-green-600 dark:text-green-400 hover:underline shrink-0">Trennen</button>
-                    </div>
-
-                    <!-- Credential form (shown when not connected or after session expiry) -->
-                    <div v-if="!garminConnected || garminError === 'Sitzung abgelaufen. Bitte erneut einloggen.'" class="space-y-3">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Garmin Connect E-Mail</label>
-                            <input v-model="garminEmail" type="email" autocomplete="email"
-                                class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                placeholder="deine@email.de" />
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Passwort</label>
-                            <input v-model="garminPassword" type="password" autocomplete="current-password"
-                                class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                placeholder="••••••••" />
-                        </div>
-                        <p class="text-xs text-gray-400 dark:text-slate-500">Zugangsdaten werden verschlüsselt gespeichert — beim nächsten Mal musst du dich nicht mehr einloggen.</p>
-                    </div>
-
-                    <div class="mt-5 flex gap-3 justify-end">
-                        <button @click="garminModal = false"
-                            class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
-                            Abbrechen
-                        </button>
-                        <button @click="sendToGarminConnect"
-                            :disabled="garminSending || (!garminConnected && (!garminEmail || !garminPassword))"
-                            class="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
-                            <svg v-if="garminSending" class="inline h-4 w-4 animate-spin mr-1" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                            {{ garminSending ? 'Wird übertragen…' : 'Senden' }}
-                        </button>
-                    </div>
-                </template>
-            </div>
-        </Modal>
+        <!-- Zu Garmin senden -->
+        <GarminSendSheet
+            :show="garminModal"
+            :connected="garminConnected"
+            :saved-email="garminSavedEmail"
+            :sending="garminSending"
+            :error="garminError"
+            :success="garminSuccess"
+            success-text="Es erscheint jetzt in Garmin Connect und ist im Kalender für heute eingetragen."
+            with-disconnect
+            @send="sendToGarminConnect"
+            @disconnect="garminDisconnect"
+            @close="garminModal = false"
+        />
     </AuthenticatedLayout>
 </template>

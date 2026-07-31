@@ -87,10 +87,44 @@
       "Bash(grep \"STRAVA_CLIENT_ID\" .env)",
       "Bash(Get-ChildItem -Path . -Depth 1)",
       "Bash(Select-Object Name, PSIsContainer)",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(php -l tests/Feature/RaceTest.php)",
+      "Bash(php -l tests/Feature/ThresholdPaceTest.php)",
+      "Bash(php -l tests/Feature/CoachToolTest.php)",
+      "Bash(php -l tests/Feature/ReturnToRunTest.php)",
+      "Bash(php -l tests/Feature/WrappedTest.php)",
+      "Bash(python -m py_compile app.py)",
+      "Bash(git check-ignore *)",
+      "Bash(php -l app/Models/Event.php)",
+      "Bash(php -l app/Http/Controllers/EventController.php)",
+      "Bash(composer test *)",
+      "Bash(git commit *)",
+      "Bash(python3 -)",
+      "Bash(php -l app/Jobs/GenerateEventTrainingPlanJob.php)",
+      "Bash(php -l app/Console/Commands/AutoUpdatePlans.php)",
+      "Bash(php -l app/Jobs/RegeneratePlanJob.php)",
+      "Bash(php -l app/Models/TrainingSession.php)",
+      "PowerShell(npm run build 2>&1)",
+      "PowerShell(php -l app/Http/Controllers/TrainingSessionController.php)",
+      "PowerShell(php -l app/Services/OpenAIService.php)",
+      "PowerShell(git reset)",
+      "PowerShell(git add app/Http/Controllers/TrainingSessionController.php app/Services/OpenAIService.php resources/js/Pages/Events/Plan.vue)",
+      "PowerShell(php -l app/Jobs/GenerateEventTrainingPlanJob.php)",
+      "PowerShell(php -l app/Jobs/RegeneratePlanJob.php)",
+      "Bash(php -l app/Services/OpenAIService.php)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(php artisan *)",
+      "Bash(npm run *)",
+      "Bash(php -l app/Http/Controllers/ProfileController.php)",
+      "Skill(dataviz)",
+      "Skill(dataviz:*)",
+      "Bash(\"/c/Program Files/Google/Chrome/Application/chrome.exe\" --headless --disable-gpu --hide-scrollbars --force-color-profile=srgb --window-size=760,900 --screenshot=preview.png \"file:///C:/Users/janan/AppData/Local/Temp/claude/c--Users-janan-Desktop-zone3/ebc874d9-e9a5-4fd8-a1fe-910b498364c6/scratchpad/preview.html\")"
     ],
     "additionalDirectories": [
-      "c:\\Users\\janan\\.claude\\projects\\c--Users-janan-Desktop-zone3\\memory"
+      "c:\\Users\\janan\\.claude\\projects\\c--Users-janan-Desktop-zone3\\memory",
+      "C:\\Users\\janan\\Desktop\\zone3\\.git"
     ]
   }
 }

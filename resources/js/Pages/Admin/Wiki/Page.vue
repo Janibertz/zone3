@@ -2,6 +2,7 @@
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
+import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 
 const props = defineProps({
     page:       Object,
@@ -135,17 +136,15 @@ const categoryColors = {
                 </div>
             </div>
 
-            <!-- Delete confirm -->
-            <div v-if="confirmDel" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-                <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm p-6">
-                    <h3 class="text-base font-bold text-gray-900 dark:text-white mb-2">Seite löschen?</h3>
-                    <p class="text-sm text-gray-500 dark:text-slate-400">„{{ page.title }}" wird dauerhaft gelöscht.</p>
-                    <div class="mt-5 flex gap-3 justify-end">
-                        <button @click="confirmDel = false" class="px-4 py-2 rounded-xl text-sm text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors">Abbrechen</button>
-                        <button @click="deletePage" class="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors">Löschen</button>
-                    </div>
-                </div>
-            </div>
+            <!-- Seite löschen -->
+            <ConfirmSheet
+                :show="confirmDel"
+                title="Seite löschen?"
+                :message="`„${page.title}“ wird dauerhaft gelöscht.`"
+                confirm-label="Löschen"
+                @confirm="deletePage"
+                @close="confirmDel = false"
+            />
 
             <!-- Edit mode -->
             <div v-if="editing" class="space-y-4">

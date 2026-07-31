@@ -1,6 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import Modal from '@/Components/Modal.vue';
+import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 
@@ -205,23 +205,15 @@ const filterOptions = [
             </div>
         </div>
 
-        <!-- Delete confirmation modal -->
-        <Modal :show="!!deleteTarget" @close="deleteTarget = null">
-            <div class="p-4 sm:p-6 space-y-4">
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Nutzer löschen</h3>
-                <p class="text-gray-600 dark:text-slate-400">
-                    Soll <strong class="text-gray-900 dark:text-white">{{ deleteTarget?.name }}</strong> wirklich unwiderruflich gelöscht werden? Alle Daten dieses Nutzers werden entfernt.
-                </p>
-                <div class="flex justify-end gap-3">
-                    <button @click="deleteTarget = null" class="px-4 py-2 text-sm rounded-xl border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
-                        Abbrechen
-                    </button>
-                    <button @click="deleteUser" class="px-4 py-2 text-sm rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold transition-colors">
-                        Ja, löschen
-                    </button>
-                </div>
-            </div>
-        </Modal>
+        <!-- Delete confirmation -->
+        <ConfirmSheet
+            :show="!!deleteTarget"
+            title="Nutzer löschen"
+            :message="`Soll ${deleteTarget?.name} wirklich unwiderruflich gelöscht werden? Alle Daten dieses Nutzers werden entfernt.`"
+            confirm-label="Ja, löschen"
+            @confirm="deleteUser"
+            @close="deleteTarget = null"
+        />
     </AdminLayout>
 </template>
 

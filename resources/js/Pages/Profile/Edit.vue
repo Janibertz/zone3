@@ -2,7 +2,9 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm, usePage, Link } from '@inertiajs/vue3';
 import InputError from '@/Components/InputError.vue';
-import Modal from '@/Components/Modal.vue';
+import AppSheet from '@/Components/UI/AppSheet.vue';
+import AppButton from '@/Components/UI/AppButton.vue';
+import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import axios from 'axios';
 
@@ -1287,84 +1289,62 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
             </div>
         </div>
 
-        <!-- Strava disconnect modal -->
-        <Modal :show="confirmStravaDisconnect" @close="confirmStravaDisconnect = false">
-            <div class="p-6 bg-white dark:bg-slate-900">
-                <h2 class="text-lg font-bold text-gray-900 dark:text-white">Strava wirklich trennen?</h2>
-                <p class="mt-2 text-sm text-gray-500 dark:text-slate-400">Die Verbindung wird entfernt und alle importierten Aktivitäten werden aus Zone3 gelöscht. Deine Daten auf Strava bleiben unverändert.</p>
-                <div class="mt-5 flex gap-3 justify-end">
-                    <button @click="confirmStravaDisconnect = false" class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">Abbrechen</button>
-                    <button @click="disconnectStrava" :disabled="stravaDisconnectForm.processing" class="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 transition-colors">Ja, trennen</button>
-                </div>
-            </div>
-        </Modal>
+        <!-- Strava trennen -->
+        <ConfirmSheet
+            :show="confirmStravaDisconnect"
+            title="Strava wirklich trennen?"
+            message="Die Verbindung wird entfernt und alle importierten Aktivitäten werden aus Zone3 gelöscht. Deine Daten auf Strava bleiben unverändert."
+            confirm-label="Ja, trennen"
+            :loading="stravaDisconnectForm.processing"
+            @confirm="disconnectStrava"
+            @close="confirmStravaDisconnect = false"
+        />
 
-        <!-- Delete confirmation modal -->
-        <Modal :show="confirmingDeletion" @close="closeDeleteModal">
-            <div class="p-6 bg-white dark:bg-slate-900">
-                <h2 class="text-lg font-bold text-gray-900 dark:text-white">Konto wirklich löschen?</h2>
-                <p class="mt-2 text-sm text-gray-500 dark:text-slate-400">Diese Aktion kann nicht rückgängig gemacht werden. Gib dein Passwort ein um zu bestätigen.</p>
-                <div class="mt-5">
-                    <input ref="deletePasswordInput" v-model="deleteForm.password" type="password" placeholder="Passwort eingeben" @keyup.enter="deleteAccount" :class="inputClass.replace('focus:border-indigo-400', 'focus:border-red-400').replace('focus:ring-indigo-100', 'focus:ring-red-100')" />
-                    <InputError :message="deleteForm.errors.password" class="mt-1.5" />
-                </div>
-                <div class="mt-5 flex gap-3 justify-end">
-                    <button @click="closeDeleteModal" class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">Abbrechen</button>
-                    <button @click="deleteAccount" :disabled="deleteForm.processing" class="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 transition-colors">Ja, löschen</button>
-                </div>
+        <!-- Konto löschen -->
+        <ConfirmSheet
+            :show="confirmingDeletion"
+            title="Konto wirklich löschen?"
+            message="Diese Aktion kann nicht rückgängig gemacht werden. Gib dein Passwort ein um zu bestätigen."
+            confirm-label="Ja, löschen"
+            :loading="deleteForm.processing"
+            @confirm="deleteAccount"
+            @close="closeDeleteModal"
+        >
+            <div class="mt-4">
+                <input
+                    ref="deletePasswordInput"
+                    v-model="deleteForm.password"
+                    type="password"
+                    placeholder="Passwort eingeben"
+                    class="z-input focus:border-danger focus:ring-danger/20"
+                    @keyup.enter="deleteAccount"
+                />
+                <InputError :message="deleteForm.errors.password" class="mt-1.5" />
             </div>
-        </Modal>
+        </ConfirmSheet>
 
     </AuthenticatedLayout>
 
-    <!-- ══ CROP MODAL ══ -->
-    <Teleport to="body">
-        <Transition
-            enter-active-class="transition duration-200"
-            enter-from-class="opacity-0"
-            leave-active-class="transition duration-150"
-            leave-to-class="opacity-0"
-        >
-            <div v-if="showCropModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-                <div class="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden">
+    <!-- ══ PROFILBILD ZUSCHNEIDEN ══ -->
+    <AppSheet :show="showCropModal" title="Profilbild zuschneiden" @close="closeCropModal">
+        <div class="-mx-5 bg-black" style="height: 340px;">
+            <img
+                ref="cropperEl"
+                :src="cropImageSrc"
+                alt="Bild zuschneiden"
+                class="block max-w-full"
+                style="max-height: 340px;"
+            />
+        </div>
+        <p class="py-3 text-center text-xs text-ink-3">Verschieben und zoomen um den Ausschnitt anzupassen</p>
 
-                    <!-- Header -->
-                    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-slate-800">
-                        <h3 class="text-base font-semibold text-gray-900 dark:text-white">Profilbild zuschneiden</h3>
-                        <button @click="closeCropModal" class="h-8 w-8 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center justify-center transition-colors text-sm">✕</button>
-                    </div>
-
-                    <!-- Cropper area -->
-                    <div class="relative bg-gray-950" style="height: 340px;">
-                        <img
-                            ref="cropperEl"
-                            :src="cropImageSrc"
-                            alt="Bild zuschneiden"
-                            class="block max-w-full"
-                            style="max-height: 340px;"
-                        />
-                    </div>
-
-                    <!-- Hint -->
-                    <p class="text-xs text-gray-400 dark:text-slate-500 text-center py-2">Verschieben und zoomen um den Ausschnitt anzupassen</p>
-
-                    <!-- Actions -->
-                    <div class="flex items-center gap-3 px-5 py-4 border-t border-gray-100 dark:border-slate-800">
-                        <button
-                            @click="closeCropModal"
-                            class="flex-1 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
-                        >Abbrechen</button>
-                        <button
-                            @click="confirmCrop"
-                            :disabled="avatarUploading"
-                            class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                        >
-                            <svg v-if="avatarUploading" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                            {{ avatarUploading ? 'Wird hochgeladen...' : 'Zuschneiden & Speichern' }}
-                        </button>
-                    </div>
-                </div>
+        <template #footer>
+            <div class="flex gap-3">
+                <AppButton variant="secondary" block @click="closeCropModal">Abbrechen</AppButton>
+                <AppButton block :loading="avatarUploading" @click="confirmCrop">
+                    {{ avatarUploading ? 'Wird hochgeladen…' : 'Zuschneiden & Speichern' }}
+                </AppButton>
             </div>
-        </Transition>
-    </Teleport>
+        </template>
+    </AppSheet>
 </template>

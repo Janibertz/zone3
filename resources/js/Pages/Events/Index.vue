@@ -1,6 +1,8 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import Modal from '@/Components/Modal.vue';
+import AppSheet from '@/Components/UI/AppSheet.vue';
+import AppButton from '@/Components/UI/AppButton.vue';
+import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import SwipeRow from '@/Components/SwipeRow.vue';
 import { Head, useForm, router, usePage } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
@@ -421,146 +423,112 @@ watch(() => form.race_distance, (val) => {
 
         </div>
 
-        <!-- ── Create/Edit Modal ─────────────────────────────────────────── -->
-        <Modal :show="showModal" @close="closeModal" max-width="lg">
-            <div class="p-5 sm:p-6 bg-white dark:bg-slate-900">
-                <h2 class="text-base font-bold text-gray-900 dark:text-white mb-5">
-                    {{ editingEvent ? 'Event bearbeiten' : 'Neues Event' }}
-                </h2>
-
-                <form @submit.prevent="submitForm" class="space-y-4">
-                    <!-- Priority -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Priorität</label>
-                        <div class="grid grid-cols-3 gap-2">
-                            <button v-for="p in ['A','B','C']" :key="p" type="button"
-                                @click="form.priority = p"
-                                class="rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition-all"
-                                :class="form.priority === p
-                                    ? (p === 'A' ? 'border-red-500 bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-400' : p === 'B' ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400' : 'border-gray-400 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300')
-                                    : 'border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:border-gray-300'"
-                            >
-                                <div class="font-bold text-lg">{{ p }}</div>
-                                <div class="text-xs mt-0.5">{{ p === 'A' ? 'Hauptrennen' : p === 'B' ? 'Wichtig' : 'Training' }}</div>
-                            </button>
-                        </div>
-                        <p v-if="form.errors.priority" class="mt-1 text-xs text-red-500">{{ form.errors.priority }}</p>
-                    </div>
-
-                    <!-- Name -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Name</label>
-                        <input v-model="form.name" type="text" required placeholder="z.B. Halbmarathon Berlin"
-                            class="block w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors"
-                        />
-                        <p v-if="form.errors.name" class="mt-1 text-xs text-red-500">{{ form.errors.name }}</p>
-                    </div>
-
-                    <!-- Distance + Date -->
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Distanz</label>
-                            <select v-model="form.race_distance"
-                                class="block w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors"
-                            >
-                                <option v-for="d in raceDistances" :key="d.value" :value="d.value">{{ d.label }}</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Datum</label>
-                            <input v-model="form.event_date" type="date" required
-                                class="block w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors"
-                            />
-                            <p v-if="form.errors.event_date" class="mt-1 text-xs text-red-500">{{ form.errors.event_date }}</p>
-                        </div>
-                    </div>
-
-                    <!-- Custom distance km -->
-                    <div v-if="form.race_distance === 'custom'">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Distanz in km</label>
-                        <input v-model="form.distance_km" type="number" step="0.1" min="0.1" placeholder="z.B. 15"
-                            class="block w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors"
-                        />
-                    </div>
-
-                    <!-- Backyard Ultra: goal in hours/yards -->
-                    <div v-if="isBackyard">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Ziel: Anzahl Stunden (Yards)</label>
-                        <div class="flex items-center gap-2">
-                            <input v-model="form.target_yards" type="number" step="1" min="1" max="100" placeholder="z.B. 24"
-                                class="block w-32 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors"
-                            />
-                            <span class="text-sm text-gray-500 dark:text-slate-400">
-                                Std<template v-if="backyardTargetKm"> · ≈ {{ backyardTargetKm }} km</template>
-                            </span>
-                        </div>
-                        <p class="mt-1.5 text-xs text-gray-400 dark:text-slate-500">1 Yard = 1 Stunde = eine 6,706-km-Runde. Jede Runde startet zur vollen Stunde.</p>
-                        <p v-if="form.errors.target_yards" class="mt-1 text-xs text-red-500">{{ form.errors.target_yards }}</p>
-                    </div>
-
-                    <!-- Target time (not for Backyard) -->
-                    <div v-if="!isBackyard">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Zielzeit <span class="text-gray-400 font-normal">(optional)</span></label>
-                        <div class="flex items-center gap-2">
-                            <select v-model.number="form.target_time_hours"
-                                class="rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors"
-                            >
-                                <option v-for="h in hoursOptions" :key="h" :value="h">{{ h }}h</option>
-                            </select>
-                            <select v-model.number="form.target_time_minutes"
-                                class="rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors"
-                            >
-                                <option v-for="m in minutesOptions" :key="m" :value="m">{{ String(m).padStart(2,'0') }} min</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Notes -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Notizen <span class="text-gray-400 font-normal">(optional)</span></label>
-                        <textarea v-model="form.notes" rows="2" placeholder="z.B. Kurs, Hotel, Motivation..."
-                            class="block w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors resize-none"
-                        />
-                    </div>
-
-                    <div class="flex gap-3 justify-end pt-1">
-                        <button type="button" @click="closeModal"
-                            class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+        <!-- ── Create/Edit Sheet ─────────────────────────────────────────── -->
+        <AppSheet
+            :show="showModal"
+            :title="editingEvent ? 'Event bearbeiten' : 'Neues Event'"
+            max-width="lg"
+            @close="closeModal"
+        >
+            <form id="event-form" @submit.prevent="submitForm" class="space-y-4 pt-1">
+                <!-- Priority -->
+                <div>
+                    <label class="z-label">Priorität</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button v-for="p in ['A','B','C']" :key="p" type="button"
+                            @click="form.priority = p"
+                            class="rounded-field border-2 px-3 py-2.5 text-sm font-semibold transition-all active:scale-[0.98]"
+                            :class="form.priority === p
+                                ? (p === 'A' ? 'border-danger bg-danger-soft text-danger-ink' : p === 'B' ? 'border-warn bg-warn-soft text-warn-ink' : 'border-line-strong bg-surface-2 text-ink')
+                                : 'border-line text-ink-3 hover:border-line-strong'"
                         >
-                            Abbrechen
-                        </button>
-                        <button type="submit" :disabled="form.processing"
-                            class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
-                        >
-                            <svg v-if="form.processing" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                            {{ editingEvent ? 'Speichern' : 'Event erstellen' }}
+                            <div class="text-lg font-bold">{{ p }}</div>
+                            <div class="mt-0.5 text-xs">{{ p === 'A' ? 'Hauptrennen' : p === 'B' ? 'Wichtig' : 'Training' }}</div>
                         </button>
                     </div>
-                </form>
-            </div>
-        </Modal>
-
-        <!-- ── Delete confirm modal ──────────────────────────────────────── -->
-        <Modal :show="!!confirmingDelete" @close="confirmingDelete = null">
-            <div class="p-6 bg-white dark:bg-slate-900">
-                <h2 class="text-lg font-bold text-gray-900 dark:text-white">Event löschen?</h2>
-                <p class="mt-2 text-sm text-gray-500 dark:text-slate-400">
-                    <strong>{{ confirmingDelete?.name }}</strong> und der zugehörige Trainingsplan werden dauerhaft gelöscht.
-                </p>
-                <div class="mt-5 flex gap-3 justify-end">
-                    <button @click="confirmingDelete = null"
-                        class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
-                    >
-                        Abbrechen
-                    </button>
-                    <button @click="deleteEvent(confirmingDelete)"
-                        class="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 transition-colors"
-                    >
-                        Ja, löschen
-                    </button>
+                    <p v-if="form.errors.priority" class="z-error">{{ form.errors.priority }}</p>
                 </div>
-            </div>
-        </Modal>
+
+                <!-- Name -->
+                <div>
+                    <label class="z-label">Name</label>
+                    <input v-model="form.name" type="text" required placeholder="z.B. Halbmarathon Berlin" class="z-input" />
+                    <p v-if="form.errors.name" class="z-error">{{ form.errors.name }}</p>
+                </div>
+
+                <!-- Distance + Date -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="z-label">Distanz</label>
+                        <select v-model="form.race_distance" class="z-input">
+                            <option v-for="d in raceDistances" :key="d.value" :value="d.value">{{ d.label }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="z-label">Datum</label>
+                        <input v-model="form.event_date" type="date" required class="z-input" />
+                        <p v-if="form.errors.event_date" class="z-error">{{ form.errors.event_date }}</p>
+                    </div>
+                </div>
+
+                <!-- Custom distance km -->
+                <div v-if="form.race_distance === 'custom'">
+                    <label class="z-label">Distanz in km</label>
+                    <input v-model="form.distance_km" type="number" step="0.1" min="0.1" placeholder="z.B. 15" class="z-input" />
+                </div>
+
+                <!-- Backyard Ultra: goal in hours/yards -->
+                <div v-if="isBackyard">
+                    <label class="z-label">Ziel: Anzahl Stunden (Yards)</label>
+                    <div class="flex items-center gap-2">
+                        <input v-model="form.target_yards" type="number" step="1" min="1" max="100" placeholder="z.B. 24" class="z-input w-32" />
+                        <span class="text-sm text-ink-3">
+                            Std<template v-if="backyardTargetKm"> · ≈ {{ backyardTargetKm }} km</template>
+                        </span>
+                    </div>
+                    <p class="z-hint">1 Yard = 1 Stunde = eine 6,706-km-Runde. Jede Runde startet zur vollen Stunde.</p>
+                    <p v-if="form.errors.target_yards" class="z-error">{{ form.errors.target_yards }}</p>
+                </div>
+
+                <!-- Target time (not for Backyard) -->
+                <div v-if="!isBackyard">
+                    <label class="z-label">Zielzeit <span class="font-normal text-ink-3">(optional)</span></label>
+                    <div class="flex items-center gap-2">
+                        <select v-model.number="form.target_time_hours" class="z-input w-auto px-3">
+                            <option v-for="h in hoursOptions" :key="h" :value="h">{{ h }}h</option>
+                        </select>
+                        <select v-model.number="form.target_time_minutes" class="z-input w-auto px-3">
+                            <option v-for="m in minutesOptions" :key="m" :value="m">{{ String(m).padStart(2,'0') }} min</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div>
+                    <label class="z-label">Notizen <span class="font-normal text-ink-3">(optional)</span></label>
+                    <textarea v-model="form.notes" rows="2" placeholder="z.B. Kurs, Hotel, Motivation..." class="z-input resize-none" />
+                </div>
+            </form>
+
+            <template #footer>
+                <div class="flex gap-3">
+                    <AppButton variant="secondary" block @click="closeModal">Abbrechen</AppButton>
+                    <AppButton type="submit" form="event-form" block :loading="form.processing">
+                        {{ editingEvent ? 'Speichern' : 'Event erstellen' }}
+                    </AppButton>
+                </div>
+            </template>
+        </AppSheet>
+
+        <!-- ── Delete confirm ────────────────────────────────────────────── -->
+        <ConfirmSheet
+            :show="!!confirmingDelete"
+            title="Event löschen?"
+            :message="`${confirmingDelete?.name} und der zugehörige Trainingsplan werden dauerhaft gelöscht.`"
+            confirm-label="Ja, löschen"
+            @confirm="deleteEvent(confirmingDelete)"
+            @close="confirmingDelete = null"
+        />
 
     </AuthenticatedLayout>
 </template>

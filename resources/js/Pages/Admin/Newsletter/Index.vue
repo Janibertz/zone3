@@ -2,6 +2,7 @@
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
+import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 
 const props = defineProps({
     newsletters:     Array,
@@ -305,28 +306,22 @@ function formatDate(d) {
             <p v-else class="text-center text-sm text-gray-400 dark:text-slate-500 py-4">Noch keine Newsletter erstellt.</p>
         </div>
 
-        <!-- ── Send confirmation dialog ── -->
-        <Transition enter-active-class="transition duration-150 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100"
-                    leave-active-class="transition duration-100 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
-            <div v-if="sendConfirm" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4" @click.self="cancelSend">
-                <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-6 w-full max-w-md">
-                    <h3 class="text-base font-bold text-gray-900 dark:text-white">Newsletter wirklich senden?</h3>
-                    <p class="mt-2 text-sm text-gray-600 dark:text-slate-400">
-                        <strong class="text-gray-900 dark:text-white">{{ sendConfirm.subject }}</strong><br>
-                        wird an <strong class="text-indigo-600 dark:text-indigo-400">{{ subscriberCount }} Abonnenten</strong> versendet.
-                        Dieser Vorgang kann nicht rückgängig gemacht werden.
-                    </p>
-                    <div class="mt-5 flex gap-3 justify-end">
-                        <button @click="cancelSend" class="rounded-xl bg-gray-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">Abbrechen</button>
-                        <button @click="doSend" :disabled="sending"
-                            class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50 transition-colors">
-                            <svg v-if="sending" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                            Jetzt senden
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </Transition>
+        <!-- ── Versand bestätigen ── -->
+        <ConfirmSheet
+            :show="!!sendConfirm"
+            title="Newsletter wirklich senden?"
+            confirm-label="Jetzt senden"
+            tone="primary"
+            :loading="sending"
+            @confirm="doSend"
+            @close="cancelSend"
+        >
+            <p class="text-sm leading-relaxed text-ink-2">
+                <strong class="text-ink">{{ sendConfirm?.subject }}</strong><br>
+                wird an <strong class="text-accent">{{ subscriberCount }} Abonnenten</strong> versendet.
+                Dieser Vorgang kann nicht rückgängig gemacht werden.
+            </p>
+        </ConfirmSheet>
     </AdminLayout>
 </template>
 

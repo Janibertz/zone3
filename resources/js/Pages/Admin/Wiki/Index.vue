@@ -2,6 +2,8 @@
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
+import AppSheet from '@/Components/UI/AppSheet.vue';
+import AppButton from '@/Components/UI/AppButton.vue';
 
 const props = defineProps({
     grouped:    Array,
@@ -70,33 +72,30 @@ const categoryColors = {
                 </div>
             </div>
 
-            <!-- New page modal -->
-            <div v-if="showNewPage" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-                <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md p-6">
-                    <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Neue Wiki-Seite</h2>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Titel</label>
-                            <input v-model="newTitle" type="text" placeholder="z.B. Garmin Connect Integration"
-                                class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Kategorie</label>
-                            <select v-model="newCategory"
-                                class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                                <option v-for="(meta, key) in categories" :key="key" :value="key">{{ meta.label }}</option>
-                            </select>
-                        </div>
+            <!-- Neue Seite -->
+            <AppSheet :show="showNewPage" title="Neue Wiki-Seite" @close="showNewPage = false">
+                <div class="space-y-4 pt-1">
+                    <div>
+                        <label class="z-label">Titel</label>
+                        <input v-model="newTitle" type="text" placeholder="z.B. Garmin Connect Integration" class="z-input" />
                     </div>
-                    <div class="mt-6 flex gap-3 justify-end">
-                        <button @click="showNewPage = false" class="px-4 py-2 rounded-xl text-sm text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors">Abbrechen</button>
-                        <button @click="createPage" :disabled="!newTitle.trim() || creating"
-                            class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold transition-colors">
-                            {{ creating ? 'Erstellt...' : 'Erstellen' }}
-                        </button>
+                    <div>
+                        <label class="z-label">Kategorie</label>
+                        <select v-model="newCategory" class="z-input">
+                            <option v-for="(meta, key) in categories" :key="key" :value="key">{{ meta.label }}</option>
+                        </select>
                     </div>
                 </div>
-            </div>
+
+                <template #footer>
+                    <div class="flex gap-3">
+                        <AppButton variant="secondary" block @click="showNewPage = false">Abbrechen</AppButton>
+                        <AppButton block :disabled="!newTitle.trim()" :loading="creating" @click="createPage">
+                            Erstellen
+                        </AppButton>
+                    </div>
+                </template>
+            </AppSheet>
 
             <!-- Category groups -->
             <div class="space-y-8">

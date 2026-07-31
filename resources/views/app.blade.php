@@ -1,9 +1,26 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+
+        {{-- Theme before first paint — must run in <head>, otherwise the wrong
+             theme flashes. Mirrors Composables/useDarkMode.js; keep in sync. --}}
+        <script>
+            (function () {
+                var theme = localStorage.getItem('zone3-theme');
+                if (['system', 'light', 'dark'].indexOf(theme) === -1) {
+                    var legacy = localStorage.getItem('zone3-dark-mode');
+                    theme = legacy === 'true' ? 'dark' : legacy === 'false' ? 'light' : 'system';
+                }
+                var dark = theme === 'system'
+                    ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                    : theme === 'dark';
+                document.documentElement.classList.toggle('dark', dark);
+                document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+            })();
+        </script>
 
         <!-- PWA -->
         <meta name="theme-color" content="#6366f1">
@@ -28,18 +45,6 @@
         @inertia
 
         <script>
-            // Apply dark mode before Vue mounts to prevent flash of white
-            (function() {
-                var stored = localStorage.getItem('zone3-dark-mode');
-                var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                var dark = stored !== null ? stored === 'true' : prefersDark;
-                if (dark) {
-                    document.documentElement.classList.add('dark');
-                } else {
-                    document.documentElement.classList.remove('dark');
-                }
-            })();
-
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
                     navigator.serviceWorker.register('/sw.js').catch(() => {});

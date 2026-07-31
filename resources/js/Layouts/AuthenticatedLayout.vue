@@ -8,6 +8,8 @@ import { useInstallPrompt } from '@/Composables/useInstallPrompt';
 import { usePullToRefresh } from '@/Composables/usePullToRefresh';
 import UserAvatar from '@/Components/UserAvatar.vue';
 import CoachSlideOver from '@/Components/CoachSlideOver.vue';
+import AppSheet from '@/Components/UI/AppSheet.vue';
+import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 
 const { updateReady, startVersionPolling, reload } = useVersionCheck();
 onMounted(() => startVersionPolling());
@@ -24,8 +26,14 @@ const user       = computed(() => page.props.auth.user);
 const isAdmin    = computed(() => page.props.auth.isAdmin);
 const activePlan = computed(() => page.props.activePlan);
 const coach      = computed(() => page.props.coach);
-const { isDark, toggle } = useDarkMode();
+const { theme, setTheme } = useDarkMode();
 const { open: openChat } = useCoachChat();
+
+const themeOptions = [
+    { value: 'system', label: 'System' },
+    { value: 'light',  label: 'Hell' },
+    { value: 'dark',   label: 'Dunkel' },
+];
 
 const navItems = [
     {
@@ -96,19 +104,19 @@ const moreNavItems = computed(() => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-gray-50 dark:bg-slate-950">
+    <div class="min-h-screen bg-canvas">
 
         <!-- ══════════════════════════════════════
              PULL-TO-REFRESH INDICATOR (mobile)
              ══════════════════════════════════════ -->
         <div
             v-if="pullDistance > 0 || refreshing"
-            class="lg:hidden fixed inset-x-0 z-40 flex justify-center pointer-events-none"
+            class="pointer-events-none fixed inset-x-0 z-40 flex justify-center lg:hidden"
             :style="{ top: 'calc(3.5rem + env(safe-area-inset-top) - 1.5rem)', transform: `translateY(${Math.min(pullDistance, ptrThreshold) + 8}px)` }"
         >
-            <div class="h-9 w-9 rounded-full bg-white dark:bg-slate-800 shadow-lg border border-gray-100 dark:border-slate-700 flex items-center justify-center">
+            <div class="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-surface shadow-card">
                 <svg
-                    class="h-5 w-5 text-indigo-500"
+                    class="h-5 w-5 text-accent"
                     :class="refreshing ? 'animate-spin' : ''"
                     :style="refreshing ? '' : { transform: `rotate(${pullDistance / ptrThreshold * 270}deg)` }"
                     fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
@@ -123,7 +131,7 @@ const moreNavItems = computed(() => {
              ══════════════════════════════════════ -->
         <div
             v-if="updateReady"
-            class="fixed top-0 inset-x-0 z-50 flex items-center justify-between gap-3 px-4 py-2.5 bg-indigo-600 text-white text-sm shadow-lg"
+            class="fixed inset-x-0 top-0 z-50 flex items-center justify-between gap-3 bg-accent px-4 py-2.5 text-sm text-white shadow-card"
         >
             <div class="flex items-center gap-2">
                 <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -133,7 +141,7 @@ const moreNavItems = computed(() => {
             </div>
             <button
                 @click="reload"
-                class="shrink-0 rounded-lg bg-white/20 hover:bg-white/30 px-3 py-1 text-xs font-semibold transition-colors"
+                class="shrink-0 rounded-field bg-white/20 px-3 py-1 text-xs font-semibold transition-colors hover:bg-white/30"
             >
                 Jetzt aktualisieren
             </button>
@@ -153,23 +161,23 @@ const moreNavItems = computed(() => {
             <!-- Android: native install prompt -->
             <div
                 v-if="isInstallable"
-                class="lg:hidden fixed top-0 inset-x-0 z-50 flex items-center gap-3 px-4 py-3 bg-indigo-600 text-white shadow-lg"
+                class="fixed inset-x-0 top-0 z-50 flex items-center gap-3 bg-accent px-4 py-3 text-white shadow-card lg:hidden"
             >
-                <button @click="dismissInstall" class="shrink-0 text-white/70 hover:text-white transition-colors" aria-label="Schließen">
+                <button @click="dismissInstall" class="shrink-0 text-white/70 transition-colors hover:text-white" aria-label="Schließen">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
                     </svg>
                 </button>
-                <div class="h-8 w-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-                    <span class="text-white text-xs font-bold">Z3</span>
+                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-field bg-white/20">
+                    <span class="text-xs font-bold text-white">Z3</span>
                 </div>
-                <div class="flex-1 min-w-0">
+                <div class="min-w-0 flex-1">
                     <p class="text-sm font-semibold leading-tight">Zone3 installieren</p>
-                    <p class="text-xs text-white/75 leading-tight">Kostenlos · direkt auf dem Homescreen</p>
+                    <p class="text-xs leading-tight text-white/75">Kostenlos · direkt auf dem Homescreen</p>
                 </div>
                 <button
                     @click="installApp"
-                    class="shrink-0 rounded-full bg-white text-indigo-700 text-xs font-bold px-4 py-1.5 hover:bg-indigo-50 transition-colors"
+                    class="shrink-0 rounded-full bg-white px-4 py-1.5 text-xs font-bold text-accent-ink transition-colors hover:bg-white/90"
                 >
                     Installieren
                 </button>
@@ -178,22 +186,22 @@ const moreNavItems = computed(() => {
             <!-- iOS Safari: manual share-sheet instructions -->
             <div
                 v-else-if="isIOSHint"
-                class="lg:hidden fixed top-0 inset-x-0 z-50 px-4 py-3 bg-indigo-600 text-white shadow-lg"
+                class="fixed inset-x-0 top-0 z-50 bg-accent px-4 py-3 text-white shadow-card lg:hidden"
             >
                 <div class="flex items-start gap-3">
-                    <button @click="dismissInstall" class="shrink-0 text-white/70 hover:text-white transition-colors mt-0.5" aria-label="Schließen">
+                    <button @click="dismissInstall" class="mt-0.5 shrink-0 text-white/70 transition-colors hover:text-white" aria-label="Schließen">
                         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
                         </svg>
                     </button>
-                    <div class="h-8 w-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-                        <span class="text-white text-xs font-bold">Z3</span>
+                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-field bg-white/20">
+                        <span class="text-xs font-bold text-white">Z3</span>
                     </div>
-                    <div class="flex-1 min-w-0">
+                    <div class="min-w-0 flex-1">
                         <p class="text-sm font-semibold leading-tight">Zone3 als App installieren</p>
-                        <p class="text-xs text-white/80 leading-snug mt-1">
+                        <p class="mt-1 text-xs leading-snug text-white/80">
                             Tippe auf
-                            <svg class="inline h-4 w-4 mx-0.5 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <svg class="mx-0.5 -mt-0.5 inline h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15m0-3-3-3m0 0-3 3m3-3V15" />
                             </svg>
                             und dann <strong>„Zum Home-Bildschirm"</strong>
@@ -206,56 +214,54 @@ const moreNavItems = computed(() => {
         <!-- ══════════════════════════════════════
              DESKTOP SIDEBAR (hidden on mobile)
              ══════════════════════════════════════ -->
-        <aside class="hidden lg:flex lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:w-64 flex-col bg-white dark:bg-slate-900 border-r border-gray-100 dark:border-slate-800">
+        <aside class="hidden flex-col border-r border-line bg-surface lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-64">
             <!-- Logo -->
-            <div class="flex h-16 shrink-0 items-center gap-3 px-6 border-b border-gray-100 dark:border-slate-800">
-                <div class="h-8 w-8 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-sm">
-                    <span class="text-white text-sm font-bold">Z3</span>
+            <div class="flex h-16 shrink-0 items-center gap-3 border-b border-line px-6">
+                <div class="flex h-8 w-8 items-center justify-center rounded-field bg-accent shadow-card">
+                    <span class="text-sm font-bold text-white">Z3</span>
                 </div>
-                <span class="text-lg font-bold text-gray-900 dark:text-white tracking-tight">Zone3</span>
+                <span class="text-lg font-bold tracking-tight text-ink">Zone3</span>
             </div>
 
             <!-- Navigation -->
-            <nav class="flex-1 overflow-y-auto px-3 py-5 space-y-0.5">
-                <p class="px-3 mb-3 text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-slate-500">Navigation</p>
+            <nav class="flex-1 space-y-0.5 overflow-y-auto px-3 py-5">
+                <p class="mb-3 px-3 text-[10px] font-semibold uppercase tracking-widest text-ink-3">Navigation</p>
                 <Link
                     v-for="item in navItems"
                     :key="item.routeName"
                     :href="route(item.routeName)"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
+                    class="flex items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium transition-all duration-150"
                     :class="route().current(item.routeName)
-                        ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400'
-                        : 'text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'"
+                        ? 'bg-accent-soft text-accent-ink'
+                        : 'text-ink-2 hover:bg-surface-2 hover:text-ink'"
                 >
                     <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
                     {{ item.label }}
-                    <span v-if="route().current(item.routeName)" class="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400" />
+                    <span v-if="route().current(item.routeName)" class="ml-auto h-1.5 w-1.5 rounded-full bg-accent" />
                 </Link>
 
                 <!-- Active plan link -->
-                <div v-if="activePlan" class="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800">
-                    <p class="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-slate-500">Aktiver Plan</p>
+                <div v-if="activePlan" class="mt-4 border-t border-line pt-4">
+                    <p class="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-ink-3">Aktiver Plan</p>
                     <Link
                         :href="route('events.plan.show', activePlan.event_id)"
-                        class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
+                        class="flex items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium transition-all duration-150"
                         :class="route().current('events.plan.show')
-                            ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400'
-                            : 'text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'"
+                            ? 'bg-accent-soft text-accent-ink'
+                            : 'text-ink-2 hover:bg-surface-2 hover:text-ink'"
                     >
-                        <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
-                        </svg>
+                        <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="planTabIcon" />
                         <span class="truncate">{{ activePlan.event_name }}</span>
-                        <span v-if="route().current('events.plan.show')" class="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400 shrink-0" />
+                        <span v-if="route().current('events.plan.show')" class="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
                     </Link>
                 </div>
 
                 <!-- Admin link -->
-                <div v-if="isAdmin" class="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800">
-                    <p class="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-slate-500">System</p>
+                <div v-if="isAdmin" class="mt-4 border-t border-line pt-4">
+                    <p class="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-ink-3">System</p>
                     <Link
                         :href="route('admin.dashboard')"
-                        class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                        class="flex items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium text-danger transition-all duration-150 hover:bg-danger-soft"
                     >
                         <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
@@ -269,45 +275,37 @@ const moreNavItems = computed(() => {
             <div v-if="coach" class="shrink-0 px-3 pb-3">
                 <button
                     @click="openChat"
-                    class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
+                    class="flex w-full items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium text-accent transition-all duration-150 hover:bg-accent-soft"
                 >
                     <div
-                        class="h-5 w-5 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0"
+                        class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white"
                         :style="`background-color: ${coach.avatar_color}`"
                     >
                         {{ coach.avatar_initials }}
                     </div>
                     Chat mit {{ coach.name }}
-                    <span class="ml-auto h-2 w-2 rounded-full bg-green-400 shrink-0" title="Online" />
+                    <span class="ml-auto h-2 w-2 shrink-0 rounded-full bg-success" title="Online" />
                 </button>
             </div>
 
-            <!-- User + Dark toggle -->
-            <div class="shrink-0 border-t border-gray-100 dark:border-slate-800 p-4 space-y-1">
-                <button
-                    @click="toggle"
-                    class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white transition-colors"
-                >
-                    <svg v-if="isDark" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
-                    </svg>
-                    <svg v-else class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
-                    </svg>
-                    {{ isDark ? 'Helles Design' : 'Dunkles Design' }}
-                </button>
-                <div class="flex items-center gap-3 px-2 py-2">
+            <!-- Theme + user -->
+            <div class="shrink-0 space-y-3 border-t border-line p-4">
+                <div>
+                    <p class="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-ink-3">Darstellung</p>
+                    <SegmentedControl :model-value="theme" :options="themeOptions" @update:model-value="setTheme" />
+                </div>
+                <div class="flex items-center gap-3 px-2 py-1">
                     <UserAvatar :user="user" size="md" />
                     <div class="min-w-0 flex-1">
-                        <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ user.name }}</p>
-                        <p class="text-xs text-gray-400 dark:text-slate-500 truncate">{{ user.email }}</p>
+                        <p class="truncate text-sm font-semibold text-ink">{{ user.name }}</p>
+                        <p class="truncate text-xs text-ink-3">{{ user.email }}</p>
                     </div>
                 </div>
                 <Link
                     :href="route('logout')"
                     method="post"
                     as="button"
-                    class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-gray-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                    class="flex w-full items-center gap-2.5 rounded-field px-3 py-2 text-sm text-ink-3 transition-colors hover:bg-danger-soft hover:text-danger"
                 >
                     <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
@@ -318,49 +316,37 @@ const moreNavItems = computed(() => {
         </aside>
 
         <!-- ══════════════════════════════════════
-             MOBILE TOP BAR (logo + dark toggle)
+             MOBILE TOP BAR
              ══════════════════════════════════════ -->
-        <header class="lg:hidden fixed top-0 inset-x-0 z-20 h-mobile-header pt-safe flex items-end justify-between bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800 px-4 pb-2">
+        <header class="fixed inset-x-0 top-0 z-20 flex h-mobile-header items-end justify-between border-b border-line bg-surface px-4 pb-2 pt-safe lg:hidden">
             <div class="flex items-center gap-2.5">
-                <div class="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-sm">
-                    <span class="text-white text-xs font-bold">Z3</span>
+                <div class="flex h-7 w-7 items-center justify-center rounded-field bg-accent shadow-card">
+                    <span class="text-xs font-bold text-white">Z3</span>
                 </div>
-                <span class="text-base font-bold text-gray-900 dark:text-white tracking-tight">Zone3</span>
+                <span class="text-base font-bold tracking-tight text-ink">Zone3</span>
             </div>
             <div class="flex items-center gap-1">
                 <!-- Coach chat button (mobile) -->
                 <button
                     v-if="coach"
                     @click="openChat"
-                    class="h-9 w-9 flex items-center justify-center rounded-xl text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors relative"
+                    class="relative flex h-9 w-9 items-center justify-center rounded-field text-accent transition-colors hover:bg-accent-soft"
                 >
                     <div
-                        class="h-6 w-6 rounded-full flex items-center justify-center text-white text-[8px] font-bold"
+                        class="flex h-6 w-6 items-center justify-center rounded-full text-[8px] font-bold text-white"
                         :style="`background-color: ${coach.avatar_color}`"
                     >
                         {{ coach.avatar_initials }}
                     </div>
-                    <span class="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-green-400" />
+                    <span class="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-success" />
                 </button>
 
-                <!-- Dark mode toggle -->
-                <button
-                    @click="toggle"
-                    class="h-9 w-9 flex items-center justify-center rounded-xl text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                    <svg v-if="isDark" class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
-                    </svg>
-                    <svg v-else class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
-                    </svg>
-                </button>
                 <!-- Abmelden -->
                 <Link
                     :href="route('logout')"
                     method="post"
                     as="button"
-                    class="h-9 w-9 flex items-center justify-center rounded-xl text-gray-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                    class="flex h-9 w-9 items-center justify-center rounded-field text-ink-3 transition-colors hover:bg-danger-soft hover:text-danger"
                 >
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
@@ -372,16 +358,16 @@ const moreNavItems = computed(() => {
         <!-- ══════════════════════════════════════
              MAIN CONTENT
              ══════════════════════════════════════ -->
-        <div class="lg:pl-64 flex flex-col min-h-screen">
+        <div class="flex min-h-screen flex-col lg:pl-64">
             <!-- Desktop page header slot -->
-            <header v-if="$slots.header" class="hidden lg:block bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800">
+            <header v-if="$slots.header" class="hidden border-b border-line bg-surface lg:block">
                 <div class="px-6 py-4">
                     <slot name="header" />
                 </div>
             </header>
 
             <!-- Page content — top padding for mobile header (safe area aware), bottom for tab bar -->
-            <main class="flex-1 pt-mobile-header pb-mobile-tabbar lg:pt-0 lg:pb-0">
+            <main class="flex-1 pb-mobile-tabbar pt-mobile-header lg:pb-0 lg:pt-0">
                 <slot />
             </main>
         </div>
@@ -391,7 +377,7 @@ const moreNavItems = computed(() => {
 
         <!-- Floating Help Button -->
         <Link :href="route('support.tickets.index')"
-            class="fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-40 h-12 w-12 rounded-full bg-indigo-600 hover:bg-indigo-700 shadow-lg flex items-center justify-center text-white transition-all hover:scale-105"
+            class="fixed bottom-24 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-accent text-white shadow-card transition-all hover:scale-105 lg:bottom-6 lg:right-6"
             title="Support & Feedback"
         >
             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -402,30 +388,28 @@ const moreNavItems = computed(() => {
         <!-- ══════════════════════════════════════
              MOBILE BOTTOM TAB BAR
              ══════════════════════════════════════ -->
-        <nav class="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 pb-safe-tabbar">
-            <div class="flex items-center h-16">
+        <nav class="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface pb-safe-tabbar shadow-bar lg:hidden">
+            <div class="flex h-16 items-center">
                 <Link
                     v-for="item in mobileNavItems"
                     :key="item.routeName"
                     :href="item.planId ? route(item.routeName, item.planId) : route(item.routeName)"
-                    class="flex-1 flex flex-col items-center justify-center gap-1 h-full min-w-0 transition-colors relative"
-                    :class="route().current(item.routeName)
-                        ? 'text-indigo-600 dark:text-indigo-400'
-                        : 'text-gray-400 dark:text-slate-500'"
+                    class="relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1 transition-colors"
+                    :class="route().current(item.routeName) ? 'text-accent' : 'text-ink-3'"
                 >
                     <span
                         v-if="route().current(item.routeName)"
-                        class="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 bg-indigo-500 dark:bg-indigo-400 rounded-b-full"
+                        class="absolute left-1/2 top-0 h-0.5 w-8 -translate-x-1/2 rounded-b-full bg-accent"
                     />
                     <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
-                    <span class="text-[10px] font-medium leading-none truncate max-w-full px-0.5">{{ item.label }}</span>
+                    <span class="max-w-full truncate px-0.5 text-[10px] font-medium leading-none">{{ item.label }}</span>
                 </Link>
 
                 <!-- Mehr button -->
                 <button
                     @click="moreOpen = true"
-                    class="flex-1 flex flex-col items-center justify-center gap-1 h-full min-w-0 transition-colors relative"
-                    :class="moreOpen ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-slate-500'"
+                    class="relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1 transition-colors"
+                    :class="moreOpen ? 'text-accent' : 'text-ink-3'"
                 >
                     <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
@@ -438,150 +422,110 @@ const moreNavItems = computed(() => {
         <!-- ══════════════════════════════════════
              MOBILE "MEHR" SHEET
              ══════════════════════════════════════ -->
-        <Transition
-            enter-active-class="transition duration-200 ease-out"
-            enter-from-class="opacity-0"
-            enter-to-class="opacity-100"
-            leave-active-class="transition duration-150 ease-in"
-            leave-from-class="opacity-100"
-            leave-to-class="opacity-0"
-        >
-            <div v-if="moreOpen" class="lg:hidden fixed inset-0 z-40 bg-black/40" @click="moreOpen = false" />
-        </Transition>
-
-        <Transition
-            enter-active-class="transition duration-200 ease-out"
-            enter-from-class="translate-y-full"
-            enter-to-class="translate-y-0"
-            leave-active-class="transition duration-150 ease-in"
-            leave-from-class="translate-y-0"
-            leave-to-class="translate-y-full"
-        >
-            <div v-if="moreOpen"
-                class="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-white dark:bg-slate-900 rounded-t-2xl shadow-2xl pb-safe-tabbar overflow-hidden"
-            >
-                <!-- Sheet handle -->
-                <div class="flex justify-center pt-3 pb-1">
-                    <div class="h-1 w-10 rounded-full bg-gray-200 dark:bg-slate-700" />
-                </div>
-
-                <!-- Header -->
-                <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-slate-800">
-                    <span class="text-sm font-semibold text-gray-900 dark:text-white">Menü</span>
-                    <button @click="moreOpen = false"
-                        class="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <!-- Nav links -->
-                <nav class="px-3 py-3 space-y-0.5">
-                    <Link
-                        v-for="item in moreNavItems"
-                        :key="item.routeName"
-                        :href="item.planId ? route(item.routeName, item.planId) : route(item.routeName)"
-                        @click="moreOpen = false"
-                        class="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors"
+        <AppSheet :show="moreOpen" title="Menü" @close="moreOpen = false">
+            <!-- Nav links -->
+            <nav class="-mx-2 space-y-0.5">
+                <Link
+                    v-for="item in moreNavItems"
+                    :key="item.routeName"
+                    :href="item.planId ? route(item.routeName, item.planId) : route(item.routeName)"
+                    @click="moreOpen = false"
+                    class="flex items-center gap-3 rounded-field px-2 py-3 text-sm font-medium transition-colors"
+                    :class="route().current(item.routeName)
+                        ? 'bg-accent-soft text-accent-ink'
+                        : 'text-ink hover:bg-surface-2'"
+                >
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-field"
                         :class="route().current(item.routeName)
-                            ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400'
-                            : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800'"
-                    >
-                        <span class="h-9 w-9 rounded-xl flex items-center justify-center shrink-0"
-                            :class="route().current(item.routeName)
-                                ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400'
-                                : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'">
-                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
-                        </span>
-                        <span class="truncate">{{ item.label }}</span>
-                        <svg v-if="route().current(item.routeName)" class="ml-auto h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                            ? 'bg-accent text-white'
+                            : 'bg-surface-2 text-ink-3'">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
+                    </span>
+                    <span class="truncate">{{ item.label }}</span>
+                    <svg v-if="route().current(item.routeName)" class="ml-auto h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                    </svg>
+                </Link>
+
+                <!-- Admin link -->
+                <Link
+                    v-if="isAdmin"
+                    :href="route('admin.dashboard')"
+                    @click="moreOpen = false"
+                    class="flex items-center gap-3 rounded-field px-2 py-3 text-sm font-medium text-danger transition-colors hover:bg-danger-soft"
+                >
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-field bg-danger-soft text-danger">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
                         </svg>
-                    </Link>
+                    </span>
+                    Admin-Bereich
+                </Link>
+            </nav>
 
-                    <!-- Admin link -->
-                    <Link
-                        v-if="isAdmin"
-                        :href="route('admin.dashboard')"
-                        @click="moreOpen = false"
-                        class="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
-                    >
-                        <span class="h-9 w-9 rounded-xl flex items-center justify-center shrink-0 bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400">
-                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-                            </svg>
-                        </span>
-                        Admin-Bereich
-                    </Link>
-                </nav>
+            <!-- Darstellung -->
+            <div class="mt-5">
+                <p class="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-ink-3">Darstellung</p>
+                <SegmentedControl :model-value="theme" :options="themeOptions" @update:model-value="setTheme" />
+            </div>
 
-                <!-- PWA Install Card (Android) -->
-                <div v-if="isInstallable" class="mx-3 mt-2 mb-1 rounded-xl bg-indigo-600 px-4 py-4">
-                    <div class="flex items-start gap-3 mb-3">
-                        <div class="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                            <span class="text-white text-base font-bold">Z3</span>
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <p class="text-sm font-bold text-white leading-tight">Zone3 immer griffbereit</p>
-                            <p class="text-xs text-white/75 leading-snug mt-0.5">Kostenlos als App auf deinem Homescreen – kein Speicherplatz nötig</p>
-                        </div>
+            <!-- PWA Install Card (Android) -->
+            <div v-if="isInstallable" class="mt-5 rounded-card bg-accent px-4 py-4">
+                <div class="mb-3 flex items-start gap-3">
+                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-field bg-white/20">
+                        <span class="text-base font-bold text-white">Z3</span>
                     </div>
-                    <div class="flex items-center justify-end gap-3">
-                        <button @click="dismissInstall" class="text-xs text-white/70 font-medium hover:text-white transition-colors py-1">
-                            Nicht jetzt
-                        </button>
-                        <button
-                            @click="installApp"
-                            class="rounded-full bg-white text-indigo-700 text-xs font-bold px-5 py-2 hover:bg-indigo-50 transition-colors"
-                        >
-                            Installieren
-                        </button>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-bold leading-tight text-white">Zone3 immer griffbereit</p>
+                        <p class="mt-0.5 text-xs leading-snug text-white/75">Kostenlos als App auf deinem Homescreen – kein Speicherplatz nötig</p>
                     </div>
                 </div>
-
-                <!-- PWA Install Card (iOS) -->
-                <div v-else-if="isIOSHint" class="mx-3 mt-2 mb-1 rounded-xl bg-indigo-600 px-4 py-4">
-                    <div class="flex items-start gap-3 mb-3">
-                        <div class="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                            <span class="text-white text-base font-bold">Z3</span>
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <p class="text-sm font-bold text-white leading-tight">Zone3 als App installieren</p>
-                            <p class="text-xs text-white/80 leading-snug mt-1">
-                                Tippe auf
-                                <svg class="inline h-4 w-4 mx-0.5 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15m0-3-3-3m0 0-3 3m3-3V15" />
-                                </svg>
-                                und dann <strong>„Zum Home-Bildschirm"</strong>
-                            </p>
-                        </div>
-                    </div>
-                    <div class="flex items-center justify-end">
-                        <button @click="dismissInstall" class="text-xs text-white/70 font-medium hover:text-white transition-colors py-1">
-                            Verstanden
-                        </button>
-                    </div>
-                </div>
-
-                <!-- User info + dark mode -->
-                <div class="mx-3 mt-1 mb-2 rounded-xl bg-gray-50 dark:bg-slate-800 px-3 py-2.5 flex items-center gap-3">
-                    <UserAvatar :user="user" size="sm" />
-                    <div class="flex-1 min-w-0">
-                        <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ user.name }}</p>
-                    </div>
-                    <button @click="toggle; moreOpen = false"
-                        class="h-8 w-8 flex items-center justify-center rounded-xl bg-white dark:bg-slate-700 text-gray-500 dark:text-slate-400 shadow-sm transition-colors">
-                        <svg v-if="isDark" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
-                        </svg>
-                        <svg v-else class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
-                        </svg>
+                <div class="flex items-center justify-end gap-3">
+                    <button @click="dismissInstall" class="py-1 text-xs font-medium text-white/70 transition-colors hover:text-white">
+                        Nicht jetzt
+                    </button>
+                    <button
+                        @click="installApp"
+                        class="rounded-full bg-white px-5 py-2 text-xs font-bold text-accent-ink transition-colors hover:bg-white/90"
+                    >
+                        Installieren
                     </button>
                 </div>
             </div>
-        </Transition>
+
+            <!-- PWA Install Card (iOS) -->
+            <div v-else-if="isIOSHint" class="mt-5 rounded-card bg-accent px-4 py-4">
+                <div class="mb-3 flex items-start gap-3">
+                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-field bg-white/20">
+                        <span class="text-base font-bold text-white">Z3</span>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-bold leading-tight text-white">Zone3 als App installieren</p>
+                        <p class="mt-1 text-xs leading-snug text-white/80">
+                            Tippe auf
+                            <svg class="mx-0.5 -mt-0.5 inline h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15m0-3-3-3m0 0-3 3m3-3V15" />
+                            </svg>
+                            und dann <strong>„Zum Home-Bildschirm"</strong>
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center justify-end">
+                    <button @click="dismissInstall" class="py-1 text-xs font-medium text-white/70 transition-colors hover:text-white">
+                        Verstanden
+                    </button>
+                </div>
+            </div>
+
+            <!-- User -->
+            <div class="mt-5 flex items-center gap-3 rounded-card bg-surface-2 px-3 py-2.5">
+                <UserAvatar :user="user" size="sm" />
+                <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-semibold text-ink">{{ user.name }}</p>
+                    <p class="truncate text-xs text-ink-3">{{ user.email }}</p>
+                </div>
+            </div>
+        </AppSheet>
 
     </div>
 </template>
