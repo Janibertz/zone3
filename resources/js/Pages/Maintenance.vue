@@ -1,5 +1,11 @@
 <script setup>
 import { Head } from '@inertiajs/vue3';
+
+// `window` ist im Template nicht verfuegbar (steht nicht auf Vues Global-Whitelist),
+// der Button warf deshalb einen TypeError statt neu zu laden.
+function reload() {
+    window.location.reload();
+}
 </script>
 
 <template>
@@ -16,7 +22,7 @@ import { Head } from '@inertiajs/vue3';
                 Zone3 wird gerade aktualisiert und ist in Kürze wieder erreichbar.<br>
                 Bitte versuche es in wenigen Minuten erneut.
             </p>
-            <button @click="() => window.location.reload()"
+            <button @click="reload"
                 class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-sm font-semibold text-white transition-colors">
                 Seite neu laden
             </button>

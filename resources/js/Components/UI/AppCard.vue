@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, useSlots } from 'vue';
 import { Link } from '@inertiajs/vue3';
 
 /**
@@ -18,6 +18,9 @@ const props = defineProps({
 
 const interactive = computed(() => !!props.href || props.tappable);
 
+const slots = useSlots();
+const hasHeader = computed(() => !!props.title || !!props.subtitle || !!slots.header);
+
 const tag = computed(() => (props.href ? Link : props.tappable ? 'button' : 'div'));
 </script>
 
@@ -28,17 +31,17 @@ const tag = computed(() => (props.href ? Link : props.tappable ? 'button' : 'div
         class="block w-full rounded-card border border-line bg-surface text-left shadow-card"
         :class="interactive ? 'transition-all duration-150 hover:border-line-strong active:scale-[0.99]' : ''"
     >
-        <div v-if="title || $slots.header" class="flex items-center gap-3 px-4 pt-4" :class="flush ? 'pb-4' : ''">
+        <div v-if="hasHeader" class="flex items-center gap-3 px-4 pt-4" :class="flush ? 'pb-4' : ''">
             <div class="min-w-0 flex-1">
                 <slot name="header">
-                    <h3 class="text-sm font-semibold text-ink">{{ title }}</h3>
-                    <p v-if="subtitle" class="mt-0.5 text-xs text-ink-3">{{ subtitle }}</p>
+                    <h3 v-if="title" class="text-sm font-semibold text-ink">{{ title }}</h3>
+                    <p v-if="subtitle" class="text-xs text-ink-3" :class="title ? 'mt-0.5' : ''">{{ subtitle }}</p>
                 </slot>
             </div>
             <slot name="action" />
         </div>
 
-        <div :class="flush ? '' : title || $slots.header ? 'px-4 pb-4 pt-3' : 'p-4'">
+        <div :class="flush ? '' : hasHeader ? 'px-4 pb-4 pt-3' : 'p-4'">
             <slot />
         </div>
     </component>
