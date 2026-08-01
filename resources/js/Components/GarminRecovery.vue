@@ -1,24 +1,31 @@
 <script setup>
 import { ref, computed } from 'vue';
+import AppCard from '@/Components/UI/AppCard.vue';
+import AppButton from '@/Components/UI/AppButton.vue';
+import SectionHeader from '@/Components/UI/SectionHeader.vue';
 
 const props = defineProps({
-    metrics:    { type: Object,  default: null },   // { latest, series: [...] } up to 60 days
-    activities: { type: Array,   default: () => [] }, // recovery activities (last 60 days)
+    metrics:    { type: Object,  default: null },     // { latest, series: [...] } bis zu 60 Tage
+    activities: { type: Array,   default: () => [] }, // Erholungsaktivitäten (letzte 60 Tage)
     syncing:    { type: Boolean, default: false },
 });
 const emit = defineEmits(['refresh']);
 
-// ── Bauhaus palette (a colour = a meaning, never a rank) ─────────────────────
+/**
+ * Farben kommen aus den Design-Tokens, damit Hell und Dunkel automatisch
+ * mitgehen. In SVG-Attributen brauchen wir sie als CSS-Funktion.
+ */
 const C = {
-    hrv:    '#3D7BFF',  // blue  — hrv / volume
-    rhr:    '#F0402F',  // red   — heart rate
-    sleep:  '#FFC400',  // yellow— sleep
-    energy: '#00C46A',  // green — energy / stress / body battery
-    white:  '#FFFFFF',  // highlight (short nights, weak battery, last point, current week)
-    grid:   '#26262c',
-    ink:    '#F5F5F5',
-    sub:    '#8a8a92',
-    muted:  '#6c6c74',
+    hrv:    'rgb(var(--z-info))',
+    rhr:    'rgb(var(--z-danger))',
+    sleep:  'rgb(var(--z-accent))',
+    energy: 'rgb(var(--z-success))',
+    stress: 'rgb(var(--z-warn))',
+    ink:    'rgb(var(--z-ink))',
+    sub:    'rgb(var(--z-ink-2))',
+    muted:  'rgb(var(--z-ink-3))',
+    grid:   'rgb(var(--z-border))',
+    mark:   'rgb(var(--z-ink))',
 };
 
 const rangeDays = ref(30);
@@ -38,7 +45,7 @@ const seriesByDate = computed(() => {
     return m;
 });
 
-// Full calendar over the selected range so missing days become gaps (not zeros).
+// Volle Kalenderspanne, damit fehlende Tage Lücken werden statt Nullen.
 const days = computed(() => {
     const out = [];
     const end = new Date(); end.setHours(0, 0, 0, 0);
@@ -78,15 +85,15 @@ const daysWithData = computed(() =>
 const hasData = computed(() => daysWithData.value > 0 || props.activities.length > 0);
 
 // ── Readiness ────────────────────────────────────────────────────────────────
-const readiness    = computed(() => last('training_readiness'));
+const readiness     = computed(() => last('training_readiness'));
 const readinessAvg  = computed(() => { const s = stat('training_readiness'); return s ? Math.round(s.mean) : null; });
 const readinessDiff = computed(() => (readiness.value != null && readinessAvg.value != null) ? readiness.value - readinessAvg.value : null);
 const readinessColor = computed(() => {
     const r = readiness.value ?? 0;
-    return r >= 75 ? C.energy : r >= 50 ? C.sleep : r >= 25 ? '#F59E0B' : C.rhr;
+    return r >= 75 ? C.energy : r >= 50 ? C.sleep : r >= 25 ? C.stress : C.rhr;
 });
 
-// ── Tiles ────────────────────────────────────────────────────────────────────
+// ── Kacheln ──────────────────────────────────────────────────────────────────
 function spark(key) {
     const W = 120, H = 34, pad = 2;
     const s = stat(key);
@@ -117,22 +124,22 @@ function tile(key, opts) {
     return { ...opts, key, value: s ? s.last : null, spark: spark(key), delta, highlight };
 }
 const tiles = computed(() => [
-    tile('hrv',         { label: 'hrv',      color: C.hrv,   unit: ' ms',  digits: 0 }),
-    tile('resting_hr',  { label: 'ruhepuls', color: C.rhr,   unit: ' bpm', digits: 0, invert: true }),
-    tile('sleep_hours', { label: 'schlaf',   color: C.sleep, unit: ' h',   digits: 1 }),
-    tile('stress_avg',  { label: 'stress',   color: C.energy, unit: '',    digits: 0, invert: true }),
+    tile('hrv',         { label: 'HRV',       color: C.hrv,    unit: 'ms',  digits: 0 }),
+    tile('resting_hr',  { label: 'Ruhepuls',  color: C.rhr,    unit: 'bpm', digits: 0, invert: true }),
+    tile('sleep_hours', { label: 'Schlaf',    color: C.sleep,  unit: 'h',   digits: 1 }),
+    tile('stress_avg',  { label: 'Stress',    color: C.stress, unit: '',    digits: 0, invert: true }),
 ]);
 function deltaClass(t) {
-    if (t.delta == null) return C.muted;
+    if (t.delta == null) return 'text-ink-3';
     const good = t.invert ? t.delta < 0 : t.delta > 0;
-    return good ? C.energy : C.rhr;
+    return good ? 'text-success' : 'text-danger';
 }
 function fmtDelta(t) {
     const sign = t.delta > 0 ? '+' : '';
-    return `${sign}${t.delta.toFixed(t.digits === 1 ? 1 : 1)} ggü. erster hälfte`;
+    return `${sign}${t.delta.toFixed(1)} zur ersten Hälfte`;
 }
 
-// ── Line charts (HRV with baseline band, RHR) ────────────────────────────────
+// ── Liniendiagramme (HRV mit Baseline-Band, Ruhepuls) ────────────────────────
 function buildLine(key, { min = null, max = null, band = false } = {}) {
     const s = stat(key);
     if (!s || s.n < 2) return null;
@@ -152,9 +159,7 @@ function buildLine(key, { min = null, max = null, band = false } = {}) {
         pts.push({ x, y, v, date: day.date }); open = true;
     });
     let lastPt = null; for (let i = pts.length - 1; i >= 0; i--) { if (pts[i]) { lastPt = pts[i]; break; } }
-    // gridlines (3)
     const grid = [0.25, 0.5, 0.75].map(f => ({ y: padTop + (H - padTop - padBottom) * f, v: Math.round(hi - range * f) }));
-    // x labels
     const step = Math.max(1, Math.ceil(n / 6));
     const xlabels = [];
     for (let i = 0; i < n; i += step) xlabels.push({ x: X(i), t: fmtDM(days.value[i].date) });
@@ -164,8 +169,8 @@ function buildLine(key, { min = null, max = null, band = false } = {}) {
 const hrvChart = computed(() => buildLine('hrv', { band: true }));
 const rhrChart = computed(() => buildLine('resting_hr'));
 
-// crosshair tooltip for line charts
-const hover = ref(null); // { chart, x, y, v, date, unit }
+// Fadenkreuz-Tooltip
+const hover = ref(null);
 function onMove(evt, chart, unit) {
     const svg = evt.currentTarget;
     const pt = svg.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY;
@@ -176,7 +181,7 @@ function onMove(evt, chart, unit) {
 }
 function onLeave() { hover.value = null; }
 
-// ── Sleep bars (7h marker) ───────────────────────────────────────────────────
+// ── Schlafbalken (7-Stunden-Marke) ───────────────────────────────────────────
 const sleepBars = computed(() => {
     const s = stat('sleep_hours');
     if (!s) return null;
@@ -190,14 +195,13 @@ const sleepBars = computed(() => {
         if (v === null) return null;
         return { x: padX + i * bw + bw * 0.15, w: bw * 0.7, y: Y(v), h: (H - padTop - padBottom) - (Y(v) - padTop), v, date: day.date, short: v < 6 };
     });
-    // last with data
     let lastIdx = -1; bars.forEach((b, i) => { if (b) lastIdx = i; });
     return { W, H, bars, sevenY: Y(7), lastIdx };
 });
 
-// ── Body Battery range bars ──────────────────────────────────────────────────
+// ── Body Battery als Tagesspanne ─────────────────────────────────────────────
 const bbBars = computed(() => {
-    const lows = series('body_battery_low'), highs = series('body_battery_high');
+    const highs = series('body_battery_high');
     if (!highs.length) return null;
     const W = 1000, H = 170, padX = 8, padTop = 14, padBottom = 22;
     const n = days.value.length;
@@ -212,7 +216,7 @@ const bbBars = computed(() => {
     return { W, H, bars, fiftyY: Y(50) };
 });
 
-// ── Weekly km ────────────────────────────────────────────────────────────────
+// ── Kilometer pro Kalenderwoche ──────────────────────────────────────────────
 function isoWeek(d) {
     const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
     const day = (t.getUTCDay() + 6) % 7; t.setUTCDate(t.getUTCDate() - day + 3);
@@ -234,12 +238,12 @@ const weeklyKm = computed(() => {
     const Y = v => padTop + (H - padTop - padBottom) - (v / hi) * (H - padTop - padBottom);
     const bars = keys.map((wk, i) => ({
         x: padX + i * bw + bw * 0.18, w: bw * 0.64, y: Y(map[wk]), h: (H - padTop - padBottom) - (Y(map[wk]) - padTop),
-        v: map[wk], label: 'kw' + wk.slice(-2), current: wk === nowWk,
+        v: map[wk], label: 'KW ' + wk.slice(-2), current: wk === nowWk,
     }));
     return { W, H, bars };
 });
 
-// ── Logbook + sidebar figures ────────────────────────────────────────────────
+// ── Logbuch + Randwerte ──────────────────────────────────────────────────────
 function paceStr(a) {
     let mpk = null;
     if (a.moving_time && a.distance_km) mpk = (a.moving_time / 60) / a.distance_km;
@@ -253,7 +257,7 @@ function durStr(sec) {
     const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
     return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
 }
-const logbook = computed(() => actsInRange.value); // already newest-first from backend
+const logbook = computed(() => actsInRange.value); // Backend liefert bereits neueste zuerst
 const dist7 = computed(() => {
     const cut = new Date(); cut.setHours(0, 0, 0, 0); cut.setDate(cut.getDate() - 6);
     return props.activities.filter(a => a.date && new Date(a.date + 'T00:00:00') >= cut)
@@ -263,279 +267,250 @@ const dist7 = computed(() => {
 const rawOpen = ref(false);
 const dateSpan = computed(() => {
     const d = days.value;
-    return d.length ? `${fmtDM(d[0].date)}.${new Date(d[0].date).getFullYear()} – ${fmtDM(d[d.length - 1].date)}.${new Date(d[d.length - 1].date).getFullYear()}` : '';
+    return d.length ? `${fmtDM(d[0].date)} – ${fmtDM(d[d.length - 1].date)}` : '';
 });
 function nf(v, digits = 0) { return v == null ? '–' : Number(v).toLocaleString('de-DE', { minimumFractionDigits: digits, maximumFractionDigits: digits }); }
+
+const sideValues = computed(() => [
+    { label: 'Schlaf',          value: nf(last('sleep_hours'), 1), unit: 'h'   },
+    { label: 'HRV',             value: nf(last('hrv')),            unit: 'ms'  },
+    { label: 'Ruhepuls',        value: nf(last('resting_hr')),     unit: 'bpm' },
+    { label: 'Body Battery',    value: nf(last('body_battery_high')), unit: '' },
+    { label: 'Distanz 7 Tage',  value: nf(dist7, 1),               unit: 'km'  },
+]);
 </script>
 
 <template>
-<div class="gr" v-if="metrics">
-    <!-- Header -->
-    <div class="gr-head">
-        <div>
-            <h3 class="gr-title"><span class="sq" :style="{ background: C.energy }"></span> erholung — garmin</h3>
-            <p class="gr-sub">{{ dateSpan }} · {{ daysWithData }} tage mit werten</p>
-        </div>
-        <div class="gr-head-right">
-            <button class="gr-refresh" :disabled="syncing" @click="emit('refresh')">{{ syncing ? 'sync…' : 'aktualisieren' }}</button>
-            <div class="gr-toggle">
-                <button v-for="r in RANGES" :key="r" @click="rangeDays = r" :class="{ on: rangeDays === r }">{{ r }} tage</button>
+    <section v-if="metrics">
+        <SectionHeader title="Erholung">
+            <template #action>
+                <AppButton size="sm" variant="secondary" :loading="syncing" @click="emit('refresh')">
+                    {{ syncing ? 'Sync…' : 'Aktualisieren' }}
+                </AppButton>
+            </template>
+        </SectionHeader>
+
+        <AppCard v-if="!hasData">
+            <p class="text-[15px] text-ink-3">
+                Noch keine Garmin-Daten. Verbinde dich im Profil und tippe auf „Aktualisieren".
+            </p>
+        </AppCard>
+
+        <div v-else class="space-y-4">
+
+            <!-- Zeitraum -->
+            <div class="flex items-center justify-between gap-3">
+                <p class="text-[13px] text-ink-3">{{ dateSpan }} · {{ daysWithData }} Tage mit Werten</p>
+                <div class="flex gap-1 rounded-full bg-surface-2 p-1">
+                    <button v-for="r in RANGES" :key="r" @click="rangeDays = r"
+                        class="rounded-full px-3 py-1.5 text-[13px] font-semibold transition-all"
+                        :class="rangeDays === r ? 'bg-surface text-ink shadow-card' : 'text-ink-3 hover:text-ink-2'">
+                        {{ r }} Tage
+                    </button>
+                </div>
             </div>
-        </div>
-    </div>
 
-    <div v-if="!hasData" class="gr-empty">
-        noch keine garmin-daten. verbinde dich im profil und tippe auf „aktualisieren".
-    </div>
+            <!-- Readiness + aktuelle Werte -->
+            <div class="grid gap-4 lg:grid-cols-3">
+                <AppCard class="lg:col-span-2">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Training Readiness</p>
+                    <template v-if="readiness != null">
+                        <p class="mt-1 flex items-baseline gap-2">
+                            <span class="text-5xl font-bold tabular-nums tracking-tight" :style="{ color: readinessColor }">{{ readiness }}</span>
+                            <span class="text-[15px] text-ink-3">/ 100</span>
+                        </p>
 
-    <template v-else>
-        <!-- Readiness + aktuelle werte -->
-        <div class="gr-grid2">
-            <div class="gr-mod gr-readiness">
-                <p class="gr-label"><span class="sq" :style="{ background: C.energy }"></span> training readiness</p>
-                <template v-if="readiness != null">
-                    <div class="gr-big" :style="{ color: readinessColor }">{{ readiness }}<span class="gr-big-unit"> / 100</span></div>
-                    <p class="gr-stand">stand {{ dateSpan.split('–')[1]?.trim() || '' }}</p>
-                    <div class="gr-scale">
-                        <div class="gr-scale-fill" :style="{ width: readiness + '%', background: readinessColor }"></div>
-                        <div class="gr-scale-mark" :style="{ left: readiness + '%' }"></div>
+                        <div class="relative mt-4 h-2 overflow-hidden rounded-full bg-surface-2">
+                            <div class="h-full rounded-full" :style="{ width: readiness + '%', background: readinessColor }" />
+                        </div>
+                        <div class="mt-1.5 flex justify-between text-[11px] text-ink-3"><span>0</span><span>50</span><span>100</span></div>
+
+                        <p class="mt-4 text-[13px] leading-relaxed text-ink-3">
+                            Garmins Bereitschaftswert fasst Schlaf, Erholung, HRV und Belastung zusammen.
+                            <template v-if="readinessDiff != null">
+                                Dein Wert liegt
+                                <strong class="text-ink">{{ Math.abs(readinessDiff) }} Punkte {{ readinessDiff >= 0 ? 'über' : 'unter' }}</strong>
+                                deinem Schnitt ({{ readinessAvg }}).
+                            </template>
+                        </p>
+                    </template>
+                    <p v-else class="mt-2 text-[15px] text-ink-3">Keine Readiness-Daten</p>
+                </AppCard>
+
+                <AppCard flush>
+                    <div class="divide-y divide-line">
+                        <div v-for="row in sideValues" :key="row.label" class="flex items-baseline justify-between px-5 py-3">
+                            <span class="text-[13px] text-ink-3">{{ row.label }}</span>
+                            <span class="text-[17px] font-bold tabular-nums text-ink">
+                                {{ row.value }}<span v-if="row.unit" class="ml-0.5 text-[12px] font-normal text-ink-3">{{ row.unit }}</span>
+                            </span>
+                        </div>
                     </div>
-                    <div class="gr-scale-ax"><span>0</span><span>50</span><span>100</span></div>
-                    <p class="gr-note">
-                        Garmins Bereitschaftswert von 0 bis 100 fasst Schlaf, Erholung, HRV und Belastung zusammen.
-                        <template v-if="readinessDiff != null">
-                            Dein Wert liegt <strong :style="{ color: C.ink }">{{ Math.abs(readinessDiff) }} Punkte {{ readinessDiff >= 0 ? 'über' : 'unter' }}</strong>
-                            deinem Durchschnitt ({{ readinessAvg }}). Die weiße Marke zeigt den aktuellen Wert.
-                        </template>
+                </AppCard>
+            </div>
+
+            <!-- Vier Kacheln -->
+            <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                <AppCard v-for="t in tiles" :key="t.label">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">{{ t.label }}</p>
+                    <p class="mt-1 flex items-baseline gap-1">
+                        <span class="text-2xl font-bold tabular-nums tracking-tight" :style="{ color: t.color }">
+                            {{ t.value == null ? '–' : Number(t.value).toFixed(t.digits) }}
+                        </span>
+                        <span v-if="t.unit" class="text-[12px] text-ink-3">{{ t.unit }}</span>
                     </p>
-                </template>
-                <p v-else class="gr-nodata">keine readiness-daten</p>
+                    <svg v-if="t.spark" viewBox="0 0 120 34" class="mt-2 block h-8 w-full" preserveAspectRatio="none">
+                        <path :d="t.spark" fill="none" :stroke="t.color" stroke-width="1.5" />
+                    </svg>
+                    <p class="mt-2 text-[11px]" :class="t.highlight ? deltaClass(t) : 'text-ink-3'">
+                        {{ t.delta == null ? '—' : fmtDelta(t) }}
+                    </p>
+                </AppCard>
             </div>
 
-            <div class="gr-mod gr-side">
-                <p class="gr-label"><span class="sq" :style="{ background: C.ink }"></span> aktuelle werte</p>
-                <div class="gr-side-row"><span>schlaf</span><b>{{ nf(last('sleep_hours'), 1) }}<i> h</i></b></div>
-                <div class="gr-side-row"><span>hrv</span><b>{{ nf(last('hrv')) }}<i> ms</i></b></div>
-                <div class="gr-side-row"><span>ruhepuls</span><b>{{ nf(last('resting_hr')) }}<i> bpm</i></b></div>
-                <div class="gr-side-row"><span>body battery</span><b>{{ nf(last('body_battery_high')) }}</b></div>
-                <div class="gr-side-row"><span>distanz 7 tage</span><b>{{ nf(dist7, 1) }}<i> km</i></b></div>
-            </div>
-        </div>
-
-        <!-- Four tiles -->
-        <div class="gr-tiles">
-            <div v-for="t in tiles" :key="t.label" class="gr-mod gr-tile" :class="{ hot: t.highlight }">
-                <p class="gr-label"><span class="sq" :style="{ background: t.color }"></span> {{ t.label }}</p>
-                <div class="gr-tile-val" :style="{ color: t.color }">{{ t.value == null ? '–' : Number(t.value).toFixed(t.digits) }}<i>{{ t.unit }}</i></div>
-                <svg v-if="t.spark" viewBox="0 0 120 34" class="gr-spark" preserveAspectRatio="none">
-                    <path :d="t.spark" fill="none" :stroke="t.color" stroke-width="1.5" />
+            <!-- HRV -->
+            <AppCard v-if="hrvChart" title="HRV mit Baseline-Band"
+                subtitle="Das Band zeigt deinen Normalbereich — Ausreißer fallen sofort auf.">
+                <svg :viewBox="`0 0 ${hrvChart.W} ${hrvChart.H}`" class="block h-auto w-full" @mousemove="onMove($event, hrvChart, ' ms')" @mouseleave="onLeave">
+                    <rect v-if="hrvChart.bandRect" :x="hrvChart.padX" :y="hrvChart.bandRect.y1" :width="hrvChart.W - hrvChart.padX*2" :height="Math.max(0, hrvChart.bandRect.y2 - hrvChart.bandRect.y1)" :fill="C.hrv" opacity="0.12" />
+                    <line v-if="hrvChart.bandRect" :x1="hrvChart.padX" :x2="hrvChart.W - hrvChart.padX" :y1="hrvChart.bandRect.mean" :y2="hrvChart.bandRect.mean" :stroke="C.hrv" stroke-width="1" opacity="0.4" />
+                    <line v-for="g in hrvChart.grid" :key="g.y" :x1="hrvChart.padX" :x2="hrvChart.W - hrvChart.padX" :y1="g.y" :y2="g.y" :stroke="C.grid" stroke-width="1" />
+                    <path :d="hrvChart.d" fill="none" :stroke="C.hrv" stroke-width="2" />
+                    <circle v-if="hrvChart.lastPt" :cx="hrvChart.lastPt.x" :cy="hrvChart.lastPt.y" r="4" :fill="C.hrv" />
+                    <text v-if="hrvChart.lastPt" :x="hrvChart.lastPt.x - 8" :y="hrvChart.lastPt.y - 10" :fill="C.ink" font-size="13" text-anchor="end">{{ Math.round(hrvChart.lastPt.v) }} ms</text>
+                    <text v-for="l in hrvChart.xlabels" :key="l.x" :x="l.x" :y="hrvChart.H - 6" :fill="C.muted" font-size="11" text-anchor="middle">{{ l.t }}</text>
+                    <template v-if="hover">
+                        <line :x1="hover.x" :x2="hover.x" y1="12" :y2="hrvChart.H - 22" :stroke="C.sub" stroke-width="1" opacity="0.5" />
+                        <text :x="Math.min(Math.max(hover.x, 40), hover.W - 40)" y="12" :fill="C.ink" font-size="12" text-anchor="middle">{{ fmtDM(hover.date) }}: {{ Math.round(hover.v) }}{{ hover.unit }}</text>
+                    </template>
                 </svg>
-                <p class="gr-tile-delta" :style="{ color: t.highlight ? deltaClass(t) : C.muted }">
-                    {{ t.delta == null ? '—' : fmtDelta(t) }}
-                </p>
+            </AppCard>
+
+            <!-- Ruhepuls -->
+            <AppCard v-if="rhrChart" title="Ruhepuls"
+                subtitle="Steigt er über mehrere Tage, steckt oft Belastung, zu wenig Schlaf oder ein Infekt dahinter.">
+                <svg :viewBox="`0 0 ${rhrChart.W} ${rhrChart.H}`" class="block h-auto w-full" @mousemove="onMove($event, rhrChart, ' bpm')" @mouseleave="onLeave">
+                    <line v-for="g in rhrChart.grid" :key="g.y" :x1="rhrChart.padX" :x2="rhrChart.W - rhrChart.padX" :y1="g.y" :y2="g.y" :stroke="C.grid" stroke-width="1" />
+                    <path :d="rhrChart.d" fill="none" :stroke="C.rhr" stroke-width="2" />
+                    <circle v-if="rhrChart.lastPt" :cx="rhrChart.lastPt.x" :cy="rhrChart.lastPt.y" r="4" :fill="C.rhr" />
+                    <text v-if="rhrChart.lastPt" :x="rhrChart.lastPt.x - 8" :y="rhrChart.lastPt.y - 10" :fill="C.ink" font-size="13" text-anchor="end">{{ Math.round(rhrChart.lastPt.v) }} bpm</text>
+                    <text v-for="l in rhrChart.xlabels" :key="l.x" :x="l.x" :y="rhrChart.H - 6" :fill="C.muted" font-size="11" text-anchor="middle">{{ l.t }}</text>
+                    <template v-if="hover">
+                        <line :x1="hover.x" :x2="hover.x" y1="12" :y2="rhrChart.H - 22" :stroke="C.sub" stroke-width="1" opacity="0.5" />
+                        <text :x="Math.min(Math.max(hover.x, 40), hover.W - 40)" y="12" :fill="C.ink" font-size="12" text-anchor="middle">{{ fmtDM(hover.date) }}: {{ Math.round(hover.v) }}{{ hover.unit }}</text>
+                    </template>
+                </svg>
+            </AppCard>
+
+            <!-- Schlaf + Body Battery nebeneinander ab lg -->
+            <div class="grid gap-4 lg:grid-cols-2">
+                <AppCard v-if="sleepBars" title="Schlaf"
+                    subtitle="Die Linie markiert 7 Stunden. Hervorgehobene Säulen sind kurze Nächte.">
+                    <svg :viewBox="`0 0 ${sleepBars.W} ${sleepBars.H}`" class="block h-auto w-full">
+                        <line :x1="8" :x2="sleepBars.W - 8" :y1="sleepBars.sevenY" :y2="sleepBars.sevenY" :stroke="C.muted" stroke-width="1" opacity="0.5" stroke-dasharray="4 4" />
+                        <text :x="12" :y="sleepBars.sevenY - 5" :fill="C.muted" font-size="11">7 Stunden</text>
+                        <template v-for="(b, i) in sleepBars.bars" :key="i">
+                            <rect v-if="b" :x="b.x" :y="b.y" :width="b.w" :height="b.h" rx="2" :fill="b.short ? C.rhr : C.sleep" :opacity="b.short ? 1 : 0.85">
+                                <title>{{ fmtDM(b.date) }}: {{ b.v.toFixed(1) }} h</title>
+                            </rect>
+                        </template>
+                    </svg>
+                </AppCard>
+
+                <AppCard v-if="bbBars" title="Body Battery"
+                    subtitle="Jede Säule ist die Tagesspanne von tief nach hoch. Rot markiert sind Tage unter 50.">
+                    <svg :viewBox="`0 0 ${bbBars.W} ${bbBars.H}`" class="block h-auto w-full">
+                        <line :x1="8" :x2="bbBars.W - 8" :y1="bbBars.fiftyY" :y2="bbBars.fiftyY" :stroke="C.grid" stroke-width="1" />
+                        <template v-for="(b, i) in bbBars.bars" :key="i">
+                            <rect v-if="b" :x="b.x" :y="b.y" :width="b.w" :height="b.h" rx="2" :fill="b.weak ? C.rhr : C.energy">
+                                <title>{{ fmtDM(b.date) }}: {{ b.lo ?? '?' }}–{{ b.hi }}</title>
+                            </rect>
+                        </template>
+                    </svg>
+                </AppCard>
             </div>
-        </div>
 
-        <!-- HRV with baseline band -->
-        <div class="gr-mod" v-if="hrvChart">
-            <p class="gr-label"><span class="sq" :style="{ background: C.hrv }"></span> hrv mit baseline-band</p>
-            <p class="gr-cnote">Herzratenvariabilität. Das Band zeigt deinen Normalbereich (Mittelwert ± eine Standardabweichung) — Ausreißer fallen sofort auf.</p>
-            <svg :viewBox="`0 0 ${hrvChart.W} ${hrvChart.H}`" class="gr-chart" @mousemove="onMove($event, hrvChart, ' ms')" @mouseleave="onLeave">
-                <rect v-if="hrvChart.bandRect" :x="hrvChart.padX" :y="hrvChart.bandRect.y1" :width="hrvChart.W - hrvChart.padX*2" :height="Math.max(0, hrvChart.bandRect.y2 - hrvChart.bandRect.y1)" :fill="C.hrv" opacity="0.12" />
-                <line v-if="hrvChart.bandRect" :x1="hrvChart.padX" :x2="hrvChart.W - hrvChart.padX" :y1="hrvChart.bandRect.mean" :y2="hrvChart.bandRect.mean" :stroke="C.hrv" stroke-width="1" opacity="0.4" />
-                <line v-for="g in hrvChart.grid" :key="g.y" :x1="hrvChart.padX" :x2="hrvChart.W - hrvChart.padX" :y1="g.y" :y2="g.y" :stroke="C.grid" stroke-width="1" />
-                <path :d="hrvChart.d" fill="none" :stroke="C.hrv" stroke-width="2" />
-                <rect v-if="hrvChart.lastPt" :x="hrvChart.lastPt.x - 3" :y="hrvChart.lastPt.y - 3" width="6" height="6" :fill="C.white" />
-                <text v-if="hrvChart.lastPt" :x="hrvChart.lastPt.x - 8" :y="hrvChart.lastPt.y - 8" :fill="C.white" font-size="13" text-anchor="end">{{ Math.round(hrvChart.lastPt.v) }} ms</text>
-                <text v-for="l in hrvChart.xlabels" :key="l.x" :x="l.x" :y="hrvChart.H - 6" :fill="C.muted" font-size="11" text-anchor="middle">{{ l.t }}</text>
-                <template v-if="hover">
-                    <line :x1="hover.x" :x2="hover.x" y1="12" :y2="hrvChart.H - 22" :stroke="C.sub" stroke-width="1" opacity="0.5" />
-                    <rect :x="Math.min(Math.max(hover.x - 34, 2), hover.W - 70)" y="2" width="68" height="18" :fill="C.grid" />
-                    <text :x="Math.min(Math.max(hover.x, 36), hover.W - 36)" y="15" :fill="C.ink" font-size="11" text-anchor="middle">{{ fmtDM(hover.date) }}: {{ Math.round(hover.v) }}{{ hover.unit }}</text>
-                </template>
-            </svg>
-        </div>
+            <!-- Kilometer pro Woche -->
+            <AppCard v-if="weeklyKm" title="Kilometer pro Kalenderwoche"
+                subtitle="Die hervorgehobene Säule ist die laufende, noch unvollständige Woche.">
+                <svg :viewBox="`0 0 ${weeklyKm.W} ${weeklyKm.H}`" class="block h-auto w-full">
+                    <template v-for="(b, i) in weeklyKm.bars" :key="i">
+                        <rect :x="b.x" :y="b.y" :width="b.w" :height="b.h" rx="3" :fill="C.hrv" :opacity="b.current ? 0.45 : 1">
+                            <title>{{ b.label }}: {{ b.v.toFixed(1) }} km</title>
+                        </rect>
+                        <text :x="b.x + b.w / 2" :y="weeklyKm.H - 6" :fill="C.muted" font-size="11" text-anchor="middle">{{ b.label }}</text>
+                    </template>
+                </svg>
+            </AppCard>
 
-        <!-- Resting HR -->
-        <div class="gr-mod" v-if="rhrChart">
-            <p class="gr-label"><span class="sq" :style="{ background: C.rhr }"></span> ruhepuls</p>
-            <p class="gr-cnote">Dein niedrigster Puls in Ruhe. Steigt er über mehrere Tage, steckt oft Trainingsbelastung, zu wenig Schlaf oder ein Infekt dahinter.</p>
-            <svg :viewBox="`0 0 ${rhrChart.W} ${rhrChart.H}`" class="gr-chart" @mousemove="onMove($event, rhrChart, ' bpm')" @mouseleave="onLeave">
-                <line v-for="g in rhrChart.grid" :key="g.y" :x1="rhrChart.padX" :x2="rhrChart.W - rhrChart.padX" :y1="g.y" :y2="g.y" :stroke="C.grid" stroke-width="1" />
-                <path :d="rhrChart.d" fill="none" :stroke="C.rhr" stroke-width="2" />
-                <rect v-if="rhrChart.lastPt" :x="rhrChart.lastPt.x - 3" :y="rhrChart.lastPt.y - 3" width="6" height="6" :fill="C.white" />
-                <text v-if="rhrChart.lastPt" :x="rhrChart.lastPt.x - 8" :y="rhrChart.lastPt.y - 8" :fill="C.white" font-size="13" text-anchor="end">{{ Math.round(rhrChart.lastPt.v) }} bpm</text>
-                <text v-for="l in rhrChart.xlabels" :key="l.x" :x="l.x" :y="rhrChart.H - 6" :fill="C.muted" font-size="11" text-anchor="middle">{{ l.t }}</text>
-                <template v-if="hover">
-                    <line :x1="hover.x" :x2="hover.x" y1="12" :y2="rhrChart.H - 22" :stroke="C.sub" stroke-width="1" opacity="0.5" />
-                    <rect :x="Math.min(Math.max(hover.x - 38, 2), hover.W - 78)" y="2" width="76" height="18" :fill="C.grid" />
-                    <text :x="Math.min(Math.max(hover.x, 40), hover.W - 40)" y="15" :fill="C.ink" font-size="11" text-anchor="middle">{{ fmtDM(hover.date) }}: {{ Math.round(hover.v) }}{{ hover.unit }}</text>
-                </template>
-            </svg>
-        </div>
+            <!-- Logbuch -->
+            <AppCard v-if="logbook.length" title="Logbuch" subtitle="Deine Einheiten im gewählten Zeitraum, neueste zuerst.">
+                <div class="-mx-1 overflow-x-auto">
+                    <table class="w-full min-w-[34rem] border-collapse text-[13px]">
+                        <thead>
+                            <tr class="text-ink-3">
+                                <th class="px-2 py-2 text-left font-semibold">Datum</th>
+                                <th class="px-2 py-2 text-left font-semibold">Einheit</th>
+                                <th class="px-2 py-2 text-right font-semibold">km</th>
+                                <th class="px-2 py-2 text-right font-semibold">Zeit</th>
+                                <th class="px-2 py-2 text-right font-semibold">Pace</th>
+                                <th class="px-2 py-2 text-right font-semibold">Puls</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line">
+                            <tr v-for="(a, i) in logbook" :key="i">
+                                <td class="whitespace-nowrap px-2 py-2.5 text-ink-3">{{ fmtDM(a.date) }}</td>
+                                <td class="max-w-[12rem] truncate px-2 py-2.5 font-medium text-ink">{{ a.name }}</td>
+                                <td class="px-2 py-2.5 text-right tabular-nums text-ink-2">{{ a.distance_km ? a.distance_km.toFixed(2) : '–' }}</td>
+                                <td class="px-2 py-2.5 text-right tabular-nums text-ink-2">{{ durStr(a.moving_time) }}</td>
+                                <td class="px-2 py-2.5 text-right tabular-nums text-ink-2">{{ paceStr(a) }}</td>
+                                <td class="px-2 py-2.5 text-right tabular-nums text-ink-2">{{ a.avg_hr ? Math.round(a.avg_hr) : '–' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </AppCard>
 
-        <!-- Sleep -->
-        <div class="gr-mod" v-if="sleepBars">
-            <p class="gr-label"><span class="sq" :style="{ background: C.sleep }"></span> schlaf</p>
-            <p class="gr-cnote">Schlafdauer pro Nacht. Die waagerechte Linie markiert 7 Stunden als grobe Orientierung. Weiß hervorgehobene Säulen sind kurze Nächte.</p>
-            <svg :viewBox="`0 0 ${sleepBars.W} ${sleepBars.H}`" class="gr-chart">
-                <line :x1="8" :x2="sleepBars.W - 8" :y1="sleepBars.sevenY" :y2="sleepBars.sevenY" :stroke="C.sub" stroke-width="1" opacity="0.5" />
-                <text :x="12" :y="sleepBars.sevenY - 4" :fill="C.muted" font-size="10">7 stunden</text>
-                <template v-for="(b, i) in sleepBars.bars" :key="i">
-                    <rect v-if="b" :x="b.x" :y="b.y" :width="b.w" :height="b.h" :fill="b.short || i === sleepBars.lastIdx ? C.white : C.sleep">
-                        <title>{{ fmtDM(b.date) }}: {{ b.v.toFixed(1) }} h</title>
-                    </rect>
-                </template>
-            </svg>
-        </div>
+            <!-- Rohdaten -->
+            <AppCard>
+                <button class="flex items-center gap-1.5 text-[13px] font-semibold text-ink-2 transition-colors hover:text-ink"
+                    @click="rawOpen = !rawOpen">
+                    <svg class="h-4 w-4 transition-transform duration-200" :class="rawOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                    </svg>
+                    Rohdaten
+                </button>
+                <p class="mt-1 text-[13px] text-ink-3">„–" bedeutet keine Daten, nicht null.</p>
 
-        <!-- Body battery -->
-        <div class="gr-mod" v-if="bbBars">
-            <p class="gr-label"><span class="sq" :style="{ background: C.energy }"></span> body battery — tagesspanne</p>
-            <p class="gr-cnote">Energiespeicher von 0 bis 100. Jede Säule zeigt die Spanne eines Tages von tief nach hoch. Weiß markiert sind Tage unter 50.</p>
-            <svg :viewBox="`0 0 ${bbBars.W} ${bbBars.H}`" class="gr-chart">
-                <line :x1="8" :x2="bbBars.W - 8" :y1="bbBars.fiftyY" :y2="bbBars.fiftyY" :stroke="C.grid" stroke-width="1" />
-                <template v-for="(b, i) in bbBars.bars" :key="i">
-                    <rect v-if="b" :x="b.x" :y="b.y" :width="b.w" :height="b.h" :fill="b.weak ? C.white : C.energy">
-                        <title>{{ fmtDM(b.date) }}: {{ b.lo ?? '?' }}–{{ b.hi }}</title>
-                    </rect>
-                </template>
-            </svg>
+                <div v-if="rawOpen" class="-mx-1 mt-4 overflow-x-auto">
+                    <table class="w-full min-w-[38rem] border-collapse text-[13px]">
+                        <thead>
+                            <tr class="text-ink-3">
+                                <th class="px-2 py-2 text-left font-semibold">Datum</th>
+                                <th class="px-2 py-2 text-right font-semibold">HRV</th>
+                                <th class="px-2 py-2 text-right font-semibold">Ruhepuls</th>
+                                <th class="px-2 py-2 text-right font-semibold">Schlaf</th>
+                                <th class="px-2 py-2 text-right font-semibold">Battery</th>
+                                <th class="px-2 py-2 text-right font-semibold">Stress</th>
+                                <th class="px-2 py-2 text-right font-semibold">Schritte</th>
+                                <th class="px-2 py-2 text-right font-semibold">Readiness</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line">
+                            <tr v-for="d in [...days].reverse()" :key="d.date">
+                                <td class="whitespace-nowrap px-2 py-2 text-ink-3">{{ fmtDM(d.date) }}</td>
+                                <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ nf(d.hrv) }}</td>
+                                <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ nf(d.resting_hr) }}</td>
+                                <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ d.sleep_hours != null ? d.sleep_hours.toFixed(1) : '–' }}</td>
+                                <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ d.body_battery_high != null ? `${d.body_battery_low ?? '?'}–${d.body_battery_high}` : '–' }}</td>
+                                <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ nf(d.stress_avg) }}</td>
+                                <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ nf(d.steps) }}</td>
+                                <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ nf(d.training_readiness) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </AppCard>
         </div>
-
-        <!-- Weekly km -->
-        <div class="gr-mod" v-if="weeklyKm">
-            <p class="gr-label"><span class="sq" :style="{ background: C.hrv }"></span> kilometer pro kalenderwoche</p>
-            <p class="gr-cnote">Summe der Distanz deiner Einheiten, gebündelt pro Kalenderwoche. Die weiße Säule ist die laufende (noch unvollständige) Woche.</p>
-            <svg :viewBox="`0 0 ${weeklyKm.W} ${weeklyKm.H}`" class="gr-chart">
-                <template v-for="(b, i) in weeklyKm.bars" :key="i">
-                    <rect :x="b.x" :y="b.y" :width="b.w" :height="b.h" :fill="b.current ? C.white : C.hrv">
-                        <title>{{ b.label }}: {{ b.v.toFixed(1) }} km</title>
-                    </rect>
-                    <text :x="b.x + b.w / 2" :y="weeklyKm.H - 6" :fill="C.muted" font-size="10" text-anchor="middle">{{ b.label }}</text>
-                </template>
-            </svg>
-        </div>
-
-        <!-- Logbook -->
-        <div class="gr-mod" v-if="logbook.length">
-            <p class="gr-label"><span class="sq" :style="{ background: C.ink }"></span> logbuch der einheiten</p>
-            <p class="gr-cnote">Deine Einheiten im gewählten Zeitraum, neueste zuerst. Pace in Minuten pro Kilometer.</p>
-            <div class="gr-tablewrap">
-                <table class="gr-table">
-                    <thead><tr><th>datum</th><th>einheit</th><th class="r">km</th><th class="r">zeit</th><th class="r">pace</th><th class="r">puls</th></tr></thead>
-                    <tbody>
-                        <tr v-for="(a, i) in logbook" :key="i">
-                            <td>{{ fmtDM(a.date) }}</td>
-                            <td class="nm">{{ a.name }}</td>
-                            <td class="r">{{ a.distance_km ? a.distance_km.toFixed(2) : '–' }}</td>
-                            <td class="r">{{ durStr(a.moving_time) }}</td>
-                            <td class="r">{{ paceStr(a) }}</td>
-                            <td class="r">{{ a.avg_hr ? Math.round(a.avg_hr) : '–' }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Raw data -->
-        <div class="gr-mod">
-            <button class="gr-raw-toggle" @click="rawOpen = !rawOpen">
-                <span class="sq" :style="{ background: C.muted }"></span> rohdaten {{ rawOpen ? '▲' : '▼' }}
-            </button>
-            <p class="gr-cnote">Alle Werte des Zeitraums. „–" bedeutet keine Daten, nicht null.</p>
-            <div v-if="rawOpen" class="gr-tablewrap">
-                <table class="gr-table">
-                    <thead><tr><th>datum</th><th class="r">hrv</th><th class="r">rhr</th><th class="r">schlaf</th><th class="r">bb</th><th class="r">stress</th><th class="r">schritte</th><th class="r">readiness</th></tr></thead>
-                    <tbody>
-                        <tr v-for="d in [...days].reverse()" :key="d.date">
-                            <td>{{ fmtDM(d.date) }}</td>
-                            <td class="r">{{ nf(d.hrv) }}</td>
-                            <td class="r">{{ nf(d.resting_hr) }}</td>
-                            <td class="r">{{ d.sleep_hours != null ? d.sleep_hours.toFixed(1) : '–' }}</td>
-                            <td class="r">{{ d.body_battery_high != null ? `${d.body_battery_low ?? '?'}–${d.body_battery_high}` : '–' }}</td>
-                            <td class="r">{{ nf(d.stress_avg) }}</td>
-                            <td class="r">{{ nf(d.steps) }}</td>
-                            <td class="r">{{ nf(d.training_readiness) }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="gr-foot"><span>sport ki 01</span><span>garmin · nur lesend</span></div>
-    </template>
-</div>
+    </section>
 </template>
-
-<style scoped>
-.gr {
-    background: #08080A;
-    border: 1px solid #26262c;
-    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-    color: #F5F5F5;
-    letter-spacing: -0.01em;
-}
-.gr * { box-sizing: border-box; }
-.sq { display: inline-block; width: 9px; height: 9px; margin-right: 6px; vertical-align: middle; }
-.gr-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid #26262c; flex-wrap: wrap; }
-.gr-title { font-size: 14px; font-weight: 700; text-transform: lowercase; margin: 0; }
-.gr-sub { font-size: 11px; color: #6c6c74; margin: 4px 0 0; }
-.gr-head-right { display: flex; align-items: center; gap: 12px; }
-.gr-refresh { font-size: 11px; color: #3D7BFF; background: transparent; border: 0; cursor: pointer; font-family: inherit; text-transform: lowercase; padding: 0; }
-.gr-refresh:disabled { opacity: 0.5; }
-.gr-toggle { display: flex; }
-.gr-toggle button { font-size: 11px; color: #8a8a92; background: transparent; border: 1px solid #26262c; padding: 5px 10px; cursor: pointer; margin-left: -1px; }
-.gr-toggle button.on { color: #08080A; background: #F5F5F5; border-color: #F5F5F5; font-weight: 700; }
-.gr-empty, .gr-nodata, .gr-nodata { padding: 24px 18px; color: #6c6c74; font-size: 13px; }
-.gr-mod { padding: 16px 18px; border-bottom: 1px solid #26262c; }
-.gr-label { font-size: 11px; color: #8a8a92; text-transform: lowercase; margin: 0 0 6px; letter-spacing: 0; }
-.gr-cnote { font-size: 11px; color: #6c6c74; line-height: 1.5; margin: 0 0 10px; max-width: 62ch; }
-.tabular, .gr-big, .gr-tile-val, .gr-side-row b, .gr-table td.r, .gr-table th.r { font-variant-numeric: tabular-nums; }
-
-.gr-grid2 { display: grid; grid-template-columns: 2fr 1fr; }
-.gr-grid2 .gr-mod { border-bottom: 1px solid #26262c; }
-.gr-grid2 .gr-mod + .gr-mod { border-left: 1px solid #26262c; }
-.gr-big { font-size: 56px; font-weight: 800; line-height: 1; letter-spacing: -0.04em; margin-top: 4px; }
-.gr-big-unit { font-size: 20px; font-weight: 400; color: #6c6c74; letter-spacing: 0; }
-.gr-stand { font-size: 11px; color: #6c6c74; margin: 8px 0 12px; }
-.gr-scale { position: relative; height: 8px; background: #141418; }
-.gr-scale-fill { height: 100%; }
-.gr-scale-mark { position: absolute; top: -2px; width: 3px; height: 12px; background: #FFFFFF; transform: translateX(-50%); }
-.gr-scale-ax { display: flex; justify-content: space-between; font-size: 10px; color: #6c6c74; margin-top: 4px; }
-.gr-note { font-size: 11px; color: #8a8a92; line-height: 1.5; margin: 12px 0 0; }
-.gr-side-row { display: flex; align-items: baseline; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #1a1a1f; font-size: 12px; color: #8a8a92; }
-.gr-side-row:last-child { border-bottom: 0; }
-.gr-side-row b { font-size: 17px; font-weight: 700; color: #F5F5F5; }
-.gr-side-row i { font-size: 11px; font-weight: 400; color: #6c6c74; font-style: normal; }
-
-.gr-tiles { display: grid; grid-template-columns: repeat(4, 1fr); }
-.gr-tile { border-bottom: 1px solid #26262c; }
-.gr-tile + .gr-tile { border-left: 1px solid #26262c; }
-.gr-tile.hot { background: #101014; }
-.gr-tile-val { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; margin: 2px 0 6px; }
-.gr-tile-val i { font-size: 12px; font-weight: 400; color: #6c6c74; font-style: normal; }
-.gr-spark { width: 100%; height: 34px; display: block; }
-.gr-tile-delta { font-size: 11px; margin: 6px 0 0; }
-
-.gr-chart { width: 100%; height: auto; display: block; }
-.gr-tablewrap { overflow-x: auto; }
-.gr-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.gr-table th { text-align: left; color: #6c6c74; font-weight: 600; text-transform: lowercase; padding: 6px 8px; border-bottom: 1px solid #26262c; position: sticky; top: 0; background: #08080A; }
-.gr-table td { padding: 6px 8px; border-bottom: 1px solid #16161a; color: #c5c5cc; }
-.gr-table td.nm { color: #F5F5F5; }
-.gr-table .r { text-align: right; }
-.gr-raw-toggle { background: transparent; border: 0; color: #8a8a92; font-size: 11px; text-transform: lowercase; cursor: pointer; padding: 0; margin-bottom: 6px; font-family: inherit; }
-
-.gr-foot { display: flex; justify-content: space-between; font-size: 10px; color: #6c6c74; padding: 12px 18px; }
-
-@media (max-width: 640px) {
-    .gr-grid2 { grid-template-columns: 1fr; }
-    .gr-grid2 .gr-mod + .gr-mod { border-left: 0; }
-    .gr-tiles { grid-template-columns: repeat(2, 1fr); }
-    .gr-tile:nth-child(3), .gr-tile:nth-child(4) { border-top: 1px solid #26262c; }
-    .gr-tile:nth-child(odd) { border-left: 0; }
-    .gr-big { font-size: 44px; }
-}
-@media (prefers-reduced-motion: reduce) { .gr * { transition: none !important; animation: none !important; } }
-</style>

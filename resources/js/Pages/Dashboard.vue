@@ -340,6 +340,21 @@ const streakDays = computed(() => {
     return count;
 });
 
+// ── Garmin-Gesundheitsdaten nachladen ────────────────────────────────────────
+// Der Button in GarminRecovery hat bisher ein Event geworfen, das niemand
+// abgefangen hat — er tat schlicht nichts.
+const garminSyncing = ref(false);
+
+async function syncGarminHealth() {
+    garminSyncing.value = true;
+    try {
+        await axios.post(route('profile.garmin-sync-health'));
+        router.reload({ only: ['garminMetrics', 'recoveryActivities'] });
+    } finally {
+        garminSyncing.value = false;
+    }
+}
+
 // ── Status-Zeile ganz oben ───────────────────────────────────────────────────
 const checkinDone = computed(() => wellbeingEnteredToday.value);
 
@@ -922,90 +937,6 @@ function syncStrava() {
     });
 }
 
-// ── Garmin recovery data (HRV, sleep, RHR, Body Battery, stress, readiness) ──
-const garminSyncing = ref(false);
-const garminSeries  = computed(() => props.garminMetrics?.series ?? []);
-const garminLatest  = computed(() => props.garminMetrics?.latest ?? null);
-const hasGarminData = computed(() => garminSeries.value.length > 0);
-
-function syncGarmin() {
-    garminSyncing.value = true;
-    axios.post('/profile/garmin-sync-health', { days: 7 })
-        .catch(() => {})
-        .finally(() => {
-            // The sync runs in the queue; give it a moment, then refresh the prop.
-            setTimeout(() => {
-                garminSyncing.value = false;
-                router.reload({ only: ['garminMetrics'] });
-            }, 5000);
-        });
-}
-
-// Build one metric tile: latest value, sparkline path (gaps preserved), and a
-// period-over-period delta that is only highlighted on a meaningful move (>0.6 SD).
-function buildGarminTile(key, opts) {
-    const series = garminSeries.value;
-    const vals = series.map(d => d[key]).filter(v => v !== null && v !== undefined);
-    const base = { ...opts, value: vals.length ? vals[vals.length - 1] : null, spark: null, delta: null, highlight: false };
-    if (vals.length < 2) return base;
-
-    const mean = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
-    const half = Math.floor(vals.length / 2);
-    const delta = mean(vals.slice(half)) - mean(vals.slice(0, half));
-    const m = mean(vals);
-    const sd = Math.sqrt(mean(vals.map(v => (v - m) ** 2)));
-    const highlight = sd > 0 && Math.abs(delta) > 0.6 * sd;
-
-    // Sparkline across the full series; a null value breaks the line (no interpolation).
-    const W = 100, H = 28, pad = 2;
-    const min = Math.min(...vals), max = Math.max(...vals);
-    const range = (max - min) || 1;
-    const n = series.length;
-    let d = '', open = false;
-    series.forEach((row, i) => {
-        const v = row[key];
-        if (v === null || v === undefined) { open = false; return; }
-        const x = pad + (n > 1 ? (i / (n - 1)) : 0) * (W - pad * 2);
-        const y = pad + (H - pad * 2) - ((v - min) / range) * (H - pad * 2);
-        d += (open ? ' L ' : ' M ') + x.toFixed(1) + ' ' + y.toFixed(1);
-        open = true;
-    });
-
-    return { ...base, delta, highlight, spark: d };
-}
-
-const garminTiles = computed(() => {
-    if (!hasGarminData.value) return [];
-    return [
-        buildGarminTile('hrv',         { label: 'HRV',      color: '#3D7BFF', unit: ' ms',  digits: 0 }),
-        buildGarminTile('resting_hr',  { label: 'Ruhepuls', color: '#F0402F', unit: ' bpm', digits: 0, invert: true }),
-        buildGarminTile('sleep_hours', { label: 'Schlaf',   color: '#FFC400', unit: ' h',   digits: 1 }),
-        buildGarminTile('stress_avg',  { label: 'Stress',   color: '#00C46A', unit: '',     digits: 0, invert: true }),
-    ];
-});
-
-const readinessLabel = computed(() => {
-    const r = garminLatest.value?.training_readiness;
-    if (r == null) return '';
-    if (r >= 75) return 'bereit für harte Reize';
-    if (r >= 50) return 'moderat belastbar';
-    if (r >= 25) return 'eher locker halten';
-    return 'Erholung priorisieren';
-});
-
-const readinessColor = computed(() => {
-    const r = garminLatest.value?.training_readiness ?? 0;
-    if (r >= 75) return '#00C46A';
-    if (r >= 50) return '#FFC400';
-    if (r >= 25) return '#F59E0B';
-    return '#F0402F';
-});
-
-function garminDeltaClass(t) {
-    // invert=true → an increase is unfavourable (resting HR, stress)
-    const good = t.invert ? t.delta < 0 : t.delta > 0;
-    return good ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
-}
 
 </script>
 
@@ -1028,7 +959,7 @@ function garminDeltaClass(t) {
                         {{ streakDays }}
                     </StatChip>
 
-                    <StatChip label="Trainingsstatus" :tone="statusChip.tone">
+                    <StatChip label="Status" :tone="statusChip.tone">
                         <template #icon>
                             <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 19.5 19.5 4.5m0 0H9m10.5 0V15" />
@@ -1361,7 +1292,13 @@ function garminDeltaClass(t) {
                 </section>
 
                 <!-- Garmin-Erholung -->
-                <GarminRecovery v-if="props.garminMetrics" :metrics="props.garminMetrics" :activities="props.recoveryActivities" />
+                <GarminRecovery
+                    v-if="props.garminMetrics"
+                    :metrics="props.garminMetrics"
+                    :activities="props.recoveryActivities"
+                    :syncing="garminSyncing"
+                    @refresh="syncGarminHealth"
+                />
 
                 <!-- ══════════════════════════════════════════════════
                      FORM · TEMPO  (nebeneinander ab lg)
@@ -1673,21 +1610,26 @@ function garminDeltaClass(t) {
                                          Heute ist bg-ink (im Dark Mode hell), das Event bg-warn (immer dunkel genug). -->
                                     <span v-if="d.hasActivity && d.hasEvent" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-white/80" />
                                     <span v-else-if="d.hasActivity && d.isToday" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-canvas/80" />
-
-                                    <div v-if="d.hasActivity && calendarPickerDay === d.day"
-                                        class="absolute top-10 left-1/2 z-30 w-56 -translate-x-1/2 rounded-card bg-surface py-1 text-left shadow-sheet"
-                                        @click.stop>
-                                        <p class="px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-ink-3">
-                                            {{ activeDaysInMonth.get(d.day)?.length }} Aktivitäten
-                                        </p>
-                                        <button v-for="act in activeDaysInMonth.get(d.day)" :key="act.id"
-                                            @click="pickCalendarActivity(act)"
-                                            class="w-full px-4 py-2.5 text-left transition-colors hover:bg-surface-2">
-                                            <p class="truncate text-[13px] font-semibold text-ink">{{ act.name }}</p>
-                                            <p class="text-[12px] text-ink-3"><template v-if="act.distance > 0">{{ formatDistance(act.distance) }} km · </template>{{ formatTime(act.moving_time) }}</p>
-                                        </button>
-                                    </div>
                                 </div>
+                            </div>
+
+                            <!-- Mehrere Aktivitäten an einem Tag: als Liste unter dem Raster.
+                                 Als schwebende Sprechblase ragte sie an den Randspalten aus dem
+                                 Bildschirm und liess die ganze Seite seitlich scrollen. -->
+                            <div v-if="calendarPickerDay && activeDaysInMonth.get(calendarPickerDay)?.length"
+                                class="mt-4 rounded-field bg-surface-2 p-1.5">
+                                <div class="flex items-center justify-between px-3 py-1.5">
+                                    <p class="text-[11px] font-bold uppercase tracking-wider text-ink-3">
+                                        {{ calendarPickerDay }}. {{ currentMonthLabel.split(' ')[0] }} · {{ activeDaysInMonth.get(calendarPickerDay).length }} Aktivitäten
+                                    </p>
+                                    <button class="text-lg leading-none text-ink-3 hover:text-ink" @click="calendarPickerDay = null">✕</button>
+                                </div>
+                                <button v-for="act in activeDaysInMonth.get(calendarPickerDay)" :key="act.id"
+                                    @click="pickCalendarActivity(act)"
+                                    class="w-full rounded-field px-3 py-2.5 text-left transition-colors hover:bg-surface">
+                                    <p class="truncate text-[13px] font-semibold text-ink">{{ act.name }}</p>
+                                    <p class="text-[12px] text-ink-3"><template v-if="act.distance > 0">{{ formatDistance(act.distance) }} km · </template>{{ formatTime(act.moving_time) }}</p>
+                                </button>
                             </div>
                         </AppCard>
                     </section>

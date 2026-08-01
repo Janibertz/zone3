@@ -366,8 +366,10 @@ const moreNavItems = computed(() => {
                 </div>
             </header>
 
-            <!-- Page content — top padding for mobile header (safe area aware), bottom for tab bar -->
-            <main class="flex-1 pb-mobile-tabbar pt-mobile-header lg:pb-0 lg:pt-0">
+            <!-- Page content — top padding for mobile header (safe area aware), bottom for tab bar.
+                 overflow-x-clip faengt ein einzelnes zu breites Element ab, statt die ganze
+                 Seite seitlich scrollen zu lassen (clip statt hidden, damit sticky weiter geht). -->
+            <main class="min-w-0 flex-1 overflow-x-clip pb-mobile-tabbar pt-mobile-header lg:pb-0 lg:pt-0">
                 <slot />
             </main>
         </div>
