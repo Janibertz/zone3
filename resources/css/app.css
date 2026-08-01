@@ -17,86 +17,124 @@
 @layer base {
 
   :root {
-    /* ── Neutrals (light) ─────────────────────────────── */
-    --z-bg:            249 250 251;
+    /* ── Neutrals (light) ─────────────────────────────────
+       Karten sind reinweiß und tragen KEINEN Rahmen — sie
+       heben sich allein durch den grauen Canvas ab.        */
+    --z-bg:            242 242 245;
     --z-surface:       255 255 255;
-    --z-surface-2:     244 245 248;
-    --z-surface-3:     235 237 242;
-    --z-border:        228 231 237;
-    --z-border-strong: 205 210 219;
-    --z-ink:            15 18 25;
-    --z-ink-2:          82  90 104;
-    --z-ink-3:         133 141 155;
+    --z-surface-2:     239 239 242;   /* Chips, Sekundär-Buttons */
+    --z-surface-3:     228 228 233;   /* Hover, gedrückt */
+    --z-border:        233 233 237;   /* nur für Trennlinien */
+    --z-border-strong: 209 209 215;
+    --z-ink:            10  10  12;
+    --z-ink-2:          88  88  95;
+    --z-ink-3:         142 142 147;
 
     /* ── Accents (light) ──────────────────────────────── */
     --z-accent:         79  70 229;
-    --z-accent-soft:   238 238 254;
+    --z-accent-soft:   239 238 254;
     --z-accent-ink:     67  56 202;
 
-    --z-success:        22 163  74;
-    --z-success-soft:  235 250 240;
+    --z-success:        34 197  94;
+    --z-success-soft:  221 247 231;
     --z-success-ink:    21 128  61;
 
-    --z-warn:          217 119   6;
-    --z-warn-soft:     254 247 232;
+    --z-warn:          245 158  11;
+    --z-warn-soft:     254 246 227;
     --z-warn-ink:      180  83   9;
 
-    --z-danger:        220  38  38;
-    --z-danger-soft:   254 240 240;
+    --z-danger:        239  68  68;
+    --z-danger-soft:   254 238 238;
     --z-danger-ink:    185  28  28;
 
-    --z-info:            2 132 199;
-    --z-info-soft:     236 247 254;
-    --z-info-ink:        3 105 161;
+    --z-info:           59 130 246;
+    --z-info-soft:     231 240 255;
+    --z-info-ink:       29  78 216;
 
-    /* ── Elevation (light) ────────────────────────────── */
-    --z-shadow-card:  0 1px 2px rgb(15 18 25 / 0.04), 0 1px 3px rgb(15 18 25 / 0.06);
-    --z-shadow-sheet: 0 -8px 40px rgb(15 18 25 / 0.16);
-    --z-shadow-bar:   0 -1px 0 rgb(15 18 25 / 0.06);
+    /* ── Ambient-Wash hinter dem Seitenkopf ───────────── */
+    --z-wash-good-a:   214 244 224;   /* Minze  – alles im grünen Bereich */
+    --z-wash-good-b:   226 247 233;
+    --z-wash-calm-a:   225 224 246;   /* Lavendel → Pfirsich */
+    --z-wash-calm-b:   250 233 221;
+
+    /* ── Elevation (light) — bewusst fast unsichtbar ──── */
+    --z-shadow-card:  0 1px 2px rgb(10 10 12 / 0.04);
+    --z-shadow-sheet: 0 -8px 40px rgb(10 10 12 / 0.18);
+    --z-shadow-bar:   0 -1px 0 rgb(10 10 12 / 0.06);
   }
 
   .dark {
     /* ── Neutrals (dark) ──────────────────────────────── */
-    --z-bg:              9  10  14;
-    --z-surface:        21  23  30;
-    --z-surface-2:      29  32  40;
-    --z-surface-3:      39  43  53;
-    --z-border:         42  46  57;
-    --z-border-strong:  62  68  81;
-    --z-ink:           244 245 247;
-    --z-ink-2:         159 167 179;
-    --z-ink-3:         115 123 137;
+    --z-bg:             10  10  12;
+    --z-surface:        24  24  27;
+    --z-surface-2:      35  35  39;
+    --z-surface-3:      48  48  54;
+    --z-border:         38  38  43;
+    --z-border-strong:  63  63  70;
+    --z-ink:           250 250 250;
+    --z-ink-2:         163 163 170;
+    --z-ink-3:         113 113 122;
 
-    /* ── Accents (dark) — lifted for contrast on dark ─── */
+    /* ── Accents (dark) — angehoben für Kontrast ─────── */
     --z-accent:        129 140 248;
-    --z-accent-soft:    32  33  66;
+    --z-accent-soft:    34  33  64;
     --z-accent-ink:    165 180 252;
 
-    --z-success:        52 211 153;
-    --z-success-soft:   14  47  40;
-    --z-success-ink:   110 231 183;
+    --z-success:        74 222 128;
+    --z-success-soft:   17  46  30;
+    --z-success-ink:   134 239 172;
 
     --z-warn:          251 191  36;
-    --z-warn-soft:      53  40  14;
+    --z-warn-soft:      51  39  14;
     --z-warn-ink:      253 215 116;
 
     --z-danger:        248 113 113;
-    --z-danger-soft:    57  25  27;
+    --z-danger-soft:    55  25  26;
     --z-danger-ink:    252 165 165;
 
-    --z-info:           56 189 248;
-    --z-info-soft:      13  40  56;
-    --z-info-ink:      125 211 252;
+    --z-info:           96 165 250;
+    --z-info-soft:      21  35  60;
+    --z-info-ink:      147 197 253;
+
+    /* ── Ambient-Wash (dark) — nur ein Hauch Farbe ───── */
+    --z-wash-good-a:    17  40  28;
+    --z-wash-good-b:    14  30  22;
+    --z-wash-calm-a:    28  27  48;
+    --z-wash-calm-b:    45  32  26;
 
     /* ── Elevation (dark) ─────────────────────────────── */
-    --z-shadow-card:  0 1px 2px rgb(0 0 0 / 0.4), 0 1px 3px rgb(0 0 0 / 0.3);
-    --z-shadow-sheet: 0 -8px 40px rgb(0 0 0 / 0.6);
+    --z-shadow-card:  0 1px 2px rgb(0 0 0 / 0.5);
+    --z-shadow-sheet: 0 -8px 40px rgb(0 0 0 / 0.7);
     --z-shadow-bar:   0 -1px 0 rgb(255 255 255 / 0.06);
   }
 
   /* Keep the browser UI (form controls, scrollbars) in sync. */
   :root       { color-scheme: light; }
   .dark:root  { color-scheme: dark; }
+}
+
+/* ── Ambient-Wash ───────────────────────────────────────────
+   Weicher Farbschleier hinter dem Seitenkopf, der nach unten
+   in den Canvas ausblendet. `good` signalisiert „alles im
+   grünen Bereich", `calm` ist der neutrale Standard.        */
+@layer components {
+  .z-wash {
+    background-repeat: no-repeat;
+    background-size: 100% 22rem;
+    background-position: top;
+  }
+
+  .z-wash-good {
+    background-image:
+      linear-gradient(180deg, transparent 45%, rgb(var(--z-bg)) 100%),
+      linear-gradient(105deg, rgb(var(--z-wash-good-a)) 0%, rgb(var(--z-wash-good-b)) 100%);
+  }
+
+  .z-wash-calm {
+    background-image:
+      linear-gradient(180deg, transparent 45%, rgb(var(--z-bg)) 100%),
+      linear-gradient(105deg, rgb(var(--z-wash-calm-a)) 0%, rgb(var(--z-wash-calm-b)) 100%);
+  }
 }
 
 /* ── Form primitives ────────────────────────────────────── */
@@ -106,9 +144,9 @@
   }
 
   .z-input {
-    @apply block w-full rounded-field border border-line bg-surface-2 px-4 py-2.5
+    @apply block w-full rounded-field bg-surface-2 px-4 py-3
            text-sm text-ink placeholder-ink-3 transition-colors
-           focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20;
+           border-0 focus:outline-none focus:ring-2 focus:ring-accent/40;
   }
 
   .z-error {

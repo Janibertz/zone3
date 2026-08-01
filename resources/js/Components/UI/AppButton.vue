@@ -2,34 +2,38 @@
 import { computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
 
+/**
+ * Pill-Button. `secondary` ist der Alltagsfall — hellgrau gefüllt,
+ * dunkler Text, kein Rahmen.
+ */
 const props = defineProps({
     variant: { type: String,  default: 'primary' }, // primary | secondary | ghost | danger
     size:    { type: String,  default: 'md' },      // sm | md | lg
     block:   { type: Boolean, default: false },
     loading: { type: Boolean, default: false },
     disabled:{ type: Boolean, default: false },
-    /** Renders an Inertia <Link> instead of a <button>. */
+    /** Rendert einen Inertia-<Link> statt eines <button>. */
     href:    { type: String,  default: null },
     type:    { type: String,  default: 'button' },
 });
 
 const variants = {
-    primary:   'bg-accent text-white hover:opacity-90 active:opacity-80',
-    secondary: 'bg-surface-2 text-ink hover:bg-surface-3 border border-line',
+    primary:   'bg-ink text-canvas hover:opacity-90',
+    secondary: 'bg-surface-2 text-ink hover:bg-surface-3',
     ghost:     'text-ink-2 hover:bg-surface-2 hover:text-ink',
-    danger:    'bg-danger text-white hover:opacity-90 active:opacity-80',
+    danger:    'bg-danger text-white hover:opacity-90',
 };
 
 const sizes = {
-    sm: 'h-9  px-3.5 text-sm  gap-1.5 rounded-field',
-    md: 'h-11 px-4   text-sm  gap-2   rounded-field',
-    lg: 'h-14 px-5   text-base gap-2  rounded-field',
+    sm: 'h-9  px-4   text-[13px] gap-1.5',
+    md: 'h-11 px-5   text-sm     gap-2',
+    lg: 'h-14 px-6   text-base   gap-2',
 };
 
 const classes = computed(() => [
-    'inline-flex items-center justify-center font-semibold transition-all duration-150',
+    'inline-flex items-center justify-center rounded-full font-semibold transition-all duration-150',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
-    'active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50',
+    'active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40',
     variants[props.variant] ?? variants.primary,
     sizes[props.size] ?? sizes.md,
     props.block ? 'w-full' : '',

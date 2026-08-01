@@ -22,7 +22,7 @@ const tones = {
 </script>
 
 <template>
-    <div class="rounded-card border border-line bg-surface p-4 shadow-card">
+    <div class="rounded-card bg-surface p-4 shadow-card">
         <p v-if="label" class="text-xs font-medium uppercase tracking-wide text-ink-3">{{ label }}</p>
         <p class="mt-1.5 flex items-baseline gap-1">
             <span class="text-2xl font-bold tabular-nums tracking-tight" :class="tones[tone] ?? tones.neutral">{{ value }}</span>

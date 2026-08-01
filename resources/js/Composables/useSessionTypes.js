@@ -19,12 +19,12 @@ export const SESSION_TYPES = {
 
 /** Tailwind classes per accent, using the design tokens. */
 const ACCENTS = {
-    success: { bg: 'bg-success-soft', border: 'border-success/25', text: 'text-success-ink', dot: 'bg-success' },
-    warn:    { bg: 'bg-warn-soft',    border: 'border-warn/25',    text: 'text-warn-ink',    dot: 'bg-warn'    },
-    danger:  { bg: 'bg-danger-soft',  border: 'border-danger/25',  text: 'text-danger-ink',  dot: 'bg-danger'  },
-    info:    { bg: 'bg-info-soft',    border: 'border-info/25',    text: 'text-info-ink',    dot: 'bg-info'    },
-    accent:  { bg: 'bg-accent-soft',  border: 'border-accent/25',  text: 'text-accent-ink',  dot: 'bg-accent'  },
-    neutral: { bg: 'bg-surface-2',    border: 'border-line',       text: 'text-ink-2',       dot: 'bg-ink-3'   },
+    success: { bg: 'bg-success-soft', text: 'text-success-ink', dot: 'bg-success', pill: 'bg-success-soft text-success-ink' },
+    warn:    { bg: 'bg-warn-soft',    text: 'text-warn-ink',    dot: 'bg-warn',    pill: 'bg-warn-soft text-warn-ink'       },
+    danger:  { bg: 'bg-danger-soft',  text: 'text-danger-ink',  dot: 'bg-danger',  pill: 'bg-danger-soft text-danger-ink'   },
+    info:    { bg: 'bg-info-soft',    text: 'text-info-ink',    dot: 'bg-info',    pill: 'bg-info-soft text-info-ink'       },
+    accent:  { bg: 'bg-accent-soft',  text: 'text-accent-ink',  dot: 'bg-accent',  pill: 'bg-accent-soft text-accent-ink'   },
+    neutral: { bg: 'bg-surface-2',    text: 'text-ink-2',       dot: 'bg-ink-3',   pill: 'bg-surface-2 text-ink-2'          },
 };
 
 export function sessionType(type) {

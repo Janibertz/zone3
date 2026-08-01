@@ -61,9 +61,9 @@ export default {
             },
 
             borderRadius: {
-                card:  '1rem',
-                sheet: '1.5rem',
-                field: '0.75rem',
+                card:  '1.25rem',   // 20px — die grosszuegigen Kartenecken
+                sheet: '1.75rem',
+                field: '0.875rem',
             },
 
             boxShadow: {
