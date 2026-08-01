@@ -11,10 +11,12 @@ import { Inertia } from '@inertiajs/inertia';
 import { router } from '@inertiajs/vue3';
 import { ref, watch, computed, onMounted } from 'vue';
 import axios from 'axios';
-import { useDarkMode } from '@/Composables/useDarkMode';
 import { useCoachChat } from '@/Composables/useCoachChat';
+import SessionCard from '@/Components/UI/SessionCard.vue';
+import AppCard from '@/Components/UI/AppCard.vue';
+import EmptyState from '@/Components/UI/EmptyState.vue';
+import { sessionType } from '@/Composables/useSessionTypes';
 
-const { isDark } = useDarkMode();
 const { open: openChat } = useCoachChat();
 
 const props = defineProps({
@@ -134,50 +136,22 @@ const page = usePage();
 const coach = computed(() => page.props.coach ?? null);
 const coachColor = computed(() => coachColors[coach.value?.avatar_color] ?? coachColors.blue);
 const flash = page.props?.flash || {};
-const errors = page.props?.errors || {};
 
-const errorMessages = computed(() => {
-    if (!errors) return [];
-    if (typeof errors === 'string') return [errors];
-    if (Array.isArray(errors)) return errors;
-    if (typeof errors === 'object') {
-        return Object.values(errors).flatMap((value) => {
-            if (Array.isArray(value)) return value;
-            return [String(value)];
-        });
-    }
-    return [];
-});
-
-const fieldErrors = computed(() => {
-    if (!errors || typeof errors !== 'object') return {};
-    return errors;
-});
-
+// Flash-Meldungen blenden sich nach ein paar Sekunden selbst aus.
 const showFlash = ref(true);
 
-const resetFlash = () => {
+function resetFlash() {
     showFlash.value = true;
-    setTimeout(() => {
-        showFlash.value = false;
-    }, 4500);
-};
+    setTimeout(() => { showFlash.value = false; }, 4500);
+}
 
 watch(
     () => page.props.flash,
     () => {
-        if (flash.success || flash.error) {
-            resetFlash();
-        }
+        if (flash.success || flash.error) resetFlash();
     },
     { immediate: true }
 );
-
-function fieldError(field) {
-    const value = fieldErrors.value[field];
-    if (Array.isArray(value)) return value[0];
-    return value || '';
-}
 
 const raceOptions = [
     { value: '5km',           label: '5 km',          hours: 0, minutes: 25 },
@@ -259,13 +233,6 @@ async function submitRating(sessionId) {
         ratingSavingId.value = null;
     }
 }
-const plan = ref(null);
-const planError = ref(null);
-const aiAnalysis = ref(null);
-const aiPlan = ref(null);
-const aiLoading = ref(false);
-const showAIModal = ref(false);
-const aiModalType = ref(null);
 const showWellbeingModal = ref(false);
 const wellbeingEnteredToday = ref(props.hasWellbeingToday);
 const wellbeingToast = ref(null);
@@ -343,6 +310,74 @@ async function sendToGarminConnect({ email, password } = {}) {
         garminSending.value = false;
     }
 }
+
+// ── Begrüßung ────────────────────────────────────────────────────────────────
+const firstName = computed(() => (page.props.auth?.user?.name ?? '').split(' ')[0] || 'Läufer');
+
+const greeting = computed(() => {
+    const h = new Date().getHours();
+    if (h < 5)  return 'Noch wach';
+    if (h < 11) return 'Guten Morgen';
+    if (h < 14) return 'Mahlzeit';
+    if (h < 18) return 'Guten Tag';
+    return 'Guten Abend';
+});
+
+const todayLabel = computed(() =>
+    new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })
+);
+
+// ── Streak: aufeinanderfolgende Tage mit Aktivität, ab heute oder gestern ────
+// Startet bei gestern, damit ein noch nicht gelaufener Tag die Serie nicht bricht.
+const streakDays = computed(() => {
+    const days = new Set(
+        props.recentActivities
+            .filter(a => a.start_date)
+            .map(a => dayKey(new Date(a.start_date)))
+    );
+    if (!days.size) return 0;
+
+    const cursor = new Date();
+    if (!days.has(dayKey(cursor))) cursor.setDate(cursor.getDate() - 1);
+
+    let count = 0;
+    while (days.has(dayKey(cursor)) && count < 400) {
+        count++;
+        cursor.setDate(cursor.getDate() - 1);
+    }
+    return count;
+});
+
+// ── Vergleich zur Vorwoche ───────────────────────────────────────────────────
+const lastWeekKm = computed(() => {
+    const now = new Date();
+    const dow = (now.getDay() + 6) % 7;
+
+    const thisWeekStart = new Date(now);
+    thisWeekStart.setDate(now.getDate() - dow);
+    thisWeekStart.setHours(0, 0, 0, 0);
+
+    const lastWeekStart = new Date(thisWeekStart);
+    lastWeekStart.setDate(thisWeekStart.getDate() - 7);
+
+    const meters = props.recentActivities
+        .filter(a => {
+            if (!a.start_date) return false;
+            const d = new Date(a.start_date);
+            return d >= lastWeekStart && d < thisWeekStart;
+        })
+        .reduce((s, a) => s + (a.distance || 0), 0);
+
+    return meters / 1000;
+});
+
+/** Prozentuale Veränderung zur Vorwoche — null, wenn es keine Basis gibt. */
+const weekTrend = computed(() => {
+    const last = lastWeekKm.value;
+    if (last < 0.5) return null;
+    const diff = ((parseFloat(weekStats.value.km) - last) / last) * 100;
+    return Math.round(diff);
+});
 
 // Computed: total distance across all activities
 const totalDistanceKm = computed(() => {
@@ -512,40 +547,6 @@ function openActivityDetail(activity) {
     router.visit(route('activities.show', activity.id));
 }
 
-function closeAIModal() {
-    showAIModal.value = false;
-    aiAnalysis.value = null;
-    aiPlan.value = null;
-    aiLoading.value = false;
-}
-
-async function getAIAnalysis(goalId) {
-    aiLoading.value = true;
-    aiModalType.value = 'analysis';
-    showAIModal.value = true;
-    try {
-        const response = await axios.get(route('ai.analyze', goalId));
-        aiAnalysis.value = response.data.analysis;
-    } catch (error) {
-        aiAnalysis.value = 'Fehler beim Abrufen der Analyse: ' + (error.response?.data?.message || error.message);
-    } finally {
-        aiLoading.value = false;
-    }
-}
-
-async function getAIPlan(goalId) {
-    aiLoading.value = true;
-    aiModalType.value = 'plan';
-    showAIModal.value = true;
-    try {
-        const response = await axios.get(route('ai.plan', goalId));
-        aiPlan.value = response.data.plan;
-    } catch (error) {
-        aiPlan.value = 'Fehler beim Erstellen des Plans: ' + (error.response?.data?.message || error.message);
-    } finally {
-        aiLoading.value = false;
-    }
-}
 
 function formatDistance(meters) {
     const km = meters / 1000;
@@ -561,45 +562,6 @@ function formatTime(seconds) {
 }
 
 // ── Workout-Struktur für angenommene Empfehlung ──────────────────────────────
-function parsePaceToSec(paceStr) {
-    if (!paceStr || paceStr === 'null') return null;
-    const parts = paceStr.split(':');
-    if (parts.length !== 2) return null;
-    return parseInt(parts[0]) * 60 + parseInt(parts[1]);
-}
-function secToPaceStr(sec) {
-    const m = Math.floor(sec / 60);
-    const s = Math.round(sec % 60);
-    return `${m}:${String(s).padStart(2, '0')}`;
-}
-function recommendationWorkoutSteps(session) {
-    if (!session || session.type === 'rest') return [];
-    const distKm = session.distance_km || 5;
-    const paceSecPerKm = parsePaceToSec(session.pace_target);
-    const easySecPerKm = paceSecPerKm ? paceSecPerKm + 60 : null;
-    const easyPaceStr  = easySecPerKm ? secToPaceStr(easySecPerKm) : null;
-    const configs = {
-        easy_run:        { wF: 0.10, wMax: 1.0, cF: 0.10, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Leichtes Einlaufen',             mName: 'Hauptteil',    mLabel: 'Lockeres Dauertempo',        cName: 'Auslaufen', cLabel: 'Leichtes Auslaufen'  },
-        tempo_run:       { wF: 0.25, wMax: 2.0, cF: 0.12, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Lockeres Einlaufen',             mName: 'Hauptteil',    mLabel: 'Tempodauerlauf',             cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
-        interval:        { wF: 0.20, wMax: 2.0, cF: 0.10, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Lockeres Einlaufen',             mName: 'Intervalle',   mLabel: 'Intervallarbeit',            cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
-        long_run:        { wF: 0.05, wMax: 1.0, cF: 0.05, cMax: 1.0, wName: 'Einlaufen',  wLabel: 'Leichtes Einlaufen',             mName: 'Hauptteil',    mLabel: 'Langer gleichmäßiger Lauf',  cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
-        race_prep:       { wF: 0.30, wMax: 2.0, cF: 0.15, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Einlaufen + Strides',            mName: 'Hauptteil',    mLabel: 'Renntempo-Abschnitte',       cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
-        progressive_run: { wF: 0.15, wMax: 1.5, cF: 0.10, cMax: 1.0, wName: 'Aufwärmen',  wLabel: 'Lockeres Einlaufen (Zone 1–2)',  mName: 'Progression',  mLabel: 'Steigern Zone 1 → Zone 3–4',  cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
-        test_run:        { wF: 0.20, wMax: 2.0, cF: 0.15, cMax: 1.5, wName: 'Aufwärmen',  wLabel: 'Einlaufen + Strides (Zone 1–2)', mName: 'Zeitversuch',  mLabel: 'Maximal-Effort (Zone 4–5)',   cName: 'Auslaufen', cLabel: 'Lockeres Auslaufen'  },
-    };
-    const cfg = configs[session.type] || configs['easy_run'];
-    const warmupKm   = Math.min(cfg.wMax, distKm * cfg.wF);
-    const cooldownKm = Math.min(cfg.cMax, distKm * cfg.cF);
-    const mainKm     = Math.max(0, distKm - warmupKm - cooldownKm);
-    return [
-        { phase: cfg.wName, label: cfg.wLabel, km: Math.round(warmupKm * 10) / 10,   pace: easyPaceStr, color: 'green' },
-        { phase: cfg.mName, label: cfg.mLabel, km: Math.round(mainKm * 10) / 10,     pace: session.pace_target && session.pace_target !== 'null' ? session.pace_target : easyPaceStr, color: 'main' },
-        { phase: cfg.cName, label: cfg.cLabel, km: Math.round(cooldownKm * 10) / 10, pace: easyPaceStr, color: 'blue'  },
-    ];
-}
-
-const showRecommendationDetail = ref(false);
-
 const recNutritionTips    = ref(null);
 const recNutritionLoading = ref(false);
 const recNutritionError   = ref('');
@@ -609,16 +571,16 @@ const recStepsLoading = ref(false);
 const recStepsError   = ref('');
 
 const stepBarColor = {
-    warmup:   'bg-green-400',
-    work:     'bg-red-400',
-    rest:     'bg-slate-300 dark:bg-slate-600',
-    cooldown: 'bg-blue-400',
+    warmup:   'bg-success',
+    work:     'bg-danger',
+    rest:     'bg-ink-3',
+    cooldown: 'bg-info',
 };
 const stepBgColor = {
-    warmup:   'bg-green-50 dark:bg-green-500/10 border-green-100 dark:border-green-500/20',
-    work:     'bg-red-50 dark:bg-red-500/10 border-red-100 dark:border-red-500/20',
-    rest:     'bg-gray-50 dark:bg-slate-800 border-gray-100 dark:border-slate-700',
-    cooldown: 'bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20',
+    warmup:   'bg-success-soft border-success/20',
+    work:     'bg-danger-soft border-danger/20',
+    rest:     'bg-surface-2 border-line',
+    cooldown: 'bg-info-soft border-info/20',
 };
 const stepLabel    = { warmup: 'Aufwärmen', work: 'Hauptteil', rest: 'Pause', cooldown: 'Auslaufen' };
 const stepHeightPct = { warmup: 60, work: 100, rest: 28, cooldown: 60 };
@@ -711,12 +673,13 @@ function eventRingProps(daysUntil) {
     const progress = Math.min(1, Math.max(0, (180 - daysUntil) / 180));
     const circumference = 2 * Math.PI * 14; // r=14
     const dashOffset = circumference * (1 - progress);
-    let ringClass, labelClass;
-    if (daysUntil <= 14)  { ringClass = 'text-red-400';    labelClass = 'text-red-300'; }
-    else if (daysUntil <= 60)  { ringClass = 'text-orange-400'; labelClass = 'text-orange-300'; }
-    else if (daysUntil <= 120) { ringClass = 'text-amber-400';  labelClass = 'text-amber-300'; }
-    else                       { ringClass = 'text-indigo-300'; labelClass = 'text-indigo-200'; }
-    return { circumference, dashOffset, ringClass, labelClass };
+    // Je näher das Event, desto dringlicher die Farbe.
+    let ringClass;
+    if (daysUntil <= 14)       ringClass = 'text-danger';
+    else if (daysUntil <= 60)  ringClass = 'text-warn';
+    else if (daysUntil <= 120) ringClass = 'text-info';
+    else                       ringClass = 'text-accent';
+    return { circumference, dashOffset, ringClass };
 }
 
 
@@ -760,14 +723,14 @@ function relativeDate(dateString) {
     return d.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
 }
 
-// Pace color: grün = schnell, orange = mittel, rot = langsam
+// Pace color: schnell = grün, langsam = orange
 function paceColor(mps) {
-    if (!mps || mps <= 0) return 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400';
+    if (!mps || mps <= 0) return 'bg-surface-2 text-ink-3';
     const secPerKm = 1000 / mps;
-    if (secPerKm < 270)  return 'bg-green-50 dark:bg-green-500/15 text-green-700 dark:text-green-300';  // < 4:30
-    if (secPerKm < 330)  return 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300';      // < 5:30
-    if (secPerKm < 390)  return 'bg-yellow-50 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300'; // < 6:30
-    return 'bg-orange-50 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300';
+    if (secPerKm < 270) return 'bg-success-soft text-success-ink'; // < 4:30
+    if (secPerKm < 330) return 'bg-info-soft text-info-ink';       // < 5:30
+    if (secPerKm < 390) return 'bg-warn-soft text-warn-ink';       // < 6:30
+    return 'bg-danger-soft text-danger-ink';
 }
 
 function round2(value) {
@@ -786,41 +749,6 @@ function formatDate(dateString) {
     return `${day}.${month}.${year} ${hours}:${minutes}`;
 }
 
-
-function generateAIAnalysis(progress) {
-    if (!progress) return 'Keine Daten verfügbar.';
-    const completed = progress.completed_distance_km;
-    const target = progress.target_distance_km;
-    const percentage = progress.progress_percentage;
-    const daysRemaining = progress.days_remaining;
-    const activitiesCount = progress.activities_count;
-    let analysis = [];
-    if (percentage >= 100) {
-        analysis.push('🏆 Du hast dein Ziel erreicht!');
-    } else if (percentage >= 75) {
-        analysis.push(`🎯 ${percentage}% — nur noch ${round2(target - completed)} km!`);
-    } else if (percentage >= 50) {
-        analysis.push(`💪 Halbzeit! ${round2(completed)} von ${target} km.`);
-    } else {
-        analysis.push(`⏳ ${percentage}% — ${round2(target - completed)} km verbleiben.`);
-    }
-    if (daysRemaining > 0) {
-        const kmPerDay = round2((target - completed) / daysRemaining);
-        const kmPerWeek = round2(kmPerDay * 7);
-        if (kmPerDay > 0) analysis.push(`⏰ ${daysRemaining} Tage: ~${kmPerDay} km/Tag (${kmPerWeek} km/Wo.)`);
-    }
-    if (activitiesCount > 0) {
-        const avgPerSession = round2(completed / activitiesCount);
-        analysis.push(`📊 ${activitiesCount} Einheiten, Ø ${avgPerSession} km`);
-    }
-    return analysis.join(' • ');
-}
-
-function generatePlan(goalId) {
-    axios.post(route('plans.generate'), { goal_id: goalId })
-        .then(res => { plan.value = res.data.plan; planError.value = null; })
-        .catch(err => { planError.value = err.response?.data?.message || 'Plan konnte nicht erstellt werden.'; plan.value = null; });
-}
 
 
 async function getTodayRecommendation() {
@@ -1074,1301 +1002,891 @@ function garminDeltaClass(t) {
     <Head title="Übersicht" />
 
     <AuthenticatedLayout>
-        <template #header>
-            <div>
-                <h2 class="text-xl font-bold text-gray-800 dark:text-white">Runner Dashboard</h2>
-                <p class="text-sm text-gray-500 dark:text-slate-400">Dashboard / Übersicht</p>
-            </div>
-        </template>
 
-        <div class="dark bauhaus-dash py-4 lg:py-6">
-            <div class="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8 space-y-3 lg:space-y-4">
+        <!-- ══════════════════════════════════════════════════════════
+             HERO — Begrüßung, Streak, Woche auf einen Blick
+             ══════════════════════════════════════════════════════════ -->
+        <section class="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600">
+            <!-- Lichtakzent -->
+            <div class="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
+            <div class="pointer-events-none absolute -bottom-32 -left-10 h-64 w-64 rounded-full bg-black/10 blur-2xl" />
 
-                <!-- Sync result banner -->
-                <div v-if="props.syncResult" class="flex items-start gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
-                    <svg class="h-5 w-5 shrink-0 text-indigo-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p class="text-sm text-indigo-800">{{ props.syncResult }}</p>
-                </div>
+            <div class="relative mx-auto max-w-7xl px-4 pb-6 pt-6 lg:px-8 lg:pb-8 lg:pt-10">
 
-                <!-- Flash Messages -->
-                <div v-if="flash.success && showFlash" class="rounded-lg border border-green-200 bg-green-50 p-4">
-                    <p class="text-sm font-medium text-green-800">{{ flash.success }}</p>
-                </div>
-                <div v-if="flash.error && showFlash" class="rounded-lg border border-red-200 bg-red-50 p-4">
-                    <p class="text-sm font-medium text-red-800">{{ flash.error }}</p>
-                </div>
+                <!-- Zeile 1: Gruß + Avatar -->
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-white/70">{{ todayLabel }}</p>
+                        <h1 class="mt-0.5 truncate text-3xl font-black tracking-tight text-white lg:text-4xl">
+                            {{ greeting }}, {{ firstName }}
+                        </h1>
 
-                <!-- ═══ Garmin Erholungs-Dashboard (ganz oben) ═══ -->
-                <GarminRecovery v-if="props.garminMetrics" :metrics="props.garminMetrics" :activities="props.recoveryActivities" />
-
-                <!-- ─── PR-Glückwunsch vom Coach ─────────────────────────── -->
-                <Transition
-                    enter-active-class="transition-all duration-400 ease-out"
-                    enter-from-class="opacity-0 scale-95"
-                    enter-to-class="opacity-100 scale-100"
-                    leave-active-class="transition-all duration-200 ease-in"
-                    leave-to-class="opacity-0 scale-95"
-                >
-                    <div
-                        v-if="coachPrMessage && !prDismissed"
-                        class="relative flex items-start gap-3 rounded-2xl border border-yellow-300 dark:border-yellow-500/40 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-500/10 dark:to-amber-500/10 p-4"
-                    >
-                        <div class="text-2xl shrink-0">🏆</div>
-                        <div class="flex-1 min-w-0">
-                            <p class="text-xs font-semibold text-yellow-800 dark:text-yellow-300 mb-1">
-                                {{ coach?.name ?? 'Dein Coach' }} hat eine Nachricht für dich
-                            </p>
-                            <p class="text-sm text-yellow-900 dark:text-yellow-100 leading-relaxed">{{ coachPrMessage }}</p>
-                        </div>
-                        <button
-                            @click="dismissPr"
-                            class="shrink-0 h-6 w-6 flex items-center justify-center rounded-full text-yellow-600 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-500/20 transition-colors"
-                        >
-                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-                            </svg>
-                        </button>
-                    </div>
-                </Transition>
-
-                <!-- ─── Wiedereinstieg (Return-to-Run) ───────────────────────── -->
-                <div v-if="returnToRun && !returnToRunDismissed"
-                    class="rounded-2xl border border-teal-200 dark:border-teal-500/30 bg-teal-50/70 dark:bg-teal-500/10 p-4">
-                    <div class="flex items-start gap-3">
-                        <div class="text-2xl shrink-0">🔄</div>
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center justify-between gap-2">
-                                <p class="text-sm font-bold text-teal-800 dark:text-teal-300">Wiedereinstieg nach {{ returnToRun.trigger_label }}</p>
-                                <span class="shrink-0 text-xs font-semibold text-teal-700 dark:text-teal-300 bg-teal-100 dark:bg-teal-500/20 rounded-full px-2 py-0.5">Stufe {{ returnToRun.step }}/{{ returnToRun.total_steps }}</span>
-                            </div>
-                            <p class="text-xs text-teal-700/80 dark:text-teal-300/70 mt-0.5">Behutsam zurück — Erholung ist Training. Steigere dich Schritt für Schritt.</p>
-
-                            <!-- Stufen-Fortschritt -->
-                            <div class="flex items-center gap-1.5 mt-3">
-                                <div v-for="s in returnToRun.steps" :key="s.n"
-                                    class="flex-1 h-1.5 rounded-full"
-                                    :class="s.n < returnToRun.step ? 'bg-teal-500' : s.n === returnToRun.step ? 'bg-teal-400' : 'bg-teal-200/60 dark:bg-teal-500/20'">
-                                </div>
-                            </div>
-
-                            <!-- Aktuelle Stufe -->
-                            <div class="mt-3 rounded-xl bg-white/70 dark:bg-slate-900/40 border border-teal-100 dark:border-teal-500/20 p-3">
-                                <p class="text-xs font-semibold text-gray-800 dark:text-slate-200">{{ returnToRun.current.label }}</p>
-                                <p class="text-xs text-gray-600 dark:text-slate-400 mt-0.5">{{ returnToRun.current.rule }}</p>
-                                <div v-if="returnToRun.current.max_min" class="flex flex-wrap gap-2 mt-2 text-[11px] text-gray-500 dark:text-slate-400">
-                                    <span class="bg-gray-100 dark:bg-slate-800 rounded-md px-2 py-0.5">⏱️ max. {{ returnToRun.current.max_min }} min</span>
-                                    <span v-if="returnToRun.current.zone" class="bg-gray-100 dark:bg-slate-800 rounded-md px-2 py-0.5">❤️ Zone {{ returnToRun.current.zone }}</span>
-                                </div>
-                            </div>
-
-                            <button @click="dismissReturnToRun"
-                                class="mt-3 text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
-                                Wiedereinstieg abschließen
-                            </button>
+                        <!-- Wetter + Streak -->
+                        <div class="mt-3 flex flex-wrap items-center gap-2">
+                            <span v-if="weather" class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">
+                                <span>{{ weather.emoji }}</span>
+                                <span class="tabular-nums">{{ weather.temp_c }}°</span>
+                                <span class="font-medium text-white/75">{{ weather.description }}</span>
+                                <span v-if="weather.precip_prob != null && weather.precip_prob >= 30" class="text-white/75">· 💧 {{ weather.precip_prob }}%</span>
+                                <span v-if="weather.wind_kmh != null && weather.wind_kmh >= 25" class="text-white/75">· 💨 {{ weather.wind_kmh }}</span>
+                            </span>
+                            <span v-if="streakDays >= 2" class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">
+                                🔥 {{ streakDays }} Tage in Folge
+                            </span>
                         </div>
                     </div>
+
+                    <div class="shrink-0 rounded-full ring-4 ring-white/25">
+                        <UserAvatar :user="page.props.auth.user" size="lg" />
+                    </div>
                 </div>
 
-                <!-- ─── Coach Badge ──────────────────────────────────────────── -->
-                <button
-                    v-if="coach"
-                    @click="openChat"
-                    class="w-full text-left flex items-start gap-3 rounded-2xl border p-3.5 hover:opacity-90 active:scale-[0.99] transition-all"
-                    :class="[coachColor.light, coachColor.border]"
-                >
-                    <div class="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold" :class="coachColor.bg">
-                        {{ coach.avatar_initials }}
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-xs font-semibold" :class="coachColor.text">Dein Coach: {{ coach.name }}</p>
-                        <p class="text-xs text-gray-500 dark:text-slate-400 italic leading-relaxed">
-                            <span v-if="dailyMessageLoading" class="animate-pulse">…</span>
-                            <span v-else>„{{ dailyMessage ?? coach.tagline }}"</span>
+                <!-- Zeile 2: Woche in Zahlen -->
+                <div class="mt-6 grid grid-cols-3 gap-3 lg:max-w-2xl">
+                    <div class="rounded-card bg-white/12 px-3 py-3 backdrop-blur-sm">
+                        <p class="text-3xl font-black leading-none tracking-tight text-white tabular-nums lg:text-4xl">{{ weekStats.km }}</p>
+                        <p class="mt-1.5 text-[10px] font-bold uppercase tracking-widest text-white/60">km diese Woche</p>
+                        <p v-if="weekTrend !== null" class="mt-1 text-[11px] font-semibold"
+                            :class="weekTrend >= 0 ? 'text-emerald-200' : 'text-white/60'">
+                            {{ weekTrend >= 0 ? '▲' : '▼' }} {{ Math.abs(weekTrend) }}% zur Vorwoche
                         </p>
                     </div>
-                    <svg class="shrink-0 h-4 w-4 mt-0.5 text-gray-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
-                    </svg>
-                </button>
+                    <div class="rounded-card bg-white/12 px-3 py-3 backdrop-blur-sm">
+                        <p class="text-3xl font-black leading-none tracking-tight text-white tabular-nums lg:text-4xl">{{ weekStats.runs }}</p>
+                        <p class="mt-1.5 text-[10px] font-bold uppercase tracking-widest text-white/60">Einheiten</p>
+                    </div>
+                    <div class="rounded-card bg-white/12 px-3 py-3 backdrop-blur-sm">
+                        <p class="text-3xl font-black leading-none tracking-tight text-white tabular-nums lg:text-4xl">{{ weekStats.avgPace }}</p>
+                        <p class="mt-1.5 text-[10px] font-bold uppercase tracking-widest text-white/60">Ø Pace</p>
+                    </div>
+                </div>
 
-                <!-- ─── Wellbeing-Erinnerung ─────────────────────────────────── -->
-                <Transition
-                    enter-active-class="transition-all duration-300 ease-out"
-                    enter-from-class="opacity-0 -translate-y-2"
-                    leave-active-class="transition-all duration-200 ease-in"
-                    leave-to-class="opacity-0 -translate-y-2"
-                >
-                    <button
-                        v-if="!wellbeingEnteredToday"
-                        @click="showWellbeingModal = true"
-                        class="w-full text-left flex items-center gap-4 rounded-2xl px-4 py-3.5 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-500/10 dark:to-orange-500/10 border border-amber-200 dark:border-amber-500/30 hover:from-amber-100 hover:to-orange-100 dark:hover:from-amber-500/20 dark:hover:to-orange-500/20 transition-colors shadow-sm"
-                    >
-                        <!-- Pulse dot -->
-                        <div class="relative shrink-0">
-                            <span class="absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75 animate-ping"></span>
-                            <span class="relative inline-flex h-3 w-3 rounded-full bg-amber-500"></span>
+                <!-- Zeile 3: 7-Tage-Balken + Gesamtzahlen -->
+                <div class="mt-4 lg:max-w-2xl">
+                    <div class="flex h-14 items-end gap-1.5">
+                        <div v-for="day in last7DaysBars" :key="day.date" class="flex flex-1 flex-col items-center gap-1.5">
+                            <div class="w-full rounded-t-md transition-all duration-300"
+                                :class="day.km > 0 ? 'bg-white/80' : 'bg-white/15'"
+                                :style="{ height: day.km > 0 ? Math.max(6, (day.km / last7DaysMax) * 44) + 'px' : '4px' }"
+                                :title="day.km > 0 ? day.km + ' km' : 'Kein Lauf'" />
+                            <span class="text-[10px] font-bold" :class="day.isToday ? 'text-white' : 'text-white/45'">{{ day.label }}</span>
                         </div>
+                    </div>
 
-                        <div class="flex-1 min-w-0">
-                            <p class="text-sm font-semibold text-amber-800 dark:text-amber-300">Wie geht es dir heute?</p>
-                            <p class="text-xs text-amber-600 dark:text-amber-400/80 mt-0.5">Tagesform eintragen — {{ coach?.name ?? 'dein Coach' }} passt den Plan automatisch an</p>
-                        </div>
+                    <div class="mt-3 flex items-center gap-4 text-xs text-white/60">
+                        <span>Monat <strong class="font-bold text-white/90 tabular-nums">{{ monthStats.km }} km</strong> · {{ monthStats.runs }} Einheiten</span>
+                        <span class="ml-auto">Gesamt <strong class="font-bold text-white/90 tabular-nums">{{ totalDistanceKm }} km</strong></span>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-                        <span class="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 py-1.5 transition-colors">
-                            Eintragen
-                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/>
-                            </svg>
-                        </span>
+        <div class="mx-auto max-w-7xl space-y-4 px-4 py-4 lg:px-8 lg:py-6">
+
+            <!-- ── Meldungen ─────────────────────────────────────────── -->
+            <div v-if="props.syncResult" class="flex items-start gap-3 rounded-card border border-accent/25 bg-accent-soft px-4 py-3">
+                <svg class="mt-0.5 h-5 w-5 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p class="text-sm text-accent-ink">{{ props.syncResult }}</p>
+            </div>
+            <div v-if="flash.success && showFlash" class="rounded-card border border-success/25 bg-success-soft p-4">
+                <p class="text-sm font-medium text-success-ink">{{ flash.success }}</p>
+            </div>
+            <div v-if="flash.error && showFlash" class="rounded-card border border-danger/25 bg-danger-soft p-4">
+                <p class="text-sm font-medium text-danger-ink">{{ flash.error }}</p>
+            </div>
+
+            <!-- ── PR-Glückwunsch ───────────────────────────────────── -->
+            <Transition
+                enter-active-class="transition-all duration-300 ease-out"
+                enter-from-class="opacity-0 scale-95"
+                leave-active-class="transition-all duration-200 ease-in"
+                leave-to-class="opacity-0 scale-95"
+            >
+                <div v-if="coachPrMessage && !prDismissed"
+                    class="relative flex items-start gap-3 rounded-card border border-warn/30 bg-warn-soft p-4">
+                    <div class="shrink-0 text-2xl">🏆</div>
+                    <div class="min-w-0 flex-1">
+                        <p class="mb-1 text-xs font-bold uppercase tracking-wide text-warn-ink">
+                            {{ coach?.name ?? 'Dein Coach' }} hat eine Nachricht
+                        </p>
+                        <p class="text-sm leading-relaxed text-ink">{{ coachPrMessage }}</p>
+                    </div>
+                    <button @click="dismissPr" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-warn-ink transition-colors hover:bg-warn/15">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
                     </button>
-                </Transition>
-
-                <!-- ═══ Kein aktiver Plan Banner ═══ -->
-                <div v-if="!props.hasActivePlan" class="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-500/10 dark:to-blue-500/10 border border-indigo-100 dark:border-indigo-500/20 rounded-2xl p-4 sm:p-5 flex items-center gap-4">
-                    <div class="shrink-0 h-11 w-11 rounded-xl bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center text-xl">🎯</div>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-sm font-bold text-gray-900 dark:text-white">Kein aktiver Trainingsplan</p>
-                        <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{{ coach ? coach.name + ' erstellt' : 'Erstelle' }} jetzt einen Trainingsplan für dein nächstes Event – individuell auf deine Daten zugeschnitten.</p>
-                    </div>
-                    <a href="/events" class="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2.5 transition-colors shadow-sm">
-                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
-                        Plan erstellen
-                    </a>
                 </div>
+            </Transition>
 
-                <!-- ═══ Heute: Trainingseinheit / Coach-Empfehlung ═══ -->
-                <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+            <!-- ── Wiedereinstieg ───────────────────────────────────── -->
+            <AppCard v-if="returnToRun && !returnToRunDismissed">
+                <div class="flex items-start gap-3">
+                    <div class="shrink-0 text-2xl">🔄</div>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center justify-between gap-2">
+                            <p class="text-sm font-bold text-ink">Wiedereinstieg nach {{ returnToRun.trigger_label }}</p>
+                            <span class="shrink-0 rounded-full bg-info-soft px-2 py-0.5 text-xs font-semibold text-info-ink">
+                                Stufe {{ returnToRun.step }}/{{ returnToRun.total_steps }}
+                            </span>
+                        </div>
+                        <p class="mt-0.5 text-xs text-ink-3">Behutsam zurück — Erholung ist Training.</p>
 
-                    <!-- ── Wetter-Chip am Trainingsort ── -->
-                    <div v-if="weather" class="flex items-center gap-1.5 mb-3 w-fit text-xs font-medium bg-gray-50 dark:bg-slate-800/60 rounded-lg px-2.5 py-1.5">
-                        <span class="text-sm">{{ weather.emoji }}</span>
-                        <span class="font-bold text-gray-800 dark:text-slate-100">{{ weather.temp_c }}°</span>
-                        <span class="text-gray-500 dark:text-slate-400">{{ weather.description }}</span>
-                        <span v-if="weather.precip_prob != null && weather.precip_prob >= 30" class="text-blue-500 dark:text-blue-400">· 💧 {{ weather.precip_prob }}%</span>
-                        <span v-if="weather.wind_kmh != null && weather.wind_kmh >= 25" class="text-gray-400 dark:text-slate-500">· 💨 {{ weather.wind_kmh }} km/h</span>
-                    </div>
-
-                    <!-- ── Aktiver Plan: heutige / nächste Session anzeigen ── -->
-                    <template v-if="props.hasActivePlan">
-                        <div class="flex items-center justify-between mb-4">
-                            <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">
-                                📅 {{ props.todayPlanSession?.is_today ? 'Heutige Trainingseinheit' : 'Nächste Trainingseinheit' }}
-                            </h4>
-                            <a :href="props.todayPlanSession?.event_id ? `/events/${props.todayPlanSession.event_id}/plan` : '/events'"
-                                class="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-800 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 rounded-md px-2 py-1 transition-colors">
-                                Zum Plan →
-                            </a>
+                        <div class="mt-3 flex items-center gap-1.5">
+                            <div v-for="s in returnToRun.steps" :key="s.n"
+                                class="h-1.5 flex-1 rounded-full"
+                                :class="s.n <= returnToRun.step ? 'bg-info' : 'bg-surface-3'" />
                         </div>
 
-                        <!-- Session card — klickbar, öffnet Session-Detail-Modal direkt -->
-                        <a v-if="props.todayPlanSession"
-                            :href="props.todayPlanSession.event_id ? `/events/${props.todayPlanSession.event_id}/plan?open=${props.todayPlanSession.id}` : '/events'"
-                            class="block rounded-xl border overflow-hidden hover:shadow-sm transition-shadow cursor-pointer" :class="{
-                                'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800':                   props.todayPlanSession.type === 'rest',
-                                'border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10':     props.todayPlanSession.type === 'easy_run',
-                                'border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10':     props.todayPlanSession.type === 'tempo_run',
-                                'border-red-100 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10':             props.todayPlanSession.type === 'interval',
-                                'border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10':         props.todayPlanSession.type === 'long_run',
-                                'border-indigo-100 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10': props.todayPlanSession.type === 'race_prep',
-                                'border-teal-100 dark:border-teal-500/20 bg-teal-50 dark:bg-teal-500/10':         props.todayPlanSession.type === 'progressive_run',
-                                'border-violet-100 dark:border-violet-500/20 bg-violet-50 dark:bg-violet-500/10': props.todayPlanSession.type === 'test_run',
-                            }">
-                            <div class="px-4 py-3">
-                                <div class="flex items-start justify-between gap-2 mb-1">
-                                    <p class="font-semibold text-sm" :class="{
-                                        'text-gray-500 dark:text-slate-400': props.todayPlanSession.type === 'rest',
-                                        'text-green-700 dark:text-green-400': props.todayPlanSession.type === 'easy_run',
-                                        'text-amber-700 dark:text-amber-400': props.todayPlanSession.type === 'tempo_run',
-                                        'text-red-700 dark:text-red-400': props.todayPlanSession.type === 'interval',
-                                        'text-blue-700 dark:text-blue-400': props.todayPlanSession.type === 'long_run',
-                                        'text-indigo-700 dark:text-indigo-400': props.todayPlanSession.type === 'race_prep',
-                                        'text-teal-700 dark:text-teal-400':     props.todayPlanSession.type === 'progressive_run',
-                                        'text-violet-700 dark:text-violet-400': props.todayPlanSession.type === 'test_run',
-                                    }">{{ props.todayPlanSession.title }}</p>
-                                    <div class="flex gap-1.5 shrink-0">
-                                        <span v-if="props.todayPlanSession.status === 'completed'" class="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400">✓ Erledigt</span>
-                                        <span v-else-if="props.todayPlanSession.is_today" class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400">Heute</span>
-                                        <span v-else class="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300">
-                                            {{ new Date(props.todayPlanSession.session_date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' }) }}
-                                        </span>
-                                        <span v-if="props.todayPlanSession.activity_id" class="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-400">🔗 Strava</span>
-                                    </div>
-                                </div>
-                                <p class="text-xs text-gray-500 dark:text-slate-400 leading-relaxed">{{ props.todayPlanSession.description }}</p>
-                                <div v-if="props.todayPlanSession.type !== 'rest'" class="flex flex-wrap gap-3 mt-2.5">
-                                    <span v-if="props.todayPlanSession.distance_km" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
-                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c-.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" /></svg>
-                                        {{ props.todayPlanSession.distance_km }} km
-                                    </span>
-                                    <span v-if="props.todayPlanSession.duration_min" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
-                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
-                                        {{ props.todayPlanSession.duration_min }} min
-                                    </span>
-                                    <span v-if="props.todayPlanSession.pace_target && props.todayPlanSession.pace_target !== 'null'" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
-                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg>
-                                        {{ props.todayPlanSession.pace_target }} min/km
-                                    </span>
-                                    <span v-if="props.todayPlanSession.zone" class="text-xs font-medium px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300">Zone {{ props.todayPlanSession.zone }}</span>
-                                </div>
-                            </div>
-                        </a>
-
-                        <!-- Kein Training geplant (Rest-Tag oder kein Plan) -->
-                        <div v-else class="rounded-xl bg-gray-50 dark:bg-slate-800 border border-dashed border-gray-200 dark:border-slate-600 p-6 text-center">
-                            <p class="text-sm text-gray-400 dark:text-slate-500">Heute kein Training geplant.</p>
-                            <a href="/events" class="mt-2 inline-block text-xs text-indigo-500 hover:underline">Zum Plan →</a>
-                        </div>
-                    </template>
-
-                    <!-- ── Kein aktiver Plan: Coach-Empfehlung ── -->
-                    <template v-else>
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="flex items-center gap-2">
-                                <div v-if="coach" class="shrink-0 h-7 w-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" :class="coachColor.bg">{{ coach.avatar_initials }}</div>
-                                <div v-else class="shrink-0 h-7 w-7 rounded-lg bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center text-sm">🧭</div>
-                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">{{ coach ? coach.name + 's Empfehlung für heute' : 'Trainings-Empfehlung für heute' }}</h4>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <span class="text-xs text-gray-400 dark:text-slate-500">{{ props.aiUsage.used }}/{{ props.aiUsage.limit }} AI heute</span>
-                                <button v-if="!props.todayRecommendationSession" @click="getTodayRecommendation"
-                                    class="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-800 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 rounded-md px-2 py-1 transition-colors">
-                                    Aktualisieren
-                                </button>
+                        <div class="mt-3 rounded-field border border-line bg-surface-2 p-3">
+                            <p class="text-xs font-semibold text-ink">{{ returnToRun.current.label }}</p>
+                            <p class="mt-0.5 text-xs text-ink-2">{{ returnToRun.current.rule }}</p>
+                            <div v-if="returnToRun.current.max_min" class="mt-2 flex flex-wrap gap-2 text-[11px] text-ink-3">
+                                <span class="rounded bg-surface-3 px-2 py-0.5">⏱️ max. {{ returnToRun.current.max_min }} min</span>
+                                <span v-if="returnToRun.current.zone" class="rounded bg-surface-3 px-2 py-0.5">❤️ Zone {{ returnToRun.current.zone }}</span>
                             </div>
                         </div>
 
-                        <!-- ══ Bereits angenommene Empfehlung (nach Reload) ══ -->
-                        <div v-if="props.todayRecommendationSession" class="space-y-3">
-                            <!-- Session-Karte -->
-                            <div class="rounded-xl border overflow-hidden" :class="{
-                                'border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10':       props.todayRecommendationSession.type === 'easy_run',
-                                'border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10':     props.todayRecommendationSession.type === 'tempo_run',
-                                'border-red-100 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10':             props.todayRecommendationSession.type === 'interval',
-                                'border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10':         props.todayRecommendationSession.type === 'long_run',
-                                'border-indigo-100 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10': props.todayRecommendationSession.type === 'race_prep',
-                                'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800':             props.todayRecommendationSession.type === 'rest',
-                                'border-teal-100 dark:border-teal-500/20 bg-teal-50 dark:bg-teal-500/10':         props.todayRecommendationSession.type === 'progressive_run',
-                                'border-violet-100 dark:border-violet-500/20 bg-violet-50 dark:bg-violet-500/10': props.todayRecommendationSession.type === 'test_run',
-                            }">
-                                <div class="px-4 py-3">
-                                    <div class="flex items-start justify-between gap-2 mb-1">
-                                        <p class="font-semibold text-sm" :class="{
-                                            'text-green-700 dark:text-green-400':    props.todayRecommendationSession.type === 'easy_run',
-                                            'text-amber-700 dark:text-amber-400':   props.todayRecommendationSession.type === 'tempo_run',
-                                            'text-red-700 dark:text-red-400':        props.todayRecommendationSession.type === 'interval',
-                                            'text-blue-700 dark:text-blue-400':      props.todayRecommendationSession.type === 'long_run',
-                                            'text-indigo-700 dark:text-indigo-400':  props.todayRecommendationSession.type === 'race_prep',
-                                            'text-gray-500 dark:text-slate-400':     props.todayRecommendationSession.type === 'rest',
-                                            'text-teal-700 dark:text-teal-400':      props.todayRecommendationSession.type === 'progressive_run',
-                                            'text-violet-700 dark:text-violet-400':  props.todayRecommendationSession.type === 'test_run',
-                                        }">{{ props.todayRecommendationSession.title }}</p>
-                                        <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 shrink-0">✓ Geplant</span>
-                                    </div>
-                                    <p class="text-xs text-gray-500 dark:text-slate-400 leading-relaxed mb-2.5">{{ props.todayRecommendationSession.description }}</p>
-                                    <div v-if="props.todayRecommendationSession.type !== 'rest'" class="flex flex-wrap gap-3">
-                                        <span v-if="props.todayRecommendationSession.distance_km" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
-                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c-.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" /></svg>
-                                            {{ props.todayRecommendationSession.distance_km }} km
-                                        </span>
-                                        <span v-if="props.todayRecommendationSession.duration_min" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
-                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
-                                            {{ props.todayRecommendationSession.duration_min }} min
-                                        </span>
-                                        <span v-if="props.todayRecommendationSession.pace_target" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
-                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg>
-                                            {{ props.todayRecommendationSession.pace_target }} min/km
-                                        </span>
-                                        <span v-if="props.todayRecommendationSession.zone" class="text-xs font-medium px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300">Zone {{ props.todayRecommendationSession.zone }}</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Trainingsstruktur -->
-                            <div v-if="props.todayRecommendationSession.type !== 'rest' && props.todayRecommendationSession.type !== 'race_prep'" class="rounded-xl border border-gray-100 dark:border-slate-700 overflow-hidden">
-                                <div class="px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border-b border-gray-100 dark:border-slate-700">
-                                    <span class="text-xs font-semibold text-gray-600 dark:text-slate-300 uppercase tracking-wider">Trainingsstruktur</span>
-                                </div>
-                                <div class="px-4 py-3">
-                                    <div v-if="recStepsLoading" class="flex items-center gap-2 py-2 text-xs text-gray-400 dark:text-slate-500">
-                                        <svg class="h-4 w-4 animate-spin shrink-0 text-indigo-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                        Struktur wird geladen…
-                                    </div>
-                                    <p v-else-if="recStepsError" class="text-xs text-red-500 dark:text-red-400">{{ recStepsError }}</p>
-                                    <div v-else-if="recSteps && recSteps.length">
-                                        <!-- Bar chart -->
-                                        <div class="flex gap-0.5 h-12 items-end mb-3">
-                                            <div
-                                                v-for="(s, i) in recStepsWithReps"
-                                                :key="i"
-                                                :style="{
-                                                    width:  ((s.duration_min || 0) / recTotalStepDuration * 100).toFixed(1) + '%',
-                                                    height: (stepHeightPct[s.type] ?? 60) + '%',
-                                                }"
-                                                :class="[stepBarColor[s.type] ?? 'bg-indigo-400', 'rounded-t-sm opacity-80']"
-                                                :title="`${s.label}: ${s.duration_min} min`"
-                                            />
-                                        </div>
-                                        <!-- Step list -->
-                                        <div class="space-y-2">
-                                            <div v-for="(step, idx) in recGroupedSteps" :key="idx"
-                                                class="rounded-xl border p-3"
-                                                :class="stepBgColor[step.type] ?? 'bg-gray-50 dark:bg-slate-800 border-gray-100 dark:border-slate-700'"
-                                            >
-                                                <template v-if="step.isGroup">
-                                                    <div class="flex items-center gap-2 mb-2">
-                                                        <span class="shrink-0 h-5 w-5 rounded bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300 text-[10px] font-bold flex items-center justify-center">×{{ step.repetitions }}</span>
-                                                        <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ step.repetitions }}× Intervall</span>
-                                                    </div>
-                                                    <div class="ml-7 space-y-1.5">
-                                                        <div class="flex items-center gap-3">
-                                                            <span class="h-2 w-2 rounded-full bg-red-400 shrink-0" />
-                                                            <span class="text-xs font-medium text-gray-700 dark:text-slate-300">{{ step.label }}</span>
-                                                            <span class="text-xs text-gray-500 dark:text-slate-400 ml-auto">{{ step.duration_min }} min</span>
-                                                            <span v-if="step.pace_target" class="text-xs font-semibold text-gray-900 dark:text-white">{{ step.pace_target }}/km</span>
-                                                        </div>
-                                                        <div v-if="step.pairedRest" class="flex items-center gap-3">
-                                                            <span class="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-500 shrink-0" />
-                                                            <span class="text-xs text-gray-500 dark:text-slate-400">{{ step.pairedRest.label }}</span>
-                                                            <span class="text-xs text-gray-400 dark:text-slate-500 ml-auto">{{ step.pairedRest.duration_min }} min</span>
-                                                        </div>
-                                                    </div>
-                                                </template>
-                                                <template v-else>
-                                                    <div class="flex items-center gap-3">
-                                                        <span class="h-2.5 w-2.5 rounded-full shrink-0" :class="stepBarColor[step.type]" />
-                                                        <div class="flex-1 min-w-0">
-                                                            <span class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">{{ stepLabel[step.type] ?? step.type }}</span>
-                                                            <span class="ml-1.5 text-sm font-medium text-gray-900 dark:text-white">{{ step.label }}</span>
-                                                        </div>
-                                                        <span class="text-xs text-gray-500 dark:text-slate-400 shrink-0">{{ step.duration_min }} min</span>
-                                                        <span v-if="step.pace_target" class="text-xs font-semibold text-gray-900 dark:text-white shrink-0">{{ step.pace_target }}/km</span>
-                                                    </div>
-                                                </template>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Verpflegungsplan -->
-                            <div v-if="props.todayRecommendationSession.type !== 'rest'" class="rounded-xl border border-gray-100 dark:border-slate-700 overflow-hidden">
-                                <div class="px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border-b border-gray-100 dark:border-slate-700">
-                                    <span class="text-xs font-semibold text-gray-600 dark:text-slate-300 uppercase tracking-wider">Verpflegungsplan</span>
-                                </div>
-                                <div class="px-4 py-3">
-                                    <div v-if="recNutritionLoading" class="flex items-center gap-3 py-2 text-sm text-gray-500 dark:text-slate-400">
-                                        <svg class="h-4 w-4 animate-spin shrink-0 text-indigo-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                        {{ coach ? coach.name : 'Dein Coach' }} erstellt Verpflegungstipps…
-                                    </div>
-                                    <p v-else-if="recNutritionError" class="text-xs text-red-500 dark:text-red-400">{{ recNutritionError }}</p>
-                                    <div v-else-if="recNutritionTips" class="space-y-2">
-                                        <div class="rounded-xl border border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10 overflow-hidden">
-                                            <div class="flex items-center gap-2 px-3.5 py-2 border-b border-amber-100 dark:border-amber-500/20">
-                                                <span>🕐</span>
-                                                <span class="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wide">Vor dem Training</span>
-                                            </div>
-                                            <ul class="px-3.5 py-2.5 space-y-1.5">
-                                                <li v-for="tip in recNutritionTips.before" :key="tip.text" class="flex items-start gap-2 text-xs text-amber-900 dark:text-amber-200">
-                                                    <span class="shrink-0 leading-relaxed">{{ tip.icon }}</span>
-                                                    <span class="leading-relaxed">{{ tip.text }}</span>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                        <div class="rounded-xl border border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10 overflow-hidden">
-                                            <div class="flex items-center gap-2 px-3.5 py-2 border-b border-blue-100 dark:border-blue-500/20">
-                                                <span>🏃</span>
-                                                <span class="text-xs font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide">Während des Trainings</span>
-                                            </div>
-                                            <ul class="px-3.5 py-2.5 space-y-1.5">
-                                                <li v-for="tip in recNutritionTips.during" :key="tip.text" class="flex items-start gap-2 text-xs text-blue-900 dark:text-blue-200">
-                                                    <span class="shrink-0 leading-relaxed">{{ tip.icon }}</span>
-                                                    <span class="leading-relaxed">{{ tip.text }}</span>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                        <div class="rounded-xl border border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10 overflow-hidden">
-                                            <div class="flex items-center gap-2 px-3.5 py-2 border-b border-green-100 dark:border-green-500/20">
-                                                <span>✅</span>
-                                                <span class="text-xs font-bold text-green-800 dark:text-green-300 uppercase tracking-wide">Nach dem Training</span>
-                                            </div>
-                                            <ul class="px-3.5 py-2.5 space-y-1.5">
-                                                <li v-for="tip in recNutritionTips.after" :key="tip.text" class="flex items-start gap-2 text-xs text-green-900 dark:text-green-200">
-                                                    <span class="shrink-0 leading-relaxed">{{ tip.icon }}</span>
-                                                    <span class="leading-relaxed">{{ tip.text }}</span>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Aktions-Buttons: Export (nur bei Nicht-Ruhetag) -->
-                            <div v-if="props.todayRecommendationSession.type !== 'rest'" class="flex items-center gap-2">
-                                <button @click="openGarminModal"
-                                    class="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-3 py-2.5 text-xs font-semibold text-white transition-colors">
-                                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-                                    </svg>
-                                    Zu Garmin senden
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- ══ Empfehlung wird geladen / angezeigt ══ -->
-                        <template v-else>
-                            <div v-if="recommendationLoading" class="flex items-center gap-3 text-gray-500 dark:text-slate-400 py-4">
-                                <span class="text-xl">⏳</span>
-                                <span class="text-sm">Empfehlung wird geladen...</span>
-                            </div>
-                            <div v-else-if="recommendationError" class="rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 p-4 text-sm text-red-700 dark:text-red-400">
-                                {{ recommendationError }}
-                            </div>
-
-                            <!-- Erfolg nach Annehmen (noch auf gleicher Seite) -->
-                            <div v-else-if="recommendationAccepted" class="rounded-xl bg-green-50 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20 p-4 flex items-center gap-3">
-                                <div class="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center shrink-0 text-white text-base">✓</div>
-                                <div>
-                                    <p class="text-sm font-semibold text-green-800 dark:text-green-300">Einheit gespeichert!</p>
-                                    <p class="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                                        <strong>{{ trainingRecommendation?.title }}</strong> wurde in deinen Kalender eingetragen.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <!-- Strukturierte Empfehlungs-Karte -->
-                            <div v-else-if="showRecommendation && trainingRecommendation" class="space-y-3">
-                                <div class="rounded-xl border overflow-hidden" :class="{
-                                    'border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10':       trainingRecommendation.type === 'easy_run',
-                                    'border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10':     trainingRecommendation.type === 'tempo_run',
-                                    'border-red-100 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10':             trainingRecommendation.type === 'interval',
-                                    'border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10':         trainingRecommendation.type === 'long_run',
-                                    'border-indigo-100 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10': trainingRecommendation.type === 'race_prep',
-                                    'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800':             trainingRecommendation.type === 'rest',
-                                    'border-teal-100 dark:border-teal-500/20 bg-teal-50 dark:bg-teal-500/10':         trainingRecommendation.type === 'progressive_run',
-                                    'border-violet-100 dark:border-violet-500/20 bg-violet-50 dark:bg-violet-500/10': trainingRecommendation.type === 'test_run',
-                                }">
-                                    <div class="px-4 py-3">
-                                        <div class="flex items-start justify-between gap-2 mb-1">
-                                            <p class="font-semibold text-sm" :class="{
-                                                'text-green-700 dark:text-green-400':    trainingRecommendation.type === 'easy_run',
-                                                'text-amber-700 dark:text-amber-400':   trainingRecommendation.type === 'tempo_run',
-                                                'text-red-700 dark:text-red-400':        trainingRecommendation.type === 'interval',
-                                                'text-blue-700 dark:text-blue-400':      trainingRecommendation.type === 'long_run',
-                                                'text-indigo-700 dark:text-indigo-400':  trainingRecommendation.type === 'race_prep',
-                                                'text-gray-500 dark:text-slate-400':     trainingRecommendation.type === 'rest',
-                                                'text-teal-700 dark:text-teal-400':      trainingRecommendation.type === 'progressive_run',
-                                                'text-violet-700 dark:text-violet-400':  trainingRecommendation.type === 'test_run',
-                                            }">{{ trainingRecommendation.title }}</p>
-                                            <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 shrink-0">{{ coach ? coach.name : 'Coach' }}</span>
-                                        </div>
-                                        <p class="text-xs text-gray-500 dark:text-slate-400 leading-relaxed mb-2.5">{{ trainingRecommendation.description }}</p>
-                                        <div v-if="trainingRecommendation.type !== 'rest'" class="flex flex-wrap gap-3">
-                                            <span v-if="trainingRecommendation.distance_km" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
-                                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c-.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" /></svg>
-                                                {{ trainingRecommendation.distance_km }} km
-                                            </span>
-                                            <span v-if="trainingRecommendation.duration_min" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
-                                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
-                                                {{ trainingRecommendation.duration_min }} min
-                                            </span>
-                                            <span v-if="trainingRecommendation.pace_target" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
-                                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg>
-                                                {{ trainingRecommendation.pace_target }} min/km
-                                            </span>
-                                            <span v-if="trainingRecommendation.zone" class="text-xs font-medium px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300">Zone {{ trainingRecommendation.zone }}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Aktions-Buttons -->
-                                <div class="grid grid-cols-3 gap-2">
-                                    <button
-                                        @click="adjustRecommendation('softer')"
-                                        :disabled="adjustingDirection !== null || acceptingRecommendation"
-                                        class="flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-xs font-semibold text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors"
-                                    >
-                                        <span v-if="adjustingDirection === 'softer'" class="h-3.5 w-3.5 rounded-full border-2 border-gray-400 border-t-transparent animate-spin"></span>
-                                        <span v-else class="text-base leading-none">🧘</span>
-                                        Lockerer
-                                    </button>
-                                    <button
-                                        @click="acceptRecommendation()"
-                                        :disabled="acceptingRecommendation || adjustingDirection !== null"
-                                        class="flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 px-3 py-2.5 text-xs font-semibold text-white transition-colors"
-                                    >
-                                        <span v-if="acceptingRecommendation" class="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin"></span>
-                                        <span v-else>✓</span>
-                                        Einplanen
-                                    </button>
-                                    <button
-                                        @click="adjustRecommendation('harder')"
-                                        :disabled="adjustingDirection !== null || acceptingRecommendation"
-                                        class="flex items-center justify-center gap-1.5 rounded-xl border border-orange-200 dark:border-orange-500/30 bg-orange-50 dark:bg-orange-500/10 px-3 py-2.5 text-xs font-semibold text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20 disabled:opacity-40 transition-colors"
-                                    >
-                                        <span v-if="adjustingDirection === 'harder'" class="h-3.5 w-3.5 rounded-full border-2 border-orange-400 border-t-transparent animate-spin"></span>
-                                        <span v-else class="text-base leading-none">🔥</span>
-                                        Intensiver
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div v-else-if="recommendationHint" class="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 p-4">
-                                <p class="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-1">Hinweis</p>
-                                <p class="text-sm text-amber-700 dark:text-amber-400">{{ recommendationHint }}</p>
-                                <button @click="showWellbeingModal = true"
-                                    class="mt-3 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition-colors">
-                                    Jetzt Wellbeing eintragen
-                                </button>
-                            </div>
-                            <div v-else class="text-sm text-gray-400 dark:text-slate-500 text-center py-8">
-                                Noch keine Empfehlung verfügbar.
-                            </div>
-                        </template>
-                    </template>
-                </div>
-
-                <!-- ═══ ROW 1: Profil + Stats + Kalender ═══ -->
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
-
-                    <!-- ═══ Hero: Profil + Wochenstats (kombiniert) ═══ -->
-                    <div class="lg:col-span-8 rounded-2xl overflow-hidden shadow-sm">
-
-                        <!-- Dunkler Header -->
-                        <div class="relative bg-gradient-to-br from-slate-800 via-slate-800 to-indigo-900 p-4 sm:p-5">
-
-                            <!-- Zeile 1: Avatar + Name + Status + Buttons -->
-                            <div class="flex items-start justify-between gap-3 mb-4">
-                                <div class="flex items-center gap-3 min-w-0">
-                                    <div class="ring-4 ring-indigo-400 ring-opacity-30 rounded-full shrink-0">
-                                        <UserAvatar :user="page.props.auth.user" size="lg" />
-                                    </div>
-                                    <div class="min-w-0">
-                                        <p class="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Strava Konto</p>
-                                        <h3 class="text-lg font-bold text-white truncate">{{ props.stravaAccount?.username || 'Nicht verbunden' }}</h3>
-                                        <p class="text-xs text-slate-400">{{ props.stravaAccount?.last_synced_at ? 'Sync: ' + props.stravaAccount.last_synced_at : 'Noch nie synchronisiert' }}</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                                    <span v-if="props.stravaConnected"
-                                        class="inline-flex items-center gap-1 rounded-full bg-green-500 bg-opacity-20 border border-green-500 border-opacity-30 px-2 py-0.5 text-xs font-medium text-green-300">
-                                        <span class="h-1.5 w-1.5 rounded-full bg-green-400"></span> Live
-                                    </span>
-                                    <span v-else
-                                        class="inline-flex items-center gap-1 rounded-full bg-red-500 bg-opacity-20 border border-red-500 border-opacity-30 px-2 py-0.5 text-xs font-medium text-red-300">
-                                        <span class="h-1.5 w-1.5 rounded-full bg-red-400"></span> Getrennt
-                                    </span>
-                                    <a v-if="!props.stravaConnected" href="/strava/connect"
-                                        class="rounded-xl bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 transition-colors">
-                                        Verbinden
-                                    </a>
-                                    <button v-else @click="syncStrava" :disabled="syncing || props.thresholdPaceCalculating"
-                                        class="rounded-xl bg-indigo-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-400 disabled:opacity-60 transition-colors flex items-center gap-1.5">
-                                        <span v-if="syncing" class="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                                        {{ syncing ? 'Läuft…' : '🔄 Sync' }}
-                                    </button>
-                                    <a href="/profile/runner"
-                                        class="rounded-xl bg-white bg-opacity-10 border border-white border-opacity-20 px-3 py-1.5 text-xs font-semibold text-white hover:bg-opacity-20 transition-colors">
-                                        Profil
-                                    </a>
-                                </div>
-                            </div>
-
-                            <!-- Zeile 2: Wochenstats + 7-Tage-Balken -->
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                                <!-- KPIs + Monats-Total -->
-                                <div class="space-y-2">
-                                    <div class="grid grid-cols-3 gap-2">
-                                        <div class="rounded-xl bg-white/10 p-3 text-center">
-                                            <p class="text-3xl font-black text-white tabular-nums leading-none">{{ weekStats.km }}</p>
-                                            <p class="text-[10px] text-indigo-200 font-semibold uppercase tracking-wider mt-1">km / Wo.</p>
-                                        </div>
-                                        <div class="rounded-xl bg-white/10 p-3 text-center">
-                                            <p class="text-3xl font-black text-white leading-none">{{ weekStats.runs }}</p>
-                                            <p class="text-[10px] text-indigo-200 font-semibold uppercase tracking-wider mt-1">Läufe</p>
-                                        </div>
-                                        <div class="rounded-xl bg-white/10 p-3 text-center">
-                                            <p class="text-3xl font-black text-white tabular-nums leading-none">{{ weekStats.avgPace }}</p>
-                                            <p class="text-[10px] text-indigo-200 font-semibold uppercase tracking-wider mt-1">Ø Pace</p>
-                                        </div>
-                                    </div>
-                                    <div class="rounded-xl bg-white/5 px-3 py-2 flex items-center justify-between">
-                                        <div>
-                                            <p class="text-[10px] text-indigo-400">Dieser Monat</p>
-                                            <p class="text-xs font-semibold text-white">{{ monthStats.km }} km · {{ monthStats.runs }} Läufe</p>
-                                        </div>
-                                        <div class="text-right">
-                                            <p class="text-[10px] text-indigo-400">Gesamt</p>
-                                            <p class="text-xs font-semibold text-white">{{ totalDistanceKm }} km</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- 7-Tage-Balken -->
-                                <div>
-                                    <div class="flex items-center justify-between mb-2">
-                                        <p class="text-xs font-medium text-indigo-300">Letzte 7 Tage</p>
-                                        <a href="/statistics" class="text-xs text-indigo-400 hover:text-indigo-200 transition">Statistiken →</a>
-                                    </div>
-                                    <div class="flex items-end gap-1.5 h-12">
-                                        <div v-for="day in last7DaysBars" :key="day.date"
-                                            class="flex-1 flex flex-col items-center gap-1">
-                                            <div class="w-full rounded-t-md transition-all"
-                                                :class="day.km > 0 ? 'bg-indigo-400' : 'bg-white/10'"
-                                                :style="{ height: day.km > 0 ? Math.max(5, (day.km / last7DaysMax) * 40) + 'px' : '3px' }"
-                                                :title="day.km > 0 ? day.km + ' km' : 'Kein Lauf'">
-                                            </div>
-                                            <span class="text-[10px] font-medium"
-                                                :class="day.isToday ? 'text-white font-bold' : 'text-indigo-400'">
-                                                {{ day.label }}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Heller Footer: Letzte Läufe -->
-                        <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 border-t-0 rounded-b-xl p-4">
-                            <div class="flex items-center justify-between mb-3">
-                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Letzte Aktivitäten</h4>
-                                <a href="/activities" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition">Alle →</a>
-                            </div>
-                            <div v-if="props.recentActivities.length === 0" class="text-sm text-gray-400 dark:text-slate-500 text-center py-4">
-                                Noch keine Aktivitäten — Strava verbinden und synchronisieren
-                            </div>
-                            <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                                <button
-                                    v-for="activity in props.recentActivities.slice(0, 6)"
-                                    :key="activity.id"
-                                    @click="openActivityDetail(activity)"
-                                    class="rounded-xl px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-800/70 text-left transition-colors group border border-transparent hover:border-gray-100 dark:hover:border-slate-700"
-                                >
-                                    <div class="flex items-start justify-between gap-2 mb-1.5">
-                                        <div class="flex items-center gap-1.5 min-w-0">
-                                            <span class="text-base leading-none shrink-0">{{ activityTypeIcon(activity.type) }}</span>
-                                            <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate leading-tight">{{ activity.name }}</p>
-                                        </div>
-                                        <span class="text-[11px] text-gray-400 dark:text-slate-500 flex-shrink-0">{{ relativeDate(activity.start_date) }}</span>
-                                    </div>
-                                    <div class="flex flex-wrap gap-1.5">
-                                        <span v-if="activity.distance > 0" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 text-xs font-bold">
-                                            📍 {{ round2(formatDistance(activity.distance)) }} km
-                                        </span>
-                                        <span v-else-if="['WeightTraining','Workout'].includes(activity.type)" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 text-xs font-bold">
-                                            💪 Kraft
-                                        </span>
-                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-medium">
-                                            ⏱ {{ formatTime(activity.moving_time) }}
-                                        </span>
-                                        <span v-if="activity.average_speed > 0"
-                                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold"
-                                            :class="['Ride','VirtualRide'].includes(activity.type)
-                                                ? 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400'
-                                                : activity.type === 'Swim'
-                                                    ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                                                    : paceColor(activity.average_speed)">
-                                            ⚡ {{ activityPaceLabel(activity) }}
-                                        </span>
-                                        <span v-if="activity.average_heartrate"
-                                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-medium">
-                                            ❤️ {{ Math.round(activity.average_heartrate) }}
-                                        </span>
-                                        <span v-if="activity.total_elevation_gain > 0"
-                                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-xs font-medium">
-                                            ↑ {{ Math.round(activity.total_elevation_gain) }}m
-                                        </span>
-                                    </div>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Kalender + Events -->
-                    <div class="lg:col-span-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
-                        <!-- Header mit Navigation -->
-                        <div class="flex items-center justify-between mb-3">
-                            <div class="flex items-center gap-2">
-                                <button @click="prevMonth" class="h-7 w-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-700 transition text-sm">‹</button>
-                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200 min-w-[120px] text-center">{{ currentMonthLabel }}</h4>
-                                <button @click="nextMonth" class="h-7 w-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-700 transition text-sm">›</button>
-                            </div>
-                            <a href="/calendar" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition">Vollansicht →</a>
-                        </div>
-
-                        <!-- Mini-Kalender: Woche beginnt Montag -->
-                        <div class="mb-4">
-                            <div class="grid grid-cols-7 gap-0.5 text-center text-xs font-medium text-gray-400 dark:text-slate-500 mb-1">
-                                <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
-                            </div>
-                            <div class="grid grid-cols-7 gap-0.5 text-center">
-                                <div v-for="(d, i) in calendarDays" :key="i"
-                                    class="relative flex flex-col items-center justify-center h-7 w-7 mx-auto rounded-full text-xs transition-colors"
-                                    :class="{
-                                        'bg-indigo-600 text-white font-bold shadow-sm': d.isToday && !d.hasEvent,
-                                        'bg-orange-500 text-white font-bold shadow-sm': d.hasEvent,
-                                        'text-gray-300 dark:text-slate-600': !d.currentMonth,
-                                        'text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700': d.currentMonth && !d.isToday && !d.hasEvent,
-                                        'cursor-pointer': d.hasActivity || d.hasEvent,
-                                        'cursor-default': !d.hasActivity && !d.hasEvent,
-                                    }"
-                                    :title="d.hasEvent ? d.event.name : ''"
-                                    @click="openCalendarDay(d)">
-                                    {{ d.day }}
-                                    <!-- Aktivitäts-Dot -->
-                                    <span v-if="d.hasActivity && !d.isToday && !d.hasEvent"
-                                        class="absolute bottom-0.5 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-indigo-500">
-                                    </span>
-                                    <span v-if="d.hasActivity && d.isToday"
-                                        class="absolute bottom-0.5 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-white opacity-80">
-                                    </span>
-
-                                    <!-- Multi-activity picker -->
-                                    <div v-if="d.hasActivity && calendarPickerDay === d.day"
-                                        class="absolute top-8 left-1/2 -translate-x-1/2 z-30 w-52 rounded-xl bg-white dark:bg-slate-800 shadow-lg border border-gray-100 dark:border-slate-700 py-1 text-left"
-                                        @click.stop>
-                                        <p class="px-3 py-1.5 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider border-b border-gray-100 dark:border-slate-700">
-                                            {{ activeDaysInMonth.get(d.day)?.length }} Aktivitäten
-                                        </p>
-                                        <button
-                                            v-for="act in activeDaysInMonth.get(d.day)"
-                                            :key="act.id"
-                                            @click="pickCalendarActivity(act)"
-                                            class="w-full px-3 py-2 text-left hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors">
-                                            <p class="text-xs font-semibold text-gray-800 dark:text-slate-200 truncate">{{ act.name }}</p>
-                                            <p class="text-xs text-gray-400 dark:text-slate-500"><template v-if="act.distance > 0">{{ formatDistance(act.distance) }} km · </template>{{ formatTime(act.moving_time) }}</p>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Nächste Events -->
-                        <div>
-                            <div class="flex items-center justify-between mb-2">
-                                <h5 class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Nächste Events</h5>
-                                <a href="/events" class="text-xs text-indigo-500 hover:text-indigo-700 transition">+ Hinzufügen</a>
-                            </div>
-                            <div v-if="props.events.length === 0" class="text-sm text-gray-400 dark:text-slate-500">
-                                Kein Event geplant
-                            </div>
-                            <div v-else class="space-y-2">
-                                <a v-for="event in props.events.slice(0, 3)" :key="event.id"
-                                    href="/events"
-                                    class="flex items-center gap-3 rounded-xl bg-gray-50 dark:bg-slate-800 p-2.5 border border-gray-100 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-500/40 transition-colors">
-                                    <div class="flex-shrink-0 relative h-10 w-10">
-                                        <svg viewBox="0 0 36 36" class="h-10 w-10 -rotate-90">
-                                            <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor"
-                                                stroke-width="3" class="text-gray-200 dark:text-slate-700" />
-                                            <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor"
-                                                stroke-width="3" stroke-linecap="round"
-                                                :stroke-dasharray="eventRingProps(event.days_until).circumference"
-                                                :stroke-dashoffset="eventRingProps(event.days_until).dashOffset"
-                                                :class="eventRingProps(event.days_until).ringClass"
-                                            />
-                                        </svg>
-                                        <div class="absolute inset-0 flex items-center justify-center">
-                                            <span class="text-[11px] font-black"
-                                                :class="{
-                                                    'text-red-500 dark:text-red-400':    event.priority === 'A',
-                                                    'text-yellow-500 dark:text-yellow-400': event.priority === 'B',
-                                                    'text-gray-400 dark:text-slate-500':  event.priority === 'C',
-                                                }">{{ event.priority }}</span>
-                                        </div>
-                                    </div>
-                                    <div class="flex-1 min-w-0">
-                                        <p class="text-xs font-semibold text-gray-800 dark:text-slate-200 truncate">{{ event.name }}</p>
-                                        <div class="flex items-center gap-1.5 mt-0.5">
-                                            <span class="text-xs text-gray-400 dark:text-slate-500">{{ new Date(event.event_date).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' }) }}</span>
-                                            <span class="text-xs px-1.5 py-0.5 rounded-md font-medium"
-                                                :class="{
-                                                    'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400': event.training_phase.key === 'race_week',
-                                                    'bg-yellow-50 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400': event.training_phase.key === 'taper',
-                                                    'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400': event.training_phase.key === 'peak',
-                                                    'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400': event.training_phase.key === 'build',
-                                                    'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400': event.training_phase.key === 'base',
-                                                }">
-                                                {{ event.training_phase.label }}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div class="text-right flex-shrink-0">
-                                        <p class="text-xs font-bold text-indigo-600 dark:text-indigo-400">{{ event.days_until }}d</p>
-                                        <p class="text-xs text-gray-400 dark:text-slate-500">{{ event.distance_label }}</p>
-                                    </div>
-                                </a>
-                            </div>
-                        </div>
-
+                        <button @click="dismissReturnToRun" class="mt-3 text-xs font-semibold text-info hover:underline">
+                            Wiedereinstieg abschließen
+                        </button>
                     </div>
                 </div>
+            </AppCard>
 
-                <!-- ═══ Schwellenpace-Karte ═══ -->
-                <div class="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 shadow-sm text-white overflow-hidden relative">
+            <!-- ── Coach-Nachricht des Tages ────────────────────────── -->
+            <button v-if="coach" @click="openChat"
+                class="flex w-full items-start gap-3 rounded-card border border-line bg-surface p-4 text-left shadow-card transition-all hover:border-line-strong active:scale-[0.99]">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-field text-sm font-bold text-white"
+                    :style="`background-color: ${coach.avatar_color}`">
+                    {{ coach.avatar_initials }}
+                </div>
+                <div class="min-w-0 flex-1">
+                    <p class="text-xs font-bold uppercase tracking-wide text-ink-3">{{ coach.name }}</p>
+                    <p class="mt-0.5 text-sm leading-relaxed text-ink">
+                        <span v-if="dailyMessageLoading" class="animate-pulse text-ink-3">…</span>
+                        <span v-else>„{{ dailyMessage ?? coach.tagline }}"</span>
+                    </p>
+                </div>
+                <svg class="mt-1 h-4 w-4 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                </svg>
+            </button>
 
-                    <!-- Background calculation indicator -->
-                    <div v-if="props.thresholdPaceCalculating" class="absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-white bg-opacity-20 px-3 py-1">
-                        <span class="h-2.5 w-2.5 rounded-full border-2 border-white border-t-transparent animate-spin inline-block"></span>
-                        <span class="text-xs font-medium text-white">Berechnung läuft…</span>
-                    </div>
+            <!-- ── Wellbeing-Erinnerung ─────────────────────────────── -->
+            <button v-if="!wellbeingEnteredToday" @click="showWellbeingModal = true"
+                class="flex w-full items-center gap-3 rounded-card border border-warn/30 bg-warn-soft p-4 text-left transition-all active:scale-[0.99]">
+                <div class="shrink-0 text-2xl">💪</div>
+                <div class="min-w-0 flex-1">
+                    <p class="text-sm font-bold text-warn-ink">Wie fühlst du dich heute?</p>
+                    <p class="mt-0.5 text-xs text-ink-2">30 Sekunden — danach passt {{ coach ? coach.name : 'dein Coach' }} das Training an deine Tagesform an.</p>
+                </div>
+                <span class="shrink-0 rounded-full bg-warn px-3 py-1.5 text-xs font-bold text-white">Los</span>
+            </button>
 
-                    <div class="p-5">
-                        <!-- Header Row: Pace + Zones -->
-                        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                            <div class="flex items-center gap-4">
-                                <div class="h-14 w-14 rounded-xl bg-white bg-opacity-20 flex items-center justify-center text-3xl flex-shrink-0">⚡</div>
-                                <div>
-                                    <p class="text-xs font-medium text-indigo-200 uppercase tracking-wider">Berechnete Schwellenpace</p>
-                                    <p v-if="props.thresholdPace" class="text-4xl font-bold mt-0.5 tabular-nums">
-                                        {{ props.thresholdPace }}
-                                        <span class="text-lg font-normal text-indigo-200">min/km</span>
-                                    </p>
-                                    <p v-else class="text-xl font-semibold mt-0.5 text-indigo-200">Noch nicht berechnet</p>
-                                    <p class="text-xs text-indigo-300 mt-1">
-                                        <span v-if="props.thresholdPaceCalculating">Analyse läuft im Hintergrund…</span>
-                                        <span v-else-if="props.thresholdPaceCalculatedAt">Berechnet: {{ props.thresholdPaceCalculatedAt }} · Basis: letzte 20 Läufe</span>
-                                        <span v-else>Wird automatisch nach dem nächsten Strava-Sync berechnet</span>
-                                    </p>
-                                </div>
-                            </div>
+            <!-- ══════════════════════════════════════════════════════
+                 HEUTE
+                 ══════════════════════════════════════════════════════ -->
+            <section>
+                <div class="mb-2.5 flex items-end justify-between gap-3">
+                    <h2 class="text-lg font-black tracking-tight text-ink">Heute</h2>
+                    <a v-if="props.hasActivePlan"
+                        :href="props.todayPlanSession?.event_id ? `/events/${props.todayPlanSession.event_id}/plan` : '/events'"
+                        class="text-sm font-semibold text-accent hover:underline">Zum Plan →</a>
+                    <span v-else class="text-xs text-ink-3">{{ props.aiUsage.used }}/{{ props.aiUsage.limit }} KI heute</span>
+                </div>
 
-                            <!-- Pace Zones -->
-                            <div v-if="props.paceZones" class="grid grid-cols-5 gap-1 sm:gap-1.5 w-full sm:min-w-[320px]">
-                                <div v-for="(zone, key) in props.paceZones" :key="key"
-                                    class="rounded-lg bg-white bg-opacity-15 p-2 text-center">
-                                    <p class="text-xs font-bold text-white uppercase tracking-wide">{{ key }}</p>
-                                    <p class="text-xs text-indigo-100 mt-0.5 leading-tight font-mono">
-                                        {{ zone.min_pace }}<br>
-                                        <span class="text-indigo-300 text-[10px]">{{ zone.max_pace }}</span>
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+                <!-- ── Aktiver Plan ─────────────────────────────────── -->
+                <template v-if="props.hasActivePlan">
+                    <SessionCard v-if="props.todayPlanSession"
+                        :session="props.todayPlanSession"
+                        :badge="props.todayPlanSession.status === 'completed' ? '✓ Erledigt'
+                            : props.todayPlanSession.is_today ? 'Heute'
+                            : new Date(props.todayPlanSession.session_date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' })"
+                        :badge-tone="props.todayPlanSession.status === 'completed' ? 'success' : props.todayPlanSession.is_today ? 'accent' : 'neutral'"
+                        :href="props.todayPlanSession.event_id ? `/events/${props.todayPlanSession.event_id}/plan?open=${props.todayPlanSession.id}` : '/events'"
+                    />
+                    <AppCard v-else>
+                        <EmptyState title="Heute steht nichts an" description="Erholung gehört zum Training. Genieß den freien Tag.">
+                            <AppButton href="/events" variant="secondary">Zum Plan</AppButton>
+                        </EmptyState>
+                    </AppCard>
+                </template>
 
-                        <!-- Toggle: Details anzeigen/verstecken -->
-                        <div class="mt-4 pt-3 border-t border-white border-opacity-20 flex items-center justify-between gap-3">
-                            <button @click="showPaceDetails = !showPaceDetails"
-                                class="flex items-center gap-1.5 text-xs font-medium text-indigo-200 hover:text-white transition-colors">
-                                <svg class="h-3.5 w-3.5 transition-transform duration-200" :class="showPaceDetails ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                                </svg>
-                                {{ showPaceDetails ? 'Weniger anzeigen' : 'Vorhersagen & Verlauf' }}
-                            </button>
-                            <button v-if="props.stravaConnected" @click="syncStrava" :disabled="syncing || props.thresholdPaceCalculating"
-                                class="rounded-lg bg-white bg-opacity-20 hover:bg-opacity-30 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-white transition-colors flex-shrink-0 flex items-center gap-1.5">
-                                <span v-if="syncing" class="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin inline-block"></span>
-                                <span>{{ syncing ? 'Sync…' : '🔄 Sync' }}</span>
-                            </button>
-                        </div>
+                <!-- ── Ohne Plan: Coach-Empfehlung ──────────────────── -->
+                <template v-else>
+                    <!-- Bereits eingeplant -->
+                    <div v-if="props.todayRecommendationSession" class="space-y-3">
+                        <SessionCard :session="props.todayRecommendationSession" badge="✓ Geplant" badge-tone="success" />
 
-                        <!-- Accordion: Race Predictions + Chart -->
-                        <Transition
-                            enter-active-class="transition-all duration-300 ease-out overflow-hidden"
-                            enter-from-class="opacity-0 max-h-0"
-                            enter-to-class="opacity-100 max-h-[600px]"
-                            leave-active-class="transition-all duration-200 ease-in overflow-hidden"
-                            leave-from-class="opacity-100 max-h-[600px]"
-                            leave-to-class="opacity-0 max-h-0"
+                        <!-- Trainingsstruktur -->
+                        <AppCard
+                            v-if="props.todayRecommendationSession.type !== 'rest' && props.todayRecommendationSession.type !== 'race_prep'"
+                            title="Trainingsstruktur"
                         >
-                        <div v-if="showPaceDetails">
-                        <!-- Race Predictions -->
-                        <div v-if="props.racePredictions" class="mt-4 pt-4 border-t border-white border-opacity-20">
-                            <p class="text-xs font-semibold text-indigo-200 uppercase tracking-wider mb-2">🏁 Wettkampf-Zeitvorhersagen</p>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div v-for="(pred, key) in props.racePredictions" :key="key"
-                                    class="rounded-lg bg-white bg-opacity-10 px-3 py-2">
-                                    <p class="text-xs text-indigo-300">{{ pred.label }}</p>
-                                    <p class="text-lg font-bold text-white tabular-nums mt-0.5">{{ pred.total_time }}</p>
-                                    <p class="text-xs text-indigo-200 font-mono">{{ pred.pace }} min/km</p>
+                            <div v-if="recStepsLoading" class="flex items-center gap-2 py-2 text-xs text-ink-3">
+                                <svg class="h-4 w-4 shrink-0 animate-spin text-accent" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                Struktur wird geladen…
+                            </div>
+                            <p v-else-if="recStepsError" class="text-xs text-danger">{{ recStepsError }}</p>
+                            <div v-else-if="recSteps && recSteps.length">
+                                <!-- Verlaufsbalken -->
+                                <div class="mb-3 flex h-12 items-end gap-0.5">
+                                    <div
+                                        v-for="(s, i) in recStepsWithReps"
+                                        :key="i"
+                                        :style="{
+                                            width:  ((s.duration_min || 0) / recTotalStepDuration * 100).toFixed(1) + '%',
+                                            height: (stepHeightPct[s.type] ?? 60) + '%',
+                                        }"
+                                        :class="[stepBarColor[s.type] ?? 'bg-accent', 'rounded-t-sm']"
+                                        :title="`${s.label}: ${s.duration_min} min`"
+                                    />
+                                </div>
+                                <!-- Schritte -->
+                                <div class="space-y-2">
+                                    <div v-for="(step, idx) in recGroupedSteps" :key="idx"
+                                        class="rounded-field border p-3" :class="stepBgColor[step.type] ?? 'border-line bg-surface-2'">
+                                        <template v-if="step.isGroup">
+                                            <div class="mb-2 flex items-center gap-2">
+                                                <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-danger text-[10px] font-bold text-white">×{{ step.repetitions }}</span>
+                                                <span class="text-sm font-bold text-ink">{{ step.repetitions }}× Intervall</span>
+                                            </div>
+                                            <div class="ml-7 space-y-1.5">
+                                                <div class="flex items-center gap-3">
+                                                    <span class="h-2 w-2 shrink-0 rounded-full bg-danger" />
+                                                    <span class="text-xs font-medium text-ink-2">{{ step.label }}</span>
+                                                    <span class="ml-auto text-xs text-ink-3">{{ step.duration_min }} min</span>
+                                                    <span v-if="step.pace_target" class="text-xs font-bold text-ink">{{ step.pace_target }}/km</span>
+                                                </div>
+                                                <div v-if="step.pairedRest" class="flex items-center gap-3">
+                                                    <span class="h-2 w-2 shrink-0 rounded-full bg-ink-3" />
+                                                    <span class="text-xs text-ink-3">{{ step.pairedRest.label }}</span>
+                                                    <span class="ml-auto text-xs text-ink-3">{{ step.pairedRest.duration_min }} min</span>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template v-else>
+                                            <div class="flex items-center gap-3">
+                                                <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="stepBarColor[step.type]" />
+                                                <div class="min-w-0 flex-1">
+                                                    <span class="text-[11px] font-bold uppercase tracking-wide text-ink-3">{{ stepLabel[step.type] ?? step.type }}</span>
+                                                    <span class="ml-1.5 text-sm font-medium text-ink">{{ step.label }}</span>
+                                                </div>
+                                                <span class="shrink-0 text-xs text-ink-3">{{ step.duration_min }} min</span>
+                                                <span v-if="step.pace_target" class="shrink-0 text-xs font-bold text-ink">{{ step.pace_target }}/km</span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </AppCard>
+
+                        <!-- Verpflegung -->
+                        <AppCard v-if="props.todayRecommendationSession.type !== 'rest'" title="Verpflegungsplan">
+                            <div v-if="recNutritionLoading" class="flex items-center gap-3 py-2 text-sm text-ink-3">
+                                <svg class="h-4 w-4 shrink-0 animate-spin text-accent" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                {{ coach ? coach.name : 'Dein Coach' }} erstellt Verpflegungstipps…
+                            </div>
+                            <p v-else-if="recNutritionError" class="text-xs text-danger">{{ recNutritionError }}</p>
+                            <div v-else-if="recNutritionTips" class="space-y-2">
+                                <div v-for="block in [
+                                        { key: 'before', icon: '🕐', title: 'Vor dem Training', cls: 'border-warn/25 bg-warn-soft',    ink: 'text-warn-ink'    },
+                                        { key: 'during', icon: '🏃', title: 'Während',          cls: 'border-info/25 bg-info-soft',    ink: 'text-info-ink'    },
+                                        { key: 'after',  icon: '✅', title: 'Nach dem Training', cls: 'border-success/25 bg-success-soft', ink: 'text-success-ink' },
+                                    ]" :key="block.key"
+                                    class="overflow-hidden rounded-field border" :class="block.cls">
+                                    <div class="flex items-center gap-2 px-3.5 py-2">
+                                        <span>{{ block.icon }}</span>
+                                        <span class="text-[11px] font-bold uppercase tracking-wide" :class="block.ink">{{ block.title }}</span>
+                                    </div>
+                                    <ul class="space-y-1.5 px-3.5 pb-2.5">
+                                        <li v-for="tip in recNutritionTips[block.key]" :key="tip.text" class="flex items-start gap-2 text-xs leading-relaxed text-ink-2">
+                                            <span class="shrink-0">{{ tip.icon }}</span>
+                                            <span>{{ tip.text }}</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </AppCard>
+
+                        <AppButton v-if="props.todayRecommendationSession.type !== 'rest'" block @click="openGarminModal">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                            </svg>
+                            Zu Garmin senden
+                        </AppButton>
+                    </div>
+
+                    <!-- Empfehlung laden / anzeigen -->
+                    <template v-else>
+                        <AppCard v-if="recommendationLoading">
+                            <div class="flex items-center gap-3 py-4 text-sm text-ink-3">
+                                <svg class="h-5 w-5 animate-spin text-accent" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                {{ coach ? coach.name + ' überlegt…' : 'Empfehlung wird geladen…' }}
+                            </div>
+                        </AppCard>
+
+                        <div v-else-if="recommendationError" class="rounded-card border border-danger/25 bg-danger-soft p-4 text-sm text-danger-ink">
+                            {{ recommendationError }}
+                        </div>
+
+                        <div v-else-if="recommendationAccepted" class="flex items-center gap-3 rounded-card border border-success/25 bg-success-soft p-4">
+                            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-success text-base text-white">✓</div>
+                            <div>
+                                <p class="text-sm font-bold text-success-ink">Eingeplant!</p>
+                                <p class="mt-0.5 text-xs text-ink-2"><strong>{{ trainingRecommendation?.title }}</strong> steht in deinem Kalender.</p>
+                            </div>
+                        </div>
+
+                        <div v-else-if="showRecommendation && trainingRecommendation" class="space-y-3">
+                            <SessionCard :session="trainingRecommendation" :badge="coach ? coach.name : 'Coach'" badge-tone="accent" />
+
+                            <div class="grid grid-cols-3 gap-2">
+                                <button @click="adjustRecommendation('softer')"
+                                    :disabled="adjustingDirection !== null || acceptingRecommendation"
+                                    class="flex flex-col items-center justify-center gap-1 rounded-field border border-line bg-surface px-3 py-3 text-xs font-bold text-ink-2 transition-all hover:border-line-strong active:scale-95 disabled:opacity-40">
+                                    <span v-if="adjustingDirection === 'softer'" class="h-4 w-4 animate-spin rounded-full border-2 border-ink-3 border-t-transparent" />
+                                    <span v-else class="text-lg leading-none">🧘</span>
+                                    Lockerer
+                                </button>
+                                <button @click="acceptRecommendation()"
+                                    :disabled="acceptingRecommendation || adjustingDirection !== null"
+                                    class="flex flex-col items-center justify-center gap-1 rounded-field bg-accent px-3 py-3 text-xs font-bold text-white transition-all hover:opacity-90 active:scale-95 disabled:opacity-40">
+                                    <span v-if="acceptingRecommendation" class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                    <span v-else class="text-lg leading-none">✓</span>
+                                    Einplanen
+                                </button>
+                                <button @click="adjustRecommendation('harder')"
+                                    :disabled="adjustingDirection !== null || acceptingRecommendation"
+                                    class="flex flex-col items-center justify-center gap-1 rounded-field border border-warn/30 bg-warn-soft px-3 py-3 text-xs font-bold text-warn-ink transition-all active:scale-95 disabled:opacity-40">
+                                    <span v-if="adjustingDirection === 'harder'" class="h-4 w-4 animate-spin rounded-full border-2 border-warn border-t-transparent" />
+                                    <span v-else class="text-lg leading-none">🔥</span>
+                                    Intensiver
+                                </button>
+                            </div>
+                        </div>
+
+                        <div v-else-if="recommendationHint" class="rounded-card border border-warn/30 bg-warn-soft p-4">
+                            <p class="text-sm font-bold text-warn-ink">Fast geschafft</p>
+                            <p class="mt-1 text-sm text-ink-2">{{ recommendationHint }}</p>
+                            <AppButton size="sm" class="mt-3" @click="showWellbeingModal = true">Jetzt Wellbeing eintragen</AppButton>
+                        </div>
+
+                        <AppCard v-else>
+                            <EmptyState title="Noch keine Empfehlung" description="Trag dein Wellbeing ein, dann schlägt dir dein Coach eine passende Einheit vor.">
+                                <AppButton @click="getTodayRecommendation">Empfehlung holen</AppButton>
+                            </EmptyState>
+                        </AppCard>
+                    </template>
+                </template>
+            </section>
+
+            <!-- ── Kein Plan: Hinweis ───────────────────────────────── -->
+            <AppCard v-if="!props.hasActivePlan" tappable href="/events">
+                <div class="flex items-center gap-4">
+                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-field bg-accent-soft text-xl">🎯</div>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-bold text-ink">Noch kein Trainingsplan</p>
+                        <p class="mt-0.5 text-xs text-ink-3">
+                            {{ coach ? coach.name + ' erstellt' : 'Erstelle' }} dir einen Plan fürs nächste Event — auf deine Werte zugeschnitten.
+                        </p>
+                    </div>
+                    <svg class="h-4 w-4 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                    </svg>
+                </div>
+            </AppCard>
+
+            <!-- ── Garmin-Erholung ──────────────────────────────────── -->
+            <GarminRecovery v-if="props.garminMetrics" :metrics="props.garminMetrics" :activities="props.recoveryActivities" />
+
+            <!-- ══════════════════════════════════════════════════════
+                 FORM & BELASTUNG
+                 ══════════════════════════════════════════════════════ -->
+            <section v-if="props.trainingLoad">
+                <div class="mb-2.5 flex items-end justify-between gap-3">
+                    <h2 class="text-lg font-black tracking-tight text-ink">Form</h2>
+                    <span class="rounded-full px-2.5 py-1 text-xs font-bold"
+                        :class="{
+                            'bg-danger-soft text-danger-ink':   props.trainingLoad.form_color === 'red',
+                            'bg-warn-soft text-warn-ink':       props.trainingLoad.form_color === 'orange',
+                            'bg-success-soft text-success-ink': props.trainingLoad.form_color === 'green',
+                            'bg-info-soft text-info-ink':       props.trainingLoad.form_color === 'blue',
+                            'bg-surface-2 text-ink-2':          props.trainingLoad.form_color === 'gray',
+                        }">{{ props.trainingLoad.form_label }}</span>
+                </div>
+
+                <AppCard>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="rounded-field bg-accent-soft p-3 text-center">
+                            <p class="text-2xl font-black tabular-nums text-accent-ink">{{ props.trainingLoad.ctl }}</p>
+                            <p class="mt-0.5 text-[11px] font-bold text-accent-ink">CTL</p>
+                            <p class="text-[10px] text-ink-3">Fitness</p>
+                        </div>
+                        <div class="rounded-field bg-warn-soft p-3 text-center">
+                            <p class="text-2xl font-black tabular-nums text-warn-ink">{{ props.trainingLoad.atl }}</p>
+                            <p class="mt-0.5 text-[11px] font-bold text-warn-ink">ATL</p>
+                            <p class="text-[10px] text-ink-3">Ermüdung</p>
+                        </div>
+                        <div class="rounded-field p-3 text-center"
+                            :class="{
+                                'bg-danger-soft':  props.trainingLoad.form_color === 'red',
+                                'bg-warn-soft':    props.trainingLoad.form_color === 'orange',
+                                'bg-success-soft': props.trainingLoad.form_color === 'green',
+                                'bg-info-soft':    props.trainingLoad.form_color === 'blue',
+                                'bg-surface-2':    props.trainingLoad.form_color === 'gray',
+                            }">
+                            <p class="text-2xl font-black tabular-nums text-ink">{{ props.trainingLoad.tsb > 0 ? '+' : '' }}{{ props.trainingLoad.tsb }}</p>
+                            <p class="mt-0.5 text-[11px] font-bold text-ink-2">TSB</p>
+                            <p class="text-[10px] text-ink-3">Form</p>
+                        </div>
+                    </div>
+
+                    <div v-if="loadChartData" class="mt-4 overflow-hidden rounded-field bg-surface-2 px-1 pt-1">
+                        <svg :viewBox="`0 0 ${loadChartData.W} ${loadChartData.H}`" class="w-full" preserveAspectRatio="none">
+                            <path :d="loadChartData.atlPath" fill="none" stroke="rgb(var(--z-warn))" stroke-width="1.5" stroke-linecap="round" opacity="0.8" />
+                            <path :d="loadChartData.ctlPath" fill="none" stroke="rgb(var(--z-accent))" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                        <div class="flex items-center gap-3 px-2 pb-2 pt-1">
+                            <span class="flex items-center gap-1 text-[10px] text-ink-3">
+                                <span class="inline-block h-0.5 w-4 rounded bg-accent" /> Fitness
+                            </span>
+                            <span class="flex items-center gap-1 text-[10px] text-ink-3">
+                                <span class="inline-block h-0.5 w-4 rounded bg-warn" /> Ermüdung
+                            </span>
+                        </div>
+                    </div>
+
+                    <p class="mt-3 text-[11px] leading-relaxed text-ink-3">
+                        <strong class="text-ink-2">Form = Fitness − Ermüdung.</strong>
+                        Optimal (−10 bis +5): wettkampfbereit. Belastet (−30 bis −10): Trainingsblock. Frisch (+5 bis +25): Tapering.
+                    </p>
+                </AppCard>
+            </section>
+
+            <!-- ══════════════════════════════════════════════════════
+                 SCHWELLENPACE
+                 ══════════════════════════════════════════════════════ -->
+            <section>
+                <h2 class="mb-2.5 text-lg font-black tracking-tight text-ink">Dein Tempo</h2>
+
+                <AppCard>
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-field bg-accent-soft text-3xl">⚡</div>
+                            <div class="min-w-0">
+                                <p class="text-[11px] font-bold uppercase tracking-widest text-ink-3">Schwellenpace</p>
+                                <p v-if="props.thresholdPace" class="mt-0.5 flex items-baseline gap-1.5">
+                                    <span class="text-4xl font-black tabular-nums tracking-tight text-ink">{{ props.thresholdPace }}</span>
+                                    <span class="text-sm font-semibold text-ink-3">min/km</span>
+                                </p>
+                                <p v-else class="mt-0.5 text-lg font-bold text-ink-3">Noch nicht berechnet</p>
+                                <p class="mt-1 text-xs text-ink-3">
+                                    <span v-if="props.thresholdPaceCalculating">Analyse läuft im Hintergrund…</span>
+                                    <span v-else-if="props.thresholdPaceCalculatedAt">{{ props.thresholdPaceCalculatedAt }} · letzte 20 Läufe</span>
+                                    <span v-else>Wird nach dem nächsten Strava-Sync berechnet</span>
+                                </p>
+                            </div>
+                        </div>
+
+                        <div v-if="props.paceZones" class="grid w-full grid-cols-5 gap-1.5 sm:min-w-[300px] sm:max-w-sm">
+                            <div v-for="(zone, key) in props.paceZones" :key="key" class="rounded-field bg-surface-2 p-2 text-center">
+                                <p class="text-[11px] font-black uppercase text-ink-2">{{ key }}</p>
+                                <p class="mt-0.5 font-mono text-[11px] leading-tight text-ink-3">
+                                    {{ zone.min_pace }}<br><span class="opacity-70">{{ zone.max_pace }}</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 flex items-center justify-between gap-3 border-t border-line pt-3">
+                        <button @click="showPaceDetails = !showPaceDetails"
+                            class="flex items-center gap-1.5 text-xs font-bold text-accent transition-colors hover:underline">
+                            <svg class="h-3.5 w-3.5 transition-transform duration-200" :class="showPaceDetails ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                            </svg>
+                            {{ showPaceDetails ? 'Weniger' : 'Prognosen & Verlauf' }}
+                        </button>
+                        <AppButton v-if="props.stravaConnected" variant="secondary" size="sm"
+                            :loading="syncing" :disabled="props.thresholdPaceCalculating" @click="syncStrava">
+                            {{ syncing ? 'Sync…' : 'Sync' }}
+                        </AppButton>
+                    </div>
+
+                    <div v-if="showPaceDetails">
+                        <div v-if="props.racePredictions" class="mt-4 border-t border-line pt-4">
+                            <p class="mb-2 text-[11px] font-bold uppercase tracking-widest text-ink-3">🏁 Wettkampf-Prognosen</p>
+                            <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                <div v-for="(pred, key) in props.racePredictions" :key="key" class="rounded-field bg-surface-2 px-3 py-2.5">
+                                    <p class="text-[11px] font-semibold text-ink-3">{{ pred.label }}</p>
+                                    <p class="mt-0.5 text-xl font-black tabular-nums text-ink">{{ pred.total_time }}</p>
+                                    <p class="font-mono text-[11px] text-ink-3">{{ pred.pace }} /km</p>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- SVG History Chart -->
-                        <div v-if="chartData" class="mt-4 pt-4 border-t border-white border-opacity-20">
-                            <p class="text-xs font-semibold text-indigo-200 uppercase tracking-wider mb-3">📈 Entwicklung Schwellenpace</p>
-                            <div class="w-full rounded-lg overflow-hidden" style="aspect-ratio: 560 / 120;">
-                                <svg :viewBox="`0 0 ${chartData.W} ${chartData.H}`" class="w-full h-full" preserveAspectRatio="none">
-                                    <path :d="chartData.fillD" fill="rgba(255,255,255,0.08)" />
-                                    <path :d="chartData.pathD" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round" />
+                        <div v-if="chartData" class="mt-4 border-t border-line pt-4">
+                            <p class="mb-3 text-[11px] font-bold uppercase tracking-widest text-ink-3">📈 Entwicklung</p>
+                            <div class="w-full overflow-hidden rounded-field bg-surface-2" style="aspect-ratio: 560 / 120;">
+                                <svg :viewBox="`0 0 ${chartData.W} ${chartData.H}`" class="h-full w-full" preserveAspectRatio="none">
+                                    <path :d="chartData.fillD" fill="rgb(var(--z-accent) / 0.12)" />
+                                    <path :d="chartData.pathD" fill="none" stroke="rgb(var(--z-accent))" stroke-width="2" stroke-linecap="round" />
                                     <g v-for="(p, i) in chartData.points" :key="i">
-                                        <circle :cx="p.x" :cy="p.y" r="4" fill="white" opacity="0.9" />
+                                        <circle :cx="p.x" :cy="p.y" r="4" fill="rgb(var(--z-accent))" />
                                         <text v-if="i === 0 || i === chartData.points.length - 1 || i % chartData.labelStep === 0"
-                                            :x="p.x" :y="p.y - 8"
-                                            text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.85)"
-                                            font-family="monospace">
-                                            {{ p.pace }}
-                                        </text>
+                                            :x="p.x" :y="p.y - 8" text-anchor="middle" font-size="9"
+                                            fill="rgb(var(--z-ink-2))" font-family="monospace">{{ p.pace }}</text>
                                         <text v-if="i === 0 || i === chartData.points.length - 1"
-                                            :x="p.x" :y="chartData.H - 2"
-                                            text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.5)">
-                                            {{ p.date }}
-                                        </text>
+                                            :x="p.x" :y="chartData.H - 2" text-anchor="middle" font-size="8"
+                                            fill="rgb(var(--z-ink-3))">{{ p.date }}</text>
                                     </g>
                                 </svg>
                             </div>
-                            <p class="text-xs text-indigo-300 mt-1 text-center">
-                                {{ props.thresholdPaceHistory.length }} Messpunkte · oben = schneller
-                            </p>
+                            <p class="mt-1 text-center text-xs text-ink-3">{{ props.thresholdPaceHistory.length }} Messpunkte · oben = schneller</p>
                         </div>
-                        <div v-else-if="props.thresholdPace" class="mt-3 text-xs text-indigo-300">
-                            Diagramm erscheint sobald Daten über mehr als 7 Tage vorliegen
-                            <span v-if="props.thresholdPaceHistory.length > 0"> · {{ props.thresholdPaceHistory.length }} Messung(en) gespeichert</span>.
-                        </div>
-                        </div>
-                        </Transition>
-
+                        <p v-else-if="props.thresholdPace" class="mt-3 text-xs text-ink-3">
+                            Diagramm erscheint, sobald Daten über mehr als 7 Tage vorliegen<span v-if="props.thresholdPaceHistory.length > 0"> · {{ props.thresholdPaceHistory.length }} Messung(en)</span>.
+                        </p>
                     </div>
-                </div>
+                </AppCard>
+            </section>
 
-                <!-- ═══ ROW 3b: Trainingsbelastung (CTL / ATL / TSB) ═══ -->
-                <div v-if="props.trainingLoad" class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+            <!-- ══════════════════════════════════════════════════════
+                 BEWERTEN + WOCHENRÜCKBLICK
+                 ══════════════════════════════════════════════════════ -->
+            <div v-if="pendingRatingSessions.length > 0 || props.weeklyReview" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
 
-                    <!-- Header -->
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="flex items-center gap-2">
-                            <div class="h-7 w-7 rounded-lg bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center shrink-0">
-                                <svg class="h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Trainingsbelastung</h4>
-                                <p class="text-xs text-gray-400 dark:text-slate-500">CTL · ATL · Form (60 Tage)</p>
-                            </div>
-                        </div>
-                        <!-- Form badge -->
-                        <span class="text-xs font-semibold px-2.5 py-1 rounded-full"
-                            :class="{
-                                'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400':    props.trainingLoad.form_color === 'red',
-                                'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-400': props.trainingLoad.form_color === 'orange',
-                                'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400':  props.trainingLoad.form_color === 'green',
-                                'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400':    props.trainingLoad.form_color === 'blue',
-                                'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-400':     props.trainingLoad.form_color === 'gray',
-                            }"
-                        >{{ props.trainingLoad.form_label }}</span>
-                    </div>
-
-                    <!-- Three metric tiles -->
-                    <div class="grid grid-cols-3 gap-3 mb-4">
-                        <!-- CTL -->
-                        <div class="rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 p-3 text-center">
-                            <p class="text-2xl font-bold text-indigo-700 dark:text-indigo-300 tabular-nums">{{ props.trainingLoad.ctl }}</p>
-                            <p class="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 mt-0.5">CTL</p>
-                            <p class="text-[10px] text-indigo-400 dark:text-indigo-500 leading-tight mt-0.5">Fitness</p>
-                        </div>
-                        <!-- ATL -->
-                        <div class="rounded-xl bg-orange-50 dark:bg-orange-500/10 border border-orange-100 dark:border-orange-500/20 p-3 text-center">
-                            <p class="text-2xl font-bold text-orange-600 dark:text-orange-400 tabular-nums">{{ props.trainingLoad.atl }}</p>
-                            <p class="text-[11px] font-semibold text-orange-600 dark:text-orange-400 mt-0.5">ATL</p>
-                            <p class="text-[10px] text-orange-400 dark:text-orange-500 leading-tight mt-0.5">Ermüdung</p>
-                        </div>
-                        <!-- TSB -->
-                        <div class="rounded-xl p-3 text-center border"
-                            :class="{
-                                'bg-red-50 border-red-100 dark:bg-red-500/10 dark:border-red-500/20':         props.trainingLoad.form_color === 'red',
-                                'bg-orange-50 border-orange-100 dark:bg-orange-500/10 dark:border-orange-500/20': props.trainingLoad.form_color === 'orange',
-                                'bg-green-50 border-green-100 dark:bg-green-500/10 dark:border-green-500/20':   props.trainingLoad.form_color === 'green',
-                                'bg-blue-50 border-blue-100 dark:bg-blue-500/10 dark:border-blue-500/20':      props.trainingLoad.form_color === 'blue',
-                                'bg-gray-50 border-gray-100 dark:bg-slate-800 dark:border-slate-700':          props.trainingLoad.form_color === 'gray',
-                            }"
-                        >
-                            <p class="text-2xl font-bold tabular-nums"
-                                :class="{
-                                    'text-red-600 dark:text-red-400':    props.trainingLoad.form_color === 'red',
-                                    'text-orange-600 dark:text-orange-400': props.trainingLoad.form_color === 'orange',
-                                    'text-green-600 dark:text-green-400':   props.trainingLoad.form_color === 'green',
-                                    'text-blue-600 dark:text-blue-400':     props.trainingLoad.form_color === 'blue',
-                                    'text-gray-500 dark:text-slate-400':    props.trainingLoad.form_color === 'gray',
-                                }"
-                            >{{ props.trainingLoad.tsb > 0 ? '+' : '' }}{{ props.trainingLoad.tsb }}</p>
-                            <p class="text-[11px] font-semibold mt-0.5"
-                                :class="{
-                                    'text-red-600 dark:text-red-400':    props.trainingLoad.form_color === 'red',
-                                    'text-orange-600 dark:text-orange-400': props.trainingLoad.form_color === 'orange',
-                                    'text-green-600 dark:text-green-400':   props.trainingLoad.form_color === 'green',
-                                    'text-blue-600 dark:text-blue-400':     props.trainingLoad.form_color === 'blue',
-                                    'text-gray-500 dark:text-slate-400':    props.trainingLoad.form_color === 'gray',
-                                }"
-                            >TSB</p>
-                            <p class="text-[10px] leading-tight mt-0.5"
-                                :class="{
-                                    'text-red-400 dark:text-red-500':    props.trainingLoad.form_color === 'red',
-                                    'text-orange-400 dark:text-orange-500': props.trainingLoad.form_color === 'orange',
-                                    'text-green-400 dark:text-green-500':   props.trainingLoad.form_color === 'green',
-                                    'text-blue-400 dark:text-blue-500':     props.trainingLoad.form_color === 'blue',
-                                    'text-gray-400 dark:text-slate-500':    props.trainingLoad.form_color === 'gray',
-                                }"
-                            >Form</p>
-                        </div>
-                    </div>
-
-                    <!-- 60-day CTL / ATL chart -->
-                    <div v-if="loadChartData" class="rounded-xl overflow-hidden bg-gray-50 dark:bg-slate-800/50 px-1 pt-1 pb-0">
-                        <svg :viewBox="`0 0 ${loadChartData.W} ${loadChartData.H}`" class="w-full" preserveAspectRatio="none">
-                            <!-- ATL line (orange) -->
-                            <path :d="loadChartData.atlPath" fill="none" stroke="rgb(249,115,22)" stroke-width="1.5" stroke-linecap="round" opacity="0.7" />
-                            <!-- CTL line (indigo) -->
-                            <path :d="loadChartData.ctlPath" fill="none" stroke="rgb(99,102,241)" stroke-width="2" stroke-linecap="round" />
-                        </svg>
-                        <!-- Legend -->
-                        <div class="flex items-center gap-3 px-2 pb-2 pt-1">
-                            <span class="flex items-center gap-1 text-[10px] text-gray-500 dark:text-slate-400">
-                                <span class="inline-block h-0.5 w-4 rounded bg-indigo-500"></span> Fitness (CTL)
-                            </span>
-                            <span class="flex items-center gap-1 text-[10px] text-gray-500 dark:text-slate-400">
-                                <span class="inline-block h-0.5 w-4 rounded bg-orange-400 opacity-70"></span> Ermüdung (ATL)
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- Explanation -->
-                    <p class="mt-3 text-[11px] text-gray-400 dark:text-slate-500 leading-relaxed">
-                        <strong class="text-gray-500 dark:text-slate-400">Form = Fitness − Ermüdung.</strong>
-                        Optimal (−10 bis +5): Wettkampfbereit. Belastet (−30 bis −10): Trainingsblock. Frisch (+5 bis +25): Tapering.
-                    </p>
-                </div>
-
-                <!-- ═══ ROW 4b: Unrated Sessions + Weekly Review ═══ -->
-                <div v-if="pendingRatingSessions.length > 0 || props.weeklyReview" class="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
-
-                    <!-- Noch zu bewerten -->
-                    <div v-if="pendingRatingSessions.length > 0" class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-amber-100 dark:border-amber-500/20 p-4 sm:p-5">
-                        <div class="flex items-center gap-2 mb-3">
-                            <div class="h-7 w-7 rounded-lg bg-amber-100 dark:bg-amber-500/15 flex items-center justify-center text-sm shrink-0">⭐</div>
-                            <div>
-                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Noch zu bewerten</h4>
-                                <p class="text-xs text-gray-400 dark:text-slate-500">Dein Feedback verbessert den Plan</p>
-                            </div>
-                        </div>
+                <section v-if="pendingRatingSessions.length > 0">
+                    <h2 class="mb-2.5 text-lg font-black tracking-tight text-ink">Wie lief's?</h2>
+                    <AppCard subtitle="Dein Feedback macht den nächsten Plan besser">
                         <div class="space-y-2">
                             <div v-for="session in pendingRatingSessions" :key="session.id">
-                                <!-- Collapsed row -->
-                                <button
-                                    v-if="ratingOpenId !== session.id"
-                                    @click="openRating(session)"
-                                    class="w-full flex items-center justify-between gap-3 rounded-xl border border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2.5 hover:border-amber-200 dark:hover:border-amber-500/30 hover:bg-amber-50 dark:hover:bg-amber-500/5 transition-colors group text-left"
-                                >
-                                    <div class="flex items-center gap-2.5 min-w-0">
-                                        <span class="shrink-0 text-sm">
-                                            {{ {'easy_run':'🟢','tempo_run':'🟡','interval':'🔴','long_run':'🔵','race_prep':'🏁','progressive_run':'📈','test_run':'⏱️'}[session.type] ?? '🏃' }}
-                                        </span>
+                                <button v-if="ratingOpenId !== session.id" @click="openRating(session)"
+                                    class="flex w-full items-center justify-between gap-3 rounded-field border border-line bg-surface-2 px-3 py-3 text-left transition-colors hover:border-warn/40">
+                                    <div class="flex min-w-0 items-center gap-2.5">
+                                        <span class="shrink-0 text-base">{{ sessionType(session.type).emoji }}</span>
                                         <div class="min-w-0">
-                                            <p class="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{{ session.activity_name || session.title || 'Einheit' }}</p>
-                                            <p class="text-xs text-gray-400 dark:text-slate-500">
+                                            <p class="truncate text-sm font-semibold text-ink">{{ session.activity_name || session.title || 'Einheit' }}</p>
+                                            <p class="text-xs text-ink-3">
                                                 {{ new Date(session.planned_date).toLocaleDateString('de-DE', {day:'2-digit', month:'short'}) }}
                                                 {{ session.distance_km ? `· ${session.distance_km} km` : '' }}
                                             </p>
                                         </div>
                                     </div>
-                                    <span class="shrink-0 text-xs text-amber-600 dark:text-amber-400 font-medium group-hover:underline">Bewerten ↓</span>
+                                    <span class="shrink-0 rounded-full bg-warn px-2.5 py-1 text-[11px] font-bold text-white">Bewerten</span>
                                 </button>
 
-                                <!-- Expanded inline rating form -->
-                                <div v-else class="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/5 p-3">
-                                    <!-- Session title + close -->
-                                    <div class="flex items-center justify-between mb-3">
-                                        <div class="flex items-center gap-2 min-w-0">
-                                            <span class="text-sm shrink-0">{{ {'easy_run':'🟢','tempo_run':'🟡','interval':'🔴','long_run':'🔵','race_prep':'🏁','progressive_run':'📈','test_run':'⏱️'}[session.type] ?? '🏃' }}</span>
-                                            <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate">{{ session.activity_name || session.title || 'Einheit' }}</p>
+                                <div v-else class="rounded-field border border-warn/30 bg-warn-soft p-3">
+                                    <div class="mb-3 flex items-center justify-between">
+                                        <div class="flex min-w-0 items-center gap-2">
+                                            <span class="shrink-0 text-base">{{ sessionType(session.type).emoji }}</span>
+                                            <p class="truncate text-sm font-bold text-ink">{{ session.activity_name || session.title || 'Einheit' }}</p>
                                         </div>
-                                        <button @click="ratingOpenId = null" class="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 text-lg leading-none shrink-0 ml-2">✕</button>
+                                        <button @click="ratingOpenId = null" class="ml-2 shrink-0 text-lg leading-none text-ink-3 hover:text-ink">✕</button>
                                     </div>
 
-                                    <!-- Stars -->
-                                    <div class="mb-2">
-                                        <p class="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Wie war die Einheit?</p>
-                                        <div class="flex items-center gap-1">
-                                            <button
-                                                v-for="star in 5" :key="star"
-                                                @click="ratingStars = ratingStars === star ? 0 : star"
-                                                class="h-8 w-8 rounded-lg flex items-center justify-center text-lg transition-all"
-                                                :class="star <= ratingStars ? 'bg-amber-100 dark:bg-amber-500/20 scale-110' : 'bg-gray-100 dark:bg-slate-700 opacity-40 hover:opacity-70'"
-                                            >⭐</button>
-                                            <span class="ml-2 text-xs text-gray-400 dark:text-slate-500">
-                                                {{ ['','Sehr schwer','Schwer','Okay','Gut','Top'][ratingStars] }}
-                                            </span>
-                                        </div>
+                                    <p class="mb-1.5 text-xs font-semibold text-ink-2">Wie war die Einheit?</p>
+                                    <div class="mb-3 flex items-center gap-1">
+                                        <button v-for="star in 5" :key="star"
+                                            @click="ratingStars = ratingStars === star ? 0 : star"
+                                            class="flex h-9 w-9 items-center justify-center rounded-field text-lg transition-all"
+                                            :class="star <= ratingStars ? 'scale-110 bg-warn/20' : 'bg-surface-2 opacity-40 hover:opacity-70'"
+                                        >⭐</button>
+                                        <span class="ml-2 text-xs text-ink-3">{{ ['','Sehr schwer','Schwer','Okay','Gut','Top'][ratingStars] }}</span>
                                     </div>
 
-                                    <!-- RPE -->
-                                    <div class="mb-2">
-                                        <p class="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Anstrengung (RPE)</p>
-                                        <div class="flex gap-1 flex-wrap">
-                                            <button
-                                                v-for="n in 10" :key="n"
-                                                @click="ratingEffort = ratingEffort === n ? 0 : n"
-                                                class="h-7 w-7 rounded-lg text-xs font-bold transition-all"
-                                                :class="n === ratingEffort
-                                                    ? (n <= 3 ? 'bg-green-500 text-white' : n <= 6 ? 'bg-amber-500 text-white' : 'bg-red-500 text-white')
-                                                    : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'"
-                                            >{{ n }}</button>
-                                        </div>
+                                    <p class="mb-1.5 text-xs font-semibold text-ink-2">Anstrengung (RPE)</p>
+                                    <div class="mb-3 flex flex-wrap gap-1">
+                                        <button v-for="n in 10" :key="n"
+                                            @click="ratingEffort = ratingEffort === n ? 0 : n"
+                                            class="h-8 w-8 rounded-field text-xs font-bold transition-all active:scale-90"
+                                            :class="n === ratingEffort
+                                                ? (n <= 3 ? 'bg-success text-white' : n <= 6 ? 'bg-warn text-white' : 'bg-danger text-white')
+                                                : 'bg-surface-2 text-ink-3 hover:bg-surface-3'"
+                                        >{{ n }}</button>
                                     </div>
 
-                                    <!-- Notes (optional) -->
-                                    <textarea
-                                        v-model="ratingNotes"
-                                        rows="2"
-                                        placeholder="Notizen (optional)…"
-                                        class="w-full rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-2 text-xs text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-200 dark:focus:ring-amber-500/30 resize-none mb-2"
-                                    />
+                                    <textarea v-model="ratingNotes" rows="2" placeholder="Notizen (optional)…" class="z-input mb-2 resize-none text-xs" />
 
-                                    <!-- Save -->
                                     <div class="flex items-center gap-2">
-                                        <button
-                                            @click="submitRating(session.id)"
-                                            :disabled="ratingSavingId === session.id || (!ratingStars && !ratingEffort && !ratingNotes)"
-                                            class="flex-1 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-40 px-3 py-1.5 text-xs font-semibold text-white transition-colors flex items-center justify-center gap-1.5"
-                                        >
-                                            <svg v-if="ratingSavingId === session.id" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                            Speichern
-                                        </button>
-                                        <a v-if="session.activity_id" :href="route('activities.show', session.activity_id)" class="text-xs text-gray-400 hover:text-indigo-500 transition-colors">Details →</a>
+                                        <AppButton size="sm" block
+                                            :loading="ratingSavingId === session.id"
+                                            :disabled="!ratingStars && !ratingEffort && !ratingNotes"
+                                            @click="submitRating(session.id)">Speichern</AppButton>
+                                        <a v-if="session.activity_id" :href="route('activities.show', session.activity_id)" class="shrink-0 text-xs text-ink-3 hover:text-accent">Details →</a>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </AppCard>
+                </section>
 
-                    <!-- Wochenrückblick -->
-                    <div v-if="props.weeklyReview" class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-indigo-100 dark:border-indigo-500/20 p-4 sm:p-5">
-                        <div class="flex items-center gap-3 mb-3">
-                            <div v-if="coach" class="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center text-white text-xs font-bold shadow-sm" :class="coachColor.bg">{{ coach.avatar_initials }}</div>
-                            <div v-else class="shrink-0 h-9 w-9 rounded-xl bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center text-base">🧠</div>
+                <section v-if="props.weeklyReview">
+                    <h2 class="mb-2.5 text-lg font-black tracking-tight text-ink">Wochenrückblick</h2>
+                    <AppCard>
+                        <div class="mb-3 flex items-center gap-3">
+                            <div v-if="coach" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-field text-xs font-bold text-white"
+                                :style="`background-color: ${coach.avatar_color}`">{{ coach.avatar_initials }}</div>
+                            <div v-else class="flex h-10 w-10 shrink-0 items-center justify-center rounded-field bg-accent-soft text-base">🧠</div>
                             <div>
-                                <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">{{ coach ? coach.name + ' – Wochenrückblick' : 'Wochenrückblick' }}</h4>
-                                <p class="text-xs text-gray-400 dark:text-slate-500">
-                                    KW {{ new Date(props.weeklyReview.week_start).toLocaleDateString('de-DE', {day:'2-digit', month:'short'}) }}
-                                </p>
+                                <p class="text-sm font-bold text-ink">{{ coach ? coach.name : 'Dein Coach' }}</p>
+                                <p class="text-xs text-ink-3">ab {{ new Date(props.weeklyReview.week_start).toLocaleDateString('de-DE', {day:'2-digit', month:'short'}) }}</p>
                             </div>
                         </div>
-                        <p class="text-sm text-gray-700 dark:text-slate-300 leading-relaxed italic border-l-2 pl-3" :class="coachColor.border">{{ props.weeklyReview.content }}</p>
-                    </div>
+                        <p class="border-l-2 border-accent pl-3 text-sm italic leading-relaxed text-ink-2">{{ props.weeklyReview.content }}</p>
+                    </AppCard>
+                </section>
+            </div>
 
+            <!-- ══════════════════════════════════════════════════════
+                 LETZTE AKTIVITÄTEN
+                 ══════════════════════════════════════════════════════ -->
+            <section>
+                <div class="mb-2.5 flex items-end justify-between gap-3">
+                    <h2 class="text-lg font-black tracking-tight text-ink">Zuletzt gelaufen</h2>
+                    <a href="/activities" class="text-sm font-semibold text-accent hover:underline">Alle →</a>
                 </div>
 
-                <!-- ═══ ROW 5: Quick Event ═══ -->
-                <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
-                    <div class="flex items-center justify-between mb-4">
-                        <h4 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Schnelles Event erstellen</h4>
-                        <a href="/events" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition">Alle Events →</a>
-                    </div>
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
-                    <!-- Formular -->
-                    <div>
-                        <!-- Erfolgs-Banner -->
-                        <div v-if="quickEventSuccess" class="mb-3 rounded-xl bg-green-50 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20 px-3 py-2.5 flex items-center gap-2">
-                            <span class="text-green-600 dark:text-green-400 text-sm">✓</span>
-                            <p class="text-sm text-green-700 dark:text-green-400 font-medium">Event gespeichert!</p>
+                <AppCard v-if="props.recentActivities.length === 0">
+                    <EmptyState title="Noch keine Aktivitäten" description="Verbinde Strava und synchronisiere, dann erscheinen deine Läufe hier.">
+                        <AppButton v-if="!props.stravaConnected" href="/strava/connect">Strava verbinden</AppButton>
+                        <AppButton v-else :loading="syncing" @click="syncStrava">Jetzt synchronisieren</AppButton>
+                    </EmptyState>
+                </AppCard>
+
+                <div v-else class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                        v-for="activity in props.recentActivities.slice(0, 6)"
+                        :key="activity.id"
+                        @click="openActivityDetail(activity)"
+                        class="rounded-card border border-line bg-surface p-3.5 text-left shadow-card transition-all hover:border-line-strong active:scale-[0.99]"
+                    >
+                        <div class="mb-2 flex items-start justify-between gap-2">
+                            <div class="flex min-w-0 items-center gap-2">
+                                <span class="shrink-0 text-lg leading-none">{{ activityTypeIcon(activity.type) }}</span>
+                                <p class="truncate text-sm font-bold leading-tight text-ink">{{ activity.name }}</p>
+                            </div>
+                            <span class="shrink-0 text-[11px] font-medium text-ink-3">{{ relativeDate(activity.start_date) }}</span>
                         </div>
 
+                        <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                            <span v-if="activity.distance > 0" class="flex items-baseline gap-1">
+                                <span class="text-xl font-black tabular-nums leading-none text-ink">{{ round2(formatDistance(activity.distance)) }}</span>
+                                <span class="text-[11px] font-semibold text-ink-3">km</span>
+                            </span>
+                            <span v-else-if="['WeightTraining','Workout'].includes(activity.type)" class="text-sm font-bold text-ink">💪 Kraft</span>
+
+                            <span class="flex items-baseline gap-1">
+                                <span class="text-sm font-bold tabular-nums text-ink-2">{{ formatTime(activity.moving_time) }}</span>
+                            </span>
+                            <span v-if="activity.average_speed > 0"
+                                class="rounded-full px-2 py-0.5 text-xs font-bold tabular-nums"
+                                :class="['Ride','VirtualRide'].includes(activity.type)
+                                    ? 'bg-success-soft text-success-ink'
+                                    : activity.type === 'Swim'
+                                        ? 'bg-info-soft text-info-ink'
+                                        : paceColor(activity.average_speed)">
+                                {{ activityPaceLabel(activity) }}
+                            </span>
+                            <span v-if="activity.average_heartrate" class="text-xs font-semibold text-danger">❤️ {{ Math.round(activity.average_heartrate) }}</span>
+                            <span v-if="activity.total_elevation_gain > 0" class="text-xs font-semibold text-warn-ink">↑ {{ Math.round(activity.total_elevation_gain) }}m</span>
+                        </div>
+                    </button>
+                </div>
+            </section>
+
+            <!-- ══════════════════════════════════════════════════════
+                 KALENDER + EVENTS
+                 ══════════════════════════════════════════════════════ -->
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+
+                <section>
+                    <div class="mb-2.5 flex items-end justify-between gap-3">
+                        <h2 class="text-lg font-black tracking-tight text-ink">Monat</h2>
+                        <a href="/calendar" class="text-sm font-semibold text-accent hover:underline">Vollansicht →</a>
+                    </div>
+
+                    <AppCard>
+                        <div class="mb-3 flex items-center justify-center gap-2">
+                            <button @click="prevMonth" class="flex h-8 w-8 items-center justify-center rounded-field text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink">‹</button>
+                            <h4 class="min-w-[140px] text-center text-sm font-bold text-ink">{{ currentMonthLabel }}</h4>
+                            <button @click="nextMonth" class="flex h-8 w-8 items-center justify-center rounded-field text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink">›</button>
+                        </div>
+
+                        <div class="mb-1 grid grid-cols-7 gap-0.5 text-center text-[11px] font-bold text-ink-3">
+                            <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
+                        </div>
+                        <div class="grid grid-cols-7 gap-0.5 text-center">
+                            <div v-for="(d, i) in calendarDays" :key="i"
+                                class="relative mx-auto flex h-9 w-9 flex-col items-center justify-center rounded-full text-xs transition-colors"
+                                :class="{
+                                    'bg-accent font-bold text-white': d.isToday && !d.hasEvent,
+                                    'bg-warn font-bold text-white':   d.hasEvent,
+                                    'text-ink-3 opacity-40':          !d.currentMonth,
+                                    'text-ink hover:bg-surface-2':    d.currentMonth && !d.isToday && !d.hasEvent,
+                                    'cursor-pointer':                 d.hasActivity || d.hasEvent,
+                                }"
+                                :title="d.hasEvent ? d.event.name : ''"
+                                @click="openCalendarDay(d)">
+                                {{ d.day }}
+                                <span v-if="d.hasActivity && !d.isToday && !d.hasEvent" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-accent" />
+                                <span v-if="d.hasActivity && (d.isToday || d.hasEvent)" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-white/80" />
+
+                                <div v-if="d.hasActivity && calendarPickerDay === d.day"
+                                    class="absolute top-10 left-1/2 z-30 w-52 -translate-x-1/2 rounded-card border border-line bg-surface py-1 text-left shadow-sheet"
+                                    @click.stop>
+                                    <p class="border-b border-line px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-ink-3">
+                                        {{ activeDaysInMonth.get(d.day)?.length }} Aktivitäten
+                                    </p>
+                                    <button v-for="act in activeDaysInMonth.get(d.day)" :key="act.id"
+                                        @click="pickCalendarActivity(act)"
+                                        class="w-full px-3 py-2 text-left transition-colors hover:bg-surface-2">
+                                        <p class="truncate text-xs font-semibold text-ink">{{ act.name }}</p>
+                                        <p class="text-xs text-ink-3"><template v-if="act.distance > 0">{{ formatDistance(act.distance) }} km · </template>{{ formatTime(act.moving_time) }}</p>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </AppCard>
+                </section>
+
+                <section>
+                    <div class="mb-2.5 flex items-end justify-between gap-3">
+                        <h2 class="text-lg font-black tracking-tight text-ink">Nächste Events</h2>
+                        <a href="/events" class="text-sm font-semibold text-accent hover:underline">Alle →</a>
+                    </div>
+
+                    <AppCard v-if="props.events.length === 0">
+                        <EmptyState title="Kein Event geplant" description="Ein Ziel im Kalender macht jedes Training konkreter.">
+                            <AppButton href="/events">Event anlegen</AppButton>
+                        </EmptyState>
+                    </AppCard>
+
+                    <div v-else class="space-y-2">
+                        <a v-for="event in props.events.slice(0, 3)" :key="event.id" href="/events"
+                            class="flex items-center gap-3 rounded-card border border-line bg-surface p-3 shadow-card transition-all hover:border-line-strong">
+                            <div class="relative h-11 w-11 shrink-0">
+                                <svg viewBox="0 0 36 36" class="h-11 w-11 -rotate-90">
+                                    <circle cx="18" cy="18" r="14" fill="none" stroke="rgb(var(--z-surface-3))" stroke-width="3" />
+                                    <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                                        :stroke-dasharray="eventRingProps(event.days_until).circumference"
+                                        :stroke-dashoffset="eventRingProps(event.days_until).dashOffset"
+                                        :class="eventRingProps(event.days_until).ringClass" />
+                                </svg>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span class="text-xs font-black"
+                                        :class="{
+                                            'text-danger': event.priority === 'A',
+                                            'text-warn':   event.priority === 'B',
+                                            'text-ink-3':  event.priority === 'C',
+                                        }">{{ event.priority }}</span>
+                                </div>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-sm font-bold text-ink">{{ event.name }}</p>
+                                <div class="mt-0.5 flex items-center gap-1.5">
+                                    <span class="text-xs text-ink-3">{{ new Date(event.event_date).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' }) }}</span>
+                                    <span class="rounded px-1.5 py-0.5 text-[11px] font-semibold"
+                                        :class="{
+                                            'bg-danger-soft text-danger-ink':   event.training_phase.key === 'race_week',
+                                            'bg-warn-soft text-warn-ink':       event.training_phase.key === 'taper' || event.training_phase.key === 'peak',
+                                            'bg-info-soft text-info-ink':       event.training_phase.key === 'build',
+                                            'bg-success-soft text-success-ink': event.training_phase.key === 'base',
+                                        }">{{ event.training_phase.label }}</span>
+                                </div>
+                            </div>
+                            <div class="shrink-0 text-right">
+                                <p class="text-lg font-black tabular-nums leading-none text-accent">{{ event.days_until }}</p>
+                                <p class="text-[11px] text-ink-3">Tage</p>
+                            </div>
+                        </a>
+                    </div>
+                </section>
+            </div>
+
+            <!-- ══════════════════════════════════════════════════════
+                 SCHNELL EIN EVENT ANLEGEN
+                 ══════════════════════════════════════════════════════ -->
+            <section>
+                <h2 class="mb-2.5 text-lg font-black tracking-tight text-ink">Neues Ziel setzen</h2>
+
+                <AppCard>
+                    <div v-if="quickEventSuccess" class="mb-3 flex items-center gap-2 rounded-field border border-success/25 bg-success-soft px-3 py-2.5">
+                        <span class="text-success">✓</span>
+                        <p class="text-sm font-semibold text-success-ink">Event gespeichert!</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
                         <div class="space-y-3">
-                            <!-- Distanz Buttons -->
                             <div>
-                                <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Distanz</label>
+                                <label class="z-label">Distanz</label>
                                 <div class="grid grid-cols-2 gap-1.5">
                                     <button v-for="opt in raceOptions" :key="opt.value"
                                         @click="quickEventForm.race_distance = opt.value"
-                                        class="py-2 px-3 rounded-xl text-xs font-semibold border transition"
+                                        class="rounded-field border px-3 py-2.5 text-xs font-bold transition-all active:scale-[0.98]"
                                         :class="quickEventForm.race_distance === opt.value
-                                            ? 'bg-indigo-500 text-white border-indigo-500'
-                                            : 'bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:border-indigo-300'">
+                                            ? 'border-accent bg-accent text-white'
+                                            : 'border-line bg-surface-2 text-ink-2 hover:border-line-strong'">
                                         {{ opt.label }}
                                     </button>
                                 </div>
                             </div>
 
-                            <!-- Datum -->
                             <div>
-                                <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Renndatum *</label>
-                                <input type="date" v-model="quickEventForm.event_date"
-                                    class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 py-2 px-3 text-sm text-gray-800 dark:text-slate-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 focus:outline-none" />
+                                <label class="z-label">Renndatum *</label>
+                                <input type="date" v-model="quickEventForm.event_date" class="z-input" />
                             </div>
 
-                            <!-- Zielzeit -->
                             <div>
-                                <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Zielzeit</label>
+                                <label class="z-label">Zielzeit</label>
                                 <div class="grid grid-cols-2 gap-2">
                                     <div class="relative">
-                                        <input type="number" v-model="quickEventForm.target_time_hours" min="0" max="23"
-                                            class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 py-2 pl-3 pr-8 text-sm text-gray-800 dark:text-slate-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 focus:outline-none" />
-                                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">h</span>
+                                        <input type="number" v-model="quickEventForm.target_time_hours" min="0" max="23" class="z-input pr-8" />
+                                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ink-3">h</span>
                                     </div>
                                     <div class="relative">
-                                        <input type="number" v-model="quickEventForm.target_time_minutes" min="0" max="59"
-                                            class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 py-2 pl-3 pr-8 text-sm text-gray-800 dark:text-slate-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 focus:outline-none" />
-                                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">min</span>
+                                        <input type="number" v-model="quickEventForm.target_time_minutes" min="0" max="59" class="z-input pr-10" />
+                                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ink-3">min</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Priorität -->
                             <div>
-                                <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Priorität</label>
+                                <label class="z-label">Priorität</label>
                                 <div class="flex gap-1.5">
                                     <button v-for="p in ['A','B','C']" :key="p"
                                         @click="quickEventForm.priority = p"
-                                        class="flex-1 py-1.5 rounded-lg text-xs font-bold border transition"
+                                        class="flex-1 rounded-field border py-2 text-xs font-black transition-all active:scale-[0.98]"
                                         :class="quickEventForm.priority === p
-                                            ? p === 'A' ? 'bg-red-500 text-white border-red-500'
-                                              : p === 'B' ? 'bg-yellow-500 text-white border-yellow-500'
-                                              : 'bg-gray-400 text-white border-gray-400'
-                                            : 'bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-slate-400 border-gray-200 dark:border-slate-700'">
+                                            ? p === 'A' ? 'border-danger bg-danger text-white'
+                                              : p === 'B' ? 'border-warn bg-warn text-white'
+                                              : 'border-line-strong bg-surface-3 text-ink'
+                                            : 'border-line bg-surface-2 text-ink-3'">
                                         {{ p }}
                                     </button>
                                 </div>
                             </div>
 
-                            <button @click="saveQuickEvent" :disabled="!quickEventForm.event_date || quickEventSaving"
-                                class="w-full rounded-xl py-2.5 text-sm font-bold text-white transition disabled:opacity-50"
-                                :class="quickEventSaving ? 'bg-indigo-400' : 'bg-indigo-500 hover:bg-indigo-400'">
-                                <span v-if="quickEventSaving">Speichern…</span>
-                                <span v-else>Event erstellen</span>
-                            </button>
+                            <AppButton block :disabled="!quickEventForm.event_date" :loading="quickEventSaving" @click="saveQuickEvent">
+                                Event erstellen
+                            </AppButton>
                         </div>
-                    </div>
 
-                    <!-- Rechts: Hinweise & Nächste Events -->
-                    <div class="flex flex-col gap-4">
-                        <!-- Nächster Schritt nach dem Event -->
-                        <div class="rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 p-4">
-                            <p class="text-xs font-bold text-indigo-700 dark:text-indigo-300 mb-2">Nach dem Event: Trainingsplan</p>
-                            <p class="text-xs text-indigo-600 dark:text-indigo-400 leading-relaxed">
-                                Sobald du ein Event angelegt hast, erstellt {{ coach ? coach.name : 'dein Coach' }} automatisch einen 10-Tages-Trainingsplan — abgestimmt auf deine Schwellenpace und Zielzeit.
+                        <div class="rounded-field border border-accent/25 bg-accent-soft p-4">
+                            <p class="mb-2 text-xs font-bold uppercase tracking-wide text-accent-ink">Danach passiert automatisch</p>
+                            <p class="text-sm leading-relaxed text-ink-2">
+                                Sobald das Event steht, baut {{ coach ? coach.name : 'dein Coach' }} dir einen Trainingsplan —
+                                abgestimmt auf deine Schwellenpace, deine Zielzeit und die Zeit bis zum Rennen.
                             </p>
                         </div>
-
                     </div>
+                </AppCard>
+            </section>
 
-                    </div><!-- /inner grid -->
-                </div><!-- /outer card -->
-
-            </div>
         </div>
-
-        <!-- ═══ KI-Auswertung ═══ -->
-        <AppSheet
-            :show="showAIModal"
-            :title="aiModalType === 'analysis' ? '📊 Analyse' : ('🎯 ' + (coach ? coach.name + 's Trainingsplan' : 'Trainingsplan'))"
-            max-width="2xl"
-            @close="closeAIModal"
-        >
-            <div v-if="aiLoading" class="flex flex-col items-center justify-center gap-3 py-16">
-                <div v-if="coach" class="flex h-16 w-16 items-center justify-center rounded-card text-xl font-bold text-white" :class="coachColor.bg">{{ coach.avatar_initials }}</div>
-                <div v-else class="text-5xl">🏃</div>
-                <p class="text-sm text-ink-3">{{ coach ? coach.name + ' analysiert…' : 'Wird berechnet…' }}</p>
-            </div>
-            <div v-else class="whitespace-pre-wrap rounded-card p-5 text-sm leading-relaxed"
-                :class="aiModalType === 'analysis' ? 'bg-info-soft text-info-ink' : 'bg-accent-soft text-accent-ink'">
-                {{ aiModalType === 'analysis' ? aiAnalysis : aiPlan }}
-            </div>
-
-            <template #footer>
-                <AppButton variant="secondary" block @click="closeAIModal">Schließen</AppButton>
-            </template>
-        </AppSheet>
 
         <!-- Wellbeing Modal -->
         <!-- Wellbeing / plan-adjust toast -->
@@ -2407,105 +1925,5 @@ function garminDeltaClass(t) {
 <style scoped>
 .activities-scroll::-webkit-scrollbar {
     display: none;
-}
-</style>
-
-<!--
-  Bauhaus theme layer for the dashboard. Not scoped: it must reach the compiled
-  Tailwind utility classes on the markup, but every selector is prefixed with
-  .bauhaus-dash so it stays confined to this page's content wrapper.
-  Principle: black canvas, off-white ink, Helvetica, hard rectangles, flat
-  surfaces, thin neutral grid, four meaning-colours (blue/red/yellow/green).
--->
-<style>
-.bauhaus-dash {
-    background: #08080A;
-    color: #F5F5F5;
-    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-    letter-spacing: -0.01em;
-    -webkit-font-smoothing: antialiased;
-}
-
-/* Hard rectangles everywhere — kills all rounding incl. pills → squares */
-.bauhaus-dash [class*="rounded"] { border-radius: 0 !important; }
-
-/* Flat: no soft shadows, Bauhaus is function not atmosphere */
-.bauhaus-dash [class*="shadow"] { box-shadow: none !important; }
-
-/* Numbers bold & tightly tracked */
-.bauhaus-dash .tabular-nums { font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
-
-/* Headings & small labels lowercase (a deliberate Bauhaus quote) */
-.bauhaus-dash h1, .bauhaus-dash h2, .bauhaus-dash h3,
-.bauhaus-dash h4, .bauhaus-dash h5 { text-transform: lowercase; }
-
-/* ── Surfaces: dark slate panels → near-black modules, thin neutral grid ── */
-.bauhaus-dash .dark\:bg-slate-900 { background-color: #0d0d10 !important; }
-.bauhaus-dash .dark\:bg-slate-800 { background-color: #141418 !important; }
-.bauhaus-dash .dark\:bg-slate-700 { background-color: #1c1c22 !important; }
-.bauhaus-dash .dark\:border-slate-800,
-.bauhaus-dash .dark\:border-slate-700 { border-color: #26262c !important; }
-
-/* Light-tint banners/badges (no dark variant) → dark accent panels */
-.bauhaus-dash .bg-white           { background-color: #0d0d10 !important; }
-.bauhaus-dash .bg-gray-50,
-.bauhaus-dash .bg-gray-100        { background-color: #141418 !important; }
-.bauhaus-dash .bg-indigo-50,
-.bauhaus-dash .bg-blue-50         { background-color: rgba(61,123,255,.10) !important; }
-.bauhaus-dash .bg-green-50        { background-color: rgba(0,196,106,.10) !important; }
-.bauhaus-dash .bg-red-50          { background-color: rgba(240,64,47,.10) !important; }
-.bauhaus-dash .bg-amber-50,
-.bauhaus-dash .bg-yellow-50,
-.bauhaus-dash .bg-orange-50       { background-color: rgba(255,196,0,.10) !important; }
-.bauhaus-dash .border-gray-100,
-.bauhaus-dash .border-gray-200    { border-color: #26262c !important; }
-.bauhaus-dash .border-indigo-200,
-.bauhaus-dash .border-blue-200    { border-color: rgba(61,123,255,.30) !important; }
-.bauhaus-dash .border-green-200   { border-color: rgba(0,196,106,.30) !important; }
-.bauhaus-dash .border-red-200     { border-color: rgba(240,64,47,.30) !important; }
-.bauhaus-dash .border-amber-200   { border-color: rgba(255,196,0,.30) !important; }
-
-/* ── Ink ramp ── */
-.bauhaus-dash .dark\:text-white,
-.bauhaus-dash .dark\:text-slate-100,
-.bauhaus-dash .dark\:text-slate-200,
-.bauhaus-dash .text-gray-900,
-.bauhaus-dash .text-gray-800      { color: #F5F5F5 !important; }
-.bauhaus-dash .text-gray-700,
-.bauhaus-dash .text-gray-600,
-.bauhaus-dash .dark\:text-slate-300 { color: #c5c5cc !important; }
-.bauhaus-dash .text-gray-500,
-.bauhaus-dash .text-gray-400,
-.bauhaus-dash .dark\:text-slate-400 { color: #8a8a92 !important; }
-.bauhaus-dash .text-gray-300,
-.bauhaus-dash .dark\:text-slate-500,
-.bauhaus-dash .dark\:text-slate-600 { color: #6c6c74 !important; }
-
-/* ── Four meaning-colours: normalise the app's accents onto the Bauhaus palette ── */
-/* blue = fitness/volume/HRV */
-.bauhaus-dash .text-indigo-300,
-.bauhaus-dash .text-indigo-400,
-.bauhaus-dash .text-indigo-700,
-.bauhaus-dash .text-blue-800      { color: #3D7BFF !important; }
-.bauhaus-dash .bg-indigo-500      { background-color: #3D7BFF !important; }
-/* red = load/heart */
-.bauhaus-dash .text-red-800,
-.bauhaus-dash .text-red-600,
-.bauhaus-dash .dark\:text-red-400 { color: #F0402F !important; }
-/* green = energy/form good */
-.bauhaus-dash .text-green-800,
-.bauhaus-dash .text-green-600,
-.bauhaus-dash .dark\:text-green-400 { color: #00C46A !important; }
-/* yellow/amber = sleep/attention */
-.bauhaus-dash .text-amber-600,
-.bauhaus-dash .dark\:text-amber-400,
-.bauhaus-dash .text-orange-600,
-.bauhaus-dash .dark\:text-orange-400 { color: #FFC400 !important; }
-
-/* Thin, non-decorative borders on all modules */
-.bauhaus-dash .border { border-width: 1px !important; }
-
-@media (prefers-reduced-motion: reduce) {
-    .bauhaus-dash * { animation: none !important; transition: none !important; }
 }
 </style>
