@@ -25,8 +25,8 @@ const HOUR      = 3600_000;
 
 const hasStarted = computed(() => elapsedMs.value >= 0);
 
-/** Rennen vorbei? Dann friert alles beim gesetzten Stand ein. */
-const isOver = computed(() => data.value.outcome != null);
+/** Endstand gesetzt? Dann friert die Seite dort ein. */
+const isOver = computed(() => data.value.stoppedAtYard != null);
 
 /** Laufender Yard, 1-basiert. Vor dem Start 0. */
 const currentYard = computed(() => {
@@ -56,15 +56,41 @@ const completedYards = computed(() => {
     return Math.max(0, currentYard.value - 1);
 });
 
+/** Gesicherte Distanz: abgeschlossene Runden mal Rundenlaenge. */
+const confirmedKm = computed(() => completedYards.value * (data.value.yardKm ?? 0));
+
 /**
- * Distanz aus den Runden. Bei fester Rundenlaenge ist das exakt und
- * dazu genauer als GPS, das ueber 24 Stunden wegdriftet. Garmins Wert
- * wird nur genommen, wenn er ueberhaupt ankommt und plausibel groesser ist.
+ * Hochrechnung innerhalb der laufenden Runde. Sie zaehlt weich hoch,
+ * damit die Seite lebt — die Zahl springt sonst nur einmal pro Stunde.
+ *
+ * Das ist ausdruecklich KEINE Messung: es gibt keine Livedaten von der
+ * Uhr, deshalb wird auch kein Zufallsrauschen daraufgelegt, das eine
+ * vortaeuschen wuerde. Die Beschriftung sagt, dass es geschaetzt ist,
+ * und mehr als eine Runde pro Stunde kann es nie werden.
  */
-const distanceKm = computed(() => {
-    const fromYards = completedYards.value * (data.value.yardKm ?? 0);
-    const fromGarmin = data.value.distanceKm ?? 0;
-    return Math.max(fromYards, fromGarmin).toFixed(2);
+const estimatedKm = computed(() => {
+    if (isOver.value || !hasStarted.value) return confirmedKm.value;
+
+    const paceSec = data.value.assumedPaceSec || 420;
+    const secondsIntoYard = (elapsedMs.value % HOUR) / 1000;
+    const inYard = Math.min(data.value.yardKm ?? 0, secondsIntoYard / paceSec);
+
+    return confirmedKm.value + inYard;
+});
+
+/** Garmins Wert gewinnt, falls er je ankommt. */
+const distanceKm = computed(() =>
+    Math.max(estimatedKm.value, data.value.distanceKm ?? 0).toFixed(2)
+);
+
+/** Solange die Runde laeuft, ist die Zahl eine Hochrechnung. */
+const distanceIsEstimate = computed(() =>
+    !isOver.value && hasStarted.value && !data.value.distanceKm
+);
+
+const assumedPaceLabel = computed(() => {
+    const p = data.value.assumedPaceSec || 420;
+    return `${Math.floor(p / 60)}:${String(p % 60).padStart(2, '0')}`;
 });
 
 // ── Formatierung ─────────────────────────────────────────────────────────────
@@ -78,12 +104,6 @@ function clock(totalSeconds) {
         : `${m}:${String(s).padStart(2, '0')}`;
 }
 
-const pace = computed(() => {
-    const p = data.value.paceSecPerKm;
-    if (!p) return null;
-    return `${Math.floor(p / 60)}:${String(Math.round(p % 60)).padStart(2, '0')}`;
-});
-
 const elapsedTotal = computed(() =>
     hasStarted.value ? Math.floor(elapsedMs.value / 1000) : null
 );
@@ -96,28 +116,6 @@ const startLabel = computed(() =>
 
 // Die Glocke wird in der letzten Minute dringlich.
 const bellUrgent = computed(() => hasStarted.value && secondsToBell.value <= 60);
-
-// ── Pulskurve ────────────────────────────────────────────────────────────────
-const hrChart = computed(() => {
-    const pts = (data.value.series ?? []).filter(p => p.hr);
-    if (pts.length < 3) return null;
-
-    const W = 600, H = 90, pad = 6;
-    const hrs = pts.map(p => p.hr);
-    const lo = Math.min(...hrs) - 3;
-    const hi = Math.max(...hrs) + 3;
-    const range = (hi - lo) || 1;
-    const t0 = pts[0].t;
-    const span = (pts[pts.length - 1].t - t0) || 1;
-
-    const d = pts.map((p, i) => {
-        const x = pad + ((p.t - t0) / span) * (W - pad * 2);
-        const y = pad + (H - pad * 2) - ((p.hr - lo) / range) * (H - pad * 2);
-        return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
-    }).join(' ');
-
-    return { d, W, H, lo: Math.round(lo), hi: Math.round(hi), count: pts.length };
-});
 
 // ── Karte ────────────────────────────────────────────────────────────────────
 // Zwei Wege: eigene Leaflet-Karte, wenn Positionen ankommen (dann steht kein
@@ -178,17 +176,27 @@ async function crewPost(payload) {
     }
 }
 
-function crewFinish(outcome) {
-    crewPost({ outcome, stopped_at_yard: yardInput.value ?? completedYards.value });
+function crewFinish() {
+    crewPost({ stopped_at_yard: yardInput.value ?? completedYards.value });
 }
 
 function crewResume() {
-    crewPost({ outcome: null, stopped_at_yard: null });
+    crewPost({ stopped_at_yard: null });
 }
 
 function crewSaveNote() {
-    crewPost({ status_note: noteInput.value });
+    if (!noteInput.value.trim()) return;
+    crewPost({ note: noteInput.value });
     noteInput.value = '';
+}
+
+/** „vor 12 Min" statt Uhrzeit — bei einem 24-Stunden-Lauf lesbarer. */
+function agoLabel(iso) {
+    const mins = Math.round((now.value - new Date(iso).getTime()) / 60000);
+    if (mins < 1)  return 'gerade eben';
+    if (mins < 60) return `vor ${mins} Min`;
+    const h = Math.floor(mins / 60);
+    return `vor ${h} Std`;
 }
 
 // ── Nachladen ────────────────────────────────────────────────────────────────
@@ -231,19 +239,12 @@ onUnmounted(() => {
                 <p class="mt-0.5 text-[13px] text-ink-3">Start: {{ startLabel }}</p>
             </header>
 
-            <!-- Lagemeldung der Crew -->
-            <section v-if="data.statusNote" class="rounded-card bg-accent-soft px-5 py-4">
-                <p class="text-[15px] leading-relaxed text-accent-ink">{{ data.statusNote }}</p>
-            </section>
-
             <!-- ══════════════════════════════════════════════════
                  DIE GLOCKE — das Wichtigste auf der Seite
                  ══════════════════════════════════════════════════ -->
             <section class="rounded-card bg-surface p-6 text-center shadow-card">
                 <template v-if="isOver">
-                    <p class="text-[11px] font-bold uppercase tracking-widest text-ink-3">
-                        {{ data.outcome === 'finished' ? 'Gewonnen' : 'Rennen beendet' }}
-                    </p>
+                    <p class="text-[11px] font-bold uppercase tracking-widest text-ink-3">Endstand</p>
                     <p class="mt-2 text-6xl font-bold tabular-nums tracking-tight text-ink">{{ completedYards }}</p>
                     <p class="mt-1 text-[15px] text-ink-3">
                         {{ completedYards === 1 ? 'Runde' : 'Runden' }} · {{ distanceKm }} km
@@ -274,7 +275,7 @@ onUnmounted(() => {
             <!-- ══════════════════════════════════════════════════
                  FORTSCHRITT
                  ══════════════════════════════════════════════════ -->
-            <section class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <section class="grid grid-cols-2 gap-3">
                 <div class="min-w-0 rounded-card bg-surface p-4 shadow-card">
                     <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Runden</p>
                     <p class="mt-1 text-2xl font-bold tabular-nums text-ink">
@@ -286,17 +287,10 @@ onUnmounted(() => {
                     <p class="mt-1 text-2xl font-bold tabular-nums text-ink">
                         {{ distanceKm }}<span class="text-[15px] font-medium text-ink-3"> km</span>
                     </p>
-                </div>
-                <div class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Puls</p>
-                    <p class="mt-1 text-2xl font-bold tabular-nums" :class="data.heartRate ? 'text-danger' : 'text-ink-3'">
-                        {{ data.heartRate ?? '–' }}<span v-if="data.heartRate" class="text-[15px] font-medium text-ink-3"> bpm</span>
-                    </p>
-                </div>
-                <div class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Pace</p>
-                    <p class="mt-1 text-2xl font-bold tabular-nums text-ink">
-                        {{ pace ?? '–' }}<span v-if="pace" class="text-[15px] font-medium text-ink-3"> /km</span>
+                    <p class="mt-0.5 text-[11px] text-ink-3">
+                        <template v-if="distanceIsEstimate">geschätzt · {{ assumedPaceLabel }} /km</template>
+                        <template v-else-if="isOver">Endstand</template>
+                        <template v-else>aus {{ completedYards }} Runden</template>
                     </p>
                 </div>
             </section>
@@ -307,19 +301,6 @@ onUnmounted(() => {
                     <span class="text-[13px] text-ink-3">Unterwegs seit</span>
                     <span class="text-xl font-bold tabular-nums text-ink">{{ clock(elapsedTotal) }}</span>
                 </div>
-            </section>
-
-            <!-- ══════════════════════════════════════════════════
-                 PULSVERLAUF
-                 ══════════════════════════════════════════════════ -->
-            <section v-if="hrChart" class="rounded-card bg-surface p-5 shadow-card">
-                <div class="mb-3 flex items-baseline justify-between">
-                    <h2 class="text-[15px] font-semibold text-ink">Pulsverlauf</h2>
-                    <span class="text-[12px] text-ink-3">{{ hrChart.lo }}–{{ hrChart.hi }} bpm</span>
-                </div>
-                <svg :viewBox="`0 0 ${hrChart.W} ${hrChart.H}`" class="block h-auto w-full" preserveAspectRatio="none">
-                    <path :d="hrChart.d" fill="none" stroke="rgb(var(--z-danger))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
             </section>
 
             <!-- ══════════════════════════════════════════════════
@@ -350,6 +331,30 @@ onUnmounted(() => {
             </section>
 
             <!-- ══════════════════════════════════════════════════
+                 NEWSTICKER — von der Crew geschrieben
+                 ══════════════════════════════════════════════════ -->
+            <section v-if="data.notes?.length" class="rounded-card bg-surface p-5 shadow-card">
+                <h2 class="mb-4 text-[15px] font-semibold text-ink">Neues von der Strecke</h2>
+                <ol class="space-y-4">
+                    <li v-for="(n, i) in data.notes" :key="n.id" class="flex gap-3">
+                        <div class="flex flex-col items-center pt-1">
+                            <span class="h-2.5 w-2.5 shrink-0 rounded-full"
+                                :class="i === 0 ? 'bg-success' : 'bg-surface-3'" />
+                            <span v-if="i < data.notes.length - 1" class="mt-1 w-px flex-1 bg-line" />
+                        </div>
+                        <div class="min-w-0 flex-1 pb-1">
+                            <p class="text-[15px] leading-relaxed text-ink">{{ n.text }}</p>
+                            <p class="mt-1 flex items-center gap-2 text-[12px] text-ink-3">
+                                {{ agoLabel(n.at) }}
+                                <button v-if="isCrew" class="font-semibold text-danger hover:underline"
+                                    @click="crewPost({ delete_note: n.id })">löschen</button>
+                            </p>
+                        </div>
+                    </li>
+                </ol>
+            </section>
+
+            <!-- ══════════════════════════════════════════════════
                  CREW — nur mit gueltigem Schluessel
                  ══════════════════════════════════════════════════ -->
             <section v-if="isCrew" class="rounded-card bg-surface p-5 shadow-card">
@@ -358,24 +363,20 @@ onUnmounted(() => {
                     <p class="text-[13px] text-ink-3">Nur du und deine Crew seht diesen Abschnitt.</p>
                 </div>
 
-                <!-- Lagemeldung -->
-                <label class="z-label">Lagemeldung</label>
+                <!-- Newsticker -->
+                <label class="z-label">Meldung für den Ticker</label>
                 <div class="flex gap-2">
-                    <input v-model="noteInput" type="text" maxlength="140" class="z-input"
-                        placeholder="z.B. Blasen versorgt, läuft weiter" @keyup.enter="crewSaveNote" />
+                    <input v-model="noteInput" type="text" maxlength="200" class="z-input"
+                        placeholder="z.B. Runde 12 geschafft, alles gut" @keyup.enter="crewSaveNote" />
                     <AppButton :loading="crewBusy" @click="crewSaveNote">Senden</AppButton>
                 </div>
-                <p v-if="data.statusNote" class="mt-2 text-[13px] text-ink-3">
-                    Aktuell: „{{ data.statusNote }}"
-                    <button class="ml-1 font-semibold text-danger hover:underline" @click="crewPost({ status_note: '' })">löschen</button>
-                </p>
+                <p class="z-hint">Erscheint sofort für alle Zuschauer, neueste Meldung oben.</p>
 
                 <!-- Rennende -->
                 <div class="mt-5 border-t border-line pt-4">
-                    <template v-if="data.outcome">
+                    <template v-if="isOver">
                         <p class="text-[15px] font-semibold text-ink">
-                            Festgehalten: {{ data.outcome === 'finished' ? 'Gewonnen' : 'Beendet' }}
-                            <template v-if="data.stoppedAtYard"> nach {{ data.stoppedAtYard }} Runden</template>
+                            Endstand: {{ data.stoppedAtYard }} {{ data.stoppedAtYard === 1 ? 'Runde' : 'Runden' }}
                         </p>
                         <AppButton variant="secondary" size="sm" class="mt-3" :loading="crewBusy" @click="crewResume">
                             Doch noch unterwegs
@@ -383,12 +384,14 @@ onUnmounted(() => {
                     </template>
 
                     <template v-else>
-                        <label class="z-label">Erreichte Runden <span class="font-normal text-ink-3">(leer = aktueller Stand: {{ completedYards }})</span></label>
+                        <label class="z-label">
+                            Endgültige Rundenzahl
+                            <span class="font-normal text-ink-3">(leer = aktueller Stand: {{ completedYards }})</span>
+                        </label>
                         <input v-model.number="yardInput" type="number" min="0" class="z-input" :placeholder="String(completedYards)" />
-                        <div class="mt-3 flex gap-2">
-                            <AppButton variant="secondary" block :loading="crewBusy" @click="crewFinish('dnf')">Beendet</AppButton>
-                            <AppButton block :loading="crewBusy" @click="crewFinish('finished')">Gewonnen</AppButton>
-                        </div>
+                        <AppButton block class="mt-3" :loading="crewBusy" @click="crewFinish">
+                            Rennen beenden
+                        </AppButton>
                     </template>
                 </div>
             </section>
@@ -400,7 +403,8 @@ onUnmounted(() => {
             </p>
 
             <footer class="px-1 pb-4 pt-2 text-[12px] text-ink-3">
-                Werte kommen von Garmin LiveTrack und aktualisieren sich etwa jede Minute.
+                Rundenzähler und Uhr laufen nach der Startzeit. Die Distanz innerhalb der
+                laufenden Runde ist eine Hochrechnung bei {{ assumedPaceLabel }} /km, keine Messung.
             </footer>
         </div>
     </div>

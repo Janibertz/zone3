@@ -17,25 +17,23 @@ const form = useForm({
     title:         props.track?.title ?? 'Backyard Ultra',
     starts_at:     props.track?.starts_at ?? '',
     yard_km:       props.track?.yard_km ?? 6.706,
+    assumed_pace_sec: props.track?.assumed_pace_sec ?? 420,
     target_yards:  props.track?.target_yards ?? null,
     livetrack_url: '',
     is_active:     props.track?.is_active ?? true,
     embed_map:     props.track?.embed_map ?? false,
 });
 
-// Rennstand von Hand — die Uhr weiss nicht, wenn jemand aussteigt.
+// Endstand von Hand — die Uhr weiss nicht, wenn jemand aufhoert.
 const raceForm = useForm({
     stopped_at_yard: props.track?.stopped_at_yard ?? null,
-    outcome:         props.track?.outcome ?? null,
 });
 
-function setOutcome(outcome) {
-    raceForm.outcome = outcome;
+function finishRace() {
     raceForm.post(route('live.finish'), { preserveScroll: true });
 }
 
 function resumeRace() {
-    raceForm.outcome = null;
     raceForm.stopped_at_yard = null;
     raceForm.post(route('live.finish'), { preserveScroll: true });
 }
@@ -139,6 +137,15 @@ async function copyLink(which) {
                                     <input v-model="form.yard_km" type="number" step="0.001" class="z-input" />
                                 </div>
                                 <div>
+                                    <label class="z-label">Angenommene Pace (Sek./km)</label>
+                                    <input v-model.number="form.assumed_pace_sec" type="number" min="120" max="1800" class="z-input" />
+                                    <p class="z-hint">
+                                        420 = 7:00/km. Damit zählt die Distanz innerhalb der laufenden Runde
+                                        weich hoch, statt einmal pro Stunde zu springen. Auf der Seite steht
+                                        dabei ausdrücklich „geschätzt".
+                                    </p>
+                                </div>
+                                <div>
                                     <label class="z-label">Zielrunden <span class="font-normal text-ink-3">(optional)</span></label>
                                     <input v-model="form.target_yards" type="number" min="1" class="z-input" />
                                 </div>
@@ -217,14 +224,14 @@ async function copyLink(which) {
                     <SectionHeader title="Am Renntag" />
                     <AppCard>
                         <p class="text-[15px] leading-relaxed text-ink-3">
-                            Die Uhr zählt stur jede Stunde weiter. Wenn du aussteigst oder gewinnst,
-                            halt es hier fest — die öffentliche Seite friert dann beim erreichten Stand ein.
+                            Die Uhr zählt automatisch jede Stunde eine Runde weiter. Wenn du aufhörst,
+                            trag hier die endgültige Rundenzahl ein — die öffentliche Seite friert dann
+                            dort ein. Deine Crew kann das auch über ihren Link erledigen.
                         </p>
 
-                        <div v-if="track.outcome" class="mt-4 rounded-field bg-surface-2 px-4 py-3">
+                        <div v-if="track.stopped_at_yard !== null" class="mt-4 rounded-field bg-surface-2 px-4 py-3">
                             <p class="text-[15px] font-semibold text-ink">
-                                {{ track.outcome === 'finished' ? 'Als Sieg festgehalten' : 'Als beendet festgehalten' }}
-                                <template v-if="track.stopped_at_yard"> · {{ track.stopped_at_yard }} Runden</template>
+                                Endstand: {{ track.stopped_at_yard }} {{ track.stopped_at_yard === 1 ? 'Runde' : 'Runden' }}
                             </p>
                             <AppButton size="sm" variant="secondary" class="mt-3" @click="resumeRace">
                                 Doch noch unterwegs
@@ -233,17 +240,13 @@ async function copyLink(which) {
 
                         <div v-else class="mt-4 space-y-3">
                             <div>
-                                <label class="z-label">Erreichte Runden</label>
-                                <input v-model="raceForm.stopped_at_yard" type="number" min="0" class="z-input" placeholder="z.B. 17" />
+                                <label class="z-label">Endgültige Rundenzahl</label>
+                                <input v-model.number="raceForm.stopped_at_yard" type="number" min="0" class="z-input" placeholder="z.B. 17" />
+                                <p class="z-hint">Solange das leer bleibt, zählt die Uhr automatisch weiter.</p>
                             </div>
-                            <div class="flex gap-2">
-                                <AppButton variant="secondary" block :loading="raceForm.processing" @click="setOutcome('dnf')">
-                                    Beendet
-                                </AppButton>
-                                <AppButton block :loading="raceForm.processing" @click="setOutcome('finished')">
-                                    Gewonnen
-                                </AppButton>
-                            </div>
+                            <AppButton block :loading="raceForm.processing" @click="finishRace">
+                                Rennen beenden
+                            </AppButton>
                         </div>
                     </AppCard>
                 </section>

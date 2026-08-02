@@ -81,41 +81,53 @@ class LiveTrackTest extends TestCase
         $track = $this->track();
 
         $this->postJson(route('live.crew', $track->slug), [
-            'crew'    => 'admin',          // das naive "?admin=true"
-            'outcome' => 'dnf',
+            'crew'            => 'admin',          // das naive "?admin=true"
+            'stopped_at_yard' => 3,
         ])->assertForbidden();
 
         $this->postJson(route('live.crew', $track->slug), [
-            'crew'    => 'geratenerschluessel',
-            'outcome' => 'dnf',
+            'crew'            => 'geratenerschluessel',
+            'stopped_at_yard' => 3,
         ])->assertForbidden();
 
-        $this->assertNull($track->refresh()->outcome);
+        $this->assertNull($track->refresh()->stopped_at_yard);
     }
 
-    public function test_crew_key_may_end_the_race(): void
+    public function test_crew_key_may_set_the_final_yard_count(): void
     {
         $track = $this->track();
 
         $this->postJson(route('live.crew', $track->slug), [
             'crew'            => 'crewschluessel12345',
-            'outcome'         => 'dnf',
             'stopped_at_yard' => 17,
-        ])->assertOk()->assertJsonPath('outcome', 'dnf');
+        ])->assertOk()->assertJsonPath('stoppedAtYard', 17);
 
-        $track->refresh();
-        $this->assertSame('dnf', $track->outcome);
-        $this->assertSame(17, $track->stopped_at_yard);
+        $this->assertSame(17, $track->refresh()->stopped_at_yard);
     }
 
-    public function test_crew_may_post_a_status_note(): void
+    public function test_crew_may_post_and_delete_ticker_notes(): void
     {
         $track = $this->track();
 
         $this->postJson(route('live.crew', $track->slug), [
+            'crew' => 'crewschluessel12345',
+            'note' => 'Runde 12 geschafft',
+        ])->assertOk()->assertJsonPath('notes.0.text', 'Runde 12 geschafft');
+
+        // Neueste Meldung steht vorn
+        $this->postJson(route('live.crew', $track->slug), [
+            'crew' => 'crewschluessel12345',
+            'note' => 'Pause im Zelt',
+        ])->assertOk()
+          ->assertJsonPath('notes.0.text', 'Pause im Zelt')
+          ->assertJsonPath('notes.1.text', 'Runde 12 geschafft');
+
+        $id = $track->refresh()->notes[0]['id'];
+
+        $this->postJson(route('live.crew', $track->slug), [
             'crew'        => 'crewschluessel12345',
-            'status_note' => 'Blasen versorgt, laeuft weiter',
-        ])->assertOk()->assertJsonPath('statusNote', 'Blasen versorgt, laeuft weiter');
+            'delete_note' => $id,
+        ])->assertOk()->assertJsonCount(1, 'notes');
     }
 
     /** Der Crew-Schluessel darf nicht auf der oeffentlichen Seite auftauchen. */

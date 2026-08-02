@@ -54,27 +54,41 @@ class LiveTrackController extends Controller
 
         $data = $request->validate([
             'crew'            => ['required', 'string'],
+            // Endgueltige Rundenzahl. Gesetzt heisst: Rennen vorbei.
             'stopped_at_yard' => ['nullable', 'integer', 'min:0', 'max:200'],
-            'outcome'         => ['nullable', 'in:finished,dnf'],
-            'status_note'     => ['nullable', 'string', 'max:140'],
+            'note'            => ['nullable', 'string', 'max:200'],
+            'delete_note'     => ['nullable', 'string'],
             // Startzeit nachjustieren, falls das Rennen spaeter losging.
             'starts_at'       => ['nullable', 'date'],
         ]);
 
         $changes = [];
 
-        if ($request->has('outcome')) {
-            $changes['outcome']         = $data['outcome'] ?? null;
-            $changes['stopped_at_yard'] = $data['stopped_at_yard'] ?? null;
-        }
-
-        if ($request->has('status_note')) {
-            $changes['status_note']    = $data['status_note'] ?: null;
-            $changes['status_note_at'] = $data['status_note'] ? now() : null;
+        // Rennende: die Rundenzahl allein entscheidet, kein zusaetzlicher Status.
+        if ($request->has('stopped_at_yard')) {
+            $changes['stopped_at_yard'] = $data['stopped_at_yard'];
         }
 
         if (! empty($data['starts_at'])) {
             $changes['starts_at'] = $data['starts_at'];
+        }
+
+        // Ticker — neueste Meldung vorn, gedeckelt.
+        if (! empty($data['note'])) {
+            $notes = $track->notes ?? [];
+            array_unshift($notes, [
+                'id'   => (string) \Illuminate\Support\Str::uuid(),
+                'at'   => now()->toIso8601String(),
+                'text' => trim($data['note']),
+            ]);
+            $changes['notes'] = array_slice($notes, 0, 60);
+        }
+
+        if (! empty($data['delete_note'])) {
+            $changes['notes'] = array_values(array_filter(
+                $track->notes ?? [],
+                fn ($n) => ($n['id'] ?? null) !== $data['delete_note']
+            ));
         }
 
         if ($changes) $track->update($changes);
@@ -107,14 +121,13 @@ class LiveTrackController extends Controller
             'title'        => $track->title,
             'startsAt'     => $track->starts_at->toIso8601String(),
             'yardKm'       => (float) $track->yard_km,
+            'assumedPaceSec' => (int) $track->assumed_pace_sec,
             'targetYards'  => $track->target_yards,
             'isActive'     => $track->is_active,
 
-            // Rennstand von Hand — solange null, rechnet die Uhr weiter.
+            // Endgueltige Rundenzahl. Solange null, rechnet die Uhr weiter.
             'stoppedAtYard' => $track->stopped_at_yard,
-            'outcome'       => $track->outcome,
-            'statusNote'    => $track->status_note,
-            'statusNoteAt'  => $track->status_note_at?->toIso8601String(),
+            'notes'         => $track->notes ?? [],
 
             // Garmins Karte. Nur wenn ausdrücklich eingeschaltet, denn die
             // Adresse enthält den LiveTrack-Token.
@@ -130,22 +143,6 @@ class LiveTrackController extends Controller
             // genauer als GPS, das über 24 Stunden wegdriftet.
             'distanceKm'   => isset($state['distanceM']) ? round($state['distanceM'] / 1000, 2) : null,
             'durationSec'  => $state['durationSec'] ?? null,
-            'heartRate'    => $state['hr'] ?? null,
-            'paceSecPerKm' => (isset($state['speed']) && $state['speed'] > 0.5)
-                ? (int) round(1000 / $state['speed'])
-                : null,
-
-            'lastPointAt'  => isset($state['lastPointMs'])
-                ? \Carbon\Carbon::createFromTimestampMs($state['lastPointMs'])->toIso8601String()
-                : null,
-
-            // Nur die Kurvenwerte — Positionen stecken bereits in `path`.
-            'series'       => collect($series)
-                ->map(fn ($p) => ['t' => $p['t'] ?? null, 'hr' => $p['hr'] ?? null, 'p' => $p['p'] ?? null])
-                ->all(),
-            'stale'        => $track->last_polled_at
-                ? $track->last_polled_at->lt(now()->subMinutes(5))
-                : true,
         ];
     }
 
@@ -168,11 +165,11 @@ class LiveTrackController extends Controller
                 'title'        => $track->title,
                 'starts_at'    => $track->starts_at->format('Y-m-d\TH:i'),
                 'yard_km'      => (float) $track->yard_km,
+                'assumed_pace_sec' => (int) $track->assumed_pace_sec,
                 'target_yards' => $track->target_yards,
                 'is_active'    => $track->is_active,
                 'embed_map'    => $track->embed_map,
                 'stopped_at_yard' => $track->stopped_at_yard,
-                'outcome'      => $track->outcome,
                 'hasLiveTrack' => $track->hasLiveTrack(),
                 'publicUrl'    => route('live.show', $track->slug),
                 'crewUrl'      => route('live.show', $track->slug) . '?crew=' . $track->crew_key,
@@ -191,6 +188,7 @@ class LiveTrackController extends Controller
             'title'          => ['required', 'string', 'max:80'],
             'starts_at'      => ['required', 'date'],
             'yard_km'        => ['required', 'numeric', 'min:0.1', 'max:100'],
+            'assumed_pace_sec' => ['required', 'integer', 'min:120', 'max:1800'],
             'target_yards'   => ['nullable', 'integer', 'min:1', 'max:200'],
             'livetrack_url'  => ['nullable', 'string', 'max:400'],
             'is_active'      => ['boolean'],
@@ -213,6 +211,7 @@ class LiveTrackController extends Controller
             'title'        => $data['title'],
             'starts_at'    => $data['starts_at'],
             'yard_km'      => $data['yard_km'],
+            'assumed_pace_sec' => $data['assumed_pace_sec'],
             'target_yards' => $data['target_yards'] ?? null,
             'is_active'    => $data['is_active'] ?? true,
             'embed_map'    => $data['embed_map'] ?? false,
@@ -232,26 +231,22 @@ class LiveTrackController extends Controller
     }
 
     /**
-     * Rennstand von Hand setzen. Die Yard-Uhr läuft sonst stur weiter —
-     * dass jemand ausgestiegen ist, kann sie nicht wissen.
+     * Endgültige Rundenzahl setzen oder wieder freigeben. Solange sie leer
+     * ist, zählt die Uhr automatisch weiter — dass jemand aufgehört hat,
+     * kann sie nicht wissen.
      */
     public function finish(Request $request)
     {
         $data = $request->validate([
             'stopped_at_yard' => ['nullable', 'integer', 'min:0', 'max:200'],
-            'outcome'         => ['nullable', 'in:finished,dnf'],
         ]);
 
         $track = LiveTrack::where('user_id', Auth::id())->latest()->firstOrFail();
+        $track->update(['stopped_at_yard' => $data['stopped_at_yard'] ?? null]);
 
-        $track->update([
-            'stopped_at_yard' => $data['stopped_at_yard'] ?? null,
-            'outcome'         => $data['outcome'] ?? null,
-        ]);
-
-        return back()->with('success', $data['outcome']
-            ? 'Rennstand gesetzt.'
-            : 'Rennstand zurückgenommen — die Uhr läuft wieder.');
+        return back()->with('success', $data['stopped_at_yard'] !== null
+            ? 'Endstand gesetzt.'
+            : 'Endstand zurückgenommen — die Uhr zählt wieder.');
     }
 
     /** Sofort abfragen, damit man vor dem Rennen sieht, ob die Verbindung steht. */
