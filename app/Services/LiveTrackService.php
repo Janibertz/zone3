@@ -19,7 +19,12 @@ use Illuminate\Support\Facades\Log;
  */
 class LiveTrackService
 {
-    private const BASE = 'https://livetrack.garmin.com/services';
+    /**
+     * Stand 02.08.2026. Der frühere REST-Baum unter /services ist ersatzlos
+     * verschwunden — LiveTrack läuft jetzt als Next.js-App. Der Endpunkt
+     * hier ist der, den deren Oberfläche benutzt.
+     */
+    private const BASE = 'https://livetrack.garmin.com/api';
 
     /** Messreihe auf eine Minute verdünnen — 4-Sekunden-Punkte braucht niemand. */
     private const SERIES_STEP_SECONDS = 60;
@@ -75,22 +80,32 @@ class LiveTrackService
     {
         $from = data_get($track->state, 'lastPointMs');
 
-        $query = ['requestTime' => (int) (microtime(true) * 1000)];
+        // Token als Query-Parameter, Startzeitpunkt als ISO-Zeitstempel.
+        $query = ['token' => $track->garmin_token];
         if ($from) {
             // +1 ms, sonst kommt der letzte Punkt jedes Mal erneut.
-            $query['from'] = ((int) $from) + 1;
+            $query['begin'] = \Carbon\Carbon::createFromTimestampMs(((int) $from) + 1)
+                ->toIso8601ZuluString('millisecond');
         }
 
-        $url = sprintf(
-            '%s/trackLog/%s/token/%s',
-            self::BASE,
-            $track->garmin_session_id,
-            $track->garmin_token
-        );
+        $url = sprintf('%s/sessions/%s/track-points/common', self::BASE, $track->garmin_session_id);
 
         $response = Http::timeout(12)
-            ->withHeaders(['Accept' => 'application/json'])
+            ->withHeaders([
+                'Accept'     => 'application/json, text/plain, */*',
+                'Referer'    => $track->liveTrackUrl(),
+                'User-Agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+            ])
             ->get($url, $query);
+
+        if ($response->status() === 403) {
+            // Kommt auch bei falschem Token — die Sperre greift davor.
+            // Es liegt also nicht am Link, sondern an Garmins Botabwehr.
+            throw new \RuntimeException(
+                'Garmin blockt den Abruf vom Server (403). Das liegt nicht an deinem Link — '
+                . 'Cloudflare lässt dort nur echte Browser durch.'
+            );
+        }
 
         if ($response->status() === 404) {
             throw new \RuntimeException('Sitzung nicht gefunden — Link abgelaufen oder falsch.');
