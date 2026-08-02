@@ -17,22 +17,69 @@ class LiveTrackController extends Controller
      * unratebaren Slug. Ausgeliefert wird nur, was der Läufer freigegeben
      * hat — Name und Profilbild bleiben bewusst draußen.
      */
-    public function show(string $slug)
+    public function show(Request $request, string $slug)
     {
         $track = LiveTrack::where('slug', $slug)->firstOrFail();
+        $isCrew = $track->crewKeyMatches($request->query('crew'));
 
         return Inertia::render('Live/Show', [
-            'track' => $this->publicPayload($track),
+            'track'   => $this->publicPayload($track),
+            'isCrew'  => $isCrew,
+            'crewKey' => $isCrew ? $request->query('crew') : null,
         ]);
     }
 
     /** Nur der Datenstand — die Seite pollt das im Minutentakt nach. */
-    public function data(string $slug)
+    public function data(Request $request, string $slug)
     {
         $track = LiveTrack::where('slug', $slug)->firstOrFail();
 
+        // Fuer die Crew nicht zwischenspeichern, sonst sieht sie ihre
+        // eigene Aenderung verzoegert.
+        $isCrew = $track->crewKeyMatches($request->query('crew'));
+
         return response()->json($this->publicPayload($track))
-            ->header('Cache-Control', 'public, max-age=20');
+            ->header('Cache-Control', $isCrew ? 'no-store' : 'public, max-age=20');
+    }
+
+    /**
+     * Steuerung durch die Crew. Zugang allein ueber den eigenen
+     * Crew-Schluessel — der oeffentliche Slug reicht ausdruecklich nicht.
+     */
+    public function crewUpdate(Request $request, string $slug)
+    {
+        $track = LiveTrack::where('slug', $slug)->firstOrFail();
+
+        abort_unless($track->crewKeyMatches($request->input('crew')), 403);
+
+        $data = $request->validate([
+            'crew'            => ['required', 'string'],
+            'stopped_at_yard' => ['nullable', 'integer', 'min:0', 'max:200'],
+            'outcome'         => ['nullable', 'in:finished,dnf'],
+            'status_note'     => ['nullable', 'string', 'max:140'],
+            // Startzeit nachjustieren, falls das Rennen spaeter losging.
+            'starts_at'       => ['nullable', 'date'],
+        ]);
+
+        $changes = [];
+
+        if ($request->has('outcome')) {
+            $changes['outcome']         = $data['outcome'] ?? null;
+            $changes['stopped_at_yard'] = $data['stopped_at_yard'] ?? null;
+        }
+
+        if ($request->has('status_note')) {
+            $changes['status_note']    = $data['status_note'] ?: null;
+            $changes['status_note_at'] = $data['status_note'] ? now() : null;
+        }
+
+        if (! empty($data['starts_at'])) {
+            $changes['starts_at'] = $data['starts_at'];
+        }
+
+        if ($changes) $track->update($changes);
+
+        return response()->json($this->publicPayload($track->refresh()));
     }
 
     /**
@@ -66,6 +113,8 @@ class LiveTrackController extends Controller
             // Rennstand von Hand — solange null, rechnet die Uhr weiter.
             'stoppedAtYard' => $track->stopped_at_yard,
             'outcome'       => $track->outcome,
+            'statusNote'    => $track->status_note,
+            'statusNoteAt'  => $track->status_note_at?->toIso8601String(),
 
             // Garmins Karte. Nur wenn ausdrücklich eingeschaltet, denn die
             // Adresse enthält den LiveTrack-Token.
@@ -120,6 +169,7 @@ class LiveTrackController extends Controller
                 'outcome'      => $track->outcome,
                 'hasLiveTrack' => $track->hasLiveTrack(),
                 'publicUrl'    => route('live.show', $track->slug),
+                'crewUrl'      => route('live.show', $track->slug) . '?crew=' . $track->crew_key,
                 'lastPolledAt' => $track->last_polled_at?->diffForHumans(),
                 'lastError'    => $track->last_error,
                 'distanceKm'   => isset($track->state['distanceM'])
@@ -146,6 +196,11 @@ class LiveTrackController extends Controller
         if (! $track->exists) {
             $track->user_id = Auth::id();
             $track->slug    = LiveTrack::newSlug();
+        }
+
+        // Bestandseintraege von vor der Crew-Funktion nachruesten.
+        if (! $track->crew_key) {
+            $track->crew_key = LiveTrack::newCrewKey();
         }
 
         $track->fill([

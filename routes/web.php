@@ -545,6 +545,9 @@ Route::post('/webhook/github', [WebhookController::class, 'github'])->name('webh
 Route::middleware('throttle:60,1')->group(function () {
     Route::get('/live/{slug}', [LiveTrackController::class, 'show'])->name('live.show');
     Route::get('/live/{slug}/data', [LiveTrackController::class, 'data'])->name('live.data');
+    // Steuerung durch die Crew — der Schluessel steckt im Rumpf, nicht im Pfad,
+    // damit er nicht in Server-Logs und Referrern landet.
+    Route::post('/live/{slug}/crew', [LiveTrackController::class, 'crewUpdate'])->name('live.crew');
 });
 
 // Verwaltung durch den Laeufer selbst

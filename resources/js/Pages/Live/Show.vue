@@ -2,9 +2,12 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
+import AppButton from '@/Components/UI/AppButton.vue';
 
 const props = defineProps({
-    track: { type: Object, required: true },
+    track:   { type: Object,  required: true },
+    isCrew:  { type: Boolean, default: false },
+    crewKey: { type: String,  default: null },
 });
 
 const data = ref({ ...props.track });
@@ -155,12 +158,46 @@ function drawMap() {
     map.fitBounds(trackLine.getBounds(), { padding: [24, 24] });
 }
 
+// ── Crew-Steuerung ───────────────────────────────────────────────────────────
+// Sichtbar nur mit gueltigem Schluessel. Der oeffentliche Link allein
+// reicht nicht — sonst koennte jeder Zuschauer das Rennen "beenden".
+const crewBusy = ref(false);
+const noteInput = ref('');
+const yardInput = ref(null);
+
+async function crewPost(payload) {
+    crewBusy.value = true;
+    try {
+        const { data: fresh } = await axios.post(
+            `${window.location.pathname}/crew`,
+            { crew: props.crewKey, ...payload }
+        );
+        data.value = fresh;
+    } finally {
+        crewBusy.value = false;
+    }
+}
+
+function crewFinish(outcome) {
+    crewPost({ outcome, stopped_at_yard: yardInput.value ?? completedYards.value });
+}
+
+function crewResume() {
+    crewPost({ outcome: null, stopped_at_yard: null });
+}
+
+function crewSaveNote() {
+    crewPost({ status_note: noteInput.value });
+    noteInput.value = '';
+}
+
 // ── Nachladen ────────────────────────────────────────────────────────────────
 const fetchFailed = ref(false);
 
 async function refresh() {
     try {
-        const { data: fresh } = await axios.get(`${window.location.pathname}/data`);
+        const { data: fresh } = await axios.get(`${window.location.pathname}/data`,
+            props.crewKey ? { params: { crew: props.crewKey } } : undefined);
         data.value = fresh;
         fetchFailed.value = false;
         if (map) drawMap(); else initMap();
@@ -193,6 +230,11 @@ onUnmounted(() => {
                 <h1 class="text-2xl font-bold tracking-tight text-ink">{{ data.title }}</h1>
                 <p class="mt-0.5 text-[13px] text-ink-3">Start: {{ startLabel }}</p>
             </header>
+
+            <!-- Lagemeldung der Crew -->
+            <section v-if="data.statusNote" class="rounded-card bg-accent-soft px-5 py-4">
+                <p class="text-[15px] leading-relaxed text-accent-ink">{{ data.statusNote }}</p>
+            </section>
 
             <!-- ══════════════════════════════════════════════════
                  DIE GLOCKE — das Wichtigste auf der Seite
@@ -305,6 +347,50 @@ onUnmounted(() => {
                     referrerpolicy="no-referrer"
                     title="Garmin LiveTrack"
                 />
+            </section>
+
+            <!-- ══════════════════════════════════════════════════
+                 CREW — nur mit gueltigem Schluessel
+                 ══════════════════════════════════════════════════ -->
+            <section v-if="isCrew" class="rounded-card bg-surface p-5 shadow-card">
+                <div class="mb-4 flex items-center gap-2">
+                    <span class="rounded-full bg-warn-soft px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-warn-ink">Crew</span>
+                    <p class="text-[13px] text-ink-3">Nur du und deine Crew seht diesen Abschnitt.</p>
+                </div>
+
+                <!-- Lagemeldung -->
+                <label class="z-label">Lagemeldung</label>
+                <div class="flex gap-2">
+                    <input v-model="noteInput" type="text" maxlength="140" class="z-input"
+                        placeholder="z.B. Blasen versorgt, läuft weiter" @keyup.enter="crewSaveNote" />
+                    <AppButton :loading="crewBusy" @click="crewSaveNote">Senden</AppButton>
+                </div>
+                <p v-if="data.statusNote" class="mt-2 text-[13px] text-ink-3">
+                    Aktuell: „{{ data.statusNote }}"
+                    <button class="ml-1 font-semibold text-danger hover:underline" @click="crewPost({ status_note: '' })">löschen</button>
+                </p>
+
+                <!-- Rennende -->
+                <div class="mt-5 border-t border-line pt-4">
+                    <template v-if="data.outcome">
+                        <p class="text-[15px] font-semibold text-ink">
+                            Festgehalten: {{ data.outcome === 'finished' ? 'Gewonnen' : 'Beendet' }}
+                            <template v-if="data.stoppedAtYard"> nach {{ data.stoppedAtYard }} Runden</template>
+                        </p>
+                        <AppButton variant="secondary" size="sm" class="mt-3" :loading="crewBusy" @click="crewResume">
+                            Doch noch unterwegs
+                        </AppButton>
+                    </template>
+
+                    <template v-else>
+                        <label class="z-label">Erreichte Runden <span class="font-normal text-ink-3">(leer = aktueller Stand: {{ completedYards }})</span></label>
+                        <input v-model.number="yardInput" type="number" min="0" class="z-input" :placeholder="String(completedYards)" />
+                        <div class="mt-3 flex gap-2">
+                            <AppButton variant="secondary" block :loading="crewBusy" @click="crewFinish('dnf')">Beendet</AppButton>
+                            <AppButton block :loading="crewBusy" @click="crewFinish('finished')">Gewonnen</AppButton>
+                        </div>
+                    </template>
+                </div>
             </section>
 
             <!-- Hinweis, wenn die Daten alt sind -->

@@ -53,11 +53,11 @@ function testConnection() {
     });
 }
 
-const copied = ref(false);
-async function copyLink() {
-    await navigator.clipboard.writeText(props.track.publicUrl);
-    copied.value = true;
-    setTimeout(() => { copied.value = false; }, 2000);
+const copied = ref(null);
+async function copyLink(which) {
+    await navigator.clipboard.writeText(which === 'crew' ? props.track.crewUrl : props.track.publicUrl);
+    copied.value = which;
+    setTimeout(() => { copied.value = null; }, 2000);
 }
 </script>
 
@@ -87,7 +87,7 @@ async function copyLink() {
                             {{ track.publicUrl }}
                         </p>
                         <div class="mt-3 flex flex-wrap gap-2">
-                            <AppButton size="sm" @click="copyLink">{{ copied ? 'Kopiert' : 'Link kopieren' }}</AppButton>
+                            <AppButton size="sm" @click="copyLink('public')">{{ copied === 'public' ? 'Kopiert' : 'Link kopieren' }}</AppButton>
                             <AppButton size="sm" variant="secondary" :href="track.publicUrl">Seite ansehen</AppButton>
                         </div>
                         <p class="mt-3 text-[13px] leading-relaxed text-ink-3">
@@ -95,6 +95,23 @@ async function copyLink() {
                             und der Schlüssel lässt sich nicht erraten. Name und Profilbild werden
                             <strong class="text-ink-2">nicht</strong> angezeigt.
                         </p>
+
+                        <!-- Crew -->
+                        <div class="mt-5 border-t border-line pt-5">
+                            <p class="text-[15px] font-semibold text-ink">Link für deine Crew</p>
+                            <p class="mt-1 text-[13px] leading-relaxed text-ink-3">
+                                Zeigt zusätzlich eine Steuerleiste: Lagemeldung schreiben und das
+                                Rennende festhalten. <strong class="text-ink-2">Nur an die Crew geben</strong> —
+                                wer ihn hat, kann die Seite verändern.
+                            </p>
+                            <p class="mt-3 break-all rounded-field bg-surface-2 px-4 py-3 font-mono text-[13px] text-ink">
+                                {{ track.crewUrl }}
+                            </p>
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                <AppButton size="sm" @click="copyLink('crew')">{{ copied === 'crew' ? 'Kopiert' : 'Crew-Link kopieren' }}</AppButton>
+                                <AppButton size="sm" variant="secondary" :href="track.crewUrl">Öffnen</AppButton>
+                            </div>
+                        </div>
                     </AppCard>
                 </section>
 

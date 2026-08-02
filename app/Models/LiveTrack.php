@@ -7,11 +7,12 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
-#[Fillable(['user_id', 'slug', 'title', 'starts_at', 'yard_km', 'target_yards',
+#[Fillable(['user_id', 'slug', 'crew_key', 'title', 'starts_at', 'yard_km', 'target_yards',
+    'status_note', 'status_note_at',
     'stopped_at_yard', 'outcome', 'embed_map',
     'garmin_session_id', 'garmin_token', 'is_active', 'last_polled_at',
     'last_error', 'state', 'series'])]
-#[Hidden(['garmin_token', 'garmin_session_id'])]
+#[Hidden(['garmin_token', 'garmin_session_id', 'crew_key'])]
 class LiveTrack extends Model
 {
     protected function casts(): array
@@ -19,6 +20,7 @@ class LiveTrack extends Model
         return [
             'starts_at'      => 'datetime',
             'last_polled_at' => 'datetime',
+            'status_note_at' => 'datetime',
             'is_active'      => 'boolean',
             'embed_map'      => 'boolean',
             'yard_km'        => 'float',
@@ -41,6 +43,18 @@ class LiveTrack extends Model
         } while (static::where('slug', $slug)->exists());
 
         return $slug;
+    }
+
+    /** Steuerschlüssel für die Crew — eigener Schlüssel, nicht der öffentliche Slug. */
+    public static function newCrewKey(): string
+    {
+        return Str::lower(Str::random(20));
+    }
+
+    /** Zeitunabhängiger Vergleich, damit der Schlüssel nicht erraten werden kann. */
+    public function crewKeyMatches(?string $given): bool
+    {
+        return $this->crew_key && $given && hash_equals($this->crew_key, $given);
     }
 
     /**

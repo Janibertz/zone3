@@ -26,6 +26,7 @@ class LiveTrackTest extends TestCase
             'target_yards'      => 24,
             'garmin_session_id' => 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
             'garmin_token'      => 'SECRET-LIVETRACK-TOKEN',
+            'crew_key'          => 'crewschluessel12345',
         ], $attrs));
     }
 
@@ -70,6 +71,79 @@ class LiveTrackTest extends TestCase
         $this->get(route('live.show', $track->slug))
             ->assertOk()
             ->assertDontSee('Maximilian Musterlaeufer');
+    }
+
+    // ── Crew ─────────────────────────────────────────────────────────────
+
+    /** Der Kern der Sache: der oeffentliche Link darf NICHT steuern duerfen. */
+    public function test_public_link_alone_cannot_control_the_race(): void
+    {
+        $track = $this->track();
+
+        $this->postJson(route('live.crew', $track->slug), [
+            'crew'    => 'admin',          // das naive "?admin=true"
+            'outcome' => 'dnf',
+        ])->assertForbidden();
+
+        $this->postJson(route('live.crew', $track->slug), [
+            'crew'    => 'geratenerschluessel',
+            'outcome' => 'dnf',
+        ])->assertForbidden();
+
+        $this->assertNull($track->refresh()->outcome);
+    }
+
+    public function test_crew_key_may_end_the_race(): void
+    {
+        $track = $this->track();
+
+        $this->postJson(route('live.crew', $track->slug), [
+            'crew'            => 'crewschluessel12345',
+            'outcome'         => 'dnf',
+            'stopped_at_yard' => 17,
+        ])->assertOk()->assertJsonPath('outcome', 'dnf');
+
+        $track->refresh();
+        $this->assertSame('dnf', $track->outcome);
+        $this->assertSame(17, $track->stopped_at_yard);
+    }
+
+    public function test_crew_may_post_a_status_note(): void
+    {
+        $track = $this->track();
+
+        $this->postJson(route('live.crew', $track->slug), [
+            'crew'        => 'crewschluessel12345',
+            'status_note' => 'Blasen versorgt, laeuft weiter',
+        ])->assertOk()->assertJsonPath('statusNote', 'Blasen versorgt, laeuft weiter');
+    }
+
+    /** Der Crew-Schluessel darf nicht auf der oeffentlichen Seite auftauchen. */
+    public function test_crew_key_is_not_leaked_to_plain_visitors(): void
+    {
+        $track = $this->track();
+
+        $this->get(route('live.show', $track->slug))
+            ->assertOk()
+            ->assertDontSee('crewschluessel12345');
+
+        $this->getJson(route('live.data', $track->slug))
+            ->assertOk()
+            ->assertDontSee('crewschluessel12345');
+    }
+
+    /** Mit richtigem Schluessel schaltet die Seite die Steuerleiste frei. */
+    public function test_crew_link_unlocks_the_control_panel(): void
+    {
+        $track = $this->track();
+
+        $this->get(route('live.show', $track->slug) . '?crew=crewschluessel12345')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('isCrew', true));
+
+        $this->get(route('live.show', $track->slug))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('isCrew', false));
     }
 
     // ── Verwaltung ───────────────────────────────────────────────────────
