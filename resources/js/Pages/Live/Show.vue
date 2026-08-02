@@ -22,10 +22,14 @@ const HOUR      = 3600_000;
 
 const hasStarted = computed(() => elapsedMs.value >= 0);
 
+/** Rennen vorbei? Dann friert alles beim gesetzten Stand ein. */
+const isOver = computed(() => data.value.outcome != null);
+
 /** Laufender Yard, 1-basiert. Vor dem Start 0. */
-const currentYard = computed(() =>
-    hasStarted.value ? Math.floor(elapsedMs.value / HOUR) + 1 : 0
-);
+const currentYard = computed(() => {
+    if (isOver.value) return data.value.stoppedAtYard ?? 0;
+    return hasStarted.value ? Math.floor(elapsedMs.value / HOUR) + 1 : 0;
+});
 
 /** Sekunden bis zur naechsten vollen Stunde — der Glocke. */
 const secondsToBell = computed(() => {
@@ -39,10 +43,25 @@ const yardProgress = computed(() => {
     return ((elapsedMs.value % HOUR) / HOUR) * 100;
 });
 
-/** Abgeschlossene Runden aus der Gesamtdistanz — robuster als LAP-Events. */
+/**
+ * Abgeschlossene Runden. Bei einem Backyard startet jede Runde zur vollen
+ * Stunde — wer in Runde N ist, hat N-1 hinter sich. Das braucht keine
+ * Verbindung zu Garmin.
+ */
 const completedYards = computed(() => {
-    if (!data.value.distanceKm || !data.value.yardKm) return Math.max(0, currentYard.value - 1);
-    return Math.floor(data.value.distanceKm / data.value.yardKm);
+    if (isOver.value) return data.value.stoppedAtYard ?? 0;
+    return Math.max(0, currentYard.value - 1);
+});
+
+/**
+ * Distanz aus den Runden. Bei fester Rundenlaenge ist das exakt und
+ * dazu genauer als GPS, das ueber 24 Stunden wegdriftet. Garmins Wert
+ * wird nur genommen, wenn er ueberhaupt ankommt und plausibel groesser ist.
+ */
+const distanceKm = computed(() => {
+    const fromYards = completedYards.value * (data.value.yardKm ?? 0);
+    const fromGarmin = data.value.distanceKm ?? 0;
+    return Math.max(fromYards, fromGarmin).toFixed(2);
 });
 
 // ── Formatierung ─────────────────────────────────────────────────────────────
@@ -98,8 +117,8 @@ const hrChart = computed(() => {
 });
 
 // ── Karte ────────────────────────────────────────────────────────────────────
-// Selbst gezeichnet statt Garmins iframe: dessen Adresse enthält den
-// LiveTrack-Token, der damit im Quelltext dieser öffentlichen Seite stünde.
+// Zwei Wege: eigene Leaflet-Karte, wenn Positionen ankommen (dann steht kein
+// Garmin-Token in der Seite), sonst Garmins eigene Seite im iframe.
 const mapEl = ref(null);
 let map = null, trackLine = null, marker = null, L = null;
 
@@ -179,7 +198,17 @@ onUnmounted(() => {
                  DIE GLOCKE — das Wichtigste auf der Seite
                  ══════════════════════════════════════════════════ -->
             <section class="rounded-card bg-surface p-6 text-center shadow-card">
-                <template v-if="!hasStarted">
+                <template v-if="isOver">
+                    <p class="text-[11px] font-bold uppercase tracking-widest text-ink-3">
+                        {{ data.outcome === 'finished' ? 'Gewonnen' : 'Rennen beendet' }}
+                    </p>
+                    <p class="mt-2 text-6xl font-bold tabular-nums tracking-tight text-ink">{{ completedYards }}</p>
+                    <p class="mt-1 text-[15px] text-ink-3">
+                        {{ completedYards === 1 ? 'Runde' : 'Runden' }} · {{ distanceKm }} km
+                    </p>
+                </template>
+
+                <template v-else-if="!hasStarted">
                     <p class="text-[11px] font-bold uppercase tracking-widest text-ink-3">Start in</p>
                     <p class="mt-2 text-5xl font-bold tabular-nums tracking-tight text-ink">{{ clock(secondsToBell) }}</p>
                 </template>
@@ -213,7 +242,7 @@ onUnmounted(() => {
                 <div class="min-w-0 rounded-card bg-surface p-4 shadow-card">
                     <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Distanz</p>
                     <p class="mt-1 text-2xl font-bold tabular-nums text-ink">
-                        {{ data.distanceKm ?? '–' }}<span class="text-[15px] font-medium text-ink-3"> km</span>
+                        {{ distanceKm }}<span class="text-[15px] font-medium text-ink-3"> km</span>
                     </p>
                 </div>
                 <div class="min-w-0 rounded-card bg-surface p-4 shadow-card">
@@ -262,8 +291,24 @@ onUnmounted(() => {
                 <div ref="mapEl" class="h-[360px] w-full" />
             </section>
 
+            <!-- Ohne eigene Positionen: Garmins Seite einbetten -->
+            <section v-else-if="data.mapUrl" class="overflow-hidden rounded-card bg-surface shadow-card">
+                <div class="flex items-center justify-between gap-3 px-5 py-3.5">
+                    <h2 class="text-[15px] font-semibold text-ink">Live-Position</h2>
+                    <a :href="data.mapUrl" target="_blank" rel="noopener"
+                        class="text-[13px] font-semibold text-accent hover:underline">Bei Garmin öffnen</a>
+                </div>
+                <iframe
+                    :src="data.mapUrl"
+                    class="h-[440px] w-full border-0"
+                    loading="lazy"
+                    referrerpolicy="no-referrer"
+                    title="Garmin LiveTrack"
+                />
+            </section>
+
             <!-- Hinweis, wenn die Daten alt sind -->
-            <p v-if="data.stale || fetchFailed" class="px-1 text-[13px] text-ink-3">
+            <p v-if="(data.stale || fetchFailed) && !isOver" class="px-1 text-[13px] text-ink-3">
                 Die Livewerte kommen gerade nicht durch — Funkloch oder Handy aus.
                 Die Uhr oben läuft trotzdem korrekt weiter.
             </p>

@@ -179,6 +179,23 @@ class LiveTrackTest extends TestCase
         $this->assertEquals(20118.0, $track->state['distanceM']);
     }
 
+    /** Ohne eingeschaltete Karte darf der Token auch nicht ueber mapUrl rausgehen. */
+    public function test_map_is_only_embedded_when_switched_on(): void
+    {
+        $track = $this->track();
+
+        $this->getJson(route('live.data', $track->slug))
+            ->assertOk()
+            ->assertJsonPath('mapUrl', null)
+            ->assertDontSee('SECRET-LIVETRACK-TOKEN');
+
+        $track->update(['embed_map' => true]);
+
+        $this->getJson(route('live.data', $track->slug))
+            ->assertOk()
+            ->assertSee('SECRET-LIVETRACK-TOKEN');
+    }
+
     /** Distanz darf nie zurückspringen, auch wenn ein Ausreißer kommt. */
     public function test_distance_never_goes_backwards(): void
     {

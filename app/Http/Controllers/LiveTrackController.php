@@ -37,12 +37,13 @@ class LiveTrackController extends Controller
 
     /**
      * Was die öffentliche Seite zu sehen bekommt. Bewusst eng gehalten:
-     * kein Name, keine User-ID, kein Garmin-Token.
+     * kein Name, keine User-ID.
      *
-     * Die Karte wird bewusst NICHT als Garmin-iframe eingebunden: dessen
-     * Adresse enthält Session-ID und Token, die damit im Quelltext jeder
-     * öffentlichen Seite stünden. Stattdessen zeichnen wir die Strecke aus
-     * den Positionen, die wir ohnehin schon abrufen.
+     * Zur Karte: Garmin blockt den serverseitigen Abruf der Positionen
+     * (Cloudflare, 403 auch bei falschem Token). Ohne eigene Positionen
+     * bleibt nur Garmins Seite im iframe — deren Adresse enthält allerdings
+     * den LiveTrack-Token. Deshalb ist das eine bewusste Entscheidung des
+     * Läufers über `embed_map` und nicht der Standard.
      */
     private function publicPayload(LiveTrack $track): array
     {
@@ -62,11 +63,22 @@ class LiveTrackController extends Controller
             'targetYards'  => $track->target_yards,
             'isActive'     => $track->is_active,
 
+            // Rennstand von Hand — solange null, rechnet die Uhr weiter.
+            'stoppedAtYard' => $track->stopped_at_yard,
+            'outcome'       => $track->outcome,
+
+            // Garmins Karte. Nur wenn ausdrücklich eingeschaltet, denn die
+            // Adresse enthält den LiveTrack-Token.
+            'mapUrl'       => $track->embed_map ? $track->liveTrackUrl() : null,
+
             'path'         => $path,
             'position'     => (isset($state['lat'], $state['lon']))
                 ? [$state['lat'], $state['lon']]
                 : null,
 
+            // Distanz aus Garmin, falls sie ankommt. Sonst rechnet die Seite
+            // sie aus den Runden — bei fester Rundenlänge ist das ohnehin
+            // genauer als GPS, das über 24 Stunden wegdriftet.
             'distanceKm'   => isset($state['distanceM']) ? round($state['distanceM'] / 1000, 2) : null,
             'durationSec'  => $state['durationSec'] ?? null,
             'heartRate'    => $state['hr'] ?? null,
@@ -103,6 +115,9 @@ class LiveTrackController extends Controller
                 'yard_km'      => (float) $track->yard_km,
                 'target_yards' => $track->target_yards,
                 'is_active'    => $track->is_active,
+                'embed_map'    => $track->embed_map,
+                'stopped_at_yard' => $track->stopped_at_yard,
+                'outcome'      => $track->outcome,
                 'hasLiveTrack' => $track->hasLiveTrack(),
                 'publicUrl'    => route('live.show', $track->slug),
                 'lastPolledAt' => $track->last_polled_at?->diffForHumans(),
@@ -123,6 +138,7 @@ class LiveTrackController extends Controller
             'target_yards'   => ['nullable', 'integer', 'min:1', 'max:200'],
             'livetrack_url'  => ['nullable', 'string', 'max:400'],
             'is_active'      => ['boolean'],
+            'embed_map'      => ['boolean'],
         ]);
 
         $track = LiveTrack::firstOrNew(['user_id' => Auth::id()]);
@@ -138,6 +154,7 @@ class LiveTrackController extends Controller
             'yard_km'      => $data['yard_km'],
             'target_yards' => $data['target_yards'] ?? null,
             'is_active'    => $data['is_active'] ?? true,
+            'embed_map'    => $data['embed_map'] ?? false,
         ]);
 
         if ($request->filled('livetrack_url')) {
@@ -151,6 +168,29 @@ class LiveTrackController extends Controller
         $track->save();
 
         return back()->with('success', 'Gespeichert.');
+    }
+
+    /**
+     * Rennstand von Hand setzen. Die Yard-Uhr läuft sonst stur weiter —
+     * dass jemand ausgestiegen ist, kann sie nicht wissen.
+     */
+    public function finish(Request $request)
+    {
+        $data = $request->validate([
+            'stopped_at_yard' => ['nullable', 'integer', 'min:0', 'max:200'],
+            'outcome'         => ['nullable', 'in:finished,dnf'],
+        ]);
+
+        $track = LiveTrack::where('user_id', Auth::id())->latest()->firstOrFail();
+
+        $track->update([
+            'stopped_at_yard' => $data['stopped_at_yard'] ?? null,
+            'outcome'         => $data['outcome'] ?? null,
+        ]);
+
+        return back()->with('success', $data['outcome']
+            ? 'Rennstand gesetzt.'
+            : 'Rennstand zurückgenommen — die Uhr läuft wieder.');
     }
 
     /** Sofort abfragen, damit man vor dem Rennen sieht, ob die Verbindung steht. */

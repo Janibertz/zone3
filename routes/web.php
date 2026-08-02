@@ -552,6 +552,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/livetrack', [LiveTrackController::class, 'manage'])->name('live.manage');
     Route::post('/livetrack', [LiveTrackController::class, 'store'])->name('live.store');
     Route::post('/livetrack/test', [LiveTrackController::class, 'testPoll'])->name('live.test');
+    Route::post('/livetrack/finish', [LiveTrackController::class, 'finish'])->name('live.finish');
 });
 
 require __DIR__.'/auth.php';

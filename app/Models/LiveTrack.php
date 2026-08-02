@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 #[Fillable(['user_id', 'slug', 'title', 'starts_at', 'yard_km', 'target_yards',
+    'stopped_at_yard', 'outcome', 'embed_map',
     'garmin_session_id', 'garmin_token', 'is_active', 'last_polled_at',
     'last_error', 'state', 'series'])]
 #[Hidden(['garmin_token', 'garmin_session_id'])]
@@ -19,6 +20,7 @@ class LiveTrack extends Model
             'starts_at'      => 'datetime',
             'last_polled_at' => 'datetime',
             'is_active'      => 'boolean',
+            'embed_map'      => 'boolean',
             'yard_km'        => 'float',
             'garmin_token'   => 'encrypted',
             'state'          => 'array',

@@ -20,7 +20,25 @@ const form = useForm({
     target_yards:  props.track?.target_yards ?? null,
     livetrack_url: '',
     is_active:     props.track?.is_active ?? true,
+    embed_map:     props.track?.embed_map ?? false,
 });
+
+// Rennstand von Hand — die Uhr weiss nicht, wenn jemand aussteigt.
+const raceForm = useForm({
+    stopped_at_yard: props.track?.stopped_at_yard ?? null,
+    outcome:         props.track?.outcome ?? null,
+});
+
+function setOutcome(outcome) {
+    raceForm.outcome = outcome;
+    raceForm.post(route('live.finish'), { preserveScroll: true });
+}
+
+function resumeRace() {
+    raceForm.outcome = null;
+    raceForm.stopped_at_yard = null;
+    raceForm.post(route('live.finish'), { preserveScroll: true });
+}
 
 function save() {
     form.post(route('live.store'), { preserveScroll: true });
@@ -156,10 +174,60 @@ async function copyLink() {
                             <p v-if="track.lastError" class="mt-3 text-[13px] text-danger">{{ track.lastError }}</p>
                         </div>
 
-                        <AppButton v-if="track?.hasLiveTrack" variant="secondary" block class="mt-4"
+                        <label class="mt-4 flex cursor-pointer items-start gap-3">
+                            <input v-model="form.embed_map" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-line-strong text-accent focus:ring-accent" />
+                            <span>
+                                <span class="block text-[15px] text-ink">Garmins Karte auf der Seite einbetten</span>
+                                <span class="mt-0.5 block text-[13px] text-ink-3">
+                                    Dann steht die LiveTrack-Adresse im Quelltext der öffentlichen Seite —
+                                    also genau der Link, den du deinen Freunden ohnehin schickst.
+                                    Ohne Haken zeigt die Seite keine Karte.
+                                </span>
+                            </span>
+                        </label>
+
+                        <AppButton block class="mt-4" :loading="form.processing" @click="save">Speichern</AppButton>
+
+                        <AppButton v-if="track?.hasLiveTrack" variant="secondary" block class="mt-2"
                             :loading="testing" @click="testConnection">
                             Verbindung jetzt testen
                         </AppButton>
+                    </AppCard>
+                </section>
+
+                <!-- Rennsteuerung -->
+                <section v-if="track">
+                    <SectionHeader title="Am Renntag" />
+                    <AppCard>
+                        <p class="text-[15px] leading-relaxed text-ink-3">
+                            Die Uhr zählt stur jede Stunde weiter. Wenn du aussteigst oder gewinnst,
+                            halt es hier fest — die öffentliche Seite friert dann beim erreichten Stand ein.
+                        </p>
+
+                        <div v-if="track.outcome" class="mt-4 rounded-field bg-surface-2 px-4 py-3">
+                            <p class="text-[15px] font-semibold text-ink">
+                                {{ track.outcome === 'finished' ? 'Als Sieg festgehalten' : 'Als beendet festgehalten' }}
+                                <template v-if="track.stopped_at_yard"> · {{ track.stopped_at_yard }} Runden</template>
+                            </p>
+                            <AppButton size="sm" variant="secondary" class="mt-3" @click="resumeRace">
+                                Doch noch unterwegs
+                            </AppButton>
+                        </div>
+
+                        <div v-else class="mt-4 space-y-3">
+                            <div>
+                                <label class="z-label">Erreichte Runden</label>
+                                <input v-model="raceForm.stopped_at_yard" type="number" min="0" class="z-input" placeholder="z.B. 17" />
+                            </div>
+                            <div class="flex gap-2">
+                                <AppButton variant="secondary" block :loading="raceForm.processing" @click="setOutcome('dnf')">
+                                    Beendet
+                                </AppButton>
+                                <AppButton block :loading="raceForm.processing" @click="setOutcome('finished')">
+                                    Gewonnen
+                                </AppButton>
+                            </div>
+                        </div>
                     </AppCard>
                 </section>
 
