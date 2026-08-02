@@ -270,7 +270,7 @@ class TrainingSessionController extends Controller
             'max_heart_rate'       => $rp->max_heart_rate,
         ] : null;
 
-        $wb = $user->wellbeingEntries()->where('date', now()->toDateString())->first();
+        $wb = $user->wellbeingEntries()->whereDate('date', now()->toDateString())->first();
         $wellbeing = $wb ? [
             'energy_level'    => $wb->energy_level,
             'muscle_soreness' => $wb->muscle_soreness,

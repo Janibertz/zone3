@@ -244,20 +244,6 @@ const weeklyKm = computed(() => {
 });
 
 // ── Logbuch + Randwerte ──────────────────────────────────────────────────────
-function paceStr(a) {
-    let mpk = null;
-    if (a.moving_time && a.distance_km) mpk = (a.moving_time / 60) / a.distance_km;
-    else if (a.speed) mpk = (1000 / a.speed) / 60;
-    if (!mpk || !isFinite(mpk)) return '–';
-    const m = Math.floor(mpk), s = Math.round((mpk - m) * 60);
-    return `${m}:${String(s).padStart(2, '0')}`;
-}
-function durStr(sec) {
-    if (!sec) return '–';
-    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
-    return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
-}
-const logbook = computed(() => actsInRange.value); // Backend liefert bereits neueste zuerst
 const dist7 = computed(() => {
     const cut = new Date(); cut.setHours(0, 0, 0, 0); cut.setDate(cut.getDate() - 6);
     return props.activities.filter(a => a.date && new Date(a.date + 'T00:00:00') >= cut)
@@ -441,34 +427,6 @@ const sideValues = computed(() => [
                         <text :x="b.x + b.w / 2" :y="weeklyKm.H - 6" :fill="C.muted" font-size="11" text-anchor="middle">{{ b.label }}</text>
                     </template>
                 </svg>
-            </AppCard>
-
-            <!-- Logbuch -->
-            <AppCard v-if="logbook.length" title="Logbuch" subtitle="Deine Einheiten im gewählten Zeitraum, neueste zuerst.">
-                <div class="-mx-1 overflow-x-auto">
-                    <table class="w-full min-w-[34rem] border-collapse text-[13px]">
-                        <thead>
-                            <tr class="text-ink-3">
-                                <th class="px-2 py-2 text-left font-semibold">Datum</th>
-                                <th class="px-2 py-2 text-left font-semibold">Einheit</th>
-                                <th class="px-2 py-2 text-right font-semibold">km</th>
-                                <th class="px-2 py-2 text-right font-semibold">Zeit</th>
-                                <th class="px-2 py-2 text-right font-semibold">Pace</th>
-                                <th class="px-2 py-2 text-right font-semibold">Puls</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-line">
-                            <tr v-for="(a, i) in logbook" :key="i">
-                                <td class="whitespace-nowrap px-2 py-2.5 text-ink-3">{{ fmtDM(a.date) }}</td>
-                                <td class="max-w-[12rem] truncate px-2 py-2.5 font-medium text-ink">{{ a.name }}</td>
-                                <td class="px-2 py-2.5 text-right tabular-nums text-ink-2">{{ a.distance_km ? a.distance_km.toFixed(2) : '–' }}</td>
-                                <td class="px-2 py-2.5 text-right tabular-nums text-ink-2">{{ durStr(a.moving_time) }}</td>
-                                <td class="px-2 py-2.5 text-right tabular-nums text-ink-2">{{ paceStr(a) }}</td>
-                                <td class="px-2 py-2.5 text-right tabular-nums text-ink-2">{{ a.avg_hr ? Math.round(a.avg_hr) : '–' }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
             </AppCard>
 
             <!-- Rohdaten -->

@@ -15,6 +15,7 @@ import SessionCard from '@/Components/UI/SessionCard.vue';
 import AppCard from '@/Components/UI/AppCard.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
 import StatChip from '@/Components/UI/StatChip.vue';
+import MetricTile from '@/Components/UI/MetricTile.vue';
 import SectionHeader from '@/Components/UI/SectionHeader.vue';
 import { sessionType } from '@/Composables/useSessionTypes';
 
@@ -100,6 +101,10 @@ const props = defineProps({
         default: null,
     },
     garminMetrics: {
+        type: Object,
+        default: null,
+    },
+    wellbeingToday: {
         type: Object,
         default: null,
     },
@@ -355,8 +360,117 @@ async function syncGarminHealth() {
     }
 }
 
-// ── Status-Zeile ganz oben ───────────────────────────────────────────────────
+// ── Kennzahl-Kacheln ganz oben ───────────────────────────────────────────────
 const checkinDone = computed(() => wellbeingEnteredToday.value);
+
+/** Letzter Garmin-Tag mit Werten. */
+const garminLatest = computed(() => props.garminMetrics?.latest ?? null);
+
+/** Mittelwert einer Garmin-Kennzahl über die Serie — als persönliche Basislinie. */
+function garminBaseline(key) {
+    const vals = (props.garminMetrics?.series ?? [])
+        .map(r => r[key])
+        .filter(v => v !== null && v !== undefined);
+    if (vals.length < 3) return null;
+    return vals.reduce((s, v) => s + v, 0) / vals.length;
+}
+
+/** 0–100 skalieren und begrenzen. */
+const clamp = (v) => Math.max(0, Math.min(100, v));
+
+/** Höher ist besser → good ab 75 %, ok ab 45 %. */
+function toneFromPct(pct) {
+    if (pct == null) return 'none';
+    return pct >= 75 ? 'good' : pct >= 45 ? 'ok' : 'weak';
+}
+
+/** Abweichung von der Basislinie einordnen; `invert` für Werte, bei denen weniger besser ist. */
+function toneFromBaseline(value, base, invert = false) {
+    if (value == null || base == null) return 'none';
+    const diff = ((value - base) / base) * 100 * (invert ? -1 : 1);
+    return diff >= -2 ? 'good' : diff >= -10 ? 'ok' : 'weak';
+}
+
+function baselineHint(value, base, unit = '') {
+    if (value == null || base == null) return null;
+    const d = Math.round(value - base);
+    if (d === 0) return 'im Schnitt';
+    return `${d > 0 ? '+' : ''}${d}${unit} zum Schnitt`;
+}
+
+/**
+ * Vier Kacheln, gespeist aus Garmin. Ohne Garmin-Verbindung übernimmt der
+ * Check-in — dieselbe Darstellung, andere Quelle.
+ */
+const metricTiles = computed(() => {
+    const g = garminLatest.value;
+
+    // ── Garmin ──────────────────────────────────────────────────────────
+    if (g) {
+        const hrvBase = garminBaseline('hrv');
+        const rhrBase = garminBaseline('resting_hr');
+
+        const readinessPct = g.training_readiness ?? null;
+        const sleepPct     = g.sleep_hours != null ? clamp((g.sleep_hours / 8) * 100) : null;
+
+        return [
+            {
+                label: 'Readiness',
+                value: g.training_readiness ?? '–',
+                unit:  g.training_readiness != null ? '/ 100' : null,
+                pct:   readinessPct,
+                tone:  toneFromPct(readinessPct),
+                hint:  null,
+            },
+            {
+                label: 'Schlaf',
+                value: g.sleep_hours != null ? g.sleep_hours.toFixed(1) : '–',
+                unit:  'h',
+                pct:   sleepPct,
+                tone:  toneFromPct(sleepPct),
+                hint:  g.sleep_hours != null ? (g.sleep_hours >= 7 ? 'ausreichend' : 'kurze Nacht') : null,
+            },
+            {
+                label: 'HRV',
+                value: g.hrv ?? '–',
+                unit:  'ms',
+                // Basislinie sitzt bei 70 % Ringfüllung, damit Abweichungen sichtbar werden.
+                pct:   g.hrv != null && hrvBase ? clamp((g.hrv / hrvBase) * 70) : null,
+                tone:  toneFromBaseline(g.hrv, hrvBase),
+                hint:  baselineHint(g.hrv, hrvBase, ' ms'),
+            },
+            {
+                label: 'Ruhepuls',
+                value: g.resting_hr ?? '–',
+                unit:  'bpm',
+                pct:   g.resting_hr != null && rhrBase ? clamp((rhrBase / g.resting_hr) * 70) : null,
+                tone:  toneFromBaseline(g.resting_hr, rhrBase, true),
+                hint:  baselineHint(g.resting_hr, rhrBase),
+            },
+        ];
+    }
+
+    // ── Check-in als Rückfallebene ──────────────────────────────────────
+    const w = props.wellbeingToday;
+    if (!w) return [];
+
+    // Muskelkater und Stress sind invertiert: hoher Wert ist schlecht.
+    const scale = (v, invert = false) => (v == null ? null : clamp(((invert ? 11 - v : v) / 10) * 100));
+
+    return [
+        { label: 'Energie',     value: w.energy_level    ?? '–', unit: '/ 10', pct: scale(w.energy_level),          tone: toneFromPct(scale(w.energy_level)) },
+        { label: 'Schlaf',      value: w.sleep_quality   ?? '–', unit: '/ 10', pct: scale(w.sleep_quality),         tone: toneFromPct(scale(w.sleep_quality)) },
+        { label: 'Muskeln',     value: w.muscle_soreness ?? '–', unit: '/ 10', pct: scale(w.muscle_soreness, true), tone: toneFromPct(scale(w.muscle_soreness, true)), hint: 'weniger ist besser' },
+        { label: 'Stress',      value: w.stress_level    ?? '–', unit: '/ 10', pct: scale(w.stress_level, true),    tone: toneFromPct(scale(w.stress_level, true)),    hint: 'weniger ist besser' },
+    ];
+});
+
+/** Woher die Kacheln stammen — für die Beschriftung darüber. */
+const metricSource = computed(() => {
+    if (garminLatest.value) return 'Garmin';
+    if (props.wellbeingToday) return 'Check-in';
+    return null;
+});
 
 /** Trainingsstatus aus der Belastungsrechnung, kurz gefasst. */
 const statusChip = computed(() => {
@@ -951,32 +1065,48 @@ function syncStrava() {
             <div class="space-y-5 px-4 py-4 lg:px-6 lg:py-6">
 
                 <!-- ══════════════════════════════════════════════════
-                     STATUS-ZEILE
+                     KÖRPERWERTE — Garmin, sonst der Check-in
                      ══════════════════════════════════════════════════ -->
+                <section v-if="metricTiles.length">
+                    <div class="mb-3 flex items-center justify-between gap-3 px-1">
+                        <h2 class="text-[17px] font-medium text-ink-2">Deine Werte</h2>
+                        <span class="rounded-full bg-surface-2 px-3 py-1 text-[12px] font-semibold text-ink-3">{{ metricSource }}</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                        <MetricTile v-for="t in metricTiles" :key="t.label" v-bind="t" />
+                    </div>
+                </section>
+
+                <!-- Ohne Garmin und ohne Check-in bleibt nur die Aufforderung -->
+                <button v-else type="button" class="w-full text-left" @click="showWellbeingModal = true">
+                    <AppCard>
+                        <div class="flex items-center gap-4">
+                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xl">💪</div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-[15px] font-bold text-ink">Wie fühlst du dich heute?</p>
+                                <p class="mt-0.5 text-[13px] text-ink-3">Ein kurzer Check-in füllt deine Werte — 30 Sekunden.</p>
+                            </div>
+                            <svg class="h-5 w-5 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                            </svg>
+                        </div>
+                    </AppCard>
+                </button>
+
+                <!-- Streak · Form · Check-in als schmale Zeile darunter -->
                 <div class="grid grid-cols-3 gap-2.5">
-                    <StatChip label="Streak" :tone="streakDays >= 2 ? 'neutral' : 'neutral'">
+                    <StatChip label="Streak">
                         <template #icon><span class="text-base leading-none">🔥</span></template>
                         {{ streakDays }}
                     </StatChip>
 
-                    <StatChip label="Status" :tone="statusChip.tone">
-                        <template #icon>
-                            <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 19.5 19.5 4.5m0 0H9m10.5 0V15" />
-                            </svg>
-                        </template>
+                    <StatChip label="Form" :tone="statusChip.tone">
                         <span class="truncate text-[15px]">{{ statusChip.label }}</span>
                     </StatChip>
 
                     <button type="button" class="text-left" @click="showWellbeingModal = true">
                         <StatChip label="Check-in" :tone="checkinDone ? 'success' : 'warn'">
-                            <template #icon>
-                                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                    <path v-if="checkinDone" stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                                    <path v-else stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                                </svg>
-                            </template>
-                            <span class="text-[15px]">{{ checkinDone ? 'Normal' : 'Offen' }}</span>
+                            <span class="text-[15px]">{{ checkinDone ? 'Erledigt' : 'Offen' }}</span>
                         </StatChip>
                     </button>
                 </div>
@@ -1239,6 +1369,74 @@ function syncStrava() {
                 </AppCard>
 
                 <!-- ══════════════════════════════════════════════════
+                     NOCH ZU BEWERTEN
+                     ══════════════════════════════════════════════════ -->
+                <section v-if="pendingRatingSessions.length > 0">
+                    <SectionHeader title="Wie lief's?" />
+                    <AppCard flush>
+                        <div class="divide-y divide-line">
+                            <div v-for="session in pendingRatingSessions" :key="session.id">
+                                <button v-if="ratingOpenId !== session.id" @click="openRating(session)"
+                                    class="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-surface-2">
+                                    <div class="flex min-w-0 items-center gap-3">
+                                        <span class="shrink-0 text-lg">{{ sessionType(session.type).emoji }}</span>
+                                        <div class="min-w-0">
+                                            <p class="truncate text-[15px] font-semibold text-ink">{{ session.activity_name || session.title || 'Einheit' }}</p>
+                                            <p class="text-[13px] text-ink-3">
+                                                {{ new Date(session.planned_date).toLocaleDateString('de-DE', {day:'2-digit', month:'short'}) }}
+                                                {{ session.distance_km ? `· ${session.distance_km} km` : '' }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <span class="shrink-0 rounded-full bg-surface-2 px-3 py-1.5 text-[13px] font-semibold text-ink">Bewerten</span>
+                                </button>
+
+                                <div v-else class="px-5 py-4">
+                                    <div class="mb-4 flex items-center justify-between">
+                                        <div class="flex min-w-0 items-center gap-2">
+                                            <span class="shrink-0 text-lg">{{ sessionType(session.type).emoji }}</span>
+                                            <p class="truncate text-[15px] font-bold text-ink">{{ session.activity_name || session.title || 'Einheit' }}</p>
+                                        </div>
+                                        <button @click="ratingOpenId = null" class="ml-2 shrink-0 text-lg leading-none text-ink-3 hover:text-ink">✕</button>
+                                    </div>
+
+                                    <p class="mb-2 text-[13px] font-semibold text-ink-2">Wie war die Einheit?</p>
+                                    <div class="mb-4 flex items-center gap-1.5">
+                                        <button v-for="star in 5" :key="star"
+                                            @click="ratingStars = ratingStars === star ? 0 : star"
+                                            class="flex h-10 w-10 items-center justify-center rounded-full text-lg transition-all"
+                                            :class="star <= ratingStars ? 'scale-110 bg-warn-soft' : 'bg-surface-2 opacity-40 hover:opacity-70'"
+                                        >⭐</button>
+                                        <span class="ml-2 text-[13px] text-ink-3">{{ ['','Sehr schwer','Schwer','Okay','Gut','Top'][ratingStars] }}</span>
+                                    </div>
+
+                                    <p class="mb-2 text-[13px] font-semibold text-ink-2">Anstrengung (RPE)</p>
+                                    <div class="mb-4 flex flex-wrap gap-1.5">
+                                        <button v-for="n in 10" :key="n"
+                                            @click="ratingEffort = ratingEffort === n ? 0 : n"
+                                            class="h-9 w-9 rounded-full text-[13px] font-bold transition-all active:scale-90"
+                                            :class="n === ratingEffort
+                                                ? (n <= 3 ? 'bg-success text-white' : n <= 6 ? 'bg-warn text-white' : 'bg-danger text-white')
+                                                : 'bg-surface-2 text-ink-3 hover:bg-surface-3'"
+                                        >{{ n }}</button>
+                                    </div>
+
+                                    <textarea v-model="ratingNotes" rows="2" placeholder="Notizen (optional)…" class="z-input mb-3 resize-none" />
+
+                                    <div class="flex items-center gap-3">
+                                        <AppButton size="sm" block
+                                            :loading="ratingSavingId === session.id"
+                                            :disabled="!ratingStars && !ratingEffort && !ratingNotes"
+                                            @click="submitRating(session.id)">Speichern</AppButton>
+                                        <a v-if="session.activity_id" :href="route('activities.show', session.activity_id)" class="shrink-0 text-[13px] text-ink-3 hover:text-ink">Details</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </AppCard>
+                </section>
+
+                <!-- ══════════════════════════════════════════════════
                      DEINE WOCHE
                      ══════════════════════════════════════════════════ -->
                 <section>
@@ -1290,15 +1488,6 @@ function syncStrava() {
                         </p>
                     </AppCard>
                 </section>
-
-                <!-- Garmin-Erholung -->
-                <GarminRecovery
-                    v-if="props.garminMetrics"
-                    :metrics="props.garminMetrics"
-                    :activities="props.recoveryActivities"
-                    :syncing="garminSyncing"
-                    @refresh="syncGarminHealth"
-                />
 
                 <!-- ══════════════════════════════════════════════════
                      FORM · TEMPO  (nebeneinander ab lg)
@@ -1448,73 +1637,14 @@ function syncStrava() {
                     </section>
                 </div>
 
-                <!-- ══════════════════════════════════════════════════
-                     NOCH ZU BEWERTEN
-                     ══════════════════════════════════════════════════ -->
-                <section v-if="pendingRatingSessions.length > 0">
-                    <SectionHeader title="Wie lief's?" />
-                    <AppCard flush>
-                        <div class="divide-y divide-line">
-                            <div v-for="session in pendingRatingSessions" :key="session.id">
-                                <button v-if="ratingOpenId !== session.id" @click="openRating(session)"
-                                    class="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-surface-2">
-                                    <div class="flex min-w-0 items-center gap-3">
-                                        <span class="shrink-0 text-lg">{{ sessionType(session.type).emoji }}</span>
-                                        <div class="min-w-0">
-                                            <p class="truncate text-[15px] font-semibold text-ink">{{ session.activity_name || session.title || 'Einheit' }}</p>
-                                            <p class="text-[13px] text-ink-3">
-                                                {{ new Date(session.planned_date).toLocaleDateString('de-DE', {day:'2-digit', month:'short'}) }}
-                                                {{ session.distance_km ? `· ${session.distance_km} km` : '' }}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <span class="shrink-0 rounded-full bg-surface-2 px-3 py-1.5 text-[13px] font-semibold text-ink">Bewerten</span>
-                                </button>
-
-                                <div v-else class="px-5 py-4">
-                                    <div class="mb-4 flex items-center justify-between">
-                                        <div class="flex min-w-0 items-center gap-2">
-                                            <span class="shrink-0 text-lg">{{ sessionType(session.type).emoji }}</span>
-                                            <p class="truncate text-[15px] font-bold text-ink">{{ session.activity_name || session.title || 'Einheit' }}</p>
-                                        </div>
-                                        <button @click="ratingOpenId = null" class="ml-2 shrink-0 text-lg leading-none text-ink-3 hover:text-ink">✕</button>
-                                    </div>
-
-                                    <p class="mb-2 text-[13px] font-semibold text-ink-2">Wie war die Einheit?</p>
-                                    <div class="mb-4 flex items-center gap-1.5">
-                                        <button v-for="star in 5" :key="star"
-                                            @click="ratingStars = ratingStars === star ? 0 : star"
-                                            class="flex h-10 w-10 items-center justify-center rounded-full text-lg transition-all"
-                                            :class="star <= ratingStars ? 'scale-110 bg-warn-soft' : 'bg-surface-2 opacity-40 hover:opacity-70'"
-                                        >⭐</button>
-                                        <span class="ml-2 text-[13px] text-ink-3">{{ ['','Sehr schwer','Schwer','Okay','Gut','Top'][ratingStars] }}</span>
-                                    </div>
-
-                                    <p class="mb-2 text-[13px] font-semibold text-ink-2">Anstrengung (RPE)</p>
-                                    <div class="mb-4 flex flex-wrap gap-1.5">
-                                        <button v-for="n in 10" :key="n"
-                                            @click="ratingEffort = ratingEffort === n ? 0 : n"
-                                            class="h-9 w-9 rounded-full text-[13px] font-bold transition-all active:scale-90"
-                                            :class="n === ratingEffort
-                                                ? (n <= 3 ? 'bg-success text-white' : n <= 6 ? 'bg-warn text-white' : 'bg-danger text-white')
-                                                : 'bg-surface-2 text-ink-3 hover:bg-surface-3'"
-                                        >{{ n }}</button>
-                                    </div>
-
-                                    <textarea v-model="ratingNotes" rows="2" placeholder="Notizen (optional)…" class="z-input mb-3 resize-none" />
-
-                                    <div class="flex items-center gap-3">
-                                        <AppButton size="sm" block
-                                            :loading="ratingSavingId === session.id"
-                                            :disabled="!ratingStars && !ratingEffort && !ratingNotes"
-                                            @click="submitRating(session.id)">Speichern</AppButton>
-                                        <a v-if="session.activity_id" :href="route('activities.show', session.activity_id)" class="shrink-0 text-[13px] text-ink-3 hover:text-ink">Details</a>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </AppCard>
-                </section>
+                <!-- Garmin-Erholung -->
+                <GarminRecovery
+                    v-if="props.garminMetrics"
+                    :metrics="props.garminMetrics"
+                    :activities="props.recoveryActivities"
+                    :syncing="garminSyncing"
+                    @refresh="syncGarminHealth"
+                />
 
                 <!-- ══════════════════════════════════════════════════
                      ZULETZT GELAUFEN

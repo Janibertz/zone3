@@ -233,9 +233,30 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         'todayRecommendationSession' => $todayRecommendationSession,
         'hasActivePlan' => (bool) $activePlan,
         'returnToRun' => $returnToRunService->statusFor($user),
+        // whereDate statt where: die Spalte ist ein DATE, kommt je nach
+        // Treiber aber als "Y-m-d H:i:s" zurueck — ein Stringvergleich
+        // gegen "Y-m-d" trifft dann nie.
         'hasWellbeingToday' => $user->wellbeingEntries()
-            ->where('date', now()->toDateString())
+            ->whereDate('date', now()->toDateString())
             ->exists(),
+
+        // Werte des heutigen Check-ins — speisen die Kennzahl-Kacheln, wenn
+        // keine Garmin-Verbindung besteht.
+        'wellbeingToday' => (function () use ($user) {
+            $entry = $user->wellbeingEntries()
+                ->whereDate('date', now()->toDateString())
+                ->first(['energy_level', 'mood', 'sleep_quality', 'muscle_soreness', 'stress_level', 'is_sick', 'is_injured']);
+
+            return $entry ? [
+                'energy_level'    => $entry->energy_level,
+                'mood'            => $entry->mood,
+                'sleep_quality'   => $entry->sleep_quality,
+                'muscle_soreness' => $entry->muscle_soreness,
+                'stress_level'    => $entry->stress_level,
+                'is_sick'         => (bool) $entry->is_sick,
+                'is_injured'      => (bool) $entry->is_injured,
+            ] : null;
+        })(),
 
         // Sessions completed without any feedback (no stars, no RPE, no notes), excluding rest days
         'unratedSessions' => TrainingSession::where('user_id', $user->id)

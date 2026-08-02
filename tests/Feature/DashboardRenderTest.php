@@ -63,6 +63,47 @@ class DashboardRenderTest extends TestCase
             ->assertOk();
     }
 
+    /**
+     * Die Kennzahl-Kacheln greifen auf den heutigen Check-in zurück, wenn
+     * keine Garmin-Verbindung besteht — dafür muss der Wert im Payload sein.
+     */
+    public function test_dashboard_delivers_todays_wellbeing_for_the_metric_tiles(): void
+    {
+        $user = $this->runner();
+
+        $user->wellbeingEntries()->create([
+            'date'            => now()->toDateString(),
+            'energy_level'    => 7,
+            'mood'            => 6,
+            'sleep_quality'   => 8,
+            'muscle_soreness' => 3,
+            'stress_level'    => 4,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('wellbeingToday.energy_level', 7)
+                ->where('wellbeingToday.sleep_quality', 8)
+                ->where('wellbeingToday.muscle_soreness', 3)
+                ->where('wellbeingToday.stress_level', 4)
+                ->where('hasWellbeingToday', true)
+            );
+    }
+
+    /** Ohne Check-in bleibt der Wert null — die Kacheln zeigen dann die Aufforderung. */
+    public function test_dashboard_has_no_wellbeing_without_a_checkin(): void
+    {
+        $this->actingAs($this->runner())
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('wellbeingToday', null)
+                ->where('hasWellbeingToday', false)
+            );
+    }
+
     /** The decrypted Garmin token must never reach the frontend. */
     public function test_dashboard_payload_does_not_leak_the_garmin_session(): void
     {
