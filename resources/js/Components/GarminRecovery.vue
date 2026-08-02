@@ -297,7 +297,7 @@ const sideValues = computed(() => [
             </div>
 
             <!-- Readiness + aktuelle Werte -->
-            <div class="grid gap-4 lg:grid-cols-3">
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <AppCard class="lg:col-span-2">
                     <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Training Readiness</p>
                     <template v-if="readiness != null">
@@ -389,7 +389,7 @@ const sideValues = computed(() => [
             </AppCard>
 
             <!-- Schlaf + Body Battery nebeneinander ab lg -->
-            <div class="grid gap-4 lg:grid-cols-2">
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <AppCard v-if="sleepBars" title="Schlaf"
                     subtitle="Die Linie markiert 7 Stunden. Hervorgehobene Säulen sind kurze Nächte.">
                     <svg :viewBox="`0 0 ${sleepBars.W} ${sleepBars.H}`" class="block h-auto w-full">

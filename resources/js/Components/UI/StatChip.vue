@@ -19,7 +19,7 @@ const tones = {
 </script>
 
 <template>
-    <div class="rounded-card bg-surface px-3.5 py-3 shadow-card">
+    <div class="min-w-0 rounded-card bg-surface px-3.5 py-3 shadow-card">
         <p class="truncate text-[10px] font-bold uppercase tracking-wider text-ink">{{ label }}</p>
         <p class="mt-1.5 flex min-w-0 items-center gap-1.5 text-[17px] font-bold leading-none tabular-nums"
             :class="tones[tone] ?? tones.neutral">

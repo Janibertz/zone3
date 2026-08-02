@@ -39,7 +39,7 @@ const toneClass = computed(() => TONES[props.tone] ?? TONES.none);
 </script>
 
 <template>
-    <div class="flex flex-col items-center rounded-card bg-surface px-2 py-4 shadow-card">
+    <div class="flex min-w-0 flex-col items-center rounded-card bg-surface px-2 py-4 shadow-card">
         <div class="relative h-16 w-16 shrink-0">
             <svg viewBox="0 0 64 64" class="h-16 w-16 -rotate-90">
                 <circle cx="32" cy="32" :r="R" fill="none" stroke="rgb(var(--z-surface-3))" stroke-width="5" />

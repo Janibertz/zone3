@@ -28,7 +28,7 @@ const hasHeader = computed(() => !!props.title || !!props.subtitle || !!slots.he
     <component
         :is="tag"
         :href="href ?? undefined"
-        class="block w-full rounded-card bg-surface text-left shadow-card"
+        class="block w-full min-w-0 rounded-card bg-surface text-left shadow-card"
         :class="interactive ? 'transition-transform duration-150 active:scale-[0.99]' : ''"
     >
         <div v-if="hasHeader" class="flex items-center gap-3 px-5 pt-5" :class="flush ? 'pb-5' : ''">

@@ -1104,7 +1104,7 @@ function syncStrava() {
                         <span class="truncate text-[15px]">{{ statusChip.label }}</span>
                     </StatChip>
 
-                    <button type="button" class="text-left" @click="showWellbeingModal = true">
+                    <button type="button" class="min-w-0 text-left" @click="showWellbeingModal = true">
                         <StatChip label="Check-in" :tone="checkinDone ? 'success' : 'warn'">
                             <span class="text-[15px]">{{ checkinDone ? 'Erledigt' : 'Offen' }}</span>
                         </StatChip>
@@ -1246,7 +1246,7 @@ function syncStrava() {
                                     {{ coach ? coach.name : 'Dein Coach' }} stellt Tipps zusammen…
                                 </div>
                                 <p v-else-if="recNutritionError" class="text-[13px] text-danger">{{ recNutritionError }}</p>
-                                <div v-else-if="recNutritionTips" class="grid gap-2 sm:grid-cols-3">
+                                <div v-else-if="recNutritionTips" class="grid grid-cols-1 gap-2 sm:grid-cols-3">
                                     <div v-for="block in [
                                             { key: 'before', icon: '🕐', title: 'Vorher' },
                                             { key: 'during', icon: '🏃', title: 'Währenddessen' },
@@ -1492,10 +1492,10 @@ function syncStrava() {
                 <!-- ══════════════════════════════════════════════════
                      FORM · TEMPO  (nebeneinander ab lg)
                      ══════════════════════════════════════════════════ -->
-                <div class="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+                <div class="grid grid-cols-1 gap-5 lg:grid-cols-2 2xl:grid-cols-3">
 
                     <!-- Form -->
-                    <section v-if="props.trainingLoad">
+                    <section v-if="props.trainingLoad" class="min-w-0">
                         <SectionHeader title="Form">
                             <template #action>
                                 <span class="rounded-full px-3 py-1.5 text-[13px] font-semibold"
@@ -1548,7 +1548,7 @@ function syncStrava() {
                     </section>
 
                     <!-- Tempo -->
-                    <section>
+                    <section class="min-w-0">
                         <SectionHeader title="Dein Tempo">
                             <template #action>
                                 <AppButton v-if="props.stravaConnected" size="sm" variant="secondary"
@@ -1620,7 +1620,7 @@ function syncStrava() {
                     </section>
 
                     <!-- Wochenrückblick -->
-                    <section v-if="props.weeklyReview">
+                    <section v-if="props.weeklyReview" class="min-w-0">
                         <SectionHeader title="Wochenrückblick" />
                         <AppCard>
                             <div class="mb-3 flex items-center gap-3">
@@ -1650,25 +1650,27 @@ function syncStrava() {
                      ZULETZT GELAUFEN
                      ══════════════════════════════════════════════════ -->
                 <section>
-                    <SectionHeader title="Zuletzt gelaufen">
+                    <SectionHeader title="Letzte Aktivitäten">
                         <template #action>
                             <AppButton size="sm" variant="secondary" href="/activities">Alle</AppButton>
                         </template>
                     </SectionHeader>
 
                     <AppCard v-if="props.recentActivities.length === 0">
-                        <EmptyState title="Noch keine Aktivitäten" description="Verbinde Strava und synchronisiere, dann erscheinen deine Läufe hier.">
+                        <EmptyState title="Noch keine Aktivitäten" description="Verbinde Strava und synchronisiere, dann erscheinen deine Einheiten hier.">
                             <AppButton v-if="!props.stravaConnected" href="/strava/connect">Strava verbinden</AppButton>
                             <AppButton v-else :loading="syncing" @click="syncStrava">Jetzt synchronisieren</AppButton>
                         </EmptyState>
                     </AppCard>
 
-                    <div v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    <!-- min-w-0 auf dem Grid-Item: sonst steht dessen min-width auf auto,
+                         ein langer Name wird nicht gekuerzt und sprengt die Spalte. -->
+                    <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                         <button
                             v-for="activity in props.recentActivities.slice(0, 8)"
                             :key="activity.id"
                             @click="openActivityDetail(activity)"
-                            class="rounded-card bg-surface p-4 text-left shadow-card transition-transform active:scale-[0.99]"
+                            class="min-w-0 rounded-card bg-surface p-4 text-left shadow-card transition-transform active:scale-[0.99]"
                         >
                             <div class="mb-2.5 flex items-start justify-between gap-2">
                                 <div class="flex min-w-0 items-center gap-2">
@@ -1703,9 +1705,9 @@ function syncStrava() {
                 <!-- ══════════════════════════════════════════════════
                      MONAT · EVENTS · NEUES ZIEL
                      ══════════════════════════════════════════════════ -->
-                <div class="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+                <div class="grid grid-cols-1 gap-5 lg:grid-cols-2 2xl:grid-cols-3">
 
-                    <section>
+                    <section class="min-w-0">
                         <SectionHeader title="Monat">
                             <template #action>
                                 <AppButton size="sm" variant="secondary" href="/calendar">Vollansicht</AppButton>
@@ -1764,7 +1766,7 @@ function syncStrava() {
                         </AppCard>
                     </section>
 
-                    <section>
+                    <section class="min-w-0">
                         <SectionHeader title="Nächste Events">
                             <template #action>
                                 <AppButton size="sm" variant="secondary" href="/events">Alle</AppButton>
@@ -1820,7 +1822,7 @@ function syncStrava() {
                         </AppCard>
                     </section>
 
-                    <section>
+                    <section class="min-w-0">
                         <SectionHeader title="Neues Ziel" />
 
                         <AppCard>
