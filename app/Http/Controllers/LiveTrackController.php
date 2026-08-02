@@ -155,6 +155,12 @@ class LiveTrackController extends Controller
     {
         $track = LiveTrack::where('user_id', Auth::id())->latest()->first();
 
+        // Einträge von vor der Crew-Funktion haben noch keinen Schlüssel.
+        // Beim Aufruf dieser Seite nachtragen, statt eine kaputte URL zu zeigen.
+        if ($track && ! $track->crew_key) {
+            $track->forceFill(['crew_key' => LiveTrack::newCrewKey()])->save();
+        }
+
         return Inertia::render('Live/Manage', [
             'track' => $track ? [
                 'id'           => $track->id,

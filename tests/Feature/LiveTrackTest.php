@@ -146,6 +146,38 @@ class LiveTrackTest extends TestCase
             ->assertInertia(fn ($page) => $page->where('isCrew', false));
     }
 
+    /** Ein neuer Eintrag bekommt seine Schluessel automatisch. */
+    public function test_a_new_track_always_gets_slug_and_crew_key(): void
+    {
+        $user = User::factory()->create(['onboarding_completed_at' => now()]);
+
+        $track = LiveTrack::create([
+            'user_id'   => $user->id,
+            'title'     => 'Ohne Schluessel angelegt',
+            'starts_at' => now(),
+        ]);
+
+        $this->assertNotEmpty($track->slug);
+        $this->assertNotEmpty($track->crew_key);
+    }
+
+    /** Altbestand ohne Schluessel darf keine kaputte Crew-URL erzeugen. */
+    public function test_manage_page_backfills_a_missing_crew_key(): void
+    {
+        $track = $this->track();
+        $track->forceFill(['crew_key' => null])->save();
+
+        $this->actingAs($track->user)
+            ->get(route('live.manage'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where(
+                'track.crewUrl',
+                fn ($url) => is_string($url) && ! str_ends_with($url, '?crew=')
+            ));
+
+        $this->assertNotEmpty($track->refresh()->crew_key);
+    }
+
     // ── Verwaltung ───────────────────────────────────────────────────────
 
     public function test_manage_page_requires_login(): void

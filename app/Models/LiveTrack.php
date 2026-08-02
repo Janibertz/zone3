@@ -30,6 +30,19 @@ class LiveTrack extends Model
         ];
     }
 
+    /**
+     * Schlüssel beim Anlegen sicherstellen. Vorher wurden sie nur in einem
+     * einzigen Controller-Pfad vergeben — wer auf anderem Weg einen Eintrag
+     * erzeugte, bekam eine Crew-URL, die auf `?crew=` endete.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $track) {
+            $track->slug     ??= static::newSlug();
+            $track->crew_key ??= static::newCrewKey();
+        });
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);
