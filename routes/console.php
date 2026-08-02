@@ -22,3 +22,7 @@ Schedule::command('review:monthly')->monthlyOn(1, '09:00');
 
 // Every day at 06:00: pull the last 7 days of Garmin recovery data for connected users
 Schedule::command('garmin:sync-health --days=7')->dailyAt('06:00');
+
+// Jede Minute: laufende LiveTrack-Sitzungen abfragen. Der Command prueft
+// selbst, ob ueberhaupt eine Sitzung im Zeitfenster liegt.
+Schedule::command('livetrack:poll')->everyMinute()->withoutOverlapping();

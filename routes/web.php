@@ -5,6 +5,7 @@ use App\Http\Controllers\AIController;
 use App\Http\Controllers\CoachChatController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\GoalController;
+use App\Http\Controllers\LiveTrackController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\PlanController;
 use App\Http\Controllers\ProfileController;
@@ -537,5 +538,20 @@ Route::post('/strava/webhook', [StravaController::class, 'webhook'])->name('stra
 
 // GitHub Webhook — no auth middleware, signature-verified
 Route::post('/webhook/github', [WebhookController::class, 'github'])->name('webhook.github');
+
+// ── LiveTrack ────────────────────────────────────────────────────────────────
+// Oeffentliche Verfolgerseite: kein Login, Zugang allein ueber den
+// unratebaren Slug. Gedrosselt, damit der Link nicht durchprobiert werden kann.
+Route::middleware('throttle:60,1')->group(function () {
+    Route::get('/live/{slug}', [LiveTrackController::class, 'show'])->name('live.show');
+    Route::get('/live/{slug}/data', [LiveTrackController::class, 'data'])->name('live.data');
+});
+
+// Verwaltung durch den Laeufer selbst
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/livetrack', [LiveTrackController::class, 'manage'])->name('live.manage');
+    Route::post('/livetrack', [LiveTrackController::class, 'store'])->name('live.store');
+    Route::post('/livetrack/test', [LiveTrackController::class, 'testPoll'])->name('live.test');
+});
 
 require __DIR__.'/auth.php';
