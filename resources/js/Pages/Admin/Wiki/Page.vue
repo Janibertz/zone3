@@ -180,7 +180,7 @@ const categoryColors = {
             </div>
 
             <!-- View mode -->
-            <div v-else class="prose-zone3 bg-surface rounded-card border border-line p-8">
+            <div v-else class="prose-zone3 bg-surface rounded-card p-8 shadow-card">
                 <div v-html="rendered"></div>
 
                 <!-- Meta footer -->

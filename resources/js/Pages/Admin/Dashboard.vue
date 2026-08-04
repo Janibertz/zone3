@@ -1,5 +1,8 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import AppCard from '@/Components/UI/AppCard.vue';
+import StatTile from '@/Components/UI/StatTile.vue';
+import SectionHeader from '@/Components/UI/SectionHeader.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
@@ -28,9 +31,10 @@ function monthLabel(ym) {
     return new Date(year, month - 1).toLocaleDateString('de-DE', { month: 'short', year: '2-digit' });
 }
 
-function barHeight(val, max) {
+/** Anteil an der Skala in Prozent — die Balkenhöhe folgt dem Container. */
+function share(val, max) {
     if (!max) return 0;
-    return Math.max(4, Math.round((val / max) * 100));
+    return Math.max(3, Math.round((val / max) * 100));
 }
 
 function formatCost(eur) {
@@ -49,11 +53,10 @@ function wellbeingColor(score) {
 
 const coachBg = { orange: 'bg-warn', blue: 'bg-info', green: 'bg-success', purple: 'bg-accent' };
 
-const maxReg      = computed(() => Math.max(...(props.registrationsPerMonth?.map(r => r.count)           ?? [0]), 1));
-const maxAct      = computed(() => Math.max(...(props.activitiesPerMonth?.map(a => a.count)              ?? [0]), 1));
-const maxAiCost   = computed(() => Math.max(...(props.aiCostsPerDay?.map(d => parseFloat(d.cost))        ?? [0]), 0.000001));
-const maxCoach    = computed(() => Math.max(...(props.coachDistribution?.map(c => c.users_count)         ?? [0]), 1));
-const maxWellbeing = computed(() => 10);
+const maxReg    = computed(() => Math.max(...(props.registrationsPerMonth?.map(r => r.count)    ?? [0]), 1));
+const maxAct    = computed(() => Math.max(...(props.activitiesPerMonth?.map(a => a.count)       ?? [0]), 1));
+const maxAiCost = computed(() => Math.max(...(props.aiCostsPerDay?.map(d => parseFloat(d.cost)) ?? [0]), 0.000001));
+const maxCoach  = computed(() => Math.max(...(props.coachDistribution?.map(c => c.users_count)  ?? [0]), 1));
 </script>
 
 <template>
@@ -61,210 +64,208 @@ const maxWellbeing = computed(() => 10);
 
     <AdminLayout>
         <template #header>
-            <h1 class="text-xl font-bold text-ink">Übersicht</h1>
+            <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Übersicht</h1>
         </template>
 
-        <div class="p-4 sm:p-6 space-y-8">
+        <div class="space-y-8 px-4 py-4 sm:px-6 lg:py-6">
 
-            <!-- ── Primäre KPIs ──────────────────────────────────── -->
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div v-for="card in [
-                    { label: 'Nutzer gesamt',    value: stats.total_users,      sub: stats.onboarded_users + ' onboarded',   color: 'text-accent-ink' },
-                    { label: 'Aktivitäten',      value: stats.total_activities, sub: 'gesamt',                               color: 'text-info-ink'   },
-                    { label: 'Aktive Pläne',     value: stats.active_plans,     sub: 'Trainingspläne',                       color: 'text-accent-ink' },
-                    { label: 'Geplante Events',  value: stats.upcoming_events,  sub: 'von ' + stats.total_events + ' gesamt', color: 'text-warn-ink' },
-                ]" :key="card.label"
-                    class="bg-surface rounded-card p-5"
-                >
-                    <p class="text-sm text-ink-3">{{ card.label }}</p>
-                    <p class="mt-1 text-3xl font-bold text-ink">{{ card.value }}</p>
-                    <p class="mt-1 text-xs" :class="card.color">{{ card.sub }}</p>
-                </div>
+            <!-- ── Plattform ─────────────────────────────────────── -->
+            <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <StatTile label="Nutzer gesamt"   :value="stats.total_users"      :hint="`${stats.onboarded_users} onboarded`" />
+                <StatTile label="Aktivitäten"     :value="stats.total_activities" hint="gesamt" />
+                <StatTile label="Aktive Pläne"    :value="stats.active_plans"     hint="Trainingspläne" />
+                <StatTile label="Geplante Events" :value="stats.upcoming_events"  :hint="`von ${stats.total_events} gesamt`" />
             </div>
 
-            <!-- ── AI KPIs ──────────────────────────────────────── -->
-            <div>
-                <h2 class="text-xs font-semibold uppercase tracking-wider text-ink-3 mb-3">KI-Nutzung</h2>
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div v-for="card in [
-                        { label: 'Calls heute',    value: stats.ai_calls_today,             display: String(stats.ai_calls_today) },
-                        { label: 'Kosten heute',   value: stats.ai_cost_today,              display: formatCost(stats.ai_cost_today) },
-                        { label: 'Calls gesamt',   value: stats.ai_calls_total,             display: String(stats.ai_calls_total) },
-                        { label: 'Kosten gesamt',  value: stats.ai_cost_total,              display: formatCost(stats.ai_cost_total) },
-                    ]" :key="card.label"
-                        class="bg-surface rounded-field p-4"
-                    >
-                        <p class="text-xs text-ink-3">{{ card.label }}</p>
-                        <p class="mt-0.5 text-2xl font-bold text-ink">{{ card.display }}</p>
+            <!-- ── KI-Nutzung ────────────────────────────────────── -->
+            <section>
+                <SectionHeader title="KI-Nutzung" />
+
+                <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                    <div class="grid grid-cols-2 gap-3 xl:content-start">
+                        <StatTile label="Calls heute"   :value="stats.ai_calls_today" />
+                        <StatTile label="Kosten heute"  :value="formatCost(stats.ai_cost_today)" tone="accent" />
+                        <StatTile label="Calls gesamt"  :value="stats.ai_calls_total" />
+                        <StatTile label="Kosten gesamt" :value="formatCost(stats.ai_cost_total)" tone="accent" />
                     </div>
-                </div>
-            </div>
 
-            <!-- ── Registrierungen + Aktivitäten ────────────────── -->
-            <div class="grid lg:grid-cols-2 gap-6">
-
-                <div class="bg-surface rounded-card p-6">
-                    <h2 class="text-sm font-semibold text-ink-2 mb-4">Neue Registrierungen (letzte 6 Monate)</h2>
-                    <div v-if="registrationsPerMonth.length" class="flex items-end gap-2 h-32">
-                        <div v-for="item in registrationsPerMonth" :key="item.month" class="flex-1 flex flex-col items-center gap-1">
-                            <span class="text-xs text-ink-3">{{ item.count }}</span>
-                            <div class="w-full rounded-t-md bg-accent transition-all"
-                                :style="{ height: barHeight(item.count, maxReg) + 'px' }"></div>
-                            <span class="text-[10px] text-ink-3">{{ monthLabel(item.month) }}</span>
-                        </div>
-                    </div>
-                    <p v-else class="text-sm text-ink-3 py-8 text-center">Keine Daten vorhanden</p>
-                </div>
-
-                <div class="bg-surface rounded-card p-6">
-                    <h2 class="text-sm font-semibold text-ink-2 mb-4">Aktivitäten (letzte 6 Monate)</h2>
-                    <div v-if="activitiesPerMonth.length" class="flex items-end gap-2 h-32">
-                        <div v-for="item in activitiesPerMonth" :key="item.month" class="flex-1 flex flex-col items-center gap-1">
-                            <span class="text-xs text-ink-3">{{ item.count }}</span>
-                            <div class="w-full rounded-t-md bg-info transition-all"
-                                :style="{ height: barHeight(item.count, maxAct) + 'px' }"></div>
-                            <span class="text-[10px] text-ink-3">{{ monthLabel(item.month) }}</span>
-                        </div>
-                    </div>
-                    <p v-else class="text-sm text-ink-3 py-8 text-center">Keine Daten vorhanden</p>
-                </div>
-            </div>
-
-            <!-- ── AI Kosten/Tag + Coach-Verteilung ─────────────── -->
-            <div class="grid lg:grid-cols-2 gap-6">
-
-                <!-- AI Kosten letzte 30 Tage -->
-                <div class="bg-surface rounded-card p-6">
-                    <h2 class="text-sm font-semibold text-ink-2 mb-4">AI-Kosten pro Tag (letzte 30 Tage)</h2>
-                    <div v-if="aiCostsPerDay.length" class="w-full overflow-x-auto">
-                        <div class="flex items-end gap-1 h-32 w-max min-w-full">
-                            <div v-for="item in aiCostsPerDay" :key="item.day" class="w-5 shrink-0 flex flex-col items-center gap-1 group relative">
-                                <div class="w-full rounded-t bg-accent transition-all cursor-default"
-                                    :style="{ height: barHeight(parseFloat(item.cost), maxAiCost) + 'px' }">
-                                </div>
-                                <!-- Tooltip -->
-                                <div class="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 hidden group-hover:block z-10 bg-ink text-canvas text-[10px] rounded px-2 py-1 whitespace-nowrap pointer-events-none">
-                                    {{ formatShortDate(item.day) }}: {{ formatCost(item.cost) }} ({{ item.calls }} Calls)
+                    <AppCard title="Kosten pro Tag" subtitle="letzte 30 Tage" class="xl:col-span-2">
+                        <div v-if="aiCostsPerDay.length">
+                            <div class="flex h-32 items-end gap-1">
+                                <div
+                                    v-for="item in aiCostsPerDay"
+                                    :key="item.day"
+                                    class="group flex h-full min-w-0 flex-1 flex-col justify-end"
+                                    :title="`${formatShortDate(item.day)}: ${formatCost(item.cost)} (${item.calls} Calls)`"
+                                >
+                                    <span
+                                        class="w-full rounded-t bg-accent/70 transition-colors group-hover:bg-accent"
+                                        :style="{ height: share(parseFloat(item.cost), maxAiCost) + '%' }"
+                                    />
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                    <p v-else class="text-sm text-ink-3 py-8 text-center">Noch keine KI-Calls</p>
-                    <div v-if="aiCostsPerDay.length" class="flex justify-between mt-1">
-                        <span class="text-[10px] text-ink-3">{{ formatShortDate(aiCostsPerDay[0]?.day) }}</span>
-                        <span class="text-[10px] text-ink-3">{{ formatShortDate(aiCostsPerDay[aiCostsPerDay.length - 1]?.day) }}</span>
-                    </div>
-                </div>
-
-                <!-- Coach-Verteilung -->
-                <div class="bg-surface rounded-card p-6">
-                    <h2 class="text-sm font-semibold text-ink-2 mb-4">Coach-Verteilung</h2>
-                    <div v-if="coachDistribution.length" class="space-y-3">
-                        <div v-for="coach in coachDistribution" :key="coach.id" class="flex items-center gap-3">
-                            <div class="h-7 w-7 rounded-lg flex items-center justify-center text-xs font-bold text-white shrink-0"
-                                :class="coachBg[coach.avatar_color] ?? 'bg-ink-3'">
-                                {{ coach.avatar_initials }}
+                            <div class="mt-2 flex justify-between text-[10px] text-ink-3">
+                                <span>{{ formatShortDate(aiCostsPerDay[0]?.day) }}</span>
+                                <span>{{ formatShortDate(aiCostsPerDay[aiCostsPerDay.length - 1]?.day) }}</span>
                             </div>
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center justify-between mb-1">
-                                    <span class="text-sm font-medium text-ink truncate">{{ coach.name }}</span>
-                                    <span class="text-xs text-ink-3 ml-2 shrink-0">{{ coach.users_count }} Athleten</span>
+                        </div>
+                        <p v-else class="py-10 text-center text-sm text-ink-3">Noch keine KI-Calls</p>
+                    </AppCard>
+                </div>
+            </section>
+
+            <!-- ── Wachstum ──────────────────────────────────────── -->
+            <section>
+                <SectionHeader title="Wachstum" />
+
+                <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    <AppCard title="Neue Registrierungen" subtitle="letzte 6 Monate">
+                        <div v-if="registrationsPerMonth.length" class="flex h-36 items-end gap-2">
+                            <div v-for="item in registrationsPerMonth" :key="item.month"
+                                class="flex h-full min-w-0 flex-1 flex-col justify-end gap-1.5">
+                                <span class="text-center text-xs font-semibold tabular-nums text-ink">{{ item.count }}</span>
+                                <span class="w-full rounded-t-lg bg-accent" :style="{ height: share(item.count, maxReg) + '%' }" />
+                                <span class="truncate text-center text-[10px] text-ink-3">{{ monthLabel(item.month) }}</span>
+                            </div>
+                        </div>
+                        <p v-else class="py-10 text-center text-sm text-ink-3">Keine Daten vorhanden</p>
+                    </AppCard>
+
+                    <AppCard title="Aktivitäten" subtitle="letzte 6 Monate">
+                        <div v-if="activitiesPerMonth.length" class="flex h-36 items-end gap-2">
+                            <div v-for="item in activitiesPerMonth" :key="item.month"
+                                class="flex h-full min-w-0 flex-1 flex-col justify-end gap-1.5">
+                                <span class="text-center text-xs font-semibold tabular-nums text-ink">{{ item.count }}</span>
+                                <span class="w-full rounded-t-lg bg-info" :style="{ height: share(item.count, maxAct) + '%' }" />
+                                <span class="truncate text-center text-[10px] text-ink-3">{{ monthLabel(item.month) }}</span>
+                            </div>
+                        </div>
+                        <p v-else class="py-10 text-center text-sm text-ink-3">Keine Daten vorhanden</p>
+                    </AppCard>
+                </div>
+            </section>
+
+            <!-- ── Athleten ──────────────────────────────────────── -->
+            <section>
+                <SectionHeader title="Athleten" />
+
+                <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                    <AppCard class="xl:col-span-2">
+                        <template #header>
+                            <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                                <div>
+                                    <h3 class="text-[15px] font-semibold text-ink">Wellbeing-Trend</h3>
+                                    <p class="mt-0.5 text-[13px] text-ink-3">letzte 14 Tage, Plattform-Ø</p>
                                 </div>
-                                <div class="h-2 w-full bg-surface-2 rounded-full overflow-hidden">
-                                    <div class="h-full rounded-full transition-all"
-                                        :class="coachBg[coach.avatar_color] ?? 'bg-ink-3'"
-                                        :style="{ width: barHeight(coach.users_count, maxCoach) + '%' }">
+                                <div class="flex items-center gap-3 text-[11px] text-ink-3">
+                                    <span class="flex items-center gap-1"><span class="inline-block h-2.5 w-2.5 rounded-sm bg-success" />≥ 7</span>
+                                    <span class="flex items-center gap-1"><span class="inline-block h-2.5 w-2.5 rounded-sm bg-warn" />5–7</span>
+                                    <span class="flex items-center gap-1"><span class="inline-block h-2.5 w-2.5 rounded-sm bg-danger" />&lt; 5</span>
+                                </div>
+                            </div>
+                        </template>
+
+                        <div v-if="wellbeingTrend.length" class="flex h-36 items-end gap-1.5">
+                            <div
+                                v-for="item in wellbeingTrend"
+                                :key="item.date"
+                                class="flex h-full min-w-0 flex-1 flex-col justify-end gap-1.5"
+                                :title="`${formatShortDate(item.date)}: Ø ${item.avg_score} (${item.entries} Einträge)`"
+                            >
+                                <span class="text-center text-[11px] font-semibold tabular-nums text-ink">{{ item.avg_score }}</span>
+                                <span class="w-full rounded-t-lg" :class="wellbeingColor(item.avg_score)"
+                                    :style="{ height: share(parseFloat(item.avg_score), 10) + '%' }" />
+                                <span class="truncate text-center text-[10px] text-ink-3">{{ formatShortDate(item.date) }}</span>
+                            </div>
+                        </div>
+                        <p v-else class="py-10 text-center text-sm text-ink-3">Keine Wellbeing-Einträge in den letzten 14 Tagen</p>
+                    </AppCard>
+
+                    <AppCard title="Coach-Verteilung">
+                        <div v-if="coachDistribution.length" class="space-y-4">
+                            <div v-for="coach in coachDistribution" :key="coach.id" class="flex items-center gap-3">
+                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-field text-xs font-bold text-white"
+                                    :class="coachBg[coach.avatar_color] ?? 'bg-ink-3'">
+                                    {{ coach.avatar_initials }}
+                                </span>
+                                <div class="min-w-0 flex-1">
+                                    <div class="mb-1.5 flex items-center justify-between gap-2">
+                                        <span class="truncate text-sm font-medium text-ink">{{ coach.name }}</span>
+                                        <span class="shrink-0 text-xs tabular-nums text-ink-3">{{ coach.users_count }}</span>
+                                    </div>
+                                    <div class="h-2 w-full overflow-hidden rounded-full bg-surface-2">
+                                        <div class="h-full rounded-full transition-all"
+                                            :class="coachBg[coach.avatar_color] ?? 'bg-ink-3'"
+                                            :style="{ width: share(coach.users_count, maxCoach) + '%' }" />
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    <p v-else class="text-sm text-ink-3 py-8 text-center">Keine Coaches vorhanden</p>
+                        <p v-else class="py-10 text-center text-sm text-ink-3">Keine Coaches vorhanden</p>
+                    </AppCard>
                 </div>
-            </div>
+            </section>
 
-            <!-- ── Wellbeing-Trend ───────────────────────────────── -->
-            <div class="bg-surface rounded-card p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-sm font-semibold text-ink-2">Wellbeing-Trend (letzte 14 Tage, Plattform-Ø)</h2>
-                    <div class="flex items-center gap-3 text-xs text-ink-3">
-                        <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm bg-success inline-block"></span>≥ 7</span>
-                        <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm bg-warn inline-block"></span>5–7</span>
-                        <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm bg-danger inline-block"></span>&lt; 5</span>
-                    </div>
-                </div>
-                <div v-if="wellbeingTrend.length" class="w-full overflow-x-auto">
-                <div class="flex items-end gap-1.5 h-28 w-max min-w-full">
-                    <div v-for="item in wellbeingTrend" :key="item.date" class="w-8 shrink-0 flex flex-col items-center gap-1 group relative">
-                        <span class="text-xs text-ink-3">{{ item.avg_score }}</span>
-                        <div class="w-full rounded-t-md transition-all"
-                            :class="wellbeingColor(item.avg_score)"
-                            :style="{ height: barHeight(parseFloat(item.avg_score), maxWellbeing) + 'px' }">
-                        </div>
-                        <!-- Tooltip -->
-                        <div class="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 hidden group-hover:block z-10 bg-ink text-canvas text-[10px] rounded px-2 py-1 whitespace-nowrap pointer-events-none">
-                            {{ formatShortDate(item.date) }}: Ø {{ item.avg_score }} ({{ item.entries }} Einträge)
-                        </div>
-                        <span class="text-[10px] text-ink-3">{{ formatShortDate(item.date) }}</span>
-                    </div>
-                </div>
-                </div>
-                <p v-else class="text-sm text-ink-3 py-8 text-center">Keine Wellbeing-Einträge in den letzten 14 Tagen</p>
-            </div>
+            <!-- ── Bestand ───────────────────────────────────────── -->
+            <section>
+                <SectionHeader title="Bestand" />
 
-            <!-- ── Sekundäre Stats ───────────────────────────────── -->
-            <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                <div v-for="card in [
-                    { label: 'Onboarded',              value: stats.onboarded_users },
-                    { label: 'Admins',                 value: stats.admin_users     },
-                    { label: 'Strava-Verbunden',       value: stats.strava_users    },
-                    { label: 'Events gesamt',          value: stats.total_events    },
-                    { label: 'Wellbeing-Einträge',     value: stats.total_wellbeing },
-                ]" :key="card.label"
-                    class="bg-surface rounded-field p-4"
-                >
-                    <p class="text-xs text-ink-3">{{ card.label }}</p>
-                    <p class="mt-0.5 text-2xl font-bold text-ink">{{ card.value }}</p>
+                <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                    <StatTile label="Onboarded" :value="stats.onboarded_users" />
+                    <StatTile label="Admins"    :value="stats.admin_users" />
+                    <StatTile label="Strava"    :value="stats.strava_users" hint="verbunden" />
+                    <StatTile label="Events"    :value="stats.total_events" />
+                    <StatTile label="Wellbeing" :value="stats.total_wellbeing" hint="Einträge"
+                        class="col-span-2 lg:col-span-1" />
                 </div>
-            </div>
+            </section>
 
             <!-- ── Zuletzt registriert ───────────────────────────── -->
-            <div class="bg-surface rounded-card overflow-hidden">
-                <div class="flex items-center justify-between px-6 py-4 border-b border-line">
-                    <h2 class="text-sm font-semibold text-ink-2">Zuletzt registriert</h2>
-                    <Link :href="route('admin.users.index')" class="text-xs text-accent-ink hover:underline">
-                        Alle Nutzer →
-                    </Link>
-                </div>
-                <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <tbody class="divide-y divide-line">
-                        <tr v-for="u in recentUsers" :key="u.id" class="hover:bg-surface-2/50 transition-colors">
-                            <td class="px-6 py-3">
-                                <div class="flex items-center gap-3">
-                                    <div class="h-8 w-8 rounded-full bg-gradient-to-br from-ink-3 to-ink-3 flex items-center justify-center shrink-0">
-                                        <span class="text-xs font-bold text-white">{{ u.name.charAt(0).toUpperCase() }}</span>
-                                    </div>
-                                    <div>
-                                        <p class="font-medium text-ink">{{ u.name }}</p>
-                                        <p class="text-xs text-ink-3">{{ u.email }}</p>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="px-6 py-3 text-right">
-                                <span v-if="u.is_admin" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-danger-soft text-danger-ink mr-2">Admin</span>
-                                <span class="text-xs text-ink-3">{{ formatDate(u.created_at) }}</span>
-                            </td>
-                            <td class="px-6 py-3 text-right">
-                                <Link :href="route('admin.users.show', u.id)" class="text-xs text-accent-ink hover:underline">
-                                    Ansehen →
-                                </Link>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-                </div>
-            </div>
+            <section>
+                <SectionHeader title="Zuletzt registriert">
+                    <template #action>
+                        <Link :href="route('admin.users.index')"
+                            class="text-sm font-medium text-accent-ink hover:underline">
+                            Alle Nutzer
+                        </Link>
+                    </template>
+                </SectionHeader>
+
+                <AppCard flush>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <tbody class="divide-y divide-line">
+                                <tr v-for="u in recentUsers" :key="u.id" class="transition-colors hover:bg-surface-2/50">
+                                    <td class="px-5 py-3.5">
+                                        <div class="flex items-center gap-3">
+                                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink-3 text-xs font-bold text-white">
+                                                {{ u.name.charAt(0).toUpperCase() }}
+                                            </span>
+                                            <div class="min-w-0">
+                                                <p class="truncate font-medium text-ink">{{ u.name }}</p>
+                                                <p class="truncate text-xs text-ink-3">{{ u.email }}</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="whitespace-nowrap px-5 py-3.5 text-right">
+                                        <span v-if="u.is_admin"
+                                            class="mr-2 inline-flex items-center rounded-full bg-danger-soft px-2 py-0.5 text-xs font-medium text-danger-ink">
+                                            Admin
+                                        </span>
+                                        <span class="text-xs text-ink-3">{{ formatDate(u.created_at) }}</span>
+                                    </td>
+                                    <td class="whitespace-nowrap px-5 py-3.5 text-right">
+                                        <Link :href="route('admin.users.show', u.id)"
+                                            class="text-xs font-medium text-accent-ink hover:underline">
+                                            Ansehen
+                                        </Link>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </AppCard>
+            </section>
 
         </div>
     </AdminLayout>

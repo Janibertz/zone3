@@ -65,14 +65,14 @@ const prettyResponse = computed(() => {
                         <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                     </svg>
                 </Link>
-                <h1 class="text-xl font-bold text-ink">AI Log #{{ log.id }}</h1>
+                <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">AI Log #{{ log.id }}</h1>
             </div>
         </template>
 
         <div class="px-4 py-4 lg:px-6 lg:py-6 space-y-6">
 
             <!-- ── Meta Card ── -->
-            <div class="bg-surface rounded-card p-6">
+            <div class="bg-surface rounded-card p-6 shadow-card">
                 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
                     <div>
                         <p class="text-xs text-ink-3 mb-1">Zeitpunkt</p>
@@ -134,7 +134,7 @@ const prettyResponse = computed(() => {
             </div>
 
             <!-- ── Prompt ── -->
-            <div class="bg-surface rounded-card overflow-hidden">
+            <div class="bg-surface rounded-card overflow-hidden shadow-card">
                 <div class="flex items-center justify-between px-5 py-4 border-b border-line">
                     <h2 class="text-sm font-semibold text-ink">Prompt (User-Nachricht)</h2>
                     <button
@@ -151,7 +151,7 @@ const prettyResponse = computed(() => {
             </div>
 
             <!-- ── Response ── -->
-            <div class="bg-surface rounded-card overflow-hidden">
+            <div class="bg-surface rounded-card overflow-hidden shadow-card">
                 <div class="flex items-center justify-between px-5 py-4 border-b border-line">
                     <h2 class="text-sm font-semibold text-ink">Response (Modell-Antwort)</h2>
                     <button

@@ -76,7 +76,7 @@ function guessType(message) {
                         </div>
 
                         <!-- Card -->
-                        <div class="bg-surface rounded-card border border-line overflow-hidden">
+                        <div class="bg-surface rounded-card overflow-hidden shadow-card">
                             <!-- Header -->
                             <div class="p-4 flex items-start justify-between gap-3">
                                 <div class="flex-1 min-w-0">

@@ -1,7 +1,13 @@
 <script setup>
-import { computed } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { computed, ref, watch } from 'vue';
+import { Head } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import AppCard from '@/Components/UI/AppCard.vue';
+import AppButton from '@/Components/UI/AppButton.vue';
+import StatTile from '@/Components/UI/StatTile.vue';
+import SectionHeader from '@/Components/UI/SectionHeader.vue';
+import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
+import EmptyState from '@/Components/UI/EmptyState.vue';
 
 const props = defineProps({
     monthlyStats: Array,
@@ -10,23 +16,12 @@ const props = defineProps({
     totals:       Object,
 });
 
-function maxVal(data, key = 'km') {
-    return Math.max(...data.map(d => d[key]), 1);
-}
+const hasData = computed(() => (props.totals?.runs ?? 0) > 0);
 
-function barHeight(val, max, totalHeight = 100) {
-    return Math.max((val / max) * totalHeight, val > 0 ? 3 : 0);
-}
-
-const paceTrendMin = computed(() => Math.min(...props.paceTrend.map(p => p.pace_sec)));
-const paceTrendMax = computed(() => Math.max(...props.paceTrend.map(p => p.pace_sec)));
-
-function paceBarHeight(paceSec, totalHeight = 90) {
-    const range = paceTrendMax.value - paceTrendMin.value || 1;
-    return Math.max((1 - (paceSec - paceTrendMin.value) / range) * totalHeight, 4);
-}
+/* ── Formatierung ──────────────────────────────────────────────── */
 
 function formatTime(minutes) {
+    if (!minutes) return '0m';
     if (minutes < 60) return `${minutes}m`;
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
@@ -34,139 +29,409 @@ function formatTime(minutes) {
 }
 
 function fmtPace(sec) {
-    return `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2,'0')}`;
+    if (!Number.isFinite(sec)) return '–';
+    return `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
 }
+
+function km(v) {
+    return Number(v ?? 0).toLocaleString('de-DE', { maximumFractionDigits: 1 });
+}
+
+/* ── Volumen: eine Karte, zwei Zeiträume ───────────────────────── */
+
+const range = ref('weeks');
+const rangeOptions = [
+    { value: 'weeks',  label: '8 Wochen' },
+    { value: 'months', label: '12 Monate' },
+];
+
+const series = computed(() =>
+    range.value === 'weeks' ? (props.weeklyStats ?? []) : (props.monthlyStats ?? [])
+);
+
+// Angetippter Balken. Standard ist der aktuellste — der interessiert am meisten.
+const picked = ref(null);
+watch(range, () => { picked.value = null; });
+
+const activeIndex = computed(() => picked.value ?? series.value.length - 1);
+const active = computed(() => series.value[activeIndex.value] ?? null);
+
+const seriesMax = computed(() => Math.max(...series.value.map(d => d.km), 1));
+
+const seriesSummary = computed(() => {
+    const data = series.value;
+    if (!data.length) return null;
+
+    const total = data.reduce((sum, d) => sum + d.km, 0);
+
+    return {
+        total: Math.round(total * 10) / 10,
+        avg:   Math.round((total / data.length) * 10) / 10,
+    };
+});
+
+/**
+ * Der aktuelle Zeitraum läuft noch — ein Vergleich mit dem
+ * abgeschlossenen davor sagt trotzdem, wohin es geht.
+ */
+const momentum = computed(() => {
+    const data = series.value;
+    if (data.length < 2) return null;
+
+    const current  = data[data.length - 1].km;
+    const previous = data[data.length - 2].km;
+    if (!previous) return null;
+
+    const diff = current - previous;
+    return {
+        diff:    Math.round(diff * 10) / 10,
+        percent: Math.round((diff / previous) * 100),
+        up:      diff >= 0,
+    };
+});
+
+function barHeight(value) {
+    if (!value) return 2;
+    return Math.max((value / seriesMax.value) * 100, 4);
+}
+
+/* ── Pace-Trend ────────────────────────────────────────────────── */
+
+const paceRuns = computed(() => props.paceTrend ?? []);
+
+const paceStats = computed(() => {
+    const runs = paceRuns.value;
+    if (!runs.length) return null;
+
+    const secs = runs.map(r => r.pace_sec);
+    const fastest = Math.min(...secs);
+    const slowest = Math.max(...secs);
+
+    // Erste gegen zweite Hälfte — grob, aber ehrlich.
+    const half  = Math.floor(runs.length / 2);
+    const mean  = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+    const shift = half > 0 ? mean(secs.slice(0, half)) - mean(secs.slice(half)) : 0;
+
+    return {
+        fastest,
+        slowest,
+        avg:   mean(secs),
+        shift: Math.round(shift),
+        span:  slowest - fastest || 1,
+    };
+});
+
+const pickedRun = ref(null);
+const activeRunIndex = computed(() => pickedRun.value ?? paceRuns.value.length - 1);
+const activeRun = computed(() => paceRuns.value[activeRunIndex.value] ?? null);
+
+/** 0 = langsamster Lauf (unten), 100 = schnellster (oben). */
+function paceY(sec) {
+    const s = paceStats.value;
+    if (!s) return 50;
+    return ((s.slowest - sec) / s.span) * 100;
+}
+
+function pointX(index) {
+    const n = paceRuns.value.length;
+    if (n < 2) return 50;
+    return (index / (n - 1)) * 100;
+}
+
+/** Kurve im 0–100-Koordinatenraum; der Pfad wird per CSS gestreckt. */
+const paceLine = computed(() =>
+    paceRuns.value
+        .map((r, i) => `${i === 0 ? 'M' : 'L'}${pointX(i).toFixed(2)},${(100 - paceY(r.pace_sec)).toFixed(2)}`)
+        .join(' ')
+);
+
+const paceArea = computed(() => {
+    if (paceRuns.value.length < 2) return '';
+    return `${paceLine.value} L100,100 L0,100 Z`;
+});
+
+/* ── Höhepunkte ────────────────────────────────────────────────── */
+
+function peak(list) {
+    if (!list?.length) return null;
+    const best = list.reduce((a, b) => (b.km > a.km ? b : a), list[0]);
+    return best.km > 0 ? best : null;
+}
+
+const bestWeek  = computed(() => peak(props.weeklyStats));
+const bestMonth = computed(() => peak(props.monthlyStats));
+
+const longestRun = computed(() => {
+    const runs = paceRuns.value;
+    if (!runs.length) return null;
+    return runs.reduce((a, b) => (b.distance > a.distance ? b : a), runs[0]);
+});
+
+const avgDistance = computed(() => {
+    const t = props.totals;
+    if (!t?.runs) return null;
+    return Math.round((t.km / t.runs) * 10) / 10;
+});
 </script>
 
 <template>
+    <Head title="Statistiken" />
+
     <AuthenticatedLayout>
-        <div class="px-4 lg:px-6 py-4 lg:py-6">
+        <div class="min-h-screen bg-canvas">
+            <div class="space-y-6 px-4 py-4 lg:px-6 lg:py-6">
 
-            <!-- Header -->
-            <div class="mb-4 sm:mb-6 flex items-start justify-between gap-3">
-                <div>
-                    <h1 class="text-xl sm:text-2xl font-bold text-ink">Statistiken</h1>
-                    <p class="mt-0.5 text-xs sm:text-sm text-ink-3">Deine Laufanalyse auf einen Blick</p>
-                </div>
-                <Link :href="route('wrapped.index')"
-                    class="shrink-0 inline-flex items-center gap-1.5 rounded-field bg-gradient-to-br from-accent to-accent px-3.5 py-2 text-sm font-semibold text-white shadow-card hover:opacity-90 transition-opacity">
-                    🎁 Rückblick
-                </Link>
-            </div>
-
-            <!-- KPI Grid — 2x2 on mobile, 4-col on sm+ -->
-            <div class="grid grid-cols-2 gap-2.5 sm:gap-3 mb-4 sm:mb-5">
-                <div class="bg-surface rounded-card border border-line p-4">
-                    <p class="text-xs text-ink-3 font-medium">Läufe gesamt</p>
-                    <p class="text-2xl sm:text-3xl font-bold text-ink mt-1 tabular-nums">{{ totals.runs }}</p>
-                </div>
-                <div class="bg-surface rounded-card border border-line p-4">
-                    <p class="text-xs text-ink-3 font-medium">Kilometer</p>
-                    <p class="text-2xl sm:text-3xl font-bold text-ink mt-1 tabular-nums">{{ totals.km.toLocaleString('de-DE') }}</p>
-                </div>
-                <div class="bg-surface rounded-card border border-line p-4">
-                    <p class="text-xs text-ink-3 font-medium">Laufzeit</p>
-                    <p class="text-2xl sm:text-3xl font-bold text-ink mt-1">{{ formatTime(totals.time_min) }}</p>
-                </div>
-                <div class="bg-surface rounded-card border border-line p-4">
-                    <p class="text-xs text-ink-3 font-medium">Ø Pace</p>
-                    <p class="text-2xl sm:text-3xl font-bold text-ink mt-1 tabular-nums">{{ totals.avg_pace ?? '–' }}</p>
-                    <p v-if="totals.avg_pace" class="text-xs text-ink-3">min/km</p>
-                </div>
-            </div>
-
-            <!-- Monthly volume — horizontal scroll on mobile so all 12 bars always visible -->
-            <div class="bg-surface rounded-card border border-line p-4 sm:p-5 mb-3">
-                <h2 class="text-sm font-semibold text-ink mb-4">Monatliches Volumen</h2>
-                <div v-if="monthlyStats.every(m => m.km === 0)" class="text-center py-8 text-sm text-ink-3">
-                    Noch keine Daten
-                </div>
-                <div v-else class="overflow-x-auto -mx-1 px-1" style="scrollbar-width:none;">
-                    <div class="flex items-end gap-1.5 h-28" :style="{ minWidth: monthlyStats.length * 32 + 'px' }">
-                        <div
-                            v-for="month in monthlyStats"
-                            :key="month.label"
-                            class="flex-1 flex flex-col items-center gap-1 group min-w-[28px]"
-                            :title="`${month.label}: ${month.km} km`"
-                        >
-                            <span class="text-[10px] text-accent-ink font-semibold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap leading-none">
-                                {{ month.km }}
-                            </span>
-                            <div
-                                class="w-full rounded-t transition-all duration-500"
-                                :class="month.km > 0 ? 'bg-accent' : 'bg-surface-2'"
-                                :style="{ height: barHeight(month.km, maxVal(monthlyStats)) + 'px' }"
-                            />
-                            <span class="text-[9px] text-ink-3 leading-none whitespace-nowrap">{{ month.label }}</span>
-                        </div>
+                <header class="flex items-end justify-between gap-3 px-1">
+                    <div class="min-w-0">
+                        <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Statistiken</h1>
+                        <p class="mt-1 text-[15px] text-ink-3">Deine Laufanalyse auf einen Blick</p>
                     </div>
-                </div>
-            </div>
+                    <AppButton :href="route('wrapped.index')" variant="secondary" size="sm" class="shrink-0">
+                        <span aria-hidden="true">🎁</span> Rückblick
+                    </AppButton>
+                </header>
 
-            <!-- Weekly volume -->
-            <div class="bg-surface rounded-card border border-line p-4 sm:p-5 mb-3">
-                <h2 class="text-sm font-semibold text-ink mb-4">Wöchentliches Volumen <span class="font-normal text-ink-3">(8 Wochen)</span></h2>
-                <div v-if="weeklyStats.every(w => w.km === 0)" class="text-center py-8 text-sm text-ink-3">
-                    Noch keine Daten
-                </div>
-                <div v-else class="flex items-end gap-2 h-28">
-                    <div
-                        v-for="week in weeklyStats"
-                        :key="week.label"
-                        class="flex-1 flex flex-col items-center gap-1 group"
-                        :title="`${week.label}: ${week.km} km`"
-                    >
-                        <span class="text-[10px] text-accent-ink font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
-                            {{ week.km }}
-                        </span>
-                        <div
-                            class="w-full rounded-t transition-all duration-500"
-                            :class="week.km > 0 ? 'bg-accent' : 'bg-surface-2'"
-                            :style="{ height: barHeight(week.km, maxVal(weeklyStats)) + 'px' }"
+                <template v-if="hasData">
+                    <!-- ── Gesamtbilanz ───────────────────────────── -->
+                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                        <StatTile label="Läufe" :value="totals.runs" />
+                        <StatTile label="Distanz" :value="km(totals.km)" unit="km" />
+                        <StatTile label="Laufzeit" :value="formatTime(totals.time_min)" />
+                        <StatTile
+                            label="Ø Pace"
+                            :value="totals.avg_pace ?? '–'"
+                            :unit="totals.avg_pace ? '/km' : null"
+                            hint="letzte 20 Läufe"
+                            tone="accent"
                         />
-                        <span class="text-[10px] text-ink-3 leading-none">{{ week.label }}</span>
+                        <StatTile
+                            label="Höhenmeter"
+                            :value="(totals.elevation ?? 0).toLocaleString('de-DE')"
+                            unit="hm"
+                            class="col-span-2 sm:col-span-1"
+                        />
                     </div>
-                </div>
-            </div>
 
-            <!-- Pace trend — horizontal scroll on mobile -->
-            <div class="bg-surface rounded-card border border-line p-4 sm:p-5">
-                <div class="flex items-start justify-between mb-1">
-                    <h2 class="text-sm font-semibold text-ink">Pace-Trend</h2>
-                    <span class="text-xs text-ink-3">letzte 20 Läufe</span>
-                </div>
-                <p class="text-xs text-ink-3 mb-4">Höhere Balken = schnellere Pace</p>
+                    <!-- ── Verlauf ────────────────────────────────── -->
+                    <section>
+                        <SectionHeader title="Verlauf" />
 
-                <div v-if="paceTrend.length === 0" class="text-center py-8 text-sm text-ink-3">
-                    Noch keine Läufe vorhanden
-                </div>
-                <div v-else class="overflow-x-auto -mx-1 px-1" style="scrollbar-width:none;">
-                    <div class="flex items-end gap-1.5 h-24" :style="{ minWidth: paceTrend.length * 28 + 'px' }">
-                        <div
-                            v-for="run in paceTrend"
-                            :key="run.date + run.name"
-                            class="flex-1 flex flex-col items-center gap-1 group min-w-[22px]"
-                            :title="`${run.date}\n${run.name}\n${run.pace_label} /km`"
-                        >
-                            <span class="text-[9px] text-success-ink font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap leading-none">
-                                {{ run.pace_label }}
-                            </span>
-                            <div
-                                class="w-full rounded-t bg-success transition-all duration-500"
-                                :style="{ height: paceBarHeight(run.pace_sec) + 'px' }"
-                            />
-                            <span class="text-[8px] text-ink-3 leading-none">{{ run.date }}</span>
+                        <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
+
+                            <!-- Volumen -->
+                            <AppCard flush class="xl:col-span-2">
+                                <div class="flex flex-col gap-4 p-5 pb-0 sm:flex-row sm:items-start sm:justify-between">
+                                    <div class="min-w-0">
+                                        <p class="text-[13px] font-medium text-ink-3">{{ active?.label ?? 'Volumen' }}</p>
+                                        <p class="mt-1 flex items-baseline gap-1.5">
+                                            <span class="text-3xl font-bold tabular-nums tracking-tight text-ink">{{ km(active?.km ?? 0) }}</span>
+                                            <span class="text-sm font-medium text-ink-3">km</span>
+                                        </p>
+                                        <p class="mt-1 text-[13px] text-ink-3">
+                                            {{ active?.runs ?? 0 }} {{ (active?.runs ?? 0) === 1 ? 'Lauf' : 'Läufe' }}
+                                            <template v-if="active?.time_min"> · {{ formatTime(active.time_min) }}</template>
+                                        </p>
+                                    </div>
+
+                                    <div class="shrink-0 sm:w-56">
+                                        <SegmentedControl v-model="range" :options="rangeOptions" />
+                                    </div>
+                                </div>
+
+                                <div class="flex h-44 items-end gap-1.5 px-5 pt-5 sm:gap-2">
+                                    <button
+                                        v-for="(bucket, i) in series"
+                                        :key="bucket.label"
+                                        type="button"
+                                        class="group flex h-full min-w-0 flex-1 flex-col justify-end rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                                        :aria-label="`${bucket.label}: ${bucket.km} km`"
+                                        :aria-pressed="i === activeIndex"
+                                        @click="picked = i"
+                                        @mouseenter="picked = i"
+                                    >
+                                        <span
+                                            class="w-full rounded-t-lg transition-all duration-300"
+                                            :class="bucket.km === 0
+                                                ? 'bg-surface-2'
+                                                : i === activeIndex
+                                                    ? 'bg-accent'
+                                                    : 'bg-accent/25 group-hover:bg-accent/50'"
+                                            :style="{ height: barHeight(bucket.km) + '%' }"
+                                        />
+                                    </button>
+                                </div>
+
+                                <div class="flex gap-1.5 px-5 pt-2 sm:gap-2">
+                                    <span
+                                        v-for="(bucket, i) in series"
+                                        :key="bucket.label"
+                                        class="min-w-0 flex-1 truncate text-center text-[10px] leading-none transition-colors sm:text-[11px]"
+                                        :class="i === activeIndex ? 'font-semibold text-ink' : 'text-ink-3'"
+                                    >{{ bucket.label }}</span>
+                                </div>
+
+                                <div v-if="seriesSummary" class="mt-5 grid grid-cols-3 divide-x divide-line border-t border-line">
+                                    <div class="px-5 py-3.5">
+                                        <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Gesamt</p>
+                                        <p class="mt-1 text-[15px] font-semibold tabular-nums text-ink">{{ km(seriesSummary.total) }} km</p>
+                                    </div>
+                                    <div class="px-5 py-3.5">
+                                        <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">
+                                            Ø {{ range === 'weeks' ? 'Woche' : 'Monat' }}
+                                        </p>
+                                        <p class="mt-1 text-[15px] font-semibold tabular-nums text-ink">{{ km(seriesSummary.avg) }} km</p>
+                                    </div>
+                                    <div class="px-5 py-3.5">
+                                        <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Trend</p>
+                                        <p v-if="momentum"
+                                            class="mt-1 text-[15px] font-semibold tabular-nums"
+                                            :class="momentum.up ? 'text-success' : 'text-ink-2'">
+                                            {{ momentum.up ? '+' : '' }}{{ momentum.percent }}%
+                                        </p>
+                                        <p v-else class="mt-1 text-[15px] font-semibold text-ink-3">–</p>
+                                    </div>
+                                </div>
+                            </AppCard>
+
+                            <!-- Pace-Trend -->
+                            <AppCard flush>
+                                <div class="flex items-start justify-between gap-3 p-5 pb-0">
+                                    <div class="min-w-0">
+                                        <p class="text-[13px] font-medium text-ink-3">Pace-Trend</p>
+                                        <p class="mt-1 flex items-baseline gap-1.5">
+                                            <span class="text-3xl font-bold tabular-nums tracking-tight text-ink">{{ activeRun?.pace_label ?? '–' }}</span>
+                                            <span class="text-sm font-medium text-ink-3">/km</span>
+                                        </p>
+                                        <p v-if="activeRun" class="mt-1 truncate text-[13px] text-ink-3">
+                                            {{ activeRun.date }} · {{ activeRun.distance }} km
+                                        </p>
+                                    </div>
+                                    <span v-if="paceStats && paceStats.shift !== 0"
+                                        class="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                                        :class="paceStats.shift > 0 ? 'bg-success-soft text-success-ink' : 'bg-surface-2 text-ink-2'"
+                                        :title="paceStats.shift > 0 ? 'Zuletzt schneller unterwegs' : 'Zuletzt langsamer unterwegs'">
+                                        {{ paceStats.shift > 0 ? '−' : '+' }}{{ Math.abs(paceStats.shift) }}s
+                                    </span>
+                                </div>
+
+                                <div v-if="paceRuns.length > 1" class="relative mt-4 h-44 px-5">
+                                    <svg class="h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                        <defs>
+                                            <linearGradient id="paceFade" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stop-color="rgb(var(--z-success))" stop-opacity="0.28" />
+                                                <stop offset="100%" stop-color="rgb(var(--z-success))" stop-opacity="0" />
+                                            </linearGradient>
+                                        </defs>
+                                        <path :d="paceArea" fill="url(#paceFade)" />
+                                        <path
+                                            :d="paceLine"
+                                            fill="none"
+                                            stroke="rgb(var(--z-success))"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            vector-effect="non-scaling-stroke"
+                                        />
+                                    </svg>
+
+                                    <!-- Marker liegt darüber, damit er rund bleibt -->
+                                    <span
+                                        v-if="activeRun"
+                                        class="pointer-events-none absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface bg-success transition-all duration-200"
+                                        :style="{
+                                            left: `calc(1.25rem + (100% - 2.5rem) * ${pointX(activeRunIndex) / 100})`,
+                                            top:  `${100 - paceY(activeRun.pace_sec)}%`,
+                                        }"
+                                    />
+
+                                    <div class="absolute inset-0 flex px-5">
+                                        <button
+                                            v-for="(run, i) in paceRuns"
+                                            :key="run.date + run.name + i"
+                                            type="button"
+                                            class="h-full min-w-0 flex-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
+                                            :aria-label="`${run.date}: ${run.pace_label} pro Kilometer`"
+                                            @click="pickedRun = i"
+                                            @mouseenter="pickedRun = i"
+                                        />
+                                    </div>
+                                </div>
+
+                                <p v-else class="px-5 py-12 text-center text-sm text-ink-3">
+                                    Noch zu wenig Läufe für einen Trend
+                                </p>
+
+                                <div v-if="paceStats" class="mt-5 grid grid-cols-3 divide-x divide-line border-t border-line">
+                                    <div class="px-4 py-3.5">
+                                        <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Schnellste</p>
+                                        <p class="mt-1 text-[15px] font-semibold tabular-nums text-success">{{ fmtPace(paceStats.fastest) }}</p>
+                                    </div>
+                                    <div class="px-4 py-3.5">
+                                        <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Ø</p>
+                                        <p class="mt-1 text-[15px] font-semibold tabular-nums text-ink">{{ fmtPace(paceStats.avg) }}</p>
+                                    </div>
+                                    <div class="px-4 py-3.5">
+                                        <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Langsamste</p>
+                                        <p class="mt-1 text-[15px] font-semibold tabular-nums text-ink-2">{{ fmtPace(paceStats.slowest) }}</p>
+                                    </div>
+                                </div>
+                            </AppCard>
                         </div>
-                    </div>
-                </div>
+                    </section>
 
-                <!-- Legend -->
-                <div v-if="paceTrend.length > 0" class="mt-3 flex items-center justify-between text-xs text-ink-3 border-t border-line pt-3">
-                    <span>Schnellste <strong class="text-ink">{{ fmtPace(paceTrendMin) }} /km</strong></span>
-                    <span>Langsamste <strong class="text-ink">{{ fmtPace(paceTrendMax) }} /km</strong></span>
-                </div>
+                    <!-- ── Höhepunkte ─────────────────────────────── -->
+                    <section>
+                        <SectionHeader title="Höhepunkte" />
+
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            <StatTile
+                                v-if="bestWeek"
+                                label="Beste Woche"
+                                :value="km(bestWeek.km)"
+                                unit="km"
+                                :hint="`${bestWeek.label} · ${bestWeek.runs} Läufe`"
+                            />
+                            <StatTile
+                                v-if="bestMonth"
+                                label="Bester Monat"
+                                :value="km(bestMonth.km)"
+                                unit="km"
+                                :hint="`${bestMonth.label} · ${bestMonth.runs} Läufe`"
+                            />
+                            <StatTile
+                                v-if="longestRun"
+                                label="Längster Lauf"
+                                :value="longestRun.distance"
+                                unit="km"
+                                :hint="`${longestRun.date} · ${longestRun.pace_label} /km`"
+                            />
+                            <StatTile
+                                v-if="avgDistance"
+                                label="Ø pro Lauf"
+                                :value="km(avgDistance)"
+                                unit="km"
+                                :hint="`über ${totals.runs} Läufe`"
+                            />
+                        </div>
+                    </section>
+                </template>
+
+                <!-- ── Ohne Daten ─────────────────────────────────── -->
+                <AppCard v-else>
+                    <EmptyState
+                        title="Noch keine Läufe"
+                        description="Sobald deine ersten Aktivitäten da sind, entsteht hier deine Auswertung."
+                    >
+                        <template #icon>
+                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+                            </svg>
+                        </template>
+                        <AppButton :href="route('activities.index')" variant="secondary">Aktivitäten ansehen</AppButton>
+                    </EmptyState>
+                </AppCard>
+
             </div>
-
         </div>
     </AuthenticatedLayout>
 </template>

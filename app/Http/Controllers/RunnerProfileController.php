@@ -6,23 +6,9 @@ use App\Models\RunnerProfile;
 use App\Services\OpenAIService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Inertia\Inertia;
 
 class RunnerProfileController extends Controller
 {
-    /**
-     * Show the profile setup form
-     */
-    public function show()
-    {
-        $user = Auth::user();
-        $profile = $user->runnerProfile;
-
-        return Inertia::render('Profile/Setup', [
-            'profile' => $profile,
-        ]);
-    }
-
     /**
      * Store or update runner profile with zone calculations
      */

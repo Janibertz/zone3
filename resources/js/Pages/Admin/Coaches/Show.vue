@@ -117,7 +117,7 @@ const promptCharCount = computed(() => form.value.personality_prompt?.length ?? 
             </div>
 
             <!-- Edit form -->
-            <div class="bg-surface rounded-card p-6 space-y-5">
+            <div class="bg-surface rounded-card p-6 space-y-5 shadow-card">
                 <h2 class="text-sm font-semibold text-ink-2">Coach-Details bearbeiten</h2>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -177,7 +177,7 @@ const promptCharCount = computed(() => form.value.personality_prompt?.length ?? 
             </div>
 
             <!-- Recent athletes -->
-            <div v-if="recentUsers?.length" class="bg-surface rounded-card p-5">
+            <div v-if="recentUsers?.length" class="bg-surface rounded-card p-5 shadow-card">
                 <h2 class="text-sm font-semibold text-ink-2 mb-4">Aktuelle Athleten (letzte 8)</h2>
                 <div class="space-y-2">
                     <div v-for="u in recentUsers" :key="u.id" class="flex items-center justify-between py-2 border-b border-line last:border-0">

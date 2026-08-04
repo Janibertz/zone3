@@ -59,7 +59,7 @@ const allNavItems = [...navItems, ...moreNavItems];
 </script>
 
 <template>
-    <div class="min-h-screen bg-surface-2">
+    <div class="min-h-screen bg-canvas">
 
         <!-- ══════════════════════════════════════
              DESKTOP SIDEBAR
@@ -67,7 +67,7 @@ const allNavItems = [...navItems, ...moreNavItems];
         <aside class="hidden lg:flex lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:w-64 flex-col bg-surface border-r border-line">
             <!-- Logo -->
             <div class="flex h-16 shrink-0 items-center gap-3 px-6 border-b border-line">
-                <div class="h-8 w-8 rounded-field bg-gradient-to-br from-danger to-danger flex items-center justify-center shadow-card">
+                <div class="h-8 w-8 rounded-field bg-danger flex items-center justify-center shadow-card">
                     <span class="text-white text-sm font-bold">Z3</span>
                 </div>
                 <div class="flex flex-col">
@@ -118,7 +118,7 @@ const allNavItems = [...navItems, ...moreNavItems];
                     {{ isDark ? 'Helles Design' : 'Dunkles Design' }}
                 </button>
                 <div class="flex items-center gap-3 px-2 py-2">
-                    <div class="h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-danger to-danger flex items-center justify-center shadow-card">
+                    <div class="h-9 w-9 shrink-0 rounded-full bg-danger flex items-center justify-center shadow-card">
                         <span class="text-sm font-bold text-white">{{ user.name.charAt(0).toUpperCase() }}</span>
                     </div>
                     <div class="min-w-0 flex-1">
@@ -156,7 +156,7 @@ const allNavItems = [...navItems, ...moreNavItems];
                     </svg>
                 </Link>
                 <div class="flex items-center gap-2">
-                    <div class="h-7 w-7 rounded-lg bg-gradient-to-br from-danger to-danger flex items-center justify-center shadow-card">
+                    <div class="h-7 w-7 rounded-lg bg-danger flex items-center justify-center shadow-card">
                         <span class="text-white text-xs font-bold">Z3</span>
                     </div>
                     <div class="flex flex-col">
@@ -197,10 +197,10 @@ const allNavItems = [...navItems, ...moreNavItems];
              ══════════════════════════════════════ -->
         <!-- pt-mobile-header accounts for h-14 + env(safe-area-inset-top) (Dynamic Island) -->
         <div class="lg:pl-64 flex flex-col min-h-screen pt-mobile-header lg:pt-0">
-            <header v-if="$slots.header" class="bg-surface border-b border-line">
-                <div class="px-4 sm:px-6 py-3 lg:py-4">
-                    <slot name="header" />
-                </div>
+            <!-- Titelzeile: sitzt auf dem Canvas, ohne Balken und Trennlinie —
+                 die Karten darunter tragen die Struktur. -->
+            <header v-if="$slots.header" class="px-4 pt-5 pb-1 sm:px-6 lg:pt-7">
+                <slot name="header" />
             </header>
             <main class="flex-1 pb-24 lg:pb-0">
                 <slot />
@@ -324,7 +324,7 @@ const allNavItems = [...navItems, ...moreNavItems];
 
                 <!-- User info -->
                 <div class="mx-3 mt-1 mb-2 rounded-field bg-surface-2 px-3 py-2.5 flex items-center gap-3">
-                    <div class="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-danger to-danger flex items-center justify-center">
+                    <div class="h-8 w-8 shrink-0 rounded-full bg-danger flex items-center justify-center">
                         <span class="text-xs font-bold text-white">{{ user.name.charAt(0).toUpperCase() }}</span>
                     </div>
                     <div class="flex-1 min-w-0">

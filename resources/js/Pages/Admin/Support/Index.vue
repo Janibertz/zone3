@@ -43,7 +43,7 @@ function formatDate(dt) {
     <Head title="Admin – Support" />
     <AdminLayout>
         <template #header>
-            <h1 class="text-xl font-bold text-ink">Support-Tickets</h1>
+            <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Support-Tickets</h1>
         </template>
 
         <div class="px-4 py-4 lg:px-6 lg:py-6 space-y-4">
@@ -62,7 +62,7 @@ function formatDate(dt) {
             </div>
 
             <!-- Ticket-Liste -->
-            <div class="bg-surface rounded-card overflow-hidden">
+            <div class="bg-surface rounded-card overflow-hidden shadow-card">
                 <div v-if="tickets.data.length === 0" class="px-6 py-12 text-center text-sm text-ink-3">
                     Keine Tickets in diesem Status.
                 </div>

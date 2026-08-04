@@ -1091,7 +1091,7 @@ const lapHeightPct = computed(() => {
                     <!-- Cancel plan (only when active and event not past) -->
                     <button v-if="currentPlan?.is_active && !isPastEvent"
                         @click="cancelModal = true"
-                        class="inline-flex items-center gap-1.5 rounded-field px-3 py-2.5 text-sm font-semibold text-danger-ink bg-danger-soft hover:opacity-90-soft transition-colors"
+                        class="inline-flex items-center gap-1.5 rounded-field px-3 py-2.5 text-sm font-semibold text-danger-ink bg-danger-soft hover:opacity-90 transition-colors"
                     >
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
                         Abbrechen
@@ -1375,7 +1375,7 @@ const lapHeightPct = computed(() => {
                                         v-if="session.status === 'planned' && isStrengthType(session.type) && session.planned_date <= today && !isPastEvent"
                                         @click="completeSession(session)"
                                         :disabled="completingId === session.id"
-                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-success-soft text-success-ink hover:opacity-90-soft disabled:opacity-50 transition-colors"
+                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-success-soft text-success-ink hover:opacity-90 disabled:opacity-50 transition-colors"
                                     >
                                         <svg v-if="completingId === session.id" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                                         <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
@@ -1386,7 +1386,7 @@ const lapHeightPct = computed(() => {
                                     <button
                                         v-if="session.status === 'planned' && !isPastEvent && !isStrengthType(session.type)"
                                         @click="openWorkoutPicker(session)"
-                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-accent-soft text-accent-ink hover:opacity-90-soft transition-colors"
+                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-accent-soft text-accent-ink hover:opacity-90 transition-colors"
                                     >
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
                                         Eigenes Workout
@@ -1407,7 +1407,7 @@ const lapHeightPct = computed(() => {
                                         v-if="isAdmin && session.type !== 'rest'"
                                         @click="resetSessionCache(session)"
                                         title="Admin: Steps & Nutrition-Cache leeren"
-                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-accent-soft text-accent-ink hover:opacity-90-soft transition-colors"
+                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-accent-soft text-accent-ink hover:opacity-90 transition-colors"
                                     >
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
                                         AI Reset

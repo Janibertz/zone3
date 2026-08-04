@@ -35,7 +35,7 @@ function formatTokens(n) {
 
     <AdminLayout>
         <template #header>
-            <h1 class="text-xl font-bold text-ink">Coaches</h1>
+            <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Coaches</h1>
         </template>
 
         <div class="p-4 sm:p-6 space-y-6">
@@ -48,7 +48,7 @@ function formatTokens(n) {
             <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div
                     v-for="coach in coaches" :key="coach.id"
-                    class="bg-surface border rounded-card overflow-hidden transition-shadow hover:shadow-md"
+                    class="bg-surface border rounded-card overflow-hidden transition-shadow hover:shadow-md shadow-card"
                     :class="coachColors[coach.avatar_color]?.border ?? 'border-line'"
                 >
                     <!-- Header -->

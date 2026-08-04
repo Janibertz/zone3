@@ -159,10 +159,10 @@ const zoneColors = [
             </div>
 
             <!-- ── User header ──────────────────────────────────── -->
-            <div class="bg-surface rounded-card p-6">
+            <div class="bg-surface rounded-card p-6 shadow-card">
                 <div class="flex flex-col sm:flex-row items-start sm:items-center gap-5">
                     <div class="h-16 w-16 rounded-card flex items-center justify-center text-xl font-bold text-white shadow-card shrink-0"
-                        :class="user.is_admin ? 'bg-gradient-to-br from-danger to-danger' : 'bg-gradient-to-br from-ink-3 to-ink-3'"
+                        :class="user.is_admin ? 'bg-danger' : 'bg-ink-3'"
                     >
                         {{ user.name.charAt(0).toUpperCase() }}
                     </div>
@@ -254,7 +254,7 @@ const zoneColors = [
             <template v-if="activeTab === 'overview'">
 
                 <!-- Runner profile -->
-                <div class="bg-surface rounded-card p-6">
+                <div class="bg-surface rounded-card p-6 shadow-card">
                     <h2 class="text-sm font-semibold text-ink-2 mb-4">Athletenprofil</h2>
                     <div v-if="user.runner_profile" class="space-y-4">
                         <div class="grid grid-cols-3 gap-4 text-sm">
@@ -286,7 +286,7 @@ const zoneColors = [
                 </div>
 
                 <!-- Recent activities -->
-                <div class="bg-surface rounded-card overflow-hidden">
+                <div class="bg-surface rounded-card overflow-hidden shadow-card">
                     <div class="px-6 py-4 border-b border-line">
                         <h2 class="text-sm font-semibold text-ink-2">Letzte Aktivitäten</h2>
                     </div>
@@ -320,7 +320,7 @@ const zoneColors = [
                 </div>
 
                 <!-- Events / Race Goals -->
-                <div class="bg-surface rounded-card p-6">
+                <div class="bg-surface rounded-card p-6 shadow-card">
                     <h2 class="text-sm font-semibold text-ink-2 mb-4">Rennen & Ziele ({{ events.length }})</h2>
                     <div v-if="events.length" class="space-y-3">
                         <div
@@ -379,7 +379,7 @@ const zoneColors = [
             <template v-if="activeTab === 'ai'">
 
                 <!-- AI Rate Limit -->
-                <div class="bg-surface rounded-card px-5 py-4 flex items-center justify-between gap-4">
+                <div class="bg-surface rounded-card px-5 py-4 flex items-center justify-between gap-4 shadow-card">
                     <div>
                         <p class="text-sm font-semibold text-ink">AI-Tageslimit</p>
                         <p class="text-xs text-ink-3 mt-0.5">Heute genutzt: <strong class="text-ink-2">{{ aiTodayUsed }}</strong> / {{ user.ai_daily_limit ?? 20 }} Calls</p>
@@ -407,7 +407,7 @@ const zoneColors = [
                 </div>
 
                 <!-- By type -->
-                <div v-if="aiStats.by_type?.length" class="bg-surface rounded-card p-5">
+                <div v-if="aiStats.by_type?.length" class="bg-surface rounded-card p-5 shadow-card">
                     <h2 class="text-sm font-semibold text-ink-2 mb-4">Aufteilung nach Typ</h2>
                     <div class="space-y-2.5">
                         <div v-for="t in aiStats.by_type" :key="t.call_type" class="flex items-center gap-3">
@@ -425,7 +425,7 @@ const zoneColors = [
                 </div>
 
                 <!-- Last 10 AI calls -->
-                <div class="bg-surface rounded-card overflow-hidden">
+                <div class="bg-surface rounded-card overflow-hidden shadow-card">
                     <div class="px-5 py-4 border-b border-line flex items-center justify-between">
                         <h2 class="text-sm font-semibold text-ink-2">Letzte 10 AI-Calls</h2>
                         <Link :href="route('admin.ai-logs.index', { user_id: user.id })" class="text-xs text-danger hover:underline">
@@ -478,7 +478,7 @@ const zoneColors = [
             <template v-if="activeTab === 'wellbeing'">
 
                 <!-- 30-day chart -->
-                <div class="bg-surface rounded-card p-5">
+                <div class="bg-surface rounded-card p-5 shadow-card">
                     <h2 class="text-sm font-semibold text-ink-2 mb-4">Wellbeing-Score letzte 30 Einträge</h2>
                     <div v-if="wellbeingChart?.length" class="flex items-end gap-1 h-28">
                         <div
@@ -507,7 +507,7 @@ const zoneColors = [
                 </div>
 
                 <!-- Wellbeing table -->
-                <div class="bg-surface rounded-card p-6">
+                <div class="bg-surface rounded-card p-6 shadow-card">
                     <h2 class="text-sm font-semibold text-ink-2 mb-4">Letzte 14 Einträge</h2>
                     <div v-if="wellbeingEntries.length" class="overflow-x-auto">
                         <table class="w-full text-xs">

@@ -93,7 +93,7 @@ const maxTypeCalls = computed(() => Math.max(...(props.byType?.map(t => t.count)
 
     <AdminLayout>
         <template #header>
-            <h1 class="text-xl font-bold text-ink">AI Logs</h1>
+            <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">AI Logs</h1>
         </template>
 
         <div class="p-4 sm:p-6 space-y-6">
@@ -108,7 +108,7 @@ const maxTypeCalls = computed(() => Math.max(...(props.byType?.map(t => t.count)
                     { label: 'Fehler heute',  value: kpis.errors_today,               color: 'red'    },
                     { label: 'Kosten gesamt', value: formatCost(kpis.cost_total),     color: 'indigo' },
                 ]" :key="kpi.label"
-                    class="bg-surface rounded-card p-4"
+                    class="bg-surface rounded-card p-4 shadow-card"
                 >
                     <p class="text-xs text-ink-3 mb-1">{{ kpi.label }}</p>
                     <p class="text-xl font-bold text-ink">{{ kpi.value }}</p>
@@ -119,7 +119,7 @@ const maxTypeCalls = computed(() => Math.max(...(props.byType?.map(t => t.count)
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
                 <!-- Calls per day -->
-                <div class="bg-surface rounded-card p-5">
+                <div class="bg-surface rounded-card p-5 shadow-card">
                     <h2 class="text-sm font-semibold text-ink-2 mb-4">Calls letzte 30 Tage</h2>
                     <div v-if="callsPerDay?.length" class="flex items-end gap-1 h-28">
                         <div
@@ -140,7 +140,7 @@ const maxTypeCalls = computed(() => Math.max(...(props.byType?.map(t => t.count)
                 </div>
 
                 <!-- By type -->
-                <div class="bg-surface rounded-card p-5">
+                <div class="bg-surface rounded-card p-5 shadow-card">
                     <h2 class="text-sm font-semibold text-ink-2 mb-4">Aufteilung nach Typ</h2>
                     <div class="space-y-2">
                         <div v-for="t in byType" :key="t.call_type" class="flex items-center gap-3">
@@ -162,7 +162,7 @@ const maxTypeCalls = computed(() => Math.max(...(props.byType?.map(t => t.count)
             </div>
 
             <!-- ── Top Users ── -->
-            <div v-if="topUsers?.length" class="bg-surface rounded-card p-5">
+            <div v-if="topUsers?.length" class="bg-surface rounded-card p-5 shadow-card">
                 <h2 class="text-sm font-semibold text-ink-2 mb-4">Top 10 Nutzer nach Kosten</h2>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
@@ -192,7 +192,7 @@ const maxTypeCalls = computed(() => Math.max(...(props.byType?.map(t => t.count)
             </div>
 
             <!-- ── Filters ── -->
-            <div class="bg-surface rounded-card p-5">
+            <div class="bg-surface rounded-card p-5 shadow-card">
                 <div class="flex flex-wrap gap-3">
                     <select v-model="filterUserId" class="text-sm border border-line rounded-field px-3 py-2 bg-surface text-ink-2 focus:outline-none focus:ring-2 focus:ring-danger/40">
                         <option value="">Alle Nutzer</option>
@@ -213,7 +213,7 @@ const maxTypeCalls = computed(() => Math.max(...(props.byType?.map(t => t.count)
             </div>
 
             <!-- ── Log Table ── -->
-            <div class="bg-surface rounded-card overflow-hidden">
+            <div class="bg-surface rounded-card overflow-hidden shadow-card">
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead class="border-b border-line">

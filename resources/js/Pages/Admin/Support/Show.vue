@@ -51,7 +51,7 @@ function formatDate(dt) {
                 <Link :href="route('admin.support.index')" class="text-ink-3 hover:text-ink-2 transition-colors">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
                 </Link>
-                <h1 class="text-xl font-bold text-ink">Ticket #{{ ticket.id }}</h1>
+                <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Ticket #{{ ticket.id }}</h1>
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" :class="statusConfig[ticket.status]">
                     {{ statusOptions.find(s => s.value === ticket.status)?.label }}
                 </span>
@@ -66,7 +66,7 @@ function formatDate(dt) {
             </div>
 
             <!-- Ticket-Info + Status -->
-            <div class="bg-surface rounded-card px-5 py-4 flex items-start justify-between gap-4">
+            <div class="bg-surface rounded-card px-5 py-4 flex items-start justify-between gap-4 shadow-card">
                 <div>
                     <p class="text-sm font-semibold text-ink mb-1">{{ ticket.subject }}</p>
                     <p class="text-xs text-ink-3">Von {{ ticket.user?.name }} ({{ ticket.user?.email }}) · {{ formatDate(ticket.created_at) }}</p>
@@ -89,7 +89,7 @@ function formatDate(dt) {
                     <div class="h-8 w-8 rounded-full bg-accent-soft flex items-center justify-center shrink-0 text-accent-ink text-xs font-bold">
                         {{ ticket.user?.name?.charAt(0)?.toUpperCase() }}
                     </div>
-                    <div class="flex-1 bg-surface rounded-card rounded-tl-sm px-4 py-3">
+                    <div class="flex-1 bg-surface rounded-card rounded-tl-sm px-4 py-3 shadow-card">
                         <div class="flex items-center justify-between mb-1.5">
                             <span class="text-xs font-semibold text-ink-2">{{ ticket.user?.name }}</span>
                             <span class="text-xs text-ink-3">{{ formatDate(ticket.created_at) }}</span>
@@ -119,7 +119,7 @@ function formatDate(dt) {
             </div>
 
             <!-- Admin-Antwort -->
-            <div class="bg-surface rounded-card p-4 space-y-3">
+            <div class="bg-surface rounded-card p-4 space-y-3 shadow-card">
                 <p class="text-xs font-semibold text-ink-3 uppercase tracking-wider">Admin-Antwort</p>
                 <textarea v-model="reply" rows="4" placeholder="Antwort an den Nutzer…"
                     class="w-full rounded-field bg-surface px-3 py-2.5 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/40 resize-none" />

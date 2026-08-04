@@ -73,7 +73,7 @@ const filterOptions = [
 
     <AdminLayout>
         <template #header>
-            <h1 class="text-xl font-bold text-ink">Nutzerverwaltung</h1>
+            <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Nutzerverwaltung</h1>
         </template>
 
         <div class="p-4 sm:p-6 space-y-6">
@@ -96,7 +96,7 @@ const filterOptions = [
             </div>
 
             <!-- Table -->
-            <div class="bg-surface rounded-card overflow-hidden">
+            <div class="bg-surface rounded-card overflow-hidden shadow-card">
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead class="border-b border-line">
@@ -115,7 +115,7 @@ const filterOptions = [
                                 <td class="px-6 py-3">
                                     <div class="flex items-center gap-3">
                                         <div class="h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-card"
-                                            :class="u.is_admin ? 'bg-gradient-to-br from-danger to-danger' : 'bg-gradient-to-br from-ink-3 to-ink-3'"
+                                            :class="u.is_admin ? 'bg-danger' : 'bg-ink-3'"
                                         >
                                             {{ u.name.charAt(0).toUpperCase() }}
                                         </div>

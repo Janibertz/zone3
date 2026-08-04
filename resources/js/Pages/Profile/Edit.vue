@@ -27,14 +27,21 @@ const page = usePage();
 const user = computed(() => page.props.auth.user);
 const activeTab = ref('personal');
 
+const heroStats = computed(() => [
+    { label: 'Aktivitäten', value: props.athleteStats?.total_runs ?? 0 },
+    { label: 'km gesamt',   value: props.athleteStats?.total_km   ?? 0 },
+    { label: 'km längste',  value: props.athleteStats?.longest_km ?? 0 },
+    { label: 'Ø Pace',      value: props.athleteStats?.avg_pace   ?? '–' },
+]);
+
 const tabs = [
-    { key: 'personal',       label: 'Persönlich',         icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />' },
-    { key: 'coach',          label: 'Mein Coach',         icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />' },
-    { key: 'athlete',        label: 'Athletenprofil',     icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />' },
-    { key: 'notifications',  label: 'Benachrichtigungen', icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />' },
-    { key: 'connections',    label: 'Verbindungen',       icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />' },
-    { key: 'security',       label: 'Sicherheit',         icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />' },
-    { key: 'account',        label: 'Konto',              icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />' },
+    { key: 'personal',      label: 'Persönlich' },
+    { key: 'coach',         label: 'Mein Coach' },
+    { key: 'athlete',       label: 'Athletenprofil' },
+    { key: 'notifications', label: 'Benachrichtigungen' },
+    { key: 'connections',   label: 'Verbindungen' },
+    { key: 'security',      label: 'Sicherheit' },
+    { key: 'account',       label: 'Konto' },
 ];
 
 const distanceOptions = ['5 km', '10 km', 'Halbmarathon', 'Marathon', 'Ultra'];
@@ -487,29 +494,26 @@ async function disconnectGarmin() {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-const inputClass = 'block w-full rounded-field border border-line bg-surface-2 px-4 py-2.5 text-sm text-ink placeholder-ink-3 focus:border-accent focus:bg-surface focus:outline-none focus:ring-2 focus:ring-accent/40 transition-colors';
+// Die Formularfelder der App liegen in app.css (.z-input) — hier nur der Verweis.
+const inputClass = 'z-input';
 </script>
 
 <template>
     <Head title="Profil" />
     <AuthenticatedLayout>
-        <div class="px-3 sm:px-6 py-4 sm:py-8 space-y-5">
+        <div class="px-4 py-4 lg:px-6 lg:py-6 space-y-5">
 
             <!-- ══ PROFILE HERO ══ -->
-            <div class="bg-surface rounded-card border border-line shadow-card overflow-hidden">
+            <div class="bg-surface rounded-card shadow-card p-5 sm:p-6">
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
-                <!-- Cover gradient -->
-                <div class="h-24 sm:h-32 bg-gradient-to-br from-accent via-accent to-accent" />
-
-                <!-- Avatar + Info -->
-                <div class="px-5 sm:px-7 pb-5 sm:pb-6">
-                    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 -mt-10 sm:-mt-12">
+                    <div class="flex min-w-0 flex-1 items-center gap-4">
 
                         <!-- Avatar -->
                         <div class="relative shrink-0">
                             <button
                                 @click="triggerAvatarUpload"
-                                class="group relative h-20 w-20 sm:h-24 sm:w-24 rounded-card overflow-hidden border-4 border-white shadow-lg bg-gradient-to-br from-accent to-accent flex items-center justify-center hover:ring-2 hover:ring-accent transition-all"
+                                class="group relative h-20 w-20 sm:h-24 sm:w-24 rounded-full overflow-hidden bg-accent flex items-center justify-center transition-all hover:ring-2 hover:ring-accent hover:ring-offset-2 hover:ring-offset-surface"
                             >
                                 <img v-if="avatarUrl" :src="avatarUrl" alt="Profilbild" class="absolute inset-0 h-full w-full object-cover" @error="avatarImgError = true" />
                                 <span v-else class="text-2xl sm:text-3xl font-bold text-white select-none">{{ initials }}</span>
@@ -529,9 +533,9 @@ const inputClass = 'block w-full rounded-field border border-line bg-surface-2 p
                         </div>
 
                         <!-- Name + meta -->
-                        <div class="flex-1 min-w-0 pt-2 sm:pt-0 sm:pb-1">
-                            <h1 class="text-xl sm:text-2xl font-bold text-ink leading-tight">{{ user.name }}</h1>
-                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+                        <div class="flex-1 min-w-0">
+                            <h1 class="text-2xl font-bold tracking-tight text-ink leading-tight lg:text-3xl">{{ user.name }}</h1>
+                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
                                 <span v-if="user.location" class="flex items-center gap-1 text-sm text-ink-3">
                                     <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
                                     {{ user.location }}
@@ -544,59 +548,43 @@ const inputClass = 'block w-full rounded-field border border-line bg-surface-2 p
                                     {{ new Date().getFullYear() - user.birth_year }} Jahre
                                 </span>
                             </div>
-                            <p v-if="user.bio" class="mt-2 text-sm text-ink-2 leading-relaxed max-w-lg">{{ user.bio }}</p>
-                        </div>
-
-                        <!-- Edit button -->
-                        <div class="shrink-0">
-                            <button
-                                @click="activeTab = 'personal'"
-                                class="inline-flex items-center gap-2 rounded-field bg-accent-soft px-4 py-2 text-sm font-semibold text-accent-ink hover:opacity-90-soft transition-colors"
-                            >
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                                </svg>
-                                Bearbeiten
-                            </button>
                         </div>
                     </div>
 
-                    <!-- Stats row -->
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-5 border-t border-line">
-                        <div class="text-center">
-                            <p class="text-xl sm:text-2xl font-black text-ink">{{ athleteStats?.total_runs ?? 0 }}</p>
-                            <p class="text-xs text-ink-3 mt-0.5">Aktivitäten</p>
-                        </div>
-                        <div class="text-center">
-                            <p class="text-xl sm:text-2xl font-black text-ink">{{ athleteStats?.total_km ?? 0 }}</p>
-                            <p class="text-xs text-ink-3 mt-0.5">km gesamt</p>
-                        </div>
-                        <div class="text-center">
-                            <p class="text-xl sm:text-2xl font-black text-ink">{{ athleteStats?.longest_km ?? 0 }}</p>
-                            <p class="text-xs text-ink-3 mt-0.5">km längste</p>
-                        </div>
-                        <div class="text-center">
-                            <p class="text-xl sm:text-2xl font-black text-ink">{{ athleteStats?.avg_pace ?? '–' }}</p>
-                            <p class="text-xs text-ink-3 mt-0.5">Ø Pace</p>
-                        </div>
+                    <!-- Edit button -->
+                    <AppButton variant="secondary" size="sm" class="shrink-0 self-start sm:self-auto" @click="activeTab = 'personal'">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                        </svg>
+                        Bearbeiten
+                    </AppButton>
+                </div>
+
+                <p v-if="user.bio" class="mt-4 max-w-2xl text-[15px] leading-relaxed text-ink-2">{{ user.bio }}</p>
+
+                <!-- Stats row -->
+                <div class="mt-5 grid grid-cols-2 gap-y-4 border-t border-line pt-5 sm:grid-cols-4">
+                    <div v-for="stat in heroStats" :key="stat.label" class="min-w-0">
+                        <p class="text-2xl font-bold tabular-nums tracking-tight text-ink">{{ stat.value }}</p>
+                        <p class="mt-0.5 truncate text-xs font-medium uppercase tracking-wide text-ink-3">{{ stat.label }}</p>
                     </div>
                 </div>
             </div>
 
             <!-- ══ PERSÖNLICHE REKORDE ══ -->
-            <div v-if="hasAnyPr" class="bg-surface rounded-card border border-line shadow-card overflow-hidden">
-                <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line flex items-center gap-3">
+            <div v-if="hasAnyPr" class="bg-surface rounded-card shadow-card p-5 sm:p-6">
+                <div class="flex items-center gap-3">
                     <span class="text-xl">🏆</span>
                     <div>
-                        <h2 class="text-base font-semibold text-ink">Persönliche Rekorde</h2>
-                        <p class="mt-0.5 text-sm text-ink-3">Deine schnellsten Zeiten je Distanz – aus deinen Strava-Läufen</p>
+                        <h2 class="text-[15px] font-semibold text-ink">Persönliche Rekorde</h2>
+                        <p class="mt-0.5 text-[13px] text-ink-3">Deine schnellsten Zeiten je Distanz – aus deinen Strava-Läufen</p>
                     </div>
                 </div>
-                <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                     <div
                         v-for="dist in prDistances"
                         :key="dist.key"
-                        class="rounded-card border border-line p-4"
+                        class="rounded-card bg-surface-2 p-4"
                     >
                         <div class="flex items-center justify-between mb-3">
                             <h3 class="text-sm font-bold text-ink">{{ dist.label }}</h3>
@@ -608,10 +596,10 @@ const inputClass = 'block w-full rounded-field border border-line bg-surface-2 p
                             <li v-for="entry in dist.entries" :key="entry.rank">
                                 <Link
                                     :href="`/activities/${entry.activity_id}`"
-                                    class="flex items-center gap-3 rounded-field px-3 py-2 hover:bg-surface-2/60 transition-colors"
+                                    class="flex items-center gap-3 rounded-field px-2 py-2 transition-colors hover:bg-surface"
                                 >
                                     <span class="text-base w-6 text-center shrink-0">{{ medal(entry.rank) }}</span>
-                                    <span class="font-black tabular-nums text-ink">{{ entry.time_formatted }}</span>
+                                    <span class="font-bold tabular-nums text-ink">{{ entry.time_formatted }}</span>
                                     <span class="text-xs text-ink-3">{{ entry.pace }}/km</span>
                                     <span class="ml-auto text-xs text-ink-3 shrink-0">{{ entry.date }}</span>
                                 </Link>
@@ -622,23 +610,26 @@ const inputClass = 'block w-full rounded-field border border-line bg-surface-2 p
             </div>
 
             <!-- ══ TABS ══ -->
-            <div class="flex gap-1 bg-surface-2 rounded-card p-1 overflow-x-auto" style="-webkit-overflow-scrolling:touch;scrollbar-width:none;">
+            <div class="flex gap-1 overflow-x-auto rounded-full bg-surface-2 p-1" role="tablist"
+                style="-webkit-overflow-scrolling:touch;scrollbar-width:none;">
                 <button
                     v-for="tab in tabs"
                     :key="tab.key"
+                    type="button"
+                    role="tab"
+                    :aria-selected="activeTab === tab.key"
                     @click="activeTab = tab.key"
-                    class="shrink-0 flex items-center gap-2 px-3 py-2.5 rounded-field text-sm font-medium transition-all duration-150 whitespace-nowrap"
+                    class="shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all duration-150 active:scale-[0.98]"
                     :class="activeTab === tab.key
                         ? 'bg-surface text-ink shadow-card'
-                        : 'text-ink-3 hover:text-ink'"
+                        : 'text-ink-3 hover:text-ink-2'"
                 >
-                    <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="tab.icon" />
                     {{ tab.label }}
                 </button>
             </div>
 
             <!-- ══ TAB CONTENT ══ -->
-            <div class="bg-surface rounded-card border border-line shadow-card overflow-hidden">
+            <div class="bg-surface rounded-card shadow-card overflow-hidden">
 
                 <!-- ── PERSÖNLICH ── -->
                 <template v-if="activeTab === 'personal'">
@@ -978,7 +969,7 @@ const inputClass = 'block w-full rounded-field border border-line bg-surface-2 p
                         <p class="mt-0.5 text-sm text-ink-3">Erhalte Hinweise direkt im Browser — auch wenn die App nicht geöffnet ist</p>
                     </div>
                     <div class="p-4 sm:p-6 space-y-5">
-                        <div v-if="!pushSupported" class="rounded-field bg-surface-2 border border-line px-4 py-3 text-sm text-ink-3">Dein Browser unterstützt keine Push-Benachrichtigungen.</div>
+                        <div v-if="!pushSupported" class="rounded-field bg-surface-2 px-4 py-3 text-sm text-ink-3">Dein Browser unterstützt keine Push-Benachrichtigungen.</div>
                         <template v-else>
                             <div v-if="pushPermission === 'denied'" class="rounded-field bg-danger-soft border border-danger/25 px-4 py-3 text-sm text-danger-ink">Benachrichtigungen sind in deinem Browser blockiert.</div>
                             <div class="flex items-center justify-between gap-4 p-4 rounded-card bg-surface-2">
@@ -1095,7 +1086,7 @@ const inputClass = 'block w-full rounded-field border border-line bg-surface-2 p
                     <div class="p-4 sm:p-6 space-y-4">
 
                         <!-- Strava Card (umgezogen von Security) -->
-                        <div class="rounded-card border border-line overflow-hidden">
+                        <div class="rounded-card bg-surface-2 overflow-hidden">
                             <div class="flex items-center justify-between gap-4 px-4 py-4">
                                 <div class="flex items-center gap-3">
                                     <div class="h-10 w-10 rounded-field flex items-center justify-center shrink-0"
@@ -1124,7 +1115,7 @@ const inputClass = 'block w-full rounded-field border border-line bg-surface-2 p
                         </div>
 
                         <!-- Garmin Connect Card -->
-                        <div class="rounded-card border border-line overflow-hidden">
+                        <div class="rounded-card bg-surface-2 overflow-hidden">
                             <div class="flex items-center justify-between gap-4 px-4 py-4">
                                 <div class="flex items-center gap-3">
                                     <div class="h-10 w-10 rounded-field flex items-center justify-center shrink-0"
@@ -1255,7 +1246,7 @@ const inputClass = 'block w-full rounded-field border border-line bg-surface-2 p
                             <Link v-if="!props.stravaConnected" href="/strava/connect" class="inline-flex items-center gap-2 rounded-field bg-warn px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-colors shadow-card">Mit Strava verbinden</Link>
                             <template v-else>
                                 <Link href="/strava/connect" class="inline-flex items-center gap-2 rounded-field bg-surface-2 px-5 py-2.5 text-sm font-semibold text-ink-2 hover:bg-surface-3 transition-colors">Konto wechseln</Link>
-                                <button type="button" @click="confirmStravaDisconnect = true" class="inline-flex items-center gap-2 rounded-field bg-danger-soft border border-danger/25 px-5 py-2.5 text-sm font-semibold text-danger-ink hover:opacity-90-soft transition-colors">Strava trennen</button>
+                                <button type="button" @click="confirmStravaDisconnect = true" class="inline-flex items-center gap-2 rounded-field bg-danger-soft border border-danger/25 px-5 py-2.5 text-sm font-semibold text-danger-ink hover:opacity-90 transition-colors">Strava trennen</button>
                             </template>
                         </div>
                         <p v-if="props.stravaConnected" class="mt-3 text-xs text-ink-3">Beim Trennen werden alle importierten Aktivitäten aus Zone3 gelöscht. Deine Strava-Daten bleiben erhalten.</p>

@@ -54,7 +54,7 @@ const modelLabels = {
 
     <AdminLayout>
         <template #header>
-            <h1 class="text-xl font-bold text-ink">Einstellungen</h1>
+            <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Einstellungen</h1>
         </template>
 
         <div class="px-4 py-4 lg:px-6 lg:py-6 space-y-6">
@@ -70,7 +70,7 @@ const modelLabels = {
             </div>
 
             <!-- ── KI-Konfiguration ──────────────────────────────── -->
-            <div class="bg-surface rounded-card divide-y divide-line">
+            <div class="bg-surface rounded-card divide-y divide-line shadow-card">
                 <div class="px-6 py-4">
                     <h2 class="text-sm font-semibold text-ink-2">KI-Konfiguration</h2>
                     <p class="text-xs text-ink-3 mt-0.5">Konfiguration via OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MODEL_MINI</p>
@@ -148,7 +148,7 @@ const modelLabels = {
             </div>
 
             <!-- ── E-Mail ───────────────────────────────────────── -->
-            <div class="bg-surface rounded-card divide-y divide-line">
+            <div class="bg-surface rounded-card divide-y divide-line shadow-card">
                 <div class="px-6 py-4">
                     <h2 class="text-sm font-semibold text-ink-2">E-Mail</h2>
                     <p class="text-xs text-ink-3 mt-0.5">Konfiguration via MAIL_MAILER, MAIL_HOST, MAIL_FROM_ADDRESS</p>
@@ -171,7 +171,7 @@ const modelLabels = {
             </div>
 
             <!-- ── Push-Benachrichtigungen ───────────────────────── -->
-            <div class="bg-surface rounded-card divide-y divide-line">
+            <div class="bg-surface rounded-card divide-y divide-line shadow-card">
                 <div class="px-6 py-4">
                     <h2 class="text-sm font-semibold text-ink-2">Push-Benachrichtigungen</h2>
                     <p class="text-xs text-ink-3 mt-0.5">VAPID-Keys via VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY</p>
@@ -217,7 +217,7 @@ const modelLabels = {
             </div>
 
             <!-- ── Broadcast Push ──────────────────────────────── -->
-            <div class="bg-surface rounded-card divide-y divide-line">
+            <div class="bg-surface rounded-card divide-y divide-line shadow-card">
                 <div class="px-6 py-4">
                     <h2 class="text-sm font-semibold text-ink-2">Push-Broadcast</h2>
                     <p class="text-xs text-ink-3 mt-0.5">Nachricht an alle Nutzer mit aktivierten Push-Benachrichtigungen senden</p>
@@ -240,7 +240,7 @@ const modelLabels = {
             </div>
 
             <!-- ── Wartungsmodus ────────────────────────────────── -->
-            <div class="bg-surface rounded-card divide-y divide-line">
+            <div class="bg-surface rounded-card divide-y divide-line shadow-card">
                 <div class="px-6 py-4">
                     <h2 class="text-sm font-semibold text-ink-2">Wartungsmodus</h2>
                     <p class="text-xs text-ink-3 mt-0.5">Normale Nutzer sehen eine Wartungsseite. Admins haben weiterhin Zugriff.</p>
@@ -261,7 +261,7 @@ const modelLabels = {
             </div>
 
             <!-- ── System-Info ───────────────────────────────────── -->
-            <div class="bg-surface rounded-card divide-y divide-line">
+            <div class="bg-surface rounded-card divide-y divide-line shadow-card">
                 <div class="px-6 py-4">
                     <h2 class="text-sm font-semibold text-ink-2">System-Info</h2>
                 </div>

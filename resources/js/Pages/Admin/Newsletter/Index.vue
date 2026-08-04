@@ -135,7 +135,7 @@ function formatDate(d) {
 
     <AdminLayout>
         <template #header>
-            <h1 class="text-xl font-bold text-ink">Newsletter</h1>
+            <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Newsletter</h1>
         </template>
 
         <div class="p-4 sm:p-6 space-y-6">
@@ -148,23 +148,23 @@ function formatDate(d) {
 
             <!-- Stats -->
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <div class="bg-surface rounded-card p-4">
+                <div class="bg-surface rounded-card p-4 shadow-card">
                     <p class="text-xs text-ink-3">Abonnenten</p>
                     <p class="text-2xl font-bold text-accent-ink mt-0.5">{{ subscriberCount }}</p>
                     <p class="text-xs text-ink-3 mt-0.5">von {{ totalUsers }} Nutzern</p>
                 </div>
-                <div class="bg-surface rounded-card p-4">
+                <div class="bg-surface rounded-card p-4 shadow-card">
                     <p class="text-xs text-ink-3">Versendet</p>
                     <p class="text-2xl font-bold text-ink mt-0.5">{{ newsletters.filter(n => n.sent_at).length }}</p>
                 </div>
-                <div class="bg-surface rounded-card p-4">
+                <div class="bg-surface rounded-card p-4 shadow-card">
                     <p class="text-xs text-ink-3">Entwürfe</p>
                     <p class="text-2xl font-bold text-ink mt-0.5">{{ newsletters.filter(n => !n.sent_at).length }}</p>
                 </div>
             </div>
 
             <!-- ── Editor ── -->
-            <div class="bg-surface rounded-card overflow-hidden">
+            <div class="bg-surface rounded-card overflow-hidden shadow-card">
                 <div class="px-4 sm:px-6 py-4 border-b border-line flex items-center justify-between gap-3">
                     <h2 class="text-sm font-semibold text-ink-2">
                         {{ editingId ? 'Entwurf bearbeiten' : 'Neuer Newsletter' }}
@@ -247,7 +247,7 @@ function formatDate(d) {
             </div>
 
             <!-- ── Newsletter list ── -->
-            <div v-if="newsletters.length" class="bg-surface rounded-card overflow-hidden">
+            <div v-if="newsletters.length" class="bg-surface rounded-card overflow-hidden shadow-card">
                 <div class="px-4 sm:px-6 py-4 border-b border-line">
                     <h2 class="text-sm font-semibold text-ink-2">Alle Newsletter</h2>
                 </div>

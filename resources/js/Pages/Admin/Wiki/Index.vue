@@ -113,7 +113,7 @@ const categoryColors = {
                     <div v-if="cat.pages.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         <Link v-for="page in cat.pages" :key="page.id"
                             :href="route('admin.wiki.page', page.slug)"
-                            class="group flex flex-col gap-1 p-4 rounded-field bg-surface hover:border-accent/25 hover:shadow-card transition-all">
+                            class="group flex flex-col gap-1 p-4 rounded-card bg-surface shadow-card transition-transform duration-150 active:scale-[0.99]">
                             <div class="flex items-start justify-between gap-2">
                                 <span class="text-sm font-semibold text-ink group-hover:text-accent transition-colors leading-snug">
                                     {{ page.title }}
