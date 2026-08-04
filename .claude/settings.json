@@ -127,5 +127,6 @@
       "c:\\Users\\janan\\.claude\\projects\\c--Users-janan-Desktop-zone3\\memory",
       "C:\\Users\\janan\\Desktop\\zone3\\.git"
     ]
-  }
+  },
+  "skipDangerousModePermissionPrompt": true
 }
