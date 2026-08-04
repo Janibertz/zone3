@@ -252,6 +252,15 @@ function onWellbeingSaved(data) {
     clearTimeout(wellbeingToastTimer);
     wellbeingToastTimer = setTimeout(() => { wellbeingToast.value = null; }, 5000);
 
+    // Der Check-in stoesst einen Garmin-Abruf an, wenn die heutigen Werte
+    // fehlen. Der laeuft in der Queue — deshalb kurz warten und dann die
+    // Kacheln nachladen, statt sie bis zum naechsten Oeffnen leer zu lassen.
+    if (data?.garmin_queued) {
+        setTimeout(() => {
+            router.reload({ only: ['garminMetrics', 'recoveryActivities'] });
+        }, 12000);
+    }
+
     // Immediately fetch the recommendation now that wellbeing is available
     getTodayRecommendation();
 }
