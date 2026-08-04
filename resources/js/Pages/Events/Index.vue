@@ -156,7 +156,7 @@ watch(() => form.race_distance, (val) => {
 <template>
     <Head title="Events" />
     <AuthenticatedLayout>
-        <div class="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
+        <div class="px-3 sm:px-6 py-4 sm:py-8">
 
             <!-- Header -->
             <div class="flex items-center justify-between mb-5 sm:mb-7">

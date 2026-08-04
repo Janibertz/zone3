@@ -40,7 +40,7 @@ function fmtPace(sec) {
 
 <template>
     <AuthenticatedLayout>
-        <div class="max-w-3xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+        <div class="px-4 lg:px-6 py-4 lg:py-6">
 
             <!-- Header -->
             <div class="mb-4 sm:mb-6 flex items-start justify-between gap-3">

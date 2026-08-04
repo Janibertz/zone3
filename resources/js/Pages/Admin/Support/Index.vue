@@ -46,7 +46,7 @@ function formatDate(dt) {
             <h1 class="text-xl font-bold text-ink">Support-Tickets</h1>
         </template>
 
-        <div class="p-4 sm:p-6 space-y-4 max-w-5xl">
+        <div class="px-4 py-4 lg:px-6 lg:py-6 space-y-4">
 
             <!-- Tabs -->
             <div class="flex gap-1 bg-surface-2 rounded-field p-1">

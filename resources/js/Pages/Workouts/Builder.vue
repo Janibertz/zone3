@@ -242,7 +242,7 @@ async function save() {
 <template>
     <Head :title="isEdit ? 'Workout bearbeiten' : 'Neues Workout'" />
     <AuthenticatedLayout>
-        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+        <div class="px-4 sm:px-6 py-6">
 
             <!-- Header -->
             <div class="flex items-center gap-3 mb-6 flex-wrap">

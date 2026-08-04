@@ -159,7 +159,7 @@ async function sendToGarmin({ email, password, date } = {}) {
 <template>
     <Head title="Workout-Bibliothek" />
     <AuthenticatedLayout>
-        <div class="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+        <div class="px-4 sm:px-6 py-6">
 
             <!-- Header -->
             <div class="flex items-center justify-between mb-6 gap-4 flex-wrap">

@@ -493,7 +493,7 @@ const inputClass = 'block w-full rounded-field border border-line bg-surface-2 p
 <template>
     <Head title="Profil" />
     <AuthenticatedLayout>
-        <div class="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-5">
+        <div class="px-3 sm:px-6 py-4 sm:py-8 space-y-5">
 
             <!-- ══ PROFILE HERO ══ -->
             <div class="bg-surface rounded-card border border-line shadow-card overflow-hidden">

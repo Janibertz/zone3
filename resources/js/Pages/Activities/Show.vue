@@ -1,8 +1,10 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import AppCard from '@/Components/UI/AppCard.vue';
+import AppButton from '@/Components/UI/AppButton.vue';
 
 const props = defineProps({
     activity:      Object,
@@ -347,365 +349,305 @@ onUnmounted(() => {
 </script>
 
 <template>
+    <Head :title="activity.name" />
+
     <AuthenticatedLayout>
-        <div class="max-w-2xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4">
+        <div class="min-h-screen bg-canvas">
+            <div class="space-y-5 px-4 py-4 lg:px-6 lg:py-6">
 
-            <!-- Back + Header -->
-            <div class="flex items-start gap-3">
-                <Link
-                    :href="route('activities.index')"
-                    class="shrink-0 mt-0.5 h-8 w-8 flex items-center justify-center rounded-field bg-surface-2 text-ink-3 hover:bg-surface-3 transition-colors"
-                >
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/>
-                    </svg>
-                </Link>
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 mb-1">
-                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0" :class="typeColor(activity.type)">
-                            {{ typeLabel[activity.type] ?? activity.type }}
-                        </span>
-                        <span v-if="paceZoneInfo" class="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0" :class="[zoneColors[paceZoneInfo.key]?.light, zoneColors[paceZoneInfo.key]?.text]">
-                            {{ paceZoneInfo.name }}
-                        </span>
-                    </div>
-                    <h1 class="text-xl sm:text-2xl font-bold text-ink leading-tight">{{ activity.name }}</h1>
-                    <p class="text-sm text-ink-3 mt-0.5">
-                        {{ formatDate(activity.start_date) }}
-                        <span class="text-ink-3 mx-1">·</span>
-                        {{ formatTime(activity.start_date) }} Uhr
-                        <template v-if="activity.location_city">
-                            <span class="text-ink-3 mx-1">·</span>
-                            {{ activity.location_city }}<template v-if="activity.location_country">, {{ activity.location_country }}</template>
-                        </template>
-                    </p>
-                </div>
-            </div>
-
-            <!-- Map -->
-            <div
-                v-if="activity.polyline"
-                ref="mapContainer"
-                class="w-full h-56 sm:h-72 rounded-card overflow-hidden border border-line bg-surface-2"
-            />
-            <div
-                v-else
-                class="w-full h-28 rounded-card bg-surface-2 border border-line flex items-center justify-center"
-            >
-                <p class="text-sm text-ink-3">Keine Kartendaten verfügbar</p>
-            </div>
-
-            <!-- Key stats -->
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div class="bg-surface rounded-card border border-line p-4">
-                    <p class="text-xs text-ink-3 mb-1.5">Distanz</p>
-                    <p class="text-2xl font-bold text-ink leading-none">{{ (activity.distance / 1000).toFixed(2) }}</p>
-                    <p class="text-xs text-ink-3 mt-1">km</p>
-                </div>
-                <div class="bg-surface rounded-card border border-line p-4">
-                    <p class="text-xs text-ink-3 mb-1.5">Bewegungszeit</p>
-                    <p class="text-2xl font-bold text-ink leading-none">{{ formatDuration(activity.moving_time) }}</p>
-                    <p class="text-xs text-ink-3 mt-1">h:min:s</p>
-                </div>
-                <div v-if="activity.type === 'Run'" class="bg-surface rounded-card border border-line p-4">
-                    <p class="text-xs text-ink-3 mb-1.5">Pace</p>
-                    <p class="text-2xl font-bold text-ink leading-none">{{ formatPace(activity.average_speed) }}</p>
-                    <p class="text-xs text-ink-3 mt-1">min/km</p>
-                </div>
-                <div v-if="activity.type === 'Swim'" class="bg-surface rounded-card border border-line p-4">
-                    <p class="text-xs text-ink-3 mb-1.5">Pace</p>
-                    <p class="text-2xl font-bold text-ink leading-none">{{ formatSwimPace(activity.average_speed) }}</p>
-                    <p class="text-xs text-ink-3 mt-1">min/100m</p>
-                </div>
-                <div v-if="isCycling && activity.average_speed" class="bg-surface rounded-card border border-line p-4">
-                    <p class="text-xs text-ink-3 mb-1.5">Geschwindigkeit</p>
-                    <p class="text-2xl font-bold text-ink leading-none">{{ (activity.average_speed * 3.6).toFixed(1) }}</p>
-                    <p class="text-xs text-ink-3 mt-1">km/h</p>
-                </div>
-                <div v-if="isCycling && activity.average_watts" class="bg-surface rounded-card border border-line p-4">
-                    <p class="text-xs text-ink-3 mb-1.5">Leistung</p>
-                    <p class="text-2xl font-bold text-ink leading-none">{{ Math.round(activity.average_watts) }}</p>
-                    <p class="text-xs text-ink-3 mt-1">Watt</p>
-                </div>
-                <div v-if="activity.total_elevation_gain > 0" class="bg-surface rounded-card border border-line p-4">
-                    <p class="text-xs text-ink-3 mb-1.5">Höhenmeter</p>
-                    <p class="text-2xl font-bold text-ink leading-none">{{ Math.round(activity.total_elevation_gain) }}</p>
-                    <p class="text-xs text-ink-3 mt-1">m</p>
-                </div>
-                <div v-if="activity.type !== 'Run'" class="bg-surface rounded-card border border-line p-4">
-                    <p class="text-xs text-ink-3 mb-1.5">Gesamtzeit</p>
-                    <p class="text-2xl font-bold text-ink leading-none">{{ formatDuration(activity.elapsed_time) }}</p>
-                    <p class="text-xs text-ink-3 mt-1">h:min:s</p>
-                </div>
-            </div>
-
-            <!-- Heart rate -->
-            <div v-if="activity.average_heartrate" class="bg-surface rounded-card border border-line p-4 sm:p-5">
-                <h2 class="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
-                    <span class="text-danger">♥</span> Herzfrequenz
-                </h2>
-                <div class="grid grid-cols-2 gap-3 mb-4">
-                    <div>
-                        <p class="text-xs text-ink-3 mb-1">Durchschnitt</p>
-                        <p class="text-3xl font-bold text-ink">{{ Math.round(activity.average_heartrate) }}<span class="text-sm font-normal text-ink-3 ml-1">bpm</span></p>
-                    </div>
-                    <div v-if="activity.max_heartrate">
-                        <p class="text-xs text-ink-3 mb-1">Maximum</p>
-                        <p class="text-3xl font-bold text-ink">{{ Math.round(activity.max_heartrate) }}<span class="text-sm font-normal text-ink-3 ml-1">bpm</span></p>
-                    </div>
-                </div>
-                <!-- HR bar visual -->
-                <div v-if="activity.max_heartrate" class="relative h-2 bg-surface-2 rounded-full overflow-hidden">
-                    <!-- Avg marker -->
-                    <div
-                        class="absolute top-0 h-full bg-danger rounded-full"
-                        :style="{ width: (activity.average_heartrate / activity.max_heartrate * 100).toFixed(0) + '%' }"
-                    />
-                    <div
-                        class="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-danger rounded-full border-2 border-white shadow"
-                        :style="{ left: 'calc(' + (activity.average_heartrate / activity.max_heartrate * 100).toFixed(0) + '% - 6px)' }"
-                    />
-                </div>
-                <div v-if="activity.max_heartrate" class="flex justify-between mt-1">
-                    <span class="text-xs text-ink-3">0</span>
-                    <span class="text-xs text-ink-3">{{ Math.round(activity.max_heartrate) }} bpm max</span>
-                </div>
-            </div>
-
-            <!-- Lap chart -->
-            <div v-if="hasLaps" class="bg-surface rounded-card border border-line p-4 sm:p-5">
-                <h2 class="text-sm font-semibold text-ink mb-3">
-                    Runden <span class="text-xs font-normal text-ink-3 ml-1">{{ activity.laps.length }} Laps</span>
-                </h2>
-
-                <!-- Bar chart: width = duration, height = relative speed (faster = taller) -->
-                <div class="flex gap-0.5 h-12 items-end mb-3">
-                    <div
-                        v-for="(lap, i) in activity.laps"
-                        :key="i"
-                        :style="{
-                            width:  ((lap.moving_time || lap.elapsed_time || 0) / totalLapTime * 100).toFixed(2) + '%',
-                            height: lapHeightPct[i] + '%',
-                        }"
-                        :class="[
-                            lapColor(lap, i),
-                            activeLap === i
-                                ? 'opacity-100 ring-2 ring-warn ring-offset-1 ring-offset-white'
-                                : (activeLap !== null ? 'opacity-25' : 'opacity-80'),
-                        ]"
-                        class="rounded-t-sm transition-all cursor-pointer"
-                        @mouseenter="setActiveLap(i)"
-                        @mouseleave="clearActiveLap"
-                        @click="toggleActiveLap(i)"
-                        :title="activity.type === 'Run'
-                            ? `Lap ${lap.index ?? i+1}: ${lapDist(lap)} km · ${lapPace(lap)} min/km`
-                            : `Lap ${lap.index ?? i+1}: ${lapDist(lap)} km · ${lapSpeed(lap)} km/h`"
-                    />
-                </div>
-
-                <!-- Lap table -->
-                <div class="space-y-1">
-                    <div class="grid text-xs text-ink-3 font-medium px-1 mb-1"
-                         :class="activity.average_heartrate ? 'grid-cols-[2.5rem_1fr_auto_auto_auto]' : 'grid-cols-[2.5rem_1fr_auto_auto]'">
-                        <span>#</span>
-                        <span>Zeit</span>
-                        <span class="text-right">Distanz</span>
-                        <span class="text-right">{{ ['Ride','VirtualRide'].includes(activity.type) ? 'km/h' : 'Pace' }}</span>
-                        <span v-if="activity.average_heartrate" class="text-right">HF</span>
-                    </div>
-                    <div
-                        v-for="(lap, i) in activity.laps"
-                        :key="'row'+i"
-                        class="grid items-center gap-x-2 px-1 py-1.5 rounded-field transition-colors text-sm cursor-pointer"
-                        :class="[
-                            activity.average_heartrate ? 'grid-cols-[2.5rem_1fr_auto_auto_auto]' : 'grid-cols-[2.5rem_1fr_auto_auto]',
-                            activeLap === i
-                                ? 'bg-warn-soft ring-1 ring-warn'
-                                : 'hover:bg-surface-2',
-                        ]"
-                        @mouseenter="setActiveLap(i)"
-                        @mouseleave="clearActiveLap"
-                        @click="toggleActiveLap(i)"
+                <!-- ── Kopf ───────────────────────────────────────── -->
+                <header class="flex items-start gap-3 px-1">
+                    <Link
+                        :href="route('activities.index')"
+                        class="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface text-ink-3 shadow-card transition-colors hover:text-ink"
                     >
-                        <!-- Color dot + index -->
-                        <span class="flex items-center gap-1.5">
-                            <span class="h-2 w-2 rounded-full shrink-0" :class="lapColor(lap, i)" />
-                            <span class="text-xs text-ink-3">{{ lap.index ?? i + 1 }}</span>
-                        </span>
-                        <!-- Duration -->
-                        <span class="font-medium text-ink-2 text-xs">
-                            {{ lapTime(lap.moving_time || lap.elapsed_time || 0) }}
-                        </span>
-                        <!-- Distance -->
-                        <span class="text-right text-xs text-ink-3">{{ lapDist(lap) }} km</span>
-                        <!-- Pace / Speed -->
-                        <span class="text-right text-xs font-semibold text-ink">
-                            <template v-if="['Ride','VirtualRide'].includes(activity.type)">{{ lapSpeed(lap) }}</template>
-                            <template v-else>{{ lapPace(lap) }}</template>
-                        </span>
-                        <!-- HR -->
-                        <span v-if="activity.average_heartrate" class="text-right text-xs text-danger">
-                            {{ lap.average_heartrate ? Math.round(lap.average_heartrate) : '–' }}
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Pace Zone indicator -->
-            <div v-if="paceZoneInfo && paceZones" class="bg-surface rounded-card border border-line p-4 sm:p-5">
-                <h2 class="text-sm font-semibold text-ink mb-3">Tempo-Zonen</h2>
-                <div class="flex gap-1.5 mb-3">
-                    <div
-                        v-for="key in ['z1','z2','z3','z4','z5']"
-                        :key="key"
-                        class="flex-1 h-2 rounded-full transition-all"
-                        :class="[
-                            zoneColors[key]?.bg,
-                            paceZoneInfo.key === key ? 'opacity-100 scale-y-150' : 'opacity-25'
-                        ]"
-                    />
-                </div>
-                <div class="flex items-center gap-3">
-                    <div class="h-10 w-10 rounded-field flex items-center justify-center shrink-0" :class="zoneColors[paceZoneInfo.key]?.light">
-                        <span class="text-lg font-bold" :class="zoneColors[paceZoneInfo.key]?.text">{{ paceZoneInfo.key.replace('z','') }}</span>
-                    </div>
-                    <div>
-                        <p class="text-sm font-semibold text-ink">{{ paceZoneInfo.name }}</p>
-                        <p class="text-xs text-ink-3">{{ paceZoneInfo.minPace }} – {{ paceZoneInfo.maxPace }} min/km</p>
-                    </div>
-                    <div class="ml-auto text-right">
-                        <p class="text-xs text-ink-3">Dein Tempo</p>
-                        <p class="text-sm font-bold text-ink">{{ formatPace(activity.average_speed) }} min/km</p>
-                    </div>
-                </div>
-
-                <!-- All zones list -->
-                <div class="mt-3 space-y-1.5 border-t border-line pt-3">
-                    <div
-                        v-for="key in ['z1','z2','z3','z4','z5']"
-                        :key="key"
-                        class="flex items-center gap-3 px-2 py-1.5 rounded-field transition-colors"
-                        :class="paceZoneInfo.key === key ? [zoneColors[key]?.light] : ''"
-                    >
-                        <div class="h-2 w-2 rounded-full shrink-0" :class="zoneColors[key]?.bg" />
-                        <span class="text-xs font-medium text-ink-2 flex-1">{{ paceZones[key]?.name }}</span>
-                        <span class="text-xs text-ink-3">{{ paceZones[key]?.min_pace }} – {{ paceZones[key]?.max_pace }} min/km</span>
-                        <svg v-if="paceZoneInfo.key === key" class="h-3.5 w-3.5 shrink-0" :class="zoneColors[key]?.text" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/>
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/>
                         </svg>
+                    </Link>
+                    <div class="min-w-0 flex-1">
+                        <div class="mb-1.5 flex flex-wrap items-center gap-1.5">
+                            <span class="shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold" :class="typeColor(activity.type)">
+                                {{ typeLabel[activity.type] ?? activity.type }}
+                            </span>
+                            <span v-if="paceZoneInfo" class="shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold" :class="[zoneColors[paceZoneInfo.key]?.light, zoneColors[paceZoneInfo.key]?.text]">
+                                {{ paceZoneInfo.name }}
+                            </span>
+                        </div>
+                        <h1 class="text-2xl font-bold leading-tight tracking-tight text-ink lg:text-3xl">{{ activity.name }}</h1>
+                        <p class="mt-1 text-[15px] text-ink-3">
+                            {{ formatDate(activity.start_date) }} · {{ formatTime(activity.start_date) }} Uhr
+                            <template v-if="activity.location_city">
+                                · {{ activity.location_city }}<template v-if="activity.location_country">, {{ activity.location_country }}</template>
+                            </template>
+                        </p>
                     </div>
-                </div>
-            </div>
+                </header>
 
-            <!-- Additional stats (max speed, elapsed time) — not shown for cycling -->
-            <div v-if="!isCycling" class="grid grid-cols-2 gap-2.5">
-                <div v-if="activity.max_speed" class="bg-surface rounded-card border border-line p-4">
-                    <p class="text-xs text-ink-3 mb-1">Max. Pace</p>
-                    <p class="text-xl font-bold text-ink">{{ formatPace(activity.max_speed) }}</p>
-                    <p class="text-xs text-ink-3 mt-0.5">min/km</p>
-                </div>
-                <div class="bg-surface rounded-card border border-line p-4">
-                    <p class="text-xs text-ink-3 mb-1">Gesamtzeit</p>
-                    <p class="text-xl font-bold text-ink">{{ formatDuration(activity.elapsed_time) }}</p>
-                    <p class="text-xs text-ink-3 mt-0.5">inkl. Pausen</p>
-                </div>
-            </div>
-
-            <!-- Description -->
-            <div v-if="activity.description" class="bg-surface rounded-card border border-line p-4 sm:p-5">
-                <h2 class="text-sm font-semibold text-ink mb-2">Beschreibung</h2>
-                <p class="text-sm text-ink-2 leading-relaxed">{{ activity.description }}</p>
-            </div>
-
-            <!-- Session rating (shown when activity is linked to a training plan session) -->
-            <div v-if="linkedSession" class="bg-surface rounded-card border border-line p-4 sm:p-5">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <h2 class="text-sm font-semibold text-ink">Einheit bewerten</h2>
-                        <p class="text-xs text-ink-3 mt-0.5">{{ linkedSession.title }} · Dein Feedback verbessert den KI-Plan</p>
+                <!-- ── Kennzahlen ─────────────────────────────────── -->
+                <section class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+                    <div class="min-w-0 rounded-card bg-surface p-4 shadow-card">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Distanz</p>
+                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ (activity.distance / 1000).toFixed(2) }}</p>
+                        <p class="mt-1 text-[11px] text-ink-3">km</p>
                     </div>
-                    <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
-                        <span v-if="ratingSaved" class="text-xs text-success-ink font-semibold">Gespeichert</span>
-                    </Transition>
-                </div>
-
-                <!-- Stars -->
-                <div class="mb-4">
-                    <p class="text-xs font-medium text-ink-3 mb-2">Wie war die Einheit?</p>
-                    <div class="flex gap-1.5">
-                        <button
-                            v-for="star in 5"
-                            :key="star"
-                            type="button"
-                            @click="ratingValue = ratingValue === star ? 0 : star"
-                            class="h-9 w-9 rounded-field flex items-center justify-center text-xl transition-colors"
-                            :class="star <= ratingValue
-                                ? 'bg-warn-soft'
-                                : 'bg-surface-2 opacity-40 hover:opacity-70'"
-                        >⭐</button>
-                        <span class="ml-2 self-center text-sm text-ink-3">
-                            {{ ['', 'Sehr schwer', 'Schwer', 'Okay', 'Gut', 'Top'][ratingValue] }}
-                        </span>
+                    <div class="min-w-0 rounded-card bg-surface p-4 shadow-card">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Bewegungszeit</p>
+                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ formatDuration(activity.moving_time) }}</p>
+                        <p class="mt-1 text-[11px] text-ink-3">ohne Pausen</p>
                     </div>
-                </div>
-
-                <!-- RPE -->
-                <div class="mb-4">
-                    <p class="text-xs font-medium text-ink-3 mb-2">Gefühlte Belastung (RPE)</p>
-                    <div class="flex flex-wrap gap-1.5">
-                        <button
-                            v-for="rpe in 10"
-                            :key="rpe"
-                            type="button"
-                            @click="effortValue = effortValue === rpe ? 0 : rpe"
-                            class="h-8 w-8 rounded-lg text-xs font-bold transition-colors border"
-                            :class="rpe === effortValue
-                                ? 'bg-accent border-accent text-white'
-                                : 'bg-surface-2 border-line text-ink-3 hover:border-accent'"
-                        >{{ rpe }}</button>
-                        <span class="ml-1 self-center text-xs text-ink-3">
-                            {{ effortValue ? `RPE ${effortValue}/10` : '' }}
-                        </span>
+                    <div v-if="activity.type === 'Run'" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Pace</p>
+                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ formatPace(activity.average_speed) }}</p>
+                        <p class="mt-1 text-[11px] text-ink-3">min/km</p>
                     </div>
+                    <div v-if="activity.type === 'Swim'" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Pace</p>
+                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ formatSwimPace(activity.average_speed) }}</p>
+                        <p class="mt-1 text-[11px] text-ink-3">min/100m</p>
+                    </div>
+                    <div v-if="isCycling && activity.average_speed" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Tempo</p>
+                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ (activity.average_speed * 3.6).toFixed(1) }}</p>
+                        <p class="mt-1 text-[11px] text-ink-3">km/h</p>
+                    </div>
+                    <div v-if="isCycling && activity.average_watts" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Leistung</p>
+                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ Math.round(activity.average_watts) }}</p>
+                        <p class="mt-1 text-[11px] text-ink-3">Watt</p>
+                    </div>
+                    <div v-if="activity.total_elevation_gain > 0" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Höhenmeter</p>
+                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ Math.round(activity.total_elevation_gain) }}</p>
+                        <p class="mt-1 text-[11px] text-ink-3">m aufwärts</p>
+                    </div>
+                    <div v-if="activity.average_heartrate" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Puls</p>
+                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-danger">{{ Math.round(activity.average_heartrate) }}</p>
+                        <p class="mt-1 text-[11px] text-ink-3">
+                            Ø bpm<template v-if="activity.max_heartrate"> · max {{ Math.round(activity.max_heartrate) }}</template>
+                        </p>
+                    </div>
+                    <div class="min-w-0 rounded-card bg-surface p-4 shadow-card">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Gesamtzeit</p>
+                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ formatDuration(activity.elapsed_time) }}</p>
+                        <p class="mt-1 text-[11px] text-ink-3">inkl. Pausen</p>
+                    </div>
+                    <div v-if="!isCycling && activity.max_speed" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Schnellste Pace</p>
+                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ formatPace(activity.max_speed) }}</p>
+                        <p class="mt-1 text-[11px] text-ink-3">min/km</p>
+                    </div>
+                </section>
+
+                <!-- ── Karte + Runden nebeneinander ab xl ─────────── -->
+                <div class="grid grid-cols-1 gap-5 xl:grid-cols-3">
+
+                    <!-- Karte -->
+                    <section class="min-w-0 xl:col-span-2">
+                        <AppCard flush>
+                            <div
+                                v-if="activity.polyline"
+                                ref="mapContainer"
+                                class="h-72 w-full overflow-hidden rounded-card bg-surface-2 lg:h-96"
+                            />
+                            <div v-else class="flex h-32 w-full items-center justify-center rounded-card bg-surface-2">
+                                <p class="text-[15px] text-ink-3">Keine Kartendaten verfügbar</p>
+                            </div>
+                        </AppCard>
+                    </section>
+
+                    <!-- Tempo-Zonen -->
+                    <section v-if="paceZoneInfo && paceZones" class="min-w-0">
+                        <AppCard title="Tempo-Zonen">
+                            <div class="mb-4 flex gap-1.5">
+                                <div
+                                    v-for="key in ['z1','z2','z3','z4','z5']"
+                                    :key="key"
+                                    class="h-2 flex-1 rounded-full transition-all"
+                                    :class="[zoneColors[key]?.bg, paceZoneInfo.key === key ? 'scale-y-150 opacity-100' : 'opacity-25']"
+                                />
+                            </div>
+
+                            <div class="mb-4 flex items-center gap-3">
+                                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" :class="zoneColors[paceZoneInfo.key]?.light">
+                                    <span class="text-lg font-bold" :class="zoneColors[paceZoneInfo.key]?.text">{{ paceZoneInfo.key.replace('z','') }}</span>
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="truncate text-[15px] font-bold text-ink">{{ paceZoneInfo.name }}</p>
+                                    <p class="text-[13px] text-ink-3">{{ paceZoneInfo.minPace }} – {{ paceZoneInfo.maxPace }} min/km</p>
+                                </div>
+                                <div class="ml-auto shrink-0 text-right">
+                                    <p class="text-[11px] text-ink-3">Dein Tempo</p>
+                                    <p class="text-[15px] font-bold tabular-nums text-ink">{{ formatPace(activity.average_speed) }}</p>
+                                </div>
+                            </div>
+
+                            <div class="space-y-1 border-t border-line pt-3">
+                                <div
+                                    v-for="key in ['z1','z2','z3','z4','z5']"
+                                    :key="key"
+                                    class="flex items-center gap-3 rounded-field px-2 py-2"
+                                    :class="paceZoneInfo.key === key ? [zoneColors[key]?.light] : ''"
+                                >
+                                    <div class="h-2 w-2 shrink-0 rounded-full" :class="zoneColors[key]?.bg" />
+                                    <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-ink-2">{{ paceZones[key]?.name }}</span>
+                                    <span class="shrink-0 text-[12px] tabular-nums text-ink-3">{{ paceZones[key]?.min_pace }}–{{ paceZones[key]?.max_pace }}</span>
+                                </div>
+                            </div>
+                        </AppCard>
+                    </section>
                 </div>
 
-                <!-- Notes -->
-                <div class="mb-4">
-                    <textarea
-                        v-model="feelingNotes"
-                        rows="2"
-                        placeholder="Notizen (optional) — was hat gut/schlecht funktioniert?"
-                        class="block w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent resize-none transition-colors"
-                    />
+                <!-- ── Runden ─────────────────────────────────────── -->
+                <section v-if="hasLaps">
+                    <AppCard :title="`Runden`" :subtitle="`${activity.laps.length} Laps · zum Hervorheben antippen`">
+                        <div class="mb-4 flex h-14 items-end gap-0.5">
+                            <div
+                                v-for="(lap, i) in activity.laps"
+                                :key="i"
+                                :style="{
+                                    width:  ((lap.moving_time || lap.elapsed_time || 0) / totalLapTime * 100).toFixed(2) + '%',
+                                    height: lapHeightPct[i] + '%',
+                                }"
+                                :class="[
+                                    lapColor(lap, i),
+                                    activeLap === i ? 'opacity-100 ring-2 ring-ink' : (activeLap !== null ? 'opacity-25' : 'opacity-80'),
+                                ]"
+                                class="cursor-pointer rounded-t-sm transition-all"
+                                @mouseenter="setActiveLap(i)"
+                                @mouseleave="clearActiveLap"
+                                @click="toggleActiveLap(i)"
+                                :title="activity.type === 'Run'
+                                    ? `Lap ${lap.index ?? i+1}: ${lapDist(lap)} km · ${lapPace(lap)} min/km`
+                                    : `Lap ${lap.index ?? i+1}: ${lapDist(lap)} km · ${lapSpeed(lap)} km/h`"
+                            />
+                        </div>
+
+                        <div class="-mx-1 overflow-x-auto">
+                            <table class="w-full min-w-[26rem] border-collapse text-[13px]">
+                                <thead>
+                                    <tr class="text-ink-3">
+                                        <th class="px-2 py-2 text-left font-semibold">#</th>
+                                        <th class="px-2 py-2 text-left font-semibold">Zeit</th>
+                                        <th class="px-2 py-2 text-right font-semibold">Distanz</th>
+                                        <th class="px-2 py-2 text-right font-semibold">{{ isCycling ? 'km/h' : 'Pace' }}</th>
+                                        <th v-if="activity.average_heartrate" class="px-2 py-2 text-right font-semibold">Puls</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-line">
+                                    <tr
+                                        v-for="(lap, i) in activity.laps"
+                                        :key="'row'+i"
+                                        class="cursor-pointer transition-colors"
+                                        :class="activeLap === i ? 'bg-surface-2' : 'hover:bg-surface-2'"
+                                        @mouseenter="setActiveLap(i)"
+                                        @mouseleave="clearActiveLap"
+                                        @click="toggleActiveLap(i)"
+                                    >
+                                        <td class="px-2 py-2.5">
+                                            <span class="flex items-center gap-2">
+                                                <span class="h-2 w-2 shrink-0 rounded-full" :class="lapColor(lap, i)" />
+                                                <span class="text-ink-3">{{ lap.index ?? i + 1 }}</span>
+                                            </span>
+                                        </td>
+                                        <td class="px-2 py-2.5 font-medium tabular-nums text-ink-2">{{ lapTime(lap.moving_time || lap.elapsed_time || 0) }}</td>
+                                        <td class="px-2 py-2.5 text-right tabular-nums text-ink-3">{{ lapDist(lap) }} km</td>
+                                        <td class="px-2 py-2.5 text-right font-bold tabular-nums text-ink">
+                                            <template v-if="isCycling">{{ lapSpeed(lap) }}</template>
+                                            <template v-else>{{ lapPace(lap) }}</template>
+                                        </td>
+                                        <td v-if="activity.average_heartrate" class="px-2 py-2.5 text-right tabular-nums text-danger">
+                                            {{ lap.average_heartrate ? Math.round(lap.average_heartrate) : '–' }}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </AppCard>
+                </section>
+
+                <!-- ── Beschreibung + Bewertung ───────────────────── -->
+                <div class="grid grid-cols-1 gap-5" :class="activity.description && linkedSession ? 'xl:grid-cols-2' : ''">
+
+                    <AppCard v-if="activity.description" title="Beschreibung">
+                        <p class="whitespace-pre-wrap text-[15px] leading-relaxed text-ink-2">{{ activity.description }}</p>
+                    </AppCard>
+
+                    <AppCard v-if="linkedSession" title="Einheit bewerten"
+                        :subtitle="`${linkedSession.title} · dein Feedback verbessert den Plan`">
+                        <template #action>
+                            <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
+                                <span v-if="ratingSaved" class="text-[13px] font-semibold text-success-ink">Gespeichert</span>
+                            </Transition>
+                        </template>
+
+                        <p class="z-label">Wie war die Einheit?</p>
+                        <div class="mb-4 flex items-center gap-1.5">
+                            <button
+                                v-for="star in 5"
+                                :key="star"
+                                type="button"
+                                class="flex h-10 w-10 items-center justify-center rounded-full text-xl transition-all"
+                                :class="star <= ratingValue ? 'scale-110 bg-warn-soft' : 'bg-surface-2 opacity-40 hover:opacity-70'"
+                                @click="ratingValue = ratingValue === star ? 0 : star"
+                            >⭐</button>
+                            <span class="ml-2 text-[13px] text-ink-3">
+                                {{ ['', 'Sehr schwer', 'Schwer', 'Okay', 'Gut', 'Top'][ratingValue] }}
+                            </span>
+                        </div>
+
+                        <p class="z-label">Gefühlte Belastung (RPE)</p>
+                        <div class="mb-4 flex flex-wrap gap-1.5">
+                            <button
+                                v-for="rpe in 10"
+                                :key="rpe"
+                                type="button"
+                                class="h-9 w-9 rounded-full text-[13px] font-bold transition-all active:scale-90"
+                                :class="rpe === effortValue
+                                    ? (rpe <= 3 ? 'bg-success text-white' : rpe <= 6 ? 'bg-warn text-white' : 'bg-danger text-white')
+                                    : 'bg-surface-2 text-ink-3 hover:bg-surface-3'"
+                                @click="effortValue = effortValue === rpe ? 0 : rpe"
+                            >{{ rpe }}</button>
+                        </div>
+
+                        <textarea
+                            v-model="feelingNotes"
+                            rows="2"
+                            placeholder="Notizen (optional) — was lief gut, was nicht?"
+                            class="z-input resize-none"
+                        />
+
+                        <p v-if="ratingError" class="z-error">{{ ratingError }}</p>
+
+                        <AppButton
+                            block
+                            class="mt-4"
+                            :loading="ratingSaving"
+                            :disabled="!ratingValue && !effortValue && !feelingNotes"
+                            @click="saveRating"
+                        >
+                            Bewertung speichern
+                        </AppButton>
+                    </AppCard>
                 </div>
 
-                <p v-if="ratingError" class="text-xs text-danger mb-3">{{ ratingError }}</p>
+                <!-- ── Strava ─────────────────────────────────────── -->
+                <div v-if="activity.strava_id" class="flex justify-center pb-2 pt-1">
+                    <a
+                        :href="`https://www.strava.com/activities/${activity.strava_id}`"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-flex items-center gap-2 rounded-full bg-[#FC4C02] px-5 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+                    >
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/>
+                        </svg>
+                        Auf Strava ansehen
+                    </a>
+                </div>
 
-                <button
-                    @click="saveRating"
-                    :disabled="ratingSaving || (!ratingValue && !effortValue && !feelingNotes)"
-                    class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40 transition-colors"
-                >
-                    <svg v-if="ratingSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                    Bewertung speichern
-                </button>
             </div>
-
-            <!-- Strava link -->
-            <div v-if="activity.strava_id" class="flex justify-center pb-4">
-                <a
-                    :href="`https://www.strava.com/activities/${activity.strava_id}`"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="inline-flex items-center gap-2 px-4 py-2 rounded-field bg-[#FC4C02] text-white text-sm font-medium hover:bg-[#e84400] transition-colors"
-                >
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/>
-                    </svg>
-                    Auf Strava ansehen
-                </a>
-            </div>
-
         </div>
     </AuthenticatedLayout>
 </template>

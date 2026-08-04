@@ -57,7 +57,7 @@ const modelLabels = {
             <h1 class="text-xl font-bold text-ink">Einstellungen</h1>
         </template>
 
-        <div class="p-4 sm:p-6 space-y-6 max-w-3xl">
+        <div class="px-4 py-4 lg:px-6 lg:py-6 space-y-6">
 
             <!-- Flash -->
             <div v-if="flash.success" class="flex items-center gap-3 px-4 py-3 bg-success-soft border border-success/25 rounded-field text-sm text-success-ink">

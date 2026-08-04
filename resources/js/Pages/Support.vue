@@ -8,7 +8,7 @@ import { Head, Link } from '@inertiajs/vue3';
     <div class="min-h-screen bg-[#0a0e1a] text-white">
 
         <!-- Nav -->
-        <nav class="border-b border-white/5 px-5 h-16 flex items-center justify-between max-w-4xl mx-auto">
+        <nav class="border-b border-white/5 px-5 h-16 flex items-center justify-between ">
             <Link href="/" class="flex items-center gap-2">
                 <div class="w-8 h-8 rounded-lg bg-accent flex items-center justify-center text-white font-bold text-sm">Z3</div>
                 <span class="font-bold text-lg tracking-tight">Zone3</span>
@@ -16,7 +16,7 @@ import { Head, Link } from '@inertiajs/vue3';
             <Link href="/login" class="text-sm text-white/60 hover:text-white transition">Anmelden</Link>
         </nav>
 
-        <div class="max-w-3xl mx-auto px-5 py-12 space-y-12">
+        <div class="px-5 py-12 space-y-12">
 
             <!-- Hero -->
             <div>
@@ -110,7 +110,7 @@ import { Head, Link } from '@inertiajs/vue3';
 
         <!-- Footer -->
         <footer class="border-t border-white/[0.06] py-6 px-5 mt-8">
-            <div class="max-w-4xl mx-auto flex items-center justify-between text-white/30 text-sm">
+            <div class="flex items-center justify-between text-white/30 text-sm">
                 <span>Zone3 · Dein KI Running Coach</span>
                 <Link href="/" class="hover:text-white/60 transition">Zurück zur Startseite</Link>
             </div>

@@ -76,7 +76,7 @@ const promptCharCount = computed(() => form.value.personality_prompt?.length ?? 
             </div>
         </template>
 
-        <div class="p-4 sm:p-6 space-y-6 max-w-4xl">
+        <div class="px-4 py-4 lg:px-6 lg:py-6 space-y-6">
 
             <!-- Flash -->
             <div v-if="flash.success" class="flex items-center gap-3 px-4 py-3 bg-success-soft border border-success/25 rounded-field text-sm text-success-ink">

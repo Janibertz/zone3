@@ -135,7 +135,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 <template>
     <Head title="Rückblick" />
     <AuthenticatedLayout>
-        <div class="py-4 sm:py-6">
+        <div class="py-4 lg:py-6">
             <div class="relative mx-auto max-w-md px-3">
                 <div class="relative h-[78vh] rounded-3xl overflow-hidden text-white shadow-xl select-none transition-colors duration-300" :class="current.gradient">
                     <!-- Fortschritts-Segmente -->

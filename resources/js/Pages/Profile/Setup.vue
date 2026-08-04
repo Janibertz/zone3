@@ -4,8 +4,8 @@
             <h2 class="font-semibold text-xl text-ink leading-tight">🏃‍♂️ Athletenprofil</h2>
         </template>
 
-        <div class="py-12">
-            <div class="max-w-2xl mx-auto sm:px-6 lg:px-8">
+        <div class="py-4 lg:py-6">
+            <div class="px-4 lg:px-6">
                 <div class="bg-surface overflow-hidden shadow-card sm:rounded-lg">
                     <div class="p-6 bg-surface border-b border-line">
                         <!-- Success Message -->

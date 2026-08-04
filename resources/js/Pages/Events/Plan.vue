@@ -849,7 +849,7 @@ const lapHeightPct = computed(() => {
 <template>
     <Head :title="`Plan – ${event.name}`" />
     <AuthenticatedLayout>
-        <div class="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
+        <div class="px-3 sm:px-6 py-4 sm:py-8">
 
             <!-- Back -->
             <Link :href="route('events.index')" class="inline-flex items-center gap-1.5 text-sm text-ink-3 hover:text-ink-2 transition-colors mb-4">

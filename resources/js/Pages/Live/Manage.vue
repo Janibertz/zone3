@@ -64,7 +64,7 @@ async function copyLink(which) {
 
     <AuthenticatedLayout>
         <div class="min-h-screen bg-canvas">
-            <div class="mx-auto max-w-3xl space-y-5 px-4 py-5 lg:px-6">
+            <div class="space-y-5 px-4 py-5 lg:px-6">
 
                 <header class="px-1">
                     <h1 class="text-2xl font-bold tracking-tight text-ink">Live-Verfolgung</h1>
