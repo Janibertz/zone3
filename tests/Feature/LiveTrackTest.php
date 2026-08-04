@@ -6,7 +6,9 @@ use App\Models\LiveTrack;
 use App\Models\User;
 use App\Services\LiveTrackService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class LiveTrackTest extends TestCase
@@ -331,5 +333,152 @@ class LiveTrackTest extends TestCase
         app(LiveTrackService::class)->poll($track);
 
         $this->assertEquals(20118.0, $track->refresh()->state['distanceM']);
+    }
+
+    // ── Garmin-Link durch die Crew ───────────────────────────────────────
+
+    /**
+     * Den LiveTrack-Link gibt es erst, wenn die Uhr die Aktivitaet startet.
+     * Der Laeufer ist dann unterwegs — also muss ihn die Crew nachtragen
+     * koennen.
+     */
+    public function test_crew_may_add_the_livetrack_link(): void
+    {
+        $track = $this->track(['garmin_session_id' => null, 'garmin_token' => null, 'embed_map' => false]);
+
+        $this->postJson(route('live.crew', $track->slug), [
+            'crew'          => 'crewschluessel12345',
+            'livetrack_url' => 'https://livetrack.garmin.com/session/0c6dc0e7-880b-8070-878c-6257c4789700/token/91AA529345445E64F8EFE73A8D58AAEC',
+            'embed_map'     => true,
+        ])->assertOk()->assertJsonPath('hasLiveTrack', true);
+
+        $track->refresh();
+        $this->assertSame('0c6dc0e7-880b-8070-878c-6257c4789700', $track->garmin_session_id);
+        $this->assertSame('91AA529345445E64F8EFE73A8D58AAEC', $track->garmin_token);
+    }
+
+    public function test_crew_may_remove_the_livetrack_link(): void
+    {
+        $track = $this->track(['embed_map' => true]);
+
+        $this->postJson(route('live.crew', $track->slug), [
+            'crew'          => 'crewschluessel12345',
+            'livetrack_url' => '',
+            'embed_map'     => false,
+        ])->assertOk()
+          ->assertJsonPath('hasLiveTrack', false)
+          ->assertJsonPath('mapUrl', null);
+
+        $this->assertNull($track->refresh()->garmin_session_id);
+    }
+
+    public function test_a_nonsense_link_from_the_crew_is_rejected(): void
+    {
+        $track = $this->track();
+
+        $this->postJson(route('live.crew', $track->slug), [
+            'crew'          => 'crewschluessel12345',
+            'livetrack_url' => 'https://example.com/irgendwas',
+        ])->assertStatus(422);
+
+        // Der vorhandene Link bleibt unangetastet.
+        $this->assertSame('SECRET-LIVETRACK-TOKEN', $track->refresh()->garmin_token);
+    }
+
+    /** Der oeffentliche Link allein darf die Karte nicht umschalten. */
+    public function test_visitors_cannot_set_the_livetrack_link(): void
+    {
+        $track = $this->track(['garmin_session_id' => null, 'garmin_token' => null]);
+
+        $this->postJson(route('live.crew', $track->slug), [
+            'crew'          => 'falsch',
+            'livetrack_url' => 'https://livetrack.garmin.com/session/aaaaaaaa-bbbb/token/ABC123',
+        ])->assertForbidden();
+
+        $this->assertNull($track->refresh()->garmin_session_id);
+    }
+
+    // ── Bilder im Ticker ─────────────────────────────────────────────────
+
+    public function test_crew_may_attach_an_image_to_a_note(): void
+    {
+        Storage::fake('public');
+        $track = $this->track();
+
+        $this->post(route('live.crew', $track->slug), [
+            'crew'  => 'crewschluessel12345',
+            'note'  => 'Wechselzone',
+            'image' => UploadedFile::fake()->image('zelt.jpg'),
+        ])->assertOk()
+          ->assertJsonPath('notes.0.text', 'Wechselzone');
+
+        $stored = $track->refresh()->notes[0]['image'];
+        $this->assertNotNull($stored);
+        Storage::disk('public')->assertExists($stored);
+    }
+
+    /** Ein Bild allein ist auch eine Meldung. */
+    public function test_an_image_without_text_is_a_valid_note(): void
+    {
+        Storage::fake('public');
+        $track = $this->track();
+
+        $this->post(route('live.crew', $track->slug), [
+            'crew'  => 'crewschluessel12345',
+            'image' => UploadedFile::fake()->image('sonnenaufgang.jpg'),
+        ])->assertOk()->assertJsonCount(1, 'notes');
+
+        $this->assertSame('', $track->refresh()->notes[0]['text']);
+    }
+
+    /** Wird die Meldung geloescht, darf ihr Bild nicht liegen bleiben. */
+    public function test_deleting_a_note_removes_its_image(): void
+    {
+        Storage::fake('public');
+        $track = $this->track();
+
+        $this->post(route('live.crew', $track->slug), [
+            'crew'  => 'crewschluessel12345',
+            'image' => UploadedFile::fake()->image('zelt.jpg'),
+        ])->assertOk();
+
+        $note = $track->refresh()->notes[0];
+        Storage::disk('public')->assertExists($note['image']);
+
+        $this->postJson(route('live.crew', $track->slug), [
+            'crew'        => 'crewschluessel12345',
+            'delete_note' => $note['id'],
+        ])->assertOk()->assertJsonCount(0, 'notes');
+
+        Storage::disk('public')->assertMissing($note['image']);
+    }
+
+    /** Die Seite liefert eine fertige Adresse, keinen Ablagepfad. */
+    public function test_note_images_are_served_as_urls(): void
+    {
+        Storage::fake('public');
+        $track = $this->track();
+
+        $response = $this->post(route('live.crew', $track->slug), [
+            'crew'  => 'crewschluessel12345',
+            'image' => UploadedFile::fake()->image('zelt.jpg'),
+        ])->assertOk();
+
+        $url = $response->json('notes.0.image');
+        $this->assertStringStartsWith('/storage/', $url);
+    }
+
+    /** Ein Besucher ohne Schluessel darf nichts hochladen. */
+    public function test_visitors_cannot_upload_images(): void
+    {
+        Storage::fake('public');
+        $track = $this->track();
+
+        $this->post(route('live.crew', $track->slug), [
+            'crew'  => 'falsch',
+            'image' => UploadedFile::fake()->image('zelt.jpg'),
+        ])->assertForbidden();
+
+        $this->assertEmpty($track->refresh()->notes ?? []);
     }
 }

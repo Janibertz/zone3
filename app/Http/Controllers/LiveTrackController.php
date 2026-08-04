@@ -6,6 +6,8 @@ use App\Models\LiveTrack;
 use App\Services\LiveTrackService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class LiveTrackController extends Controller
@@ -57,9 +59,14 @@ class LiveTrackController extends Controller
             // Endgueltige Rundenzahl. Gesetzt heisst: Rennen vorbei.
             'stopped_at_yard' => ['nullable', 'integer', 'min:0', 'max:200'],
             'note'            => ['nullable', 'string', 'max:200'],
+            'image'           => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:6144'],
             'delete_note'     => ['nullable', 'string'],
             // Startzeit nachjustieren, falls das Rennen spaeter losging.
             'starts_at'       => ['nullable', 'date'],
+            // Den LiveTrack-Link gibt es erst, wenn die Uhr laeuft — deshalb
+            // muss ihn auch die Crew nachtragen koennen.
+            'livetrack_url'   => ['nullable', 'string', 'max:400'],
+            'embed_map'       => ['nullable', 'boolean'],
         ]);
 
         $changes = [];
@@ -73,27 +80,71 @@ class LiveTrackController extends Controller
             $changes['starts_at'] = $data['starts_at'];
         }
 
-        // Ticker — neueste Meldung vorn, gedeckelt.
-        if (! empty($data['note'])) {
+        // LiveTrack-Link. Leeres Feld heisst: Link entfernen.
+        if ($request->has('livetrack_url')) {
+            if (! $track->setLiveTrackUrl($data['livetrack_url'] ?: null)) {
+                return response()->json([
+                    'message' => 'Das sieht nicht nach einem LiveTrack-Link aus. Erwartet wird die Adresse mit /session/…/token/…',
+                ], 422);
+            }
+
+            $changes['garmin_session_id'] = $track->garmin_session_id;
+            $changes['garmin_token']      = $track->garmin_token;
+        }
+
+        if ($request->has('embed_map')) {
+            $changes['embed_map'] = (bool) $data['embed_map'];
+        }
+
+        // Ticker — neueste Meldung vorn, gedeckelt. Ein Bild allein reicht,
+        // Text ist dann optional.
+        if (! empty($data['note']) || $request->hasFile('image')) {
             $notes = $track->notes ?? [];
             array_unshift($notes, [
-                'id'   => (string) \Illuminate\Support\Str::uuid(),
-                'at'   => now()->toIso8601String(),
-                'text' => trim($data['note']),
+                'id'    => (string) Str::uuid(),
+                'at'    => now()->toIso8601String(),
+                'text'  => trim($data['note'] ?? ''),
+                'image' => $request->hasFile('image')
+                    ? $request->file('image')->store('livetrack', 'public')
+                    : null,
             ]);
-            $changes['notes'] = array_slice($notes, 0, 60);
+
+            // Was hinten herausfaellt, nimmt sein Bild mit.
+            $changes['notes'] = $this->trimNotes($notes);
         }
 
         if (! empty($data['delete_note'])) {
-            $changes['notes'] = array_values(array_filter(
-                $track->notes ?? [],
-                fn ($n) => ($n['id'] ?? null) !== $data['delete_note']
-            ));
+            [$keep, $dropped] = collect($track->notes ?? [])
+                ->partition(fn ($n) => ($n['id'] ?? null) !== $data['delete_note']);
+
+            $this->deleteImages($dropped->all());
+            $changes['notes'] = $keep->values()->all();
         }
 
         if ($changes) $track->update($changes);
 
         return response()->json($this->publicPayload($track->refresh()));
+    }
+
+    /** Ticker deckeln und die Bilder der herausfallenden Meldungen wegräumen. */
+    private function trimNotes(array $notes, int $limit = 60): array
+    {
+        if (count($notes) <= $limit) {
+            return $notes;
+        }
+
+        $this->deleteImages(array_slice($notes, $limit));
+
+        return array_slice($notes, 0, $limit);
+    }
+
+    private function deleteImages(array $notes): void
+    {
+        foreach ($notes as $note) {
+            if (! empty($note['image'])) {
+                Storage::disk('public')->delete($note['image']);
+            }
+        }
     }
 
     /**
@@ -127,11 +178,25 @@ class LiveTrackController extends Controller
 
             // Endgueltige Rundenzahl. Solange null, rechnet die Uhr weiter.
             'stoppedAtYard' => $track->stopped_at_yard,
-            'notes'         => $track->notes ?? [],
+
+            // Bilder liegen auf der oeffentlichen Platte; hier wird nur der
+            // Pfad zur fertigen Adresse gemacht.
+            'notes'         => collect($track->notes ?? [])
+                ->map(fn ($n) => [
+                    'id'    => $n['id']   ?? null,
+                    'at'    => $n['at']   ?? null,
+                    'text'  => $n['text'] ?? '',
+                    'image' => ! empty($n['image']) ? Storage::disk('public')->url($n['image']) : null,
+                ])
+                ->all(),
 
             // Garmins Karte. Nur wenn ausdrücklich eingeschaltet, denn die
             // Adresse enthält den LiveTrack-Token.
             'mapUrl'       => $track->embed_map ? $track->liveTrackUrl() : null,
+
+            // Zustand fuer das Crew-Formular — beides ohne Token.
+            'hasLiveTrack' => $track->hasLiveTrack(),
+            'embedMap'     => (bool) $track->embed_map,
 
             'path'         => $path,
             'position'     => (isset($state['lat'], $state['lon']))

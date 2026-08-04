@@ -159,18 +159,39 @@ function drawMap() {
 // ── Crew-Steuerung ───────────────────────────────────────────────────────────
 // Sichtbar nur mit gueltigem Schluessel. Der oeffentliche Link allein
 // reicht nicht — sonst koennte jeder Zuschauer das Rennen "beenden".
-const crewBusy = ref(false);
+const crewBusy  = ref(false);
+const crewError = ref(null);
 const noteInput = ref('');
 const yardInput = ref(null);
 
-async function crewPost(payload) {
-    crewBusy.value = true;
+/**
+ * Ein Bild braucht FormData, alles andere geht als JSON. Der Server
+ * unterscheidet die Felder ueber `has()`, deshalb wird nur mitgeschickt,
+ * was auch wirklich geaendert werden soll.
+ */
+async function crewPost(payload, file = null) {
+    crewBusy.value  = true;
+    crewError.value = null;
+
     try {
-        const { data: fresh } = await axios.post(
-            `${window.location.pathname}/crew`,
-            { crew: props.crewKey, ...payload }
-        );
+        let body = { crew: props.crewKey, ...payload };
+
+        if (file) {
+            body = new FormData();
+            body.append('crew', props.crewKey);
+            for (const [key, value] of Object.entries(payload)) {
+                if (value !== null && value !== undefined) body.append(key, value);
+            }
+            body.append('image', file);
+        }
+
+        const { data: fresh } = await axios.post(`${window.location.pathname}/crew`, body);
         data.value = fresh;
+        return true;
+    } catch (e) {
+        crewError.value = e.response?.data?.message
+            ?? 'Das hat nicht geklappt — nochmal versuchen?';
+        return false;
     } finally {
         crewBusy.value = false;
     }
@@ -184,10 +205,60 @@ function crewResume() {
     crewPost({ stopped_at_yard: null });
 }
 
-function crewSaveNote() {
-    if (!noteInput.value.trim()) return;
-    crewPost({ note: noteInput.value });
-    noteInput.value = '';
+// ── Bild zur Meldung ─────────────────────────────────────────────────────────
+const noteImage   = ref(null);
+const notePreview = ref(null);
+const noteFileEl  = ref(null);
+
+function pickNoteImage(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (notePreview.value) URL.revokeObjectURL(notePreview.value);
+    noteImage.value   = file;
+    notePreview.value = URL.createObjectURL(file);
+}
+
+function clearNoteImage() {
+    if (notePreview.value) URL.revokeObjectURL(notePreview.value);
+    noteImage.value   = null;
+    notePreview.value = null;
+    if (noteFileEl.value) noteFileEl.value.value = '';
+}
+
+async function crewSaveNote() {
+    // Ein Bild allein ist auch eine Meldung.
+    if (!noteInput.value.trim() && !noteImage.value) return;
+
+    if (await crewPost({ note: noteInput.value }, noteImage.value)) {
+        noteInput.value = '';
+        clearNoteImage();
+    }
+}
+
+// ── Garmin-Link ──────────────────────────────────────────────────────────────
+// Den Link gibt es erst, wenn die Uhr laeuft — vor dem Start kann ihn niemand
+// hinterlegen. Deshalb darf ihn auch die Crew nachtragen.
+const linkInput = ref('');
+
+const mapShown = computed(() => data.value.embedMap === true);
+
+async function crewSaveLink() {
+    const url = linkInput.value.trim();
+    if (!url) return;
+
+    // Ein neuer Link ohne sichtbare Karte waere sinnlos.
+    if (await crewPost({ livetrack_url: url, embed_map: true })) {
+        linkInput.value = '';
+    }
+}
+
+function crewRemoveLink() {
+    crewPost({ livetrack_url: '', embed_map: false });
+}
+
+function crewToggleMap(event) {
+    crewPost({ embed_map: event.target.checked });
 }
 
 /** „vor 12 Min" statt Uhrzeit — bei einem 24-Stunden-Lauf lesbarer. */
@@ -343,8 +414,16 @@ onUnmounted(() => {
                             <span v-if="i < data.notes.length - 1" class="mt-1 w-px flex-1 bg-line" />
                         </div>
                         <div class="min-w-0 flex-1 pb-1">
-                            <p class="text-[15px] leading-relaxed text-ink">{{ n.text }}</p>
-                            <p class="mt-1 flex items-center gap-2 text-[12px] text-ink-3">
+                            <p v-if="n.text" class="text-[15px] leading-relaxed text-ink">{{ n.text }}</p>
+
+                            <a v-if="n.image" :href="n.image" target="_blank" rel="noopener"
+                                class="mt-2 block overflow-hidden rounded-card bg-surface-2"
+                                :class="n.text ? '' : 'mt-0'">
+                                <img :src="n.image" alt="" loading="lazy"
+                                    class="max-h-96 w-full object-cover" />
+                            </a>
+
+                            <p class="mt-1.5 flex items-center gap-2 text-[12px] text-ink-3">
                                 {{ agoLabel(n.at) }}
                                 <button v-if="isCrew" class="font-semibold text-danger hover:underline"
                                     @click="crewPost({ delete_note: n.id })">löschen</button>
@@ -363,14 +442,84 @@ onUnmounted(() => {
                     <p class="text-[13px] text-ink-3">Nur du und deine Crew seht diesen Abschnitt.</p>
                 </div>
 
+                <p v-if="crewError" class="mb-4 rounded-field bg-danger-soft px-4 py-3 text-[13px] text-danger-ink">
+                    {{ crewError }}
+                </p>
+
                 <!-- Newsticker -->
                 <label class="z-label">Meldung für den Ticker</label>
                 <div class="flex gap-2">
                     <input v-model="noteInput" type="text" maxlength="200" class="z-input"
                         placeholder="z.B. Runde 12 geschafft, alles gut" @keyup.enter="crewSaveNote" />
+
+                    <button type="button" title="Bild anhängen"
+                        class="flex h-11 w-11 shrink-0 items-center justify-center self-center rounded-field bg-surface-2 text-ink-2 transition-colors hover:bg-surface-3"
+                        @click="noteFileEl?.click()">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
+                        </svg>
+                    </button>
+                    <input ref="noteFileEl" type="file" accept="image/*" class="hidden" @change="pickNoteImage" />
+
                     <AppButton :loading="crewBusy" @click="crewSaveNote">Senden</AppButton>
                 </div>
-                <p class="z-hint">Erscheint sofort für alle Zuschauer, neueste Meldung oben.</p>
+
+                <!-- Vorschau des gewählten Bildes -->
+                <div v-if="notePreview" class="relative mt-3 inline-block">
+                    <img :src="notePreview" alt="Vorschau" class="h-28 w-auto rounded-field object-cover" />
+                    <button type="button" title="Bild entfernen"
+                        class="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-ink text-canvas shadow-card"
+                        @click="clearNoteImage">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <p class="z-hint">
+                    Erscheint sofort für alle Zuschauer, neueste Meldung oben.
+                    Ein Bild allein geht auch — bis 6 MB.
+                </p>
+
+                <!-- Garmin-Link -->
+                <div class="mt-5 border-t border-line pt-4">
+                    <label class="z-label">Garmin LiveTrack-Link</label>
+
+                    <template v-if="data.hasLiveTrack">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-3 py-1 text-[12px] font-semibold text-success-ink">
+                                <span class="h-1.5 w-1.5 rounded-full bg-success" />
+                                Link hinterlegt
+                            </span>
+                            <button type="button" class="text-[13px] font-semibold text-danger hover:underline"
+                                :disabled="crewBusy" @click="crewRemoveLink">entfernen</button>
+                        </div>
+
+                        <label class="mt-3 flex items-start gap-2.5 text-[13px] text-ink-2">
+                            <input type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 rounded accent-accent"
+                                :checked="mapShown" :disabled="crewBusy" @change="crewToggleMap" />
+                            <span>
+                                Garmins Karte auf der Seite zeigen.
+                                <span class="text-ink-3">Wer die Seite öffnet, kann darüber auch die
+                                LiveTrack-Sitzung bei Garmin aufrufen.</span>
+                            </span>
+                        </label>
+                    </template>
+
+                    <template v-else>
+                        <div class="flex gap-2">
+                            <input v-model="linkInput" type="url" inputmode="url" class="z-input"
+                                placeholder="https://livetrack.garmin.com/session/…/token/…"
+                                @keyup.enter="crewSaveLink" />
+                            <AppButton :loading="crewBusy" @click="crewSaveLink">Speichern</AppButton>
+                        </div>
+                        <p class="z-hint">
+                            Der Link entsteht erst, wenn die Uhr die Aktivität startet — bis dahin
+                            bleibt hier nichts stehen. Danach erscheint die Karte auf der Seite.
+                        </p>
+                    </template>
+                </div>
 
                 <!-- Rennende -->
                 <div class="mt-5 border-t border-line pt-4">
