@@ -1729,7 +1729,7 @@ function syncStrava() {
                                     class="relative mx-auto flex h-9 w-9 items-center justify-center rounded-full text-[13px] transition-colors"
                                     :class="{
                                         'bg-ink font-bold text-canvas': d.isToday && !d.hasEvent,
-                                        'bg-warn font-bold text-white': d.hasEvent,
+                                        'bg-warn font-bold text-canvas': d.hasEvent,
                                         'text-ink-3 opacity-40':        !d.currentMonth,
                                         'text-ink hover:bg-surface-2':  d.currentMonth && !d.isToday && !d.hasEvent,
                                         'cursor-pointer':               d.hasActivity || d.hasEvent,
@@ -1740,7 +1740,7 @@ function syncStrava() {
                                     <span v-if="d.hasActivity && !d.isToday && !d.hasEvent" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-success" />
                                     <!-- Auf gefuellten Zellen muss der Punkt gegen die Fuellung kontrastieren:
                                          Heute ist bg-ink (im Dark Mode hell), das Event bg-warn (immer dunkel genug). -->
-                                    <span v-if="d.hasActivity && d.hasEvent" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-white/80" />
+                                    <span v-if="d.hasActivity && d.hasEvent" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-surface/80" />
                                     <span v-else-if="d.hasActivity && d.isToday" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-canvas/80" />
                                 </div>
                             </div>
@@ -1872,7 +1872,7 @@ function syncStrava() {
                                             class="flex-1 rounded-full py-2.5 text-[13px] font-bold transition-all active:scale-[0.97]"
                                             :class="quickEventForm.priority === p
                                                 ? p === 'A' ? 'bg-danger text-white'
-                                                  : p === 'B' ? 'bg-warn text-white'
+                                                  : p === 'B' ? 'bg-warn text-canvas'
                                                   : 'bg-ink text-canvas'
                                                 : 'bg-surface-2 text-ink-3 hover:bg-surface-3'">
                                             {{ p }}
@@ -1899,10 +1899,10 @@ function syncStrava() {
         <!-- Wellbeing Modal -->
         <!-- Wellbeing / plan-adjust toast -->
         <Transition enter-active-class="transition-all duration-300" enter-from-class="opacity-0 translate-y-4" leave-active-class="transition-all duration-200" leave-to-class="opacity-0 translate-y-4">
-            <div v-if="wellbeingToast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl text-sm font-medium"
+            <div v-if="wellbeingToast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-card shadow-xl text-sm font-medium"
                 :class="wellbeingToast.type === 'ai'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-green-600 text-white'">
+                    ? 'bg-accent text-white'
+                    : 'bg-success text-white'">
                 <svg v-if="wellbeingToast.type === 'ai'" class="h-4 w-4 animate-spin shrink-0" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                 <svg v-else class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
                 {{ wellbeingToast.message }}

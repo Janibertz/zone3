@@ -73,7 +73,7 @@ const filterOptions = [
 
     <AdminLayout>
         <template #header>
-            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Nutzerverwaltung</h1>
+            <h1 class="text-xl font-bold text-ink">Nutzerverwaltung</h1>
         </template>
 
         <div class="p-4 sm:p-6 space-y-6">
@@ -84,44 +84,44 @@ const filterOptions = [
                     v-model="search"
                     type="search"
                     placeholder="Name oder E-Mail suchen…"
-                    class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm focus:border-red-400 dark:focus:border-red-500 outline-none transition-colors"
+                    class="flex-1 px-4 py-2.5 rounded-field border border-line bg-surface text-ink text-sm focus:border-danger outline-none transition-colors"
                 />
                 <select
                     v-model="filter"
                     @change="applyFilters"
-                    class="px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm focus:border-red-400 outline-none transition-colors"
+                    class="px-4 py-2.5 rounded-field border border-line bg-surface text-ink text-sm focus:border-danger outline-none transition-colors"
                 >
                     <option v-for="opt in filterOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                 </select>
             </div>
 
             <!-- Table -->
-            <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+            <div class="bg-surface rounded-card overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
-                        <thead class="border-b border-gray-100 dark:border-slate-800">
+                        <thead class="border-b border-line">
                             <tr class="text-left">
-                                <th class="px-6 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Nutzer</th>
-                                <th class="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
-                                <th class="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider text-right">Aktivitäten</th>
-                                <th class="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider text-right">Ziele</th>
-                                <th class="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider text-right">Registriert</th>
-                                <th class="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider text-right">Aktionen</th>
+                                <th class="px-6 py-3 text-xs font-semibold text-ink-3 uppercase tracking-wider">Nutzer</th>
+                                <th class="px-4 py-3 text-xs font-semibold text-ink-3 uppercase tracking-wider">Status</th>
+                                <th class="px-4 py-3 text-xs font-semibold text-ink-3 uppercase tracking-wider text-right">Aktivitäten</th>
+                                <th class="px-4 py-3 text-xs font-semibold text-ink-3 uppercase tracking-wider text-right">Ziele</th>
+                                <th class="px-4 py-3 text-xs font-semibold text-ink-3 uppercase tracking-wider text-right">Registriert</th>
+                                <th class="px-4 py-3 text-xs font-semibold text-ink-3 uppercase tracking-wider text-right">Aktionen</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-50 dark:divide-slate-800">
-                            <tr v-for="u in users.data" :key="u.id" class="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <tbody class="divide-y divide-line">
+                            <tr v-for="u in users.data" :key="u.id" class="hover:bg-surface-2/50 transition-colors">
                                 <!-- User -->
                                 <td class="px-6 py-3">
                                     <div class="flex items-center gap-3">
-                                        <div class="h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm"
-                                            :class="u.is_admin ? 'bg-gradient-to-br from-red-400 to-red-600' : 'bg-gradient-to-br from-gray-300 to-gray-400 dark:from-slate-600 dark:to-slate-700'"
+                                        <div class="h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-card"
+                                            :class="u.is_admin ? 'bg-gradient-to-br from-danger to-danger' : 'bg-gradient-to-br from-ink-3 to-ink-3'"
                                         >
                                             {{ u.name.charAt(0).toUpperCase() }}
                                         </div>
                                         <div>
-                                            <p class="font-medium text-gray-900 dark:text-white">{{ u.name }}</p>
-                                            <p class="text-xs text-gray-400 dark:text-slate-500">{{ u.email }}</p>
+                                            <p class="font-medium text-ink">{{ u.name }}</p>
+                                            <p class="text-xs text-ink-3">{{ u.email }}</p>
                                         </div>
                                     </div>
                                 </td>
@@ -129,24 +129,24 @@ const filterOptions = [
                                 <!-- Badges -->
                                 <td class="px-4 py-3">
                                     <div class="flex flex-wrap gap-1">
-                                        <span v-if="u.is_admin"    class="badge bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400">Admin</span>
-                                        <span v-if="!u.is_active"  class="badge bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400">Inaktiv</span>
-                                        <span v-if="u.email_verified_at"          class="badge bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400">✓ Mail</span>
-                                        <span v-if="u.onboarding_completed_at"    class="badge bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400">Onboarded</span>
-                                        <span v-if="u.strava_account"             class="badge bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400">Strava</span>
+                                        <span v-if="u.is_admin"    class="badge bg-danger-soft text-danger-ink">Admin</span>
+                                        <span v-if="!u.is_active"  class="badge bg-surface-2 text-ink-3">Inaktiv</span>
+                                        <span v-if="u.email_verified_at"          class="badge bg-success-soft text-success-ink">✓ Mail</span>
+                                        <span v-if="u.onboarding_completed_at"    class="badge bg-accent-soft text-accent-ink">Onboarded</span>
+                                        <span v-if="u.strava_account"             class="badge bg-warn-soft text-warn-ink">Strava</span>
                                     </div>
                                 </td>
 
-                                <td class="px-4 py-3 text-right text-gray-600 dark:text-slate-300">{{ u.activities_count }}</td>
-                                <td class="px-4 py-3 text-right text-gray-600 dark:text-slate-300">{{ u.events_count }}</td>
-                                <td class="px-4 py-3 text-right text-xs text-gray-400 dark:text-slate-500 whitespace-nowrap">{{ formatDate(u.created_at) }}</td>
+                                <td class="px-4 py-3 text-right text-ink-2">{{ u.activities_count }}</td>
+                                <td class="px-4 py-3 text-right text-ink-2">{{ u.events_count }}</td>
+                                <td class="px-4 py-3 text-right text-xs text-ink-3 whitespace-nowrap">{{ formatDate(u.created_at) }}</td>
 
                                 <!-- Actions -->
                                 <td class="px-4 py-3 text-right">
                                     <div class="flex items-center justify-end gap-2">
                                         <Link
                                             :href="route('admin.users.show', u.id)"
-                                            class="px-3 py-1.5 text-xs rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                                            class="px-3 py-1.5 text-xs rounded-lg bg-surface-2 text-ink-2 hover:bg-surface-3 transition-colors"
                                         >
                                             Ansehen
                                         </Link>
@@ -154,8 +154,8 @@ const filterOptions = [
                                             @click="toggleAdmin(u)"
                                             class="px-3 py-1.5 text-xs rounded-lg transition-colors"
                                             :class="u.is_admin
-                                                ? 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-500/30'
-                                                : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700'"
+                                                ? 'bg-danger-soft text-danger-ink hover:opacity-90'
+                                                : 'bg-surface-2 text-ink-2 hover:bg-surface-3'"
                                         >
                                             {{ u.is_admin ? 'Admin entziehen' : 'Admin machen' }}
                                         </button>
@@ -163,14 +163,14 @@ const filterOptions = [
                                             @click="toggleActive(u)"
                                             class="px-3 py-1.5 text-xs rounded-lg transition-colors"
                                             :class="u.is_active
-                                                ? 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-500/30'
-                                                : 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-500/30'"
+                                                ? 'bg-warn-soft text-warn-ink hover:opacity-90'
+                                                : 'bg-success-soft text-success-ink hover:opacity-90'"
                                         >
                                             {{ u.is_active ? 'Deaktivieren' : 'Aktivieren' }}
                                         </button>
                                         <button
                                             @click="confirmDelete(u)"
-                                            class="px-3 py-1.5 text-xs rounded-lg bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-500/30 transition-colors"
+                                            class="px-3 py-1.5 text-xs rounded-lg bg-danger-soft text-danger-ink hover:opacity-90 transition-colors"
                                         >
                                             Löschen
                                         </button>
@@ -179,7 +179,7 @@ const filterOptions = [
                             </tr>
 
                             <tr v-if="!users.data.length">
-                                <td colspan="6" class="px-6 py-12 text-center text-gray-400 dark:text-slate-500">
+                                <td colspan="6" class="px-6 py-12 text-center text-ink-3">
                                     Keine Nutzer gefunden.
                                 </td>
                             </tr>
@@ -188,17 +188,17 @@ const filterOptions = [
                 </div>
 
                 <!-- Pagination -->
-                <div v-if="users.links?.length > 3" class="px-6 py-4 border-t border-gray-100 dark:border-slate-800 flex flex-wrap gap-1">
+                <div v-if="users.links?.length > 3" class="px-6 py-4 border-t border-line flex flex-wrap gap-1">
                     <Link
                         v-for="link in users.links"
                         :key="link.label"
                         :href="link.url ?? '#'"
                         class="px-3 py-1.5 text-xs rounded-lg transition-colors"
                         :class="link.active
-                            ? 'bg-red-600 text-white'
+                            ? 'bg-danger text-white'
                             : link.url
-                                ? 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
-                                : 'bg-gray-50 dark:bg-slate-900 text-gray-300 dark:text-slate-600 cursor-not-allowed'"
+                                ? 'bg-surface-2 text-ink-2 hover:bg-surface-3'
+                                : 'bg-surface-2 text-ink-3 cursor-not-allowed'"
                         v-html="link.label"
                     />
                 </div>

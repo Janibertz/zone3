@@ -25,12 +25,12 @@ let _idCounter = 1000;
 function uid() { return ++_idCounter; }
 
 const ZONE_COLORS = {
-    0: { dot: 'bg-gray-400',    bar: '#94a3b8', badge: 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400',              border: 'border-gray-200 dark:border-slate-700' },
-    1: { dot: 'bg-emerald-400', bar: '#34d399', badge: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400',   border: 'border-emerald-200 dark:border-emerald-700/50' },
-    2: { dot: 'bg-sky-400',     bar: '#38bdf8', badge: 'bg-sky-50 dark:bg-sky-500/15 text-sky-700 dark:text-sky-400',                  border: 'border-sky-200 dark:border-sky-700/50' },
-    3: { dot: 'bg-amber-400',   bar: '#fbbf24', badge: 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400',           border: 'border-amber-200 dark:border-amber-700/50' },
-    4: { dot: 'bg-orange-500',  bar: '#f97316', badge: 'bg-orange-50 dark:bg-orange-500/15 text-orange-700 dark:text-orange-400',       border: 'border-orange-200 dark:border-orange-700/50' },
-    5: { dot: 'bg-red-500',     bar: '#ef4444', badge: 'bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-400',                  border: 'border-red-200 dark:border-red-700/50' },
+    0: { dot: 'bg-ink-3',    bar: '#94a3b8', badge: 'bg-surface-2 text-ink-3',              border: 'border-line' },
+    1: { dot: 'bg-success', bar: '#34d399', badge: 'bg-success-soft text-success-ink',   border: 'border-success/25' },
+    2: { dot: 'bg-info',     bar: '#38bdf8', badge: 'bg-info-soft text-info-ink',                  border: 'border-info/25' },
+    3: { dot: 'bg-warn',   bar: '#fbbf24', badge: 'bg-warn-soft text-warn-ink',           border: 'border-warn/25' },
+    4: { dot: 'bg-warn',  bar: '#f97316', badge: 'bg-warn-soft text-warn-ink',       border: 'border-warn/25' },
+    5: { dot: 'bg-danger',     bar: '#ef4444', badge: 'bg-danger-soft text-danger-ink',                  border: 'border-danger/25' },
 };
 
 const BLOCK_DEFS = [
@@ -69,12 +69,12 @@ const BLOCK_DEFS = [
 ];
 
 const BLOCK_COLOR_CLASSES = {
-    sky:     { stripe: 'bg-sky-400',     btn: 'bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-500/30' },
-    amber:   { stripe: 'bg-amber-400',   btn: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30' },
-    orange:  { stripe: 'bg-orange-500',  btn: 'bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-500/30' },
-    red:     { stripe: 'bg-red-500',     btn: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/30' },
-    emerald: { stripe: 'bg-emerald-400', btn: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30' },
-    gray:    { stripe: 'bg-gray-300 dark:bg-slate-600', btn: 'bg-gray-50 dark:bg-slate-700 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-600' },
+    sky:     { stripe: 'bg-info',     btn: 'bg-info-soft text-info-ink border-info/25' },
+    amber:   { stripe: 'bg-warn',   btn: 'bg-warn-soft text-warn-ink border-warn/25' },
+    orange:  { stripe: 'bg-warn',  btn: 'bg-warn-soft text-warn-ink border-warn/25' },
+    red:     { stripe: 'bg-danger',     btn: 'bg-danger-soft text-danger-ink border-danger/25' },
+    emerald: { stripe: 'bg-success', btn: 'bg-success-soft text-success-ink border-success/25' },
+    gray:    { stripe: 'bg-surface-3', btn: 'bg-surface-2 text-ink-2 border-line' },
 };
 
 function defFor(t) { return BLOCK_DEFS.find(d => d.type === t) ?? BLOCK_DEFS[2]; }
@@ -214,14 +214,14 @@ const previewSteps = computed(() => blocks.value.map((b, idx) => {
         const totalSec  = (b.steps ?? []).reduce((a, s) => a + (s.duration_mode !== 'distance' ? (s.duration_sec ?? 120) : 0), 0);
         const totalDist = (b.steps ?? []).reduce((a, s) => a + (s.duration_mode === 'distance' ? (s.distance_m ?? 0) : 0), 0);
         const durLabel = totalDist ? fmtDist(totalDist) : (totalSec ? fmtDur(totalSec) : '');
-        return { key: b._id ?? idx, label: b.label, sublabel: `Z${zMin}→Z${zMax} · ${b.steps?.length} Stufen` + (durLabel ? ` · ${durLabel}` : ''), dot: ZONE_COLORS[def.zone]?.dot ?? 'bg-amber-400', isRamp: true };
+        return { key: b._id ?? idx, label: b.label, sublabel: `Z${zMin}→Z${zMax} · ${b.steps?.length} Stufen` + (durLabel ? ` · ${durLabel}` : ''), dot: ZONE_COLORS[def.zone]?.dot ?? 'bg-warn', isRamp: true };
     }
     const zone = b.pace_zone ?? def.zone;
     let durLabel = '';
     if (b.duration_mode === 'distance' && b.distance_m) durLabel = fmtDist(b.distance_m);
     else if (b.duration_sec) durLabel = fmtDur(b.duration_sec);
     const zoneStr = zone > 0 ? zonePaceLabel(zone) : null;
-    return { key: b._id ?? idx, label: b.label, sublabel: [durLabel, zoneStr].filter(Boolean).join(' · '), dot: ZONE_COLORS[zone]?.dot ?? 'bg-gray-400', lapButton: !!b.lap_button };
+    return { key: b._id ?? idx, label: b.label, sublabel: [durLabel, zoneStr].filter(Boolean).join(' · '), dot: ZONE_COLORS[zone]?.dot ?? 'bg-ink-3', lapButton: !!b.lap_button };
 }));
 
 async function save() {
@@ -246,18 +246,18 @@ async function save() {
 
             <!-- Header -->
             <div class="flex items-center gap-3 mb-6 flex-wrap">
-                <Link :href="route('workouts.index')" class="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors">
+                <Link :href="route('workouts.index')" class="text-ink-3 hover:text-ink-2 transition-colors">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
                 </Link>
-                <h1 class="text-xl font-bold text-gray-900 dark:text-white flex-1">{{ isEdit ? 'Workout bearbeiten' : 'Neues Workout' }}</h1>
+                <h1 class="text-xl font-bold text-ink flex-1">{{ isEdit ? 'Workout bearbeiten' : 'Neues Workout' }}</h1>
                 <button @click="save" :disabled="saving"
-                    class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm">
+                    class="inline-flex items-center gap-2 rounded-field bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-card">
                     <svg v-if="saving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                     {{ saving ? 'Speichern…' : 'Speichern' }}
                 </button>
             </div>
 
-            <div v-if="saveError" class="mb-4 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-4 py-3 text-sm text-red-700 dark:text-red-400">{{ saveError }}</div>
+            <div v-if="saveError" class="mb-4 rounded-field bg-danger-soft border border-danger/25 px-4 py-3 text-sm text-danger-ink">{{ saveError }}</div>
 
             <div class="grid lg:grid-cols-[280px_1fr] gap-5 items-start">
 
@@ -265,16 +265,16 @@ async function save() {
                 <div class="space-y-4">
 
                     <!-- Metadata -->
-                    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-3">
+                    <div class="bg-surface rounded-card border border-line p-4 space-y-3">
                         <div>
-                            <label class="block text-[11px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">Name</label>
+                            <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">Name</label>
                             <input v-model="name" type="text" placeholder="z.B. 5×1km Intervall"
-                                class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
                         </div>
                         <div>
-                            <label class="block text-[11px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">Typ</label>
+                            <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">Typ</label>
                             <select v-model="type"
-                                class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
                                 <option value="easy_run">Lockerer Lauf</option>
                                 <option value="tempo_run">Tempolauf</option>
                                 <option value="interval">Intervall</option>
@@ -282,24 +282,24 @@ async function save() {
                             </select>
                         </div>
                         <div>
-                            <label class="block text-[11px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">Notiz</label>
+                            <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">Notiz</label>
                             <textarea v-model="description" rows="2" placeholder="Optional…"
-                                class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+                                class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 resize-none" />
                         </div>
                         <div>
-                            <label class="block text-[11px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">Tags <span class="font-normal normal-case">(mit Leerzeichen trennen)</span></label>
+                            <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">Tags <span class="font-normal normal-case">(mit Leerzeichen trennen)</span></label>
                             <input v-model="tags" type="text" placeholder="#intervall #tempo"
-                                class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
                         </div>
                     </div>
 
                     <!-- Palette (2-col) -->
-                    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4">
-                        <p class="text-[11px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-3">Segment hinzufügen</p>
+                    <div class="bg-surface rounded-card border border-line p-4">
+                        <p class="text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-3">Segment hinzufügen</p>
                         <div class="grid grid-cols-2 gap-2">
                             <button v-for="def in BLOCK_DEFS" :key="def.type"
                                 @click="addBlock(def)"
-                                class="flex items-center gap-2 rounded-xl border px-2.5 py-2 text-xs font-semibold transition-colors hover:shadow-sm text-left"
+                                class="flex items-center gap-2 rounded-field border px-2.5 py-2 text-xs font-semibold transition-colors hover:shadow-card text-left"
                                 :class="BLOCK_COLOR_CLASSES[def.color].btn">
                                 <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="def.icon" />
                                 <span class="truncate">{{ def.label }}</span>
@@ -312,84 +312,84 @@ async function save() {
                 <div class="space-y-4 min-w-0">
 
                     <!-- Live Preview -->
-                    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 overflow-hidden">
+                    <div class="bg-surface rounded-card border border-line overflow-hidden">
                         <!-- Big colored bar -->
-                        <div class="h-10 flex bg-gray-100 dark:bg-slate-800">
+                        <div class="h-10 flex bg-surface-2">
                             <template v-if="barSegments.length">
                                 <div v-for="(seg, i) in barSegments" :key="i"
                                     :style="{ width: seg.pct + '%', backgroundColor: seg.color }"
                                     class="transition-all duration-300" />
                             </template>
                             <div v-else class="w-full flex items-center justify-center">
-                                <span class="text-[11px] text-gray-400 dark:text-slate-500">Noch keine Segmente</span>
+                                <span class="text-[11px] text-ink-3">Noch keine Segmente</span>
                             </div>
                         </div>
 
                         <!-- Step list -->
                         <div class="p-4">
-                            <div v-if="previewSteps.length === 0" class="text-xs text-gray-400 dark:text-slate-500 text-center py-1">
+                            <div v-if="previewSteps.length === 0" class="text-xs text-ink-3 text-center py-1">
                                 Segmente links hinzufügen
                             </div>
                             <div v-else class="space-y-2.5">
                                 <div v-for="step in previewSteps" :key="step.key" class="flex items-center gap-3">
                                     <span class="h-2.5 w-2.5 rounded-full shrink-0" :class="step.dot" />
                                     <div class="flex-1 min-w-0">
-                                        <span class="text-xs font-semibold text-gray-800 dark:text-slate-200 uppercase tracking-wide">{{ step.label }}</span>
-                                        <span v-if="step.sublabel" class="text-xs text-gray-400 dark:text-slate-500 ml-2">{{ step.sublabel }}</span>
+                                        <span class="text-xs font-semibold text-ink uppercase tracking-wide">{{ step.label }}</span>
+                                        <span v-if="step.sublabel" class="text-xs text-ink-3 ml-2">{{ step.sublabel }}</span>
                                     </div>
                                     <span v-if="step.isRepeat"
-                                        class="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400">
+                                        class="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-danger-soft text-danger-ink">
                                         {{ step.reps }}×
                                     </span>
                                     <span v-if="step.lapButton"
-                                        class="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-sky-100 dark:bg-sky-500/15 text-sky-600 dark:text-sky-400 tracking-wide">
+                                        class="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-info-soft text-info-ink tracking-wide">
                                         LAP
                                     </span>
                                 </div>
                             </div>
 
                             <!-- Totals -->
-                            <div v-if="previewSteps.length > 0" class="mt-3 pt-3 border-t border-gray-100 dark:border-slate-800 flex gap-5">
+                            <div v-if="previewSteps.length > 0" class="mt-3 pt-3 border-t border-line flex gap-5">
                                 <div>
-                                    <span class="text-base font-bold text-gray-900 dark:text-white">{{ totalDistM ? fmtDist(totalDistM) : '—' }}</span>
-                                    <span class="text-[11px] text-gray-400 dark:text-slate-500 ml-1">gesamt</span>
+                                    <span class="text-base font-bold text-ink">{{ totalDistM ? fmtDist(totalDistM) : '—' }}</span>
+                                    <span class="text-[11px] text-ink-3 ml-1">gesamt</span>
                                 </div>
                                 <div>
-                                    <span class="text-base font-bold text-gray-900 dark:text-white">{{ totalDurSec ? fmtDur(totalDurSec) : '—' }}</span>
-                                    <span class="text-[11px] text-gray-400 dark:text-slate-500 ml-1">Zeit</span>
+                                    <span class="text-base font-bold text-ink">{{ totalDurSec ? fmtDur(totalDurSec) : '—' }}</span>
+                                    <span class="text-[11px] text-ink-3 ml-1">Zeit</span>
                                 </div>
-                                <div class="ml-auto self-center text-[11px] text-gray-400 dark:text-slate-500">{{ blocks.length }} Segment{{ blocks.length !== 1 ? 'e' : '' }}</div>
+                                <div class="ml-auto self-center text-[11px] text-ink-3">{{ blocks.length }} Segment{{ blocks.length !== 1 ? 'e' : '' }}</div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Empty state -->
                     <div v-if="blocks.length === 0"
-                        class="bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700 p-10 text-center">
-                        <p class="text-sm text-gray-500 dark:text-slate-400">Klicke links auf ein Segment, um es hinzuzufügen</p>
+                        class="bg-surface rounded-card border border-dashed border-line p-10 text-center">
+                        <p class="text-sm text-ink-3">Klicke links auf ein Segment, um es hinzuzufügen</p>
                     </div>
 
                     <!-- Block list -->
                     <div class="space-y-2">
                         <div v-for="(block, idx) in blocks" :key="block._id ?? idx"
-                            class="bg-white dark:bg-slate-900 rounded-2xl border overflow-hidden transition-all"
-                            :class="ZONE_COLORS[block.pace_zone ?? defFor(block.type).zone]?.border ?? 'border-gray-200 dark:border-slate-700'">
+                            class="bg-surface rounded-card border overflow-hidden transition-all"
+                            :class="ZONE_COLORS[block.pace_zone ?? defFor(block.type).zone]?.border ?? 'border-line'">
 
                             <!-- Block header (click to expand) -->
                             <div class="flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none"
                                 @click="toggleExpand(block._id ?? idx)">
-                                <div class="h-8 w-1 rounded-full shrink-0" :class="BLOCK_COLOR_CLASSES[defFor(block.type).color]?.stripe ?? 'bg-gray-300'" />
+                                <div class="h-8 w-1 rounded-full shrink-0" :class="BLOCK_COLOR_CLASSES[defFor(block.type).color]?.stripe ?? 'bg-surface-3'" />
                                 <div class="h-7 w-7 rounded-lg flex items-center justify-center shrink-0"
                                     :class="BLOCK_COLOR_CLASSES[defFor(block.type).color]?.btn ?? ''">
                                     <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="defFor(block.type).icon" />
                                 </div>
                                 <div class="flex-1 min-w-0">
-                                    <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ block.label }}</span>
+                                    <span class="text-sm font-semibold text-ink">{{ block.label }}</span>
                                     <span v-if="block.lap_button"
-                                        class="text-[10px] font-bold ml-2 px-1.5 py-0.5 rounded-full bg-sky-100 dark:bg-sky-500/15 text-sky-600 dark:text-sky-400 tracking-wide">
+                                        class="text-[10px] font-bold ml-2 px-1.5 py-0.5 rounded-full bg-info-soft text-info-ink tracking-wide">
                                         LAP
                                     </span>
-                                    <span class="text-xs text-gray-400 dark:text-slate-500 ml-2">
+                                    <span class="text-xs text-ink-3 ml-2">
                                         <template v-if="block.type === 'repeat'">{{ block.repetitions }}× · {{ block.steps?.length }} Schritte</template>
                                         <template v-else-if="block.type === 'ramp_up' || block.type === 'ramp_down'">{{ block.steps?.length }} Stufen</template>
                                         <template v-else-if="block.duration_mode === 'distance' && block.distance_m">{{ fmtDist(block.distance_m) }}</template>
@@ -402,22 +402,22 @@ async function save() {
                                 </div>
                                 <div class="flex gap-0.5 shrink-0" @click.stop>
                                     <button @click="moveUp(idx)" :disabled="idx === 0" title="Nach oben"
-                                        class="p-1 rounded text-gray-300 dark:text-slate-600 hover:text-gray-500 dark:hover:text-slate-400 disabled:opacity-20 transition-colors">
+                                        class="p-1 rounded text-ink-3 hover:text-ink-3 disabled:opacity-20 transition-colors">
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" /></svg>
                                     </button>
                                     <button @click="moveDown(idx)" :disabled="idx === blocks.length - 1" title="Nach unten"
-                                        class="p-1 rounded text-gray-300 dark:text-slate-600 hover:text-gray-500 dark:hover:text-slate-400 disabled:opacity-20 transition-colors">
+                                        class="p-1 rounded text-ink-3 hover:text-ink-3 disabled:opacity-20 transition-colors">
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
                                     </button>
                                     <button @click="duplicateBlock(idx)" title="Duplizieren"
-                                        class="p-1 rounded text-gray-300 dark:text-slate-600 hover:text-gray-500 dark:hover:text-slate-400 transition-colors">
+                                        class="p-1 rounded text-ink-3 hover:text-ink-3 transition-colors">
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" /></svg>
                                     </button>
                                     <button @click="removeBlock(idx)" title="Löschen"
-                                        class="p-1 rounded text-gray-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 transition-colors">
+                                        class="p-1 rounded text-ink-3 hover:text-danger transition-colors">
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
                                     </button>
-                                    <svg class="h-4 w-4 text-gray-300 dark:text-slate-600 ml-0.5 transition-transform"
+                                    <svg class="h-4 w-4 text-ink-3 ml-0.5 transition-transform"
                                         :class="expandedId === (block._id ?? idx) ? 'rotate-180' : ''"
                                         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
@@ -427,68 +427,68 @@ async function save() {
 
                             <!-- Expanded editor -->
                             <div v-if="expandedId === (block._id ?? idx)"
-                                class="border-t border-gray-100 dark:border-slate-800 px-4 py-4 space-y-3">
+                                class="border-t border-line px-4 py-4 space-y-3">
 
                                 <!-- Label -->
                                 <div>
-                                    <label class="block text-[11px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">Bezeichnung</label>
+                                    <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">Bezeichnung</label>
                                     <input v-model="block.label" type="text"
-                                        class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                        class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
                                 </div>
 
                                 <!-- ── Simple blocks ── -->
                                 <template v-if="!block.steps">
                                     <div class="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label class="block text-[11px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">Modus</label>
+                                            <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">Modus</label>
                                             <select v-model="block.duration_mode"
-                                                class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                                class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
                                                 <option value="time">Zeit</option>
                                                 <option value="distance">Distanz</option>
                                             </select>
                                         </div>
                                         <div>
-                                            <label class="block text-[11px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                                            <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">
                                                 {{ block.duration_mode === 'distance' ? 'Distanz (m)' : 'Dauer (MM:SS)' }}
                                             </label>
                                             <input v-if="block.duration_mode === 'distance'"
                                                 v-model.number="block.distance_m" type="number" min="0" step="100" placeholder="1000"
-                                                class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                                class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
                                             <input v-else
                                                 :value="secToHms(block.duration_sec)"
                                                 @change="block.duration_sec = hmsToSec($event.target.value)"
                                                 type="text" placeholder="10:00"
-                                                class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                                class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
                                         </div>
                                     </div>
                                     <div v-if="block.type !== 'rest'" class="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label class="block text-[11px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">Zone</label>
+                                            <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">Zone</label>
                                             <select v-model.number="block.pace_zone"
-                                                class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                                class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
                                                 <option :value="0">— keine —</option>
                                                 <option v-for="z in [1,2,3,4,5]" :key="z" :value="z">Zone {{ z }}{{ paceZones?.['z'+z] ? ' · ' + zonePaceLabel(z) : '' }}</option>
                                             </select>
                                         </div>
                                         <div>
-                                            <label class="block text-[11px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">Pace-Ziel (MM:SS)</label>
+                                            <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">Pace-Ziel (MM:SS)</label>
                                             <input v-model="block.pace" type="text" placeholder="z.B. 5:30"
-                                                class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                                class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
                                         </div>
                                     </div>
 
                                     <!-- Lap-Taste (nur Aufwärmen + Auslaufen) -->
                                     <div v-if="block.type === 'warmup' || block.type === 'cooldown'"
-                                        class="flex items-center gap-3 rounded-xl bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/30 px-3 py-3">
+                                        class="flex items-center gap-3 rounded-field bg-info-soft border border-info/25 px-3 py-3">
                                         <button type="button" @click="block.lap_button = !block.lap_button"
-                                            class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
-                                            :class="block.lap_button ? 'bg-sky-500' : 'bg-gray-200 dark:bg-slate-600'">
-                                            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition duration-200 ease-in-out"
+                                            class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-info focus:ring-offset-2"
+                                            :class="block.lap_button ? 'bg-info' : 'bg-surface-3'">
+                                            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-surface shadow transform transition duration-200 ease-in-out"
                                                 :class="block.lap_button ? 'translate-x-5' : 'translate-x-0'" />
                                         </button>
                                         <div>
-                                            <p class="text-xs font-semibold text-sky-700 dark:text-sky-400">Lap-Taste aktivieren</p>
-                                            <p class="text-[11px] text-sky-600/70 dark:text-sky-400/60 mt-0.5 leading-snug">
+                                            <p class="text-xs font-semibold text-info-ink">Lap-Taste aktivieren</p>
+                                            <p class="text-[11px] text-info-ink/70 mt-0.5 leading-snug">
                                                 Block frühzeitig per Lap-Taste beenden und in den nächsten springen.
                                             </p>
                                         </div>
@@ -499,37 +499,37 @@ async function save() {
                                 <template v-else-if="block.type === 'ramp_up' || block.type === 'ramp_down'">
                                     <div class="space-y-2">
                                         <div v-for="(step, si) in block.steps" :key="si"
-                                            class="rounded-xl border border-gray-100 dark:border-slate-700 p-2.5 space-y-2">
+                                            class="rounded-field border border-line p-2.5 space-y-2">
                                             <div class="flex items-center gap-2">
-                                                <span class="h-2 w-2 rounded-full shrink-0" :class="ZONE_COLORS[step.zone]?.dot ?? 'bg-gray-400'" />
+                                                <span class="h-2 w-2 rounded-full shrink-0" :class="ZONE_COLORS[step.zone]?.dot ?? 'bg-ink-3'" />
                                                 <select v-model.number="step.zone"
-                                                    class="flex-1 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-2 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                                    class="flex-1 rounded-field border border-line bg-surface-2 px-2 py-1.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
                                                     <option v-for="z in [1,2,3,4,5]" :key="z" :value="z">Zone {{ z }}{{ paceZones?.['z'+z] ? ' · ' + zonePaceLabel(z) : '' }}</option>
                                                 </select>
                                                 <button @click="removeRampStep(block, si)" :disabled="block.steps.length <= 2"
-                                                    class="p-1 rounded-lg text-gray-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 disabled:opacity-20 transition-colors">
+                                                    class="p-1 rounded-lg text-ink-3 hover:text-danger disabled:opacity-20 transition-colors">
                                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
                                                 </button>
                                             </div>
                                             <div class="flex gap-2">
                                                 <select v-model="step.duration_mode"
-                                                    class="rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-2 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                                    class="rounded-field border border-line bg-surface-2 px-2 py-1.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
                                                     <option value="time">Zeit</option>
                                                     <option value="distance">Distanz</option>
                                                 </select>
                                                 <input v-if="step.duration_mode === 'distance'"
                                                     v-model.number="step.distance_m" type="number" min="0" step="100" placeholder="400 m"
-                                                    class="flex-1 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-2 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                                    class="flex-1 rounded-field border border-line bg-surface-2 px-2 py-1.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
                                                 <input v-else
                                                     :value="secToHms(step.duration_sec)"
                                                     @change="step.duration_sec = hmsToSec($event.target.value)"
                                                     type="text" placeholder="03:00"
-                                                    class="flex-1 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-2 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                                    class="flex-1 rounded-field border border-line bg-surface-2 px-2 py-1.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
                                             </div>
                                         </div>
                                     </div>
                                     <button @click="addRampStep(block)"
-                                        class="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
+                                        class="inline-flex items-center gap-1 text-xs text-accent-ink hover:underline">
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                                         Stufe hinzufügen
                                     </button>
@@ -538,65 +538,65 @@ async function save() {
                                 <!-- ── Intervalle (Repeat) blocks ── -->
                                 <template v-else-if="block.type === 'repeat'">
                                     <div class="flex items-center gap-3">
-                                        <label class="text-[11px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Wiederholungen</label>
+                                        <label class="text-[11px] font-semibold text-ink-3 uppercase tracking-wide">Wiederholungen</label>
                                         <div class="flex items-center gap-1">
                                             <button @click="block.repetitions = Math.max(1, (block.repetitions ?? 1) - 1)"
-                                                class="h-7 w-7 rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-sm font-bold text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center justify-center">−</button>
-                                            <span class="w-8 text-center text-sm font-bold text-gray-900 dark:text-white">{{ block.repetitions ?? 1 }}</span>
+                                                class="h-7 w-7 rounded-lg border border-line bg-surface-2 text-sm font-bold text-ink-2 hover:bg-surface-2 transition-colors flex items-center justify-center">−</button>
+                                            <span class="w-8 text-center text-sm font-bold text-ink">{{ block.repetitions ?? 1 }}</span>
                                             <button @click="block.repetitions = Math.min(20, (block.repetitions ?? 1) + 1)"
-                                                class="h-7 w-7 rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-sm font-bold text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center justify-center">+</button>
+                                                class="h-7 w-7 rounded-lg border border-line bg-surface-2 text-sm font-bold text-ink-2 hover:bg-surface-2 transition-colors flex items-center justify-center">+</button>
                                         </div>
-                                        <span class="text-xs text-gray-400 dark:text-slate-500">× wiederholen</span>
+                                        <span class="text-xs text-ink-3">× wiederholen</span>
                                     </div>
 
                                     <div class="space-y-2">
                                         <div v-for="(step, si) in block.steps" :key="step._id ?? si"
-                                            class="rounded-xl border-2 overflow-hidden"
-                                            :class="step.type === 'work' ? 'border-red-200 dark:border-red-500/40' : step.type === 'rest' ? 'border-emerald-200 dark:border-emerald-500/40' : 'border-sky-200 dark:border-sky-500/40'">
+                                            class="rounded-field border-2 overflow-hidden"
+                                            :class="step.type === 'work' ? 'border-danger/25' : step.type === 'rest' ? 'border-success/25' : 'border-info/25'">
                                             <!-- Step type header -->
                                             <div class="px-3 py-1.5 flex items-center gap-2"
-                                                :class="step.type === 'work' ? 'bg-red-50 dark:bg-red-500/10' : step.type === 'rest' ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-sky-50 dark:bg-sky-500/10'">
+                                                :class="step.type === 'work' ? 'bg-danger-soft' : step.type === 'rest' ? 'bg-success-soft' : 'bg-info-soft'">
                                                 <select v-model="step.type"
                                                     class="rounded-lg border-0 bg-transparent text-xs font-bold uppercase tracking-wide focus:outline-none cursor-pointer"
-                                                    :class="step.type === 'work' ? 'text-red-600 dark:text-red-400' : step.type === 'rest' ? 'text-emerald-600 dark:text-emerald-400' : 'text-sky-600 dark:text-sky-400'">
+                                                    :class="step.type === 'work' ? 'text-danger-ink' : step.type === 'rest' ? 'text-success-ink' : 'text-info-ink'">
                                                     <option value="work">ARBEIT</option>
                                                     <option value="rest">PAUSE</option>
                                                     <option value="float">FLOAT</option>
                                                 </select>
                                                 <input v-model="step.label" type="text" placeholder="Bezeichnung"
-                                                    class="flex-1 rounded-lg border-0 bg-transparent text-xs text-gray-600 dark:text-slate-300 focus:outline-none placeholder-gray-300 dark:placeholder-slate-600" />
+                                                    class="flex-1 rounded-lg border-0 bg-transparent text-xs text-ink-2 focus:outline-none placeholder-ink-3" />
                                                 <button @click="removeRepeatStep(block, si)" :disabled="block.steps.length <= 2"
-                                                    class="p-0.5 rounded text-gray-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 disabled:opacity-20 transition-colors">
+                                                    class="p-0.5 rounded text-ink-3 hover:text-danger disabled:opacity-20 transition-colors">
                                                     <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
                                                 </button>
                                             </div>
                                             <!-- Step inputs -->
-                                            <div class="px-3 py-2.5 grid grid-cols-2 gap-2 bg-white dark:bg-slate-900">
+                                            <div class="px-3 py-2.5 grid grid-cols-2 gap-2 bg-surface">
                                                 <select v-model="step.duration_mode"
-                                                    class="rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-2 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none">
+                                                    class="rounded-field border border-line bg-surface-2 px-2 py-1.5 text-xs text-ink focus:outline-none">
                                                     <option value="time">Zeit</option>
                                                     <option value="distance">Distanz</option>
                                                 </select>
                                                 <input v-if="step.duration_mode === 'distance'"
                                                     v-model.number="step.distance_m" type="number" min="0" step="100" placeholder="Meter"
-                                                    class="rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-2 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none" />
+                                                    class="rounded-field border border-line bg-surface-2 px-2 py-1.5 text-xs text-ink focus:outline-none" />
                                                 <input v-else
                                                     :value="secToHms(step.duration_sec)"
                                                     @change="step.duration_sec = hmsToSec($event.target.value)"
                                                     type="text" placeholder="MM:SS"
-                                                    class="rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-2 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none" />
+                                                    class="rounded-field border border-line bg-surface-2 px-2 py-1.5 text-xs text-ink focus:outline-none" />
                                                 <select v-model.number="step.pace_zone"
-                                                    class="rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-2 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none">
+                                                    class="rounded-field border border-line bg-surface-2 px-2 py-1.5 text-xs text-ink focus:outline-none">
                                                     <option :value="0">— keine Zone —</option>
                                                     <option v-for="z in [1,2,3,4,5]" :key="z" :value="z">Z{{ z }}{{ paceZones?.['z'+z] ? ' · ' + zonePaceLabel(z) : '' }}</option>
                                                 </select>
                                                 <input v-model="step.pace" type="text" placeholder="Pace (opt.)"
-                                                    class="rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-2 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none" />
+                                                    class="rounded-field border border-line bg-surface-2 px-2 py-1.5 text-xs text-ink focus:outline-none" />
                                             </div>
                                         </div>
                                     </div>
                                     <button @click="addRepeatStep(block)"
-                                        class="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
+                                        class="inline-flex items-center gap-1 text-xs text-accent-ink hover:underline">
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                                         Schritt hinzufügen
                                     </button>

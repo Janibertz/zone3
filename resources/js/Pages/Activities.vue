@@ -52,15 +52,15 @@ function formatDateShort(dateStr) {
 
 const typeLabel = { Run: 'Laufen', Ride: 'Radfahren', VirtualRide: 'Virtual Ride', Swim: 'Schwimmen', Walk: 'Gehen', Workout: 'Workout' };
 const typeColors = {
-    Run:         'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300',
-    Ride:        'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300',
-    VirtualRide: 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300',
-    Swim:        'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
-    Workout:     'bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300',
-    Walk:        'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300',
+    Run:         'bg-accent-soft text-accent-ink',
+    Ride:        'bg-success-soft text-success-ink',
+    VirtualRide: 'bg-success-soft text-success-ink',
+    Swim:        'bg-info-soft text-info-ink',
+    Workout:     'bg-warn-soft text-warn-ink',
+    Walk:        'bg-warn-soft text-warn-ink',
 };
 function typeColor(t) {
-    return typeColors[t] ?? 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300';
+    return typeColors[t] ?? 'bg-surface-2 text-ink-2';
 }
 
 const monthOptions = computed(() => {
@@ -88,8 +88,8 @@ const activeFilterCount = computed(() =>
             <!-- Header -->
             <div class="flex items-center justify-between mb-4">
                 <div>
-                    <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Aktivitäten</h1>
-                    <p class="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-0.5">
+                    <h1 class="text-xl sm:text-2xl font-bold text-ink">Aktivitäten</h1>
+                    <p class="text-xs sm:text-sm text-ink-3 mt-0.5">
                         {{ activities.total }} {{ activities.total === 1 ? 'Aktivität' : 'Aktivitäten' }}
                     </p>
                 </div>
@@ -99,7 +99,7 @@ const activeFilterCount = computed(() =>
             <div class="mb-4 space-y-2">
                 <!-- Search -->
                 <div class="relative">
-                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-slate-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-3 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 15.803a7.5 7.5 0 0010.607 10.607z"/>
                     </svg>
                     <input
@@ -107,7 +107,7 @@ const activeFilterCount = computed(() =>
                         @keyup.enter="applyFilters"
                         type="text"
                         placeholder="Aktivität suchen…"
-                        class="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        class="w-full pl-9 pr-4 py-2.5 text-sm rounded-field bg-surface text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/40"
                     />
                 </div>
 
@@ -116,7 +116,7 @@ const activeFilterCount = computed(() =>
                     <select
                         v-model="selectedType"
                         @change="applyFilters"
-                        class="w-full py-2.5 px-3 text-sm rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        class="w-full py-2.5 px-3 text-sm rounded-field bg-surface text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
                     >
                         <option value="">Alle Typen</option>
                         <option value="Run">Laufen</option>
@@ -128,7 +128,7 @@ const activeFilterCount = computed(() =>
                     <select
                         v-model="selectedMonth"
                         @change="applyFilters"
-                        class="w-full py-2.5 px-3 text-sm rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        class="w-full py-2.5 px-3 text-sm rounded-field bg-surface text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
                     >
                         <option value="">Alle Monate</option>
                         <option v-for="m in monthOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
@@ -137,10 +137,10 @@ const activeFilterCount = computed(() =>
 
                 <!-- Active filters badge + clear -->
                 <div v-if="activeFilterCount > 0" class="flex items-center gap-2">
-                    <span class="text-xs text-indigo-600 dark:text-indigo-400 font-medium">{{ activeFilterCount }} Filter aktiv</span>
+                    <span class="text-xs text-accent-ink font-medium">{{ activeFilterCount }} Filter aktiv</span>
                     <button
                         @click="search=''; selectedType=''; selectedMonth=''; applyFilters()"
-                        class="text-xs text-gray-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                        class="text-xs text-ink-3 hover:text-danger transition-colors"
                     >
                         ✕ Zurücksetzen
                     </button>
@@ -153,7 +153,7 @@ const activeFilterCount = computed(() =>
                     v-for="activity in activities.data"
                     :key="activity.id"
                     :href="route('activities.show', activity.id)"
-                    class="block w-full text-left bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 active:scale-[0.99] hover:border-indigo-200 dark:hover:border-indigo-500/40 hover:shadow-sm transition-all duration-150"
+                    class="block w-full text-left bg-surface rounded-card border border-line p-4 active:scale-[0.99] hover:border-accent/25 hover:shadow-card transition-all duration-150"
                 >
                     <!-- Top row: type badge + date + chevron -->
                     <div class="flex items-center justify-between gap-2 mb-2">
@@ -161,57 +161,57 @@ const activeFilterCount = computed(() =>
                             <span class="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full" :class="typeColor(activity.type)">
                                 {{ typeLabel[activity.type] ?? activity.type }}
                             </span>
-                            <span class="text-xs text-gray-400 dark:text-slate-500 truncate">{{ formatDateShort(activity.start_date) }}</span>
-                            <span v-if="activity.location_city" class="hidden sm:inline text-xs text-gray-400 dark:text-slate-500 truncate">· {{ activity.location_city }}</span>
+                            <span class="text-xs text-ink-3 truncate">{{ formatDateShort(activity.start_date) }}</span>
+                            <span v-if="activity.location_city" class="hidden sm:inline text-xs text-ink-3 truncate">· {{ activity.location_city }}</span>
                         </div>
-                        <svg class="h-4 w-4 shrink-0 text-gray-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <svg class="h-4 w-4 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
                         </svg>
                     </div>
 
                     <!-- Name -->
-                    <p class="font-semibold text-gray-900 dark:text-white text-sm truncate mb-3">{{ activity.name }}</p>
+                    <p class="font-semibold text-ink text-sm truncate mb-3">{{ activity.name }}</p>
 
                     <!-- Stats row -->
                     <div class="flex items-center gap-4 text-sm">
                         <div class="flex items-center gap-1.5">
-                            <span class="text-gray-400 dark:text-slate-500 text-xs">↗</span>
-                            <span class="font-semibold text-gray-900 dark:text-white">{{ formatDistance(activity.distance) }}</span>
+                            <span class="text-ink-3 text-xs">↗</span>
+                            <span class="font-semibold text-ink">{{ formatDistance(activity.distance) }}</span>
                         </div>
                         <div class="flex items-center gap-1.5">
-                            <span class="text-gray-400 dark:text-slate-500 text-xs">⏱</span>
-                            <span class="font-semibold text-gray-900 dark:text-white">{{ formatDuration(activity.moving_time) }}</span>
+                            <span class="text-ink-3 text-xs">⏱</span>
+                            <span class="font-semibold text-ink">{{ formatDuration(activity.moving_time) }}</span>
                         </div>
                         <div v-if="activity.type === 'Run' && activity.average_speed" class="flex items-center gap-1.5">
-                            <span class="text-gray-400 dark:text-slate-500 text-xs">⚡</span>
-                            <span class="font-semibold text-gray-900 dark:text-white">{{ formatPace(activity.average_speed) }}<span class="text-xs font-normal text-gray-400 dark:text-slate-500">/km</span></span>
+                            <span class="text-ink-3 text-xs">⚡</span>
+                            <span class="font-semibold text-ink">{{ formatPace(activity.average_speed) }}<span class="text-xs font-normal text-ink-3">/km</span></span>
                         </div>
                         <template v-if="['Ride','VirtualRide'].includes(activity.type)">
                             <div v-if="activity.average_speed" class="flex items-center gap-1.5">
-                                <span class="text-gray-400 dark:text-slate-500 text-xs">⚡</span>
-                                <span class="font-semibold text-gray-900 dark:text-white">{{ (activity.average_speed * 3.6).toFixed(1) }}<span class="text-xs font-normal text-gray-400 dark:text-slate-500"> km/h</span></span>
+                                <span class="text-ink-3 text-xs">⚡</span>
+                                <span class="font-semibold text-ink">{{ (activity.average_speed * 3.6).toFixed(1) }}<span class="text-xs font-normal text-ink-3"> km/h</span></span>
                             </div>
                             <div v-if="activity.average_watts" class="flex items-center gap-1.5">
-                                <span class="text-gray-400 dark:text-slate-500 text-xs">⚡</span>
-                                <span class="font-semibold text-gray-900 dark:text-white">{{ Math.round(activity.average_watts) }}<span class="text-xs font-normal text-gray-400 dark:text-slate-500"> W</span></span>
+                                <span class="text-ink-3 text-xs">⚡</span>
+                                <span class="font-semibold text-ink">{{ Math.round(activity.average_watts) }}<span class="text-xs font-normal text-ink-3"> W</span></span>
                             </div>
                         </template>
                         <div v-if="activity.average_heartrate" class="flex items-center gap-1.5 ml-auto">
-                            <span class="text-red-400 text-xs">♥</span>
-                            <span class="text-xs font-medium text-gray-600 dark:text-slate-400">{{ Math.round(activity.average_heartrate) }}</span>
+                            <span class="text-danger text-xs">♥</span>
+                            <span class="text-xs font-medium text-ink-2">{{ Math.round(activity.average_heartrate) }}</span>
                         </div>
                     </div>
                 </Link>
 
                 <!-- Empty state -->
                 <div v-if="activities.data.length === 0" class="flex flex-col items-center justify-center py-16 gap-3">
-                    <div class="h-16 w-16 rounded-2xl bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
-                        <svg class="h-8 w-8 text-gray-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <div class="h-16 w-16 rounded-card bg-surface-2 flex items-center justify-center">
+                        <svg class="h-8 w-8 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75z" />
                         </svg>
                     </div>
-                    <p class="text-gray-500 dark:text-slate-400 font-medium">Keine Aktivitäten gefunden</p>
-                    <button v-if="activeFilterCount > 0" @click="search=''; selectedType=''; selectedMonth=''; applyFilters()" class="text-sm text-indigo-600 dark:text-indigo-400">Filter zurücksetzen</button>
+                    <p class="text-ink-3 font-medium">Keine Aktivitäten gefunden</p>
+                    <button v-if="activeFilterCount > 0" @click="search=''; selectedType=''; selectedMonth=''; applyFilters()" class="text-sm text-accent-ink">Filter zurücksetzen</button>
                 </div>
             </div>
 
@@ -222,12 +222,12 @@ const activeFilterCount = computed(() =>
                     :key="link.label"
                     v-html="link.label"
                     :disabled="!link.url"
-                    class="px-3 py-1.5 text-sm rounded-xl transition-colors"
+                    class="px-3 py-1.5 text-sm rounded-field transition-colors"
                     :class="link.active
-                        ? 'bg-indigo-600 text-white font-semibold'
+                        ? 'bg-accent text-white font-semibold'
                         : link.url
-                            ? 'bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                            : 'text-gray-300 dark:text-slate-600 cursor-default'"
+                            ? 'bg-surface text-ink-2 hover:bg-surface-2'
+                            : 'text-ink-3 cursor-default'"
                     @click="link.url && router.visit(link.url)"
                 />
             </div>

@@ -151,7 +151,7 @@ const moreNavItems = computed(() => {
             </div>
             <button
                 @click="reload"
-                class="shrink-0 rounded-field bg-white/20 px-3 py-1 text-xs font-semibold transition-colors hover:bg-white/30"
+                class="shrink-0 rounded-field bg-surface/20 px-3 py-1 text-xs font-semibold transition-colors hover:bg-surface/30"
             >
                 Jetzt aktualisieren
             </button>
@@ -178,7 +178,7 @@ const moreNavItems = computed(() => {
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
                     </svg>
                 </button>
-                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-field bg-white/20">
+                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-field bg-surface/20">
                     <span class="text-xs font-bold text-white">Z3</span>
                 </div>
                 <div class="min-w-0 flex-1">
@@ -187,7 +187,7 @@ const moreNavItems = computed(() => {
                 </div>
                 <button
                     @click="installApp"
-                    class="shrink-0 rounded-full bg-white px-4 py-1.5 text-xs font-bold text-accent-ink transition-colors hover:bg-white/90"
+                    class="shrink-0 rounded-full bg-surface px-4 py-1.5 text-xs font-bold text-accent-ink transition-colors hover:bg-surface/90"
                 >
                     Installieren
                 </button>
@@ -204,7 +204,7 @@ const moreNavItems = computed(() => {
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
                         </svg>
                     </button>
-                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-field bg-white/20">
+                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-field bg-surface/20">
                         <span class="text-xs font-bold text-white">Z3</span>
                     </div>
                     <div class="min-w-0 flex-1">
@@ -484,7 +484,7 @@ const moreNavItems = computed(() => {
             <!-- PWA Install Card (Android) -->
             <div v-if="isInstallable" class="mt-5 rounded-card bg-accent px-4 py-4">
                 <div class="mb-3 flex items-start gap-3">
-                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-field bg-white/20">
+                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-field bg-surface/20">
                         <span class="text-base font-bold text-white">Z3</span>
                     </div>
                     <div class="min-w-0 flex-1">
@@ -498,7 +498,7 @@ const moreNavItems = computed(() => {
                     </button>
                     <button
                         @click="installApp"
-                        class="rounded-full bg-white px-5 py-2 text-xs font-bold text-accent-ink transition-colors hover:bg-white/90"
+                        class="rounded-full bg-surface px-5 py-2 text-xs font-bold text-accent-ink transition-colors hover:bg-surface/90"
                     >
                         Installieren
                     </button>
@@ -508,7 +508,7 @@ const moreNavItems = computed(() => {
             <!-- PWA Install Card (iOS) -->
             <div v-else-if="isIOSHint" class="mt-5 rounded-card bg-accent px-4 py-4">
                 <div class="mb-3 flex items-start gap-3">
-                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-field bg-white/20">
+                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-field bg-surface/20">
                         <span class="text-base font-bold text-white">Z3</span>
                     </div>
                     <div class="min-w-0 flex-1">

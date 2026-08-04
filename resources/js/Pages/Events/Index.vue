@@ -123,9 +123,9 @@ const backyardTargetKm = computed(() =>
 );
 
 const priorityConfig = {
-    A: { label: 'A', title: 'A-Event',  desc: 'Hauptrennen',       bg: 'bg-red-100 dark:bg-red-500/15',    text: 'text-red-700 dark:text-red-400',    border: 'border-red-200 dark:border-red-500/30',   dot: 'bg-red-500' },
-    B: { label: 'B', title: 'B-Event',  desc: 'Wichtiges Rennen',  bg: 'bg-amber-100 dark:bg-amber-500/15', text: 'text-amber-700 dark:text-amber-400', border: 'border-amber-200 dark:border-amber-500/30', dot: 'bg-amber-500' },
-    C: { label: 'C', title: 'C-Event',  desc: 'Trainingsrennen',   bg: 'bg-gray-100 dark:bg-slate-700',    text: 'text-gray-600 dark:text-slate-300',  border: 'border-gray-200 dark:border-slate-600',   dot: 'bg-gray-400' },
+    A: { label: 'A', title: 'A-Event',  desc: 'Hauptrennen',       bg: 'bg-danger-soft',    text: 'text-danger-ink',    border: 'border-danger/25',   dot: 'bg-danger' },
+    B: { label: 'B', title: 'B-Event',  desc: 'Wichtiges Rennen',  bg: 'bg-warn-soft', text: 'text-warn-ink', border: 'border-warn/25', dot: 'bg-warn' },
+    C: { label: 'C', title: 'C-Event',  desc: 'Trainingsrennen',   bg: 'bg-surface-2',    text: 'text-ink-2',  border: 'border-line',   dot: 'bg-ink-3' },
 };
 
 function daysLabel(days) {
@@ -161,12 +161,12 @@ watch(() => form.race_distance, (val) => {
             <!-- Header -->
             <div class="flex items-center justify-between mb-5 sm:mb-7">
                 <div>
-                    <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Events & Rennen</h1>
-                    <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Plane deine Wettkämpfe und lass {{ coachName }} Trainingspläne erstellen</p>
+                    <h1 class="text-xl sm:text-2xl font-bold text-ink">Events & Rennen</h1>
+                    <p class="mt-0.5 text-sm text-ink-3">Plane deine Wettkämpfe und lass {{ coachName }} Trainingspläne erstellen</p>
                 </div>
                 <button
                     @click="openCreate"
-                    class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm"
+                    class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-colors shadow-card"
                 >
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -176,47 +176,47 @@ watch(() => form.race_distance, (val) => {
             </div>
 
             <!-- Success banner -->
-            <div v-if="status === 'event-created' || status === 'event-updated'" class="mb-4 flex items-center gap-2 rounded-xl bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 px-4 py-3 text-sm text-green-700 dark:text-green-400">
+            <div v-if="status === 'event-created' || status === 'event-updated'" class="mb-4 flex items-center gap-2 rounded-field bg-success-soft border border-success/25 px-4 py-3 text-sm text-success-ink">
                 <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 Event {{ status === 'event-created' ? 'hinzugefügt' : 'gespeichert' }}.
             </div>
 
             <!-- Priority filter tabs -->
-            <div class="flex gap-1 bg-gray-100 dark:bg-slate-800 rounded-2xl p-1 mb-5 w-fit">
+            <div class="flex gap-1 bg-surface-2 rounded-card p-1 mb-5 w-fit">
                 <button v-for="f in ['all','A','B','C']" :key="f"
                     @click="filterPriority = f"
-                    class="px-3 py-1.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap"
+                    class="px-3 py-1.5 rounded-field text-sm font-medium transition-all whitespace-nowrap"
                     :class="filterPriority === f
-                        ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm'
-                        : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'"
+                        ? 'bg-surface text-ink shadow-card'
+                        : 'text-ink-3 hover:text-ink'"
                 >
                     {{ f === 'all' ? 'Alle' : f + '-Events' }}
                 </button>
             </div>
 
             <!-- Empty state -->
-            <div v-if="filteredEvents.length === 0" class="text-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
-                <svg class="h-12 w-12 mx-auto text-gray-300 dark:text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2">
+            <div v-if="filteredEvents.length === 0" class="text-center py-16 bg-surface rounded-card border border-dashed border-line">
+                <svg class="h-12 w-12 mx-auto text-ink-3 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5" />
                 </svg>
-                <p class="text-sm font-medium text-gray-500 dark:text-slate-400">Keine Events gefunden</p>
-                <p class="mt-1 text-xs text-gray-400 dark:text-slate-500">Füge dein erstes Rennevent hinzu</p>
-                <button @click="openCreate" class="mt-4 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors">
+                <p class="text-sm font-medium text-ink-3">Keine Events gefunden</p>
+                <p class="mt-1 text-xs text-ink-3">Füge dein erstes Rennevent hinzu</p>
+                <button @click="openCreate" class="mt-4 inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90 transition-colors">
                     Event hinzufügen
                 </button>
             </div>
 
             <!-- ── Upcoming & active events ───────────────────────────────── -->
-            <div v-if="upcomingEvents.length === 0 && filteredEvents.length > 0" class="text-center py-10 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700 mb-3">
-                <p class="text-sm text-gray-400 dark:text-slate-500">Keine kommenden Events — füge dein nächstes Rennen hinzu.</p>
-                <button @click="openCreate" class="mt-3 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors">Event hinzufügen</button>
+            <div v-if="upcomingEvents.length === 0 && filteredEvents.length > 0" class="text-center py-10 bg-surface rounded-card border border-dashed border-line mb-3">
+                <p class="text-sm text-ink-3">Keine kommenden Events — füge dein nächstes Rennen hinzu.</p>
+                <button @click="openCreate" class="mt-3 inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90 transition-colors">Event hinzufügen</button>
             </div>
 
             <div class="space-y-3">
                 <SwipeRow
                     v-for="event in upcomingEvents"
                     :key="event.id"
-                    class="rounded-2xl shadow-sm"
+                    class="rounded-card shadow-card"
                     content-class=""
                     :left-width="80"
                     :right-width="80"
@@ -225,7 +225,7 @@ watch(() => form.race_distance, (val) => {
                     <template #left="{ close }">
                         <button
                             @click="openEdit(event); close()"
-                            class="w-full bg-indigo-500 text-white flex flex-col items-center justify-center gap-1 text-[11px] font-semibold"
+                            class="w-full bg-accent text-white flex flex-col items-center justify-center gap-1 text-[11px] font-semibold"
                         >
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" /></svg>
                             Bearbeiten
@@ -235,7 +235,7 @@ watch(() => form.race_distance, (val) => {
                     <template #right="{ close }">
                         <button
                             @click="confirmingDelete = event; close()"
-                            class="w-full bg-red-500 text-white flex flex-col items-center justify-center gap-1 text-[11px] font-semibold"
+                            class="w-full bg-danger text-white flex flex-col items-center justify-center gap-1 text-[11px] font-semibold"
                         >
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
                             Löschen
@@ -243,7 +243,7 @@ watch(() => form.race_distance, (val) => {
                     </template>
 
                     <div
-                        class="bg-white dark:bg-slate-900 rounded-2xl border overflow-hidden transition-all"
+                        class="bg-surface rounded-card border overflow-hidden transition-all"
                         :class="priorityConfig[event.priority].border"
                     >
                     <!-- Card top strip -->
@@ -254,7 +254,7 @@ watch(() => form.race_distance, (val) => {
                     <div class="p-4 sm:p-5">
                         <div class="flex items-start gap-3">
                             <!-- Priority badge -->
-                            <div class="shrink-0 h-10 w-10 rounded-xl flex items-center justify-center font-bold text-lg"
+                            <div class="shrink-0 h-10 w-10 rounded-field flex items-center justify-center font-bold text-lg"
                                 :class="[priorityConfig[event.priority].bg, priorityConfig[event.priority].text]">
                                 {{ event.priority }}
                             </div>
@@ -264,16 +264,16 @@ watch(() => form.race_distance, (val) => {
                                 <div class="flex items-start justify-between gap-2">
                                     <div>
                                         <div class="flex items-center gap-2">
-                                            <h3 class="font-semibold text-gray-900 dark:text-white leading-tight">{{ event.name }}</h3>
-                                            <span v-if="event.plan_is_active" class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-1.5 py-0.5 rounded-full">
+                                            <h3 class="font-semibold text-ink leading-tight">{{ event.name }}</h3>
+                                            <span v-if="event.plan_is_active" class="inline-flex items-center gap-1 text-xs font-semibold text-accent-ink bg-accent-soft px-1.5 py-0.5 rounded-full">
                                                 <svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" /></svg>
                                                 Aktiv
                                             </span>
                                         </div>
                                         <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-                                            <span class="text-sm text-gray-500 dark:text-slate-400">{{ formatDate(event.event_date) }}</span>
-                                            <span class="text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 rounded-full">{{ event.distance_label }}</span>
-                                            <span v-if="event.target_time_formatted" class="text-xs text-gray-500 dark:text-slate-400">
+                                            <span class="text-sm text-ink-3">{{ formatDate(event.event_date) }}</span>
+                                            <span class="text-xs font-medium text-accent-ink bg-accent-soft px-2 py-0.5 rounded-full">{{ event.distance_label }}</span>
+                                            <span v-if="event.target_time_formatted" class="text-xs text-ink-3">
                                                 Ziel: {{ event.target_time_formatted }}
                                             </span>
                                         </div>
@@ -281,7 +281,7 @@ watch(() => form.race_distance, (val) => {
                                     <!-- Days until -->
                                     <div class="shrink-0 text-right">
                                         <span class="text-sm font-semibold"
-                                            :class="event.days_until <= 7 ? 'text-red-600 dark:text-red-400' : event.days_until <= 30 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-slate-400'"
+                                            :class="event.days_until <= 7 ? 'text-danger-ink' : event.days_until <= 30 ? 'text-warn-ink' : 'text-ink-3'"
                                         >
                                             {{ daysLabel(event.days_until) }}
                                         </span>
@@ -289,7 +289,7 @@ watch(() => form.race_distance, (val) => {
                                 </div>
 
                                 <!-- Notes -->
-                                <p v-if="event.notes" class="mt-2 text-xs text-gray-400 dark:text-slate-500 line-clamp-1">{{ event.notes }}</p>
+                                <p v-if="event.notes" class="mt-2 text-xs text-ink-3 line-clamp-1">{{ event.notes }}</p>
 
                                 <!-- Actions -->
                                 <div class="flex items-center gap-2 mt-3 flex-wrap">
@@ -297,12 +297,12 @@ watch(() => form.race_distance, (val) => {
                                     <!-- Past event: Auswertung only (no edit/delete) -->
                                     <template v-if="event.days_until < 0">
                                         <a v-if="event.plan_generated_at" :href="route('events.plan.show', event.id)"
-                                            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                                            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold bg-surface-2 text-ink-2 hover:bg-surface-3 transition-colors"
                                         >
                                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
                                             Auswertung
                                         </a>
-                                        <span class="text-xs text-gray-400 dark:text-slate-500 italic">Event vorbei</span>
+                                        <span class="text-xs text-ink-3 italic">Event vorbei</span>
                                     </template>
 
                                     <!-- Future events -->
@@ -310,7 +310,7 @@ watch(() => form.race_distance, (val) => {
                                         <!-- Case 1: This event has the active plan → show -->
                                         <template v-if="thisEventHasPlan(event)">
                                             <a :href="route('events.plan.show', event.id)"
-                                                class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors"
+                                                class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold bg-accent-soft text-accent-ink hover:opacity-90-soft transition-colors"
                                             >
                                                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
                                                 Plan ansehen
@@ -319,7 +319,7 @@ watch(() => form.race_distance, (val) => {
 
                                         <!-- Case 2: Another event has the active plan → locked -->
                                         <template v-else-if="anotherEventHasPlan(event)">
-                                            <span class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-slate-500 bg-gray-100 dark:bg-slate-800 cursor-not-allowed" title="Ein anderes Event hat bereits einen aktiven Plan">
+                                            <span class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-ink-3 bg-surface-2 cursor-not-allowed" title="Ein anderes Event hat bereits einen aktiven Plan">
                                                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25z" /></svg>
                                                 Plan gesperrt
                                             </span>
@@ -330,8 +330,8 @@ watch(() => form.race_distance, (val) => {
                                             <a :href="route('events.plan.show', event.id)"
                                                 class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
                                                 :class="event.plan_generated_at
-                                                    ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20'
-                                                    : 'bg-indigo-600 text-white hover:bg-indigo-700'"
+                                                    ? 'bg-accent-soft text-accent-ink hover:opacity-90-soft'
+                                                    : 'bg-accent text-white hover:opacity-90'"
                                             >
                                                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
                                                 {{ event.plan_generated_at ? 'Plan ansehen' : 'Plan erstellen' }}
@@ -339,21 +339,21 @@ watch(() => form.race_distance, (val) => {
                                         </template>
 
                                         <button @click="openEdit(event)"
-                                            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                                            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-ink-2 bg-surface-2 hover:bg-surface-3 transition-colors"
                                         >
                                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" /></svg>
                                             Bearbeiten
                                         </button>
 
                                         <button @click="confirmingDelete = event"
-                                            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
+                                            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-danger-ink bg-danger-soft hover:opacity-90-soft transition-colors"
                                         >
                                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
                                             Löschen
                                         </button>
                                     </template>
 
-                                    <span v-if="event.plan_generated_at" class="ml-auto text-xs text-gray-400 dark:text-slate-500">
+                                    <span v-if="event.plan_generated_at" class="ml-auto text-xs text-ink-3">
                                         Plan vom {{ event.plan_generated_at }}
                                     </span>
                                 </div>
@@ -367,52 +367,52 @@ watch(() => form.race_distance, (val) => {
             <!-- ── Past events ────────────────────────────────────────────── -->
             <div v-if="pastEvents.length > 0" class="mt-8">
                 <div class="flex items-center gap-3 mb-4">
-                    <div class="flex-1 h-px bg-gray-200 dark:bg-slate-700"></div>
-                    <span class="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-slate-500">Vergangene Events</span>
-                    <div class="flex-1 h-px bg-gray-200 dark:bg-slate-700"></div>
+                    <div class="flex-1 h-px bg-surface-3"></div>
+                    <span class="text-xs font-semibold uppercase tracking-widest text-ink-3">Vergangene Events</span>
+                    <div class="flex-1 h-px bg-surface-3"></div>
                 </div>
 
                 <div class="space-y-2 opacity-70">
                     <div
                         v-for="event in pastEvents"
                         :key="event.id"
-                        class="bg-white dark:bg-slate-900 rounded-2xl border overflow-hidden grayscale-[30%]"
+                        class="bg-surface rounded-card border overflow-hidden grayscale-[30%]"
                         :class="priorityConfig[event.priority].border"
                     >
                         <div class="h-0.5 w-full" :style="`background-color: ${event.priority === 'A' ? '#ef4444' : event.priority === 'B' ? '#f59e0b' : '#9ca3af'}`" />
 
                         <div class="p-4 sm:p-5">
                             <div class="flex items-start gap-3">
-                                <div class="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center font-bold text-base bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400">
+                                <div class="shrink-0 h-9 w-9 rounded-field flex items-center justify-center font-bold text-base bg-surface-2 text-ink-3">
                                     {{ event.priority }}
                                 </div>
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-start justify-between gap-2">
                                         <div>
-                                            <h3 class="font-semibold text-gray-700 dark:text-slate-300 leading-tight">{{ event.name }}</h3>
+                                            <h3 class="font-semibold text-ink-2 leading-tight">{{ event.name }}</h3>
                                             <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-                                                <span class="text-sm text-gray-400 dark:text-slate-500">{{ formatDate(event.event_date) }}</span>
-                                                <span class="text-xs font-medium text-gray-400 dark:text-slate-500 bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">{{ event.distance_label }}</span>
-                                                <span v-if="event.target_time_formatted" class="text-xs text-gray-400 dark:text-slate-500">Ziel: {{ event.target_time_formatted }}</span>
+                                                <span class="text-sm text-ink-3">{{ formatDate(event.event_date) }}</span>
+                                                <span class="text-xs font-medium text-ink-3 bg-surface-2 px-2 py-0.5 rounded-full">{{ event.distance_label }}</span>
+                                                <span v-if="event.target_time_formatted" class="text-xs text-ink-3">Ziel: {{ event.target_time_formatted }}</span>
                                             </div>
                                         </div>
-                                        <span class="text-xs font-medium text-gray-400 dark:text-slate-500 shrink-0">Vorbei</span>
+                                        <span class="text-xs font-medium text-ink-3 shrink-0">Vorbei</span>
                                     </div>
-                                    <p v-if="event.notes" class="mt-1.5 text-xs text-gray-400 dark:text-slate-500 line-clamp-1">{{ event.notes }}</p>
+                                    <p v-if="event.notes" class="mt-1.5 text-xs text-ink-3 line-clamp-1">{{ event.notes }}</p>
                                     <div class="flex items-center gap-2 mt-3">
                                         <a v-if="event.plan_generated_at" :href="route('events.plan.show', event.id)"
-                                            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                                            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold bg-surface-2 text-ink-3 hover:bg-surface-3 transition-colors"
                                         >
                                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
                                             Auswertung
                                         </a>
                                         <button @click="confirmingDelete = event"
-                                            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-400 dark:text-red-500 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
+                                            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-danger bg-danger-soft hover:opacity-90-soft transition-colors"
                                         >
                                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
                                             Löschen
                                         </button>
-                                        <span v-if="event.plan_generated_at" class="ml-auto text-xs text-gray-400 dark:text-slate-600">Plan vom {{ event.plan_generated_at }}</span>
+                                        <span v-if="event.plan_generated_at" class="ml-auto text-xs text-ink-3">Plan vom {{ event.plan_generated_at }}</span>
                                     </div>
                                 </div>
                             </div>

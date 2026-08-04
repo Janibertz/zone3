@@ -135,41 +135,41 @@ function formatDate(d) {
 
     <AdminLayout>
         <template #header>
-            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Newsletter</h1>
+            <h1 class="text-xl font-bold text-ink">Newsletter</h1>
         </template>
 
         <div class="p-4 sm:p-6 space-y-6">
 
             <!-- Flash -->
-            <div v-if="flash.success" class="flex items-center gap-3 px-4 py-3 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-xl text-sm text-green-700 dark:text-green-300">
+            <div v-if="flash.success" class="flex items-center gap-3 px-4 py-3 bg-success-soft border border-success/25 rounded-field text-sm text-success-ink">
                 <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
                 {{ flash.success }}
             </div>
 
             <!-- Stats -->
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl p-4">
-                    <p class="text-xs text-gray-500 dark:text-slate-400">Abonnenten</p>
-                    <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">{{ subscriberCount }}</p>
-                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">von {{ totalUsers }} Nutzern</p>
+                <div class="bg-surface rounded-card p-4">
+                    <p class="text-xs text-ink-3">Abonnenten</p>
+                    <p class="text-2xl font-bold text-accent-ink mt-0.5">{{ subscriberCount }}</p>
+                    <p class="text-xs text-ink-3 mt-0.5">von {{ totalUsers }} Nutzern</p>
                 </div>
-                <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl p-4">
-                    <p class="text-xs text-gray-500 dark:text-slate-400">Versendet</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{{ newsletters.filter(n => n.sent_at).length }}</p>
+                <div class="bg-surface rounded-card p-4">
+                    <p class="text-xs text-ink-3">Versendet</p>
+                    <p class="text-2xl font-bold text-ink mt-0.5">{{ newsletters.filter(n => n.sent_at).length }}</p>
                 </div>
-                <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl p-4">
-                    <p class="text-xs text-gray-500 dark:text-slate-400">Entwürfe</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{{ newsletters.filter(n => !n.sent_at).length }}</p>
+                <div class="bg-surface rounded-card p-4">
+                    <p class="text-xs text-ink-3">Entwürfe</p>
+                    <p class="text-2xl font-bold text-ink mt-0.5">{{ newsletters.filter(n => !n.sent_at).length }}</p>
                 </div>
             </div>
 
             <!-- ── Editor ── -->
-            <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl overflow-hidden">
-                <div class="px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between gap-3">
-                    <h2 class="text-sm font-semibold text-gray-700 dark:text-slate-300">
+            <div class="bg-surface rounded-card overflow-hidden">
+                <div class="px-4 sm:px-6 py-4 border-b border-line flex items-center justify-between gap-3">
+                    <h2 class="text-sm font-semibold text-ink-2">
                         {{ editingId ? 'Entwurf bearbeiten' : 'Neuer Newsletter' }}
                     </h2>
-                    <button v-if="editingId" @click="cancelEdit" class="text-xs text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors">
+                    <button v-if="editingId" @click="cancelEdit" class="text-xs text-ink-3 hover:text-ink transition-colors">
                         Abbrechen
                     </button>
                 </div>
@@ -177,44 +177,44 @@ function formatDate(d) {
                 <div class="p-4 sm:p-6 space-y-4">
                     <!-- Subject -->
                     <div>
-                        <label class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Betreff *</label>
+                        <label class="text-xs font-semibold text-ink-3 uppercase tracking-wide">Betreff *</label>
                         <input v-model="subject" type="text" placeholder="z.B. Zone3 – Dein Monats-Update Mai 2026"
-                            class="mt-1.5 w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            class="mt-1.5 w-full rounded-field bg-surface px-3 py-2.5 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/40" />
                     </div>
 
                     <!-- Preview text -->
                     <div>
-                        <label class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Vorschautext <span class="font-normal">(optional, erscheint in der Inbox-Vorschau)</span></label>
+                        <label class="text-xs font-semibold text-ink-3 uppercase tracking-wide">Vorschautext <span class="font-normal">(optional, erscheint in der Inbox-Vorschau)</span></label>
                         <input v-model="previewText" type="text" maxlength="255" placeholder="Kurze Zusammenfassung für die E-Mail-Vorschau…"
-                            class="mt-1.5 w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            class="mt-1.5 w-full rounded-field bg-surface px-3 py-2.5 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/40" />
                     </div>
 
                     <!-- Rich text editor -->
                     <div>
-                        <label class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Inhalt *</label>
+                        <label class="text-xs font-semibold text-ink-3 uppercase tracking-wide">Inhalt *</label>
 
                         <!-- Toolbar -->
-                        <div class="mt-1.5 flex flex-wrap items-center gap-1 px-2 py-1.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-t-xl border-b-0">
+                        <div class="mt-1.5 flex flex-wrap items-center gap-1 px-2 py-1.5 bg-surface-2 border border-line rounded-t-xl border-b-0">
                             <button v-for="btn in toolbarButtons" :key="btn.cmd + btn.icon"
                                 @mousedown.prevent="execCmd(btn.cmd, btn.val ?? null)"
                                 :title="btn.title"
-                                class="h-7 min-w-[28px] px-1.5 flex items-center justify-center rounded-lg text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                                class="h-7 min-w-[28px] px-1.5 flex items-center justify-center rounded-lg text-sm text-ink-2 hover:bg-surface-3 transition-colors"
                                 :class="btn.class">
                                 {{ btn.icon }}
                             </button>
-                            <div class="h-5 w-px bg-gray-200 dark:bg-slate-600 mx-0.5" />
+                            <div class="h-5 w-px bg-surface-3 mx-0.5" />
                             <button @mousedown.prevent="insertLink" title="Link einfügen"
-                                class="h-7 px-2 flex items-center justify-center rounded-lg text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
+                                class="h-7 px-2 flex items-center justify-center rounded-lg text-sm text-ink-2 hover:bg-surface-3 transition-colors">
                                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
                                 </svg>
                             </button>
                             <button @mousedown.prevent="execCmd('insertHorizontalRule')" title="Trennlinie"
-                                class="h-7 px-2 flex items-center justify-center rounded-lg text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
+                                class="h-7 px-2 flex items-center justify-center rounded-lg text-sm text-ink-2 hover:bg-surface-3 transition-colors">
                                 <span class="text-xs">—</span>
                             </button>
                             <button @mousedown.prevent="execCmd('removeFormat')" title="Formatierung entfernen"
-                                class="h-7 px-2 flex items-center justify-center rounded-lg text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
+                                class="h-7 px-2 flex items-center justify-center rounded-lg text-sm text-ink-2 hover:bg-surface-3 transition-colors">
                                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
                                 </svg>
@@ -226,11 +226,11 @@ function formatDate(d) {
                             ref="editorRef"
                             contenteditable="true"
                             spellcheck="true"
-                            class="min-h-[280px] w-full border border-gray-200 dark:border-slate-700 rounded-b-xl bg-white dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 newsletter-editor"
+                            class="min-h-[280px] w-full border border-line rounded-b-xl bg-surface px-4 py-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 newsletter-editor"
                             @input="() => {}"
                             @paste="handlePaste"
                         />
-                        <p class="mt-1 text-xs text-gray-400 dark:text-slate-500">
+                        <p class="mt-1 text-xs text-ink-3">
                             Opt-Out-Link wird automatisch an jede E-Mail angehängt.
                         </p>
                     </div>
@@ -238,7 +238,7 @@ function formatDate(d) {
                     <!-- Actions -->
                     <div class="flex items-center justify-end gap-3 pt-2">
                         <button @click="saveDraft" :disabled="saving || !subject.trim()"
-                            class="inline-flex items-center gap-2 rounded-xl bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 text-sm font-semibold px-4 py-2.5 disabled:opacity-40 transition-colors">
+                            class="inline-flex items-center gap-2 rounded-field bg-surface-2 hover:bg-surface-3 text-ink-2 text-sm font-semibold px-4 py-2.5 disabled:opacity-40 transition-colors">
                             <svg v-if="saving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                             {{ editingId ? 'Änderungen speichern' : 'Als Entwurf speichern' }}
                         </button>
@@ -247,27 +247,27 @@ function formatDate(d) {
             </div>
 
             <!-- ── Newsletter list ── -->
-            <div v-if="newsletters.length" class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl overflow-hidden">
-                <div class="px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-slate-800">
-                    <h2 class="text-sm font-semibold text-gray-700 dark:text-slate-300">Alle Newsletter</h2>
+            <div v-if="newsletters.length" class="bg-surface rounded-card overflow-hidden">
+                <div class="px-4 sm:px-6 py-4 border-b border-line">
+                    <h2 class="text-sm font-semibold text-ink-2">Alle Newsletter</h2>
                 </div>
-                <div class="divide-y divide-gray-50 dark:divide-slate-800">
+                <div class="divide-y divide-line">
                     <div v-for="nl in newsletters" :key="nl.id" class="px-4 sm:px-6 py-4">
                         <div class="flex items-start justify-between gap-3">
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-2 flex-wrap">
-                                    <span class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ nl.subject }}</span>
+                                    <span class="text-sm font-semibold text-ink truncate">{{ nl.subject }}</span>
                                     <span v-if="nl.sent_at"
-                                        class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400">
+                                        class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-success-soft text-success-ink">
                                         <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
                                         Versendet
                                     </span>
                                     <span v-else
-                                        class="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400">
+                                        class="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-warn-soft text-warn-ink">
                                         Entwurf
                                     </span>
                                 </div>
-                                <div class="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-400 dark:text-slate-500">
+                                <div class="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-ink-3">
                                     <span v-if="nl.sent_at">Versendet: {{ formatDate(nl.sent_at) }} · {{ nl.sent_count }} Empfänger</span>
                                     <span v-else>Erstellt: {{ formatDate(nl.created_at) }}</span>
                                     <span v-if="nl.preview_text" class="truncate max-w-xs italic">{{ nl.preview_text }}</span>
@@ -278,32 +278,32 @@ function formatDate(d) {
                             <div class="flex items-center gap-2 shrink-0">
                                 <template v-if="!nl.sent_at">
                                     <button @click="editDraft(nl)"
-                                        class="h-8 w-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors" title="Bearbeiten">
+                                        class="h-8 w-8 flex items-center justify-center rounded-lg text-ink-3 hover:bg-surface-2 transition-colors" title="Bearbeiten">
                                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
                                         </svg>
                                     </button>
                                     <button @click="confirmSend(nl)"
-                                        class="h-8 px-3 flex items-center gap-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                                        class="h-8 px-3 flex items-center gap-1.5 rounded-lg text-xs font-semibold bg-accent hover:opacity-90 text-white transition-colors">
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
                                         </svg>
                                         Senden
                                     </button>
                                     <button @click="deleteDraft(nl)"
-                                        class="h-8 w-8 flex items-center justify-center rounded-lg text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors" title="Löschen">
+                                        class="h-8 w-8 flex items-center justify-center rounded-lg text-danger hover:bg-danger-soft transition-colors" title="Löschen">
                                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                                         </svg>
                                     </button>
                                 </template>
-                                <span v-else class="text-xs text-gray-400 dark:text-slate-500">Unveränderlich</span>
+                                <span v-else class="text-xs text-ink-3">Unveränderlich</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            <p v-else class="text-center text-sm text-gray-400 dark:text-slate-500 py-4">Noch keine Newsletter erstellt.</p>
+            <p v-else class="text-center text-sm text-ink-3 py-4">Noch keine Newsletter erstellt.</p>
         </div>
 
         <!-- ── Versand bestätigen ── -->

@@ -35,10 +35,10 @@ const categoryIcons = {
 };
 
 const categoryColors = {
-    architecture: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300',
-    features:     'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300',
-    api:          'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300',
-    decisions:    'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300',
+    architecture: 'bg-info-soft border-info/25 text-info-ink',
+    features:     'bg-accent-soft border-accent/25 text-accent-ink',
+    api:          'bg-warn-soft border-warn/25 text-warn-ink',
+    decisions:    'bg-success-soft border-success/25 text-success-ink',
 };
 </script>
 
@@ -51,19 +51,19 @@ const categoryColors = {
             <!-- Header -->
             <div class="flex items-center justify-between mb-8">
                 <div>
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Projekt-Wiki</h1>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">Dokumentation, Architektur-Entscheidungen und API-Referenz</p>
+                    <h1 class="text-2xl font-bold text-ink">Projekt-Wiki</h1>
+                    <p class="mt-1 text-sm text-ink-3">Dokumentation, Architektur-Entscheidungen und API-Referenz</p>
                 </div>
                 <div class="flex gap-3">
                     <Link :href="route('admin.wiki.changelog')"
-                        class="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+                        class="inline-flex items-center gap-2 px-4 py-2 rounded-field bg-surface text-sm font-medium text-ink-2 hover:bg-surface-2 transition-colors">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                         </svg>
                         Changelog
                     </Link>
                     <button @click="showNewPage = true"
-                        class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors shadow-sm">
+                        class="inline-flex items-center gap-2 px-4 py-2 rounded-field bg-accent hover:opacity-90 text-white text-sm font-semibold transition-colors shadow-card">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                         </svg>
@@ -105,29 +105,29 @@ const categoryColors = {
                         <div :class="['flex items-center justify-center h-8 w-8 rounded-lg border', categoryColors[cat.key]]">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="categoryIcons[cat.key]"></svg>
                         </div>
-                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ cat.label }}</h2>
-                        <span class="text-xs text-gray-400 dark:text-slate-500">{{ cat.pages.length }} {{ cat.pages.length === 1 ? 'Seite' : 'Seiten' }}</span>
+                        <h2 class="text-base font-semibold text-ink">{{ cat.label }}</h2>
+                        <span class="text-xs text-ink-3">{{ cat.pages.length }} {{ cat.pages.length === 1 ? 'Seite' : 'Seiten' }}</span>
                     </div>
 
                     <!-- Pages grid -->
                     <div v-if="cat.pages.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         <Link v-for="page in cat.pages" :key="page.id"
                             :href="route('admin.wiki.page', page.slug)"
-                            class="group flex flex-col gap-1 p-4 rounded-xl border border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-indigo-200 dark:hover:border-indigo-800 hover:shadow-sm transition-all">
+                            class="group flex flex-col gap-1 p-4 rounded-field bg-surface hover:border-accent/25 hover:shadow-card transition-all">
                             <div class="flex items-start justify-between gap-2">
-                                <span class="text-sm font-semibold text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors leading-snug">
+                                <span class="text-sm font-semibold text-ink group-hover:text-accent transition-colors leading-snug">
                                     {{ page.title }}
                                 </span>
-                                <svg class="h-4 w-4 shrink-0 text-gray-300 dark:text-slate-600 group-hover:text-indigo-400 transition-colors mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                <svg class="h-4 w-4 shrink-0 text-ink-3 group-hover:text-accent transition-colors mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
                                 </svg>
                             </div>
-                            <span class="text-xs text-gray-400 dark:text-slate-500">
+                            <span class="text-xs text-ink-3">
                                 {{ page.content ? page.content.slice(0, 80).replace(/#+\s/g, '').replace(/\*\*/g, '').trim() + (page.content.length > 80 ? '…' : '') : 'Noch kein Inhalt' }}
                             </span>
                         </Link>
                     </div>
-                    <p v-else class="text-sm text-gray-400 dark:text-slate-500 italic pl-11">
+                    <p v-else class="text-sm text-ink-3 italic pl-11">
                         Noch keine Seiten in dieser Kategorie.
                     </p>
                 </div>

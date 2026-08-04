@@ -22,21 +22,21 @@ const reviewText    = ref(null);
 const reviewLoading = ref(false);
 
 const GRAD = [
-    'bg-gradient-to-br from-indigo-600 to-blue-700',
-    'bg-gradient-to-br from-emerald-600 to-teal-700',
-    'bg-gradient-to-br from-orange-500 to-red-600',
-    'bg-gradient-to-br from-fuchsia-600 to-purple-700',
-    'bg-gradient-to-br from-cyan-600 to-blue-700',
-    'bg-gradient-to-br from-rose-600 to-pink-700',
-    'bg-gradient-to-br from-amber-500 to-orange-600',
-    'bg-gradient-to-br from-violet-600 to-indigo-700',
+    'bg-gradient-to-br from-accent to-info',
+    'bg-gradient-to-br from-success to-success',
+    'bg-gradient-to-br from-warn to-danger',
+    'bg-gradient-to-br from-accent to-accent',
+    'bg-gradient-to-br from-info to-info',
+    'bg-gradient-to-br from-danger to-danger',
+    'bg-gradient-to-br from-warn to-warn',
+    'bg-gradient-to-br from-accent to-accent',
 ];
 
 const nf = (n) => new Intl.NumberFormat('de-DE').format(n);
 
 const slides = computed(() => {
     const s = stats.value;
-    const out = [{ type: 'intro', emoji: '🏃', gradient: 'bg-gradient-to-br from-indigo-600 to-purple-700' }];
+    const out = [{ type: 'intro', emoji: '🏃', gradient: 'bg-gradient-to-br from-accent to-accent' }];
     if (!s || !s.has_data) return out;
 
     let i = 0;
@@ -54,8 +54,8 @@ const slides = computed(() => {
     if (s.prs?.count > 0) out.push({ type: 'stat', emoji: '🏅', big: nf(s.prs.count), label: s.prs.count === 1 ? 'neuer Rekord' : 'neue Rekorde', sub: s.prs.distances.join(' · '), gradient: g() });
     if (s.vs_previous) out.push({ type: 'stat', emoji: s.vs_previous.delta_pct >= 0 ? '📈' : '📉', big: (s.vs_previous.delta_pct >= 0 ? '+' : '') + s.vs_previous.delta_pct + '%', label: `km vs. ${s.vs_previous.prev_label}`, gradient: g() });
 
-    out.push({ type: 'review', emoji: '💬', gradient: 'bg-gradient-to-br from-pink-600 to-rose-600' });
-    out.push({ type: 'outro', emoji: '🎉', gradient: 'bg-gradient-to-br from-amber-500 to-orange-600' });
+    out.push({ type: 'review', emoji: '💬', gradient: 'bg-gradient-to-br from-danger to-danger' });
+    out.push({ type: 'outro', emoji: '🎉', gradient: 'bg-gradient-to-br from-warn to-warn' });
     return out;
 });
 
@@ -140,7 +140,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                 <div class="relative h-[78vh] rounded-3xl overflow-hidden text-white shadow-xl select-none transition-colors duration-300" :class="current.gradient">
                     <!-- Fortschritts-Segmente -->
                     <div class="absolute top-0 inset-x-0 z-30 flex gap-1 p-3">
-                        <div v-for="(s, i) in slides" :key="i" class="h-1 flex-1 rounded-full" :class="i <= index ? 'bg-white' : 'bg-white/30'"></div>
+                        <div v-for="(s, i) in slides" :key="i" class="h-1 flex-1 rounded-full" :class="i <= index ? 'bg-surface' : 'bg-surface/30'"></div>
                     </div>
 
                     <!-- Tap-Zonen + Wisch-Gesten (Tap links/rechts, horizontal wischen) -->
@@ -156,15 +156,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                             <p class="text-4xl font-black mt-2">{{ stats?.period_label }}</p>
 
                             <div class="mt-6 pointer-events-auto flex flex-col items-center gap-3" @click.stop>
-                                <div class="flex gap-1 bg-white/15 rounded-xl p-1">
-                                    <button @click="setPeriod('year')" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors" :class="period === 'year' ? 'bg-white text-gray-900' : 'text-white/90'">Jahr</button>
-                                    <button @click="setPeriod('month')" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors" :class="period === 'month' ? 'bg-white text-gray-900' : 'text-white/90'">Monat</button>
+                                <div class="flex gap-1 bg-surface/15 rounded-field p-1">
+                                    <button @click="setPeriod('year')" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors" :class="period === 'year' ? 'bg-surface text-ink' : 'text-white/90'">Jahr</button>
+                                    <button @click="setPeriod('month')" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors" :class="period === 'month' ? 'bg-surface text-ink' : 'text-white/90'">Monat</button>
                                 </div>
-                                <select v-if="period === 'year'" v-model="selectedYear" @change="reload" class="rounded-lg bg-white/15 border-0 px-3 py-1.5 text-sm text-white focus:ring-2 focus:ring-white/50">
-                                    <option v-for="y in availablePeriods.years" :key="y" :value="y" class="text-gray-900">{{ y }}</option>
+                                <select v-if="period === 'year'" v-model="selectedYear" @change="reload" class="rounded-lg bg-surface/15 border-0 px-3 py-1.5 text-sm text-white focus:ring-2 focus:ring-white/50">
+                                    <option v-for="y in availablePeriods.years" :key="y" :value="y" class="text-ink">{{ y }}</option>
                                 </select>
-                                <select v-else v-model="selectedMonth" @change="reload" class="rounded-lg bg-white/15 border-0 px-3 py-1.5 text-sm text-white focus:ring-2 focus:ring-white/50">
-                                    <option v-for="m in availablePeriods.months" :key="m.value" :value="m.value" class="text-gray-900">{{ m.label }}</option>
+                                <select v-else v-model="selectedMonth" @change="reload" class="rounded-lg bg-surface/15 border-0 px-3 py-1.5 text-sm text-white focus:ring-2 focus:ring-white/50">
+                                    <option v-for="m in availablePeriods.months" :key="m.value" :value="m.value" class="text-ink">{{ m.label }}</option>
                                 </select>
 
                                 <p v-if="stats?.has_data" class="text-xs text-white/60 mt-1">Tippe rechts, um zu starten →</p>
@@ -187,7 +187,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                             <p class="text-3xl font-black">Stark, {{ userName }}!</p>
                             <p class="mt-3 text-white/80">Auf zum nächsten Kapitel. 🎉</p>
                             <div class="mt-6 pointer-events-auto" @click.stop>
-                                <button @click="restart" class="rounded-xl bg-white/20 hover:bg-white/30 px-4 py-2 text-sm font-semibold transition-colors">Nochmal ansehen</button>
+                                <button @click="restart" class="rounded-field bg-surface/20 hover:bg-surface/30 px-4 py-2 text-sm font-semibold transition-colors">Nochmal ansehen</button>
                             </div>
                         </template>
 
@@ -202,9 +202,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 
                 <!-- Navigation unter der Karte -->
                 <div class="flex items-center justify-between mt-3 px-1">
-                    <button @click="prev" :disabled="index === 0" class="text-sm font-medium text-gray-500 dark:text-slate-400 disabled:opacity-30">‹ Zurück</button>
-                    <span class="text-xs text-gray-400 dark:text-slate-500">{{ index + 1 }} / {{ slides.length }}</span>
-                    <button @click="next" :disabled="index === slides.length - 1" class="text-sm font-medium text-gray-500 dark:text-slate-400 disabled:opacity-30">Weiter ›</button>
+                    <button @click="prev" :disabled="index === 0" class="text-sm font-medium text-ink-3 disabled:opacity-30">‹ Zurück</button>
+                    <span class="text-xs text-ink-3">{{ index + 1 }} / {{ slides.length }}</span>
+                    <button @click="next" :disabled="index === slides.length - 1" class="text-sm font-medium text-ink-3 disabled:opacity-30">Weiter ›</button>
                 </div>
             </div>
         </div>

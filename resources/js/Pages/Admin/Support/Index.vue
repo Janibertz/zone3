@@ -17,10 +17,10 @@ const tabs = [
 ];
 
 const statusConfig = {
-    open:        { label: 'Offen',          class: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' },
-    in_progress: { label: 'In Bearbeitung', class: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' },
-    resolved:    { label: 'Gelöst',         class: 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300' },
-    closed:      { label: 'Geschlossen',    class: 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400' },
+    open:        { label: 'Offen',          class: 'bg-info-soft text-info-ink' },
+    in_progress: { label: 'In Bearbeitung', class: 'bg-warn-soft text-warn-ink' },
+    resolved:    { label: 'Gelöst',         class: 'bg-success-soft text-success-ink' },
+    closed:      { label: 'Geschlossen',    class: 'bg-surface-2 text-ink-3' },
 };
 
 const typeConfig = {
@@ -43,40 +43,40 @@ function formatDate(dt) {
     <Head title="Admin – Support" />
     <AdminLayout>
         <template #header>
-            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Support-Tickets</h1>
+            <h1 class="text-xl font-bold text-ink">Support-Tickets</h1>
         </template>
 
         <div class="p-4 sm:p-6 space-y-4 max-w-5xl">
 
             <!-- Tabs -->
-            <div class="flex gap-1 bg-gray-100 dark:bg-slate-800 rounded-xl p-1">
+            <div class="flex gap-1 bg-surface-2 rounded-field p-1">
                 <button v-for="tab in tabs" :key="tab.key"
                     @click="setTab(tab.key)"
                     class="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
                     :class="status === tab.key
-                        ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm'
-                        : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'">
+                        ? 'bg-surface text-ink shadow-card'
+                        : 'text-ink-3 hover:text-ink-2'">
                     {{ tab.label }}
-                    <span class="ml-1 text-gray-400 dark:text-slate-500">({{ counts[tab.key] ?? 0 }})</span>
+                    <span class="ml-1 text-ink-3">({{ counts[tab.key] ?? 0 }})</span>
                 </button>
             </div>
 
             <!-- Ticket-Liste -->
-            <div class="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl overflow-hidden">
-                <div v-if="tickets.data.length === 0" class="px-6 py-12 text-center text-sm text-gray-400 dark:text-slate-500">
+            <div class="bg-surface rounded-card overflow-hidden">
+                <div v-if="tickets.data.length === 0" class="px-6 py-12 text-center text-sm text-ink-3">
                     Keine Tickets in diesem Status.
                 </div>
-                <div v-else class="divide-y divide-gray-100 dark:divide-slate-800">
+                <div v-else class="divide-y divide-line">
                     <Link v-for="ticket in tickets.data" :key="ticket.id"
                         :href="route('admin.support.show', ticket.id)"
-                        class="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
+                        class="flex items-center gap-4 px-5 py-4 hover:bg-surface-2/50 transition-colors">
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 mb-0.5">
-                                <span class="text-xs text-gray-400 dark:text-slate-500">#{{ ticket.id }}</span>
-                                <span class="text-xs text-gray-400 dark:text-slate-500">{{ typeConfig[ticket.type]?.label }}</span>
+                                <span class="text-xs text-ink-3">#{{ ticket.id }}</span>
+                                <span class="text-xs text-ink-3">{{ typeConfig[ticket.type]?.label }}</span>
                             </div>
-                            <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ ticket.subject }}</p>
-                            <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+                            <p class="text-sm font-semibold text-ink truncate">{{ ticket.subject }}</p>
+                            <p class="text-xs text-ink-3 mt-0.5">
                                 {{ ticket.user?.name }} · {{ ticket.replies_count }} Antwort{{ ticket.replies_count !== 1 ? 'en' : '' }} · {{ formatDate(ticket.updated_at) }}
                             </p>
                         </div>
@@ -95,8 +95,8 @@ function formatDate(dt) {
                     v-html="link.label"
                     class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                     :class="link.active
-                        ? 'bg-indigo-600 text-white'
-                        : link.url ? 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50' : 'opacity-40 cursor-default bg-white dark:bg-slate-800 text-gray-400'" />
+                        ? 'bg-accent text-white'
+                        : link.url ? 'bg-surface text-ink-2 hover:bg-surface-2' : 'opacity-40 cursor-default bg-surface text-ink-3'" />
             </div>
 
         </div>

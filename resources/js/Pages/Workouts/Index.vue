@@ -22,10 +22,10 @@ const TYPE_LABELS = {
     long_run:  'Langer Lauf',
 };
 const TYPE_COLORS = {
-    easy_run:  'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400',
-    tempo_run: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400',
-    interval:  'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400',
-    long_run:  'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400',
+    easy_run:  'bg-success-soft text-success-ink',
+    tempo_run: 'bg-warn-soft text-warn-ink',
+    interval:  'bg-danger-soft text-danger-ink',
+    long_run:  'bg-info-soft text-info-ink',
 };
 
 const ZONE_BAR_COLORS = ['#94a3b8','#22c55e','#eab308','#f97316','#ef4444'];
@@ -164,11 +164,11 @@ async function sendToGarmin({ email, password, date } = {}) {
             <!-- Header -->
             <div class="flex items-center justify-between mb-6 gap-4 flex-wrap">
                 <div>
-                    <h1 class="text-xl font-bold text-gray-900 dark:text-white">Workout-Bibliothek</h1>
-                    <p class="text-sm text-gray-500 dark:text-slate-400 mt-0.5">Deine gespeicherten Lauf-Workouts</p>
+                    <h1 class="text-xl font-bold text-ink">Workout-Bibliothek</h1>
+                    <p class="text-sm text-ink-3 mt-0.5">Deine gespeicherten Lauf-Workouts</p>
                 </div>
                 <Link :href="route('workouts.create')"
-                    class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm">
+                    class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-colors shadow-card">
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                     Neues Workout
                 </Link>
@@ -177,27 +177,27 @@ async function sendToGarmin({ email, password, date } = {}) {
             <!-- Filters -->
             <div class="flex gap-2 mb-5 flex-wrap">
                 <input v-model="searchQuery" type="search" placeholder="Suchen…"
-                    class="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-44" />
+                    class="rounded-field bg-surface px-3 py-2 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/40 w-44" />
                 <button v-for="t in ['all','easy_run','tempo_run','interval','long_run']" :key="t"
                     @click="filterType = t"
-                    class="rounded-xl px-3 py-2 text-xs font-semibold transition-colors"
+                    class="rounded-field px-3 py-2 text-xs font-semibold transition-colors"
                     :class="filterType === t
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'">
+                        ? 'bg-accent text-white'
+                        : 'bg-surface text-ink-2 border border-line hover:bg-surface-2'">
                     {{ t === 'all' ? 'Alle' : TYPE_LABELS[t] }}
                 </button>
             </div>
 
             <!-- Empty -->
             <div v-if="filteredWorkouts.length === 0"
-                class="bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700 p-12 text-center">
-                <svg class="h-12 w-12 mx-auto text-gray-300 dark:text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2">
+                class="bg-surface rounded-card border border-dashed border-line p-12 text-center">
+                <svg class="h-12 w-12 mx-auto text-ink-3 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
                 </svg>
-                <p class="text-sm font-medium text-gray-700 dark:text-slate-300">Noch keine Workouts</p>
-                <p class="text-xs text-gray-400 dark:text-slate-500 mt-1 mb-4">Erstelle dein erstes Workout im Baukasten.</p>
+                <p class="text-sm font-medium text-ink-2">Noch keine Workouts</p>
+                <p class="text-xs text-ink-3 mt-1 mb-4">Erstelle dein erstes Workout im Baukasten.</p>
                 <Link :href="route('workouts.create')"
-                    class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors">
+                    class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-colors">
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                     Workout erstellen
                 </Link>
@@ -206,7 +206,7 @@ async function sendToGarmin({ email, password, date } = {}) {
             <!-- Grid -->
             <div v-else class="grid gap-3 sm:grid-cols-2">
                 <div v-for="w in filteredWorkouts" :key="w.id"
-                    class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                    class="bg-surface rounded-card border border-line shadow-card overflow-hidden hover:shadow-md transition-shadow">
 
                     <!-- Zone bar -->
                     <div class="h-2 flex w-full">
@@ -218,7 +218,7 @@ async function sendToGarmin({ email, password, date } = {}) {
                         <!-- Title row -->
                         <div class="flex items-start justify-between gap-2 mb-3">
                             <div class="flex-1 min-w-0">
-                                <h3 class="font-semibold text-gray-900 dark:text-white text-sm truncate">{{ w.name }}</h3>
+                                <h3 class="font-semibold text-ink text-sm truncate">{{ w.name }}</h3>
                                 <span class="inline-block mt-1 text-[11px] font-medium px-2 py-0.5 rounded-full" :class="TYPE_COLORS[w.type]">
                                     {{ TYPE_LABELS[w.type] ?? w.type }}
                                 </span>
@@ -226,31 +226,31 @@ async function sendToGarmin({ email, password, date } = {}) {
                             <!-- Actions -->
                             <div class="flex gap-1 shrink-0">
                                 <button @click="openGarminModal(w)" title="Zu Garmin senden"
-                                    class="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors">
+                                    class="p-1.5 rounded-lg text-ink-3 hover:text-accent hover:bg-accent-soft transition-colors">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" /></svg>
                                 </button>
                                 <button @click="duplicateWorkout(w)" title="Duplizieren"
-                                    class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors">
+                                    class="p-1.5 rounded-lg text-ink-3 hover:text-ink-2 hover:bg-surface-2 transition-colors">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" /></svg>
                                 </button>
                                 <Link :href="route('workouts.edit', w.id)" title="Bearbeiten"
-                                    class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors">
+                                    class="p-1.5 rounded-lg text-ink-3 hover:text-ink-2 hover:bg-surface-2 transition-colors">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
                                 </Link>
                                 <button @click="deleteWorkout(w)" :disabled="deleting === w.id" title="Löschen"
-                                    class="p-1.5 rounded-lg text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-40">
+                                    class="p-1.5 rounded-lg text-ink-3 hover:text-danger hover:bg-danger-soft transition-colors disabled:opacity-40">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
                                 </button>
                             </div>
                         </div>
 
                         <!-- Stats -->
-                        <div class="flex gap-4 text-xs text-gray-500 dark:text-slate-400">
+                        <div class="flex gap-4 text-xs text-ink-3">
                             <span v-if="w.estimated_distance_km">
-                                <span class="font-semibold text-gray-900 dark:text-white">{{ w.estimated_distance_km }}</span> km
+                                <span class="font-semibold text-ink">{{ w.estimated_distance_km }}</span> km
                             </span>
                             <span v-if="w.estimated_duration_min">
-                                <span class="font-semibold text-gray-900 dark:text-white">{{ formatDuration(w.estimated_duration_min) }}</span>
+                                <span class="font-semibold text-ink">{{ formatDuration(w.estimated_duration_min) }}</span>
                             </span>
                             <span v-if="w.times_used > 0">{{ w.times_used }}× genutzt</span>
                         </div>
@@ -258,7 +258,7 @@ async function sendToGarmin({ email, password, date } = {}) {
                         <!-- Tags -->
                         <div v-if="w.tags?.length" class="mt-2 flex flex-wrap gap-1">
                             <span v-for="tag in w.tags" :key="tag"
-                                class="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400">
+                                class="text-[11px] px-2 py-0.5 rounded-full bg-surface-2 text-ink-3">
                                 {{ tag }}
                             </span>
                         </div>

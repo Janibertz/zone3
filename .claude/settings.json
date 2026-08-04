@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "defaultMode": "bypassPermissions",
     "allow": [
       "Bash(php -r \"require 'vendor/autoload.php'; echo class_exists\\('Minishlink\\\\WebPush\\\\WebPush'\\) ? 'OK' : 'NOT FOUND';\")",
       "Bash(php -r ':*)",

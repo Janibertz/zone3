@@ -22,12 +22,12 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
         <nav :class="['fixed top-0 inset-x-0 z-50 transition-all duration-300', scrolled ? 'bg-[#0a0e1a]/95 backdrop-blur border-b border-white/5 shadow-lg' : '']">
             <div class="mx-auto max-w-6xl px-5 h-16 flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                    <div class="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white font-bold text-sm">Z3</div>
+                    <div class="w-8 h-8 rounded-lg bg-accent flex items-center justify-center text-white font-bold text-sm">Z3</div>
                     <span class="font-bold text-lg tracking-tight">Zone3</span>
                 </div>
                 <div class="flex items-center gap-3">
                     <Link v-if="$page.props.auth.user" :href="route('dashboard')"
-                        class="px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-sm font-semibold transition">
+                        class="px-4 py-2 rounded-lg bg-accent hover:opacity-90 text-sm font-semibold transition">
                         Dashboard
                     </Link>
                     <template v-else>
@@ -36,7 +36,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
                             Anmelden
                         </Link>
                         <Link v-if="canRegister" :href="route('register')"
-                            class="px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-sm font-semibold transition">
+                            class="px-4 py-2 rounded-lg bg-accent hover:opacity-90 text-sm font-semibold transition">
                             Kostenlos starten
                         </Link>
                     </template>
@@ -48,20 +48,20 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
         <section class="relative min-h-screen flex items-center justify-center px-5 pt-16">
             <!-- Background glow -->
             <div class="absolute inset-0 overflow-hidden pointer-events-none">
-                <div class="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-indigo-600/20 blur-[120px]"></div>
-                <div class="absolute top-2/3 left-1/4 w-[300px] h-[300px] rounded-full bg-violet-600/10 blur-[80px]"></div>
+                <div class="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-accent/20 blur-[120px]"></div>
+                <div class="absolute top-2/3 left-1/4 w-[300px] h-[300px] rounded-full bg-accent/10 blur-[80px]"></div>
             </div>
 
             <div class="relative text-center max-w-3xl mx-auto">
                 <!-- Badge -->
-                <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-sm font-medium mb-8">
-                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
+                <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent text-sm font-medium mb-8">
+                    <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
                     KI-gestütztes Lauftraining
                 </div>
 
                 <h1 class="text-4xl sm:text-6xl font-black tracking-tight leading-[1.1] mb-6">
                     Trainiere smarter.<br>
-                    <span class="bg-gradient-to-r from-indigo-400 via-violet-400 to-purple-400 bg-clip-text text-transparent">
+                    <span class="bg-gradient-to-r from-accent via-accent to-accent bg-clip-text text-transparent">
                         Laufe schneller.
                     </span>
                 </h1>
@@ -72,16 +72,16 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
 
                 <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
                     <Link v-if="$page.props.auth.user" :href="route('dashboard')"
-                        class="w-full sm:w-auto px-8 py-4 rounded-xl bg-indigo-500 hover:bg-indigo-400 font-bold text-base transition shadow-lg shadow-indigo-500/25">
+                        class="w-full sm:w-auto px-8 py-4 rounded-field bg-accent hover:opacity-90 font-bold text-base transition shadow-lg">
                         Zum Dashboard →
                     </Link>
                     <template v-else>
                         <Link v-if="canRegister" :href="route('register')"
-                            class="w-full sm:w-auto px-8 py-4 rounded-xl bg-indigo-500 hover:bg-indigo-400 font-bold text-base transition shadow-lg shadow-indigo-500/25">
+                            class="w-full sm:w-auto px-8 py-4 rounded-field bg-accent hover:opacity-90 font-bold text-base transition shadow-lg">
                             Jetzt kostenlos starten →
                         </Link>
                         <Link v-if="canLogin" :href="route('login')"
-                            class="w-full sm:w-auto px-8 py-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 font-semibold text-base transition">
+                            class="w-full sm:w-auto px-8 py-4 rounded-field bg-surface/5 hover:bg-surface/10 border border-white/10 font-semibold text-base transition">
                             Bereits registriert? Anmelden
                         </Link>
                     </template>
@@ -115,8 +115,8 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
 
                 <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
                     <!-- Feature 1 -->
-                    <div class="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-6 hover:bg-white/[0.05] transition group">
-                        <div class="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-5 text-2xl group-hover:scale-110 transition">
+                    <div class="rounded-card bg-surface/[0.03] border border-white/[0.06] p-6 hover:bg-surface/[0.05] transition group">
+                        <div class="w-12 h-12 rounded-field bg-accent/10 border border-accent/20 flex items-center justify-center mb-5 text-2xl group-hover:scale-110 transition">
                             🏃
                         </div>
                         <h3 class="font-bold text-lg mb-2">Strava Sync</h3>
@@ -124,8 +124,8 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
                     </div>
 
                     <!-- Feature 2 -->
-                    <div class="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-6 hover:bg-white/[0.05] transition group">
-                        <div class="w-12 h-12 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center mb-5 text-2xl group-hover:scale-110 transition">
+                    <div class="rounded-card bg-surface/[0.03] border border-white/[0.06] p-6 hover:bg-surface/[0.05] transition group">
+                        <div class="w-12 h-12 rounded-field bg-accent/10 border border-accent/20 flex items-center justify-center mb-5 text-2xl group-hover:scale-110 transition">
                             ❤️
                         </div>
                         <h3 class="font-bold text-lg mb-2">Herzfrequenz-Zonen</h3>
@@ -133,8 +133,8 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
                     </div>
 
                     <!-- Feature 3 -->
-                    <div class="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-6 hover:bg-white/[0.05] transition group">
-                        <div class="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-5 text-2xl group-hover:scale-110 transition">
+                    <div class="rounded-card bg-surface/[0.03] border border-white/[0.06] p-6 hover:bg-surface/[0.05] transition group">
+                        <div class="w-12 h-12 rounded-field bg-accent/10 border border-accent/20 flex items-center justify-center mb-5 text-2xl group-hover:scale-110 transition">
                             ⚡
                         </div>
                         <h3 class="font-bold text-lg mb-2">Pace-Zonen</h3>
@@ -142,8 +142,8 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
                     </div>
 
                     <!-- Feature 4 -->
-                    <div class="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-6 hover:bg-white/[0.05] transition group">
-                        <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-5 text-2xl group-hover:scale-110 transition">
+                    <div class="rounded-card bg-surface/[0.03] border border-white/[0.06] p-6 hover:bg-surface/[0.05] transition group">
+                        <div class="w-12 h-12 rounded-field bg-success/10 border border-success/20 flex items-center justify-center mb-5 text-2xl group-hover:scale-110 transition">
                             🤖
                         </div>
                         <h3 class="font-bold text-lg mb-2">KI-Tagesempfehlung</h3>
@@ -151,8 +151,8 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
                     </div>
 
                     <!-- Feature 5 -->
-                    <div class="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-6 hover:bg-white/[0.05] transition group">
-                        <div class="w-12 h-12 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center mb-5 text-2xl group-hover:scale-110 transition">
+                    <div class="rounded-card bg-surface/[0.03] border border-white/[0.06] p-6 hover:bg-surface/[0.05] transition group">
+                        <div class="w-12 h-12 rounded-field bg-warn/10 border border-warn/20 flex items-center justify-center mb-5 text-2xl group-hover:scale-110 transition">
                             🎯
                         </div>
                         <h3 class="font-bold text-lg mb-2">Rennzeitvorhersagen</h3>
@@ -160,8 +160,8 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
                     </div>
 
                     <!-- Feature 6 -->
-                    <div class="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-6 hover:bg-white/[0.05] transition group">
-                        <div class="w-12 h-12 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center mb-5 text-2xl group-hover:scale-110 transition">
+                    <div class="rounded-card bg-surface/[0.03] border border-white/[0.06] p-6 hover:bg-surface/[0.05] transition group">
+                        <div class="w-12 h-12 rounded-field bg-danger/10 border border-danger/20 flex items-center justify-center mb-5 text-2xl group-hover:scale-110 transition">
                             📊
                         </div>
                         <h3 class="font-bold text-lg mb-2">Statistiken & Trends</h3>
@@ -174,7 +174,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
         <!-- HOW IT WORKS -->
         <section class="py-24 px-5 relative">
             <div class="absolute inset-0 overflow-hidden pointer-events-none">
-                <div class="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full bg-violet-600/10 blur-[100px]"></div>
+                <div class="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full bg-accent/10 blur-[100px]"></div>
             </div>
             <div class="mx-auto max-w-4xl relative">
                 <div class="text-center mb-16">
@@ -183,22 +183,22 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
                 </div>
 
                 <div class="space-y-5">
-                    <div class="flex gap-6 items-start p-6 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-                        <div class="w-12 h-12 rounded-full bg-indigo-500 flex items-center justify-center font-black text-lg flex-shrink-0">1</div>
+                    <div class="flex gap-6 items-start p-6 rounded-card bg-surface/[0.03] border border-white/[0.06]">
+                        <div class="w-12 h-12 rounded-full bg-accent flex items-center justify-center font-black text-lg flex-shrink-0">1</div>
                         <div>
                             <h3 class="font-bold text-lg mb-1">Account erstellen</h3>
                             <p class="text-white/50 text-sm">Registriere dich kostenlos mit deiner E-Mail-Adresse. Keine Kreditkarte erforderlich.</p>
                         </div>
                     </div>
-                    <div class="flex gap-6 items-start p-6 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-                        <div class="w-12 h-12 rounded-full bg-violet-500 flex items-center justify-center font-black text-lg flex-shrink-0">2</div>
+                    <div class="flex gap-6 items-start p-6 rounded-card bg-surface/[0.03] border border-white/[0.06]">
+                        <div class="w-12 h-12 rounded-full bg-accent flex items-center justify-center font-black text-lg flex-shrink-0">2</div>
                         <div>
                             <h3 class="font-bold text-lg mb-1">Strava verbinden & Profil einrichten</h3>
                             <p class="text-white/50 text-sm">Verbinde deinen Strava-Account. Zone3 importiert automatisch deine Läufe und berechnet deine HF- und Pace-Zonen.</p>
                         </div>
                     </div>
-                    <div class="flex gap-6 items-start p-6 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-                        <div class="w-12 h-12 rounded-full bg-purple-500 flex items-center justify-center font-black text-lg flex-shrink-0">3</div>
+                    <div class="flex gap-6 items-start p-6 rounded-card bg-surface/[0.03] border border-white/[0.06]">
+                        <div class="w-12 h-12 rounded-full bg-accent flex items-center justify-center font-black text-lg flex-shrink-0">3</div>
                         <div>
                             <h3 class="font-bold text-lg mb-1">Täglich trainieren & verbessern</h3>
                             <p class="text-white/50 text-sm">Erhalte jeden Tag eine KI-Empfehlung, verfolge deine Ziele und sieh wie deine Fitness Schritt für Schritt wächst.</p>
@@ -211,16 +211,16 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
         <!-- CTA -->
         <section class="py-24 px-5">
             <div class="mx-auto max-w-2xl text-center">
-                <div class="rounded-3xl bg-gradient-to-br from-indigo-500/20 via-violet-500/10 to-purple-500/20 border border-indigo-500/20 p-10 sm:p-16">
+                <div class="rounded-3xl bg-gradient-to-br from-accent/20 via-accent/10 to-accent/20 border border-accent/20 p-10 sm:p-16">
                     <h2 class="text-3xl sm:text-4xl font-black mb-4">Bereit für deinen nächsten PR?</h2>
                     <p class="text-white/60 mb-8 text-lg">Starte noch heute und trainiere mit einem Plan der auf dich zugeschnitten ist.</p>
                     <Link v-if="$page.props.auth.user" :href="route('dashboard')"
-                        class="inline-flex px-8 py-4 rounded-xl bg-indigo-500 hover:bg-indigo-400 font-bold text-base transition shadow-lg shadow-indigo-500/30">
+                        class="inline-flex px-8 py-4 rounded-field bg-accent hover:opacity-90 font-bold text-base transition shadow-lg">
                         Zum Dashboard →
                     </Link>
                     <template v-else>
                         <Link v-if="canRegister" :href="route('register')"
-                            class="inline-flex px-8 py-4 rounded-xl bg-indigo-500 hover:bg-indigo-400 font-bold text-base transition shadow-lg shadow-indigo-500/30">
+                            class="inline-flex px-8 py-4 rounded-field bg-accent hover:opacity-90 font-bold text-base transition shadow-lg">
                             Kostenlos registrieren →
                         </Link>
                     </template>
@@ -232,7 +232,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
         <footer class="border-t border-white/[0.06] py-8 px-5">
             <div class="mx-auto max-w-6xl flex flex-col sm:flex-row items-center justify-between gap-4 text-white/30 text-sm">
                 <div class="flex items-center gap-2">
-                    <div class="w-6 h-6 rounded bg-indigo-500 flex items-center justify-center text-white font-bold text-xs">Z3</div>
+                    <div class="w-6 h-6 rounded bg-accent flex items-center justify-center text-white font-bold text-xs">Z3</div>
                     <span>Zone3</span>
                 </div>
                 <div>Dein persönlicher KI Running Coach</div>

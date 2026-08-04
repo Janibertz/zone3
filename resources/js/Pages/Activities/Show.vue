@@ -41,18 +41,18 @@ function lapTime(sec) {
 
 // Lap bar color by pace (for runs) or by index cycling (for others)
 const lapBarColors = [
-    'bg-indigo-500', 'bg-indigo-300', 'bg-violet-500', 'bg-violet-300',
-    'bg-blue-500', 'bg-blue-300', 'bg-sky-500', 'bg-sky-300',
+    'bg-accent', 'bg-accent', 'bg-accent', 'bg-accent',
+    'bg-info', 'bg-info', 'bg-info', 'bg-info',
 ];
 
 function lapColor(lap, index) {
     if (props.activity.type !== 'Run' || !lap.average_speed) {
         return lapBarColors[index % lapBarColors.length];
     }
-    if (!props.paceZones) return 'bg-indigo-400';
+    if (!props.paceZones) return 'bg-accent';
     const paceSec = 1000 / lap.average_speed;
     const zones = ['z1','z2','z3','z4','z5'];
-    const zoneBar = { z1: 'bg-blue-400', z2: 'bg-green-400', z3: 'bg-yellow-400', z4: 'bg-orange-400', z5: 'bg-red-400' };
+    const zoneBar = { z1: 'bg-info', z2: 'bg-success', z3: 'bg-warn', z4: 'bg-warn', z5: 'bg-danger' };
     for (const key of zones) {
         const z = props.paceZones[key];
         if (!z) continue;
@@ -60,7 +60,7 @@ function lapColor(lap, index) {
         const maxSec = paceToSeconds(z.max_pace) ?? Infinity;
         if (paceSec >= minSec && paceSec <= maxSec) return zoneBar[key];
     }
-    return 'bg-indigo-400';
+    return 'bg-accent';
 }
 
 // Lap height as % of container: faster lap = taller bar (40%–100%)
@@ -186,28 +186,28 @@ const paceZoneInfo = computed(() => {
 });
 
 const zoneColors = {
-    z1: { bg: 'bg-blue-500',   light: 'bg-blue-50 dark:bg-blue-500/10',   text: 'text-blue-700 dark:text-blue-300',   label: 'Zone 1' },
-    z2: { bg: 'bg-green-500',  light: 'bg-green-50 dark:bg-green-500/10', text: 'text-green-700 dark:text-green-300', label: 'Zone 2' },
-    z3: { bg: 'bg-yellow-500', light: 'bg-yellow-50 dark:bg-yellow-500/10', text: 'text-yellow-700 dark:text-yellow-300', label: 'Zone 3' },
-    z4: { bg: 'bg-orange-500', light: 'bg-orange-50 dark:bg-orange-500/10', text: 'text-orange-700 dark:text-orange-300', label: 'Zone 4' },
-    z5: { bg: 'bg-red-500',    light: 'bg-red-50 dark:bg-red-500/10',     text: 'text-red-700 dark:text-red-300',     label: 'Zone 5' },
+    z1: { bg: 'bg-info',   light: 'bg-info-soft',   text: 'text-info-ink',   label: 'Zone 1' },
+    z2: { bg: 'bg-success',  light: 'bg-success-soft', text: 'text-success-ink', label: 'Zone 2' },
+    z3: { bg: 'bg-warn', light: 'bg-accent-soft', text: 'text-warn-ink', label: 'Zone 3' },
+    z4: { bg: 'bg-warn', light: 'bg-warn-soft', text: 'text-warn-ink', label: 'Zone 4' },
+    z5: { bg: 'bg-danger',    light: 'bg-danger-soft',     text: 'text-danger-ink',     label: 'Zone 5' },
 };
 
 // ── Type badges ───────────────────────────────────────────────────────────────
 
 const typeLabel = { Run: 'Laufen', Ride: 'Radfahren', VirtualRide: 'Virtual Ride', Swim: 'Schwimmen', Walk: 'Gehen', Workout: 'Workout' };
 const typeColors = {
-    Run:         'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300',
-    Ride:        'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300',
-    VirtualRide: 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300',
-    Swim:        'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
-    Workout:     'bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300',
-    Walk:        'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300',
+    Run:         'bg-accent-soft text-accent-ink',
+    Ride:        'bg-success-soft text-success-ink',
+    VirtualRide: 'bg-success-soft text-success-ink',
+    Swim:        'bg-info-soft text-info-ink',
+    Workout:     'bg-warn-soft text-warn-ink',
+    Walk:        'bg-warn-soft text-warn-ink',
 };
 
 const isCycling = computed(() => ['Ride', 'VirtualRide'].includes(props.activity.type));
 function typeColor(t) {
-    return typeColors[t] ?? 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300';
+    return typeColors[t] ?? 'bg-surface-2 text-ink-2';
 }
 
 // ── Google Encoded Polyline decoder ──────────────────────────────────────────
@@ -354,7 +354,7 @@ onUnmounted(() => {
             <div class="flex items-start gap-3">
                 <Link
                     :href="route('activities.index')"
-                    class="shrink-0 mt-0.5 h-8 w-8 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                    class="shrink-0 mt-0.5 h-8 w-8 flex items-center justify-center rounded-field bg-surface-2 text-ink-3 hover:bg-surface-3 transition-colors"
                 >
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/>
@@ -369,13 +369,13 @@ onUnmounted(() => {
                             {{ paceZoneInfo.name }}
                         </span>
                     </div>
-                    <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white leading-tight">{{ activity.name }}</h1>
-                    <p class="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
+                    <h1 class="text-xl sm:text-2xl font-bold text-ink leading-tight">{{ activity.name }}</h1>
+                    <p class="text-sm text-ink-3 mt-0.5">
                         {{ formatDate(activity.start_date) }}
-                        <span class="text-gray-300 dark:text-slate-600 mx-1">·</span>
+                        <span class="text-ink-3 mx-1">·</span>
                         {{ formatTime(activity.start_date) }} Uhr
                         <template v-if="activity.location_city">
-                            <span class="text-gray-300 dark:text-slate-600 mx-1">·</span>
+                            <span class="text-ink-3 mx-1">·</span>
                             {{ activity.location_city }}<template v-if="activity.location_country">, {{ activity.location_country }}</template>
                         </template>
                     </p>
@@ -386,96 +386,96 @@ onUnmounted(() => {
             <div
                 v-if="activity.polyline"
                 ref="mapContainer"
-                class="w-full h-56 sm:h-72 rounded-2xl overflow-hidden border border-gray-100 dark:border-slate-800 bg-gray-100 dark:bg-slate-800"
+                class="w-full h-56 sm:h-72 rounded-card overflow-hidden border border-line bg-surface-2"
             />
             <div
                 v-else
-                class="w-full h-28 rounded-2xl bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-800 flex items-center justify-center"
+                class="w-full h-28 rounded-card bg-surface-2 border border-line flex items-center justify-center"
             >
-                <p class="text-sm text-gray-400 dark:text-slate-500">Keine Kartendaten verfügbar</p>
+                <p class="text-sm text-ink-3">Keine Kartendaten verfügbar</p>
             </div>
 
             <!-- Key stats -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4">
-                    <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Distanz</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white leading-none">{{ (activity.distance / 1000).toFixed(2) }}</p>
-                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">km</p>
+                <div class="bg-surface rounded-card border border-line p-4">
+                    <p class="text-xs text-ink-3 mb-1.5">Distanz</p>
+                    <p class="text-2xl font-bold text-ink leading-none">{{ (activity.distance / 1000).toFixed(2) }}</p>
+                    <p class="text-xs text-ink-3 mt-1">km</p>
                 </div>
-                <div class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4">
-                    <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Bewegungszeit</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white leading-none">{{ formatDuration(activity.moving_time) }}</p>
-                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">h:min:s</p>
+                <div class="bg-surface rounded-card border border-line p-4">
+                    <p class="text-xs text-ink-3 mb-1.5">Bewegungszeit</p>
+                    <p class="text-2xl font-bold text-ink leading-none">{{ formatDuration(activity.moving_time) }}</p>
+                    <p class="text-xs text-ink-3 mt-1">h:min:s</p>
                 </div>
-                <div v-if="activity.type === 'Run'" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4">
-                    <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Pace</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white leading-none">{{ formatPace(activity.average_speed) }}</p>
-                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">min/km</p>
+                <div v-if="activity.type === 'Run'" class="bg-surface rounded-card border border-line p-4">
+                    <p class="text-xs text-ink-3 mb-1.5">Pace</p>
+                    <p class="text-2xl font-bold text-ink leading-none">{{ formatPace(activity.average_speed) }}</p>
+                    <p class="text-xs text-ink-3 mt-1">min/km</p>
                 </div>
-                <div v-if="activity.type === 'Swim'" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4">
-                    <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Pace</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white leading-none">{{ formatSwimPace(activity.average_speed) }}</p>
-                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">min/100m</p>
+                <div v-if="activity.type === 'Swim'" class="bg-surface rounded-card border border-line p-4">
+                    <p class="text-xs text-ink-3 mb-1.5">Pace</p>
+                    <p class="text-2xl font-bold text-ink leading-none">{{ formatSwimPace(activity.average_speed) }}</p>
+                    <p class="text-xs text-ink-3 mt-1">min/100m</p>
                 </div>
-                <div v-if="isCycling && activity.average_speed" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4">
-                    <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Geschwindigkeit</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white leading-none">{{ (activity.average_speed * 3.6).toFixed(1) }}</p>
-                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">km/h</p>
+                <div v-if="isCycling && activity.average_speed" class="bg-surface rounded-card border border-line p-4">
+                    <p class="text-xs text-ink-3 mb-1.5">Geschwindigkeit</p>
+                    <p class="text-2xl font-bold text-ink leading-none">{{ (activity.average_speed * 3.6).toFixed(1) }}</p>
+                    <p class="text-xs text-ink-3 mt-1">km/h</p>
                 </div>
-                <div v-if="isCycling && activity.average_watts" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4">
-                    <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Leistung</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white leading-none">{{ Math.round(activity.average_watts) }}</p>
-                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">Watt</p>
+                <div v-if="isCycling && activity.average_watts" class="bg-surface rounded-card border border-line p-4">
+                    <p class="text-xs text-ink-3 mb-1.5">Leistung</p>
+                    <p class="text-2xl font-bold text-ink leading-none">{{ Math.round(activity.average_watts) }}</p>
+                    <p class="text-xs text-ink-3 mt-1">Watt</p>
                 </div>
-                <div v-if="activity.total_elevation_gain > 0" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4">
-                    <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Höhenmeter</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white leading-none">{{ Math.round(activity.total_elevation_gain) }}</p>
-                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">m</p>
+                <div v-if="activity.total_elevation_gain > 0" class="bg-surface rounded-card border border-line p-4">
+                    <p class="text-xs text-ink-3 mb-1.5">Höhenmeter</p>
+                    <p class="text-2xl font-bold text-ink leading-none">{{ Math.round(activity.total_elevation_gain) }}</p>
+                    <p class="text-xs text-ink-3 mt-1">m</p>
                 </div>
-                <div v-if="activity.type !== 'Run'" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4">
-                    <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Gesamtzeit</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white leading-none">{{ formatDuration(activity.elapsed_time) }}</p>
-                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">h:min:s</p>
+                <div v-if="activity.type !== 'Run'" class="bg-surface rounded-card border border-line p-4">
+                    <p class="text-xs text-ink-3 mb-1.5">Gesamtzeit</p>
+                    <p class="text-2xl font-bold text-ink leading-none">{{ formatDuration(activity.elapsed_time) }}</p>
+                    <p class="text-xs text-ink-3 mt-1">h:min:s</p>
                 </div>
             </div>
 
             <!-- Heart rate -->
-            <div v-if="activity.average_heartrate" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
-                <h2 class="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                    <span class="text-red-400">♥</span> Herzfrequenz
+            <div v-if="activity.average_heartrate" class="bg-surface rounded-card border border-line p-4 sm:p-5">
+                <h2 class="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
+                    <span class="text-danger">♥</span> Herzfrequenz
                 </h2>
                 <div class="grid grid-cols-2 gap-3 mb-4">
                     <div>
-                        <p class="text-xs text-gray-500 dark:text-slate-400 mb-1">Durchschnitt</p>
-                        <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ Math.round(activity.average_heartrate) }}<span class="text-sm font-normal text-gray-400 dark:text-slate-500 ml-1">bpm</span></p>
+                        <p class="text-xs text-ink-3 mb-1">Durchschnitt</p>
+                        <p class="text-3xl font-bold text-ink">{{ Math.round(activity.average_heartrate) }}<span class="text-sm font-normal text-ink-3 ml-1">bpm</span></p>
                     </div>
                     <div v-if="activity.max_heartrate">
-                        <p class="text-xs text-gray-500 dark:text-slate-400 mb-1">Maximum</p>
-                        <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ Math.round(activity.max_heartrate) }}<span class="text-sm font-normal text-gray-400 dark:text-slate-500 ml-1">bpm</span></p>
+                        <p class="text-xs text-ink-3 mb-1">Maximum</p>
+                        <p class="text-3xl font-bold text-ink">{{ Math.round(activity.max_heartrate) }}<span class="text-sm font-normal text-ink-3 ml-1">bpm</span></p>
                     </div>
                 </div>
                 <!-- HR bar visual -->
-                <div v-if="activity.max_heartrate" class="relative h-2 bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                <div v-if="activity.max_heartrate" class="relative h-2 bg-surface-2 rounded-full overflow-hidden">
                     <!-- Avg marker -->
                     <div
-                        class="absolute top-0 h-full bg-red-400 rounded-full"
+                        class="absolute top-0 h-full bg-danger rounded-full"
                         :style="{ width: (activity.average_heartrate / activity.max_heartrate * 100).toFixed(0) + '%' }"
                     />
                     <div
-                        class="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-red-600 rounded-full border-2 border-white dark:border-slate-900 shadow"
+                        class="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-danger rounded-full border-2 border-white shadow"
                         :style="{ left: 'calc(' + (activity.average_heartrate / activity.max_heartrate * 100).toFixed(0) + '% - 6px)' }"
                     />
                 </div>
                 <div v-if="activity.max_heartrate" class="flex justify-between mt-1">
-                    <span class="text-xs text-gray-400 dark:text-slate-500">0</span>
-                    <span class="text-xs text-gray-400 dark:text-slate-500">{{ Math.round(activity.max_heartrate) }} bpm max</span>
+                    <span class="text-xs text-ink-3">0</span>
+                    <span class="text-xs text-ink-3">{{ Math.round(activity.max_heartrate) }} bpm max</span>
                 </div>
             </div>
 
             <!-- Lap chart -->
-            <div v-if="hasLaps" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
-                <h2 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-                    Runden <span class="text-xs font-normal text-gray-400 dark:text-slate-500 ml-1">{{ activity.laps.length }} Laps</span>
+            <div v-if="hasLaps" class="bg-surface rounded-card border border-line p-4 sm:p-5">
+                <h2 class="text-sm font-semibold text-ink mb-3">
+                    Runden <span class="text-xs font-normal text-ink-3 ml-1">{{ activity.laps.length }} Laps</span>
                 </h2>
 
                 <!-- Bar chart: width = duration, height = relative speed (faster = taller) -->
@@ -490,7 +490,7 @@ onUnmounted(() => {
                         :class="[
                             lapColor(lap, i),
                             activeLap === i
-                                ? 'opacity-100 ring-2 ring-orange-400 ring-offset-1 ring-offset-white dark:ring-offset-slate-900'
+                                ? 'opacity-100 ring-2 ring-warn ring-offset-1 ring-offset-white'
                                 : (activeLap !== null ? 'opacity-25' : 'opacity-80'),
                         ]"
                         class="rounded-t-sm transition-all cursor-pointer"
@@ -505,7 +505,7 @@ onUnmounted(() => {
 
                 <!-- Lap table -->
                 <div class="space-y-1">
-                    <div class="grid text-xs text-gray-400 dark:text-slate-500 font-medium px-1 mb-1"
+                    <div class="grid text-xs text-ink-3 font-medium px-1 mb-1"
                          :class="activity.average_heartrate ? 'grid-cols-[2.5rem_1fr_auto_auto_auto]' : 'grid-cols-[2.5rem_1fr_auto_auto]'">
                         <span>#</span>
                         <span>Zeit</span>
@@ -516,12 +516,12 @@ onUnmounted(() => {
                     <div
                         v-for="(lap, i) in activity.laps"
                         :key="'row'+i"
-                        class="grid items-center gap-x-2 px-1 py-1.5 rounded-xl transition-colors text-sm cursor-pointer"
+                        class="grid items-center gap-x-2 px-1 py-1.5 rounded-field transition-colors text-sm cursor-pointer"
                         :class="[
                             activity.average_heartrate ? 'grid-cols-[2.5rem_1fr_auto_auto_auto]' : 'grid-cols-[2.5rem_1fr_auto_auto]',
                             activeLap === i
-                                ? 'bg-orange-50 dark:bg-orange-500/10 ring-1 ring-orange-200 dark:ring-orange-500/30'
-                                : 'hover:bg-gray-50 dark:hover:bg-slate-800',
+                                ? 'bg-warn-soft ring-1 ring-warn'
+                                : 'hover:bg-surface-2',
                         ]"
                         @mouseenter="setActiveLap(i)"
                         @mouseleave="clearActiveLap"
@@ -530,21 +530,21 @@ onUnmounted(() => {
                         <!-- Color dot + index -->
                         <span class="flex items-center gap-1.5">
                             <span class="h-2 w-2 rounded-full shrink-0" :class="lapColor(lap, i)" />
-                            <span class="text-xs text-gray-400 dark:text-slate-500">{{ lap.index ?? i + 1 }}</span>
+                            <span class="text-xs text-ink-3">{{ lap.index ?? i + 1 }}</span>
                         </span>
                         <!-- Duration -->
-                        <span class="font-medium text-gray-700 dark:text-slate-300 text-xs">
+                        <span class="font-medium text-ink-2 text-xs">
                             {{ lapTime(lap.moving_time || lap.elapsed_time || 0) }}
                         </span>
                         <!-- Distance -->
-                        <span class="text-right text-xs text-gray-500 dark:text-slate-400">{{ lapDist(lap) }} km</span>
+                        <span class="text-right text-xs text-ink-3">{{ lapDist(lap) }} km</span>
                         <!-- Pace / Speed -->
-                        <span class="text-right text-xs font-semibold text-gray-900 dark:text-white">
+                        <span class="text-right text-xs font-semibold text-ink">
                             <template v-if="['Ride','VirtualRide'].includes(activity.type)">{{ lapSpeed(lap) }}</template>
                             <template v-else>{{ lapPace(lap) }}</template>
                         </span>
                         <!-- HR -->
-                        <span v-if="activity.average_heartrate" class="text-right text-xs text-red-400">
+                        <span v-if="activity.average_heartrate" class="text-right text-xs text-danger">
                             {{ lap.average_heartrate ? Math.round(lap.average_heartrate) : '–' }}
                         </span>
                     </div>
@@ -552,8 +552,8 @@ onUnmounted(() => {
             </div>
 
             <!-- Pace Zone indicator -->
-            <div v-if="paceZoneInfo && paceZones" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
-                <h2 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Tempo-Zonen</h2>
+            <div v-if="paceZoneInfo && paceZones" class="bg-surface rounded-card border border-line p-4 sm:p-5">
+                <h2 class="text-sm font-semibold text-ink mb-3">Tempo-Zonen</h2>
                 <div class="flex gap-1.5 mb-3">
                     <div
                         v-for="key in ['z1','z2','z3','z4','z5']"
@@ -566,30 +566,30 @@ onUnmounted(() => {
                     />
                 </div>
                 <div class="flex items-center gap-3">
-                    <div class="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" :class="zoneColors[paceZoneInfo.key]?.light">
+                    <div class="h-10 w-10 rounded-field flex items-center justify-center shrink-0" :class="zoneColors[paceZoneInfo.key]?.light">
                         <span class="text-lg font-bold" :class="zoneColors[paceZoneInfo.key]?.text">{{ paceZoneInfo.key.replace('z','') }}</span>
                     </div>
                     <div>
-                        <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ paceZoneInfo.name }}</p>
-                        <p class="text-xs text-gray-500 dark:text-slate-400">{{ paceZoneInfo.minPace }} – {{ paceZoneInfo.maxPace }} min/km</p>
+                        <p class="text-sm font-semibold text-ink">{{ paceZoneInfo.name }}</p>
+                        <p class="text-xs text-ink-3">{{ paceZoneInfo.minPace }} – {{ paceZoneInfo.maxPace }} min/km</p>
                     </div>
                     <div class="ml-auto text-right">
-                        <p class="text-xs text-gray-500 dark:text-slate-400">Dein Tempo</p>
-                        <p class="text-sm font-bold text-gray-900 dark:text-white">{{ formatPace(activity.average_speed) }} min/km</p>
+                        <p class="text-xs text-ink-3">Dein Tempo</p>
+                        <p class="text-sm font-bold text-ink">{{ formatPace(activity.average_speed) }} min/km</p>
                     </div>
                 </div>
 
                 <!-- All zones list -->
-                <div class="mt-3 space-y-1.5 border-t border-gray-100 dark:border-slate-800 pt-3">
+                <div class="mt-3 space-y-1.5 border-t border-line pt-3">
                     <div
                         v-for="key in ['z1','z2','z3','z4','z5']"
                         :key="key"
-                        class="flex items-center gap-3 px-2 py-1.5 rounded-xl transition-colors"
+                        class="flex items-center gap-3 px-2 py-1.5 rounded-field transition-colors"
                         :class="paceZoneInfo.key === key ? [zoneColors[key]?.light] : ''"
                     >
                         <div class="h-2 w-2 rounded-full shrink-0" :class="zoneColors[key]?.bg" />
-                        <span class="text-xs font-medium text-gray-700 dark:text-slate-300 flex-1">{{ paceZones[key]?.name }}</span>
-                        <span class="text-xs text-gray-400 dark:text-slate-500">{{ paceZones[key]?.min_pace }} – {{ paceZones[key]?.max_pace }} min/km</span>
+                        <span class="text-xs font-medium text-ink-2 flex-1">{{ paceZones[key]?.name }}</span>
+                        <span class="text-xs text-ink-3">{{ paceZones[key]?.min_pace }} – {{ paceZones[key]?.max_pace }} min/km</span>
                         <svg v-if="paceZoneInfo.key === key" class="h-3.5 w-3.5 shrink-0" :class="zoneColors[key]?.text" viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/>
                         </svg>
@@ -599,51 +599,51 @@ onUnmounted(() => {
 
             <!-- Additional stats (max speed, elapsed time) — not shown for cycling -->
             <div v-if="!isCycling" class="grid grid-cols-2 gap-2.5">
-                <div v-if="activity.max_speed" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4">
-                    <p class="text-xs text-gray-500 dark:text-slate-400 mb-1">Max. Pace</p>
-                    <p class="text-xl font-bold text-gray-900 dark:text-white">{{ formatPace(activity.max_speed) }}</p>
-                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">min/km</p>
+                <div v-if="activity.max_speed" class="bg-surface rounded-card border border-line p-4">
+                    <p class="text-xs text-ink-3 mb-1">Max. Pace</p>
+                    <p class="text-xl font-bold text-ink">{{ formatPace(activity.max_speed) }}</p>
+                    <p class="text-xs text-ink-3 mt-0.5">min/km</p>
                 </div>
-                <div class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4">
-                    <p class="text-xs text-gray-500 dark:text-slate-400 mb-1">Gesamtzeit</p>
-                    <p class="text-xl font-bold text-gray-900 dark:text-white">{{ formatDuration(activity.elapsed_time) }}</p>
-                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">inkl. Pausen</p>
+                <div class="bg-surface rounded-card border border-line p-4">
+                    <p class="text-xs text-ink-3 mb-1">Gesamtzeit</p>
+                    <p class="text-xl font-bold text-ink">{{ formatDuration(activity.elapsed_time) }}</p>
+                    <p class="text-xs text-ink-3 mt-0.5">inkl. Pausen</p>
                 </div>
             </div>
 
             <!-- Description -->
-            <div v-if="activity.description" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
-                <h2 class="text-sm font-semibold text-gray-900 dark:text-white mb-2">Beschreibung</h2>
-                <p class="text-sm text-gray-600 dark:text-slate-400 leading-relaxed">{{ activity.description }}</p>
+            <div v-if="activity.description" class="bg-surface rounded-card border border-line p-4 sm:p-5">
+                <h2 class="text-sm font-semibold text-ink mb-2">Beschreibung</h2>
+                <p class="text-sm text-ink-2 leading-relaxed">{{ activity.description }}</p>
             </div>
 
             <!-- Session rating (shown when activity is linked to a training plan session) -->
-            <div v-if="linkedSession" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 sm:p-5">
+            <div v-if="linkedSession" class="bg-surface rounded-card border border-line p-4 sm:p-5">
                 <div class="flex items-center justify-between mb-4">
                     <div>
-                        <h2 class="text-sm font-semibold text-gray-900 dark:text-white">Einheit bewerten</h2>
-                        <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{{ linkedSession.title }} · Dein Feedback verbessert den KI-Plan</p>
+                        <h2 class="text-sm font-semibold text-ink">Einheit bewerten</h2>
+                        <p class="text-xs text-ink-3 mt-0.5">{{ linkedSession.title }} · Dein Feedback verbessert den KI-Plan</p>
                     </div>
                     <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
-                        <span v-if="ratingSaved" class="text-xs text-green-600 dark:text-green-400 font-semibold">Gespeichert</span>
+                        <span v-if="ratingSaved" class="text-xs text-success-ink font-semibold">Gespeichert</span>
                     </Transition>
                 </div>
 
                 <!-- Stars -->
                 <div class="mb-4">
-                    <p class="text-xs font-medium text-gray-500 dark:text-slate-400 mb-2">Wie war die Einheit?</p>
+                    <p class="text-xs font-medium text-ink-3 mb-2">Wie war die Einheit?</p>
                     <div class="flex gap-1.5">
                         <button
                             v-for="star in 5"
                             :key="star"
                             type="button"
                             @click="ratingValue = ratingValue === star ? 0 : star"
-                            class="h-9 w-9 rounded-xl flex items-center justify-center text-xl transition-colors"
+                            class="h-9 w-9 rounded-field flex items-center justify-center text-xl transition-colors"
                             :class="star <= ratingValue
-                                ? 'bg-amber-50 dark:bg-amber-500/10'
-                                : 'bg-gray-50 dark:bg-slate-800 opacity-40 hover:opacity-70'"
+                                ? 'bg-warn-soft'
+                                : 'bg-surface-2 opacity-40 hover:opacity-70'"
                         >⭐</button>
-                        <span class="ml-2 self-center text-sm text-gray-400 dark:text-slate-500">
+                        <span class="ml-2 self-center text-sm text-ink-3">
                             {{ ['', 'Sehr schwer', 'Schwer', 'Okay', 'Gut', 'Top'][ratingValue] }}
                         </span>
                     </div>
@@ -651,7 +651,7 @@ onUnmounted(() => {
 
                 <!-- RPE -->
                 <div class="mb-4">
-                    <p class="text-xs font-medium text-gray-500 dark:text-slate-400 mb-2">Gefühlte Belastung (RPE)</p>
+                    <p class="text-xs font-medium text-ink-3 mb-2">Gefühlte Belastung (RPE)</p>
                     <div class="flex flex-wrap gap-1.5">
                         <button
                             v-for="rpe in 10"
@@ -660,10 +660,10 @@ onUnmounted(() => {
                             @click="effortValue = effortValue === rpe ? 0 : rpe"
                             class="h-8 w-8 rounded-lg text-xs font-bold transition-colors border"
                             :class="rpe === effortValue
-                                ? 'bg-indigo-600 border-indigo-600 text-white'
-                                : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:border-indigo-300'"
+                                ? 'bg-accent border-accent text-white'
+                                : 'bg-surface-2 border-line text-ink-3 hover:border-accent'"
                         >{{ rpe }}</button>
-                        <span class="ml-1 self-center text-xs text-gray-400 dark:text-slate-500">
+                        <span class="ml-1 self-center text-xs text-ink-3">
                             {{ effortValue ? `RPE ${effortValue}/10` : '' }}
                         </span>
                     </div>
@@ -675,16 +675,16 @@ onUnmounted(() => {
                         v-model="feelingNotes"
                         rows="2"
                         placeholder="Notizen (optional) — was hat gut/schlecht funktioniert?"
-                        class="block w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 focus:border-indigo-400 resize-none transition-colors"
+                        class="block w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent resize-none transition-colors"
                     />
                 </div>
 
-                <p v-if="ratingError" class="text-xs text-red-500 mb-3">{{ ratingError }}</p>
+                <p v-if="ratingError" class="text-xs text-danger mb-3">{{ ratingError }}</p>
 
                 <button
                     @click="saveRating"
                     :disabled="ratingSaving || (!ratingValue && !effortValue && !feelingNotes)"
-                    class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40 transition-colors"
+                    class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40 transition-colors"
                 >
                     <svg v-if="ratingSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                     Bewertung speichern
@@ -697,7 +697,7 @@ onUnmounted(() => {
                     :href="`https://www.strava.com/activities/${activity.strava_id}`"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#FC4C02] text-white text-sm font-medium hover:bg-[#e84400] transition-colors"
+                    class="inline-flex items-center gap-2 px-4 py-2 rounded-field bg-[#FC4C02] text-white text-sm font-medium hover:bg-[#e84400] transition-colors"
                 >
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/>

@@ -26,7 +26,7 @@ const avatarUrl = computed(() => {
 
 <template>
     <div
-        class="shrink-0 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center shadow-sm overflow-hidden"
+        class="shrink-0 rounded-full bg-gradient-to-br from-accent to-accent flex items-center justify-center shadow-sm overflow-hidden"
         :class="sizeClasses[size]"
     >
         <img v-if="avatarUrl" :src="avatarUrl" :alt="user.name" class="h-full w-full object-cover" />

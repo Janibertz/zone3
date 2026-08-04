@@ -9,7 +9,7 @@ import { ref, computed, onMounted } from 'vue';
 const props = defineProps({
     leftWidth:  { type: Number, default: 0 }, // px, revealed by swiping right
     rightWidth: { type: Number, default: 0 }, // px, revealed by swiping left
-    contentClass: { type: String, default: 'bg-white dark:bg-slate-900' },
+    contentClass: { type: String, default: 'bg-surface' },
     disabled:   { type: Boolean, default: false },
 });
 

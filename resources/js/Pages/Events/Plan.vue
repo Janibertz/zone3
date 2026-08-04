@@ -1,6 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
+import { sessionType } from '@/Composables/useSessionTypes';
 import AppButton from '@/Components/UI/AppButton.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
@@ -16,10 +17,10 @@ const isAdmin = computed(() => usePage().props.auth?.isAdmin ?? false);
 const coachName = computed(() => coach.value?.name ?? 'Dein Coach');
 
 const coachAccentColors = {
-    orange: { stripe: 'bg-orange-400', badge: 'bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-500/30', avatar: 'bg-orange-500' },
-    blue:   { stripe: 'bg-blue-500',   badge: 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30',             avatar: 'bg-blue-600'   },
-    green:  { stripe: 'bg-green-500',  badge: 'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300 border-green-200 dark:border-green-500/30',       avatar: 'bg-green-600'  },
-    purple: { stripe: 'bg-purple-500', badge: 'bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500/30', avatar: 'bg-purple-600' },
+    orange: { stripe: 'bg-warn', badge: 'bg-warn-soft text-warn-ink border-warn/25', avatar: 'bg-warn' },
+    blue:   { stripe: 'bg-info',   badge: 'bg-info-soft text-info-ink border-info/25',             avatar: 'bg-info'   },
+    green:  { stripe: 'bg-success',  badge: 'bg-success-soft text-success-ink border-success/25',       avatar: 'bg-success'  },
+    purple: { stripe: 'bg-accent', badge: 'bg-accent-soft text-accent-ink border-accent/25', avatar: 'bg-accent' },
 };
 const coachAccent = computed(() => coachAccentColors[coach.value?.avatar_color] ?? coachAccentColors.blue);
 
@@ -297,24 +298,8 @@ function updateSessionInList(updated) {
 }
 
 // ── Type config ───────────────────────────────────────────────────────────────
-const typeConfig = {
-    rest:       { label: 'Ruhetag',          bg: 'bg-gray-50 dark:bg-slate-800',      text: 'text-gray-500 dark:text-slate-400',  badge: 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300', border: 'border-gray-100 dark:border-slate-700', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M21 12a2.25 2.25 0 0 0-2.25-2.25H15a3 3 0 1 1-6 0H5.25A2.25 2.25 0 0 0 3 12m18 0v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 9m18 0V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v3" />` },
-    easy_run:   { label: 'Lockerer Lauf',    bg: 'bg-green-50 dark:bg-green-500/10',  text: 'text-green-700 dark:text-green-400', badge: 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400', border: 'border-green-100 dark:border-green-500/20', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 0 1-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 0 0 6.16-12.12A14.98 14.98 0 0 0 9.631 8.41m5.96 5.96a14.926 14.926 0 0 1-5.841 2.58m-.119-8.54a6 6 0 0 0-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 0 0-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 0 1-2.448-2.448 14.9 14.9 0 0 1 .06-.312m-2.24 2.39a4.493 4.493 0 0 0-1.757 4.306 4.493 4.493 0 0 0 4.306-1.758M16.5 9a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />` },
-    tempo_run:  { label: 'Tempolauf',        bg: 'bg-amber-50 dark:bg-amber-500/10',  text: 'text-amber-700 dark:text-amber-400', badge: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400', border: 'border-amber-100 dark:border-amber-500/20', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />` },
-    interval:   { label: 'Intervall',        bg: 'bg-red-50 dark:bg-red-500/10',      text: 'text-red-700 dark:text-red-400',     badge: 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400', border: 'border-red-100 dark:border-red-500/20', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0 1 18 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5" />` },
-    long_run:   { label: 'Langer Lauf',      bg: 'bg-blue-50 dark:bg-blue-500/10',    text: 'text-blue-700 dark:text-blue-400',   badge: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400', border: 'border-blue-100 dark:border-blue-500/20', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" />` },
-    race_prep:       { label: 'Rennvorbereitung', bg: 'bg-indigo-50 dark:bg-indigo-500/10', text: 'text-indigo-700 dark:text-indigo-400', badge: 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400', border: 'border-indigo-100 dark:border-indigo-500/20', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />` },
-    progressive_run: { label: 'Progressiver Lauf', bg: 'bg-teal-50 dark:bg-teal-500/10',   text: 'text-teal-700 dark:text-teal-400',   badge: 'bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-400',   border: 'border-teal-100 dark:border-teal-500/20',   icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.281-2.28 5.941" />` },
-    test_run:        { label: 'Testlauf',           bg: 'bg-violet-50 dark:bg-violet-500/10', text: 'text-violet-700 dark:text-violet-400', badge: 'bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-400', border: 'border-violet-100 dark:border-violet-500/20', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />` },
-    back_to_back_long: { label: 'Back-to-Back',     bg: 'bg-blue-50 dark:bg-blue-500/10',    text: 'text-blue-700 dark:text-blue-400',   badge: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400',   border: 'border-blue-100 dark:border-blue-500/20',   icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" />` },
-    time_on_feet:    { label: 'Time on Feet',       bg: 'bg-purple-50 dark:bg-purple-500/10', text: 'text-purple-700 dark:text-purple-400', badge: 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400', border: 'border-purple-100 dark:border-purple-500/20', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />` },
-    yard_simulation: { label: 'Yard-Simulation',    bg: 'bg-purple-50 dark:bg-purple-500/10', text: 'text-purple-700 dark:text-purple-400', badge: 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400', border: 'border-purple-100 dark:border-purple-500/20', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-5.25v5.25l3.5 2" />` },
-    night_run:       { label: 'Nachtlauf',          bg: 'bg-indigo-50 dark:bg-indigo-500/10', text: 'text-indigo-700 dark:text-indigo-400', badge: 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400', border: 'border-indigo-100 dark:border-indigo-500/20', icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />` },
-    strength:        { label: 'Kraft',              bg: 'bg-rose-50 dark:bg-rose-500/10',     text: 'text-rose-700 dark:text-rose-400',   badge: 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400',   border: 'border-rose-100 dark:border-rose-500/20',   icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M6.115 5.19l.319 1.913A6 6 0 008.11 10.36L9.75 12l-.387.775c-.217.433-.132.956.21 1.298l1.348 1.348c.21.21.329.497.329.795v1.089c0 .426.24.815.622 1.006l.153.076c.433.217.956.132 1.298-.21l.723-.723a8.7 8.7 0 002.288-4.042 1.087 1.087 0 00-.358-1.099l-1.33-1.108c-.251-.21-.582-.299-.905-.245l-1.17.195a1.125 1.125 0 01-.98-.314l-.295-.295a1.125 1.125 0 010-1.591l.13-.132a1.125 1.125 0 011.3-.21l.603.302a.809.809 0 001.086-1.086L14.25 7.5l1.256-.837a4.5 4.5 0 001.528-1.732l.146-.292M6.115 5.19A9 9 0 1017.18 4.64M6.115 5.19A8.965 8.965 0 0112 3c1.929 0 3.716.607 5.18 1.64" />` },
-    core:            { label: 'Core',               bg: 'bg-rose-50 dark:bg-rose-500/10',     text: 'text-rose-700 dark:text-rose-400',   badge: 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400',   border: 'border-rose-100 dark:border-rose-500/20',   icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8" />` },
-    mobility:        { label: 'Mobility',           bg: 'bg-teal-50 dark:bg-teal-500/10',     text: 'text-teal-700 dark:text-teal-400',   badge: 'bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-400',   border: 'border-teal-100 dark:border-teal-500/20',   icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8" />` },
-};
-const typeOf = (t) => typeConfig[t] ?? typeConfig['easy_run'];
+// Typ-Tabelle liegt in useSessionTypes — Dashboard und Plan teilen sie sich.
+const typeOf = (t) => sessionType(t);
 
 // Strength / core / mobility sessions carry an "exercises" list instead of a run
 // structure — they get a different detail view (no run steps, no Garmin export).
@@ -327,7 +312,7 @@ function exerciseVideoUrl(name) {
         encodeURIComponent((name || '') + ' Übung richtige Ausführung');
 }
 
-const priorityColors = { A: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10', B: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10', C: 'text-gray-600 dark:text-slate-300 bg-gray-100 dark:bg-slate-700' };
+const priorityColors = { A: 'text-danger-ink bg-danger-soft', B: 'text-warn-ink bg-warn-soft', C: 'text-ink-2 bg-surface-2' };
 
 function formatDate(dateStr) {
     const d = new Date(dateStr + 'T00:00:00');
@@ -739,16 +724,16 @@ function estimatedTime(meters, paceStr) {
 
 // Step bar colors by type
 const stepBarColor = {
-    warmup:   'bg-green-400',
-    work:     'bg-red-400',
-    rest:     'bg-slate-300 dark:bg-slate-600',
-    cooldown: 'bg-blue-400',
+    warmup:   'bg-success',
+    work:     'bg-danger',
+    rest:     'bg-surface-3',
+    cooldown: 'bg-info',
 };
 const stepBgColor = {
-    warmup:   'bg-green-50 dark:bg-green-500/10 border-green-100 dark:border-green-500/20',
-    work:     'bg-red-50 dark:bg-red-500/10 border-red-100 dark:border-red-500/20',
-    rest:     'bg-gray-50 dark:bg-slate-800 border-gray-100 dark:border-slate-700',
-    cooldown: 'bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20',
+    warmup:   'bg-success-soft border-success/25',
+    work:     'bg-danger-soft border-danger/25',
+    rest:     'bg-surface-2 border-line',
+    cooldown: 'bg-info-soft border-info/25',
 };
 const stepLabel = { warmup: 'Aufwärmen', work: 'Hauptteil', rest: 'Pause', cooldown: 'Auslaufen' };
 
@@ -867,31 +852,31 @@ const lapHeightPct = computed(() => {
         <div class="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
 
             <!-- Back -->
-            <Link :href="route('events.index')" class="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-white transition-colors mb-4">
+            <Link :href="route('events.index')" class="inline-flex items-center gap-1.5 text-sm text-ink-3 hover:text-ink-2 transition-colors mb-4">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
                 Zurück zu Events
             </Link>
 
             <!-- Event header -->
-            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden mb-5">
+            <div class="bg-surface rounded-card border border-line shadow-card overflow-hidden mb-5">
                 <!-- Coach-Akzentstreifen -->
                 <div v-if="coach" class="h-1 w-full" :class="coachAccent.stripe"></div>
                 <div class="p-4 sm:p-5">
                 <div class="flex items-start gap-3">
-                    <span class="shrink-0 h-10 w-10 rounded-xl flex items-center justify-center font-bold text-lg" :class="priorityColors[event.priority]">{{ event.priority }}</span>
+                    <span class="shrink-0 h-10 w-10 rounded-field flex items-center justify-center font-bold text-lg" :class="priorityColors[event.priority]">{{ event.priority }}</span>
                     <div class="flex-1">
                         <div class="flex items-center gap-2 flex-wrap">
-                            <h1 class="text-lg font-bold text-gray-900 dark:text-white">{{ event.name }}</h1>
-                            <span v-if="currentPlan?.is_active" class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 rounded-full">
+                            <h1 class="text-lg font-bold text-ink">{{ event.name }}</h1>
+                            <span v-if="currentPlan?.is_active" class="inline-flex items-center gap-1 text-xs font-semibold text-accent-ink bg-accent-soft px-2 py-0.5 rounded-full">
                                 <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" /></svg>
                                 Aktiver Plan
                             </span>
                         </div>
-                        <div class="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-gray-500 dark:text-slate-400">
+                        <div class="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-ink-3">
                             <span>{{ new Date(event.event_date).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' }) }}</span>
-                            <span class="text-indigo-600 dark:text-indigo-400 font-medium">{{ event.distance_label }}</span>
+                            <span class="text-accent-ink font-medium">{{ event.distance_label }}</span>
                             <span v-if="event.target_time_formatted">Ziel: {{ event.target_time_formatted }}</span>
-                            <span :class="event.days_until <= 7 ? 'text-red-600 dark:text-red-400 font-semibold' : ''">
+                            <span :class="event.days_until <= 7 ? 'text-danger-ink font-semibold' : ''">
                                 {{ event.days_until > 0 ? `noch ${event.days_until} Tage` : event.days_until === 0 ? 'Heute!' : 'Vorbei' }}
                             </span>
                         </div>
@@ -908,92 +893,92 @@ const lapHeightPct = computed(() => {
             </div>
 
             <!-- ── Renntag-Strategie (Race Week) ──────────────────────────────── -->
-            <div v-if="!isPastEvent && (raceStrategyLoading || raceStrategy)" class="mb-5 bg-white dark:bg-slate-900 rounded-2xl border border-red-100 dark:border-red-500/20 shadow-sm p-4 sm:p-5">
+            <div v-if="!isPastEvent && (raceStrategyLoading || raceStrategy)" class="mb-5 bg-surface rounded-card border border-danger/25 shadow-card p-4 sm:p-5">
                 <div class="flex items-center gap-2 mb-4">
-                    <div class="h-8 w-8 rounded-xl bg-red-100 dark:bg-red-500/15 flex items-center justify-center shrink-0 text-base">🏁</div>
+                    <div class="h-8 w-8 rounded-field bg-danger-soft flex items-center justify-center shrink-0 text-base">🏁</div>
                     <div>
-                        <h3 class="text-sm font-bold text-gray-900 dark:text-white">Renntag-Strategie</h3>
-                        <p class="text-xs text-gray-400 dark:text-slate-500">Dein Pacing-Plan für die Zielzeit {{ event.target_time_formatted || '—' }}</p>
+                        <h3 class="text-sm font-bold text-ink">Renntag-Strategie</h3>
+                        <p class="text-xs text-ink-3">Dein Pacing-Plan für die Zielzeit {{ event.target_time_formatted || '—' }}</p>
                     </div>
                 </div>
 
-                <div v-if="raceStrategyLoading" class="flex items-center gap-2 text-sm text-gray-400 dark:text-slate-500 py-3">
+                <div v-if="raceStrategyLoading" class="flex items-center gap-2 text-sm text-ink-3 py-3">
                     <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                     Strategie wird erstellt…
                 </div>
 
                 <template v-else-if="raceStrategy">
                     <div class="flex items-baseline gap-2 mb-4">
-                        <span class="text-3xl font-bold tabular-nums text-gray-900 dark:text-white">{{ raceStrategy.pace }}</span>
-                        <span class="text-sm text-gray-500 dark:text-slate-400">/km Zielpace</span>
+                        <span class="text-3xl font-bold tabular-nums text-ink">{{ raceStrategy.pace }}</span>
+                        <span class="text-sm text-ink-3">/km Zielpace</span>
                     </div>
 
-                    <div class="rounded-xl border border-gray-100 dark:border-slate-800 overflow-hidden mb-4">
+                    <div class="rounded-field border border-line overflow-hidden mb-4">
                         <div v-for="(s, i) in raceStrategy.splits" :key="i"
                             class="flex items-center justify-between px-3 py-2 text-sm"
-                            :class="[s.is_finish ? 'font-bold bg-red-50 dark:bg-red-500/10 text-gray-900 dark:text-white' : (i % 2 ? 'bg-gray-50/60 dark:bg-slate-800/30' : '')]">
-                            <span class="text-gray-600 dark:text-slate-300">{{ s.is_finish ? '🏁 ' : '' }}{{ s.label }}</span>
-                            <span class="tabular-nums text-gray-900 dark:text-white">{{ s.cumulative_time }}</span>
+                            :class="[s.is_finish ? 'font-bold bg-danger-soft text-ink' : (i % 2 ? 'bg-surface-2/60' : '')]">
+                            <span class="text-ink-2">{{ s.is_finish ? '🏁 ' : '' }}{{ s.label }}</span>
+                            <span class="tabular-nums text-ink">{{ s.cumulative_time }}</span>
                         </div>
                     </div>
 
-                    <div v-if="raceStrategy.strategy_text" class="rounded-xl bg-gray-50 dark:bg-slate-800/60 p-3 text-sm text-gray-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+                    <div v-if="raceStrategy.strategy_text" class="rounded-field bg-surface-2 p-3 text-sm text-ink-2 leading-relaxed whitespace-pre-line">
                         {{ raceStrategy.strategy_text }}
                     </div>
                 </template>
             </div>
 
             <!-- ── Race Result Form (past events only) ──────────────────────── -->
-            <div v-if="isPastEvent && plan" class="mb-5 bg-white dark:bg-slate-900 rounded-2xl border border-indigo-100 dark:border-indigo-500/20 shadow-sm p-4 sm:p-5">
+            <div v-if="isPastEvent && plan" class="mb-5 bg-surface rounded-card border border-accent/25 shadow-card p-4 sm:p-5">
                 <div class="flex items-center gap-2 mb-4">
-                    <div class="h-8 w-8 rounded-xl bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center shrink-0 text-base">🏅</div>
+                    <div class="h-8 w-8 rounded-field bg-accent-soft flex items-center justify-center shrink-0 text-base">🏅</div>
                     <div>
-                        <h3 class="text-sm font-bold text-gray-900 dark:text-white">Rennergebnis eintragen</h3>
-                        <p class="text-xs text-gray-400 dark:text-slate-500">Dein Ergebnis hilft {{ coachName }}, den nächsten Plan gezielter zu gestalten</p>
+                        <h3 class="text-sm font-bold text-ink">Rennergebnis eintragen</h3>
+                        <p class="text-xs text-ink-3">Dein Ergebnis hilft {{ coachName }}, den nächsten Plan gezielter zu gestalten</p>
                     </div>
                 </div>
 
                 <!-- Target vs Actual -->
                 <div class="grid grid-cols-2 gap-3 mb-4">
                     <!-- Ziel -->
-                    <div class="rounded-xl bg-gray-50 dark:bg-slate-800/60 border border-gray-100 dark:border-slate-700 p-3">
-                        <p class="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Zielzeit</p>
-                        <p class="text-xl font-bold text-gray-700 dark:text-slate-200 tabular-nums">{{ event.target_time_formatted || '—' }}</p>
+                    <div class="rounded-field bg-surface-2 border border-line p-3">
+                        <p class="text-[10px] font-semibold text-ink-3 uppercase tracking-wider mb-1">Zielzeit</p>
+                        <p class="text-xl font-bold text-ink-2 tabular-nums">{{ event.target_time_formatted || '—' }}</p>
                     </div>
                     <!-- Ergebnis -->
-                    <div class="rounded-xl border p-3 transition-colors"
-                        :class="goalAchieved === true  ? 'bg-green-50 dark:bg-green-500/10 border-green-100 dark:border-green-500/20'
-                              : goalAchieved === false ? 'bg-red-50 dark:bg-red-500/10 border-red-100 dark:border-red-500/20'
-                              : 'bg-gray-50 dark:bg-slate-800/60 border-gray-100 dark:border-slate-700'"
+                    <div class="rounded-field border p-3 transition-colors"
+                        :class="goalAchieved === true  ? 'bg-success-soft border-success/25'
+                              : goalAchieved === false ? 'bg-danger-soft border-danger/25'
+                              : 'bg-surface-2 border-line'"
                     >
                         <p class="text-[10px] font-semibold uppercase tracking-wider mb-1"
-                            :class="goalAchieved === true ? 'text-green-500' : goalAchieved === false ? 'text-red-400' : 'text-gray-400 dark:text-slate-500'">
+                            :class="goalAchieved === true ? 'text-success' : goalAchieved === false ? 'text-danger' : 'text-ink-3'">
                             Dein Ergebnis
                         </p>
                         <div class="flex items-center gap-1">
                             <input v-model.number="resultHours" type="number" min="0" max="23" placeholder="0"
-                                class="w-10 text-xl font-bold bg-transparent border-none outline-none tabular-nums p-0 text-gray-800 dark:text-white placeholder-gray-300"
+                                class="w-10 text-xl font-bold bg-transparent border-none outline-none tabular-nums p-0 text-ink placeholder-ink-3"
                             />
-                            <span class="text-lg font-bold text-gray-400">:</span>
+                            <span class="text-lg font-bold text-ink-3">:</span>
                             <input v-model.number="resultMinutes" type="number" min="0" max="59" placeholder="00"
-                                class="w-10 text-xl font-bold bg-transparent border-none outline-none tabular-nums p-0 text-gray-800 dark:text-white placeholder-gray-300"
+                                class="w-10 text-xl font-bold bg-transparent border-none outline-none tabular-nums p-0 text-ink placeholder-ink-3"
                             />
-                            <span class="text-xs text-gray-400 dark:text-slate-500 ml-1">Std:Min</span>
+                            <span class="text-xs text-ink-3 ml-1">Std:Min</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Goal achieved banner -->
                 <Transition enter-active-class="transition-all duration-300 ease-out" enter-from-class="opacity-0 scale-95">
-                    <div v-if="goalAchieved !== null" class="mb-4 rounded-xl px-3 py-2.5 flex items-center gap-2"
-                        :class="goalAchieved ? 'bg-green-100 dark:bg-green-500/15' : 'bg-red-50 dark:bg-red-500/10'"
+                    <div v-if="goalAchieved !== null" class="mb-4 rounded-field px-3 py-2.5 flex items-center gap-2"
+                        :class="goalAchieved ? 'bg-success-soft' : 'bg-danger-soft'"
                     >
                         <span class="text-lg">{{ goalAchieved ? '🎯' : '📉' }}</span>
                         <div>
-                            <p class="text-sm font-semibold" :class="goalAchieved ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'">
+                            <p class="text-sm font-semibold" :class="goalAchieved ? 'text-success-ink' : 'text-danger-ink'">
                                 {{ goalAchieved ? 'Ziel erreicht!' : 'Ziel knapp verfehlt' }}
                             </p>
-                            <p class="text-xs" :class="goalAchieved ? 'text-green-600/70 dark:text-green-500' : 'text-red-500/70 dark:text-red-500'">
+                            <p class="text-xs" :class="goalAchieved ? 'text-success/70' : 'text-danger/70'">
                                 {{ goalDeltaText }}
                             </p>
                         </div>
@@ -1002,25 +987,25 @@ const lapHeightPct = computed(() => {
 
                 <!-- Plan rating -->
                 <div class="mb-3">
-                    <p class="text-xs font-semibold text-gray-600 dark:text-slate-400 mb-2">Wie gut hat der Plan funktioniert?</p>
+                    <p class="text-xs font-semibold text-ink-2 mb-2">Wie gut hat der Plan funktioniert?</p>
                     <div class="flex gap-2">
                         <button v-for="n in 5" :key="n" @click="resultRating = n"
-                            class="h-9 w-9 rounded-xl flex items-center justify-center text-lg transition-all"
-                            :class="n <= resultRating ? 'bg-amber-100 dark:bg-amber-500/20 scale-110' : 'bg-gray-100 dark:bg-slate-800 opacity-40 hover:opacity-70'"
+                            class="h-9 w-9 rounded-field flex items-center justify-center text-lg transition-all"
+                            :class="n <= resultRating ? 'bg-warn-soft scale-110' : 'bg-surface-2 opacity-40 hover:opacity-70'"
                         >⭐</button>
-                        <button v-if="resultRating" @click="resultRating = 0" class="ml-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-slate-300">zurücksetzen</button>
+                        <button v-if="resultRating" @click="resultRating = 0" class="ml-2 text-xs text-ink-3 hover:text-ink-2">zurücksetzen</button>
                     </div>
                 </div>
 
                 <!-- Notes -->
                 <textarea v-model="resultNotes" rows="2" placeholder="Was hat gut geklappt? Was sollte beim nächsten Plan anders sein?"
-                    class="w-full rounded-xl px-3 py-2.5 text-sm border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500/50 mb-3"
+                    class="w-full rounded-field px-3 py-2.5 text-sm border border-line bg-surface-2 text-ink placeholder-ink-3 resize-none focus:outline-none focus:ring-2 focus:ring-accent/40 mb-3"
                 />
 
                 <!-- Save -->
                 <button @click="saveResult" :disabled="resultSaving"
-                    class="w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-colors disabled:opacity-60"
-                    :class="resultSaved ? 'bg-green-500 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'"
+                    class="w-full flex items-center justify-center gap-2 rounded-field py-2.5 text-sm font-semibold transition-colors disabled:opacity-60"
+                    :class="resultSaved ? 'bg-success text-white' : 'bg-accent hover:opacity-90 text-white'"
                 >
                     <svg v-if="resultSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                     <svg v-else-if="resultSaved" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
@@ -1029,23 +1014,23 @@ const lapHeightPct = computed(() => {
             </div>
 
             <!-- ── Post-Race-Analyse (past events) ──────────────────────────── -->
-            <div v-if="isPastEvent && plan && (raceAnalysisLoading || raceAnalysis)" class="mb-5 bg-white dark:bg-slate-900 rounded-2xl border border-indigo-100 dark:border-indigo-500/20 shadow-sm p-4 sm:p-5">
+            <div v-if="isPastEvent && plan && (raceAnalysisLoading || raceAnalysis)" class="mb-5 bg-surface rounded-card border border-accent/25 shadow-card p-4 sm:p-5">
                 <div class="flex items-center gap-2 mb-3">
-                    <div class="h-8 w-8 rounded-xl bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center shrink-0 text-base">📊</div>
+                    <div class="h-8 w-8 rounded-field bg-accent-soft flex items-center justify-center shrink-0 text-base">📊</div>
                     <div>
-                        <h3 class="text-sm font-bold text-gray-900 dark:text-white">Renn-Analyse von {{ coachName }}</h3>
-                        <p v-if="raceAnalysis?.found" class="text-xs text-gray-400 dark:text-slate-500">Auswertung deines Strava-Laufs · Zeit {{ raceAnalysis.actual_time }}</p>
+                        <h3 class="text-sm font-bold text-ink">Renn-Analyse von {{ coachName }}</h3>
+                        <p v-if="raceAnalysis?.found" class="text-xs text-ink-3">Auswertung deines Strava-Laufs · Zeit {{ raceAnalysis.actual_time }}</p>
                     </div>
                 </div>
 
-                <div v-if="raceAnalysisLoading" class="flex items-center gap-2 text-sm text-gray-400 dark:text-slate-500 py-3">
+                <div v-if="raceAnalysisLoading" class="flex items-center gap-2 text-sm text-ink-3 py-3">
                     <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                     Analyse wird erstellt…
                 </div>
-                <div v-else-if="raceAnalysis?.found && raceAnalysis.analysis_text" class="rounded-xl bg-gray-50 dark:bg-slate-800/60 p-3 text-sm text-gray-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+                <div v-else-if="raceAnalysis?.found && raceAnalysis.analysis_text" class="rounded-field bg-surface-2 p-3 text-sm text-ink-2 leading-relaxed whitespace-pre-line">
                     {{ raceAnalysis.analysis_text }}
                 </div>
-                <div v-else class="text-sm text-gray-400 dark:text-slate-500 py-2">
+                <div v-else class="text-sm text-ink-3 py-2">
                     Kein Renn-Lauf von Strava gefunden. Sobald deine Aktivität synchronisiert ist, erstellt {{ coachName }} hier automatisch die Auswertung.
                 </div>
             </div>
@@ -1053,24 +1038,24 @@ const lapHeightPct = computed(() => {
             <!-- Wellbeing banner for today's session -->
             <Transition enter-active-class="transition-all duration-300" enter-from-class="opacity-0 -translate-y-2" leave-to-class="opacity-0">
                 <div v-if="wellbeingBanner && todaySession"
-                    class="mb-4 rounded-2xl border px-4 py-3 flex items-start gap-3"
+                    class="mb-4 rounded-card border px-4 py-3 flex items-start gap-3"
                     :class="{
-                        'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30': wellbeingBanner.level === 'danger',
-                        'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30': wellbeingBanner.level === 'warning',
-                        'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30': wellbeingBanner.level === 'good',
+                        'bg-danger-soft border-danger/25': wellbeingBanner.level === 'danger',
+                        'bg-warn-soft border-warn/25': wellbeingBanner.level === 'warning',
+                        'bg-success-soft border-success/25': wellbeingBanner.level === 'good',
                     }"
                 >
                     <span class="text-xl leading-none mt-0.5">{{ wellbeingBanner.icon }}</span>
                     <div class="flex-1">
                         <p class="text-sm font-semibold"
-                            :class="{ 'text-red-700 dark:text-red-400': wellbeingBanner.level === 'danger', 'text-amber-700 dark:text-amber-400': wellbeingBanner.level === 'warning', 'text-green-700 dark:text-green-400': wellbeingBanner.level === 'good' }">
+                            :class="{ 'text-danger-ink': wellbeingBanner.level === 'danger', 'text-warn-ink': wellbeingBanner.level === 'warning', 'text-success-ink': wellbeingBanner.level === 'good' }">
                             {{ wellbeingBanner.text }}
                         </p>
-                        <p v-if="wellbeingBanner.tip" class="text-xs mt-0.5 text-gray-500 dark:text-slate-400">{{ wellbeingBanner.tip }}</p>
+                        <p v-if="wellbeingBanner.tip" class="text-xs mt-0.5 text-ink-3">{{ wellbeingBanner.tip }}</p>
                     </div>
                     <div v-if="wellbeingBanner.level === 'danger'" class="shrink-0">
                         <button @click="openSkipModal(todaySession, 'Krank')"
-                            class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors"
+                            class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-danger text-white hover:opacity-90 transition-colors"
                         >
                             Kein Training
                         </button>
@@ -1080,14 +1065,14 @@ const lapHeightPct = computed(() => {
 
             <!-- Strava update banner -->
             <div v-if="currentPlan?.needs_plan_update && !isPastEvent"
-                class="mb-4 flex items-start gap-3 rounded-2xl bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 px-4 py-3">
+                class="mb-4 flex items-start gap-3 rounded-card bg-warn-soft border border-warn/25 px-4 py-3">
                 <span class="text-xl leading-none mt-0.5">🔗</span>
                 <div class="flex-1">
-                    <p class="text-sm font-semibold text-orange-700 dark:text-orange-400">Neue Strava-Aktivität importiert</p>
-                    <p class="text-xs text-orange-600/70 dark:text-orange-400/70 mt-0.5">Der verbleibende Plan sollte neu berechnet werden, damit {{ coachName }} deinen aktuellen Trainingsstand berücksichtigt.</p>
+                    <p class="text-sm font-semibold text-warn-ink">Neue Strava-Aktivität importiert</p>
+                    <p class="text-xs text-warn/70 mt-0.5">Der verbleibende Plan sollte neu berechnet werden, damit {{ coachName }} deinen aktuellen Trainingsstand berücksichtigt.</p>
                 </div>
                 <button @click="generatePlan" :disabled="generating"
-                    class="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold px-3 py-2 transition-colors disabled:opacity-50">
+                    class="shrink-0 inline-flex items-center gap-1.5 rounded-field bg-warn hover:opacity-90 text-white text-xs font-semibold px-3 py-2 transition-colors disabled:opacity-50">
                     <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
                     Plan aktualisieren
                 </button>
@@ -1096,8 +1081,8 @@ const lapHeightPct = computed(() => {
             <!-- Plan header -->
             <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
                 <div>
-                    <h2 class="text-base font-bold text-gray-900 dark:text-white">{{ isPastEvent ? 'Trainings-Auswertung' : 'Trainingsplan bis zum Rennen' }}</h2>
-                    <p v-if="currentPlan" class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+                    <h2 class="text-base font-bold text-ink">{{ isPastEvent ? 'Trainings-Auswertung' : 'Trainingsplan bis zum Rennen' }}</h2>
+                    <p v-if="currentPlan" class="text-xs text-ink-3 mt-0.5">
                         Erstellt am {{ currentPlan.generated_at }}
                         <span v-if="currentPlan.context"> · {{ currentPlan.context.activities_used }} Aktivitäten</span>
                     </p>
@@ -1106,7 +1091,7 @@ const lapHeightPct = computed(() => {
                     <!-- Cancel plan (only when active and event not past) -->
                     <button v-if="currentPlan?.is_active && !isPastEvent"
                         @click="cancelModal = true"
-                        class="inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
+                        class="inline-flex items-center gap-1.5 rounded-field px-3 py-2.5 text-sm font-semibold text-danger-ink bg-danger-soft hover:opacity-90-soft transition-colors"
                     >
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
                         Abbrechen
@@ -1115,8 +1100,8 @@ const lapHeightPct = computed(() => {
                     <!-- Generate/update (always shown when event not past) -->
                     <button v-if="!isPastEvent"
                         @click="generatePlan" :disabled="generating"
-                        class="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors shadow-sm disabled:opacity-60"
-                        :class="currentPlan?.is_active ? 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700' : 'bg-indigo-600 text-white hover:bg-indigo-700'"
+                        class="inline-flex items-center gap-2 rounded-field px-4 py-2.5 text-sm font-semibold transition-colors shadow-card disabled:opacity-60"
+                        :class="currentPlan?.is_active ? 'bg-surface-2 text-ink-2 hover:bg-surface-3' : 'bg-accent text-white hover:opacity-90'"
                     >
                         <svg v-if="generating" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                         <svg v-else class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
@@ -1126,26 +1111,26 @@ const lapHeightPct = computed(() => {
             </div>
 
             <!-- Error -->
-            <div v-if="errorMsg" class="mb-4 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-4 py-3 text-sm text-red-700 dark:text-red-400">{{ errorMsg }}</div>
+            <div v-if="errorMsg" class="mb-4 rounded-field bg-danger-soft border border-danger/25 px-4 py-3 text-sm text-danger-ink">{{ errorMsg }}</div>
 
             <!-- Generating -->
-            <div v-if="generating" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-10 text-center mb-4">
-                <svg class="h-10 w-10 animate-spin mx-auto text-indigo-500 mb-3" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                <p class="text-sm font-medium text-gray-700 dark:text-slate-300">{{ coachName }} analysiert deine Daten...</p>
-                <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">Aktivitäten, Wellbeing und Athletenprofil werden ausgewertet</p>
+            <div v-if="generating" class="bg-surface rounded-card border border-line p-10 text-center mb-4">
+                <svg class="h-10 w-10 animate-spin mx-auto text-accent mb-3" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                <p class="text-sm font-medium text-ink-2">{{ coachName }} analysiert deine Daten...</p>
+                <p class="text-xs text-ink-3 mt-1">Aktivitäten, Wellbeing und Athletenprofil werden ausgewertet</p>
             </div>
 
             <!-- Empty -->
-            <div v-else-if="!currentPlan || visibleSessions.length === 0" class="bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700 p-10 text-center">
-                <svg class="h-12 w-12 mx-auto text-gray-300 dark:text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
+            <div v-else-if="!currentPlan || visibleSessions.length === 0" class="bg-surface rounded-card border border-dashed border-line p-10 text-center">
+                <svg class="h-12 w-12 mx-auto text-ink-3 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
                 <template v-if="isPastEvent">
-                    <p class="text-sm font-medium text-gray-700 dark:text-slate-300">Kein Trainingsplan vorhanden</p>
-                    <p class="mt-1 text-xs text-gray-400 dark:text-slate-500 max-w-xs mx-auto">Für dieses Event wurde kein Plan erstellt.</p>
+                    <p class="text-sm font-medium text-ink-2">Kein Trainingsplan vorhanden</p>
+                    <p class="mt-1 text-xs text-ink-3 max-w-xs mx-auto">Für dieses Event wurde kein Plan erstellt.</p>
                 </template>
                 <template v-else>
-                    <p class="text-sm font-medium text-gray-700 dark:text-slate-300">Noch kein Trainingsplan</p>
-                    <p class="mt-1 text-xs text-gray-400 dark:text-slate-500 max-w-xs mx-auto">{{ coachName }} analysiert Aktivitäten, Wellbeing und Athletenprofil für einen optimalen Plan bis zum Renntag.</p>
-                    <button @click="generatePlan" :disabled="generating" class="mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm">
+                    <p class="text-sm font-medium text-ink-2">Noch kein Trainingsplan</p>
+                    <p class="mt-1 text-xs text-ink-3 max-w-xs mx-auto">{{ coachName }} analysiert Aktivitäten, Wellbeing und Athletenprofil für einen optimalen Plan bis zum Renntag.</p>
+                    <button @click="generatePlan" :disabled="generating" class="mt-5 inline-flex items-center gap-2 rounded-field bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-card">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" /></svg>
                         Plan erstellen
                     </button>
@@ -1157,73 +1142,73 @@ const lapHeightPct = computed(() => {
                 <!-- Summary -->
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
                     <div v-for="(val, lbl) in { 'km geplant': weeklyLoad.total, 'Einheiten': weeklyLoad.runs, 'Erledigt': weeklyLoad.done, 'Kein Training': weeklyLoad.skipped }" :key="lbl"
-                        class="bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800 px-3 py-2.5 text-center">
-                        <div class="text-xl font-bold text-gray-900 dark:text-white">{{ val }}</div>
-                        <div class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{{ lbl }}</div>
+                        class="bg-surface rounded-field border border-line px-3 py-2.5 text-center">
+                        <div class="text-xl font-bold text-ink">{{ val }}</div>
+                        <div class="text-xs text-ink-3 mt-0.5">{{ lbl }}</div>
                     </div>
                 </div>
 
                 <!-- Backyard Ultra: yard readiness + lap rhythm -->
                 <div v-if="backyard && !isPastEvent"
-                    class="mb-4 bg-white dark:bg-slate-900 rounded-2xl border border-purple-100 dark:border-purple-500/20 shadow-sm overflow-hidden">
-                    <div class="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-gray-100 dark:border-slate-800">
-                        <svg class="h-4 w-4 text-purple-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-5.25v5.25l3.5 2" /></svg>
-                        <span class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Yard-Readiness</span>
+                    class="mb-4 bg-surface rounded-card border border-accent/25 shadow-card overflow-hidden">
+                    <div class="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-line">
+                        <svg class="h-4 w-4 text-accent shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-5.25v5.25l3.5 2" /></svg>
+                        <span class="text-xs font-semibold text-ink-3 uppercase tracking-wider">Yard-Readiness</span>
                     </div>
 
                     <div class="px-4 py-4">
                         <!-- No data yet -->
-                        <p v-if="!backyard.readiness.has_data" class="text-sm text-gray-600 dark:text-slate-300 leading-relaxed">
+                        <p v-if="!backyard.readiness.has_data" class="text-sm text-ink-2 leading-relaxed">
                             {{ backyard.readiness.advice }}
                         </p>
 
                         <template v-else>
                             <div class="flex flex-wrap items-end gap-x-8 gap-y-3">
                                 <div>
-                                    <p class="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Geschätzte Yards</p>
+                                    <p class="text-[10px] font-semibold text-ink-3 uppercase tracking-wider mb-1">Geschätzte Yards</p>
                                     <div class="flex items-baseline gap-2">
-                                        <span class="text-3xl font-bold text-gray-900 dark:text-white tabular-nums">{{ backyard.readiness.estimated_yards }}</span>
-                                        <span class="text-sm text-gray-400 dark:text-slate-500 tabular-nums">({{ backyard.readiness.range_low }}–{{ backyard.readiness.range_high }})</span>
+                                        <span class="text-3xl font-bold text-ink tabular-nums">{{ backyard.readiness.estimated_yards }}</span>
+                                        <span class="text-sm text-ink-3 tabular-nums">({{ backyard.readiness.range_low }}–{{ backyard.readiness.range_high }})</span>
                                     </div>
-                                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Ziel: {{ backyard.readiness.target_yards }} Yards</p>
+                                    <p class="text-xs text-ink-3 mt-0.5">Ziel: {{ backyard.readiness.target_yards }} Yards</p>
                                 </div>
                                 <div>
-                                    <p class="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Längster Lauf</p>
-                                    <span class="text-lg font-semibold text-gray-900 dark:text-white tabular-nums">{{ backyard.readiness.longest_run_km }} km</span>
+                                    <p class="text-[10px] font-semibold text-ink-3 uppercase tracking-wider mb-1">Längster Lauf</p>
+                                    <span class="text-lg font-semibold text-ink tabular-nums">{{ backyard.readiness.longest_run_km }} km</span>
                                 </div>
                                 <div>
-                                    <p class="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Peak-Wochenvolumen</p>
-                                    <span class="text-lg font-semibold text-gray-900 dark:text-white tabular-nums">{{ backyard.readiness.peak_weekly_km }} km</span>
+                                    <p class="text-[10px] font-semibold text-ink-3 uppercase tracking-wider mb-1">Peak-Wochenvolumen</p>
+                                    <span class="text-lg font-semibold text-ink tabular-nums">{{ backyard.readiness.peak_weekly_km }} km</span>
                                 </div>
                             </div>
-                            <p class="mt-3 text-sm text-gray-700 dark:text-slate-300 leading-relaxed">{{ backyard.readiness.advice }}</p>
+                            <p class="mt-3 text-sm text-ink-2 leading-relaxed">{{ backyard.readiness.advice }}</p>
                         </template>
 
                         <!-- Lap rhythm table -->
-                        <div class="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800">
-                            <p class="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-2">Runden-Rhythmus (6,706 km / Stunde)</p>
-                            <div class="grid grid-cols-3 gap-px bg-gray-100 dark:bg-slate-800 rounded-lg overflow-hidden text-sm">
-                                <div class="bg-gray-50 dark:bg-slate-800/60 px-3 py-1.5 text-[11px] font-semibold text-gray-400 dark:text-slate-500">Pace/km</div>
-                                <div class="bg-gray-50 dark:bg-slate-800/60 px-3 py-1.5 text-[11px] font-semibold text-gray-400 dark:text-slate-500">Rundenzeit</div>
-                                <div class="bg-gray-50 dark:bg-slate-800/60 px-3 py-1.5 text-[11px] font-semibold text-gray-400 dark:text-slate-500">Pause/Std</div>
+                        <div class="mt-4 pt-4 border-t border-line">
+                            <p class="text-[10px] font-semibold text-ink-3 uppercase tracking-wider mb-2">Runden-Rhythmus (6,706 km / Stunde)</p>
+                            <div class="grid grid-cols-3 gap-px bg-surface-2 rounded-lg overflow-hidden text-sm">
+                                <div class="bg-surface-2 px-3 py-1.5 text-[11px] font-semibold text-ink-3">Pace/km</div>
+                                <div class="bg-surface-2 px-3 py-1.5 text-[11px] font-semibold text-ink-3">Rundenzeit</div>
+                                <div class="bg-surface-2 px-3 py-1.5 text-[11px] font-semibold text-ink-3">Pause/Std</div>
                                 <template v-for="(r, i) in backyard.rhythm" :key="i">
-                                    <div class="bg-white dark:bg-slate-900 px-3 py-1.5 tabular-nums text-gray-700 dark:text-slate-300">{{ r.pace }}</div>
-                                    <div class="bg-white dark:bg-slate-900 px-3 py-1.5 tabular-nums text-gray-700 dark:text-slate-300">{{ r.lap_time }}</div>
-                                    <div class="bg-white dark:bg-slate-900 px-3 py-1.5 tabular-nums font-medium text-purple-700 dark:text-purple-400">{{ r.rest_min }} min</div>
+                                    <div class="bg-surface px-3 py-1.5 tabular-nums text-ink-2">{{ r.pace }}</div>
+                                    <div class="bg-surface px-3 py-1.5 tabular-nums text-ink-2">{{ r.lap_time }}</div>
+                                    <div class="bg-surface px-3 py-1.5 tabular-nums font-medium text-accent-ink">{{ r.rest_min }} min</div>
                                 </template>
                             </div>
-                            <p class="mt-2 text-[11px] text-gray-400 dark:text-slate-500">Langsamer laufen = mehr Pause. Konstanz schlägt Tempo — jede gesparte Minute ist Erholung.</p>
+                            <p class="mt-2 text-[11px] text-ink-3">Langsamer laufen = mehr Pause. Konstanz schlägt Tempo — jede gesparte Minute ist Erholung.</p>
                         </div>
                     </div>
                 </div>
 
                 <!-- Race prediction block -->
                 <div v-if="prediction && !isPastEvent && !backyard"
-                    class="mb-4 bg-white dark:bg-slate-900 rounded-2xl border border-indigo-100 dark:border-indigo-500/20 shadow-sm overflow-hidden">
+                    class="mb-4 bg-surface rounded-card border border-accent/25 shadow-card overflow-hidden">
                     <!-- Header stripe -->
-                    <div class="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-gray-100 dark:border-slate-800">
-                        <svg class="h-4 w-4 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
-                        <span class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Leistungsprognose</span>
+                    <div class="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-line">
+                        <svg class="h-4 w-4 text-accent shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
+                        <span class="text-xs font-semibold text-ink-3 uppercase tracking-wider">Leistungsprognose</span>
                     </div>
 
                     <div class="px-4 py-4">
@@ -1232,20 +1217,20 @@ const lapHeightPct = computed(() => {
                             <div class="flex items-end gap-6">
                                 <!-- Predicted time -->
                                 <div>
-                                    <p class="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Prognose</p>
+                                    <p class="text-[10px] font-semibold text-ink-3 uppercase tracking-wider mb-1">Prognose</p>
                                     <div class="flex items-baseline gap-2">
-                                        <span class="text-3xl font-bold text-gray-900 dark:text-white tabular-nums">{{ prediction.time }}</span>
+                                        <span class="text-3xl font-bold text-ink tabular-nums">{{ prediction.time }}</span>
                                     </div>
-                                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Pace {{ prediction.pace }}/km</p>
+                                    <p class="text-xs text-ink-3 mt-0.5">Pace {{ prediction.pace }}/km</p>
                                 </div>
 
                                 <!-- Delta to goal -->
                                 <div v-if="predictionDeltaText">
-                                    <p class="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">vs. Ziel</p>
+                                    <p class="text-[10px] font-semibold text-ink-3 uppercase tracking-wider mb-1">vs. Ziel</p>
                                     <span class="inline-flex items-center gap-1 text-sm font-semibold rounded-lg px-2 py-1"
                                         :class="predictionDeltaText.positive
-                                            ? 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-500/10'
-                                            : 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-500/10'">
+                                            ? 'text-success-ink bg-success-soft'
+                                            : 'text-danger-ink bg-danger-soft'">
                                         <span>{{ predictionDeltaText.positive ? '−' : '+' }}</span>
                                         <span>{{ predictionDeltaText.label }}</span>
                                     </span>
@@ -1253,19 +1238,19 @@ const lapHeightPct = computed(() => {
                             </div>
 
                             <!-- Coach recommendation text -->
-                            <div v-if="prediction.text" class="sm:flex-1 sm:border-l sm:border-gray-100 sm:dark:border-slate-800 sm:pl-4">
+                            <div v-if="prediction.text" class="sm:flex-1 sm:border-l sm:border-line sm: sm:pl-4">
                                 <div class="flex items-center gap-1.5 mb-1.5">
                                     <div class="h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" :class="coachAccent.avatar">
                                         {{ coachName[0] }}
                                     </div>
-                                    <span class="text-xs font-semibold text-gray-500 dark:text-slate-400">{{ coachName }}</span>
+                                    <span class="text-xs font-semibold text-ink-3">{{ coachName }}</span>
                                 </div>
-                                <p class="text-sm text-gray-700 dark:text-slate-300 leading-relaxed">{{ prediction.text }}</p>
+                                <p class="text-sm text-ink-2 leading-relaxed">{{ prediction.text }}</p>
                             </div>
                         </div>
 
                         <!-- Source -->
-                        <p class="mt-3 text-[11px] text-gray-400 dark:text-slate-500">
+                        <p class="mt-3 text-[11px] text-ink-3">
                             Basierend auf berechneter Schwellenpace · Jack Daniels T-Pace
                         </p>
                     </div>
@@ -1273,9 +1258,9 @@ const lapHeightPct = computed(() => {
 
                 <!-- Rolling-window hint: race is beyond the current plan window -->
                 <div v-if="planIsRolling && currentPlan && !generating"
-                    class="mb-3 flex items-start gap-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 px-3.5 py-2.5">
-                    <svg class="h-4 w-4 mt-0.5 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
-                    <p class="text-xs text-indigo-700 dark:text-indigo-300 leading-relaxed">
+                    class="mb-3 flex items-start gap-2.5 rounded-field bg-accent-soft border border-accent/25 px-3.5 py-2.5">
+                    <svg class="h-4 w-4 mt-0.5 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
+                    <p class="text-xs text-accent-ink leading-relaxed">
                         Bis zum Renntag ist es noch eine Weile — {{ coachName }} plant zunächst die kommenden zwei Wochen und verlängert den Plan dann laufend automatisch bis zum Rennen.
                     </p>
                 </div>
@@ -1284,19 +1269,19 @@ const lapHeightPct = computed(() => {
                     <SwipeRow
                         v-for="session in visibleSessions"
                         :key="session.id"
-                        content-class="bg-gray-50 dark:bg-slate-950 rounded-2xl"
+                        content-class="bg-surface-2 rounded-card"
                         :right-width="canSkip(session) ? 88 : 0"
                         :disabled="!canSkip(session)"
                         :class="[
-                            'rounded-2xl',
-                            isToday(session.planned_date) && session.status === 'planned' ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-950' : '',
+                            'rounded-card',
+                            isToday(session.planned_date) && session.status === 'planned' ? 'ring-2 ring-accent ring-offset-1' : '',
                         ]"
                     >
                         <!-- Swipe links → Kein Training (nur planbare, nicht der Renntag) -->
                         <template #right="{ close }">
                             <button
                                 @click="openSkipModal(session); close()"
-                                class="w-full bg-gray-500 dark:bg-slate-600 text-white flex flex-col items-center justify-center gap-1 text-[11px] font-semibold"
+                                class="w-full bg-ink-3 text-canvas flex flex-col items-center justify-center gap-1 text-[11px] font-semibold"
                             >
                                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
                                 Kein Training
@@ -1304,7 +1289,7 @@ const lapHeightPct = computed(() => {
                         </template>
 
                     <div
-                        class="rounded-2xl border overflow-hidden transition-all"
+                        class="rounded-card border overflow-hidden transition-all"
                         :class="[
                             typeOf(session.type).border,
                             session.status === 'completed' ? 'opacity-60' : '',
@@ -1312,15 +1297,15 @@ const lapHeightPct = computed(() => {
                         ]"
                     >
                         <!-- Unplanned banner -->
-                        <div v-if="session.title === 'Ungeplante Einheit'" class="px-3 pt-2.5 pb-0 flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400 font-medium">
+                        <div v-if="session.title === 'Ungeplante Einheit'" class="px-3 pt-2.5 pb-0 flex items-center gap-1.5 text-xs text-warn-ink font-medium">
                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
                             Nicht im Plan – automatisch aus Strava importiert
                         </div>
                         <div class="flex gap-3 p-3 sm:p-4" :class="typeOf(session.type).bg">
                             <!-- Icon -->
-                            <div class="shrink-0 h-10 w-10 rounded-xl flex items-center justify-center" :class="typeOf(session.type).badge">
-                                <svg v-if="session.status === 'completed'" class="h-5 w-5 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                                <svg v-else-if="session.status === 'skipped'" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M6.225 6.225A9 9 0 0 0 21 12a9 9 0 0 1-15.098 4.672M3.161 7.573A9 9 0 0 0 3 12a9 9 0 0 0 9 9" /></svg>
+                            <div class="shrink-0 h-10 w-10 rounded-field flex items-center justify-center" :class="typeOf(session.type).pill">
+                                <svg v-if="session.status === 'completed'" class="h-5 w-5 text-success-ink" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                                <svg v-else-if="session.status === 'skipped'" class="h-5 w-5 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M6.225 6.225A9 9 0 0 0 21 12a9 9 0 0 1-15.098 4.672M3.161 7.573A9 9 0 0 0 3 12a9 9 0 0 0 9 9" /></svg>
                                 <svg v-else class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="typeOf(session.type).icon" />
                             </div>
 
@@ -1328,50 +1313,50 @@ const lapHeightPct = computed(() => {
                                 <div class="flex items-start justify-between gap-2">
                                     <div>
                                         <div class="flex items-center gap-2 flex-wrap">
-                                            <span class="text-xs font-medium text-gray-400 dark:text-slate-500">{{ formatDate(session.planned_date) }}</span>
-                                            <span v-if="isToday(session.planned_date) && session.status === 'planned'" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 rounded-full">Heute</span>
+                                            <span class="text-xs font-medium text-ink-3">{{ formatDate(session.planned_date) }}</span>
+                                            <span v-if="isToday(session.planned_date) && session.status === 'planned'" class="text-xs font-bold text-accent-ink bg-accent-soft px-2 py-0.5 rounded-full">Heute</span>
                                         </div>
                                         <p class="font-semibold text-sm mt-0.5" :class="typeOf(session.type).text">{{ session.title }}</p>
                                     </div>
                                     <!-- Status / type badges -->
                                     <div class="flex gap-1.5 shrink-0 flex-wrap justify-end">
-                                        <span v-if="session.status === 'completed'" class="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400">✓ Erledigt</span>
-                                        <span v-else-if="session.status === 'skipped'" class="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400">Kein Training</span>
-                                        <span v-else class="text-xs font-medium px-2 py-0.5 rounded-full" :class="typeOf(session.type).badge">{{ typeOf(session.type).label }}</span>
-                                        <span v-if="session.activity_id" class="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-400">🔗 Strava</span>
+                                        <span v-if="session.status === 'completed'" class="text-xs font-medium px-2 py-0.5 rounded-full bg-success-soft text-success-ink">✓ Erledigt</span>
+                                        <span v-else-if="session.status === 'skipped'" class="text-xs font-medium px-2 py-0.5 rounded-full bg-surface-2 text-ink-3">Kein Training</span>
+                                        <span v-else class="text-xs font-medium px-2 py-0.5 rounded-full" :class="typeOf(session.type).pill">{{ typeOf(session.type).label }}</span>
+                                        <span v-if="session.activity_id" class="text-xs font-medium px-2 py-0.5 rounded-full bg-warn-soft text-warn-ink">🔗 Strava</span>
                                     </div>
                                 </div>
 
-                                <p class="text-xs text-gray-500 dark:text-slate-400 mt-1.5 leading-relaxed">{{ session.description }}</p>
+                                <p class="text-xs text-ink-3 mt-1.5 leading-relaxed">{{ session.description }}</p>
 
                                 <!-- Skip reason -->
-                                <p v-if="session.skip_reason" class="text-xs text-gray-400 dark:text-slate-500 mt-1 italic">Grund: {{ session.skip_reason }}</p>
+                                <p v-if="session.skip_reason" class="text-xs text-ink-3 mt-1 italic">Grund: {{ session.skip_reason }}</p>
 
                                 <!-- Metrics -->
                                 <div v-if="session.type !== 'rest' && session.status !== 'skipped'" class="flex flex-wrap gap-3 mt-2">
-                                    <span v-if="session.distance_km" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
+                                    <span v-if="session.distance_km" class="inline-flex items-center gap-1 text-xs text-ink-2">
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" /></svg>
                                         {{ session.distance_km }} km
                                     </span>
-                                    <span v-if="session.duration_min" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
+                                    <span v-if="session.duration_min" class="inline-flex items-center gap-1 text-xs text-ink-2">
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
                                         {{ session.duration_min }} min
                                     </span>
-                                    <span v-if="session.pace_target && session.pace_target !== 'null'" class="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300">
+                                    <span v-if="session.pace_target && session.pace_target !== 'null'" class="inline-flex items-center gap-1 text-xs text-ink-2">
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg>
                                         {{ session.pace_target }} min/km
                                     </span>
-                                    <span v-if="session.zone" class="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded" :class="typeOf(session.type).badge">Zone {{ session.zone }}</span>
+                                    <span v-if="session.zone" class="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded" :class="typeOf(session.type).pill">Zone {{ session.zone }}</span>
                                 </div>
 
                                 <!-- Exercises (strength / core / mobility) -->
                                 <div v-if="session.exercises && session.exercises.length && session.status !== 'skipped'" class="mt-2.5 space-y-1">
                                     <div v-for="(ex, i) in session.exercises" :key="i" class="flex items-baseline gap-1.5 text-xs">
-                                        <span class="text-rose-400 dark:text-rose-500 shrink-0">▪</span>
-                                        <span class="text-gray-700 dark:text-slate-300 font-medium">{{ ex.name }}</span>
-                                        <span v-if="ex.sets || ex.reps" class="text-gray-500 dark:text-slate-400 tabular-nums">{{ [ex.sets, ex.reps].filter(Boolean).join('×') }}</span>
-                                        <span v-if="ex.load" class="text-gray-400 dark:text-slate-500">· {{ ex.load }}</span>
-                                        <span v-if="ex.note" class="text-gray-400 dark:text-slate-500 italic truncate">({{ ex.note }})</span>
+                                        <span class="text-danger shrink-0">▪</span>
+                                        <span class="text-ink-2 font-medium">{{ ex.name }}</span>
+                                        <span v-if="ex.sets || ex.reps" class="text-ink-3 tabular-nums">{{ [ex.sets, ex.reps].filter(Boolean).join('×') }}</span>
+                                        <span v-if="ex.load" class="text-ink-3">· {{ ex.load }}</span>
+                                        <span v-if="ex.note" class="text-ink-3 italic truncate">({{ ex.note }})</span>
                                     </div>
                                 </div>
 
@@ -1379,7 +1364,7 @@ const lapHeightPct = computed(() => {
                                 <div v-if="session.type !== 'rest'" class="flex gap-2 mt-3 flex-wrap">
                                     <!-- Details (non-rest sessions) -->
                                     <button @click="openDetail(session)"
-                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
+                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-surface-2 text-ink-2 hover:bg-surface-3 transition-colors"
                                     >
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" /></svg>
                                         Details
@@ -1390,7 +1375,7 @@ const lapHeightPct = computed(() => {
                                         v-if="session.status === 'planned' && isStrengthType(session.type) && session.planned_date <= today && !isPastEvent"
                                         @click="completeSession(session)"
                                         :disabled="completingId === session.id"
-                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-500/20 disabled:opacity-50 transition-colors"
+                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-success-soft text-success-ink hover:opacity-90-soft disabled:opacity-50 transition-colors"
                                     >
                                         <svg v-if="completingId === session.id" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                                         <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
@@ -1401,7 +1386,7 @@ const lapHeightPct = computed(() => {
                                     <button
                                         v-if="session.status === 'planned' && !isPastEvent && !isStrengthType(session.type)"
                                         @click="openWorkoutPicker(session)"
-                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors"
+                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-accent-soft text-accent-ink hover:opacity-90-soft transition-colors"
                                     >
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
                                         Eigenes Workout
@@ -1411,7 +1396,7 @@ const lapHeightPct = computed(() => {
                                     <button
                                         v-if="session.status === 'planned' && session.planned_date !== event.event_date"
                                         @click="openSkipModal(session)"
-                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
+                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-surface-2 text-ink-2 hover:bg-surface-3 transition-colors"
                                     >
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
                                         Kein Training
@@ -1422,7 +1407,7 @@ const lapHeightPct = computed(() => {
                                         v-if="isAdmin && session.type !== 'rest'"
                                         @click="resetSessionCache(session)"
                                         title="Admin: Steps & Nutrition-Cache leeren"
-                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-500/20 transition-colors"
+                                        class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-accent-soft text-accent-ink hover:opacity-90-soft transition-colors"
                                     >
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
                                         AI Reset
@@ -1434,7 +1419,7 @@ const lapHeightPct = computed(() => {
                     </SwipeRow>
                 </div>
 
-                <p class="mt-5 text-center text-xs text-gray-400 dark:text-slate-500">
+                <p class="mt-5 text-center text-xs text-ink-3">
                     "Plan aktualisieren" berücksichtigt übersprungene Einheiten und aktualisiert verbleibende Sessions.
                 </p>
             </template>
@@ -1519,7 +1504,7 @@ const lapHeightPct = computed(() => {
         <!-- ── Session-Detail ─────────────────────────────────────────────── -->
         <AppSheet :show="!!detailSession" tall @close="detailSession = null">
             <template #header>
-                <span v-if="detailSession" class="rounded-full px-2 py-0.5 text-xs font-semibold" :class="typeOf(detailSession.type).badge">
+                <span v-if="detailSession" class="rounded-full px-2 py-0.5 text-xs font-semibold" :class="typeOf(detailSession.type).pill">
                     {{ typeOf(detailSession.type).label }}
                 </span>
                 <h2 v-if="detailSession" class="mt-2 text-lg font-bold leading-snug text-ink">{{ detailSession.title }}</h2>
@@ -1531,38 +1516,38 @@ const lapHeightPct = computed(() => {
                 <div class="space-y-4 px-5 py-4">
 
                     <!-- Description -->
-                    <p v-if="detailSession.description" class="text-sm text-gray-600 dark:text-slate-400 leading-relaxed">{{ detailSession.description }}</p>
+                    <p v-if="detailSession.description" class="text-sm text-ink-2 leading-relaxed">{{ detailSession.description }}</p>
 
                     <!-- Overall metrics — prefer totals calculated from AI steps when available -->
                     <div class="grid grid-cols-3 gap-2">
-                        <div v-if="totalStepDistanceKm || detailSession.distance_km" class="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 text-center">
-                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ totalStepDistanceKm ?? detailSession.distance_km }}</p>
-                            <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">km</p>
+                        <div v-if="totalStepDistanceKm || detailSession.distance_km" class="bg-surface-2 rounded-field p-3 text-center">
+                            <p class="text-lg font-bold text-ink">{{ totalStepDistanceKm ?? detailSession.distance_km }}</p>
+                            <p class="text-xs text-ink-3 mt-0.5">km</p>
                         </div>
-                        <div v-if="totalStepDuration || detailSession.duration_min" class="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 text-center">
-                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ totalStepDuration || detailSession.duration_min }}</p>
-                            <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">min</p>
+                        <div v-if="totalStepDuration || detailSession.duration_min" class="bg-surface-2 rounded-field p-3 text-center">
+                            <p class="text-lg font-bold text-ink">{{ totalStepDuration || detailSession.duration_min }}</p>
+                            <p class="text-xs text-ink-3 mt-0.5">min</p>
                         </div>
-                        <div v-if="detailSession.pace_target && detailSession.pace_target !== 'null'" class="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 text-center">
-                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ detailSession.pace_target }}</p>
-                            <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">min/km</p>
+                        <div v-if="detailSession.pace_target && detailSession.pace_target !== 'null'" class="bg-surface-2 rounded-field p-3 text-center">
+                            <p class="text-lg font-bold text-ink">{{ detailSession.pace_target }}</p>
+                            <p class="text-xs text-ink-3 mt-0.5">min/km</p>
                         </div>
                     </div>
 
                     <!-- Übungen (Kraft / Core / Mobility) -->
                     <div v-if="detailIsStrength && detailSession.exercises && detailSession.exercises.length">
-                        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-2">Übungen</h3>
+                        <h3 class="text-xs font-semibold uppercase tracking-wider text-ink-3 mb-2">Übungen</h3>
                         <div class="space-y-2">
                             <div v-for="(ex, i) in detailSession.exercises" :key="i"
-                                class="rounded-xl border border-rose-100 dark:border-rose-500/20 bg-rose-50 dark:bg-rose-500/10 p-3">
+                                class="rounded-field border border-danger/25 bg-accent-soft p-3">
                                 <div class="flex items-baseline gap-2 flex-wrap">
-                                    <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ ex.name }}</span>
-                                    <span v-if="ex.sets || ex.reps" class="text-xs font-medium text-rose-700 dark:text-rose-300 tabular-nums">{{ [ex.sets, ex.reps].filter(Boolean).join('×') }}</span>
-                                    <span v-if="ex.load" class="text-xs text-gray-500 dark:text-slate-400">· {{ ex.load }}</span>
+                                    <span class="text-sm font-semibold text-ink">{{ ex.name }}</span>
+                                    <span v-if="ex.sets || ex.reps" class="text-xs font-medium text-danger-ink tabular-nums">{{ [ex.sets, ex.reps].filter(Boolean).join('×') }}</span>
+                                    <span v-if="ex.load" class="text-xs text-ink-3">· {{ ex.load }}</span>
                                 </div>
-                                <p v-if="ex.note" class="text-xs text-gray-500 dark:text-slate-400 italic mt-0.5">{{ ex.note }}</p>
+                                <p v-if="ex.note" class="text-xs text-ink-3 italic mt-0.5">{{ ex.note }}</p>
                                 <a :href="exerciseVideoUrl(ex.name)" target="_blank" rel="noopener noreferrer"
-                                    class="inline-flex items-center gap-1 mt-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline">
+                                    class="inline-flex items-center gap-1 mt-1.5 text-xs font-semibold text-danger-ink hover:underline">
                                     <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M21.582 6.186a2.506 2.506 0 0 0-1.768-1.768C18.254 4 12 4 12 4s-6.254 0-7.814.418c-.86.23-1.538.908-1.768 1.768C2 7.746 2 12 2 12s0 4.254.418 5.814c.23.86.908 1.538 1.768 1.768C5.746 20 12 20 12 20s6.254 0 7.814-.418a2.506 2.506 0 0 0 1.768-1.768C22 16.254 22 12 22 12s0-4.254-.418-5.814ZM10 15.464V8.536L16 12l-6 3.464Z"/></svg>
                                     Video ansehen
                                 </a>
@@ -1572,11 +1557,11 @@ const lapHeightPct = computed(() => {
 
                     <!-- Trainingsstruktur (nur für geplante Lauf-Einheiten — abgeschlossene zeigen echte Splits) -->
                     <div v-if="!isRaceSession && !isCompletedSession && !detailIsStrength">
-                        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-2">Trainingsstruktur</h3>
+                        <h3 class="text-xs font-semibold uppercase tracking-wider text-ink-3 mb-2">Trainingsstruktur</h3>
 
                         <!-- Loading -->
-                        <div v-if="stepsLoading" class="flex items-center gap-2 py-3 text-xs text-gray-400 dark:text-slate-500">
-                            <svg class="h-4 w-4 animate-spin shrink-0 text-indigo-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                        <div v-if="stepsLoading" class="flex items-center gap-2 py-3 text-xs text-ink-3">
+                            <svg class="h-4 w-4 animate-spin shrink-0 text-accent" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                             Struktur wird geladen…
                         </div>
 
@@ -1591,7 +1576,7 @@ const lapHeightPct = computed(() => {
                                         width:  ((s.duration_min || 0) / totalStepDuration * 100).toFixed(1) + '%',
                                         height: (stepHeightPct[s.type] ?? 60) + '%',
                                     }"
-                                    :class="[stepBarColor[s.type] ?? 'bg-indigo-400', 'rounded-t-sm opacity-80']"
+                                    :class="[stepBarColor[s.type] ?? 'bg-accent', 'rounded-t-sm opacity-80']"
                                     :title="`${s.label}: ${s.duration_min} min`"
                                 />
                             </div>
@@ -1599,26 +1584,26 @@ const lapHeightPct = computed(() => {
                             <!-- Step list (grouped) -->
                             <div class="space-y-2">
                                 <div v-for="(step, idx) in groupedSteps" :key="idx"
-                                    class="rounded-xl border p-3"
-                                    :class="stepBgColor[step.type] ?? 'bg-gray-50 dark:bg-slate-800 border-gray-100 dark:border-slate-700'"
+                                    class="rounded-field border p-3"
+                                    :class="stepBgColor[step.type] ?? 'bg-surface-2 border-line'"
                                 >
                                     <!-- Group: work + rest repeated -->
                                     <template v-if="step.isGroup">
                                         <div class="flex items-center gap-2 mb-2">
-                                            <span class="shrink-0 h-5 w-5 rounded bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300 text-[10px] font-bold flex items-center justify-center">×{{ step.repetitions }}</span>
-                                            <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ step.repetitions }}× {{ step.group_label || 'Intervall' }}</span>
+                                            <span class="shrink-0 h-5 w-5 rounded bg-danger-soft text-danger-ink text-[10px] font-bold flex items-center justify-center">×{{ step.repetitions }}</span>
+                                            <span class="text-sm font-semibold text-ink">{{ step.repetitions }}× {{ step.group_label || 'Intervall' }}</span>
                                         </div>
                                         <div class="ml-7 space-y-1.5">
                                             <div class="flex items-center gap-3">
-                                                <span class="h-2 w-2 rounded-full bg-red-400 shrink-0" />
-                                                <span class="text-xs font-medium text-gray-700 dark:text-slate-300">{{ step.label }}</span>
-                                                <span class="text-xs text-gray-500 dark:text-slate-400 ml-auto">{{ step.duration_min }} min</span>
-                                                <span v-if="step.pace_target" class="text-xs font-semibold text-gray-900 dark:text-white">{{ step.pace_target }}/km</span>
+                                                <span class="h-2 w-2 rounded-full bg-danger shrink-0" />
+                                                <span class="text-xs font-medium text-ink-2">{{ step.label }}</span>
+                                                <span class="text-xs text-ink-3 ml-auto">{{ step.duration_min }} min</span>
+                                                <span v-if="step.pace_target" class="text-xs font-semibold text-ink">{{ step.pace_target }}/km</span>
                                             </div>
                                             <div v-if="step.pairedRest" class="flex items-center gap-3">
-                                                <span class="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-500 shrink-0" />
-                                                <span class="text-xs text-gray-500 dark:text-slate-400">{{ step.pairedRest.label }}</span>
-                                                <span class="text-xs text-gray-400 dark:text-slate-500 ml-auto">{{ step.pairedRest.duration_min }} min</span>
+                                                <span class="h-2 w-2 rounded-full bg-surface-3 shrink-0" />
+                                                <span class="text-xs text-ink-3">{{ step.pairedRest.label }}</span>
+                                                <span class="text-xs text-ink-3 ml-auto">{{ step.pairedRest.duration_min }} min</span>
                                             </div>
                                         </div>
                                     </template>
@@ -1628,11 +1613,11 @@ const lapHeightPct = computed(() => {
                                         <div class="flex items-center gap-3">
                                             <span class="h-2.5 w-2.5 rounded-full shrink-0" :class="stepBarColor[step.type]" />
                                             <div class="flex-1 min-w-0">
-                                                <span class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">{{ stepLabel[step.type] ?? step.type }}</span>
-                                                <span class="ml-1.5 text-sm font-medium text-gray-900 dark:text-white">{{ step.label }}</span>
+                                                <span class="text-xs font-semibold text-ink-3 uppercase tracking-wide">{{ stepLabel[step.type] ?? step.type }}</span>
+                                                <span class="ml-1.5 text-sm font-medium text-ink">{{ step.label }}</span>
                                             </div>
-                                            <span class="text-xs text-gray-500 dark:text-slate-400 shrink-0">{{ step.duration_min }} min</span>
-                                            <span v-if="step.pace_target" class="text-xs font-semibold text-gray-900 dark:text-white shrink-0">{{ step.pace_target }}/km</span>
+                                            <span class="text-xs text-ink-3 shrink-0">{{ step.duration_min }} min</span>
+                                            <span v-if="step.pace_target" class="text-xs font-semibold text-ink shrink-0">{{ step.pace_target }}/km</span>
                                         </div>
                                     </template>
                                 </div>
@@ -1642,22 +1627,22 @@ const lapHeightPct = computed(() => {
 
                     <!-- Coach-Review (nach absolvierter Einheit, KI-generiert) -->
                     <div v-if="isCompletedSession && detailSession.coach_review"
-                         class="rounded-xl border border-indigo-100 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10 overflow-hidden">
-                        <div class="flex items-center gap-2 px-3.5 py-2 border-b border-indigo-100 dark:border-indigo-500/20">
+                         class="rounded-field border border-accent/25 bg-accent-soft overflow-hidden">
+                        <div class="flex items-center gap-2 px-3.5 py-2 border-b border-accent/25">
                             <span class="text-sm">📋</span>
-                            <span class="text-xs font-bold text-indigo-800 dark:text-indigo-300 uppercase tracking-wide">{{ coachName }} · Review</span>
+                            <span class="text-xs font-bold text-accent-ink uppercase tracking-wide">{{ coachName }} · Review</span>
                         </div>
                         <div class="px-3.5 py-3 space-y-3">
-                            <p class="text-sm text-indigo-900 dark:text-indigo-200 leading-relaxed whitespace-pre-line">{{ detailSession.coach_review }}</p>
+                            <p class="text-sm text-accent-ink leading-relaxed whitespace-pre-line">{{ detailSession.coach_review }}</p>
 
                             <!-- Rückfrage + Antwort-Chips (solange nicht beantwortet) -->
-                            <div v-if="detailSession.review_question && !detailSession.review_feedback" class="pt-1 border-t border-indigo-100 dark:border-indigo-500/20">
-                                <p class="text-sm font-semibold text-indigo-900 dark:text-indigo-200 mt-2 mb-2">{{ detailSession.review_question }}</p>
+                            <div v-if="detailSession.review_question && !detailSession.review_feedback" class="pt-1 border-t border-accent/25">
+                                <p class="text-sm font-semibold text-accent-ink mt-2 mb-2">{{ detailSession.review_question }}</p>
                                 <div v-if="detailSession.review_options && detailSession.review_options.length" class="flex flex-wrap gap-1.5 mb-2">
                                     <button v-for="opt in detailSession.review_options" :key="opt"
                                         @click="submitReviewFeedback(opt)"
                                         :disabled="reviewFeedbackSaving"
-                                        class="text-xs font-semibold px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors disabled:opacity-50">
+                                        class="text-xs font-semibold px-3 py-1.5 rounded-full bg-surface text-accent-ink border border-accent/25 hover:bg-accent-soft transition-colors disabled:opacity-50">
                                         {{ opt }}
                                     </button>
                                 </div>
@@ -1665,18 +1650,18 @@ const lapHeightPct = computed(() => {
                                     <input v-model="reviewFeedbackText" type="text" maxlength="300"
                                         placeholder="…oder eigene Antwort"
                                         @keyup.enter="submitReviewFeedback()"
-                                        class="flex-1 text-xs rounded-lg border-indigo-200 dark:border-indigo-500/30 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-indigo-500 focus:border-indigo-500" />
+                                        class="flex-1 text-xs rounded-lg border-accent/25 bg-surface text-ink placeholder-ink-3 focus:ring-accent/40 focus:border-accent" />
                                     <button @click="submitReviewFeedback()" :disabled="reviewFeedbackSaving || !reviewFeedbackText.trim()"
-                                        class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50">
+                                        class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent text-white hover:opacity-90 transition-colors disabled:opacity-50">
                                         Senden
                                     </button>
                                 </div>
                             </div>
 
                             <!-- Beantwortet -->
-                            <div v-else-if="detailSession.review_feedback" class="pt-1 border-t border-indigo-100 dark:border-indigo-500/20">
-                                <p v-if="detailSession.review_question" class="text-sm font-semibold text-indigo-900 dark:text-indigo-200 mt-2">{{ detailSession.review_question }}</p>
-                                <p class="text-xs text-indigo-700 dark:text-indigo-300 mt-1 flex items-center gap-1.5">
+                            <div v-else-if="detailSession.review_feedback" class="pt-1 border-t border-accent/25">
+                                <p v-if="detailSession.review_question" class="text-sm font-semibold text-accent-ink mt-2">{{ detailSession.review_question }}</p>
+                                <p class="text-xs text-accent-ink mt-1 flex items-center gap-1.5">
                                     <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
                                     Deine Antwort: <span class="font-semibold">{{ detailSession.review_feedback }}</span>
                                 </p>
@@ -1686,8 +1671,8 @@ const lapHeightPct = computed(() => {
 
                     <!-- Splits (echte Strava-Runden, nur für abgeschlossene Einheiten) -->
                     <div v-if="isCompletedSession && detailLaps.length">
-                        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-2">
-                            Splits <span class="text-gray-400 dark:text-slate-500 normal-case">· {{ detailLaps.length }} Runden</span>
+                        <h3 class="text-xs font-semibold uppercase tracking-wider text-ink-3 mb-2">
+                            Splits <span class="text-ink-3 normal-case">· {{ detailLaps.length }} Runden</span>
                         </h3>
 
                         <!-- Bar chart: taller bar = schneller -->
@@ -1699,7 +1684,7 @@ const lapHeightPct = computed(() => {
                                     width:  ((lap.moving_time || lap.elapsed_time || 0) / totalLapTime * 100).toFixed(2) + '%',
                                     height: lapHeightPct[i] + '%',
                                 }"
-                                class="bg-orange-400 rounded-t-sm opacity-80"
+                                class="bg-warn rounded-t-sm opacity-80"
                                 :title="`Runde ${lap.index ?? i + 1}: ${lapDist(lap)} km · ${lapPace(lap)} min/km`"
                             />
                         </div>
@@ -1709,67 +1694,67 @@ const lapHeightPct = computed(() => {
                             <div
                                 v-for="(lap, i) in detailLaps"
                                 :key="i"
-                                class="flex items-center gap-3 rounded-xl bg-gray-50 dark:bg-slate-800 px-3 py-2"
+                                class="flex items-center gap-3 rounded-field bg-surface-2 px-3 py-2"
                             >
-                                <span class="shrink-0 w-6 text-xs font-semibold text-gray-400 dark:text-slate-500">{{ lap.index ?? i + 1 }}</span>
-                                <span class="h-2 w-2 rounded-full bg-orange-400 shrink-0" />
-                                <span class="text-xs text-gray-500 dark:text-slate-400">{{ lapTime(lap.moving_time || lap.elapsed_time || 0) }}</span>
-                                <span class="text-xs text-gray-500 dark:text-slate-400 ml-auto">{{ lapDist(lap) }} km</span>
-                                <span class="text-sm font-semibold text-gray-900 dark:text-white w-16 text-right">{{ lapPace(lap) }}</span>
-                                <span class="text-xs text-gray-400 dark:text-slate-500 w-12 text-right">{{ lap.average_heartrate ? Math.round(lap.average_heartrate) + ' bpm' : '–' }}</span>
+                                <span class="shrink-0 w-6 text-xs font-semibold text-ink-3">{{ lap.index ?? i + 1 }}</span>
+                                <span class="h-2 w-2 rounded-full bg-warn shrink-0" />
+                                <span class="text-xs text-ink-3">{{ lapTime(lap.moving_time || lap.elapsed_time || 0) }}</span>
+                                <span class="text-xs text-ink-3 ml-auto">{{ lapDist(lap) }} km</span>
+                                <span class="text-sm font-semibold text-ink w-16 text-right">{{ lapPace(lap) }}</span>
+                                <span class="text-xs text-ink-3 w-12 text-right">{{ lap.average_heartrate ? Math.round(lap.average_heartrate) + ' bpm' : '–' }}</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- Verpflegungsplan (nur für geplante Einheiten) -->
                     <div v-if="!isCompletedSession">
-                        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-2">Verpflegungsplan</h3>
+                        <h3 class="text-xs font-semibold uppercase tracking-wider text-ink-3 mb-2">Verpflegungsplan</h3>
 
                         <!-- Loading -->
-                        <div v-if="nutritionLoading" class="flex items-center gap-3 py-4 text-sm text-gray-500 dark:text-slate-400">
-                            <svg class="h-4 w-4 animate-spin shrink-0 text-indigo-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                        <div v-if="nutritionLoading" class="flex items-center gap-3 py-4 text-sm text-ink-3">
+                            <svg class="h-4 w-4 animate-spin shrink-0 text-accent" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                             {{ coachName }} erstellt Verpflegungstipps…
                         </div>
 
                         <!-- Error -->
-                        <p v-else-if="nutritionError" class="text-xs text-red-500 dark:text-red-400">{{ nutritionError }}</p>
+                        <p v-else-if="nutritionError" class="text-xs text-danger">{{ nutritionError }}</p>
 
                         <!-- Tips -->
                         <div v-else-if="aiNutritionTips" class="space-y-2">
 
-                            <div class="rounded-xl border border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10 overflow-hidden">
-                                <div class="flex items-center gap-2 px-3.5 py-2 border-b border-amber-100 dark:border-amber-500/20">
+                            <div class="rounded-field border border-warn/25 bg-warn-soft overflow-hidden">
+                                <div class="flex items-center gap-2 px-3.5 py-2 border-b border-warn/25">
                                     <span class="text-sm">🕐</span>
-                                    <span class="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wide">{{ isRaceSession ? 'Vor dem Rennen' : 'Vor dem Training' }}</span>
+                                    <span class="text-xs font-bold text-warn-ink uppercase tracking-wide">{{ isRaceSession ? 'Vor dem Rennen' : 'Vor dem Training' }}</span>
                                 </div>
                                 <ul class="px-3.5 py-2.5 space-y-1.5">
-                                    <li v-for="tip in aiNutritionTips.before" :key="tip.text" class="flex items-start gap-2 text-xs text-amber-900 dark:text-amber-200">
+                                    <li v-for="tip in aiNutritionTips.before" :key="tip.text" class="flex items-start gap-2 text-xs text-warn-ink">
                                         <span class="shrink-0 leading-relaxed">{{ tip.icon }}</span>
                                         <span class="leading-relaxed">{{ tip.text }}</span>
                                     </li>
                                 </ul>
                             </div>
 
-                            <div class="rounded-xl border border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10 overflow-hidden">
-                                <div class="flex items-center gap-2 px-3.5 py-2 border-b border-blue-100 dark:border-blue-500/20">
+                            <div class="rounded-field border border-info/25 bg-info-soft overflow-hidden">
+                                <div class="flex items-center gap-2 px-3.5 py-2 border-b border-info/25">
                                     <span class="text-sm">{{ detailIsStrength ? '💪' : '🏃' }}</span>
-                                    <span class="text-xs font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide">{{ isRaceSession ? 'Während des Rennens' : 'Während des Trainings' }}</span>
+                                    <span class="text-xs font-bold text-info-ink uppercase tracking-wide">{{ isRaceSession ? 'Während des Rennens' : 'Während des Trainings' }}</span>
                                 </div>
                                 <ul class="px-3.5 py-2.5 space-y-1.5">
-                                    <li v-for="tip in aiNutritionTips.during" :key="tip.text" class="flex items-start gap-2 text-xs text-blue-900 dark:text-blue-200">
+                                    <li v-for="tip in aiNutritionTips.during" :key="tip.text" class="flex items-start gap-2 text-xs text-info-ink">
                                         <span class="shrink-0 leading-relaxed">{{ tip.icon }}</span>
                                         <span class="leading-relaxed">{{ tip.text }}</span>
                                     </li>
                                 </ul>
                             </div>
 
-                            <div class="rounded-xl border border-green-100 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10 overflow-hidden">
-                                <div class="flex items-center gap-2 px-3.5 py-2 border-b border-green-100 dark:border-green-500/20">
+                            <div class="rounded-field border border-success/25 bg-success-soft overflow-hidden">
+                                <div class="flex items-center gap-2 px-3.5 py-2 border-b border-success/25">
                                     <span class="text-sm">✅</span>
-                                    <span class="text-xs font-bold text-green-800 dark:text-green-300 uppercase tracking-wide">{{ isRaceSession ? 'Nach dem Rennen' : 'Nach dem Training' }}</span>
+                                    <span class="text-xs font-bold text-success-ink uppercase tracking-wide">{{ isRaceSession ? 'Nach dem Rennen' : 'Nach dem Training' }}</span>
                                 </div>
                                 <ul class="px-3.5 py-2.5 space-y-1.5">
-                                    <li v-for="tip in aiNutritionTips.after" :key="tip.text" class="flex items-start gap-2 text-xs text-green-900 dark:text-green-200">
+                                    <li v-for="tip in aiNutritionTips.after" :key="tip.text" class="flex items-start gap-2 text-xs text-success-ink">
                                         <span class="shrink-0 leading-relaxed">{{ tip.icon }}</span>
                                         <span class="leading-relaxed">{{ tip.text }}</span>
                                     </li>
@@ -1780,23 +1765,23 @@ const lapHeightPct = computed(() => {
                     </div>
 
                     <!-- Zone info -->
-                    <div v-if="detailSession.zone" class="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400">
-                        <span class="text-xs font-medium px-2 py-0.5 rounded-full" :class="typeOf(detailSession.type).badge">Zone {{ detailSession.zone }}</span>
-                        <span v-if="detailSession.intensity" class="text-xs text-gray-400 dark:text-slate-500 capitalize">· {{ detailSession.intensity }}</span>
+                    <div v-if="detailSession.zone" class="flex items-center gap-2 text-sm text-ink-2">
+                        <span class="text-xs font-medium px-2 py-0.5 rounded-full" :class="typeOf(detailSession.type).pill">Zone {{ detailSession.zone }}</span>
+                        <span v-if="detailSession.intensity" class="text-xs text-ink-3 capitalize">· {{ detailSession.intensity }}</span>
                     </div>
                 </div>
 
                 <!-- Rating (nur für abgeschlossene Sessions) -->
-                <div v-if="detailSession.status === 'completed'" class="px-5 pb-4 border-t border-gray-100 dark:border-slate-800 pt-4 space-y-4">
-                    <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500">Einheit bewerten</h3>
+                <div v-if="detailSession.status === 'completed'" class="px-5 pb-4 border-t border-line pt-4 space-y-4">
+                    <h3 class="text-xs font-semibold uppercase tracking-wider text-ink-3">Einheit bewerten</h3>
 
                     <!-- Sterne -->
                     <div>
-                        <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Wie gut ist die Einheit gelaufen?</p>
+                        <p class="text-xs text-ink-3 mb-1.5">Wie gut ist die Einheit gelaufen?</p>
                         <div class="flex gap-1.5">
                             <button v-for="n in 5" :key="n" @click="ratingValue = ratingValue === n ? 0 : n"
-                                class="h-9 w-9 rounded-xl flex items-center justify-center text-xl transition-all"
-                                :class="n <= ratingValue ? 'bg-amber-100 dark:bg-amber-500/20 scale-110' : 'bg-gray-100 dark:bg-slate-800 opacity-40 hover:opacity-70'">
+                                class="h-9 w-9 rounded-field flex items-center justify-center text-xl transition-all"
+                                :class="n <= ratingValue ? 'bg-warn-soft scale-110' : 'bg-surface-2 opacity-40 hover:opacity-70'">
                                 ⭐
                             </button>
                         </div>
@@ -1804,25 +1789,25 @@ const lapHeightPct = computed(() => {
 
                     <!-- RPE -->
                     <div>
-                        <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Empfundene Anstrengung (RPE 1–10): <span class="font-semibold text-gray-700 dark:text-slate-300">{{ effortValue || '–' }}</span></p>
+                        <p class="text-xs text-ink-3 mb-1.5">Empfundene Anstrengung (RPE 1–10): <span class="font-semibold text-ink-2">{{ effortValue || '–' }}</span></p>
                         <input type="range" min="0" max="10" step="1" v-model.number="effortValue"
                             class="w-full h-2 rounded-full accent-indigo-600 cursor-pointer" />
-                        <div class="flex justify-between text-xs text-gray-400 dark:text-slate-500 mt-1 px-0.5">
+                        <div class="flex justify-between text-xs text-ink-3 mt-1 px-0.5">
                             <span>Sehr leicht</span><span>Maximal</span>
                         </div>
                     </div>
 
                     <!-- Notiz -->
                     <div>
-                        <p class="text-xs text-gray-500 dark:text-slate-400 mb-1.5">Notiz (optional)</p>
+                        <p class="text-xs text-ink-3 mb-1.5">Notiz (optional)</p>
                         <textarea v-model="feelingNotes" rows="2" maxlength="300" placeholder="Wie hat sich die Einheit angefühlt?"
-                            class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none">
+                            class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/40 resize-none">
                         </textarea>
                     </div>
 
                     <button @click="saveRating" :disabled="ratingSaving || (!ratingValue && !effortValue && !feelingNotes)"
-                        class="w-full rounded-xl py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
-                        :class="ratingSaved ? 'bg-green-500 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'">
+                        class="w-full rounded-field py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+                        :class="ratingSaved ? 'bg-success text-white' : 'bg-accent hover:opacity-90 text-white'">
                         <svg v-if="ratingSaving" class="inline h-4 w-4 animate-spin mr-1" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                         {{ ratingSaved ? '✓ Gespeichert' : ratingSaving ? 'Speichern…' : 'Bewertung speichern' }}
                     </button>

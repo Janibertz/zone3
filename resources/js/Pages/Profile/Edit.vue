@@ -50,10 +50,10 @@ const savedCoachInitials = ref(props.activeCoach?.avatar_initials ?? null);
 const selectedCoach = computed(() => props.coaches?.find(c => c.id === selectedCoachId.value));
 
 const coachColors = {
-    orange: { bg: 'bg-orange-500', ring: 'ring-orange-400', light: 'bg-orange-50 dark:bg-orange-500/10', border: 'border-orange-300 dark:border-orange-500/50', badge: 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300' },
-    blue:   { bg: 'bg-blue-600',   ring: 'ring-blue-400',   light: 'bg-blue-50 dark:bg-blue-500/10',   border: 'border-blue-300 dark:border-blue-500/50',   badge: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'   },
-    green:  { bg: 'bg-green-600',  ring: 'ring-green-400',  light: 'bg-green-50 dark:bg-green-500/10',  border: 'border-green-300 dark:border-green-500/50',  badge: 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300'  },
-    purple: { bg: 'bg-purple-600', ring: 'ring-purple-400', light: 'bg-purple-50 dark:bg-purple-500/10', border: 'border-purple-300 dark:border-purple-500/50', badge: 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' },
+    orange: { bg: 'bg-warn', ring: 'ring-warn', light: 'bg-warn-soft', border: 'border-warn', badge: 'bg-warn-soft text-warn-ink' },
+    blue:   { bg: 'bg-info',   ring: 'ring-info',   light: 'bg-info-soft',   border: 'border-info',   badge: 'bg-info-soft text-info-ink'   },
+    green:  { bg: 'bg-success',  ring: 'ring-success',  light: 'bg-success-soft',  border: 'border-success',  badge: 'bg-success-soft text-success-ink'  },
+    purple: { bg: 'bg-accent', ring: 'ring-accent', light: 'bg-accent-soft', border: 'border-accent', badge: 'bg-accent-soft text-accent-ink' },
 };
 const specialtyLabels = { motivator: 'Motivator', strategist: 'Stratege', companion: 'Begleiter' };
 
@@ -406,11 +406,11 @@ async function saveStrength() {
 }
 
 const zoneColors = [
-    'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-500/10 dark:border-blue-500/30 dark:text-blue-300',
-    'bg-green-50 border-green-200 text-green-700 dark:bg-green-500/10 dark:border-green-500/30 dark:text-green-300',
-    'bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-500/10 dark:border-yellow-500/30 dark:text-yellow-300',
-    'bg-orange-50 border-orange-200 text-orange-700 dark:bg-orange-500/10 dark:border-orange-500/30 dark:text-orange-300',
-    'bg-red-50 border-red-200 text-red-700 dark:bg-red-500/10 dark:border-red-500/30 dark:text-red-300',
+    'bg-info-soft border-info/25 text-info',
+    'bg-success-soft border-success/25 text-success',
+    'bg-warn-soft border-warn/25 text-warn-ink',
+    'bg-warn-soft border-warn/25 text-warn',
+    'bg-danger-soft border-danger/25 text-danger',
 ];
 
 // ── Delete account ───────────────────────────────────────────────────────────
@@ -487,7 +487,7 @@ async function disconnectGarmin() {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:border-indigo-400 dark:focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 transition-colors';
+const inputClass = 'block w-full rounded-field border border-line bg-surface-2 px-4 py-2.5 text-sm text-ink placeholder-ink-3 focus:border-accent focus:bg-surface focus:outline-none focus:ring-2 focus:ring-accent/40 transition-colors';
 </script>
 
 <template>
@@ -496,10 +496,10 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
         <div class="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-5">
 
             <!-- ══ PROFILE HERO ══ -->
-            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div class="bg-surface rounded-card border border-line shadow-card overflow-hidden">
 
                 <!-- Cover gradient -->
-                <div class="h-24 sm:h-32 bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-700" />
+                <div class="h-24 sm:h-32 bg-gradient-to-br from-accent via-accent to-accent" />
 
                 <!-- Avatar + Info -->
                 <div class="px-5 sm:px-7 pb-5 sm:pb-6">
@@ -509,7 +509,7 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                         <div class="relative shrink-0">
                             <button
                                 @click="triggerAvatarUpload"
-                                class="group relative h-20 w-20 sm:h-24 sm:w-24 rounded-2xl overflow-hidden border-4 border-white dark:border-slate-900 shadow-lg bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center hover:ring-2 hover:ring-indigo-400 transition-all"
+                                class="group relative h-20 w-20 sm:h-24 sm:w-24 rounded-card overflow-hidden border-4 border-white shadow-lg bg-gradient-to-br from-accent to-accent flex items-center justify-center hover:ring-2 hover:ring-accent transition-all"
                             >
                                 <img v-if="avatarUrl" :src="avatarUrl" alt="Profilbild" class="absolute inset-0 h-full w-full object-cover" @error="avatarImgError = true" />
                                 <span v-else class="text-2xl sm:text-3xl font-bold text-white select-none">{{ initials }}</span>
@@ -530,28 +530,28 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
 
                         <!-- Name + meta -->
                         <div class="flex-1 min-w-0 pt-2 sm:pt-0 sm:pb-1">
-                            <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white leading-tight">{{ user.name }}</h1>
+                            <h1 class="text-xl sm:text-2xl font-bold text-ink leading-tight">{{ user.name }}</h1>
                             <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-                                <span v-if="user.location" class="flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400">
+                                <span v-if="user.location" class="flex items-center gap-1 text-sm text-ink-3">
                                     <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
                                     {{ user.location }}
                                 </span>
-                                <span v-if="user.favorite_distance" class="flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400">
+                                <span v-if="user.favorite_distance" class="flex items-center gap-1 text-sm text-ink-3">
                                     <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
                                     {{ user.favorite_distance }}
                                 </span>
-                                <span v-if="user.birth_year" class="text-sm text-gray-500 dark:text-slate-400">
+                                <span v-if="user.birth_year" class="text-sm text-ink-3">
                                     {{ new Date().getFullYear() - user.birth_year }} Jahre
                                 </span>
                             </div>
-                            <p v-if="user.bio" class="mt-2 text-sm text-gray-600 dark:text-slate-400 leading-relaxed max-w-lg">{{ user.bio }}</p>
+                            <p v-if="user.bio" class="mt-2 text-sm text-ink-2 leading-relaxed max-w-lg">{{ user.bio }}</p>
                         </div>
 
                         <!-- Edit button -->
                         <div class="shrink-0">
                             <button
                                 @click="activeTab = 'personal'"
-                                class="inline-flex items-center gap-2 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 px-4 py-2 text-sm font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors"
+                                class="inline-flex items-center gap-2 rounded-field bg-accent-soft px-4 py-2 text-sm font-semibold text-accent-ink hover:opacity-90-soft transition-colors"
                             >
                                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
@@ -562,45 +562,45 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                     </div>
 
                     <!-- Stats row -->
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-5 border-t border-gray-100 dark:border-slate-800">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-5 border-t border-line">
                         <div class="text-center">
-                            <p class="text-xl sm:text-2xl font-black text-gray-900 dark:text-white">{{ athleteStats?.total_runs ?? 0 }}</p>
-                            <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Aktivitäten</p>
+                            <p class="text-xl sm:text-2xl font-black text-ink">{{ athleteStats?.total_runs ?? 0 }}</p>
+                            <p class="text-xs text-ink-3 mt-0.5">Aktivitäten</p>
                         </div>
                         <div class="text-center">
-                            <p class="text-xl sm:text-2xl font-black text-gray-900 dark:text-white">{{ athleteStats?.total_km ?? 0 }}</p>
-                            <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">km gesamt</p>
+                            <p class="text-xl sm:text-2xl font-black text-ink">{{ athleteStats?.total_km ?? 0 }}</p>
+                            <p class="text-xs text-ink-3 mt-0.5">km gesamt</p>
                         </div>
                         <div class="text-center">
-                            <p class="text-xl sm:text-2xl font-black text-gray-900 dark:text-white">{{ athleteStats?.longest_km ?? 0 }}</p>
-                            <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">km längste</p>
+                            <p class="text-xl sm:text-2xl font-black text-ink">{{ athleteStats?.longest_km ?? 0 }}</p>
+                            <p class="text-xs text-ink-3 mt-0.5">km längste</p>
                         </div>
                         <div class="text-center">
-                            <p class="text-xl sm:text-2xl font-black text-gray-900 dark:text-white">{{ athleteStats?.avg_pace ?? '–' }}</p>
-                            <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Ø Pace</p>
+                            <p class="text-xl sm:text-2xl font-black text-ink">{{ athleteStats?.avg_pace ?? '–' }}</p>
+                            <p class="text-xs text-ink-3 mt-0.5">Ø Pace</p>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- ══ PERSÖNLICHE REKORDE ══ -->
-            <div v-if="hasAnyPr" class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
-                <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 dark:border-slate-800 flex items-center gap-3">
+            <div v-if="hasAnyPr" class="bg-surface rounded-card border border-line shadow-card overflow-hidden">
+                <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line flex items-center gap-3">
                     <span class="text-xl">🏆</span>
                     <div>
-                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Persönliche Rekorde</h2>
-                        <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Deine schnellsten Zeiten je Distanz – aus deinen Strava-Läufen</p>
+                        <h2 class="text-base font-semibold text-ink">Persönliche Rekorde</h2>
+                        <p class="mt-0.5 text-sm text-ink-3">Deine schnellsten Zeiten je Distanz – aus deinen Strava-Läufen</p>
                     </div>
                 </div>
                 <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div
                         v-for="dist in prDistances"
                         :key="dist.key"
-                        class="rounded-2xl border border-gray-100 dark:border-slate-800 p-4"
+                        class="rounded-card border border-line p-4"
                     >
                         <div class="flex items-center justify-between mb-3">
-                            <h3 class="text-sm font-bold text-gray-900 dark:text-white">{{ dist.label }}</h3>
-                            <svg v-if="prSparkline(dist.key)" viewBox="0 0 120 32" class="h-6 w-24 text-indigo-500" preserveAspectRatio="none">
+                            <h3 class="text-sm font-bold text-ink">{{ dist.label }}</h3>
+                            <svg v-if="prSparkline(dist.key)" viewBox="0 0 120 32" class="h-6 w-24 text-accent" preserveAspectRatio="none">
                                 <path :d="prSparkline(dist.key)" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                             </svg>
                         </div>
@@ -608,12 +608,12 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                             <li v-for="entry in dist.entries" :key="entry.rank">
                                 <Link
                                     :href="`/activities/${entry.activity_id}`"
-                                    class="flex items-center gap-3 rounded-xl px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors"
+                                    class="flex items-center gap-3 rounded-field px-3 py-2 hover:bg-surface-2/60 transition-colors"
                                 >
                                     <span class="text-base w-6 text-center shrink-0">{{ medal(entry.rank) }}</span>
-                                    <span class="font-black tabular-nums text-gray-900 dark:text-white">{{ entry.time_formatted }}</span>
-                                    <span class="text-xs text-gray-500 dark:text-slate-400">{{ entry.pace }}/km</span>
-                                    <span class="ml-auto text-xs text-gray-400 dark:text-slate-500 shrink-0">{{ entry.date }}</span>
+                                    <span class="font-black tabular-nums text-ink">{{ entry.time_formatted }}</span>
+                                    <span class="text-xs text-ink-3">{{ entry.pace }}/km</span>
+                                    <span class="ml-auto text-xs text-ink-3 shrink-0">{{ entry.date }}</span>
                                 </Link>
                             </li>
                         </ul>
@@ -622,15 +622,15 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
             </div>
 
             <!-- ══ TABS ══ -->
-            <div class="flex gap-1 bg-gray-100 dark:bg-slate-800 rounded-2xl p-1 overflow-x-auto" style="-webkit-overflow-scrolling:touch;scrollbar-width:none;">
+            <div class="flex gap-1 bg-surface-2 rounded-card p-1 overflow-x-auto" style="-webkit-overflow-scrolling:touch;scrollbar-width:none;">
                 <button
                     v-for="tab in tabs"
                     :key="tab.key"
                     @click="activeTab = tab.key"
-                    class="shrink-0 flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 whitespace-nowrap"
+                    class="shrink-0 flex items-center gap-2 px-3 py-2.5 rounded-field text-sm font-medium transition-all duration-150 whitespace-nowrap"
                     :class="activeTab === tab.key
-                        ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm'
-                        : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'"
+                        ? 'bg-surface text-ink shadow-card'
+                        : 'text-ink-3 hover:text-ink'"
                 >
                     <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="tab.icon" />
                     {{ tab.label }}
@@ -638,16 +638,16 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
             </div>
 
             <!-- ══ TAB CONTENT ══ -->
-            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div class="bg-surface rounded-card border border-line shadow-card overflow-hidden">
 
                 <!-- ── PERSÖNLICH ── -->
                 <template v-if="activeTab === 'personal'">
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 dark:border-slate-800">
-                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Persönliche Daten</h2>
-                        <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Name, E-Mail und öffentliche Profilinformationen</p>
+                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line">
+                        <h2 class="text-base font-semibold text-ink">Persönliche Daten</h2>
+                        <p class="mt-0.5 text-sm text-ink-3">Name, E-Mail und öffentliche Profilinformationen</p>
                     </div>
                     <div class="p-4 sm:p-6">
-                        <div v-if="props.status === 'profile-information-updated' || props.status === 'avatar-updated'" class="mb-5 flex items-center gap-2 rounded-xl bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 px-4 py-3 text-sm text-green-700 dark:text-green-400">
+                        <div v-if="props.status === 'profile-information-updated' || props.status === 'avatar-updated'" class="mb-5 flex items-center gap-2 rounded-field bg-success-soft border border-success/25 px-4 py-3 text-sm text-success-ink">
                             <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             Profil erfolgreich gespeichert.
                         </div>
@@ -656,12 +656,12 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                             <!-- Name + Email -->
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Name</label>
+                                    <label class="block text-sm font-medium text-ink-2 mb-1.5">Name</label>
                                     <input v-model="profileForm.name" type="text" required autofocus autocomplete="name" :class="inputClass" />
                                     <InputError class="mt-1.5" :message="profileForm.errors.name" />
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">E-Mail</label>
+                                    <label class="block text-sm font-medium text-ink-2 mb-1.5">E-Mail</label>
                                     <input v-model="profileForm.email" type="email" required autocomplete="username" :class="inputClass" />
                                     <InputError class="mt-1.5" :message="profileForm.errors.email" />
                                 </div>
@@ -670,12 +670,12 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                             <!-- Location + Birth year -->
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Standort</label>
+                                    <label class="block text-sm font-medium text-ink-2 mb-1.5">Standort</label>
                                     <input v-model="profileForm.location" type="text" placeholder="z.B. München" :class="inputClass" />
                                     <InputError class="mt-1.5" :message="profileForm.errors.location" />
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Geburtsjahr</label>
+                                    <label class="block text-sm font-medium text-ink-2 mb-1.5">Geburtsjahr</label>
                                     <input v-model="profileForm.birth_year" type="number" placeholder="z.B. 1992" min="1940" :max="new Date().getFullYear() - 10" :class="inputClass" />
                                     <InputError class="mt-1.5" :message="profileForm.errors.birth_year" />
                                 </div>
@@ -683,17 +683,17 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
 
                             <!-- Favorite distance -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Lieblingsdistanz</label>
+                                <label class="block text-sm font-medium text-ink-2 mb-1.5">Lieblingsdistanz</label>
                                 <div class="flex flex-wrap gap-2">
                                     <button
                                         v-for="d in distanceOptions"
                                         :key="d"
                                         type="button"
                                         @click="profileForm.favorite_distance = (profileForm.favorite_distance === d ? '' : d)"
-                                        class="px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors"
+                                        class="px-3 py-1.5 rounded-field text-sm font-medium border transition-colors"
                                         :class="profileForm.favorite_distance === d
-                                            ? 'bg-indigo-600 border-indigo-600 text-white'
-                                            : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-500'"
+                                            ? 'bg-accent border-accent text-white'
+                                            : 'bg-surface border-line text-ink-2 hover:border-accent'"
                                     >
                                         {{ d }}
                                     </button>
@@ -702,9 +702,9 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
 
                             <!-- Bio -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                                <label class="block text-sm font-medium text-ink-2 mb-1.5">
                                     Über mich
-                                    <span class="font-normal text-gray-400 dark:text-slate-500 ml-1">{{ (profileForm.bio ?? '').length }}/300</span>
+                                    <span class="font-normal text-ink-3 ml-1">{{ (profileForm.bio ?? '').length }}/300</span>
                                 </label>
                                 <textarea
                                     v-model="profileForm.bio"
@@ -716,13 +716,13 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                                 <InputError class="mt-1.5" :message="profileForm.errors.bio" />
                             </div>
 
-                            <div v-if="mustVerifyEmail && user.email_verified_at === null" class="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">
+                            <div v-if="mustVerifyEmail && user.email_verified_at === null" class="rounded-field bg-warn-soft border border-warn/25 px-4 py-3 text-sm text-warn">
                                 E-Mail noch nicht verifiziert.
                                 <Link :href="route('verification.send')" method="post" as="button" class="underline ml-1">Erneut senden</Link>
                             </div>
 
                             <div class="flex items-center justify-end pt-2">
-                                <button type="submit" :disabled="profileForm.processing" class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm">
+                                <button type="submit" :disabled="profileForm.processing" class="inline-flex items-center gap-2 rounded-field bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-card">
                                     <svg v-if="profileForm.processing" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                                     Speichern
                                 </button>
@@ -735,8 +735,8 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                 <template v-else-if="activeTab === 'coach'">
                     <div class="space-y-4">
                         <div>
-                            <h3 class="text-base font-bold text-gray-900 dark:text-white">Mein Coach</h3>
-                            <p class="text-sm text-gray-500 dark:text-slate-400 mt-1">Dein Coach beeinflusst wie Trainingsempfehlungen und Pläne kommuniziert werden.</p>
+                            <h3 class="text-base font-bold text-ink">Mein Coach</h3>
+                            <p class="text-sm text-ink-3 mt-1">Dein Coach beeinflusst wie Trainingsempfehlungen und Pläne kommuniziert werden.</p>
                         </div>
 
                         <div class="space-y-3">
@@ -744,25 +744,25 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                                 v-for="coach in coaches" :key="coach.id"
                                 type="button"
                                 @click="selectedCoachId = coach.id"
-                                class="w-full flex items-start gap-4 p-5 rounded-2xl border-2 text-left transition-all duration-200"
+                                class="w-full flex items-start gap-4 p-5 rounded-card border-2 text-left transition-all duration-200"
                                 :class="selectedCoachId === coach.id
-                                    ? [coachColors[coach.avatar_color]?.light, coachColors[coach.avatar_color]?.border, 'shadow-sm']
-                                    : 'bg-white dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'"
+                                    ? [coachColors[coach.avatar_color]?.light, coachColors[coach.avatar_color]?.border, 'shadow-card']
+                                    : 'bg-surface/50 border-line hover:border-line-strong'"
                             >
-                                <div class="shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-base"
+                                <div class="shrink-0 w-12 h-12 rounded-field flex items-center justify-center text-white font-bold text-base"
                                     :class="[coachColors[coach.avatar_color]?.bg, selectedCoachId === coach.id ? 'ring-2 ring-offset-2 ' + coachColors[coach.avatar_color]?.ring : '']">
                                     {{ coach.avatar_initials }}
                                 </div>
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center gap-2 mb-0.5">
-                                        <span class="font-bold text-gray-900 dark:text-white">{{ coach.name }}</span>
+                                        <span class="font-bold text-ink">{{ coach.name }}</span>
                                         <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="coachColors[coach.avatar_color]?.badge">{{ specialtyLabels[coach.specialty] }}</span>
                                     </div>
-                                    <p class="text-xs italic text-gray-500 dark:text-slate-400 mb-1">„{{ coach.tagline }}"</p>
-                                    <p class="text-sm text-gray-600 dark:text-slate-300">{{ coach.description }}</p>
+                                    <p class="text-xs italic text-ink-3 mb-1">„{{ coach.tagline }}"</p>
+                                    <p class="text-sm text-ink-2">{{ coach.description }}</p>
                                 </div>
                                 <div class="shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5"
-                                    :class="selectedCoachId === coach.id ? [coachColors[coach.avatar_color]?.bg, 'border-transparent'] : 'border-gray-300 dark:border-slate-600'">
+                                    :class="selectedCoachId === coach.id ? [coachColors[coach.avatar_color]?.bg, 'border-transparent'] : 'border-line-strong'">
                                     <svg v-if="selectedCoachId === coach.id" class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
                                     </svg>
@@ -772,11 +772,11 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
 
                         <div class="flex items-center gap-3 flex-wrap">
                             <button @click="saveCoach" :disabled="coachSaving || !selectedCoachId"
-                                class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors">
+                                class="px-5 py-2.5 bg-accent hover:opacity-90 disabled:opacity-50 text-white text-sm font-semibold rounded-field transition-colors">
                                 {{ coachSaving ? 'Speichern…' : 'Coach speichern' }}
                             </button>
                             <Transition enter-active-class="transition-all duration-300 ease-out" enter-from-class="opacity-0 translate-y-1" leave-active-class="transition-all duration-200" leave-to-class="opacity-0">
-                                <div v-if="coachSaved && savedCoachName" class="flex items-center gap-2 rounded-xl px-3 py-2 border"
+                                <div v-if="coachSaved && savedCoachName" class="flex items-center gap-2 rounded-field px-3 py-2 border"
                                     :class="coachColors[savedCoachColor]?.light + ' ' + coachColors[savedCoachColor]?.border">
                                     <div class="h-6 w-6 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0" :class="coachColors[savedCoachColor]?.bg">{{ savedCoachInitials }}</div>
                                     <p class="text-sm font-semibold" :class="coachColors[savedCoachColor]?.badge?.split(' ')[2]">{{ savedCoachName }} ist jetzt dein Coach!</p>
@@ -788,46 +788,46 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
 
                 <!-- ── ATHLETENPROFIL ── -->
                 <template v-else-if="activeTab === 'athlete'">
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 dark:border-slate-800">
-                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Athletenprofil</h2>
-                        <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Herzfrequenz- und Schwellenwerte für deine Trainingszonen</p>
+                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line">
+                        <h2 class="text-base font-semibold text-ink">Athletenprofil</h2>
+                        <p class="mt-0.5 text-sm text-ink-3">Herzfrequenz- und Schwellenwerte für deine Trainingszonen</p>
                     </div>
                     <div class="p-4 sm:p-6 space-y-5">
-                        <div v-if="athleteSaved" class="flex items-center gap-2 rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+                        <div v-if="athleteSaved" class="flex items-center gap-2 rounded-field bg-success-soft border border-success/25 px-4 py-3 text-sm text-success">
                             <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             Athletenprofil gespeichert. Zonen wurden neu berechnet.
                         </div>
                         <form @submit.prevent="submitAthlete" class="space-y-5">
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Schwellen-HF <span class="text-gray-400 font-normal">(LTHR, bpm)</span></label>
+                                    <label class="block text-sm font-medium text-ink-2 mb-1.5">Schwellen-HF <span class="text-ink-3 font-normal">(LTHR, bpm)</span></label>
                                     <input v-model="athleteForm.threshold_heart_rate" type="number" min="100" max="220" placeholder="z.B. 165" required :class="inputClass" />
                                     <InputError class="mt-1" :message="athleteForm.errors.threshold_heart_rate" />
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Maximale HF <span class="text-gray-400 font-normal">(bpm)</span></label>
+                                    <label class="block text-sm font-medium text-ink-2 mb-1.5">Maximale HF <span class="text-ink-3 font-normal">(bpm)</span></label>
                                     <input v-model="athleteForm.max_heart_rate" type="number" min="100" max="220" placeholder="z.B. 195" required :class="inputClass" />
                                     <InputError class="mt-1" :message="athleteForm.errors.max_heart_rate" />
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Schwellen-Pace <span class="text-gray-400 font-normal">(min:sek/km)</span></label>
+                                <label class="block text-sm font-medium text-ink-2 mb-1.5">Schwellen-Pace <span class="text-ink-3 font-normal">(min:sek/km)</span></label>
                                 <input v-model="athleteForm.threshold_speed" type="text" placeholder="z.B. 5:30" pattern="[0-9]{1,2}:[0-9]{2}" required :class="inputClass" />
-                                <p class="mt-1 text-xs text-gray-400">Die Pace, die du für ~60 min halten kannst</p>
+                                <p class="mt-1 text-xs text-ink-3">Die Pace, die du für ~60 min halten kannst</p>
                                 <InputError class="mt-1" :message="athleteForm.errors.threshold_speed" />
                             </div>
                             <div class="flex justify-end">
-                                <button type="submit" :disabled="athleteForm.processing" class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm">
+                                <button type="submit" :disabled="athleteForm.processing" class="inline-flex items-center gap-2 rounded-field bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-card">
                                     <svg v-if="athleteForm.processing" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                                     Speichern & Zonen berechnen
                                 </button>
                             </div>
                         </form>
 
-                        <div v-if="paceZones.length > 0" class="border-t border-gray-100 dark:border-slate-800 pt-5">
-                            <h3 class="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">Deine Laufzonen</h3>
+                        <div v-if="paceZones.length > 0" class="border-t border-line pt-5">
+                            <h3 class="text-sm font-semibold text-ink-2 mb-3">Deine Laufzonen</h3>
                             <div class="space-y-2">
-                                <div v-for="(zone, idx) in paceZones" :key="idx" class="flex items-center justify-between rounded-xl border px-4 py-3" :class="zoneColors[idx]">
+                                <div v-for="(zone, idx) in paceZones" :key="idx" class="flex items-center justify-between rounded-field border px-4 py-3" :class="zoneColors[idx]">
                                     <div class="flex items-center gap-3">
                                         <span class="text-xs font-bold opacity-60">Z{{ idx + 1 }}</span>
                                         <span class="text-sm font-semibold">{{ zone.name }}</span>
@@ -836,20 +836,20 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                                 </div>
                             </div>
                         </div>
-                        <div v-else class="border-t border-gray-100 dark:border-slate-800 pt-5">
-                            <div class="rounded-xl bg-gray-50 dark:bg-slate-800 border border-dashed border-gray-200 dark:border-slate-600 px-5 py-6 text-center">
-                                <p class="text-sm text-gray-400 dark:text-slate-500">Speichere dein Profil um deine Laufzonen zu berechnen.</p>
+                        <div v-else class="border-t border-line pt-5">
+                            <div class="rounded-field bg-surface-2 border border-dashed border-line px-5 py-6 text-center">
+                                <p class="text-sm text-ink-3">Speichere dein Profil um deine Laufzonen zu berechnen.</p>
                             </div>
                         </div>
 
                         <!-- Weekly availability -->
-                        <div class="border-t border-gray-100 dark:border-slate-800 pt-5 space-y-4">
+                        <div class="border-t border-line pt-5 space-y-4">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <h3 class="text-sm font-semibold text-gray-700 dark:text-slate-300">Wöchentliche Verfügbarkeit</h3>
-                                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">An welchen Tagen kannst du trainieren? Der KI-Plan respektiert diese Zeiten.</p>
+                                    <h3 class="text-sm font-semibold text-ink-2">Wöchentliche Verfügbarkeit</h3>
+                                    <p class="text-xs text-ink-3 mt-0.5">An welchen Tagen kannst du trainieren? Der KI-Plan respektiert diese Zeiten.</p>
                                 </div>
-                                <div v-if="availSaved" class="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400 font-medium">
+                                <div v-if="availSaved" class="flex items-center gap-1.5 text-sm text-success-ink font-medium">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                     Gespeichert
                                 </div>
@@ -862,10 +862,10 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                                     :key="day.key"
                                     type="button"
                                     @click="toggleAvailDay(day.key)"
-                                    class="flex flex-col items-center gap-1 rounded-xl py-2.5 text-xs font-semibold transition-colors border"
+                                    class="flex flex-col items-center gap-1 rounded-field py-2.5 text-xs font-semibold transition-colors border"
                                     :class="availability[day.key].available
-                                        ? 'bg-indigo-600 border-indigo-600 text-white'
-                                        : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-400 dark:text-slate-500'"
+                                        ? 'bg-accent border-accent text-white'
+                                        : 'bg-surface-2 border-line text-ink-3'"
                                 >
                                     {{ day.label }}
                                 </button>
@@ -878,7 +878,7 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                                     :key="day.key"
                                     class="flex items-center gap-3"
                                 >
-                                    <span class="w-24 text-sm text-gray-600 dark:text-slate-400 shrink-0">{{ day.full }}</span>
+                                    <span class="w-24 text-sm text-ink-2 shrink-0">{{ day.full }}</span>
                                     <div class="flex flex-wrap gap-1.5">
                                         <button
                                             v-for="dur in durationOptions"
@@ -887,8 +887,8 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                                             @click="availability[day.key].duration_min = dur"
                                             class="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors border"
                                             :class="availability[day.key].duration_min === dur
-                                                ? 'bg-indigo-600 border-indigo-600 text-white'
-                                                : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:border-indigo-300'"
+                                                ? 'bg-accent border-accent text-white'
+                                                : 'bg-surface-2 border-line text-ink-3 hover:border-accent'"
                                         >
                                             {{ dur }} min
                                         </button>
@@ -898,7 +898,7 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
 
                             <!-- Summary + save -->
                             <div class="flex items-center justify-between pt-1">
-                                <p class="text-xs text-gray-400 dark:text-slate-500">
+                                <p class="text-xs text-ink-3">
                                     {{ availabilityDays.filter(d => availability[d.key].available).length }} Tage ·
                                     {{ availabilityDays.reduce((s, d) => s + (availability[d.key].available ? availability[d.key].duration_min : 0), 0) }} Min/Woche
                                 </p>
@@ -906,7 +906,7 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                                     type="button"
                                     @click="saveAvailability"
                                     :disabled="availSaving"
-                                    class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
+                                    class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-card"
                                 >
                                     <svg v-if="availSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                                     Verfügbarkeit speichern
@@ -915,41 +915,41 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                         </div>
 
                         <!-- Strength & core -->
-                        <div class="border-t border-gray-100 dark:border-slate-800 pt-5">
+                        <div class="border-t border-line pt-5">
                             <div class="flex items-center justify-between mb-3">
                                 <div>
-                                    <h3 class="text-sm font-semibold text-gray-700 dark:text-slate-300">Kraft & Core</h3>
-                                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Ergänzendes Kraft-/Rumpftraining im Plan</p>
+                                    <h3 class="text-sm font-semibold text-ink-2">Kraft & Core</h3>
+                                    <p class="text-xs text-ink-3 mt-0.5">Ergänzendes Kraft-/Rumpftraining im Plan</p>
                                 </div>
                                 <button type="button" @click="strength.strength_enabled = !strength.strength_enabled"
                                     class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0"
-                                    :class="strength.strength_enabled ? 'bg-rose-600' : 'bg-gray-300 dark:bg-slate-600'">
-                                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                                    :class="strength.strength_enabled ? 'bg-danger' : 'bg-surface-3'">
+                                    <span class="inline-block h-4 w-4 transform rounded-full bg-surface transition-transform"
                                         :class="strength.strength_enabled ? 'translate-x-6' : 'translate-x-1'"></span>
                                 </button>
                             </div>
 
                             <template v-if="strength.strength_enabled">
-                                <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Equipment <span class="text-gray-400 font-normal">(Mehrfachauswahl)</span></label>
+                                <label class="block text-xs font-medium text-ink-3 mb-1.5">Equipment <span class="text-ink-3 font-normal">(Mehrfachauswahl)</span></label>
                                 <div class="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
                                     <button v-for="opt in equipmentOptions" :key="opt.value" type="button" @click="toggleStrengthEquipment(opt.value)"
-                                        class="py-2.5 px-2 rounded-xl border-2 transition-all text-center"
+                                        class="py-2.5 px-2 rounded-field border-2 transition-all text-center"
                                         :class="strength.strength_equipment.includes(opt.value)
-                                            ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-500 text-rose-700 dark:text-rose-300'
-                                            : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:border-rose-300 dark:hover:border-rose-600'">
+                                            ? 'bg-accent-soft border-danger text-danger-ink'
+                                            : 'border-line text-ink-2 hover:border-danger'">
                                         <div class="text-lg mb-0.5">{{ opt.icon }}</div>
                                         <div class="text-[11px] font-semibold">{{ opt.label }}</div>
                                     </button>
                                 </div>
                                 <div class="grid grid-cols-2 gap-3 mb-4">
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Einheiten / Woche</label>
+                                        <label class="block text-xs font-medium text-ink-3 mb-1.5">Einheiten / Woche</label>
                                         <select v-model.number="strength.strength_days_per_week" :class="inputClass">
                                             <option v-for="n in 4" :key="n" :value="n">{{ n }}×</option>
                                         </select>
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">Erfahrung</label>
+                                        <label class="block text-xs font-medium text-ink-3 mb-1.5">Erfahrung</label>
                                         <select v-model="strength.strength_experience" :class="inputClass">
                                             <option value="beginner">Anfänger</option>
                                             <option value="intermediate">Mittel</option>
@@ -960,9 +960,9 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                             </template>
 
                             <div class="flex items-center justify-end gap-3">
-                                <span v-if="strengthSaved" class="text-xs text-green-600 dark:text-green-400">Gespeichert ✓</span>
+                                <span v-if="strengthSaved" class="text-xs text-success-ink">Gespeichert ✓</span>
                                 <button type="button" @click="saveStrength" :disabled="strengthSaving"
-                                    class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm">
+                                    class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-card">
                                     <svg v-if="strengthSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                                     Kraft speichern
                                 </button>
@@ -973,112 +973,112 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
 
                 <!-- ── BENACHRICHTIGUNGEN ── -->
                 <template v-else-if="activeTab === 'notifications'">
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 dark:border-slate-800">
-                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Web Push Benachrichtigungen</h2>
-                        <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Erhalte Hinweise direkt im Browser — auch wenn die App nicht geöffnet ist</p>
+                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line">
+                        <h2 class="text-base font-semibold text-ink">Web Push Benachrichtigungen</h2>
+                        <p class="mt-0.5 text-sm text-ink-3">Erhalte Hinweise direkt im Browser — auch wenn die App nicht geöffnet ist</p>
                     </div>
                     <div class="p-4 sm:p-6 space-y-5">
-                        <div v-if="!pushSupported" class="rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 px-4 py-3 text-sm text-gray-500">Dein Browser unterstützt keine Push-Benachrichtigungen.</div>
+                        <div v-if="!pushSupported" class="rounded-field bg-surface-2 border border-line px-4 py-3 text-sm text-ink-3">Dein Browser unterstützt keine Push-Benachrichtigungen.</div>
                         <template v-else>
-                            <div v-if="pushPermission === 'denied'" class="rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-4 py-3 text-sm text-red-700 dark:text-red-400">Benachrichtigungen sind in deinem Browser blockiert.</div>
-                            <div class="flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-50 dark:bg-slate-800">
+                            <div v-if="pushPermission === 'denied'" class="rounded-field bg-danger-soft border border-danger/25 px-4 py-3 text-sm text-danger-ink">Benachrichtigungen sind in deinem Browser blockiert.</div>
+                            <div class="flex items-center justify-between gap-4 p-4 rounded-card bg-surface-2">
                                 <div>
-                                    <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ pushSubscribed ? 'Push aktiv' : 'Push deaktiviert' }}</p>
-                                    <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{{ pushSubscribed ? 'Du erhältst Benachrichtigungen auf diesem Gerät' : 'Noch keine Benachrichtigungen auf diesem Gerät' }}</p>
+                                    <p class="text-sm font-semibold text-ink">{{ pushSubscribed ? 'Push aktiv' : 'Push deaktiviert' }}</p>
+                                    <p class="text-xs text-ink-3 mt-0.5">{{ pushSubscribed ? 'Du erhältst Benachrichtigungen auf diesem Gerät' : 'Noch keine Benachrichtigungen auf diesem Gerät' }}</p>
                                 </div>
-                                <button @click="pushSubscribed ? unsubscribePush() : subscribePush()" :disabled="pushLoading || pushPermission === 'denied'" class="shrink-0 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50" :class="pushSubscribed ? 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600' : 'bg-indigo-600 text-white hover:bg-indigo-700'">
+                                <button @click="pushSubscribed ? unsubscribePush() : subscribePush()" :disabled="pushLoading || pushPermission === 'denied'" class="shrink-0 inline-flex items-center gap-2 rounded-field px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50" :class="pushSubscribed ? 'bg-surface-3 text-ink-2 hover:bg-danger-soft hover:text-danger' : 'bg-accent text-white hover:opacity-90'">
                                     <svg v-if="pushLoading" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                                     {{ pushSubscribed ? 'Deaktivieren' : 'Aktivieren' }}
                                 </button>
                             </div>
                             <div v-if="pushSubscribed" class="flex items-center gap-3">
-                                <button @click="sendTestPush" class="inline-flex items-center gap-2 rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 px-3 py-2 text-sm font-medium transition-colors">
+                                <button @click="sendTestPush" class="inline-flex items-center gap-2 rounded-field bg-surface-2 text-ink-2 hover:bg-surface-3 px-3 py-2 text-sm font-medium transition-colors">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" /></svg>
                                     Test-Benachrichtigung
                                 </button>
                                 <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
-                                    <span v-if="pushTestSent" class="text-sm text-green-600 dark:text-green-400 font-medium">Gesendet</span>
+                                    <span v-if="pushTestSent" class="text-sm text-success-ink font-medium">Gesendet</span>
                                 </Transition>
                             </div>
-                            <p v-if="pushError" class="text-sm text-red-600 dark:text-red-400">{{ pushError }}</p>
+                            <p v-if="pushError" class="text-sm text-danger-ink">{{ pushError }}</p>
                         </template>
                     </div>
 
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-t border-b border-gray-100 dark:border-slate-800">
-                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Einstellungen</h2>
+                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-t border-b border-line">
+                        <h2 class="text-base font-semibold text-ink">Einstellungen</h2>
                     </div>
                     <div class="p-4 sm:p-6 space-y-5">
                         <div class="flex items-start justify-between gap-4">
                             <div class="flex-1">
-                                <p class="text-sm font-medium text-gray-900 dark:text-white">Wellbeing-Erinnerung</p>
-                                <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Uhrzeit für die tägliche Erinnerung</p>
+                                <p class="text-sm font-medium text-ink">Wellbeing-Erinnerung</p>
+                                <p class="text-xs text-ink-3 mt-0.5">Uhrzeit für die tägliche Erinnerung</p>
                             </div>
-                            <input v-model="notifSettings.wellbeing_reminder_time" type="time" class="shrink-0 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            <input v-model="notifSettings.wellbeing_reminder_time" type="time" class="shrink-0 rounded-field bg-surface px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
                         </div>
                         <div class="flex items-center justify-between gap-4">
                             <div class="flex-1">
-                                <p class="text-sm font-medium text-gray-900 dark:text-white">Schwellenpace aktualisiert</p>
-                                <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Bei KI-Neuberechnung deiner Pace</p>
+                                <p class="text-sm font-medium text-ink">Schwellenpace aktualisiert</p>
+                                <p class="text-xs text-ink-3 mt-0.5">Bei KI-Neuberechnung deiner Pace</p>
                             </div>
-                            <button @click="notifSettings.notify_threshold_pace = !notifSettings.notify_threshold_pace" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none" :class="notifSettings.notify_threshold_pace ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-slate-700'">
-                                <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200" :class="notifSettings.notify_threshold_pace ? 'translate-x-5' : 'translate-x-0'" />
+                            <button @click="notifSettings.notify_threshold_pace = !notifSettings.notify_threshold_pace" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none" :class="notifSettings.notify_threshold_pace ? 'bg-accent' : 'bg-surface-3'">
+                                <span class="inline-block h-5 w-5 transform rounded-full bg-surface shadow transition duration-200" :class="notifSettings.notify_threshold_pace ? 'translate-x-5' : 'translate-x-0'" />
                             </button>
                         </div>
                         <div class="flex items-center justify-between gap-4">
                             <div class="flex-1">
-                                <p class="text-sm font-medium text-gray-900 dark:text-white">KI-Plan aktualisiert</p>
-                                <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Wenn dein Trainingsplan neu berechnet wurde</p>
+                                <p class="text-sm font-medium text-ink">KI-Plan aktualisiert</p>
+                                <p class="text-xs text-ink-3 mt-0.5">Wenn dein Trainingsplan neu berechnet wurde</p>
                             </div>
-                            <button @click="notifSettings.notify_plan_updated = !notifSettings.notify_plan_updated" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none" :class="notifSettings.notify_plan_updated ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-slate-700'">
-                                <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200" :class="notifSettings.notify_plan_updated ? 'translate-x-5' : 'translate-x-0'" />
+                            <button @click="notifSettings.notify_plan_updated = !notifSettings.notify_plan_updated" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none" :class="notifSettings.notify_plan_updated ? 'bg-accent' : 'bg-surface-3'">
+                                <span class="inline-block h-5 w-5 transform rounded-full bg-surface shadow transition duration-200" :class="notifSettings.notify_plan_updated ? 'translate-x-5' : 'translate-x-0'" />
                             </button>
                         </div>
                         <div class="flex items-center justify-between gap-4">
                             <div class="flex-1">
-                                <p class="text-sm font-medium text-gray-900 dark:text-white">Monatsrückblick</p>
-                                <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Am Monatsanfang per Push &amp; E-Mail mit deinen Fakten</p>
+                                <p class="text-sm font-medium text-ink">Monatsrückblick</p>
+                                <p class="text-xs text-ink-3 mt-0.5">Am Monatsanfang per Push &amp; E-Mail mit deinen Fakten</p>
                             </div>
-                            <button @click="notifSettings.notify_monthly_review = !notifSettings.notify_monthly_review" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none" :class="notifSettings.notify_monthly_review ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-slate-700'">
-                                <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200" :class="notifSettings.notify_monthly_review ? 'translate-x-5' : 'translate-x-0'" />
+                            <button @click="notifSettings.notify_monthly_review = !notifSettings.notify_monthly_review" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none" :class="notifSettings.notify_monthly_review ? 'bg-accent' : 'bg-surface-3'">
+                                <span class="inline-block h-5 w-5 transform rounded-full bg-surface shadow transition duration-200" :class="notifSettings.notify_monthly_review ? 'translate-x-5' : 'translate-x-0'" />
                             </button>
                         </div>
                         <div class="flex items-center gap-3 pt-2">
-                            <button @click="saveNotifSettings" :disabled="notifSaving" class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                            <button @click="saveNotifSettings" :disabled="notifSaving" class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors">
                                 <svg v-if="notifSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                                 Einstellungen speichern
                             </button>
                             <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
-                                <span v-if="notifSaved" class="text-sm text-green-600 dark:text-green-400 font-medium">Gespeichert</span>
+                                <span v-if="notifSaved" class="text-sm text-success-ink font-medium">Gespeichert</span>
                             </Transition>
                         </div>
                     </div>
 
                     <!-- Newsletter -->
-                    <div class="px-4 sm:px-6 pt-5 pb-5 border-t border-gray-100 dark:border-slate-800 space-y-3">
+                    <div class="px-4 sm:px-6 pt-5 pb-5 border-t border-line space-y-3">
                         <div>
-                            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Newsletter</h3>
-                            <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                            <h3 class="text-sm font-semibold text-ink">Newsletter</h3>
+                            <p class="text-xs text-ink-3 mt-0.5">
                                 Gelegentliche Updates, Trainingstipps und Zone3-Neuigkeiten per E-Mail.
                             </p>
                         </div>
                         <div class="flex items-center justify-between gap-4">
                             <div class="flex-1">
-                                <p class="text-sm font-medium text-gray-900 dark:text-white">Newsletter abonnieren</p>
-                                <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                                <p class="text-sm font-medium text-ink">Newsletter abonnieren</p>
+                                <p class="text-xs text-ink-3 mt-0.5">
                                     An <span class="font-medium">{{ user.email }}</span>
                                 </p>
                             </div>
                             <div class="flex items-center gap-3">
                                 <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
-                                    <span v-if="newsletterSaved" class="text-xs text-green-600 dark:text-green-400 font-medium">Gespeichert</span>
+                                    <span v-if="newsletterSaved" class="text-xs text-success-ink font-medium">Gespeichert</span>
                                 </Transition>
                                 <button
                                     @click="newsletterOptIn = !newsletterOptIn; toggleNewsletter()"
                                     :disabled="newsletterSaving"
                                     class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50"
-                                    :class="newsletterOptIn ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-slate-700'"
+                                    :class="newsletterOptIn ? 'bg-accent' : 'bg-surface-3'"
                                 >
-                                    <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200"
+                                    <span class="inline-block h-5 w-5 transform rounded-full bg-surface shadow transition duration-200"
                                         :class="newsletterOptIn ? 'translate-x-5' : 'translate-x-0'" />
                                 </button>
                             </div>
@@ -1088,35 +1088,35 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
 
                 <!-- ── VERBINDUNGEN ── -->
                 <template v-else-if="activeTab === 'connections'">
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 dark:border-slate-800">
-                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Verbindungen</h2>
-                        <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Drittanbieter-Dienste mit Zone3 verbinden</p>
+                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line">
+                        <h2 class="text-base font-semibold text-ink">Verbindungen</h2>
+                        <p class="mt-0.5 text-sm text-ink-3">Drittanbieter-Dienste mit Zone3 verbinden</p>
                     </div>
                     <div class="p-4 sm:p-6 space-y-4">
 
                         <!-- Strava Card (umgezogen von Security) -->
-                        <div class="rounded-2xl border border-gray-100 dark:border-slate-800 overflow-hidden">
+                        <div class="rounded-card border border-line overflow-hidden">
                             <div class="flex items-center justify-between gap-4 px-4 py-4">
                                 <div class="flex items-center gap-3">
-                                    <div class="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
-                                        :class="props.stravaConnected ? 'bg-orange-50 dark:bg-orange-500/10' : 'bg-gray-100 dark:bg-slate-800'">
-                                        <svg class="h-6 w-6" :class="props.stravaConnected ? 'text-orange-500' : 'text-gray-400 dark:text-slate-500'" viewBox="0 0 24 24" fill="currentColor">
+                                    <div class="h-10 w-10 rounded-field flex items-center justify-center shrink-0"
+                                        :class="props.stravaConnected ? 'bg-warn-soft' : 'bg-surface-2'">
+                                        <svg class="h-6 w-6" :class="props.stravaConnected ? 'text-warn' : 'text-ink-3'" viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
                                         </svg>
                                     </div>
                                     <div>
-                                        <p class="text-sm font-semibold text-gray-900 dark:text-white">Strava</p>
-                                        <p v-if="props.stravaConnected" class="text-xs text-green-600 dark:text-green-400 mt-0.5">Verbunden · {{ props.stravaAccount?.username }}</p>
-                                        <p v-else class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Nicht verbunden</p>
+                                        <p class="text-sm font-semibold text-ink">Strava</p>
+                                        <p v-if="props.stravaConnected" class="text-xs text-success-ink mt-0.5">Verbunden · {{ props.stravaAccount?.username }}</p>
+                                        <p v-else class="text-xs text-ink-3 mt-0.5">Nicht verbunden</p>
                                     </div>
                                 </div>
                                 <div class="flex gap-2 shrink-0">
                                     <button v-if="props.stravaConnected" @click="confirmStravaDisconnect = true"
-                                        class="rounded-xl border border-red-200 dark:border-red-500/30 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
+                                        class="rounded-field border border-danger/25 px-3 py-1.5 text-xs font-semibold text-danger-ink hover:bg-danger-soft transition-colors">
                                         Trennen
                                     </button>
                                     <Link v-else href="/strava/connect"
-                                        class="rounded-xl bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 transition-colors">
+                                        class="rounded-field bg-warn px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-colors">
                                         Verbinden
                                     </Link>
                                 </div>
@@ -1124,65 +1124,65 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                         </div>
 
                         <!-- Garmin Connect Card -->
-                        <div class="rounded-2xl border border-gray-100 dark:border-slate-800 overflow-hidden">
+                        <div class="rounded-card border border-line overflow-hidden">
                             <div class="flex items-center justify-between gap-4 px-4 py-4">
                                 <div class="flex items-center gap-3">
-                                    <div class="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
-                                        :class="garminConnected ? 'bg-blue-50 dark:bg-blue-500/10' : 'bg-gray-100 dark:bg-slate-800'">
-                                        <svg class="h-6 w-6" :class="garminConnected ? 'text-blue-500' : 'text-gray-400 dark:text-slate-500'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                    <div class="h-10 w-10 rounded-field flex items-center justify-center shrink-0"
+                                        :class="garminConnected ? 'bg-info-soft' : 'bg-surface-2'">
+                                        <svg class="h-6 w-6" :class="garminConnected ? 'text-info' : 'text-ink-3'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                                             <rect x="7" y="6" width="10" height="12" rx="2" />
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 6l.5-2.5h5L15 6M9 18l.5 2.5h5L15 18" />
                                             <circle cx="12" cy="12" r="2.2" />
                                         </svg>
                                     </div>
                                     <div>
-                                        <p class="text-sm font-semibold text-gray-900 dark:text-white">Garmin Connect</p>
-                                        <p v-if="garminConnected" class="text-xs text-green-600 dark:text-green-400 mt-0.5">Verbunden · {{ garminSavedEmail }}</p>
-                                        <p v-else class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Nicht verbunden</p>
+                                        <p class="text-sm font-semibold text-ink">Garmin Connect</p>
+                                        <p v-if="garminConnected" class="text-xs text-success-ink mt-0.5">Verbunden · {{ garminSavedEmail }}</p>
+                                        <p v-else class="text-xs text-ink-3 mt-0.5">Nicht verbunden</p>
                                     </div>
                                 </div>
                                 <div class="flex gap-2 shrink-0">
                                     <button v-if="garminConnected" @click="disconnectGarmin" :disabled="garminDisconnecting"
-                                        class="rounded-xl border border-red-200 dark:border-red-500/30 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50">
+                                        class="rounded-field border border-danger/25 px-3 py-1.5 text-xs font-semibold text-danger-ink hover:bg-danger-soft transition-colors disabled:opacity-50">
                                         {{ garminDisconnecting ? 'Trenne…' : 'Trennen' }}
                                     </button>
                                     <button v-else @click="showGarminForm = !showGarminForm"
-                                        class="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors">
+                                        class="rounded-field bg-info px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-colors">
                                         Verbinden
                                     </button>
                                 </div>
                             </div>
 
                             <!-- Einmaliger Login (kein Passwort wird gespeichert) -->
-                            <div v-if="showGarminForm && !garminConnected" class="border-t border-gray-100 dark:border-slate-800 p-4 space-y-3">
+                            <div v-if="showGarminForm && !garminConnected" class="border-t border-line p-4 space-y-3">
                                 <div>
-                                    <label class="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Garmin Connect E-Mail</label>
+                                    <label class="block text-xs font-medium text-ink-2 mb-1">Garmin Connect E-Mail</label>
                                     <input v-model="garminEmail" type="email" autocomplete="username"
-                                        class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        class="w-full rounded-field bg-surface px-3 py-2.5 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-info/40"
                                         placeholder="deine@email.de" />
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Passwort</label>
+                                    <label class="block text-xs font-medium text-ink-2 mb-1">Passwort</label>
                                     <input v-model="garminPassword" type="password" autocomplete="current-password" @keyup.enter="connectGarmin"
-                                        class="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        class="w-full rounded-field bg-surface px-3 py-2.5 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-info/40"
                                         placeholder="••••••••" />
                                 </div>
-                                <p v-if="garminConnectError" class="text-xs text-red-600 dark:text-red-400">{{ garminConnectError }}</p>
+                                <p v-if="garminConnectError" class="text-xs text-danger-ink">{{ garminConnectError }}</p>
                                 <div class="flex items-center gap-3 pt-1">
                                     <button @click="connectGarmin" :disabled="garminConnecting || !garminEmail || !garminPassword"
-                                        class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                                        class="inline-flex items-center gap-2 rounded-field bg-info px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors">
                                         <svg v-if="garminConnecting" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                                         {{ garminConnecting ? 'Verbinde…' : 'Einmalig anmelden' }}
                                     </button>
-                                    <button @click="showGarminForm = false" class="text-xs font-medium text-gray-500 dark:text-slate-400 hover:underline">Abbrechen</button>
+                                    <button @click="showGarminForm = false" class="text-xs font-medium text-ink-3 hover:underline">Abbrechen</button>
                                 </div>
-                                <p class="text-xs text-gray-400 dark:text-slate-500 leading-relaxed">
-                                    🔒 Dein Passwort wird <strong class="text-gray-500 dark:text-slate-300">nicht gespeichert</strong>. Es dient nur der einmaligen Anmeldung — danach speichert Zone3 ausschließlich einen verschlüsselten Login-Token (hält ca. ein Jahr). Bei aktiver Zwei-Faktor-Authentifizierung ist der Login derzeit nicht möglich.
+                                <p class="text-xs text-ink-3 leading-relaxed">
+                                    🔒 Dein Passwort wird <strong class="text-ink-3">nicht gespeichert</strong>. Es dient nur der einmaligen Anmeldung — danach speichert Zone3 ausschließlich einen verschlüsselten Login-Token (hält ca. ein Jahr). Bei aktiver Zwei-Faktor-Authentifizierung ist der Login derzeit nicht möglich.
                                 </p>
                             </div>
 
-                            <div v-if="garminConnectOk && garminConnected" class="border-t border-gray-100 dark:border-slate-800 px-4 py-3">
-                                <p class="text-xs text-green-600 dark:text-green-400">Verbunden! Die letzten 60 Tage Erholungsdaten werden im Hintergrund geladen und erscheinen dann im Dashboard.</p>
+                            <div v-if="garminConnectOk && garminConnected" class="border-t border-line px-4 py-3">
+                                <p class="text-xs text-success-ink">Verbunden! Die letzten 60 Tage Erholungsdaten werden im Hintergrund geladen und erscheinen dann im Dashboard.</p>
                             </div>
                         </div>
 
@@ -1191,34 +1191,34 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
 
                 <!-- ── SICHERHEIT ── -->
                 <template v-else-if="activeTab === 'security'">
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 dark:border-slate-800">
-                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Passwort ändern</h2>
-                        <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Nutze ein sicheres, einzigartiges Passwort</p>
+                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line">
+                        <h2 class="text-base font-semibold text-ink">Passwort ändern</h2>
+                        <p class="mt-0.5 text-sm text-ink-3">Nutze ein sicheres, einzigartiges Passwort</p>
                     </div>
                     <div class="p-4 sm:p-6">
                         <form @submit.prevent="updatePassword" class="space-y-5">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Aktuelles Passwort</label>
+                                <label class="block text-sm font-medium text-ink-2 mb-1.5">Aktuelles Passwort</label>
                                 <input ref="currentPasswordInput" v-model="passwordForm.current_password" type="password" autocomplete="current-password" :class="inputClass" />
                                 <InputError class="mt-1.5" :message="passwordForm.errors.current_password" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Neues Passwort</label>
+                                <label class="block text-sm font-medium text-ink-2 mb-1.5">Neues Passwort</label>
                                 <input ref="passwordInput" v-model="passwordForm.password" type="password" autocomplete="new-password" :class="inputClass" />
                                 <InputError class="mt-1.5" :message="passwordForm.errors.password" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Passwort bestätigen</label>
+                                <label class="block text-sm font-medium text-ink-2 mb-1.5">Passwort bestätigen</label>
                                 <input v-model="passwordForm.password_confirmation" type="password" autocomplete="new-password" :class="inputClass" />
                                 <InputError class="mt-1.5" :message="passwordForm.errors.password_confirmation" />
                             </div>
                             <div class="flex items-center gap-4 pt-1">
-                                <button type="submit" :disabled="passwordForm.processing" class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm">
+                                <button type="submit" :disabled="passwordForm.processing" class="inline-flex items-center gap-2 rounded-field bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-card">
                                     <svg v-if="passwordForm.processing" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                                     Passwort ändern
                                 </button>
                                 <Transition enter-active-class="transition ease-in-out" enter-from-class="opacity-0" leave-to-class="opacity-0">
-                                    <span v-if="passwordForm.recentlySuccessful" class="text-sm text-green-600 dark:text-green-400">Passwort gespeichert.</span>
+                                    <span v-if="passwordForm.recentlySuccessful" class="text-sm text-success-ink">Passwort gespeichert.</span>
                                 </Transition>
                             </div>
                         </form>
@@ -1228,61 +1228,61 @@ const inputClass = 'block w-full rounded-xl border border-gray-200 dark:border-s
                 <!-- ── KONTO ── -->
                 <template v-else-if="activeTab === 'account'">
                     <!-- Strava -->
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 dark:border-slate-800">
-                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Strava Verbindung</h2>
+                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line">
+                        <h2 class="text-base font-semibold text-ink">Strava Verbindung</h2>
                     </div>
-                    <div class="p-4 sm:p-6 border-b border-gray-100 dark:border-slate-800">
+                    <div class="p-4 sm:p-6 border-b border-line">
                         <div v-if="props.stravaConnected" class="flex items-start justify-between gap-4">
                             <div class="flex items-center gap-3">
-                                <div class="h-10 w-10 rounded-xl bg-orange-100 dark:bg-orange-500/15 flex items-center justify-center text-xl shrink-0">🔗</div>
+                                <div class="h-10 w-10 rounded-field bg-warn-soft flex items-center justify-center text-xl shrink-0">🔗</div>
                                 <div>
-                                    <p class="text-sm font-semibold text-gray-900 dark:text-white">Verbunden als <span class="text-orange-600 dark:text-orange-400">{{ props.stravaAccount?.username }}</span></p>
-                                    <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Zuletzt: {{ props.stravaAccount?.last_synced_at ?? 'Noch nie' }}</p>
+                                    <p class="text-sm font-semibold text-ink">Verbunden als <span class="text-warn-ink">{{ props.stravaAccount?.username }}</span></p>
+                                    <p class="text-xs text-ink-3 mt-0.5">Zuletzt: {{ props.stravaAccount?.last_synced_at ?? 'Noch nie' }}</p>
                                 </div>
                             </div>
-                            <span class="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-500/15 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-400 shrink-0">
-                                <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span> Aktiv
+                            <span class="inline-flex items-center gap-1 rounded-full bg-success-soft px-2.5 py-1 text-xs font-medium text-success-ink shrink-0">
+                                <span class="h-1.5 w-1.5 rounded-full bg-success"></span> Aktiv
                             </span>
                         </div>
                         <div v-else class="flex items-center gap-3">
-                            <div class="h-10 w-10 rounded-xl bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-xl shrink-0">🔗</div>
+                            <div class="h-10 w-10 rounded-field bg-surface-2 flex items-center justify-center text-xl shrink-0">🔗</div>
                             <div>
-                                <p class="text-sm font-semibold text-gray-900 dark:text-white">Nicht verbunden</p>
-                                <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Verbinde Strava um deine Läufe zu importieren</p>
+                                <p class="text-sm font-semibold text-ink">Nicht verbunden</p>
+                                <p class="text-xs text-ink-3 mt-0.5">Verbinde Strava um deine Läufe zu importieren</p>
                             </div>
                         </div>
                         <div class="mt-4 flex flex-wrap gap-3">
-                            <Link v-if="!props.stravaConnected" href="/strava/connect" class="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 transition-colors shadow-sm">Mit Strava verbinden</Link>
+                            <Link v-if="!props.stravaConnected" href="/strava/connect" class="inline-flex items-center gap-2 rounded-field bg-warn px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-colors shadow-card">Mit Strava verbinden</Link>
                             <template v-else>
-                                <Link href="/strava/connect" class="inline-flex items-center gap-2 rounded-xl bg-gray-100 dark:bg-slate-800 px-5 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">Konto wechseln</Link>
-                                <button type="button" @click="confirmStravaDisconnect = true" class="inline-flex items-center gap-2 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-5 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors">Strava trennen</button>
+                                <Link href="/strava/connect" class="inline-flex items-center gap-2 rounded-field bg-surface-2 px-5 py-2.5 text-sm font-semibold text-ink-2 hover:bg-surface-3 transition-colors">Konto wechseln</Link>
+                                <button type="button" @click="confirmStravaDisconnect = true" class="inline-flex items-center gap-2 rounded-field bg-danger-soft border border-danger/25 px-5 py-2.5 text-sm font-semibold text-danger-ink hover:opacity-90-soft transition-colors">Strava trennen</button>
                             </template>
                         </div>
-                        <p v-if="props.stravaConnected" class="mt-3 text-xs text-gray-400 dark:text-slate-500">Beim Trennen werden alle importierten Aktivitäten aus Zone3 gelöscht. Deine Strava-Daten bleiben erhalten.</p>
+                        <p v-if="props.stravaConnected" class="mt-3 text-xs text-ink-3">Beim Trennen werden alle importierten Aktivitäten aus Zone3 gelöscht. Deine Strava-Daten bleiben erhalten.</p>
                     </div>
 
                     <!-- Onboarding reset -->
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 dark:border-slate-800">
-                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Onboarding wiederholen</h2>
-                        <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Athletenprofil und Ziel erneut einrichten</p>
+                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line">
+                        <h2 class="text-base font-semibold text-ink">Onboarding wiederholen</h2>
+                        <p class="mt-0.5 text-sm text-ink-3">Athletenprofil und Ziel erneut einrichten</p>
                     </div>
-                    <div class="p-4 sm:p-6 border-b border-gray-100 dark:border-slate-800">
-                        <Link :href="route('onboarding.reset')" method="post" as="button" class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm">
+                    <div class="p-4 sm:p-6 border-b border-line">
+                        <Link :href="route('onboarding.reset')" method="post" as="button" class="inline-flex items-center gap-2 rounded-field bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-colors shadow-card">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
                             Onboarding neu starten
                         </Link>
                     </div>
 
                     <!-- Account deletion -->
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 dark:border-slate-800">
-                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Konto löschen</h2>
-                        <p class="mt-0.5 text-sm text-gray-500 dark:text-slate-400">Alle Daten werden unwiderruflich gelöscht</p>
+                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line">
+                        <h2 class="text-base font-semibold text-ink">Konto löschen</h2>
+                        <p class="mt-0.5 text-sm text-ink-3">Alle Daten werden unwiderruflich gelöscht</p>
                     </div>
                     <div class="p-4 sm:p-6">
-                        <div class="rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-5 py-4 mb-5">
-                            <p class="text-sm text-red-700 dark:text-red-400">Sobald dein Konto gelöscht wird, werden alle Daten unwiderruflich entfernt.</p>
+                        <div class="rounded-field bg-danger-soft border border-danger/25 px-5 py-4 mb-5">
+                            <p class="text-sm text-danger-ink">Sobald dein Konto gelöscht wird, werden alle Daten unwiderruflich entfernt.</p>
                         </div>
-                        <button @click="confirmDeletion" class="inline-flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 transition-colors shadow-sm">Konto löschen</button>
+                        <button @click="confirmDeletion" class="inline-flex items-center gap-2 rounded-field bg-danger px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-colors shadow-card">Konto löschen</button>
                     </div>
                 </template>
 

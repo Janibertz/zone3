@@ -163,13 +163,13 @@ watch(isOpen, async (val) => {
         >
             <div
                 v-if="isOpen"
-                class="fixed inset-y-0 right-0 z-50 flex flex-col w-full sm:max-w-md bg-white dark:bg-slate-900 shadow-2xl"
+                class="fixed inset-y-0 right-0 z-50 flex flex-col w-full sm:max-w-md bg-surface shadow-2xl"
             >
                 <!-- Safe-area spacer (Dynamic Island / Notch) -->
                 <div class="shrink-0 pt-safe" />
 
                 <!-- Header -->
-                <div class="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-slate-800">
+                <div class="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-line">
                     <!-- Coach avatar -->
                     <div
                         class="h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
@@ -178,16 +178,16 @@ watch(isOpen, async (val) => {
                         {{ coach?.avatar_initials ?? 'CO' }}
                     </div>
                     <div class="min-w-0 flex-1">
-                        <p class="text-sm font-semibold text-gray-900 dark:text-white leading-tight">
+                        <p class="text-sm font-semibold text-ink leading-tight">
                             {{ coach?.name ?? 'Dein Coach' }}
                         </p>
-                        <p class="text-xs text-gray-400 dark:text-slate-500 truncate">
+                        <p class="text-xs text-ink-3 truncate">
                             {{ coach?.tagline ?? 'Persönlicher Lauf-Coach' }}
                         </p>
                     </div>
                     <button
                         @click="close"
-                        class="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                        class="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg text-ink-3 hover:text-ink-2 hover:bg-surface-2 transition-colors"
                     >
                         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -215,12 +215,12 @@ watch(isOpen, async (val) => {
                         <div class="max-w-[80%]">
                             <!-- Message bubble -->
                             <div
-                                class="rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed"
+                                class="rounded-card px-3.5 py-2.5 text-sm leading-relaxed"
                                 :class="msg.role === 'user'
-                                    ? 'bg-indigo-600 text-white rounded-br-sm whitespace-pre-wrap'
+                                    ? 'bg-accent text-white rounded-br-sm whitespace-pre-wrap'
                                     : msg.isError
-                                        ? 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 rounded-bl-sm whitespace-pre-wrap'
-                                        : 'bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-white rounded-bl-sm'"
+                                        ? 'bg-danger-soft text-danger-ink rounded-bl-sm whitespace-pre-wrap'
+                                        : 'bg-surface-2 text-ink rounded-bl-sm'"
                                 v-html="msg.role === 'assistant' && !msg.isError ? renderMarkdown(msg.content) : msg.content"
                             />
                             <!-- Action confirmation cards -->
@@ -228,12 +228,12 @@ watch(isOpen, async (val) => {
                                 <div
                                     v-for="(action, ai) in msg.actions"
                                     :key="ai"
-                                    class="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium"
+                                    class="flex items-center gap-2 rounded-field px-3 py-2 text-xs font-medium"
                                     :class="{
-                                        'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300': action.type === 'memory',
-                                        'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300': action.type === 'session_modified',
-                                        'bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-300': action.type === 'sessions_skipped',
-                                        'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300': action.type === 'event_updated',
+                                        'bg-accent-soft text-accent-ink': action.type === 'memory',
+                                        'bg-warn-soft text-warn-ink': action.type === 'session_modified',
+                                        'bg-warn-soft text-warn-ink': action.type === 'sessions_skipped',
+                                        'bg-success-soft text-success-ink': action.type === 'event_updated',
                                     }"
                                 >
                                     <span>{{ actionIcons[action.type] ?? '✓' }}</span>
@@ -242,7 +242,7 @@ watch(isOpen, async (val) => {
                             </div>
                             <p
                                 v-if="msg.created_at"
-                                class="mt-1 text-[10px] text-gray-400 dark:text-slate-600"
+                                class="mt-1 text-[10px] text-ink-3"
                                 :class="msg.role === 'user' ? 'text-right' : 'text-left'"
                             >
                                 {{ formatTime(msg.created_at) }}
@@ -258,10 +258,10 @@ watch(isOpen, async (val) => {
                         >
                             {{ coach?.avatar_initials ?? 'CO' }}
                         </div>
-                        <div class="bg-gray-100 dark:bg-slate-800 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-1">
-                            <span class="h-1.5 w-1.5 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce" style="animation-delay:0ms" />
-                            <span class="h-1.5 w-1.5 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce" style="animation-delay:150ms" />
-                            <span class="h-1.5 w-1.5 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce" style="animation-delay:300ms" />
+                        <div class="bg-surface-2 rounded-card rounded-bl-sm px-4 py-3 flex items-center gap-1">
+                            <span class="h-1.5 w-1.5 rounded-full bg-ink-3 animate-bounce" style="animation-delay:0ms" />
+                            <span class="h-1.5 w-1.5 rounded-full bg-ink-3 animate-bounce" style="animation-delay:150ms" />
+                            <span class="h-1.5 w-1.5 rounded-full bg-ink-3 animate-bounce" style="animation-delay:300ms" />
                         </div>
                     </div>
                 </div>
@@ -272,14 +272,14 @@ watch(isOpen, async (val) => {
                         v-for="prompt in quickPrompts"
                         :key="prompt"
                         @click="sendMessage(prompt)"
-                        class="shrink-0 text-xs px-3 py-1.5 rounded-full border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors whitespace-nowrap"
+                        class="shrink-0 text-xs px-3 py-1.5 rounded-full border border-accent/25 text-accent-ink hover:bg-accent-soft transition-colors whitespace-nowrap"
                     >
                         {{ prompt }}
                     </button>
                 </div>
 
                 <!-- Input -->
-                <div class="shrink-0 border-t border-gray-100 dark:border-slate-800 p-3 flex gap-2 items-end"
+                <div class="shrink-0 border-t border-line p-3 flex gap-2 items-end"
                      style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom))">
                     <textarea
                         ref="inputEl"
@@ -287,13 +287,13 @@ watch(isOpen, async (val) => {
                         @keydown="handleKeydown"
                         placeholder="Schreib deinem Coach…"
                         rows="1"
-                        class="flex-1 resize-none rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent max-h-32"
+                        class="flex-1 resize-none rounded-field border border-line bg-surface-2 text-sm text-ink placeholder-ink-3 px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-transparent max-h-32"
                         style="field-sizing: content;"
                     />
                     <button
                         @click="sendMessage()"
                         :disabled="!inputText.trim() || isLoading"
-                        class="shrink-0 h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        class="shrink-0 h-10 w-10 flex items-center justify-center rounded-field bg-accent text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
