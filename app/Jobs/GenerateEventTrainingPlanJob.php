@@ -204,6 +204,29 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
             'priority' => $followUpEvent->priority,
         ] : null;
 
+        // ── Wochengerüst ─────────────────────────────────────────────────────
+        // Die Wochenstruktur wird hier festgelegt, nicht vom Modell. Sie geht
+        // als Belegung in den Prompt und dient danach dem Validator als Maß.
+        $windowFrom = \Carbon\CarbonImmutable::today();
+        $windowTo   = $windowFrom->addDays(min(Event::PLAN_HORIZON_DAYS, $event->days_until + 1) - 1);
+
+        $skeleton = app(\App\Services\WeeklyPatternService::class)->build(
+            $event,
+            $windowFrom,
+            $windowTo,
+            $weeklyAvailability,
+            $availabilityOverrides,
+            collect($finalizedForAI)->pluck('date')->all(),
+        );
+
+        // Gemessene Erholungswerte der Uhr — bisher floss nur das selbst
+        // eingetragene Wellbeing in die Planung ein.
+        $garminText = null;
+        if (! empty($user->garmin_session)) {
+            $summary    = app(\App\Services\GarminHealthSummary::class);
+            $garminText = $summary->toPromptSection($summary->forUser($user->id, $windowFrom));
+        }
+
         // ── Call AI ──────────────────────────────────────────────────────────
         $openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
         try {
@@ -211,7 +234,7 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
                 $event, $profileData, $recentActivities, $wellbeingData,
                 $sessionRatings, $weeklyAvailability, $availabilityOverrides,
                 $trainingLoad, $pastPlanResults, $otherEvents, $finalizedForAI,
-                $followUpGoal
+                $followUpGoal, $skeleton, $garminText
             );
         } catch (\Throwable $e) {
             Log::error('GenerateEventTrainingPlanJob: OpenAI error', ['error' => $e->getMessage(), 'event_id' => $event->id]);
@@ -224,8 +247,22 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
             return;
         }
 
+        // ── Prüfen und reparieren ────────────────────────────────────────────
+        // Bis hierher war der Prompt die einzige Durchsetzung. Der Validator
+        // gleicht die Antwort gegen das Gerüst ab und protokolliert, was er
+        // korrigieren musste.
         $eventDateStr = $event->event_date->format('Y-m-d');
-        $aiSessions   = array_values(array_filter($aiSessions, fn ($s) => ($s['date'] ?? '') <= $eventDateStr));
+
+        $checked    = app(\App\Services\TrainingPlanValidator::class)
+            ->validate($aiSessions, $skeleton, $eventDateStr);
+        $aiSessions = $checked['sessions'];
+
+        if ($checked['report']) {
+            Log::info('Plan validator corrected the AI output', [
+                'event_id'    => $event->id,
+                'corrections' => $checked['report'],
+            ]);
+        }
 
         try {
             // One-active-plan rule: deactivate all other plans
@@ -243,6 +280,10 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
                     'wellbeing_entries'  => count($wellbeingData),
                     'has_runner_profile' => (bool) $profileData,
                     'days_until_event'   => $event->days_until,
+                    'used_garmin'        => $garminText !== null,
+                    'weekly_pattern'     => collect($skeleton['weeks'])
+                        ->map(fn ($w) => $w['planned'])->all(),
+                    'corrections'        => $checked['report'],
                 ],
             ]);
 
@@ -250,18 +291,40 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
                 ->where('id', $plan->id)
                 ->update(['is_active' => true, 'needs_plan_update' => false]);
 
-            $preservedDates = $preservedSessions
+            // Erhaltene Einheiten blockieren ihren Tag nur für Läufe. Vorher
+            // fiel an einem Doppel-Tag die Krafteinheit mit weg, sobald der
+            // Lauf von Strava importiert und damit erhalten war.
+            $preservedRunDates = $preservedSessions
+                ->reject(fn ($s) => in_array($s->type, ['strength', 'core', 'mobility'], true))
                 ->pluck('planned_date')
                 ->map(fn ($d) => $d->format('Y-m-d'))
                 ->unique()
                 ->flip()
                 ->toArray();
+
+            $preservedExtraDates = $preservedSessions
+                ->filter(fn ($s) => in_array($s->type, ['strength', 'core', 'mobility'], true))
+                ->pluck('planned_date')
+                ->map(fn ($d) => $d->format('Y-m-d'))
+                ->unique()
+                ->flip()
+                ->toArray();
+
             foreach ($preservedSessions as $session) {
                 $session->update(['training_plan_id' => $plan->id]);
             }
 
             foreach ($aiSessions as $i => $s) {
-                if (isset($preservedDates[$s['date'] ?? ''])) {
+                $date  = $s['date'] ?? '';
+                $extra = in_array($s['type'] ?? '', ['strength', 'core', 'mobility'], true);
+
+                // Gleiche Sorte an diesem Tag schon erhalten → nicht doppeln.
+                if ($extra ? isset($preservedExtraDates[$date]) : isset($preservedRunDates[$date])) {
+                    continue;
+                }
+
+                // Ruhetag neben einer erhaltenen Einheit wäre widersprüchlich.
+                if (($s['type'] ?? '') === 'rest' && (isset($preservedRunDates[$date]) || isset($preservedExtraDates[$date]))) {
                     continue;
                 }
                 TrainingSession::create([

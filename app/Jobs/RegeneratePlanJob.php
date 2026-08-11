@@ -208,6 +208,27 @@ class RegeneratePlanJob implements ShouldQueue
 
         $finalizedForAI = array_merge($pastSkipped, $futureFinalized);
 
+        // ── Wochengerüst ────────────────────────────────────────────────────────
+        // Gleiches Gerüst wie bei der Erstgenerierung — sonst würde jede
+        // Neuberechnung die Wochenstruktur wieder dem Modell überlassen.
+        $windowFrom = \Carbon\CarbonImmutable::today();
+        $windowTo   = $windowFrom->addDays(min(Event::PLAN_HORIZON_DAYS, $event->days_until + 1) - 1);
+
+        $skeleton = app(\App\Services\WeeklyPatternService::class)->build(
+            $event,
+            $windowFrom,
+            $windowTo,
+            $weeklyAvailability,
+            $availabilityOverrides,
+            collect($finalizedForAI)->pluck('date')->all(),
+        );
+
+        $garminText = null;
+        if (! empty($user->garmin_session)) {
+            $summary    = app(\App\Services\GarminHealthSummary::class);
+            $garminText = $summary->toPromptSection($summary->forUser($user->id, $windowFrom));
+        }
+
         // ── Call OpenAI ─────────────────────────────────────────────────────────
         $openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
         try {
@@ -215,7 +236,7 @@ class RegeneratePlanJob implements ShouldQueue
                 $event, $profileData, $recentActivities, $wellbeingData,
                 $sessionRatings, $weeklyAvailability, $availabilityOverrides,
                 $trainingLoad, $pastPlanResults, $otherEvents, $finalizedForAI,
-                $followUpGoal
+                $followUpGoal, $skeleton, $garminText
             );
         } catch (\Throwable $e) {
             Log::error('RegeneratePlanJob: OpenAI error', ['error' => $e->getMessage(), 'user_id' => $this->userId]);
@@ -228,7 +249,17 @@ class RegeneratePlanJob implements ShouldQueue
         }
 
         $eventDateStr = $event->event_date->format('Y-m-d');
-        $aiSessions   = array_values(array_filter($aiSessions, fn ($s) => ($s['date'] ?? '') <= $eventDateStr));
+
+        $checked    = app(\App\Services\TrainingPlanValidator::class)
+            ->validate($aiSessions, $skeleton, $eventDateStr);
+        $aiSessions = $checked['sessions'];
+
+        if ($checked['report']) {
+            Log::info('Plan validator corrected the AI output', [
+                'user_id'     => $this->userId,
+                'corrections' => $checked['report'],
+            ]);
+        }
 
         // ── Replace plan in DB ──────────────────────────────────────────────────
         try {
