@@ -26,6 +26,9 @@ class RegistrationTest extends TestCase
         ]);
 
         $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+
+        // Neue Konten gehen zuerst durch das Onboarding — der Breeze-Test
+        // erwartete noch das Dashboard.
+        $response->assertRedirect(route('onboarding', absolute: false));
     }
 }

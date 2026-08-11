@@ -34,7 +34,7 @@ class SessionReviewTest extends TestCase
 
     public function test_review_feedback_is_saved_and_remembered_in_coach_notes(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->onboarded()->create();
         RunnerProfile::create(['user_id' => $user->id, 'coach_notes' => null]);
         $sessionId = $this->completedSessionWithQuestion($user);
 
@@ -55,7 +55,7 @@ class SessionReviewTest extends TestCase
 
     public function test_feedback_rejected_when_session_has_no_review_question(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->onboarded()->create();
         RunnerProfile::create(['user_id' => $user->id]);
         $sessionId = $this->completedSessionWithQuestion($user, [
             'review_question' => null,
@@ -71,8 +71,8 @@ class SessionReviewTest extends TestCase
 
     public function test_feedback_forbidden_for_other_users_session(): void
     {
-        $owner     = User::factory()->create();
-        $stranger  = User::factory()->create();
+        $owner     = User::factory()->onboarded()->create();
+        $stranger  = User::factory()->onboarded()->create();
         $sessionId = $this->completedSessionWithQuestion($owner);
 
         $this->actingAs($stranger)

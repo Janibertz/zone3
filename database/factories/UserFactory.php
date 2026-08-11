@@ -42,4 +42,19 @@ class UserFactory extends Factory
             'email_verified_at' => null,
         ]);
     }
+
+    /**
+     * Athlet mit abgeschlossenem Onboarding.
+     *
+     * Der grosse Teil der App liegt hinter der Middleware
+     * {@see \App\Http\Middleware\EnsureOnboardingComplete} — ohne diesen
+     * Zeitstempel landet jeder Aufruf bei einer Weiterleitung auf
+     * /onboarding statt bei der eigentlichen Seite.
+     */
+    public function onboarded(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'onboarding_completed_at' => now(),
+        ]);
+    }
 }
