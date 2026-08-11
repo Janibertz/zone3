@@ -255,14 +255,25 @@ const dateSpan = computed(() => {
     const d = days.value;
     return d.length ? `${fmtDM(d[0].date)} – ${fmtDM(d[d.length - 1].date)}` : '';
 });
-function nf(v, digits = 0) { return v == null ? '–' : Number(v).toLocaleString('de-DE', { minimumFractionDigits: digits, maximumFractionDigits: digits }); }
+/**
+ * Zahl fuers Auge. Nicht darstellbare Werte werden zu „–" statt zu „NaN" —
+ * genau das stand hier, weil unten das Ref selbst statt seines Werts
+ * uebergeben wurde.
+ */
+function nf(v, digits = 0) {
+    const n = Number(v);
+
+    return (v == null || !Number.isFinite(n))
+        ? '–'
+        : n.toLocaleString('de-DE', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
 
 const sideValues = computed(() => [
     { label: 'Schlaf',          value: nf(last('sleep_hours'), 1), unit: 'h'   },
     { label: 'HRV',             value: nf(last('hrv')),            unit: 'ms'  },
     { label: 'Ruhepuls',        value: nf(last('resting_hr')),     unit: 'bpm' },
     { label: 'Body Battery',    value: nf(last('body_battery_high')), unit: '' },
-    { label: 'Distanz 7 Tage',  value: nf(dist7, 1),               unit: 'km'  },
+    { label: 'Distanz 7 Tage',  value: nf(dist7.value, 1),         unit: 'km'  },
 ]);
 </script>
 

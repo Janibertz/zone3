@@ -535,6 +535,14 @@ const weekStrip = computed(() => {
 const weekSessionCount = computed(() => weekStrip.value.filter(d => d.km > 0).length);
 
 // ── Vergleich zur Vorwoche ───────────────────────────────────────────────────
+/**
+ * Bis zum selben Wochentag gerechnet.
+ *
+ * Vorher stand die laufende Woche gegen die komplette Vorwoche — am Montag
+ * und Dienstag kam damit zwangsläufig „−100 %" heraus, egal wie das
+ * Training lief. Verglichen wird jetzt derselbe Ausschnitt: Montag bis
+ * heute gegen Montag bis zum selben Wochentag der Vorwoche.
+ */
 const lastWeekKm = computed(() => {
     const now = new Date();
     const dow = (now.getDay() + 6) % 7;
@@ -546,11 +554,15 @@ const lastWeekKm = computed(() => {
     const lastWeekStart = new Date(thisWeekStart);
     lastWeekStart.setDate(thisWeekStart.getDate() - 7);
 
+    // Ende des Vergleichsfensters: gleich viele Tage wie in dieser Woche.
+    const lastWeekCutoff = new Date(lastWeekStart);
+    lastWeekCutoff.setDate(lastWeekStart.getDate() + dow + 1);
+
     const meters = props.recentActivities
         .filter(a => {
             if (!a.start_date) return false;
             const d = new Date(a.start_date);
-            return d >= lastWeekStart && d < thisWeekStart;
+            return d >= lastWeekStart && d < lastWeekCutoff;
         })
         .reduce((s, a) => s + (a.distance || 0), 0);
 

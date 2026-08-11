@@ -933,7 +933,7 @@ const lapHeightPct = computed(() => {
                         <StatTile label="Ausgelassen" :value="weeklyLoad.skipped" />
                     </div>
 
-                    <div class="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+                    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
 
                         <!-- ── Einheiten ───────────────────────────── -->
                         <section class="min-w-0">
@@ -1099,7 +1099,7 @@ const lapHeightPct = computed(() => {
                         </section>
 
                         <!-- ── Seitenspalte ────────────────────────── -->
-                        <aside class="min-w-0 space-y-4 xl:sticky xl:top-4 xl:self-start">
+                        <aside class="min-w-0 space-y-4 lg:sticky lg:top-4 lg:self-start">
 
                             <!-- Prognose -->
                             <AppCard v-if="prediction && !isPastEvent && !backyard" title="Leistungsprognose">

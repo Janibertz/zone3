@@ -71,15 +71,18 @@ const seriesSummary = computed(() => {
 });
 
 /**
- * Der aktuelle Zeitraum läuft noch — ein Vergleich mit dem
- * abgeschlossenen davor sagt trotzdem, wohin es geht.
+ * Der letzte Balken ist die laufende Woche beziehungsweise der laufende
+ * Monat und damit unvollständig. Ihn gegen einen fertigen Zeitraum zu
+ * stellen ergibt am Wochenanfang immer „−100 %", ganz gleich wie trainiert
+ * wurde. Verglichen werden deshalb die beiden letzten *abgeschlossenen*
+ * Zeiträume.
  */
 const momentum = computed(() => {
     const data = series.value;
-    if (data.length < 2) return null;
+    if (data.length < 3) return null;
 
-    const current  = data[data.length - 1].km;
-    const previous = data[data.length - 2].km;
+    const current  = data[data.length - 2].km;
+    const previous = data[data.length - 3].km;
     if (!previous) return null;
 
     const diff = current - previous;
@@ -87,6 +90,7 @@ const momentum = computed(() => {
         diff:    Math.round(diff * 10) / 10,
         percent: Math.round((diff / previous) * 100),
         up:      diff >= 0,
+        label:   range.value === 'weeks' ? 'letzte volle Woche' : 'letzter voller Monat',
     };
 });
 
@@ -289,6 +293,7 @@ const avgDistance = computed(() => {
                                             {{ momentum.up ? '+' : '' }}{{ momentum.percent }}%
                                         </p>
                                         <p v-else class="mt-1 text-[15px] font-semibold text-ink-3">–</p>
+                                        <p v-if="momentum" class="mt-0.5 text-[11px] text-ink-3">{{ momentum.label }}</p>
                                     </div>
                                 </div>
                             </AppCard>
