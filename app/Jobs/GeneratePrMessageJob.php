@@ -4,7 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Activity;
 use App\Models\User;
-use App\Services\OpenAIService;
+use App\Services\AI\CoachingTextService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -26,7 +26,7 @@ class GeneratePrMessageJob implements ShouldQueue
         public readonly int $userId,
     ) {}
 
-    public function handle(OpenAIService $openAI): void
+    public function handle(CoachingTextService $text): void
     {
         $user = User::find($this->userId);
         if (! $user) return;
@@ -43,7 +43,7 @@ class GeneratePrMessageJob implements ShouldQueue
             return;
         }
 
-        $message = $openAI
+        $message = $text
             ->withCoach($user->coach?->personality_prompt)
             ->forUser($user->id)
             ->generatePrMessage($prActivity);

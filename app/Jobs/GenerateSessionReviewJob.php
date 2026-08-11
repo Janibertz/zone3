@@ -4,7 +4,7 @@ namespace App\Jobs;
 
 use App\Models\CoachMessage;
 use App\Models\TrainingSession;
-use App\Services\OpenAIService;
+use App\Services\AI\SessionContentService;
 use App\Services\TrainingLoadService;
 use App\Services\WebPushService;
 use App\Services\WeatherService;
@@ -34,7 +34,7 @@ class GenerateSessionReviewJob implements ShouldQueue
     ) {}
 
     public function handle(
-        OpenAIService $openAI,
+        SessionContentService $sessions,
         WeatherService $weather,
         TrainingLoadService $loadService,
         WebPushService $push,
@@ -62,7 +62,7 @@ class GenerateSessionReviewJob implements ShouldQueue
         $facts = $this->buildFacts($session, $loadService);
         $label = $this->sessionLabel($session);
 
-        $result = $openAI
+        $result = $sessions
             ->withCoach($user->coach?->personality_prompt)
             ->forUser($user->id)
             ->generateSessionReview($user, $label, $facts);

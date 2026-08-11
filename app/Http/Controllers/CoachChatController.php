@@ -3,13 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\CoachMessage;
-use App\Services\OpenAIService;
+use App\Services\AI\CoachChatService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class CoachChatController extends Controller
 {
-    public function __construct(protected OpenAIService $openAI) {}
+    public function __construct(protected CoachChatService $chat) {}
 
     public function messages(Request $request): JsonResponse
     {

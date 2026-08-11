@@ -5,7 +5,7 @@ namespace App\Jobs;
 use App\Models\TrainingSession;
 use App\Models\WellbeingEntry;
 use App\Models\User;
-use App\Services\OpenAIService;
+use App\Services\AI\SessionContentService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -22,7 +22,7 @@ class AdjustPlanForWellbeingJob implements ShouldQueue
         public readonly int $wellbeingEntryId,
     ) {}
 
-    public function handle(OpenAIService $openAI): void
+    public function handle(SessionContentService $sessions): void
     {
         $user = User::find($this->userId);
         if (! $user) return;
@@ -48,7 +48,7 @@ class AdjustPlanForWellbeingJob implements ShouldQueue
             return;
         }
 
-        $adjusted = $openAI->adjustSessionForWellbeing($session->toArray(), $wellbeing);
+        $adjusted = $sessions->adjustSessionForWellbeing($session->toArray(), $wellbeing);
 
         if (! $adjusted) {
             Log::warning('AdjustPlanForWellbeingJob: AI returned no result', [

@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use App\Services\OpenAIService;
+use App\Services\AI\AthleteProfileService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -29,7 +29,7 @@ class ThresholdPaceTest extends TestCase
         ], 200)]);
 
         $user   = User::factory()->create();
-        $result = app(OpenAIService::class)->forUser($user->id)
+        $result = app(AthleteProfileService::class)->forUser($user->id)
             ->calculateThresholdPaceWithAI($this->activities(), 182);
 
         $this->assertNull($result);
@@ -47,7 +47,7 @@ class ThresholdPaceTest extends TestCase
         ], 200)]);
 
         $user   = User::factory()->create();
-        $result = app(OpenAIService::class)->forUser($user->id)
+        $result = app(AthleteProfileService::class)->forUser($user->id)
             ->calculateThresholdPaceWithAI($this->activities(), 182);
 
         $this->assertEqualsWithDelta(4.5, $result, 0.001); // 4:30 = 4.5 min/km

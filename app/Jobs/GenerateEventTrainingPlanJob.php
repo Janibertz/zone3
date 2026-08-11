@@ -6,7 +6,7 @@ use App\Models\Event;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
-use App\Services\OpenAIService;
+use App\Services\AI\TrainingPlanGenerator;
 use App\Services\PlanContextBuilder;
 use App\Services\WebPushService;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -34,7 +34,7 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
     ) {}
 
     public function handle(
-        OpenAIService $openAI,
+        TrainingPlanGenerator $planner,
         WebPushService $webPush,
         PlanContextBuilder $contextBuilder,
     ): void
@@ -68,9 +68,9 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
             ->get();
 
         // ── Call AI ──────────────────────────────────────────────────────────
-        $openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
+        $planner->withCoach($user->coach?->personality_prompt)->forUser($user->id);
         try {
-            $aiSessions = $openAI->generateEventTrainingPlan($context);
+            $aiSessions = $planner->generateEventTrainingPlan($context);
         } catch (\Throwable $e) {
             Log::error('GenerateEventTrainingPlanJob: OpenAI error', ['error' => $e->getMessage(), 'event_id' => $event->id]);
             $event->update(['plan_generating' => false, 'plan_error' => 'Der Coach konnte gerade keinen Plan erstellen. Bitte versuche es erneut.']);

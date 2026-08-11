@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use App\Models\RunnerProfile;
 use App\Models\TrainingSession;
 use App\Models\User;
-use App\Services\OpenAIService;
+use App\Services\AI\CoachChatService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -16,8 +16,8 @@ class CoachToolTest extends TestCase
 
     private function runTool(User $user, string $tool, array $args): array
     {
-        $svc    = app(OpenAIService::class);
-        $method = new \ReflectionMethod(OpenAIService::class, 'executeCoachTool');
+        $svc    = app(CoachChatService::class);
+        $method = new \ReflectionMethod(CoachChatService::class, 'executeCoachTool');
         $method->setAccessible(true);
         return $method->invoke($svc, $user->fresh(), $tool, $args);
     }

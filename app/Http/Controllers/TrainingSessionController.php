@@ -6,7 +6,8 @@ use App\Jobs\GenerateRacePredictionJob;
 use App\Jobs\GenerateSessionReviewJob;
 use App\Jobs\RegeneratePlanJob;
 use App\Models\TrainingSession;
-use App\Services\OpenAIService;
+use App\Services\AI\CoachingTextService;
+use App\Services\AI\SessionContentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -177,7 +178,7 @@ class TrainingSessionController extends Controller
     /**
      * Return AI nutrition tips for a session — served from DB cache, generated on first request.
      */
-    public function nutritionTips(TrainingSession $session, OpenAIService $openAI)
+    public function nutritionTips(TrainingSession $session, SessionContentService $sessions)
     {
         abort_if($session->user_id !== Auth::id(), 403);
         // Completed sessions show real Strava splits — no nutrition tips generated.
@@ -188,8 +189,8 @@ class TrainingSessionController extends Controller
             return response()->json($session->nutrition_tips);
         }
 
-        $openAI->withCoach(Auth::user()->coach?->personality_prompt)->forUser(Auth::id());
-        $tips = $openAI->generateNutritionTips([
+        $sessions->withCoach(Auth::user()->coach?->personality_prompt)->forUser(Auth::id());
+        $tips = $sessions->generateNutritionTips([
             'type'         => $session->type,
             'title'        => $session->title,
             'distance_km'  => $session->distance_km,
@@ -215,7 +216,7 @@ class TrainingSessionController extends Controller
      * Return structured workout steps for a session — served from DB cache, generated on first request.
      * Only for non-rest, non-race sessions.
      */
-    public function sessionSteps(TrainingSession $session, OpenAIService $openAI)
+    public function sessionSteps(TrainingSession $session, SessionContentService $sessions)
     {
         abort_if($session->user_id !== Auth::id(), 403);
         // Strength/core/mobility sessions carry their own "exercises" list — no run
@@ -231,8 +232,8 @@ class TrainingSessionController extends Controller
             ]);
         }
 
-        $openAI->withCoach(Auth::user()->coach?->personality_prompt)->forUser(Auth::id());
-        $steps = $openAI->generateSessionSteps($session);
+        $sessions->withCoach(Auth::user()->coach?->personality_prompt)->forUser(Auth::id());
+        $steps = $sessions->generateSessionSteps($session);
 
         if (! $steps) {
             return response()->json(['error' => 'Steps konnten nicht generiert werden.'], 500);
@@ -253,7 +254,7 @@ class TrainingSessionController extends Controller
     /**
      * Adjust a planned session harder or softer via AI.
      */
-    public function adjustIntensity(Request $request, TrainingSession $session, OpenAIService $openAI)
+    public function adjustIntensity(Request $request, TrainingSession $session, CoachingTextService $text)
     {
         abort_if($session->user_id !== Auth::id(), 403);
         abort_if($session->status !== 'planned', 422);
@@ -287,8 +288,8 @@ class TrainingSessionController extends Controller
             'intensity'    => $session->intensity,
         ];
 
-        $openAI->withCoach($user->coach?->personality_prompt)->forUser(Auth::id());
-        $adjusted = $openAI->adjustTodayRecommendation($current, $request->direction, $profile, $wellbeing);
+        $text->withCoach($user->coach?->personality_prompt)->forUser(Auth::id());
+        $adjusted = $text->adjustTodayRecommendation($current, $request->direction, $profile, $wellbeing);
 
         if (! $adjusted) {
             return response()->json(['error' => 'Anpassung fehlgeschlagen. Bitte versuche es erneut.'], 500);
@@ -305,7 +306,7 @@ class TrainingSessionController extends Controller
     /**
      * AI-adjust a single session based on today's wellbeing.
      */
-    public function adjust(TrainingSession $session, OpenAIService $openAI)
+    public function adjust(TrainingSession $session, SessionContentService $sessions)
     {
         abort_if($session->user_id !== Auth::id(), 403);
         abort_if($session->status !== 'planned', 422);
@@ -320,8 +321,8 @@ class TrainingSessionController extends Controller
             ], 422);
         }
 
-        $openAI->withCoach(Auth::user()->coach?->personality_prompt)->forUser(Auth::id());
-        $adjusted = $openAI->adjustSessionForWellbeing($session->toArray(), $wellbeing);
+        $sessions->withCoach(Auth::user()->coach?->personality_prompt)->forUser(Auth::id());
+        $adjusted = $sessions->adjustSessionForWellbeing($session->toArray(), $wellbeing);
 
         if (! $adjusted) {
             return response()->json(['error' => 'Anpassung fehlgeschlagen. Bitte versuche es erneut.'], 500);

@@ -5,7 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Goal;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
-use App\Services\OpenAIService;
+use App\Services\AI\CoachingTextService;
+use App\Services\AI\TrainingPlanGenerator;
 use App\Services\ProgressService;
 use App\Services\ReturnToRunService;
 use App\Services\WeatherService;
@@ -16,7 +17,8 @@ use Illuminate\Http\Request;
 class AIController extends Controller
 {
     public function __construct(
-        protected OpenAIService $openAI,
+        protected CoachingTextService $text,
+        protected TrainingPlanGenerator $planner,
         protected ProgressService $progress,
         protected WeatherService $weather,
         protected ReturnToRunService $returnToRun
@@ -56,8 +58,8 @@ class AIController extends Controller
             ->first();
 
         // Generate AI analysis
-        $this->openAI->withCoach($goal->user->coach?->personality_prompt)->forUser($goal->user_id);
-        $analysis = $this->openAI->analyzeTraining($goalData, $progressData, $recentActivities, $wellbeingData);
+        $this->text->withCoach($goal->user->coach?->personality_prompt)->forUser($goal->user_id);
+        $analysis = $this->text->analyzeTraining($goalData, $progressData, $recentActivities, $wellbeingData);
 
         return response()->json([
             'analysis' => $analysis,
@@ -87,8 +89,8 @@ class AIController extends Controller
         $progressData = $this->progress->calculateProgress($goal);
 
         // Generate plan
-        $this->openAI->withCoach($goal->user->coach?->personality_prompt)->forUser($goal->user_id);
-        $plan = $this->openAI->generateTrainingPlan($goalData, $progressData);
+        $this->planner->withCoach($goal->user->coach?->personality_prompt)->forUser($goal->user_id);
+        $plan = $this->planner->generateTrainingPlan($goalData, $progressData);
 
         return response()->json([
             'plan' => $plan,
@@ -117,8 +119,8 @@ class AIController extends Controller
                 ->get()
                 ->toArray();
 
-            $this->openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
-            $analysis = $this->openAI->analyzeTraining($goalData, $progressData, $recentActivities);
+            $this->text->withCoach($user->coach?->personality_prompt)->forUser($user->id);
+            $analysis = $this->text->analyzeTraining($goalData, $progressData, $recentActivities);
 
             $suggestions[] = [
                 'goal_id' => $goal->id,
@@ -210,8 +212,8 @@ class AIController extends Controller
             }
 
             if (! $recommendation) {
-                $this->openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
-                $recommendation = $this->openAI->generateTodayRecommendation(
+                $this->text->withCoach($user->coach?->personality_prompt)->forUser($user->id);
+                $recommendation = $this->text->generateTodayRecommendation(
                     $runnerProfile ? [
                         'threshold_heart_rate' => $runnerProfile->threshold_heart_rate,
                         'max_heart_rate'       => $runnerProfile->max_heart_rate,
@@ -294,8 +296,8 @@ class AIController extends Controller
         $runnerProfile  = $user->runnerProfile;
         $todayWellbeing = $user->wellbeingEntries()->whereDate('date', $today)->first();
 
-        $this->openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
-        $adjusted = $this->openAI->adjustTodayRecommendation(
+        $this->text->withCoach($user->coach?->personality_prompt)->forUser($user->id);
+        $adjusted = $this->text->adjustTodayRecommendation(
             $request->current,
             $request->direction,
             $runnerProfile ? [
@@ -344,8 +346,8 @@ class AIController extends Controller
             ])
             ->toArray();
 
-        $this->openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
-        $message = $this->openAI->generateDailyMessage(
+        $this->text->withCoach($user->coach?->personality_prompt)->forUser($user->id);
+        $message = $this->text->generateDailyMessage(
             $todaySession?->type,
             $todaySession?->title,
             $upcomingEvents,

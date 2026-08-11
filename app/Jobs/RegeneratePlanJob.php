@@ -5,7 +5,7 @@ namespace App\Jobs;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
-use App\Services\OpenAIService;
+use App\Services\AI\TrainingPlanGenerator;
 use App\Services\PlanContextBuilder;
 use App\Services\WebPushService;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -27,7 +27,7 @@ class RegeneratePlanJob implements ShouldQueue
     ) {}
 
     public function handle(
-        OpenAIService $openAI,
+        TrainingPlanGenerator $planner,
         WebPushService $webPush,
         PlanContextBuilder $contextBuilder,
     ): void
@@ -69,9 +69,9 @@ class RegeneratePlanJob implements ShouldQueue
             ->get();
 
         // ── Call OpenAI ─────────────────────────────────────────────────────────
-        $openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
+        $planner->withCoach($user->coach?->personality_prompt)->forUser($user->id);
         try {
-            $aiSessions = $openAI->generateEventTrainingPlan($context);
+            $aiSessions = $planner->generateEventTrainingPlan($context);
         } catch (\Throwable $e) {
             Log::error('RegeneratePlanJob: OpenAI error', ['error' => $e->getMessage(), 'user_id' => $this->userId]);
             return;

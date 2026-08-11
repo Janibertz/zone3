@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\OpenAIService;
+use App\Services\AI\CoachingTextService;
 use App\Services\WrappedService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,7 +35,7 @@ class WrappedController extends Controller
         ]);
     }
 
-    public function review(Request $request, OpenAIService $openAI): JsonResponse
+    public function review(Request $request, CoachingTextService $text): JsonResponse
     {
         $data  = $this->validatePeriod($request);
         $user  = $request->user();
@@ -49,9 +49,9 @@ class WrappedController extends Controller
         $hash = md5(json_encode($stats['totals']) . json_encode($stats['prs'] ?? []) . $stats['period_label']);
         $key  = "wrapped_review:{$user->id}:{$stats['period']}:{$stats['period_label']}:{$hash}";
 
-        $text = Cache::remember($key, now()->addDays(14), function () use ($openAI, $user, $stats) {
-            $openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
-            return $openAI->generateWrappedReview($stats, $stats['period_label']);
+        $text = Cache::remember($key, now()->addDays(14), function () use ($text, $user, $stats) {
+            $text->withCoach($user->coach?->personality_prompt)->forUser($user->id);
+            return $text->generateWrappedReview($stats, $stats['period_label']);
         });
 
         return response()->json(['text' => $text]);

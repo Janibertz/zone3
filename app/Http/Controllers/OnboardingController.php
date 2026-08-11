@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Coach;
 use App\Models\Event;
 use App\Models\RunnerProfile;
-use App\Services\OpenAIService;
+use App\Services\AI\AthleteProfileService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -48,7 +48,7 @@ class OnboardingController extends Controller
      * Estimate runner profile from simple race data via OpenAI.
      * Returns suggested values — user still confirms before saving.
      */
-    public function estimateProfile(Request $request, OpenAIService $openAI)
+    public function estimateProfile(Request $request, AthleteProfileService $profiles)
     {
         $validated = $request->validate([
             'age'           => 'required|integer|min:14|max:90',
@@ -57,7 +57,7 @@ class OnboardingController extends Controller
             'weekly_runs'   => 'required|integer|min:1|max:14',
         ]);
 
-        $estimate = $openAI->estimateProfileFromRaceData(
+        $estimate = $profiles->estimateProfileFromRaceData(
             $validated['age'],
             $validated['race_distance'],
             $validated['race_time'],

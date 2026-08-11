@@ -9,7 +9,7 @@ use App\Models\Event;
 use App\Models\RunnerProfile;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
-use App\Services\OpenAIService;
+use App\Services\AI\CoachingTextService;
 use App\Services\TrainingLoadService;
 use App\Services\WeatherService;
 use App\Services\WebPushService;
@@ -256,7 +256,7 @@ class TrainingPlanController extends Controller
      * Race-day pacing strategy: deterministic km splits for the target time
      * plus a cached AI strategy text (generated on first view during race week).
      */
-    public function raceStrategy(Event $event, OpenAIService $openAI, WeatherService $weather)
+    public function raceStrategy(Event $event, CoachingTextService $text, WeatherService $weather)
     {
         abort_if($event->user_id !== Auth::id(), 403);
 
@@ -280,8 +280,8 @@ class TrainingPlanController extends Controller
             $user        = Auth::user();
             $weatherData = ($event->days_until >= 0 && $event->days_until <= 7) ? $weather->forUser($user) : null;
 
-            $openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
-            $strategyText = $openAI->generateRaceStrategy([
+            $text->withCoach($user->coach?->personality_prompt)->forUser($user->id);
+            $strategyText = $text->generateRaceStrategy([
                 'name'                  => $event->name,
                 'race_distance'         => $event->distance_label,
                 'target_time_formatted' => $event->target_time_formatted ?? 'nicht gesetzt',
@@ -305,7 +305,7 @@ class TrainingPlanController extends Controller
      * Post-race analysis: matches the Strava race run and returns a cached AI
      * analysis (generated on first view after the race).
      */
-    public function raceAnalysis(Event $event, OpenAIService $openAI)
+    public function raceAnalysis(Event $event, CoachingTextService $text)
     {
         abort_if($event->user_id !== Auth::id(), 403);
 
@@ -331,8 +331,8 @@ class TrainingPlanController extends Controller
         // Regenerate when not yet generated or the matched activity changed.
         if (! $analysisText || $plan->race_analysis_activity_id !== $activity->id) {
             $user = Auth::user();
-            $openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
-            $analysisText = $openAI->generateRaceAnalysis([
+            $text->withCoach($user->coach?->personality_prompt)->forUser($user->id);
+            $analysisText = $text->generateRaceAnalysis([
                 'name'          => $event->name,
                 'race_distance' => $event->distance_label,
             ], $event->target_time_formatted, [

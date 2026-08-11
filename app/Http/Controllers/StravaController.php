@@ -12,7 +12,6 @@ use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\BestEffortService;
-use App\Services\OpenAIService;
 use App\Services\StravaService;
 use App\Services\WebPushService;
 use Illuminate\Http\RedirectResponse;

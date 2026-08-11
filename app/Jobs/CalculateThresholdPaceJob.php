@@ -4,7 +4,7 @@ namespace App\Jobs;
 
 use App\Models\RunnerProfile;
 use App\Models\User;
-use App\Services\OpenAIService;
+use App\Services\AI\AthleteProfileService;
 use App\Services\WebPushService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -18,7 +18,7 @@ class CalculateThresholdPaceJob implements ShouldQueue
 
     public function __construct(public readonly int $userId) {}
 
-    public function handle(OpenAIService $openAI, WebPushService $webPush): void
+    public function handle(AthleteProfileService $profiles, WebPushService $webPush): void
     {
         $user = User::find($this->userId);
         if (! $user) return;
@@ -43,7 +43,7 @@ class CalculateThresholdPaceJob implements ShouldQueue
             ['has_completed_setup' => false]
         );
 
-        $thresholdPace = $openAI->calculateThresholdPaceWithAI($last20, $profile->threshold_heart_rate);
+        $thresholdPace = $profiles->calculateThresholdPaceWithAI($last20, $profile->threshold_heart_rate);
 
         if ($thresholdPace === null) {
             $profile->threshold_pace_calculating = false;

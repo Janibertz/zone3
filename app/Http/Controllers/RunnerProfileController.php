@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\RunnerProfile;
-use App\Services\OpenAIService;
+use App\Services\AI\AthleteProfileService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -80,7 +80,7 @@ class RunnerProfileController extends Controller
     /**
      * Preview pace zones based on input (for real-time preview)
      */
-    public function previewZones(Request $request, OpenAIService $openAIService)
+    public function previewZones(Request $request, AthleteProfileService $profiles)
     {
         $validated = $request->validate([
             'threshold_speed' => 'required|string|regex:/^[0-9]{1,2}:[0-9]{2}$/',
@@ -89,7 +89,7 @@ class RunnerProfileController extends Controller
         ]);
 
         // Prefer ChatGPT-based zone calculation
-        $zones = $openAIService->calculatePaceZonesWithAI($validated['threshold_speed']);
+        $zones = $profiles->calculatePaceZonesWithAI($validated['threshold_speed']);
 
         // Fallback to local calculation if AI failed
         if (empty($zones)) {

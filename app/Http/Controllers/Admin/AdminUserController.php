@@ -8,7 +8,7 @@ use App\Models\AiLog;
 use App\Models\RunnerProfile;
 use App\Models\User;
 use App\Models\WeeklyReview;
-use App\Services\OpenAIService;
+use App\Services\AI\CoachingTextService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Password;
@@ -149,16 +149,16 @@ class AdminUserController extends Controller
         return back()->with('success', 'Tagesempfehlung wurde zurückgesetzt.');
     }
 
-    public function triggerWeeklyReview(User $user, OpenAIService $openAI)
+    public function triggerWeeklyReview(User $user, CoachingTextService $text)
     {
         $weekStart = Carbon::now()->startOfWeek(Carbon::MONDAY)->subWeek()->toDateString();
         $weekEnd   = Carbon::now()->startOfWeek(Carbon::MONDAY)->subDay()->toDateString();
 
         WeeklyReview::where('user_id', $user->id)->where('week_start', $weekStart)->delete();
 
-        $openAI->withCoach($user->coach?->personality_prompt);
-        $openAI->forUser($user->id);
-        $content = $openAI->generateWeeklyReview($user, $weekStart, $weekEnd);
+        $text->withCoach($user->coach?->personality_prompt);
+        $text->forUser($user->id);
+        $content = $text->generateWeeklyReview($user, $weekStart, $weekEnd);
 
         if ($content) {
             WeeklyReview::create([

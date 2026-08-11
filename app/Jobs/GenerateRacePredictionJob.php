@@ -6,7 +6,7 @@ use App\Models\Event;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
-use App\Services\OpenAIService;
+use App\Services\AI\CoachingTextService;
 use App\Services\PredictFinishTimeService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -23,7 +23,7 @@ class GenerateRacePredictionJob implements ShouldQueue
         public readonly int $planId,
     ) {}
 
-    public function handle(PredictFinishTimeService $predictor, OpenAIService $openAI): void
+    public function handle(PredictFinishTimeService $predictor, CoachingTextService $text): void
     {
         $plan = TrainingPlan::with('event')->find($this->planId);
         if (! $plan || ! $plan->event) return;
@@ -61,8 +61,8 @@ class GenerateRacePredictionJob implements ShouldQueue
             'days_until'            => $event->days_until,
         ];
 
-        $openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
-        $text = $openAI->generateRacePredictionText($data, $eventData, $recentSessions);
+        $text->withCoach($user->coach?->personality_prompt)->forUser($user->id);
+        $text = $text->generateRacePredictionText($data, $eventData, $recentSessions);
 
         // ── Persist to plan ────────────────────────────────────────────────────
         $plan->update([

@@ -3,13 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\WikiChangelog;
-use App\Services\OpenAIService;
+use App\Services\AI\CoachingTextService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class WebhookController extends Controller
 {
-    public function github(Request $request, OpenAIService $openAI)
+    public function github(Request $request, CoachingTextService $text)
     {
         // Verify GitHub signature
         $secret = config('services.github.webhook_secret');
@@ -67,7 +67,7 @@ class WebhookController extends Controller
         // Generate AI summary
         $aiSummary = null;
         try {
-            $aiSummary = $openAI->generateChangelogSummary($commits, $filesChanged);
+            $aiSummary = $text->generateChangelogSummary($commits, $filesChanged);
         } catch (\Throwable $e) {
             Log::warning('Wiki changelog: AI summary failed', ['error' => $e->getMessage()]);
         }
