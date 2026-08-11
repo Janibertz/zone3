@@ -20,19 +20,18 @@ use Illuminate\Support\Facades\Log;
  */
 class OpenAIClient
 {
-    private string $apiKey;
-    private string $baseUrl;
-    private string $model;
-    private string $modelMini;
-    private ?string $coachPrompt = null;
-    private ?int $userId = null;
+    protected string $apiKey;
+    protected string $model;
+    protected string $modelMini;
+    protected string $baseUrl = 'https://api.openai.com/v1';
+    protected ?string $coachPersonality = null;
+    protected ?int $userId = null;
 
     public function __construct()
     {
-        $this->apiKey    = config('services.openai.key') ?? env('OPENAI_API_KEY', '');
-        $this->baseUrl   = 'https://api.openai.com/v1';
-        $this->model     = env('OPENAI_MODEL', 'gpt-5.5-2026-04-23');
-        $this->modelMini = env('OPENAI_MODEL_MINI', 'gpt-5.4-mini');
+        $this->apiKey    = config('services.openai.api_key');
+        $this->model     = config('services.openai.model',      'gpt-5.5-2026-04-23');
+        $this->modelMini = config('services.openai.model_mini', 'gpt-5.4-mini');
     }
 
     /** Das grosse Modell — fuer Plaene, Schwellenpace und Coach-Chat. */
@@ -49,7 +48,7 @@ class OpenAIClient
 
     public function withCoach(?string $personalityPrompt): static
     {
-        $this->coachPrompt = $personalityPrompt;
+        $this->coachPersonality = $personalityPrompt;
 
         return $this;
     }
@@ -196,6 +195,66 @@ class OpenAIClient
             Log::error("OpenAI {$callType} Exception", ['error' => $e->getMessage()]);
             return null;
         }
+    }
+
+    /**
+     * Ein Aufruf mit Werkzeugen.
+     *
+     * Anders als {@see chat()} liefert er die ganze Antwort zurueck: der
+     * Coach-Chat muss zwischen einer Textantwort und einem Werkzeugaufruf
+     * unterscheiden und die Schleife selbst weiterdrehen. Vorher baute er
+     * sich diesen Aufruf samt Schluessel und Protokolleintrag selbst
+     * zusammen — beim Zerlegen waere ihm der Schluessel abhanden gekommen.
+     *
+     * @return array|null Der dekodierte Antwortkoerper, null bei Fehler.
+     */
+    public function chatWithTools(
+        string $callType,
+        array  $messages,
+        array  $tools,
+        int    $maxTokens = 2500,
+        int    $timeout   = 90,
+    ): ?array {
+        $startMs = (int) round(microtime(true) * 1000);
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $this->apiKey,
+            'Content-Type'  => 'application/json',
+        ])->timeout($timeout)->post($this->baseUrl . '/chat/completions', [
+            'model'                 => $this->model,
+            'messages'              => $messages,
+            'max_completion_tokens' => $maxTokens,
+            'tools'                 => $tools,
+            'tool_choice'           => 'auto',
+        ]);
+
+        $durationMs = (int) round(microtime(true) * 1000) - $startMs;
+        $body       = $response->json() ?? [];
+        $usage      = $body['usage'] ?? [];
+
+        AiLog::create([
+            'user_id'           => $this->userId,
+            'call_type'         => $callType,
+            'model'             => $this->model,
+            'prompt_tokens'     => $usage['prompt_tokens']     ?? 0,
+            'completion_tokens' => $usage['completion_tokens'] ?? 0,
+            'total_tokens'      => $usage['total_tokens']      ?? 0,
+            'cost_eur'          => AiLog::calculateCost($this->model, $usage['prompt_tokens'] ?? 0, $usage['completion_tokens'] ?? 0),
+            'duration_ms'       => $durationMs,
+            'status'            => $response->failed() ? 'error' : 'success',
+            'error_message'     => $response->failed()
+                ? 'HTTP ' . $response->status() . ': ' . mb_substr($response->body(), 0, 300)
+                : null,
+            'full_response'     => data_get($body, 'choices.0.message.content', ''),
+        ]);
+
+        if ($response->failed()) {
+            Log::error("OpenAI {$callType} Error", ['status' => $response->status()]);
+
+            return null;
+        }
+
+        return $body;
     }
 
     /**

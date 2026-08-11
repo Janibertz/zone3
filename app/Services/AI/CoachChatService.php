@@ -2,10 +2,6 @@
 
 namespace App\Services\AI;
 
-use App\Models\AiLog;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-
 /**
  * Der Chat mit dem Coach — inklusive der Werkzeuge, mit denen das Modell
  * Trainingsdaten lesen und Einheiten aendern darf.
@@ -371,37 +367,10 @@ class CoachChatService
         $actionsTaken = [];
 
         for ($i = 0; $i < 3; $i++) {
-            $startMs  = (int)round(microtime(true)*1000);
-            $response = Http::withHeaders(['Authorization'=>'Bearer '.$this->apiKey,'Content-Type'=>'application/json'])
-                ->timeout(90)
-                ->post($this->baseUrl.'/chat/completions', [
-                    'model'                 => $this->ai->main(),
-                    'messages'              => $messages,
-                    'max_completion_tokens' => 2500,
-                    'tools'                 => $tools,
-                    'tool_choice'           => 'auto',
-                ]);
+            $body   = $this->ai->chatWithTools('coach_chat', $messages, $tools);
+            $choice = $body['choices'][0] ?? null;
 
-            $durationMs = (int)round(microtime(true)*1000) - $startMs;
-            $body       = $response->json() ?? [];
-            $usage      = $body['usage'] ?? [];
-            $choice     = $body['choices'][0] ?? null;
-
-            AiLog::create([
-                'user_id'           => $this->userId,
-                'call_type'         => 'coach_chat',
-                'model'             => $this->ai->main(),
-                'prompt_tokens'     => $usage['prompt_tokens'] ?? 0,
-                'completion_tokens' => $usage['completion_tokens'] ?? 0,
-                'total_tokens'      => $usage['total_tokens'] ?? 0,
-                'cost_eur'          => AiLog::calculateCost($this->ai->main(), $usage['prompt_tokens'] ?? 0, $usage['completion_tokens'] ?? 0),
-                'duration_ms'       => $durationMs,
-                'status'            => $response->failed() ? 'error' : 'success',
-                'error_message'     => $response->failed() ? ('HTTP '.$response->status().': '.mb_substr($response->body(),0,300)) : null,
-                'full_response'     => data_get($body,'choices.0.message.content',''),
-            ]);
-
-            if ($response->failed() || !$choice) break;
+            if (! $choice) break;
 
             $assistantMsg = $choice['message'];
             $finishReason = $choice['finish_reason'] ?? 'stop';
