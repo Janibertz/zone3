@@ -909,22 +909,25 @@ PROMPT;
      * Each session: date, type, title, description, distance_km, duration_min,
      *               pace_target, zone, intensity.
      */
-    public function generateEventTrainingPlan(
-        \App\Models\Event $event,
-        ?array $profile,
-        array $recentActivities,
-        array $wellbeingData,
-        array $sessionRatings = [],
-        ?array $weeklyAvailability = null,
-        array $availabilityOverrides = [],
-        ?array $trainingLoad = null,
-        array $pastPlanResults = [],
-        array $otherEvents = [],
-        array $finalizedSessions = [],
-        ?array $followUpGoal = null,
-        ?array $skeleton = null,
-        ?string $garminText = null,
-    ): ?array {
+    public function generateEventTrainingPlan(PlanContext $c): ?array
+    {
+        // Die lange Parameterliste ist einem benannten Kontext gewichen. Die
+        // lokalen Namen bleiben, damit der Prompt darunter unveraendert ist.
+        $event                 = $c->event;
+        $profile               = $c->profile;
+        $recentActivities      = $c->recentActivities;
+        $wellbeingData         = $c->wellbeing;
+        $sessionRatings        = $c->sessionRatings;
+        $weeklyAvailability    = $c->weeklyAvailability;
+        $availabilityOverrides = $c->availabilityOverrides;
+        $trainingLoad          = $c->trainingLoad;
+        $pastPlanResults       = $c->pastPlanResults;
+        $otherEvents           = $c->otherEvents;
+        $finalizedSessions     = $c->finalizedSessions;
+        $followUpGoal          = $c->followUpGoal;
+        $skeleton              = $c->skeleton;
+        $garminText            = $c->garminText;
+
         $today        = now()->format('Y-m-d');
         $eventDate    = $event->event_date->format('Y-m-d');
         $daysUntil    = $event->days_until;

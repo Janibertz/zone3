@@ -7,7 +7,7 @@ use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\OpenAIService;
-use App\Services\TrainingLoadService;
+use App\Services\PlanContextBuilder;
 use App\Services\WebPushService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -33,7 +33,11 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
         public readonly int $userId,
     ) {}
 
-    public function handle(OpenAIService $openAI, WebPushService $webPush, TrainingLoadService $trainingLoadService): void
+    public function handle(
+        OpenAIService $openAI,
+        WebPushService $webPush,
+        PlanContextBuilder $contextBuilder,
+    ): void
     {
         $user  = User::find($this->userId);
         $event = Event::where('id', $this->eventId)->where('user_id', $this->userId)->first();
@@ -47,195 +51,26 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
             return;
         }
 
-        // ── Gather context data ──────────────────────────────────────────────
-        $recentActivities = $user->activities()
-            ->where('start_date', '>=', now()->subWeeks(4))
-            ->orderByDesc('start_date')
-            ->limit(20)
-            ->get(\App\Models\Activity::SUMMARY_COLUMNS)
-            ->map(fn ($a) => [
-                'date'         => $a->start_date?->format('Y-m-d') ?? '',
-                'name'         => $a->name,
-                'distance_km'  => round($a->distance / 1000, 2),
-                'duration_min' => (int) round($a->moving_time / 60),
-                'pace'         => $a->average_speed > 0 ? $this->formatPace($a->average_speed) : null,
-                'avg_hr'       => $a->average_heartrate ? (int) $a->average_heartrate : null,
-            ])
-            ->toArray();
-
-        $wellbeingData = $user->wellbeingEntries()
-            ->where('date', '>=', now()->subDays(14)->toDateString())
-            ->orderByDesc('date')
-            ->limit(14)
-            ->get()
-            ->map(fn ($w) => [
-                'date'       => $w->date->format('Y-m-d'),
-                'energy'     => $w->energy_level,
-                'sleep'      => $w->sleep_quality,
-                'soreness'   => $w->muscle_soreness,
-                'stress'     => $w->stress_level,
-                'is_sick'    => $w->is_sick,
-                'is_injured' => $w->is_injured,
-            ])
-            ->toArray();
-
-        $profileData = null;
-        if ($rp = $user->runnerProfile) {
-            $pace = $rp->threshold_speed;
-            $mins = (int) $pace;
-            $secs = (int) (($pace - $mins) * 60);
-            $profileData = [
-                'threshold_pace' => sprintf('%d:%02d', $mins, $secs),
-                'threshold_hr'   => $rp->threshold_heart_rate,
-                'max_hr'         => $rp->max_heart_rate,
-                'strength'       => [
-                    'enabled'       => (bool) $rp->strength_enabled,
-                    'days_per_week' => $rp->strength_days_per_week,
-                    'equipment'     => $rp->strength_equipment ?? [],
-                    'experience'    => $rp->strength_experience,
-                ],
-            ];
-        }
-
-        $sessionRatings = TrainingSession::where('user_id', $user->id)
-            ->whereNotNull('rating')
-            ->where('status', 'completed')
-            ->orderByDesc('planned_date')
-            ->limit(30)
-            ->get()
-            ->map(fn ($s) => [
-                'date'             => $s->planned_date->format('Y-m-d'),
-                'type'             => $s->type,
-                'distance_km'      => $s->distance_km,
-                'rating'           => $s->rating,
-                'effort_perceived' => $s->effort_perceived,
-                'feeling_notes'    => $s->feeling_notes,
-            ])
-            ->toArray();
-
-        $weeklyAvailability = $user->runnerProfile?->weekly_availability ?? null;
-
+        // ── Kontext ──────────────────────────────────────────────────────────
+        // Sammeln, Wochengeruest und Garmin-Zusammenfassung liegen im
+        // PlanContextBuilder — die Neuberechnung nutzt denselben Weg.
         $existingPlan = TrainingPlan::where('event_id', $event->id)
             ->where('user_id', $user->id)
             ->latest()
             ->first();
-        $availabilityOverrides = $existingPlan?->availability_overrides ?? [];
+
+        $context  = $contextBuilder->build($user, $event, $existingPlan?->availability_overrides ?? []);
+        $skeleton = $context->skeleton;
 
         $existingPlanIds   = TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->pluck('id');
         $preservedSessions = TrainingSession::whereIn('training_plan_id', $existingPlanIds)
             ->whereIn('status', ['skipped', 'completed'])
             ->get();
 
-        $futureFinalized = $preservedSessions
-            ->where('planned_date', '>=', now()->toDateString())
-            ->map(fn ($s) => [
-                'date'        => $s->planned_date->format('Y-m-d'),
-                'type'        => $s->type,
-                'status'      => $s->status,
-                'skip_reason' => $s->skip_reason,
-            ])
-            ->values()
-            ->toArray();
-
-        $pastSkipped = TrainingSession::where('user_id', $user->id)
-            ->where('status', 'skipped')
-            ->where('planned_date', '>=', now()->subDays(7)->toDateString())
-            ->where('planned_date', '<', now()->toDateString())
-            ->get()
-            ->map(fn ($s) => [
-                'date'        => $s->planned_date->format('Y-m-d'),
-                'type'        => $s->type,
-                'status'      => 'skipped',
-                'skip_reason' => $s->skip_reason,
-            ])
-            ->values()
-            ->toArray();
-
-        $finalizedForAI = array_merge($pastSkipped, $futureFinalized);
-
-        $pastPlanResults = TrainingPlan::where('user_id', $user->id)
-            ->whereNotNull('overall_rating')
-            ->whereHas('event', fn ($q) => $q->where('event_date', '<', now()->toDateString()))
-            ->with('event:id,name,race_distance,target_time_hours,target_time_minutes')
-            ->latest()
-            ->limit(3)
-            ->get()
-            ->map(fn ($p) => [
-                'event_name'     => $p->event->name,
-                'race_distance'  => $p->event->race_distance,
-                'target_time'    => sprintf('%d:%02d', $p->event->target_time_hours, $p->event->target_time_minutes),
-                'actual_time'    => $p->actual_time_hours !== null
-                    ? sprintf('%d:%02d', $p->actual_time_hours, $p->actual_time_minutes)
-                    : null,
-                'overall_rating' => $p->overall_rating,
-                'result_notes'   => $p->result_notes,
-            ])
-            ->toArray();
-
-        $trainingLoad = $trainingLoadService->calculate($user->id);
-
-        $planEnd     = now()->addDays(10)->format('Y-m-d');
-        $otherEvents = Event::where('user_id', $user->id)
-            ->where('id', '!=', $event->id)
-            ->where('event_date', '>=', now()->toDateString())
-            ->where('event_date', '<=', $planEnd)
-            ->get()
-            ->map(fn ($e) => [
-                'date'     => $e->event_date->format('Y-m-d'),
-                'name'     => $e->name,
-                'distance' => $e->distance_label,
-                'priority' => $e->priority,
-            ])
-            ->toArray();
-
-        // Follow-up goal: the next A/B race AFTER this event (even far in the future).
-        // Lets the coach preserve the speed this athlete will need next — e.g. a marathon
-        // after a Backyard block, so threshold pace doesn't decay.
-        $followUpEvent = Event::where('user_id', $user->id)
-            ->where('id', '!=', $event->id)
-            ->whereDate('event_date', '>', $event->event_date->toDateString())
-            ->whereIn('priority', ['A', 'B'])
-            ->orderBy('event_date')
-            ->first();
-        $followUpGoal = $followUpEvent ? [
-            'date'     => $followUpEvent->event_date->format('Y-m-d'),
-            'name'     => $followUpEvent->name,
-            'distance' => $followUpEvent->distance_label,
-            'priority' => $followUpEvent->priority,
-        ] : null;
-
-        // ── Wochengerüst ─────────────────────────────────────────────────────
-        // Die Wochenstruktur wird hier festgelegt, nicht vom Modell. Sie geht
-        // als Belegung in den Prompt und dient danach dem Validator als Maß.
-        $windowFrom = \Carbon\CarbonImmutable::today();
-        $windowTo   = $windowFrom->addDays(min(Event::PLAN_HORIZON_DAYS, $event->days_until + 1) - 1);
-
-        $skeleton = app(\App\Services\WeeklyPatternService::class)->build(
-            $event,
-            $windowFrom,
-            $windowTo,
-            $weeklyAvailability,
-            $availabilityOverrides,
-            collect($finalizedForAI)->pluck('date')->all(),
-        );
-
-        // Gemessene Erholungswerte der Uhr — bisher floss nur das selbst
-        // eingetragene Wellbeing in die Planung ein.
-        $garminText = null;
-        if (! empty($user->garmin_session)) {
-            $summary    = app(\App\Services\GarminHealthSummary::class);
-            $garminText = $summary->toPromptSection($summary->forUser($user->id, $windowFrom));
-        }
-
         // ── Call AI ──────────────────────────────────────────────────────────
         $openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
         try {
-            $aiSessions = $openAI->generateEventTrainingPlan(
-                $event, $profileData, $recentActivities, $wellbeingData,
-                $sessionRatings, $weeklyAvailability, $availabilityOverrides,
-                $trainingLoad, $pastPlanResults, $otherEvents, $finalizedForAI,
-                $followUpGoal, $skeleton, $garminText
-            );
+            $aiSessions = $openAI->generateEventTrainingPlan($context);
         } catch (\Throwable $e) {
             Log::error('GenerateEventTrainingPlanJob: OpenAI error', ['error' => $e->getMessage(), 'event_id' => $event->id]);
             $event->update(['plan_generating' => false, 'plan_error' => 'Der Coach konnte gerade keinen Plan erstellen. Bitte versuche es erneut.']);
@@ -276,11 +111,11 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
                 'event_id' => $event->id,
                 'sessions' => $aiSessions,
                 'context'  => [
-                    'activities_used'    => count($recentActivities),
-                    'wellbeing_entries'  => count($wellbeingData),
-                    'has_runner_profile' => (bool) $profileData,
+                    'activities_used'    => count($context->recentActivities),
+                    'wellbeing_entries'  => count($context->wellbeing),
+                    'has_runner_profile' => $context->profile !== null,
                     'days_until_event'   => $event->days_until,
-                    'used_garmin'        => $garminText !== null,
+                    'used_garmin'        => $context->garminText !== null,
                     'weekly_pattern'     => collect($skeleton['weeks'])
                         ->map(fn ($w) => $w['planned'])->all(),
                     'corrections'        => $checked['report'],

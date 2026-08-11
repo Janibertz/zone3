@@ -2,12 +2,11 @@
 
 namespace App\Jobs;
 
-use App\Models\Event;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\OpenAIService;
-use App\Services\TrainingLoadService;
+use App\Services\PlanContextBuilder;
 use App\Services\WebPushService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -27,7 +26,11 @@ class RegeneratePlanJob implements ShouldQueue
         public readonly bool $userTriggered = false, // bypass debounce for user actions (skip/complete)
     ) {}
 
-    public function handle(OpenAIService $openAI, WebPushService $webPush, TrainingLoadService $trainingLoadService): void
+    public function handle(
+        OpenAIService $openAI,
+        WebPushService $webPush,
+        PlanContextBuilder $contextBuilder,
+    ): void
     {
         $user = User::find($this->userId);
         if (! $user) return;
@@ -53,191 +56,22 @@ class RegeneratePlanJob implements ShouldQueue
             return;
         }
 
-        // ── Gather context (mirrors TrainingPlanController::generate) ───────────
-        $recentActivities = $user->activities()
-            ->where('start_date', '>=', now()->subWeeks(4))
-            ->orderByDesc('start_date')
-            ->limit(20)
-            ->get()
-            ->map(fn ($a) => [
-                'date'         => $a->start_date?->format('Y-m-d') ?? '',
-                'name'         => $a->name,
-                'distance_km'  => round($a->distance / 1000, 2),
-                'duration_min' => (int) round($a->moving_time / 60),
-                'pace'         => $a->average_speed > 0 ? $this->formatPace($a->average_speed) : null,
-                'avg_hr'       => $a->average_heartrate ? (int) $a->average_heartrate : null,
-            ])
-            ->toArray();
+        // ── Kontext ─────────────────────────────────────────────────────────────
+        // Derselbe Aufbau wie bei der Erstgenerierung. Vorher lagen hier
+        // ~150 kopierte Zeilen, die bereits auseinandergelaufen waren.
+        $context  = $contextBuilder->build($user, $event, $plan->availability_overrides ?? []);
+        $skeleton = $context->skeleton;
 
-        $wellbeingData = $user->wellbeingEntries()
-            ->where('date', '>=', now()->subDays(14)->toDateString())
-            ->orderByDesc('date')
-            ->limit(14)
-            ->get()
-            ->map(fn ($w) => [
-                'date'       => $w->date->format('Y-m-d'),
-                'energy'     => $w->energy_level,
-                'sleep'      => $w->sleep_quality,
-                'soreness'   => $w->muscle_soreness,
-                'stress'     => $w->stress_level,
-                'is_sick'    => $w->is_sick,
-                'is_injured' => $w->is_injured,
-            ])
-            ->toArray();
-
-        $profileData = null;
-        if ($rp = $user->runnerProfile) {
-            $pace = $rp->threshold_speed;
-            $mins = (int) $pace;
-            $secs = (int) (($pace - $mins) * 60);
-            $profileData = [
-                'threshold_pace' => sprintf('%d:%02d', $mins, $secs),
-                'threshold_hr'   => $rp->threshold_heart_rate,
-                'max_hr'         => $rp->max_heart_rate,
-                'strength'       => [
-                    'enabled'       => (bool) $rp->strength_enabled,
-                    'days_per_week' => $rp->strength_days_per_week,
-                    'equipment'     => $rp->strength_equipment ?? [],
-                    'experience'    => $rp->strength_experience,
-                ],
-            ];
-        }
-
-        $sessionRatings = TrainingSession::where('user_id', $user->id)
-            ->whereNotNull('rating')
-            ->where('status', 'completed')
-            ->orderByDesc('planned_date')
-            ->limit(30)
-            ->get()
-            ->map(fn ($s) => [
-                'date'             => $s->planned_date->format('Y-m-d'),
-                'type'             => $s->type,
-                'distance_km'      => $s->distance_km,
-                'rating'           => $s->rating,
-                'effort_perceived' => $s->effort_perceived,
-                'feeling_notes'    => $s->feeling_notes,
-            ])
-            ->toArray();
-
-        $weeklyAvailability    = $user->runnerProfile?->weekly_availability ?? null;
-        $availabilityOverrides = $plan->availability_overrides ?? [];
-
-        $pastPlanResults = TrainingPlan::where('user_id', $user->id)
-            ->whereNotNull('overall_rating')
-            ->whereHas('event', fn ($q) => $q->where('event_date', '<', now()->toDateString()))
-            ->with('event:id,name,race_distance,target_time_hours,target_time_minutes')
-            ->latest()
-            ->limit(3)
-            ->get()
-            ->map(fn ($p) => [
-                'event_name'     => $p->event->name,
-                'race_distance'  => $p->event->race_distance,
-                'target_time'    => sprintf('%d:%02d', $p->event->target_time_hours, $p->event->target_time_minutes),
-                'actual_time'    => $p->actual_time_hours !== null
-                    ? sprintf('%d:%02d', $p->actual_time_hours, $p->actual_time_minutes)
-                    : null,
-                'overall_rating' => $p->overall_rating,
-                'result_notes'   => $p->result_notes,
-            ])
-            ->toArray();
-
-        $trainingLoad = $trainingLoadService->calculate($user->id);
-
-        $planWindowEnd = now()->addDays(10)->format('Y-m-d');
-        $otherEvents   = Event::where('user_id', $user->id)
-            ->where('id', '!=', $event->id)
-            ->where('event_date', '>=', now()->toDateString())
-            ->where('event_date', '<=', $planWindowEnd)
-            ->get()
-            ->map(fn ($e) => [
-                'date'     => $e->event_date->format('Y-m-d'),
-                'name'     => $e->name,
-                'distance' => $e->distance_label,
-                'priority' => $e->priority,
-            ])
-            ->toArray();
-
-        // Follow-up goal: the next A/B race after this event — keeps speed preservation
-        // intact when the rolling window auto-extends a Backyard/Ultra plan.
-        $followUpEvent = Event::where('user_id', $user->id)
-            ->where('id', '!=', $event->id)
-            ->whereDate('event_date', '>', $event->event_date->toDateString())
-            ->whereIn('priority', ['A', 'B'])
-            ->orderBy('event_date')
-            ->first();
-        $followUpGoal = $followUpEvent ? [
-            'date'     => $followUpEvent->event_date->format('Y-m-d'),
-            'name'     => $followUpEvent->name,
-            'distance' => $followUpEvent->distance_label,
-            'priority' => $followUpEvent->priority,
-        ] : null;
-
-        // ── Collect finalized sessions BEFORE calling AI ────────────────────────
-        // These are skipped/completed sessions that must be preserved across plan regeneration.
-        $oldPlanIds = TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->pluck('id');
+        // Muss vor dem Löschen der alten Pläne feststehen.
+        $oldPlanIds        = TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->pluck('id');
         $preservedSessions = TrainingSession::whereIn('training_plan_id', $oldPlanIds)
             ->whereIn('status', ['skipped', 'completed'])
             ->get();
 
-        // Future finalized sessions (not to be overwritten)
-        $futureFinalized = $preservedSessions
-            ->where('planned_date', '>=', now()->toDateString())
-            ->map(fn ($s) => [
-                'date'        => $s->planned_date->format('Y-m-d'),
-                'type'        => $s->type,
-                'status'      => $s->status,
-                'skip_reason' => $s->skip_reason,
-            ])
-            ->values()
-            ->toArray();
-
-        // Past skipped sessions (last 7 days) — for recovery context (illness / injury / exhaustion)
-        $pastSkipped = TrainingSession::where('user_id', $user->id)
-            ->where('status', 'skipped')
-            ->where('planned_date', '>=', now()->subDays(7)->toDateString())
-            ->where('planned_date', '<', now()->toDateString())
-            ->get()
-            ->map(fn ($s) => [
-                'date'        => $s->planned_date->format('Y-m-d'),
-                'type'        => $s->type,
-                'status'      => 'skipped',
-                'skip_reason' => $s->skip_reason,
-            ])
-            ->values()
-            ->toArray();
-
-        $finalizedForAI = array_merge($pastSkipped, $futureFinalized);
-
-        // ── Wochengerüst ────────────────────────────────────────────────────────
-        // Gleiches Gerüst wie bei der Erstgenerierung — sonst würde jede
-        // Neuberechnung die Wochenstruktur wieder dem Modell überlassen.
-        $windowFrom = \Carbon\CarbonImmutable::today();
-        $windowTo   = $windowFrom->addDays(min(Event::PLAN_HORIZON_DAYS, $event->days_until + 1) - 1);
-
-        $skeleton = app(\App\Services\WeeklyPatternService::class)->build(
-            $event,
-            $windowFrom,
-            $windowTo,
-            $weeklyAvailability,
-            $availabilityOverrides,
-            collect($finalizedForAI)->pluck('date')->all(),
-        );
-
-        $garminText = null;
-        if (! empty($user->garmin_session)) {
-            $summary    = app(\App\Services\GarminHealthSummary::class);
-            $garminText = $summary->toPromptSection($summary->forUser($user->id, $windowFrom));
-        }
-
         // ── Call OpenAI ─────────────────────────────────────────────────────────
         $openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
         try {
-            $aiSessions = $openAI->generateEventTrainingPlan(
-                $event, $profileData, $recentActivities, $wellbeingData,
-                $sessionRatings, $weeklyAvailability, $availabilityOverrides,
-                $trainingLoad, $pastPlanResults, $otherEvents, $finalizedForAI,
-                $followUpGoal, $skeleton, $garminText
-            );
+            $aiSessions = $openAI->generateEventTrainingPlan($context);
         } catch (\Throwable $e) {
             Log::error('RegeneratePlanJob: OpenAI error', ['error' => $e->getMessage(), 'user_id' => $this->userId]);
             return;
@@ -272,9 +106,12 @@ class RegeneratePlanJob implements ShouldQueue
                 'event_id' => $event->id,
                 'sessions' => $aiSessions,
                 'context'  => [
-                    'activities_used'    => count($recentActivities),
-                    'wellbeing_entries'  => count($wellbeingData),
-                    'has_runner_profile' => (bool) $profileData,
+                    'activities_used'    => count($context->recentActivities),
+                    'wellbeing_entries'  => count($context->wellbeing),
+                    'has_runner_profile' => $context->profile !== null,
+                    'used_garmin'        => $context->garminText !== null,
+                    'weekly_pattern'     => collect($skeleton['weeks'])->map(fn ($w) => $w['planned'])->all(),
+                    'corrections'        => $checked['report'],
                     'days_until_event'   => $event->days_until,
                     'auto_regenerated'   => true,
                 ],
@@ -284,20 +121,34 @@ class RegeneratePlanJob implements ShouldQueue
                 ->where('id', $newPlan->id)
                 ->update(['is_active' => true, 'needs_plan_update' => false]);
 
-            // Re-link preserved skipped/completed sessions to the new plan
-            $preservedDates = $preservedSessions
-                ->pluck('planned_date')
-                ->map(fn ($d) => $d->format('Y-m-d'))
-                ->unique()
-                ->flip()
-                ->toArray();
+            // Erhaltene Einheiten blockieren ihren Tag nur für die eigene
+            // Sorte — sonst fiele an einem Doppel-Tag die Krafteinheit weg,
+            // sobald der Lauf importiert wurde.
+            $extraTypes = ['strength', 'core', 'mobility'];
+
+            $preservedRunDates = $preservedSessions
+                ->reject(fn ($s) => in_array($s->type, $extraTypes, true))
+                ->pluck('planned_date')->map(fn ($d) => $d->format('Y-m-d'))
+                ->unique()->flip()->toArray();
+
+            $preservedExtraDates = $preservedSessions
+                ->filter(fn ($s) => in_array($s->type, $extraTypes, true))
+                ->pluck('planned_date')->map(fn ($d) => $d->format('Y-m-d'))
+                ->unique()->flip()->toArray();
+
             foreach ($preservedSessions as $session) {
                 $session->update(['training_plan_id' => $newPlan->id]);
             }
 
-            // Create AI sessions — skip dates that already have a finalized session
             foreach ($aiSessions as $i => $s) {
-                if (isset($preservedDates[$s['date'] ?? ''])) {
+                $date  = $s['date'] ?? '';
+                $extra = in_array($s['type'] ?? '', $extraTypes, true);
+
+                if ($extra ? isset($preservedExtraDates[$date]) : isset($preservedRunDates[$date])) {
+                    continue;
+                }
+
+                if (($s['type'] ?? '') === 'rest' && (isset($preservedRunDates[$date]) || isset($preservedExtraDates[$date]))) {
                     continue;
                 }
                 TrainingSession::create([
