@@ -46,13 +46,13 @@ class CoachChatController extends Controller
         ]);
 
         // Generate coach response with tool use
-        $this->openAI->withCoach($user->coach?->personality_prompt)->forUser($user->id);
+        $this->chat->withCoach($user->coach?->personality_prompt)->forUser($user->id);
 
-        if ($this->openAI->isRateLimited()) {
+        if ($this->chat->isRateLimited()) {
             return response()->json(['error' => 'rate_limited', 'message' => 'Tageslimit erreicht.'], 429);
         }
 
-        $result = $this->openAI->chatWithCoachTools($user, $history, $userInput);
+        $result = $this->chat->chatWithCoachTools($user, $history, $userInput);
         $reply  = $result['reply'] ?? null;
         $actions = $result['actions'] ?? [];
 

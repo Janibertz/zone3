@@ -12,22 +12,7 @@ use Illuminate\Support\Facades\Log;
  */
 class TrainingPlanGenerator
 {
-    public function __construct(private readonly OpenAIClient $ai) {}
-
-    /** Coach-Persoenlichkeit und Nutzer an den Transport durchreichen. */
-    public function withCoach(?string $personalityPrompt): static
-    {
-        $this->ai->withCoach($personalityPrompt);
-
-        return $this;
-    }
-
-    public function forUser(?int $userId): static
-    {
-        $this->ai->forUser($userId);
-
-        return $this;
-    }
+    use TalksToOpenAI;
 
     /**
      * Generate a structured 10-day training plan for a specific race event.

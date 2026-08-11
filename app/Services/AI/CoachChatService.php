@@ -8,22 +8,7 @@ namespace App\Services\AI;
  */
 class CoachChatService
 {
-    public function __construct(private readonly OpenAIClient $ai) {}
-
-    /** Coach-Persoenlichkeit und Nutzer an den Transport durchreichen. */
-    public function withCoach(?string $personalityPrompt): static
-    {
-        $this->ai->withCoach($personalityPrompt);
-
-        return $this;
-    }
-
-    public function forUser(?int $userId): static
-    {
-        $this->ai->forUser($userId);
-
-        return $this;
-    }
+    use TalksToOpenAI;
 
     /**
      * Conversational chat with the user's coach.
