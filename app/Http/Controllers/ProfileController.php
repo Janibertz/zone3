@@ -21,13 +21,28 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
-        // Athlete stats
-        $stats = Activity::where('user_id', $user->id)->selectRaw('
-            COUNT(*) as total_runs,
-            COALESCE(SUM(distance), 0) as total_distance,
-            COALESCE(AVG(NULLIF(average_speed, 0)), 0) as avg_speed,
-            COALESCE(MAX(distance), 0) as longest_run
-        ')->first();
+        // Athletenzahlen — ausschliesslich Laeufe.
+        //
+        // Die Abfrage lief vorher ueber alle Aktivitaeten. Damit war der
+        // laengste "Lauf" eine Radtour, und die "Ø Pace" ein Mittelwert aus
+        // Laufen, Radfahren und Schwimmen — eine Zahl, die es so nicht gibt.
+        //
+        // Auch der Mittelwert selbst war schief: der Durchschnitt der
+        // Einzelgeschwindigkeiten gewichtet einen Dreikilometerlauf genauso
+        // stark wie einen Marathon. Richtig ist Gesamtstrecke durch
+        // Gesamtzeit.
+        $stats = Activity::where('user_id', $user->id)
+            ->where('type', 'Run')
+            ->selectRaw('
+                COUNT(*) as total_runs,
+                COALESCE(SUM(distance), 0) as total_distance,
+                COALESCE(SUM(moving_time), 0) as total_time,
+                COALESCE(MAX(distance), 0) as longest_run
+            ')->first();
+
+        $avgSpeed = $stats->total_time > 0
+            ? $stats->total_distance / $stats->total_time
+            : 0;
 
         return Inertia::render('Profile/Edit', [
             'mustVerifyEmail'  => $user instanceof MustVerifyEmail,
@@ -59,7 +74,7 @@ class ProfileController extends Controller
                 'total_runs'      => (int) $stats->total_runs,
                 'total_km'        => round($stats->total_distance / 1000, 1),
                 'longest_km'      => round($stats->longest_run / 1000, 2),
-                'avg_pace'        => $this->speedToPace($stats->avg_speed),
+                'avg_pace'        => $this->speedToPace($avgSpeed),
             ],
             // Personal records (top 3 per distance) + per-distance history for the chart
             'personalRecords' => $bestEfforts->topThree($user->id),

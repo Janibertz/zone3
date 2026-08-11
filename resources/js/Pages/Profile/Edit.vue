@@ -27,11 +27,13 @@ const page = usePage();
 const user = computed(() => page.props.auth.user);
 const activeTab = ref('personal');
 
+// Alle vier Zahlen beziehen sich auf Laeufe — deshalb steht hier "Läufe"
+// und nicht "Aktivitäten": Radtouren und Schwimmen zaehlen nicht mit.
 const heroStats = computed(() => [
-    { label: 'Aktivitäten', value: props.athleteStats?.total_runs ?? 0 },
-    { label: 'km gesamt',   value: props.athleteStats?.total_km   ?? 0 },
-    { label: 'km längste',  value: props.athleteStats?.longest_km ?? 0 },
-    { label: 'Ø Pace',      value: props.athleteStats?.avg_pace   ?? '–' },
+    { label: 'Läufe',          value: props.athleteStats?.total_runs ?? 0 },
+    { label: 'km gesamt',      value: props.athleteStats?.total_km   ?? 0 },
+    { label: 'km längster',    value: props.athleteStats?.longest_km ?? 0 },
+    { label: 'Ø Pace',         value: props.athleteStats?.avg_pace   ?? '–' },
 ]);
 
 const tabs = [
@@ -610,6 +612,10 @@ const inputClass = 'z-input';
             </div>
 
             <!-- ══ TABS ══ -->
+            <!-- Sieben Reiter passen selten in eine Zeile. Der Verlauf am
+                 rechten Rand zeigt, dass es weitergeht — vorher brach die
+                 Leiste einfach ab und „Konto" war unsichtbar. -->
+            <div class="relative">
             <div class="flex gap-1 overflow-x-auto rounded-full bg-surface-2 p-1" role="tablist"
                 style="-webkit-overflow-scrolling:touch;scrollbar-width:none;">
                 <button
@@ -626,6 +632,8 @@ const inputClass = 'z-input';
                 >
                     {{ tab.label }}
                 </button>
+            </div>
+                <span class="pointer-events-none absolute inset-y-1 right-1 w-10 rounded-r-full bg-gradient-to-l from-canvas to-transparent" />
             </div>
 
             <!-- ══ TAB CONTENT ══ -->
