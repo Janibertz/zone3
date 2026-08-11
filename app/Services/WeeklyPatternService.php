@@ -102,6 +102,11 @@ class WeeklyPatternService
         for ($date = $from; $date->lessThanOrEqualTo($to); $date = $date->addDay()) {
             $key = $date->format('Y-m-d');
 
+            // budget_min = 0 heisst „keine bekannte Obergrenze", NICHT „gesperrt".
+            // Gesperrt ist ein Tag nur, wenn es dazu eine ausdrueckliche Angabe
+            // gibt. Andernfalls wuerde ein Profil ohne gepflegtes Wochenraster
+            // ein leeres Geruest ergeben — und der Validator machte daraus
+            // vierzehn Ruhetage.
             if (isset($overrides[$key])) {
                 $available = (bool) ($overrides[$key]['available'] ?? true);
                 $budget    = (int) ($overrides[$key]['duration_min'] ?? 0);
@@ -112,11 +117,6 @@ class WeeklyPatternService
             } else {
                 $available = true;
                 $budget    = 0;
-            }
-
-            // Ein Tag ohne Zeitangabe ist nicht nutzbar.
-            if ($available && $budget <= 0) {
-                $available = false;
             }
 
             $days[$key] = [
@@ -320,8 +320,10 @@ class WeeklyPatternService
                 continue;
             }
 
+            $cap = $day['budget_min'] > 0 ? "max. {$day['budget_min']} min" : 'ohne feste Obergrenze';
+
             if (! $day['slots']) {
-                $lines[] = "- {$date} ({$wd}): frei, max. {$day['budget_min']} min → type=\"rest\" ODER lockere Einheit";
+                $lines[] = "- {$date} ({$wd}): frei, {$cap} → type=\"rest\" ODER lockere Einheit";
                 continue;
             }
 
@@ -332,7 +334,7 @@ class WeeklyPatternService
                 $parts[]  = "type=\"{$slot['type']}\" ({$label}){$optional}";
             }
 
-            $lines[] = "- {$date} ({$wd}): max. {$day['budget_min']} min gesamt → " . implode(' + ', $parts);
+            $lines[] = "- {$date} ({$wd}): {$cap} gesamt → " . implode(' + ', $parts);
         }
 
         $planned = [];

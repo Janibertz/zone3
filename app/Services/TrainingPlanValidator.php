@@ -267,11 +267,16 @@ class TrainingPlanValidator
      */
     private function placeholder(string $date, array $slot): array
     {
-        $minutes = max(20, min((int) $slot['max_min'], match ($slot['type']) {
-            'long_run'  => (int) $slot['max_min'],
+        $typical = match ($slot['type']) {
+            'long_run'              => 90,
             'interval', 'tempo_run' => 60,
-            default     => 45,
-        }));
+            default                 => 45,
+        };
+
+        // max_min = 0 heisst „keine bekannte Obergrenze" — dann gilt die
+        // uebliche Dauer, nicht null.
+        $cap     = (int) $slot['max_min'];
+        $minutes = $cap > 0 ? max(20, min($cap, $typical)) : $typical;
 
         [$title, $desc, $zone, $intensity] = match ($slot['type']) {
             'interval'  => ['Intervalltraining', 'Nach dem Einlaufen 5–6 harte Abschnitte mit lockerer Trabpause dazwischen, danach auslaufen.', 4, 'high'],

@@ -47,7 +47,7 @@ class WeeklyPatternTest extends TestCase
         return $days;
     }
 
-    private function build(Event $event, array $availability, int $days = 14): array
+    private function build(Event $event, ?array $availability, int $days = 14): array
     {
         $from = CarbonImmutable::parse('2026-08-17'); // ein Montag
         return app(WeeklyPatternService::class)->build(
@@ -151,6 +151,53 @@ class WeeklyPatternTest extends TestCase
             $hard = collect($day['slots'])->where('hard', true)->count();
             $this->assertLessThanOrEqual(1, $hard);
         }
+    }
+
+    /**
+     * Ohne gepflegtes Wochenraster darf das Geruest nicht leer bleiben.
+     *
+     * Sonst haelt der Validator jeden Tag fuer gesperrt und macht aus dem
+     * gesamten Plan Ruhetage — der Athlet bekaeme zwei Wochen Nichtstun,
+     * nur weil sein Profil unvollstaendig ist.
+     */
+    public function test_a_profile_without_availability_still_gets_a_pattern(): void
+    {
+        $skeleton = $this->build($this->event(), null);
+
+        $usable = collect($skeleton['days'])->where('available', true)->count();
+        $this->assertSame(14, $usable, 'Ohne Angabe muss jeder Tag nutzbar sein');
+
+        foreach ($skeleton['weeks'] as $week => $data) {
+            $this->assertContains('easy_run',  $data['planned'], "Woche {$week} ohne Easy Run");
+            $this->assertContains('tempo_run', $data['planned'], "Woche {$week} ohne Tempolauf");
+            $this->assertContains('interval',  $data['planned'], "Woche {$week} ohne Intervall");
+        }
+    }
+
+    /** Und der Validator darf daraus keine Ruhetage machen. */
+    public function test_a_profile_without_availability_keeps_its_sessions(): void
+    {
+        $skeleton = $this->build($this->event(), null);
+        $date     = array_key_first($skeleton['days']);
+
+        $result = $this->validate([
+            ['date' => $date, 'type' => 'interval', 'title' => 'Intervalle', 'duration_min' => 60],
+        ], $skeleton);
+
+        $entry = collect($result['sessions'])->firstWhere('date', $date);
+        $this->assertSame('interval', $entry['type']);
+    }
+
+    /** Verfuegbar ohne Zeitangabe heisst „keine Obergrenze", nicht „gesperrt". */
+    public function test_an_available_day_without_a_duration_stays_usable(): void
+    {
+        $availability = $this->availability(90);
+        $availability['wednesday'] = ['available' => true, 'duration_min' => 0];
+
+        $skeleton = $this->build($this->event(), $availability);
+        $wednesday = collect($skeleton['days'])->firstWhere('weekday', 3);
+
+        $this->assertTrue($wednesday['available']);
     }
 
     /** Kurze Tage bleiben einfach belegt. */
