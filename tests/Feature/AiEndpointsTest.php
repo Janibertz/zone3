@@ -57,6 +57,107 @@ class AiEndpointsTest extends TestCase
             ->assertJsonPath('response', 'Klingt gut, bleib dran!');
     }
 
+    /**
+     * Der Coach antwortet oft nicht mit Text, sondern ruft erst ein Werkzeug
+     * auf. Genau dieser Weg war bisher ungetestet — der andere Test faelscht
+     * eine reine Textantwort und laeuft an der Schleife vorbei.
+     */
+    public function test_the_coach_can_call_a_tool_and_then_answer(): void
+    {
+        $user = $this->athlete();
+
+        $toolCall = [
+            'choices' => [[
+                'message' => [
+                    'role'       => 'assistant',
+                    'content'    => null,
+                    'tool_calls' => [[
+                        'id'       => 'call_1',
+                        'type'     => 'function',
+                        'function' => [
+                            'name'      => 'remember_user_fact',
+                            'arguments' => json_encode(['fact' => 'Trainiert am liebsten morgens']),
+                        ],
+                    ]],
+                ],
+                'finish_reason' => 'tool_calls',
+            ]],
+            'usage' => ['prompt_tokens' => 4800, 'completion_tokens' => 570, 'total_tokens' => 5370],
+        ];
+
+        $answer = [
+            'choices' => [[
+                'message'       => ['role' => 'assistant', 'content' => 'Notiert!'],
+                'finish_reason' => 'stop',
+            ]],
+            'usage' => ['prompt_tokens' => 5000, 'completion_tokens' => 20, 'total_tokens' => 5020],
+        ];
+
+        Http::fake([
+            'api.openai.com/*' => Http::sequence()
+                ->push($toolCall)
+                ->push($answer),
+        ]);
+
+        $this->actingAs($user)
+            ->postJson(route('coach.send'), ['message' => 'Merk dir das bitte.'])
+            ->assertOk()
+            ->assertJsonPath('response', 'Notiert!');
+
+        $this->assertStringContainsString(
+            'Trainiert am liebsten morgens',
+            $user->refresh()->runnerProfile->coach_notes,
+        );
+    }
+
+    /**
+     * Jedes Werkzeug einmal ausloesen. Der Coach entscheidet selbst, welches
+     * er nimmt — faellt eines davon um, sieht der Athlet nur "Server Error".
+     */
+    public static function toolProvider(): array
+    {
+        return [
+            'merken'          => ['remember_user_fact',      ['fact' => 'Mag Intervalle']],
+            'einheit ändern'  => ['modify_today_session',    ['type' => 'interval', 'duration_min' => 45]],
+            'einheiten absagen' => ['skip_training_sessions', ['date_from' => '2026-08-13', 'date_to' => '2026-08-14', 'reason' => 'krank']],
+            'zielzeit ändern' => ['update_event_target',     ['event_id' => 1, 'target_hours' => 3, 'target_minutes' => 15]],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('toolProvider')]
+    public function test_every_coach_tool_survives_being_called(string $tool, array $args): void
+    {
+        $user = $this->athlete();
+
+        Http::fake([
+            'api.openai.com/*' => Http::sequence()
+                ->push([
+                    'choices' => [[
+                        'message' => [
+                            'role'       => 'assistant',
+                            'content'    => null,
+                            'tool_calls' => [[
+                                'id'       => 'call_1',
+                                'type'     => 'function',
+                                'function' => ['name' => $tool, 'arguments' => json_encode($args)],
+                            ]],
+                        ],
+                        'finish_reason' => 'tool_calls',
+                    ]],
+                    'usage' => ['prompt_tokens' => 4800, 'completion_tokens' => 570, 'total_tokens' => 5370],
+                ])
+                ->push([
+                    'choices' => [['message' => ['role' => 'assistant', 'content' => 'Erledigt.'], 'finish_reason' => 'stop']],
+                    'usage'   => ['prompt_tokens' => 5000, 'completion_tokens' => 10, 'total_tokens' => 5010],
+                ]),
+        ]);
+
+        $this->actingAs($user)
+            ->postJson(route('coach.send'), ['message' => 'Mach das bitte.'])
+            ->assertOk()
+            ->assertJsonPath('response', 'Erledigt.');
+    }
+
     /** Die Antwort des Coaches wird gespeichert, sonst ist der Verlauf luecken haft. */
     public function test_the_coach_reply_is_stored(): void
     {

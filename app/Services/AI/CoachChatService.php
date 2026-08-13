@@ -421,6 +421,32 @@ class CoachChatService
 
     /** Execute a single coach tool call. Returns ['message', 'action']. */
 
+    /** Ersatztitel, wenn das Modell keinen mitgibt. */
+    private function sessionTitleFor(string $type): string
+    {
+        return [
+            'easy_run'        => 'Lockerer Lauf',
+            'tempo_run'       => 'Tempolauf',
+            'interval'        => 'Intervalltraining',
+            'long_run'        => 'Langer Lauf',
+            'progressive_run' => 'Progressiver Lauf',
+            'test_run'        => 'Testlauf',
+            'race_prep'       => 'Rennvorbereitung',
+            'rest'            => 'Ruhetag',
+        ][$type] ?? 'Training';
+    }
+
+    /** Passende Intensitaet zum Typ, falls keine gesetzt ist. */
+    private function intensityFor(string $type): string
+    {
+        return match ($type) {
+            'rest'                            => 'rest',
+            'easy_run'                        => 'low',
+            'interval', 'test_run', 'race_prep' => 'high',
+            default                           => 'medium',
+        };
+    }
+
     private function executeCoachTool(\App\Models\User $user, string $toolName, array $args): array
     {
         switch ($toolName) {
@@ -439,15 +465,30 @@ class CoachChatService
                 $session = \App\Models\TrainingSession::where('user_id', $user->id)
                     ->whereDate('planned_date', $today)->where('status', '!=', 'skipped')->orderBy('sort_order')->first();
                 if (!$session) {
+                    // Gibt es fuer heute noch nichts, wird eine Einheit
+                    // angelegt. title, description und intensity sind in der
+                    // Datenbank Pflicht, stehen aber nicht in der
+                    // Werkzeugbeschreibung — ohne Vorbelegung scheiterte das
+                    // Einfuegen, und der Athlet sah nur "Server Error".
                     $session = new \App\Models\TrainingSession();
-                    $session->user_id = $user->id;
+                    $session->user_id      = $user->id;
                     $session->planned_date = $today;
-                    $session->status = 'planned';
-                    $session->sort_order = 1;
+                    $session->status       = 'planned';
+                    $session->sort_order   = 1;
+                    $session->type         = $args['type'] ?? 'easy_run';
+                    $session->title        = 'Vom Coach geplant';
+                    $session->description  = '';
+                    $session->intensity    = 'medium';
                 }
                 foreach (['type','title','description','distance_km','duration_min','pace_target','zone'] as $f) {
                     if (array_key_exists($f, $args)) $session->{$f} = $args[$f];
                 }
+
+                // Auch bestehende Einheiten koennen Luecken haben, etwa wenn
+                // der Coach den Typ aendert. Die Pflichtfelder muessen stehen.
+                $session->title       = $session->title       ?: $this->sessionTitleFor($session->type);
+                $session->description = $session->description ?? '';
+                $session->intensity   = $session->intensity   ?: $this->intensityFor($session->type);
                 // Clear cached steps and nutrition tips so they get regenerated with the new parameters
                 $session->steps         = null;
                 $session->nutrition_tips = null;
