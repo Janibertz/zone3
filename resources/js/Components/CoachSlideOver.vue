@@ -74,10 +74,22 @@ async function sendMessage(text) {
             await nextTick();
             scrollToBottom();
         }
-    } catch {
+    } catch (e) {
+        // Der Server sagt in aller Regel genau, was los ist — bei einem
+        // erreichten Tageslimit etwa "Tageslimit erreicht". Das hier hat
+        // vorher jede Antwort verschluckt und pauschal "konnte gerade nicht
+        // antworten" gezeigt; damit war ein Limit nicht von einem Ausfall zu
+        // unterscheiden.
+        const status = e?.response?.status;
+        const fromServer = e?.response?.data?.message;
+
+        const content = status === 429
+            ? `${fromServer ?? 'Tageslimit für KI-Anfragen erreicht.'} Morgen geht es weiter — oder du hebst dein Limit im Admin-Bereich an.`
+            : (fromServer ?? 'Entschuldigung, ich konnte gerade nicht antworten. Versuche es gleich nochmal.');
+
         messages.value.push({
             role: 'assistant',
-            content: 'Entschuldigung, ich konnte gerade nicht antworten. Versuche es gleich nochmal.',
+            content,
             created_at: new Date().toISOString(),
             isError: true,
         });
