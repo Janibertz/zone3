@@ -394,12 +394,22 @@ function toggleFixed(key) {
     }
 }
 
+const availError = ref('');
+
 async function saveAvailability() {
     availSaving.value = true;
+    availError.value  = '';
     try {
         await axios.post(route('onboarding.availability'), { availability: availability.value });
         availSaved.value = true;
         setTimeout(() => { availSaved.value = false; }, 2500);
+    } catch (e) {
+        // Ohne diesen Zweig lief ein abgelehntes Speichern voellig lautlos:
+        // der Knopf hoerte auf zu laden, nichts war gesichert, und beim
+        // naechsten Laden stand wieder der alte Stand da.
+        availError.value = Object.values(e?.response?.data?.errors ?? {})[0]?.[0]
+            ?? e?.response?.data?.message
+            ?? 'Speichern fehlgeschlagen.';
     } finally {
         availSaving.value = false;
     }
@@ -950,6 +960,8 @@ const inputClass = 'z-input';
                                     </div>
                                 </div>
                             </div>
+
+                            <p v-if="availError" class="z-error">{{ availError }}</p>
 
                             <!-- Summary + save -->
                             <div class="flex items-center justify-between pt-1">

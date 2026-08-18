@@ -120,15 +120,31 @@ class OnboardingController extends Controller
             // Inhalt wechselt und wird nicht geplant — der Tag ist trotzdem
             // belegt und die Einheit zaehlt fuer die Woche.
             'availability.*.fixed'        => 'nullable|array',
-            'availability.*.fixed.type'   => ['required_with:availability.*.fixed', Rule::in(self::FIXED_TYPES)],
-            'availability.*.fixed.label'  => 'required_with:availability.*.fixed|string|max:40',
+            'availability.*.fixed.type'   => ['nullable', Rule::in(self::FIXED_TYPES)],
+            'availability.*.fixed.label'  => 'nullable|string|max:40',
         ]);
 
-        // Ein fester Termin an einem gesperrten Tag ergibt keinen Sinn.
         foreach ($validated['availability'] as $day => $entry) {
+            // Ein fester Termin an einem gesperrten Tag ergibt keinen Sinn.
             if (empty($entry['available'])) {
                 unset($validated['availability'][$day]['fixed']);
+                continue;
             }
+
+            if (! isset($entry['fixed'])) {
+                continue;
+            }
+
+            // Bezeichnung und Typ sind Beiwerk, kein Grund zum Ablehnen: wer
+            // den Termin gerade erst angelegt hat, hat noch nichts getippt.
+            // Vorher scheiterte in dem Moment das Speichern der GESAMTEN
+            // Verfuegbarkeit — und die Oberflaeche zeigte den Fehler nicht.
+            $label = trim($entry['fixed']['label'] ?? '');
+
+            $validated['availability'][$day]['fixed'] = [
+                'type'  => $entry['fixed']['type'] ?? 'interval',
+                'label' => $label !== '' ? $label : 'Fester Termin',
+            ];
         }
 
         $user    = Auth::user();
