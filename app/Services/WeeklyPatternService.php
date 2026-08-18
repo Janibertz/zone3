@@ -119,6 +119,19 @@ class WeeklyPatternService
                 $budget    = 0;
             }
 
+            // Fester Termin an diesem Wochentag (Laufclub, Vereinstraining).
+            // Er wird nicht geplant, sondern ist gesetzt — das Gerüst legt
+            // ihn als Erstes und plant nichts Zweites daneben.
+            $fixed = ($weekly[self::ISO_TO_KEY[$date->isoWeekday()]]['fixed'] ?? null);
+            if ($fixed && ! isset($overrides[$key])) {
+                $fixed = [
+                    'type'  => $fixed['type']  ?? 'interval',
+                    'label' => $fixed['label'] ?? 'Fester Termin',
+                ];
+            } else {
+                $fixed = null;
+            }
+
             $days[$key] = [
                 'date'        => $key,
                 'weekday'     => $date->isoWeekday(),
@@ -126,6 +139,7 @@ class WeeklyPatternService
                 'budget_min'  => $available ? $budget : 0,
                 'finalized'   => isset($finalized[$key]),
                 'week'        => $date->format('o-\WW'),
+                'fixed'       => $available ? $fixed : null,
                 'slots'       => [],
             ];
         }
@@ -169,7 +183,33 @@ class WeeklyPatternService
         $dropped = [];
         $hard    = 0;
 
+        // Feste Termine zuerst. Sie zaehlen als erfuellt — steht der
+        // Laufclub am Dienstag, wird das Wochenintervall nicht ein zweites
+        // Mal auf einen anderen Tag gelegt.
+        foreach ($usable as $date) {
+            $fixed = $days[$date]['fixed'] ?? null;
+            if (! $fixed) continue;
+
+            $isHard = in_array($fixed['type'], self::HARD_TYPES, true);
+
+            $days[$date]['slots'][] = [
+                'type'    => $fixed['type'],
+                'hard'    => $isHard,
+                'max_min' => $days[$date]['budget_min'],
+                'fixed'   => true,
+                'label'   => $fixed['label'],
+            ];
+
+            $planned[] = $fixed['type'];
+            if ($isHard) $hard++;
+        }
+
         foreach ($priority as $type) {
+            // Schon durch einen festen Termin abgedeckt.
+            if (in_array($type, $planned, true)) {
+                continue;
+            }
+
             if (count($planned) >= $capacity) {
                 $dropped[] = $type;
                 continue;
@@ -329,7 +369,13 @@ class WeeklyPatternService
 
             $parts = [];
             foreach ($day['slots'] as $slot) {
-                $label    = $labels[$slot['type']] ?? $slot['type'];
+                $label = $labels[$slot['type']] ?? $slot['type'];
+
+                if (! empty($slot['fixed'])) {
+                    $parts[] = "type=\"{$slot['type']}\" — FESTER TERMIN: {$slot['label']}";
+                    continue;
+                }
+
                 $optional = ! empty($slot['optional']) ? ' [optional, weglassen wenn unpassend]' : '';
                 $parts[]  = "type=\"{$slot['type']}\" ({$label}){$optional}";
             }
@@ -351,6 +397,8 @@ class WeeklyPatternService
             . "- Tage mit zwei Einträgen bekommen ZWEI Objekte mit demselben \"date\"; die Summe beider duration_min darf das Tages-Maximum nicht überschreiten.\n"
             . "- Als [optional] markierte Zweiteinheiten darfst du weglassen, wenn sie an dem Tag nicht sinnvoll sind — aber niemals durch eine harte Einheit ersetzen.\n"
             . "- Tage ohne Vorgabe: entweder type=\"rest\" oder eine lockere Ergänzung, niemals eine harte Einheit.\n"
-            . "- Erfinde KEINE zusätzlichen harten Einheiten und verschiebe KEINE Termine.";
+            . "- Erfinde KEINE zusätzlichen harten Einheiten und verschiebe KEINE Termine.
+"
+            . "- FESTE TERMINE sind auswärtige Einheiten (Laufclub, Vereinstraining). Ihr Inhalt steht NICHT fest und wechselt wöchentlich. Schreibe dort KEINE erfundene Struktur hinein: kurzer title mit dem Namen des Termins, und eine description, die sagt, dass der Inhalt vor Ort vorgegeben wird. Setze pace_target=null. Plane an diesem Tag nichts Zusätzliches und ziehe die Einheit bei der Wochenbelastung mit ein.";
     }
 }

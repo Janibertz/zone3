@@ -7,11 +7,15 @@ use App\Models\Event;
 use App\Models\RunnerProfile;
 use App\Services\AI\AthleteProfileService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
 class OnboardingController extends Controller
 {
+    /** Was ein fester Wochentermin sein kann. */
+    private const FIXED_TYPES = ['interval', 'tempo_run', 'easy_run', 'long_run'];
+
     public function show()
     {
         $user = Auth::user();
@@ -107,13 +111,25 @@ class OnboardingController extends Controller
      */
     public function saveAvailability(Request $request)
     {
-        $days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
-
         $validated = $request->validate([
-            'availability'         => 'required|array',
-            'availability.*.available'   => 'required|boolean',
+            'availability'                => 'required|array',
+            'availability.*.available'    => 'required|boolean',
             'availability.*.duration_min' => 'required|integer|min:0|max:300',
+
+            // Fester woechentlicher Termin (Laufclub, Vereinstraining). Der
+            // Inhalt wechselt und wird nicht geplant — der Tag ist trotzdem
+            // belegt und die Einheit zaehlt fuer die Woche.
+            'availability.*.fixed'        => 'nullable|array',
+            'availability.*.fixed.type'   => ['required_with:availability.*.fixed', Rule::in(self::FIXED_TYPES)],
+            'availability.*.fixed.label'  => 'required_with:availability.*.fixed|string|max:40',
         ]);
+
+        // Ein fester Termin an einem gesperrten Tag ergibt keinen Sinn.
+        foreach ($validated['availability'] as $day => $entry) {
+            if (empty($entry['available'])) {
+                unset($validated['availability'][$day]['fixed']);
+            }
+        }
 
         $user    = Auth::user();
         $profile = $user->runnerProfile ?? new RunnerProfile(['user_id' => $user->id]);

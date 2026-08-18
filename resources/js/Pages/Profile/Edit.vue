@@ -365,8 +365,33 @@ const availSaved  = ref(false);
 
 function toggleAvailDay(key) {
     availability.value[key].available = !availability.value[key].available;
-    if (!availability.value[key].available) availability.value[key].duration_min = 0;
-    else if (!availability.value[key].duration_min) availability.value[key].duration_min = 60;
+    if (!availability.value[key].available) {
+        availability.value[key].duration_min = 0;
+        delete availability.value[key].fixed;   // ohne Tag kein Termin
+    } else if (!availability.value[key].duration_min) {
+        availability.value[key].duration_min = 60;
+    }
+}
+
+// ── Feste Wochentermine ──────────────────────────────────────────────
+// Laufclub, Vereinstraining: der Tag ist belegt, aber der Inhalt wechselt
+// und wird nicht geplant. Ihn als Ruhetag einzutragen waere falsch — das
+// Geruest wuerde die Qualitaetseinheit dann ein zweites Mal auf einen
+// anderen Tag legen.
+const fixedTypes = [
+    { value: 'interval',  label: 'Intervalle' },
+    { value: 'tempo_run', label: 'Tempolauf' },
+    { value: 'easy_run',  label: 'Lockerer Lauf' },
+    { value: 'long_run',  label: 'Langer Lauf' },
+];
+
+function toggleFixed(key) {
+    const day = availability.value[key];
+    if (day.fixed) {
+        delete day.fixed;
+    } else {
+        day.fixed = { type: 'interval', label: '' };
+    }
 }
 
 async function saveAvailability() {
@@ -875,8 +900,9 @@ const inputClass = 'z-input';
                                 <div
                                     v-for="day in availabilityDays.filter(d => availability[d.key].available)"
                                     :key="day.key"
-                                    class="flex items-center gap-3"
+                                    class="space-y-2"
                                 >
+                                    <div class="flex items-center gap-3">
                                     <span class="w-24 text-sm text-ink-2 shrink-0">{{ day.full }}</span>
                                     <div class="flex flex-wrap gap-1.5">
                                         <button
@@ -891,6 +917,36 @@ const inputClass = 'z-input';
                                         >
                                             {{ dur }} min
                                         </button>
+                                    </div>
+
+                                    <button type="button" @click="toggleFixed(day.key)"
+                                        class="ml-auto shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors"
+                                        :class="availability[day.key].fixed
+                                            ? 'bg-accent-soft text-accent-ink'
+                                            : 'bg-surface-2 text-ink-3 hover:text-ink-2'">
+                                        {{ availability[day.key].fixed ? 'Fester Termin' : '+ Fester Termin' }}
+                                    </button>
+                                    </div>
+
+                                    <!-- Fester Termin: der Tag ist belegt, der Inhalt kommt von außen -->
+                                    <div v-if="availability[day.key].fixed"
+                                        class="ml-24 flex flex-wrap items-center gap-2 rounded-field bg-surface-2 p-3">
+                                        <input
+                                            v-model="availability[day.key].fixed.label"
+                                            type="text"
+                                            maxlength="40"
+                                            placeholder="z.B. Laufclub"
+                                            class="z-input h-9 w-40 py-0 text-xs"
+                                        />
+                                        <select v-model="availability[day.key].fixed.type" class="z-input h-9 w-40 py-0 text-xs">
+                                            <option v-for="t in fixedTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
+                                        </select>
+                                        <button type="button" class="text-xs font-medium text-danger hover:underline"
+                                            @click="toggleFixed(day.key)">entfernen</button>
+                                        <p class="w-full text-[11px] leading-relaxed text-ink-3">
+                                            Dieser Tag wird nicht verplant. Die Einheit zählt als deine wöchentliche
+                                            Qualitätseinheit — der Coach legt dann keine zweite daneben.
+                                        </p>
                                     </div>
                                 </div>
                             </div>

@@ -112,6 +112,11 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    // Sonntag und Montag: passt die kommende Woche zum Raster im Profil?
+    weekCheck: {
+        type: Object,
+        default: null,
+    },
 });
 
 // PR banner dismissed state (local — dismissal is persisted server-side)
@@ -1073,6 +1078,50 @@ function syncStrava() {
 }
 
 
+// ── Wochenabfrage ────────────────────────────────────────────────────────────
+// Das Raster im Profil beschreibt die normale Woche. Urlaub, Schichtdienst
+// oder eine volle Woche waren bisher nirgends eintragbar — die Ausnahmen je
+// Datum gab es zwar im Backend, aber ohne Bedienung.
+const weekCheck        = ref(props.weekCheck);
+const weekSheet        = ref(false);
+const weekSaving       = ref(false);
+const weekDays         = ref([]);
+const weekError        = ref('');
+
+function openWeekSheet() {
+    weekDays.value = (weekCheck.value?.days ?? []).map(d => ({ ...d }));
+    weekSheet.value = true;
+}
+
+function toggleWeekDay(day) {
+    day.available = !day.available;
+    if (!day.available) day.duration_min = 0;
+    else if (!day.duration_min) day.duration_min = 60;
+}
+
+async function confirmWeek() {
+    weekSaving.value = true;
+    try {
+        await axios.post(route('week-availability.confirm'));
+        weekCheck.value = null;
+    } finally {
+        weekSaving.value = false;
+    }
+}
+
+async function saveWeek() {
+    weekSaving.value = true;
+    try {
+        await axios.post(route('week-availability.store'), { days: weekDays.value });
+        weekSheet.value = false;
+        weekCheck.value = null;
+        weekError.value = '';
+    } catch (e) {
+        weekError.value = e?.response?.data?.error ?? 'Speichern fehlgeschlagen.';
+    } finally {
+        weekSaving.value = false;
+    }
+}
 </script>
 
 <template>
@@ -1084,6 +1133,29 @@ function syncStrava() {
              Inhalt laeuft ueber die volle Breite. -->
         <div class="z-wash min-h-screen" :class="washTone">
             <div class="space-y-5 px-4 py-4 lg:px-6 lg:py-6">
+
+                <!-- ══════════════════════════════════════════════════
+                     WOCHENABFRAGE — Sonntag und Montag
+                     ══════════════════════════════════════════════════ -->
+                <AppCard v-if="weekCheck">
+                    <div class="flex flex-wrap items-start justify-between gap-4">
+                        <div class="min-w-0 flex-1">
+                            <h2 class="text-[15px] font-semibold text-ink">Passt deine kommende Woche?</h2>
+                            <p class="mt-1 text-[13px] leading-relaxed text-ink-3">
+                                Der Plan geht von deinem üblichen Wochenraster aus. Urlaub, Schichten oder
+                                eine volle Woche kannst du hier einmalig eintragen.
+                            </p>
+                        </div>
+                        <div class="flex shrink-0 gap-2">
+                            <AppButton variant="ghost" size="sm" :loading="weekSaving" @click="confirmWeek">
+                                Wie immer
+                            </AppButton>
+                            <AppButton variant="secondary" size="sm" @click="openWeekSheet">
+                                Anpassen
+                            </AppButton>
+                        </div>
+                    </div>
+                </AppCard>
 
                 <!-- ══════════════════════════════════════════════════
                      KÖRPERWERTE — Garmin, sonst der Check-in
@@ -1948,6 +2020,52 @@ function syncStrava() {
             @send="sendToGarminConnect"
             @close="garminModal = false"
         />
+        <!-- ══════════════════════════════════════════════════
+             WOCHE ANPASSEN
+             ══════════════════════════════════════════════════ -->
+        <AppSheet :show="weekSheet" title="Deine Woche" subtitle="Nur für diese eine Woche" @close="weekSheet = false">
+            <p class="z-hint mb-4">
+                Änderungen gelten einmalig und überschreiben dein Wochenraster im Profil nicht.
+            </p>
+
+            <div class="space-y-2">
+                <div v-for="day in weekDays" :key="day.date" class="rounded-card bg-surface-2 p-3.5">
+                    <div class="flex items-center gap-3">
+                        <button type="button"
+                            class="flex h-6 w-11 shrink-0 items-center rounded-full px-0.5 transition-colors"
+                            :class="day.available ? 'bg-accent' : 'bg-surface-3'"
+                            :aria-pressed="day.available"
+                            @click="toggleWeekDay(day)">
+                            <span class="h-5 w-5 rounded-full bg-white transition-transform"
+                                :class="day.available ? 'translate-x-5' : ''" />
+                        </button>
+
+                        <div class="min-w-0 flex-1">
+                            <p class="text-[15px] font-medium text-ink">{{ day.label }}</p>
+                            <p v-if="day.fixed" class="text-[12px] text-accent-ink">{{ day.fixed }}</p>
+                        </div>
+
+                        <span v-if="!day.available" class="text-[13px] text-ink-3">keine Zeit</span>
+                    </div>
+
+                    <div v-if="day.available" class="mt-2.5 flex flex-wrap gap-1.5 pl-14">
+                        <button v-for="dur in [30, 45, 60, 90, 120, 180]" :key="dur" type="button"
+                            class="rounded-full px-2.5 py-1 text-[12px] font-medium transition-colors"
+                            :class="day.duration_min === dur ? 'bg-ink text-canvas' : 'bg-surface text-ink-3 hover:text-ink-2'"
+                            @click="day.duration_min = dur">
+                            {{ dur }} min
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <p v-if="weekError" class="z-error">{{ weekError }}</p>
+
+            <template #footer>
+                <AppButton block :loading="weekSaving" @click="saveWeek">Woche übernehmen</AppButton>
+            </template>
+        </AppSheet>
+
     </AuthenticatedLayout>
 </template>
 

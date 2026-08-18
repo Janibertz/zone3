@@ -278,6 +278,24 @@ class TrainingPlanValidator
         $cap     = (int) $slot['max_min'];
         $minutes = $cap > 0 ? max(20, min($cap, $typical)) : $typical;
 
+        // Feste Termine sind auswaertige Einheiten — ihr Inhalt steht nicht
+        // fest. Hier wird deshalb kein Workout erfunden, sondern nur der
+        // Termin gesetzt.
+        if (! empty($slot['fixed'])) {
+            return [
+                'date'         => $date,
+                'type'         => $slot['type'],
+                'title'        => $slot['label'] ?? 'Fester Termin',
+                'description'  => 'Auswärtige Einheit — der Inhalt wird vor Ort vorgegeben.',
+                'distance_km'  => 0,
+                'duration_min' => $minutes,
+                'pace_target'  => null,
+                'zone'         => null,
+                'intensity'    => in_array($slot['type'], WeeklyPatternService::HARD_TYPES, true) ? 'high' : 'medium',
+                '_hard'        => in_array($slot['type'], WeeklyPatternService::HARD_TYPES, true),
+            ];
+        }
+
         [$title, $desc, $zone, $intensity] = match ($slot['type']) {
             'interval'  => ['Intervalltraining', 'Nach dem Einlaufen 5–6 harte Abschnitte mit lockerer Trabpause dazwischen, danach auslaufen.', 4, 'high'],
             'tempo_run' => ['Tempolauf', 'Nach dem Einlaufen zügig an der Schwelle laufen, danach auslaufen.', 3, 'medium'],

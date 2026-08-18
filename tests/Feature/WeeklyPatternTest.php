@@ -200,6 +200,94 @@ class WeeklyPatternTest extends TestCase
         $this->assertTrue($wednesday['available']);
     }
 
+    // ── Feste Wochentermine ──────────────────────────────────────────────
+
+    /**
+     * Der Laufclub laeuft jede Woche am selben Tag, mit wechselndem Inhalt.
+     * Ihn als Ruhetag einzutragen war der bisherige Behelf — dann legte das
+     * Geruest das Wochenintervall zusaetzlich auf einen anderen Tag, und der
+     * Athlet lief zwei harte Einheiten pro Woche.
+     */
+    public function test_a_fixed_appointment_replaces_the_planned_session_of_its_type(): void
+    {
+        $availability = $this->availability(90);
+        $availability['tuesday']['fixed'] = ['type' => 'interval', 'label' => 'Laufclub'];
+
+        $skeleton = $this->build($this->event('10km'), $availability);
+
+        foreach ($skeleton['days'] as $date => $day) {
+            $intervals = collect($day['slots'])->where('type', 'interval');
+            if ($day['weekday'] === 2) {
+                $this->assertCount(1, $intervals, "Am Dienstag ({$date}) fehlt der feste Termin");
+                $this->assertTrue($intervals->first()['fixed']);
+                $this->assertSame('Laufclub', $intervals->first()['label']);
+            } else {
+                $this->assertCount(0, $intervals, "Am {$date} steht ein zweites Intervall");
+            }
+        }
+    }
+
+    /** Genau eine harte Einheit pro Woche zusaetzlich zum festen Termin. */
+    public function test_a_fixed_hard_session_counts_towards_the_weekly_budget(): void
+    {
+        $availability = $this->availability(90);
+        $availability['tuesday']['fixed'] = ['type' => 'interval', 'label' => 'Laufclub'];
+
+        $skeleton = $this->build($this->event('10km'), $availability);
+
+        foreach ($skeleton['weeks'] as $week => $data) {
+            $hard = array_intersect($data['planned'], WeeklyPatternService::HARD_TYPES);
+            $this->assertLessThanOrEqual(2, count($hard), "Woche {$week} hat zu viele harte Einheiten");
+            $this->assertContains('interval', $data['planned']);
+        }
+    }
+
+    /** An einem gesperrten Tag gibt es keinen festen Termin. */
+    public function test_a_fixed_appointment_on_a_blocked_day_is_ignored(): void
+    {
+        $availability = $this->availability(90, ['tuesday']);
+        $availability['tuesday']['fixed'] = ['type' => 'interval', 'label' => 'Laufclub'];
+
+        $skeleton = $this->build($this->event(), $availability);
+
+        $tuesday = collect($skeleton['days'])->firstWhere('weekday', 2);
+        $this->assertNull($tuesday['fixed']);
+        $this->assertEmpty($tuesday['slots']);
+    }
+
+    /** Der Prompt sagt ausdruecklich, dass der Inhalt nicht erfunden werden darf. */
+    public function test_the_prompt_marks_fixed_appointments(): void
+    {
+        $availability = $this->availability(90);
+        $availability['tuesday']['fixed'] = ['type' => 'interval', 'label' => 'Laufclub'];
+
+        $text = app(WeeklyPatternService::class)
+            ->toPromptSection($this->build($this->event(), $availability));
+
+        $this->assertStringContainsString('FESTER TERMIN: Laufclub', $text);
+        $this->assertStringContainsString('wechselt wöchentlich', $text);
+    }
+
+    /** Der Validator erfindet fuer einen festen Termin kein Workout. */
+    public function test_a_missing_fixed_appointment_is_restored_without_invented_content(): void
+    {
+        $availability = $this->availability(90);
+        $availability['tuesday']['fixed'] = ['type' => 'interval', 'label' => 'Laufclub'];
+
+        $skeleton = $this->build($this->event(), $availability);
+        $tuesday  = collect($skeleton['days'])->firstWhere('weekday', 2)['date'];
+
+        // Das Modell liefert an dem Tag einen Ruhetag.
+        $result = $this->validate([
+            ['date' => $tuesday, 'type' => 'rest', 'title' => 'Ruhetag', 'duration_min' => 0],
+        ], $skeleton);
+
+        $entry = collect($result['sessions'])->firstWhere('date', $tuesday);
+        $this->assertSame('interval', $entry['type']);
+        $this->assertSame('Laufclub', $entry['title']);
+        $this->assertNull($entry['pace_target']);
+    }
+
     /** Kurze Tage bleiben einfach belegt. */
     public function test_short_days_stay_single(): void
     {

@@ -317,6 +317,37 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             return ['used' => \App\Models\AiLog::todayCountForUser($user->id), 'limit' => $limit];
         })(),
 
+        // Wochenabfrage — Sonntag und Montag, einmal je Woche. Das Raster im
+        // Profil ist der Normalfall; Urlaub und volle Wochen sind Ausnahmen,
+        // fuer die es bisher keine Eingabe gab.
+        'weekCheck' => (function () use ($user) {
+            $profile = $user->runnerProfile;
+            if (! \App\Http\Controllers\WeekAvailabilityController::isDue($profile)) {
+                return null;
+            }
+
+            $start   = \App\Http\Controllers\WeekAvailabilityController::upcomingWeekStart();
+            $weekly  = $profile?->weekly_availability ?? [];
+            $isoKeys = [1 => 'monday', 2 => 'tuesday', 3 => 'wednesday', 4 => 'thursday',
+                        5 => 'friday', 6 => 'saturday', 7 => 'sunday'];
+
+            $days = [];
+            for ($i = 0; $i < 7; $i++) {
+                $date = $start->addDays($i);
+                $slot = $weekly[$isoKeys[$date->isoWeekday()]] ?? null;
+
+                $days[] = [
+                    'date'         => $date->format('Y-m-d'),
+                    'label'        => $date->locale('de')->isoFormat('dd, D. MMM'),
+                    'available'    => (bool) ($slot['available'] ?? false),
+                    'duration_min' => (int) ($slot['duration_min'] ?? 0),
+                    'fixed'        => $slot['fixed']['label'] ?? null,
+                ];
+            }
+
+            return ['weekStart' => $start->format('Y-m-d'), 'days' => $days];
+        })(),
+
         // Garmin recovery data (HRV, sleep, RHR, Body Battery, stress, readiness).
         // Synced read-only via SyncGarminHealthJob. Missing values stay null ("keine Daten").
         'garminMetrics' => (function () use ($user) {
@@ -517,6 +548,10 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
 
     // Wellbeing Routes
     Route::get('/api/wellbeing/today', [WellbeingController::class, 'today'])->name('wellbeing.today');
+    // Wochenabfrage: passt die kommende Woche zum Raster im Profil?
+    Route::post('/api/week-availability/confirm', [\App\Http\Controllers\WeekAvailabilityController::class, 'confirm'])->name('week-availability.confirm');
+    Route::post('/api/week-availability',         [\App\Http\Controllers\WeekAvailabilityController::class, 'store'])->name('week-availability.store');
+
     Route::post('/api/wellbeing', [WellbeingController::class, 'store'])->name('wellbeing.store');
     Route::get('/api/wellbeing/status', [WellbeingController::class, 'status'])->name('wellbeing.status');
     Route::get('/api/wellbeing/latest/{count?}', [WellbeingController::class, 'latest'])->name('wellbeing.latest');

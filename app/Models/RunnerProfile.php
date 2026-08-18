@@ -24,6 +24,7 @@ class RunnerProfile extends Model
         'threshold_pace_history',
         'threshold_pace_calculating',
         'weekly_availability',
+        'week_check_week',
         'strength_enabled',
         'strength_days_per_week',
         'strength_equipment',
