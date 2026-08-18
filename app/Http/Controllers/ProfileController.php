@@ -162,11 +162,10 @@ class ProfileController extends Controller
         try {
             // Login only — the fit-service authenticates via garth and returns the
             // session token. No workout is sent (nothing lands in the Garmin calendar).
-            $response = \Illuminate\Support\Facades\Http::timeout(30)
-                ->post(rtrim($serviceUrl, '/') . '/garmin-login', [
-                    'garmin_email'    => $request->email,
-                    'garmin_password' => $request->password,
-                ]);
+            $response = app(\App\Services\FitClient::class)->post('/garmin-login', [
+                'garmin_email'    => $request->email,
+                'garmin_password' => $request->password,
+            ]);
 
             $json = $response->json() ?: [];
 
@@ -178,7 +177,7 @@ class ProfileController extends Controller
                 $detail = is_string($json['detail'] ?? null) ? $json['detail'] : '';
                 if ($detail === 'mfa_required')
                     return response()->json(['error' => 'mfa_required'], 422);
-                if (str_starts_with($detail, 'login_failed:'))
+                if (str_starts_with($detail, 'login_failed'))
                     return response()->json(['error' => 'login_failed'], 422);
 
                 return response()->json(['error' => 'Keine Session zurückgegeben. Zugangsdaten prüfen oder MFA-Konto wird nicht unterstützt.'], 422);

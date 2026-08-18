@@ -40,11 +40,10 @@ class SyncGarminHealthJob implements ShouldQueue
         }
 
         try {
-            $response = Http::timeout($this->timeout - 10)
-                ->post(rtrim($serviceUrl, '/') . '/garmin-health', [
-                    'garmin_session' => $user->garmin_session,
-                    'days'           => $this->days,
-                ]);
+            $response = app(\App\Services\FitClient::class)->post('/garmin-health', [
+                'garmin_session' => $user->garmin_session,
+                'days'           => $this->days,
+            ], $this->timeout - 10);
         } catch (\Throwable $e) {
             Log::warning('SyncGarminHealthJob: fit-service unreachable', [
                 'user_id' => $this->userId,

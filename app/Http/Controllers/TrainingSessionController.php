@@ -538,8 +538,7 @@ class TrainingSessionController extends Controller
         }
 
         try {
-            $response = \Illuminate\Support\Facades\Http::timeout(30)
-                ->post(rtrim($serviceUrl, '/') . '/send-to-garmin', $payload);
+            $response = app(\App\Services\FitClient::class)->post('/send-to-garmin', $payload);
 
             $json = $response->json() ?: [];
 
@@ -547,8 +546,6 @@ class TrainingSessionController extends Controller
                 $detail = $json['detail'];
                 if ($detail === 'mfa_required')            return ['error' => 'mfa_required'];
                 if ($detail === 'session_expired')         return ['error' => 'session_expired'];
-                if (str_starts_with($detail, 'login_failed:'))
-                    return ['error' => 'login_failed:' . substr($detail, strlen('login_failed:'))];
                 return ['error' => $detail];
             }
 
@@ -751,8 +748,7 @@ XML;
         ];
 
         try {
-            $response = \Illuminate\Support\Facades\Http::timeout(10)
-                ->post(rtrim($serviceUrl, '/') . '/generate-fit', $payload);
+            $response = app(\App\Services\FitClient::class)->post('/generate-fit', $payload, 10);
 
             if ($response->successful() && strlen($response->body()) > 14) {
                 \Log::warning('FIT: Python service succeeded', ['bytes' => strlen($response->body())]);

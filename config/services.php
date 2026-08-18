@@ -51,6 +51,9 @@ return [
 
     'fit' => [
         'service_url' => env('FIT_SERVICE_URL'),
+        // Gemeinsames Geheimnis. Muss in BEIDEN Diensten identisch gesetzt
+        // sein — der fit-service weist ohne gueltigen Token jeden Aufruf ab.
+        'token'       => env('FIT_SERVICE_TOKEN'),
     ],
 
     'webpush' => [

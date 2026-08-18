@@ -121,6 +121,12 @@ STRAVA_CLIENT_ID=
 STRAVA_CLIENT_SECRET=
 STRAVA_WEBHOOK_VERIFY_TOKEN=
 
+# fit-service (Garmin). Der Token muss in BEIDEN Coolify-Diensten identisch
+# gesetzt sein — der fit-service weist ohne ihn jeden Aufruf mit 401 ab und
+# antwortet mit 503, solange er selbst keinen konfiguriert hat.
+FIT_SERVICE_URL=
+FIT_SERVICE_TOKEN=
+
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
 VAPID_SUBJECT=mailto:...

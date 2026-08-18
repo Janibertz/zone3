@@ -168,8 +168,7 @@ class WorkoutController extends Controller
         }
 
         try {
-            $response = \Illuminate\Support\Facades\Http::timeout(30)
-                ->post(rtrim($serviceUrl, '/') . '/send-to-garmin', $payload);
+            $response = app(\App\Services\FitClient::class)->post('/send-to-garmin', $payload);
 
             $json = $response->json() ?: [];
 
@@ -181,8 +180,6 @@ class WorkoutController extends Controller
                 }
                 if ($detail === 'mfa_required')
                     return response()->json(['error' => 'mfa_required'], 422);
-                if (str_starts_with($detail, 'login_failed:'))
-                    return response()->json(['error' => $detail], 422);
                 return response()->json(['error' => $detail], 422);
             }
 

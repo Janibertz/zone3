@@ -5,16 +5,52 @@ Uses the official garmin-fit-sdk (write_mesg API).
 POST /garmin-login    →  authenticate and return garth session tokens
 POST /generate-fit    →  binary .fit file
 POST /send-to-garmin  →  sends structured workout to Garmin Connect + schedules in calendar
-GET  /health          →  {"status": "ok"}
+POST /garmin-health   →  daily recovery metrics
+GET  /health          →  {"status": "ok"} — offen, fuer die Betriebsueberwachung
+
+Alle uebrigen Endpunkte verlangen den Header `X-Fit-Token`. Ohne ihn war
+dieser Dienst ein offenes Tor: /garmin-login nimmt beliebige Zugangsdaten
+entgegen und sagt, ob sie stimmen — ein Pruefwerkzeug fuer fremde
+Garmin-Konten, betrieben auf unserer Infrastruktur und mit unserer IP.
+/garmin-health gab Gesundheitsdaten heraus, /send-to-garmin schrieb in
+fremde Kalender.
 """
 
+import hmac
+import os
 from datetime import datetime, timezone
 from typing import Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
 app = FastAPI(title="FIT Workout Generator")
+
+FIT_SERVICE_TOKEN = os.environ.get("FIT_SERVICE_TOKEN", "").strip()
+
+if not FIT_SERVICE_TOKEN:
+    print(
+        "[FATAL] FIT_SERVICE_TOKEN ist nicht gesetzt. Alle geschuetzten "
+        "Endpunkte antworten mit 503, bis er konfiguriert ist.",
+        flush=True,
+    )
+
+
+def require_token(x_fit_token: Optional[str] = Header(default=None)) -> None:
+    """
+    Gemeinsames Geheimnis, im Zeitvergleich geprueft.
+
+    Bewusst verschlossen, wenn nichts konfiguriert ist: ein Dienst, der
+    Garmin-Zugangsdaten annimmt, darf im Zweifel nicht erreichbar sein.
+    """
+    if not FIT_SERVICE_TOKEN:
+        raise HTTPException(status_code=503, detail="service_not_configured")
+
+    if not x_fit_token or not hmac.compare_digest(x_fit_token, FIT_SERVICE_TOKEN):
+        raise HTTPException(status_code=401, detail="unauthorized")
+
+
+PROTECTED = [Depends(require_token)]
 
 
 def _ascii(value: str, max_len: int = 15) -> str:
@@ -305,29 +341,28 @@ class GarminSendRequest(BaseModel):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-@app.post("/garmin-login")
+@app.post("/garmin-login", dependencies=PROTECTED)
 def garmin_login(req: GarminLoginRequest):
     """Authenticate and return garth session tokens to be stored by the caller."""
     try:
         api, session_str = _garmin_api_from_credentials(req.garmin_email, req.garmin_password)
-        print(f"[Garmin] Login OK for {req.garmin_email}", flush=True)
+        print("[Garmin] Login OK", flush=True)
         return {"session": session_str}
     except Exception as e:
         msg = str(e)
-        print(f"[Garmin] Login failed ({type(e).__name__}): {msg}", flush=True)
+        # Nur die Fehlerart ins Log. Der Text der Bibliothek enthaelt je nach
+        # Fehlerfall die gesendete Anfrage samt Zugangsdaten.
+        print(f"[Garmin] Login failed ({type(e).__name__})", flush=True)
         if "MFA" in msg.upper() or "mfa" in msg or "two" in msg.lower():
             raise HTTPException(status_code=401, detail="mfa_required")
-        raise HTTPException(status_code=401, detail=f"login_failed: {msg}")
+        raise HTTPException(status_code=401, detail="login_failed")
 
 
-@app.post("/send-to-garmin")
+@app.post("/send-to-garmin", dependencies=PROTECTED)
 def send_to_garmin(req: GarminSendRequest):
     from garminconnect import Garmin
 
-    try:
-        print(f"[DEBUG] Incoming steps: {req.steps}", flush=True)
-    except Exception as e:
-        print(f"[DEBUG] Could not print steps: {e}", flush=True)
+    print(f"[Garmin] Workout mit {len(req.steps)} Schritten empfangen", flush=True)
 
     new_session: Optional[str] = None
 
@@ -335,17 +370,17 @@ def send_to_garmin(req: GarminSendRequest):
         try:
             api = _garmin_api_from_session(req.garmin_session)
         except Exception as e:
-            print(f"[Garmin] Session restore failed: {e}", flush=True)
+            print(f"[Garmin] Session restore failed ({type(e).__name__})", flush=True)
             raise HTTPException(status_code=401, detail="session_expired")
     elif req.garmin_email and req.garmin_password:
         try:
             api, new_session = _garmin_api_from_credentials(req.garmin_email, req.garmin_password)
         except Exception as e:
             msg = str(e)
-            print(f"[Garmin] Login failed: {msg}", flush=True)
+            print(f"[Garmin] Login failed ({type(e).__name__})", flush=True)
             if "MFA" in msg.upper() or "mfa" in msg or "two" in msg.lower():
                 raise HTTPException(status_code=401, detail="mfa_required")
-            raise HTTPException(status_code=401, detail=f"login_failed: {msg}")
+            raise HTTPException(status_code=401, detail="login_failed")
     else:
         raise HTTPException(status_code=422, detail="garmin_session or garmin_email+password required")
 
@@ -482,7 +517,7 @@ def _fetch_day(api, cdate: str) -> dict:
     }
 
 
-@app.post("/garmin-health")
+@app.post("/garmin-health", dependencies=PROTECTED)
 def garmin_health(req: GarminHealthRequest):
     """Read-only pull of daily recovery metrics for the last `days` days.
     Never writes to Garmin. Returns one record per day; missing values are null."""
@@ -494,17 +529,17 @@ def garmin_health(req: GarminHealthRequest):
         try:
             api = _garmin_api_from_session(req.garmin_session)
         except Exception as e:
-            print(f"[Garmin] Session restore failed: {e}", flush=True)
+            print(f"[Garmin] Session restore failed ({type(e).__name__})", flush=True)
             raise HTTPException(status_code=401, detail="session_expired")
     elif req.garmin_email and req.garmin_password:
         try:
             api, new_session = _garmin_api_from_credentials(req.garmin_email, req.garmin_password)
         except Exception as e:
             msg = str(e)
-            print(f"[Garmin] Login failed: {msg}", flush=True)
+            print(f"[Garmin] Login failed ({type(e).__name__})", flush=True)
             if "MFA" in msg.upper() or "mfa" in msg or "two" in msg.lower():
                 raise HTTPException(status_code=401, detail="mfa_required")
-            raise HTTPException(status_code=401, detail=f"login_failed: {msg}")
+            raise HTTPException(status_code=401, detail="login_failed")
     else:
         raise HTTPException(status_code=422, detail="garmin_session or garmin_email+password required")
 
@@ -529,7 +564,7 @@ def garmin_health(req: GarminHealthRequest):
     return {"days": days, "days_with_data": filled, "session": new_session}
 
 
-@app.post("/generate-fit")
+@app.post("/generate-fit", dependencies=PROTECTED)
 def generate_fit(req: WorkoutRequest):
     if not req.steps:
         raise HTTPException(status_code=422, detail="steps must not be empty")
@@ -550,46 +585,3 @@ def generate_fit(req: WorkoutRequest):
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
-
-@app.get("/debug")
-def debug():
-    """Generate a sample workout FIT and decode it immediately to validate."""
-    from garmin_fit_sdk import Decoder, Stream
-
-    test_steps = [
-        {"name": "Warmup",   "meters": 1000, "speedMps": None},
-        {"name": "Main",     "meters": 5000, "speedMps": 3.33},
-        {"name": "Cooldown", "meters": 1000, "speedMps": None},
-    ]
-
-    try:
-        fit_bytes = build_fit("Debug Test", test_steps)
-    except Exception as e:
-        return {"error": f"Encode failed: {e}"}
-
-    try:
-        stream = None
-        for method in ["from_byte_array", "from_bytes_array", "from_bytes"]:
-            fn = getattr(Stream, method, None)
-            if fn:
-                try:
-                    stream = fn(bytearray(fit_bytes))
-                    break
-                except Exception:
-                    continue
-
-        if stream is None:
-            return {"bytes": len(fit_bytes), "error": "no valid Stream factory found",
-                    "stream_methods": [m for m in dir(Stream) if not m.startswith("_")]}
-
-        decoder  = Decoder(stream)
-        messages, errors = decoder.read()
-        return {"bytes": len(fit_bytes), "errors": errors, "messages": messages}
-    except Exception as e:
-        return {
-            "bytes":        len(fit_bytes),
-            "decode_error": str(e),
-            "hex_preview":  fit_bytes[:64].hex(),
-            "stream_api":   [m for m in dir(Stream) if not m.startswith("_")],
-        }
