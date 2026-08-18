@@ -1,9 +1,12 @@
 name: CI
 
 # Läuft bei jedem Push auf main und bei jedem Pull Request.
-# Zweck: die Testsuite und der Frontend-Build sollen nicht unbemerkt
-# kaputtgehen. Beides lief bisher nur lokal und von Hand — mehrere Fehler
-# dieser Woche wären hier aufgefallen, bevor sie auf der Produktion landeten.
+#
+# Bewusst EIN Job statt zwei paralleler: die Schritte hängen voneinander ab.
+# Der Frontend-Build importiert Ziggy aus vendor/ (also aus einem PHP-Paket),
+# und die Testsuite rendert Inertia-Seiten — dafür muss das Vite-Manifest
+# unter public/build liegen, das nicht im Repository ist. Zwei getrennte Jobs
+# waren beide rot, jeder aus dem Grund, den der andere gelöst hätte.
 on:
   push:
     branches: [main]
@@ -14,8 +17,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  tests:
-    name: Tests (PHP)
+  ci:
+    name: Tests und Build
     runs-on: ubuntu-latest
 
     steps:
@@ -29,6 +32,17 @@ jobs:
           extensions: mbstring, pdo_sqlite, sqlite3, intl, bcmath
           coverage: none
 
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # Vor composer install: dessen post-autoload-dump startet
+      # `artisan package:discover`, und das bootet Laravel.
+      - name: Umgebung vorbereiten
+        run: cp .env.example .env
+
       - name: Composer-Cache
         uses: actions/cache@v4
         with:
@@ -36,40 +50,24 @@ jobs:
           key: composer-${{ hashFiles('composer.lock') }}
           restore-keys: composer-
 
-      # Vor composer install: dessen post-autoload-dump startet
-      # `artisan package:discover`, und das bootet Laravel.
-      - name: Umgebung vorbereiten
-        run: cp .env.example .env
-
-      - name: Abhängigkeiten installieren
+      - name: PHP-Abhängigkeiten
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Anwendungsschlüssel erzeugen
+      - name: Anwendungsschlüssel
         run: php artisan key:generate --force
 
-      - name: Tests
-        run: php artisan test
-
-  build:
-    name: Build (Frontend)
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Node einrichten
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-
-      - name: Abhängigkeiten installieren
+      - name: JS-Abhängigkeiten
         run: npm ci
 
+      # Muss vor den Tests laufen: ohne public/build/manifest.json wirft die
+      # @vite-Direktive, und jede Inertia-Antwort wird zur Fehlerseite.
       - name: Build
         run: npm run build
 
       - name: Vue-Bindings prüfen
         # Findet Bezeichner, die im Template stehen, aber im Script fehlen —
-        # genau der Fehler, der beim Umbau des Dashboards einmal durchrutschte.
+        # Vue meldet das nicht beim Bauen, der Fehler kommt erst im Browser.
         run: node scripts/check-bindings.mjs
+
+      - name: Tests
+        run: php artisan test

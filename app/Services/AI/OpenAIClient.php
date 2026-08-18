@@ -29,9 +29,14 @@ class OpenAIClient
 
     public function __construct()
     {
-        $this->apiKey    = config('services.openai.api_key');
-        $this->model     = config('services.openai.model',      'gpt-5.5-2026-04-23');
-        $this->modelMini = config('services.openai.model_mini', 'gpt-5.4-mini');
+        // Ohne die Umgebungsvariablen liefert config() null. Die Eigenschaften
+        // sind als string deklariert — die Klasse liess sich dann nicht einmal
+        // erzeugen, und der Container warf einen TypeError, lange bevor
+        // irgendjemand einen Aufruf machen wollte. Ein fehlender Schluessel
+        // soll beim Aufruf scheitern, nicht beim Hochfahren.
+        $this->apiKey    = config('services.openai.api_key')                    ?? '';
+        $this->model     = config('services.openai.model',      'gpt-5.5-2026-04-23') ?? 'gpt-5.5-2026-04-23';
+        $this->modelMini = config('services.openai.model_mini', 'gpt-5.4-mini') ?? 'gpt-5.4-mini';
     }
 
     /** Das grosse Modell — fuer Plaene, Schwellenpace und Coach-Chat. */
