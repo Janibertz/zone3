@@ -32,6 +32,9 @@ readonly class PlanContext
         public ?array $followUpGoal = null,
         public ?string $coachNotes = null,
         public ?array $comeback = null,
+        public array $crossTraining = [],
+        public ?array $paces = null,
+        public ?array $volume = null,
         public ?array $skeleton = null,
         public ?string $garminText = null,
     ) {}
@@ -65,6 +68,9 @@ readonly class PlanContext
             followUpGoal:          $this->followUpGoal,
             coachNotes:            $this->coachNotes,
             comeback:              $this->comeback,
+            crossTraining:         $this->crossTraining,
+            paces:                 $this->paces,
+            volume:                $this->volume,
             skeleton:              $skeleton    ?? $this->skeleton,
             garminText:            $garminText  ?? $this->garminText,
         );

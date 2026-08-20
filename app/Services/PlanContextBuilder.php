@@ -25,6 +25,8 @@ class PlanContextBuilder
         private readonly WeeklyPatternService $pattern,
         private readonly GarminHealthSummary $garmin,
         private readonly ReturnToRunService $returnToRun,
+        private readonly TrainingPaceService $paces,
+        private readonly WeeklyVolumeService $volume,
     ) {}
 
     public function build(User $user, Event $event, array $availabilityOverrides = []): PlanContext
@@ -58,6 +60,9 @@ class PlanContextBuilder
             followUpGoal:          $this->followUpGoal($user, $event),
             coachNotes:            $user->runnerProfile?->coach_notes,
             comeback:              $comeback,
+            crossTraining:         $this->crossTraining($user),
+            paces:                 $this->paces->forEvent($event, $user->runnerProfile?->threshold_speed),
+            volume:                $this->volume->forUser($user->id, $windowFrom),
         );
 
         // Gerüst und Garmin-Zusammenfassung bauen auf dem Rest auf.
@@ -77,9 +82,19 @@ class PlanContextBuilder
         );
     }
 
+    /**
+     * Die letzten Läufe — und zwar nur Läufe.
+     *
+     * Vorher stand hier jede Aktivität: Radfahrten mit „Pace 2:28 min/km",
+     * Spaziergänge mit 13:20 und GPS-Fehlstarts über 0,01 km. Aus dieser
+     * Liste sollte das Modell die Form ablesen. Es sah einen Athleten, der
+     * mal 2:28 und mal 13:20 pro Kilometer läuft.
+     */
     private function recentActivities(User $user): array
     {
         return $user->activities()
+            ->where('type', 'Run')
+            ->where('distance', '>=', 1000)
             ->where('start_date', '>=', now()->subWeeks(4))
             ->orderByDesc('start_date')
             ->limit(20)
@@ -91,6 +106,28 @@ class PlanContextBuilder
                 'duration_min' => (int) round($a->moving_time / 60),
                 'pace'         => $a->average_speed > 0 ? $this->formatPace($a->average_speed) : null,
                 'avg_hr'       => $a->average_heartrate ? (int) $a->average_heartrate : null,
+            ])
+            ->toArray();
+    }
+
+    /**
+     * Alles andere als Laufen, zusammengefasst. Es ersetzt keine Laufeinheit,
+     * kostet aber Zeit und Erholung — der Coach soll es sehen, ohne es für
+     * Lauftempo zu halten.
+     *
+     * @return array<string, array{count: int, minutes: int}>
+     */
+    private function crossTraining(User $user): array
+    {
+        return $user->activities()
+            ->where('type', '!=', 'Run')
+            ->where('start_date', '>=', now()->subWeeks(4))
+            ->where('moving_time', '>=', 600)
+            ->get(['id', 'type', 'moving_time'])
+            ->groupBy('type')
+            ->map(fn ($rows) => [
+                'count'   => $rows->count(),
+                'minutes' => (int) round($rows->sum('moving_time') / 60),
             ])
             ->toArray();
     }
@@ -138,11 +175,17 @@ class PlanContextBuilder
         ];
     }
 
+    /**
+     * Bewertete Einheiten. Solche über wenige Meter sind derselbe GPS-Müll
+     * wie oben — als „easy_run 0.01 km ⭐⭐⭐⭐⭐" lehrte das Modell bisher,
+     * dass Mini-Einheiten hervorragend ankommen.
+     */
     private function sessionRatings(User $user): array
     {
         return TrainingSession::where('user_id', $user->id)
             ->whereNotNull('rating')
             ->where('status', 'completed')
+            ->where(fn ($q) => $q->where('distance_km', '>=', 1)->orWhereNull('distance_km'))
             ->orderByDesc('planned_date')
             ->limit(30)
             ->get()

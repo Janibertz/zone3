@@ -79,8 +79,69 @@ class TrainingPlanGenerator
             $actLines[] = "- [{$a['date']}] {$a['name']}: {$a['distance_km']} km, {$a['duration_min']} min{$pace}{$hr}";
         }
         $activitiesText = empty($actLines)
-            ? 'Keine Aktivitäten in den letzten 4 Wochen.'
+            ? 'Keine Läufe in den letzten 4 Wochen.'
             : implode("\n", $actLines);
+
+        // Anderes als Laufen — zählt für die Erholung, nicht für die Form.
+        $crossText = '';
+        if ($c->crossTraining) {
+            $labels = ['Ride' => 'Radfahren', 'VirtualRide' => 'Radfahren (Rolle)', 'Walk' => 'Spazieren',
+                       'Hike' => 'Wandern', 'Swim' => 'Schwimmen', 'WeightTraining' => 'Krafttraining',
+                       'Workout' => 'Workout', 'Yoga' => 'Yoga'];
+            $parts  = [];
+            foreach ($c->crossTraining as $type => $row) {
+                $label   = $labels[$type] ?? $type;
+                $parts[] = "{$label} {$row['count']}× ({$row['minutes']} min)";
+            }
+            $crossText = "\n\n**Sonstige Aktivitäten (4 Wochen, kein Lauftraining — kostet Zeit und Erholung, ersetzt aber keine Laufeinheit):** "
+                . implode(', ', $parts);
+        }
+
+        // Tempi und Wochenumfang: die beiden Größen, aus denen ein Plan
+        // gebaut wird. Sie standen bisher in keinem Prompt.
+        $paceText = $c->paces
+            ? app(\App\Services\TrainingPaceService::class)->toPromptSection($c->paces)
+            : '';
+
+        $volumeText = $c->volume
+            ? app(\App\Services\WeeklyVolumeService::class)->toPromptSection($c->volume, $event)
+            : '';
+
+        // Die Trainingsphase kommt aus dem Event — dieselbe, die der Athlet
+        // in der App sieht. Vorher stand im Prompt eine eigene, grobe
+        // Wenn-Regel daneben, die etwas anderes sagen konnte.
+        $phase     = $event->training_phase;
+        $weeksLeft = $event->weeks_until;
+        $phaseRule = match ($phase['key']) {
+            'base'      => 'Grundlage: lockeres Volumen aufbauen, eine Qualitätseinheit pro Woche, noch keine Rennschärfe.',
+            'build'     => 'Aufbau: Umfang steigt, dazu Schwellenarbeit. Der lange Lauf wächst schrittweise.',
+            'peak'      => 'Spezifische Phase: die Schlüsseleinheiten laufen jetzt im Renntempo. Höchster Umfang, längster Lauf, danach beginnt die Reduktion.',
+            'taper'     => 'Tapering: Umfang deutlich zurück (je Woche rund 25 %), Intensität und Renntempo aber halten. Weniger, nicht langsamer.',
+            'race_week' => 'Rennwoche: kurze lockere Läufe mit wenigen Steigerungen, Beine frisch machen. Kein Umfang, keine harten Einheiten mehr — die Form ist gemacht.',
+            default     => 'Trainingsblock fortsetzen.',
+        };
+        $phaseText = "\n\n**Trainingsphase: {$phase['label']}** — noch {$weeksLeft} Wochen bis zum Rennen.\n{$phaseRule}";
+
+        // Was die Zieldistanz im Kern verlangt. Der Backyard-Prompt war
+        // darin ausführlich, der Standard-Prompt behandelte 5 km und
+        // Marathon gleich — und beschrieb für beide nur „Volumen + Tempo".
+        $focusText = "\n\n**Was für diese Distanz zählt ({$distLabel}):**\n" . match ($event->race_distance) {
+            '5km' => "- Schlüsselreiz sind kurze, harte Intervalle (VO2max): 4–6×3 min oder 8–10×400 m, Trabpause etwa so lang wie die Belastung.\n"
+                . "- Dazu ein kürzerer Schwellenblock pro Woche und Steigerungsläufe für die Laufökonomie.\n"
+                . "- Der lange Lauf bleibt moderat — er sichert die Grundlage, ist aber nicht der Hebel.",
+            '10km' => "- Schlüsselreiz ist die Schwelle: Cruise-Intervalle wie 5×1000 m oder 3×8 min an der Schwellenpace.\n"
+                . "- Ergänzend VO2-Intervalle alle ein bis zwei Wochen, dazu Abschnitte im Renntempo.\n"
+                . "- Der lange Lauf hält die Grundlage, wächst aber nicht über das Nötige hinaus.",
+            'half_marathon' => "- Schlüsselreiz ist die Schwelle in längeren Blöcken: 2×15 min, 4×8 min oder ein Dauerlauf mit 20–30 min an der Schwelle.\n"
+                . "- Der lange Lauf bekommt in der spezifischen Phase Abschnitte im Renntempo (z.B. die letzten 5–8 km).\n"
+                . "- Verpflegung im Rennen ist überschaubar — Trinken üben reicht.",
+            'marathon' => "- Die wichtigste Einheit ist der lange Lauf mit Abschnitten im Zielrenntempo: die letzten 6–10 km, oder bei längeren Läufen zwei bis drei Blöcke à 5 km. Solche Einheiten entscheiden über den Marathon, nicht die Intervalle.\n"
+                . "- Der lange Lauf wächst schrittweise Richtung 30–32 km bzw. 2:30–3:00 Std und wird ab drei Wochen vor dem Rennen wieder kürzer. Wie schnell er wachsen darf, steht in den Umfangsregeln oben — die haben Vorrang vor diesem Richtwert. Ist der Athlet noch weit davon entfernt, ist das kein Grund für einen Sprung, sondern für ehrliche Worte in der description.\n"
+                . "- Eine Schwelleneinheit pro Woche hält das Tempo. Harte VO2-Intervalle sind hier zweitrangig und kosten Erholung, die der lange Lauf braucht.\n"
+                . "- VERPFLEGUNG: Ab 90 Minuten Laufzeit gehört Essen und Trinken in die description — dieselben Gels/Getränke wie im Rennen, etwa 60–90 g Kohlenhydrate pro Stunde. Der Magen muss das mittrainieren.",
+            'backyard_ultra' => "- Time on feet und Pacing-Disziplin schlagen jede Tempoarbeit.",
+            default => "- Baue lockeres Volumen als Grundlage auf und setze eine Qualitätseinheit pro Woche, die dem Renntempo entspricht.",
+        };
 
         // Wellbeing summary
         if (! empty($wellbeingData)) {
@@ -186,8 +247,15 @@ class TrainingPlanGenerator
                 $stars  = $r['overall_rating'] ? str_repeat('⭐', $r['overall_rating']) : '–';
                 $actual = $r['actual_time'] ?? 'nicht eingetragen';
                 $diff   = '';
-                // Simple time comparison for feedback
-                if ($r['actual_time'] && $r['target_time']) {
+
+                // Ohne gesetzte Zielzeit gibt es nichts zu vergleichen. Der
+                // Backyard Ultra hat gar keine — er stand trotzdem als
+                // „Ziel 0:00 → Ergebnis 10:00 ❌ verfehlt (+600 Min)" im
+                // Prompt, bei fünf Sternen und der Notiz „überragend". Das
+                // Modell lernte daraus, ein gelungenes Rennen sei misslungen.
+                $hasTarget = $r['target_time'] && $r['target_time'] !== '0:00';
+
+                if ($r['actual_time'] && $hasTarget) {
                     [$th, $tm] = explode(':', $r['target_time']) + [0, 0];
                     [$ah, $am] = explode(':', $r['actual_time']) + [0, 0];
                     $targetSec = ((int)$th * 60 + (int)$tm) * 60;
@@ -199,8 +267,9 @@ class TrainingPlanGenerator
                         $diff = ' ❌ Ziel verfehlt (+' . (int)($deltaSec / 60) . ' Min langsamer)';
                     }
                 }
-                $note  = $r['result_notes'] ? " | Notiz: \"{$r['result_notes']}\"" : '';
-                $lines[] = "- {$r['event_name']} ({$r['race_distance']}): Ziel {$r['target_time']} → Ergebnis {$actual}{$diff} | Plan-Bewertung: {$stars}{$note}";
+                $note   = $r['result_notes'] ? " | Notiz: \"{$r['result_notes']}\"" : '';
+                $target = $hasTarget ? "Ziel {$r['target_time']} → " : 'ohne Zielzeit — ';
+                $lines[] = "- {$r['event_name']} ({$r['race_distance']}): {$target}Ergebnis {$actual}{$diff} | Plan-Bewertung: {$stars}{$note}";
             }
             $pastResultsText = "Vergangene Rennergebnisse des Athleten:\n" . implode("\n", $lines);
         }
@@ -215,7 +284,16 @@ class TrainingPlanGenerator
                 . "- CTL (Fitness, 42-Tage-EMA): {$trainingLoad['ctl']}\n"
                 . "- ATL (Ermüdung, 7-Tage-EMA): {$trainingLoad['atl']}\n"
                 . "- TSB (Form = CTL−ATL): {$tsbSign} → Status: {$formLabel}\n"
-                . "Übermüdet (<−30): Nur leichte Einheiten / Ruhe. Belastet (−30 bis −10): Normaler Trainingsblock. Optimal (−10 bis +5): Wettkampfbereit. Frisch (+5 bis +25): Tapering aktiv. Ausgeruht (>+25): Volumen erhöhen.";
+                // Der TSB beschreibt den Erholungszustand, NICHT die
+                // Trainingsphase. Der alte Text sagte bei TSB > +5
+                // „Tapering aktiv" — bei 38 Tagen bis zum Rennen las das
+                // Modell daraus, es solle jetzt reduzieren, obwohl der
+                // Athlet schlicht ausgeruht war und Umfang vertragen hätte.
+                . "So ist der TSB zu lesen (er sagt etwas über die Erholung, nicht über die Trainingsphase — die steht weiter unten):\n"
+                . "- unter −30 (übermüdet): Umfang und Intensität zurücknehmen, mehr Ruhe.\n"
+                . "- −30 bis −10 (belastet): der normale Zustand in einem Trainingsblock, so weiterplanen.\n"
+                . "- −10 bis +5 (optimal): gut belastbar.\n"
+                . "- über +5 (frisch/ausgeruht): der Athlet verträgt mehr. Im Trainingsblock heißt das Umfang oder Qualität erhöhen — NICHT reduzieren. Nur in Taper und Rennwoche ist ein hoher TSB das Ziel und wird gehalten.";
         }
 
         // Other events in the plan window
@@ -350,10 +428,10 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 - Ziel: {$targetYards} Yards / Stunden (≈ {$targetDistKm} km)
 - Priorität: {$priorityText}
 
-**{$profileText}**
+**{$profileText}**{$paceText}
 
-**Letzte Aktivitäten (4 Wochen):**
-{$activitiesText}
+**Letzte Läufe (4 Wochen):**
+{$activitiesText}{$crossText}{$volumeText}
 
 **{$wellbeingText}**{$garminBlock}{$coachNotesText}
 
@@ -362,9 +440,15 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 **{$pastResultsText}**
 
 **Bisherige Einheitsbewertungen (Athleten-Feedback):**
-{$ratingsText}
+{$ratingsText}{$phaseText}
 
 **{$availabilityText}**{$otherEventsText}{$followUpGoalText}{$finalizedText}{$recoveryWarning}{$perDateAvailText}{$strengthBlock}
+
+**Wenn sich Signale widersprechen, gilt diese Rangfolge — von oben nach unten:**
+1. Gesundheit: Krankheit, Verletzung, Wiedereinstieg. Schlägt alles andere, auch das Renndatum.
+2. Gemessene Erholung (Garmin: HRV, Ruhepuls, Schlaf). Objektiv und wichtiger als die Selbsteinschätzung.
+3. Trainingsbelastung (TSB) und Selbsteinschätzung (Wellbeing).
+4. Der Zielehrgeiz. Er bestimmt, WAS trainiert wird, aber nie gegen die drei Punkte darüber, WIE VIEL.
 
 **Planungsregeln (Backyard-spezifisch):**
 - Starte den Plan ab heute ({$today})
@@ -415,10 +499,10 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 - Priorität: {$priorityText}
 - Zielzeit: {$targetTime}
 
-**{$profileText}**
+**{$profileText}**{$paceText}
 
-**Letzte Aktivitäten (4 Wochen):**
-{$activitiesText}
+**Letzte Läufe (4 Wochen):**
+{$activitiesText}{$crossText}{$volumeText}
 
 **{$wellbeingText}**{$garminBlock}{$coachNotesText}
 
@@ -427,29 +511,32 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 **{$pastResultsText}**
 
 **Bisherige Einheitsbewertungen (Athleten-Feedback):**
-{$ratingsText}
+{$ratingsText}{$phaseText}{$focusText}
 
 **{$availabilityText}**{$otherEventsText}{$finalizedText}{$recoveryWarning}{$perDateAvailText}{$strengthBlock}
 
+**Wenn sich Signale widersprechen, gilt diese Rangfolge — von oben nach unten:**
+1. Gesundheit: Krankheit, Verletzung, Wiedereinstieg. Schlägt alles andere, auch das Renndatum.
+2. Gemessene Erholung (Garmin: HRV, Ruhepuls, Schlaf). Objektiv und wichtiger als die Selbsteinschätzung. Warnt sie, wird gekürzt — die Struktur der Woche bleibt.
+3. Trainingsbelastung (TSB) und Selbsteinschätzung (Wellbeing).
+4. Der Zielehrgeiz. Er bestimmt, WAS trainiert wird, aber nie gegen die drei Punkte darüber, WIE VIEL.
+Reduziere im Zweifel die Intensität einer Einheit, nicht ihre Existenz — ein gekürzter Tempolauf ist besser als ein gestrichener.
+
 **Planungsregeln:**
-- Starte den Plan ab heute ({$today})
-- Plane GENAU jeden Tag von {$today} bis {$planEndDate} — das sind {$totalDays} Tage. Kein Tag nach {$planEndDate}.
+- Plane GENAU jeden Tag von heute ({$today}) bis {$planEndDate} — das sind {$totalDays} Tage. Kein Tag davor, kein Tag danach.
 - {$endRuleStandard}
-- Passe die Intensität an den Zeitraum bis zum Rennen an: {$daysUntil} Tage
-- Bei >30 Tagen: normaler Aufbau (Volumen + Tempo)
-- Bei 10-30 Tagen: Tapering einleiten (Volumen reduzieren, Qualität halten)
-- Bei <10 Tagen: starkes Tapering, nur leichte Läufe und Ruhetage
-- Berücksichtige Wellbeing-Daten: schlechter Schlaf/hoher Stress → leichtere Einheiten
-- Berücksichtige die Trainingsbelastung: TSB < −30 (Übermüdet) → Volumen stark reduzieren, mehr Ruhetage; TSB > +15 (zu frisch) → Volumen erhöhen
-- Mindestens ein Ruhetag pro Woche
+- Halte dich an die Trainingsphase und an die Umfangsregeln oben. Beides ist ausgerechnet, nicht geschätzt.
+- Mindestens ein Ruhetag pro Woche.
 - WOCHENMUSTER: Die Wochenstruktur ist im Gerüst oben festgelegt und nicht verhandelbar. Deine Aufgabe ist, jede vorgegebene Einheit inhaltlich auszugestalten: beim easy_run konsequent Zone 2 (Unterhaltungstempo, kein „flotter" Dauerlauf), beim tempo_run einen klaren Schwellenabschnitt mit konkreten Minutenangaben, beim interval konkrete Wiederholungen mit Länge und Trabpause (z.B. „5×1000 m mit 400 m Trabpause"). Schreibe diese Angaben ausdrücklich in die description — daraus wird später die Schritteliste gebaut.
-- A-Events: max. Leistungsoptimierung; C-Events: Trainingsrennen, moderate Belastung
-- WICHTIG: Plane nur Tage von heute ({$today}) bis {$planEndDate}. Kein Tag nach {$planEndDate}.
-- Lerne aus den Athleten-Bewertungen: niedrige Bewertungen (1-2⭐) oder hohe RPE (≥8) bei bestimmten Typen → weniger davon oder leichter planen; hohe Bewertungen (4-5⭐) → mehr davon
-- Lerne aus vergangenen Rennergebnissen: Ziel verfehlt → mehr spezifisches Tempotraining für diese Distanz; Ziel erreicht/übertroffen → Plan funktioniert, ähnliche Struktur beibehalten
+- AUFBAU EINER HARTEN EINHEIT: 10–15 min locker einlaufen, dann der Hauptteil, dann 10 min auslaufen — die duration_min des Tages schließt beides ein. Der harte Anteil selbst überschreitet 40 min (Schwelle) bzw. 25 min reine Belastung (Intervalle) nicht. Aus „Tempolauf, 90 min" wird also nicht 90 min Schwellentempo.
+- JEDE EINHEIT BRAUCHT EINEN ZWECK: Schreibe in die description in einem Halbsatz, worauf die Einheit hinarbeitet (z.B. „hält die Schwelle für das Renntempo 4:58"). Eine Einheit, für die sich kein Zweck formulieren lässt, gehört nicht in den Plan.
+- KONKRETE ZAHLEN: pace_target kommt aus der Tempotabelle oben, nicht aus dem Bauch. distance_km und duration_min müssen zueinander und zur angegebenen Pace passen — rechne das nach, bevor du sie schreibst.
+- A-Events: max. Leistungsoptimierung; C-Events: Trainingsrennen, moderate Belastung.
+- Lerne aus den Athleten-Bewertungen: niedrige Bewertungen (1-2⭐) oder hohe RPE (≥8) bei bestimmten Typen → weniger davon oder leichter planen; hohe Bewertungen (4-5⭐) → mehr davon.
+- Lerne aus vergangenen Rennergebnissen: Ziel verfehlt → mehr spezifisches Tempotraining für diese Distanz; Ziel erreicht/übertroffen → Plan funktioniert, ähnliche Struktur beibehalten.
 - ANDERE RENNEVENTS: An Tagen mit anderen Rennevents im Planungszeitraum IMMER type="rest" — der Athlet läuft ein Rennen, kein zusätzliches Training.
 - VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die GESAMTE Trainingsdauer eines Tages (bei zwei Einheiten die Summe) darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
-- ZIELORIENTIERUNG (wichtig): Plane ehrgeizig und zielgerichtet auf die Zielzeit {$targetTime} hin — mit klarer Progression aus Umfang und spezifischem Tempo an der Zielpace. Sei nicht unnötig konservativ, solange Wellbeing und Trainingsbelastung es zulassen. Zeigt der aktuelle Leistungsstand (Aktivitäten, Schwellenpace), dass die Zielzeit deutlich zu leicht ODER unrealistisch ist, spiegle das in der description der Schlüssel-Einheiten wider (was nötig ist, um das Ziel zu erreichen bzw. dass ein ehrgeizigeres Ziel drin wäre).
+- ZIELORIENTIERUNG: Der Plan führt auf {$targetTime} hin. Das Renntempo aus der Tabelle oben gehört regelmäßig ins Training — es ist die spezifischste Vorbereitung, die es gibt. Sei nicht unnötig konservativ, solange Gesundheit, Erholung und Belastung es zulassen. Was die Einordnung oben zum Verhältnis von Ziel und heutiger Form sagt, gehört in die description der Schlüsseleinheiten.
 - EIN LAUFTRAINING PRO TAG: An einem Tag steht hoechstens EINE Laufeinheit (easy_run, tempo_run, interval, long_run, progressive_run, test_run, race_prep). Zwei Laeufe am selben Tag sind immer falsch — auch dann, wenn der zweite locker waere, und auch dann, wenn eine andere Regel eine zusaetzliche lockere Einheit nahezulegen scheint. Passt eine Vorgabe nicht zur Einheit des Tages, aendere die Einheit, statt eine zweite danebenzustellen.
 - ZWEITE EINHEIT: Nur strength, core oder mobility duerfen als zweiter Eintrag zu einem Tag dazukommen, und nur wenn das Wochengeruest sie dort vorsieht. Bei zwei Eintraegen am selben "date": Tageszeit im title kennzeichnen ("Morgens: ...", "Abends: ..."), Laufeinheit zuerst, Summe beider duration_min <= Tages-Maximum.
 - PROGRESSIVE LÄUFE (progressive_run): Lauf beginnt in Zone 1–2 und steigert sich Kilometer für Kilometer bis Zone 3–4 gegen Ende. Ideal für Tempoaufbau ohne volle Belastung. Max. 1× pro Woche, nur in Build- und Peak-Phase, nicht im Tapering.
