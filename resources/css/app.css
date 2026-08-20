@@ -143,9 +143,15 @@
     @apply mb-1.5 block text-sm font-medium text-ink-2;
   }
 
+  /*
+   * text-base auf dem Telefon, text-sm erst ab sm. Safari zoomt beim Fokus
+   * in jedes Eingabefeld hinein, dessen Schrift kleiner als 16px ist — die
+   * Seite springt, und danach steht sie schief. Mit 14px passierte das in
+   * jedem Feld der App, auch im Coach-Chat.
+   */
   .z-input {
     @apply block w-full rounded-field bg-surface-2 px-4 py-3
-           text-sm text-ink placeholder-ink-3 transition-colors
+           text-base sm:text-sm text-ink placeholder-ink-3 transition-colors
            border-0 focus:outline-none focus:ring-2 focus:ring-accent/40;
   }
 
@@ -212,6 +218,21 @@
    * zusammen.
    */
   .pt-safe-banner    { padding-top: calc(0.75rem + env(safe-area-inset-top)); }
+
+  /*
+   * Sicherheitsnetz gegen den iOS-Zoom: Felder, die ihre Schriftgroesse
+   * direkt als Utility mitbringen (text-sm im Admin, Datums- und
+   * Zeitfelder im Profil), erreicht die .z-input-Regel oben nicht. Das
+   * :not() hebt die Spezifitaet gerade so weit, dass die Utility-Klasse
+   * auf kleinen Bildschirmen ueberstimmt wird.
+   */
+  @media (max-width: 639px) {
+    input:not([type='checkbox']):not([type='radio']),
+    textarea:not([hidden]),
+    select:not([hidden]) {
+      font-size: 1rem;
+    }
+  }
 
   /* Scroll containers without a visible scrollbar (carousels, chip rows) */
   .no-scrollbar               { scrollbar-width: none; -ms-overflow-style: none; }

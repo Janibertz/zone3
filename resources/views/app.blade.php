@@ -2,7 +2,12 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+        {{-- maximum-scale=1 unterband das Aufziehen mit zwei Fingern. Gedacht war
+             es gegen den Zoom, in den Safari beim Fokus in ein zu kleines
+             Eingabefeld springt — das ist jetzt an der Ursache geloest (16px in
+             .z-input). iOS ignoriert die Sperre ohnehin seit Jahren, Android
+             nicht: dort konnte niemand mehr etwas vergroessern. --}}
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         {{-- Theme before first paint — must run in <head>, otherwise the wrong
