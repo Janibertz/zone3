@@ -35,6 +35,19 @@ class TrainingPlanController extends Controller
             $plan->update(['is_active' => false]);
         }
 
+        // Die Rennzeit aus Strava uebernehmen.
+        //
+        // Der Lauf kommt ohnehin ueber den Webhook herein, und die
+        // Renn-Analyse ordnet ihm laengst die richtige Aktivitaet zu — nur
+        // das Ergebnisfeld daneben blieb leer, bis jemand die Zeit von Hand
+        // abtippte. Wer das vergass, hatte das Rennen zwar gelaufen, aber
+        // fuer die naechste Planung war es nie stattgefunden: pastPlanResults
+        // liest genau dieses Feld.
+        $resultSource = null;
+        if ($isPastEvent && $plan) {
+            $resultSource = $this->adoptRaceResult($event, $plan);
+        }
+
         $sessions = $plan
             ? TrainingSession::where('training_plan_id', $plan->id)
                 ->with('activity:id,laps')
@@ -117,6 +130,10 @@ class TrainingPlanController extends Controller
             ] : null,
             'sessions'    => $sessions,
             'isPastEvent' => $isPastEvent,
+
+            // Gesetzt, wenn die Zeit gerade aus Strava uebernommen wurde —
+            // damit im Ergebnisfeld steht, woher die Zahl kommt.
+            'resultSource' => $resultSource,
 
             // Der Änderungsverlauf. Er hängt am Event, nicht am Plan — jede
             // Neuberechnung löscht den Plan, der Verlauf überlebt sie.
@@ -414,6 +431,53 @@ class TrainingPlanController extends Controller
     }
 
     /** Most plausible race run: a Run within ±1 day of the event, closest to the race distance. */
+    /**
+     * Traegt die gelaufene Zeit ein, falls sie noch fehlt.
+     *
+     * Nur wenn das Feld leer ist — eine von Hand eingetragene Zeit ist die
+     * offizielle und wird nie ueberschrieben. Gemessen wird elapsed_time,
+     * nicht moving_time: bei einem Rennen zaehlt die Uhr am
+     * Verpflegungsstand weiter.
+     *
+     * @return array{time: string, activity: string}|null  Nur beim Uebernehmen gesetzt.
+     */
+    private function adoptRaceResult(Event $event, TrainingPlan $plan): ?array
+    {
+        if ($plan->actual_time_hours !== null || $plan->actual_time_minutes !== null) {
+            return null;
+        }
+
+        // Ein Backyard besteht aus vielen einzelnen Yards, oft als einzelne
+        // Aktivitaeten aufgezeichnet. Die Dauer des laengsten davon waere
+        // nicht das Ergebnis, sondern eine Runde.
+        if ($event->isBackyard()) {
+            return null;
+        }
+
+        $activity = $this->findRaceActivity($event, $this->raceDistanceKm($event));
+        if (! $activity || $activity->elapsed_time <= 0) {
+            return null;
+        }
+
+        $seconds = (int) $activity->elapsed_time;
+
+        // Das Feld fasst nur Stunden bis 23 — laenger heisst hier ohnehin,
+        // dass die Zuordnung nicht stimmt.
+        if ($seconds >= 24 * 3600) {
+            return null;
+        }
+
+        $plan->update([
+            'actual_time_hours'   => intdiv($seconds, 3600),
+            'actual_time_minutes' => intdiv($seconds % 3600, 60),
+        ]);
+
+        return [
+            'time'     => $this->secToClock($seconds),
+            'activity' => $activity->name,
+        ];
+    }
+
     private function findRaceActivity(Event $event, ?float $distanceKm): ?Activity
     {
         $candidates = Activity::where('user_id', Auth::id())

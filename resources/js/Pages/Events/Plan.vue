@@ -36,6 +36,8 @@ const props = defineProps({
     isPastEvent:  { type: Boolean, default: false },
     // Aenderungsverlauf: was jede Neuberechnung am Plan geaendert hat.
     revisions:    { type: Array, default: () => [] },
+    // Gesetzt, wenn die Rennzeit soeben aus Strava uebernommen wurde.
+    resultSource: { type: Object, default: null },
 });
 
 const revisionsOpen = ref(false);
@@ -1295,6 +1297,14 @@ const lapHeightPct = computed(() => {
                                         </div>
                                     </div>
                                 </div>
+
+                                <!-- Die Zeit stand vorher leer, bis jemand sie abtippte. -->
+                                <p v-if="resultSource" class="mt-2 flex items-center gap-1.5 text-[12px] text-ink-3">
+                                    <svg class="h-3.5 w-3.5 shrink-0 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                    </svg>
+                                    <span class="truncate">{{ resultSource.time }} aus Strava übernommen — „{{ resultSource.activity }}“</span>
+                                </p>
 
                                 <Transition enter-active-class="transition-all duration-300 ease-out" enter-from-class="opacity-0 scale-95">
                                     <div v-if="goalAchieved !== null"
