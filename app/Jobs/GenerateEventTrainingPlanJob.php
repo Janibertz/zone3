@@ -140,7 +140,7 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
                 oldSessions: $sessionsBefore,
                 newSessions: $aiSessions,
                 corrections: $checked['report'] ?? [],
-                triggeredBy: $sessionsBefore->isEmpty() ? 'initial' : 'user',
+                triggeredBy: $sessionsBefore->isEmpty() ? 'initial' : 'manual',
             );
 
             // Erhaltene Einheiten blockieren ihren Tag nur für Läufe. Vorher
