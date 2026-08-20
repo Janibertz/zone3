@@ -219,6 +219,99 @@ class CoachPlanEditTest extends TestCase
         $this->assertNotNull($result['action']);
     }
 
+    // ── Die Einheit muss in sich stimmen ─────────────────────────────────
+
+    /**
+     * Gemeldet: der Titel stand auf „Longrun 25 km", darunter unverändert
+     * 7,2 km und 40 Minuten. Ein Sprachmodell füllt optionale Felder eben
+     * nicht zuverlässig — also wird die fehlende Größe nachgerechnet, statt
+     * den alten Wert stehenzulassen.
+     */
+    public function test_a_distance_without_a_duration_gets_one(): void
+    {
+        [$user, $plan] = $this->athlete();
+        $user->runnerProfile()->create(['threshold_speed' => 4 + 22 / 60]);
+        $date = now()->addDays(3)->toDateString();
+        $id   = $this->plannedSession($user, $plan, $date, 'easy_run', 7.2);
+
+        $this->runTool($user, 'modify_training_session', [
+            'date' => $date, 'type' => 'long_run', 'title' => 'Longrun 25 km', 'distance_km' => 25,
+        ]);
+
+        $session = TrainingSession::find($id);
+
+        $this->assertEquals(25, $session->distance_km);
+        $this->assertNotSame(40, $session->duration_min, 'Die alte Dauer darf nicht stehenbleiben');
+        // 25 km bei rund 5:32/km sind etwa 2:18 Std.
+        $this->assertGreaterThan(120, $session->duration_min);
+        $this->assertLessThan(160, $session->duration_min);
+    }
+
+    /** Und umgekehrt: nur eine Dauer ergibt eine passende Distanz. */
+    public function test_a_duration_without_a_distance_gets_one(): void
+    {
+        [$user, $plan] = $this->athlete();
+        $user->runnerProfile()->create(['threshold_speed' => 4 + 22 / 60]);
+        $date = now()->addDays(3)->toDateString();
+        $id   = $this->plannedSession($user, $plan, $date, 'easy_run', 7.2);
+
+        $this->runTool($user, 'modify_training_session', [
+            'date' => $date, 'type' => 'long_run', 'duration_min' => 120,
+        ]);
+
+        $session = TrainingSession::find($id);
+        $this->assertGreaterThan(19, $session->distance_km);
+        $this->assertLessThan(24, $session->distance_km);
+    }
+
+    /** Wechselt nur der Typ, folgt die Distanz der neuen Pace. */
+    public function test_a_type_change_alone_still_leaves_no_stale_numbers(): void
+    {
+        [$user, $plan] = $this->athlete();
+        $user->runnerProfile()->create(['threshold_speed' => 4 + 22 / 60]);
+        $date = now()->addDays(3)->toDateString();
+        $id   = $this->plannedSession($user, $plan, $date, 'easy_run', 7.2);
+
+        $this->runTool($user, 'modify_training_session', ['date' => $date, 'type' => 'interval']);
+
+        $session = TrainingSession::find($id);
+
+        // 40 Minuten bei Intervalltempo sind mehr als 7,2 km.
+        $this->assertGreaterThan(7.2, $session->distance_km);
+        $this->assertNotNull($session->pace_target, 'Nach einem Typwechsel braucht es eine neue Pace');
+    }
+
+    /** Liefert der Coach beide Zahlen, bleiben genau die stehen. */
+    public function test_explicit_numbers_are_kept_as_given(): void
+    {
+        [$user, $plan] = $this->athlete();
+        $user->runnerProfile()->create(['threshold_speed' => 4 + 22 / 60]);
+        $date = now()->addDays(3)->toDateString();
+        $id   = $this->plannedSession($user, $plan, $date);
+
+        $this->runTool($user, 'modify_training_session', [
+            'date' => $date, 'type' => 'long_run', 'distance_km' => 25, 'duration_min' => 145,
+        ]);
+
+        $session = TrainingSession::find($id);
+        $this->assertEquals(25, $session->distance_km);
+        $this->assertSame(145, $session->duration_min);
+    }
+
+    /** Bei Kraft und Core wird nichts gerechnet — die haben keine Distanz. */
+    public function test_strength_sessions_are_left_unreconciled(): void
+    {
+        [$user, $plan] = $this->athlete();
+        $date = now()->addDays(3)->toDateString();
+
+        $this->runTool($user, 'create_training_session', [
+            'date' => $date, 'type' => 'strength', 'title' => 'Kettlebell', 'duration_min' => 30,
+        ]);
+
+        $session = TrainingSession::where('user_id', $user->id)->whereDate('planned_date', $date)->first();
+        $this->assertNull($session->distance_km);
+    }
+
     // ── Was der Coach nicht darf ─────────────────────────────────────────
 
     /** Vergangene Tage bleiben, wie sie sind — sonst ist jede Auswertung wertlos. */

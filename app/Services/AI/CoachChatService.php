@@ -395,7 +395,7 @@ class CoachChatService
             ]],
             ['type' => 'function', 'function' => [
                 'name'        => 'modify_training_session',
-                'description' => 'Ändere eine geplante Trainingseinheit — an einem beliebigen Tag, nicht nur heute. Nutze dies bei "zu leicht", "mach es schwerer", "am Sonntag lieber 25 km". Ohne "date" gilt heute. Alle Inhaltsfelder sind optional – ändere nur was nötig. Steht an dem Tag noch nichts, wird die Einheit angelegt.',
+                'description' => 'Ändere eine geplante Trainingseinheit — an einem beliebigen Tag, nicht nur heute. Nutze dies bei "zu leicht", "mach es schwerer", "am Sonntag lieber 25 km". Ohne "date" gilt heute. Steht an dem Tag noch nichts, wird die Einheit angelegt. WICHTIG: Änderst du Typ oder Umfang eines Laufs, gib IMMER distance_km UND duration_min mit — sonst bleiben die Zahlen der alten Einheit stehen und widersprechen dem Titel.',
                 'parameters'  => ['type' => 'object', 'properties' => [
                     'date'         => ['type' => 'string', 'description' => 'Tag der Einheit als YYYY-MM-DD. Weglassen für heute.'],
                     'type'         => ['type' => 'string', 'enum' => ['easy_run','tempo_run','interval','long_run','progressive_run','test_run','race_prep','strength','core','mobility','rest'], 'description' => 'Trainingstyp'],
@@ -572,13 +572,27 @@ class CoachChatService
      * intensity sind in der Datenbank Pflicht, stehen aber nicht in jeder
      * Werkzeugbeschreibung — ohne Vorbelegung scheiterte das Speichern, und
      * der Athlet sah nur „Server Error".
+     *
+     * Die zweite Aufgabe ist wichtiger: dafür sorgen, dass die Einheit in
+     * sich stimmt. Gemeldet wurde ein Fall, in dem der Coach den Titel auf
+     * „Longrun 25 km" setzte und Distanz und Dauer des alten 7,2-km-Laufs
+     * stehenblieben — der Athlet las eine Überschrift, die nichts mit den
+     * Zahlen darunter zu tun hatte. Ein Sprachmodell füllt eben nicht
+     * zuverlässig alle optionalen Felder. Also wird hier nachgerechnet.
      */
-    private function applySessionFields(\App\Models\TrainingSession $session, array $args): void
+    private function applySessionFields(\App\Models\TrainingSession $session, array $args, ?\App\Models\User $user = null): void
     {
+        $given = [];
+
         foreach (['type', 'title', 'description', 'distance_km', 'duration_min', 'pace_target', 'zone'] as $field) {
-            if (array_key_exists($field, $args) && $args[$field] !== null) {
+            if (array_key_exists($field, $args) && $args[$field] !== null && $args[$field] !== '') {
                 $session->{$field} = $args[$field];
+                $given[$field]     = true;
             }
+        }
+
+        if ($this->isRun($session->type)) {
+            $this->reconcileDistanceAndDuration($session, $given, $user);
         }
 
         $session->title       = $session->title       ?: $this->sessionTitleFor($session->type);
@@ -588,6 +602,64 @@ class CoachChatService
         // Schritteliste und Verpflegungshinweise gehören zur alten Vorgabe.
         $session->steps          = null;
         $session->nutrition_tips = null;
+    }
+
+    /**
+     * Distanz, Dauer und Pace zueinander passend machen.
+     *
+     * Nennt der Coach nur eine der beiden Größen, wird die andere aus der
+     * Pace des Athleten gerechnet, statt den alten Wert stehenzulassen.
+     * Ändert sich der Typ, ohne dass Zahlen mitkommen, sind die alten Zahlen
+     * ohnehin falsch — dann werden sie aus der Dauer neu abgeleitet.
+     *
+     * @param  array<string,bool>  $given  Welche Felder der Coach geliefert hat
+     */
+    private function reconcileDistanceAndDuration(
+        \App\Models\TrainingSession $session,
+        array $given,
+        ?\App\Models\User $user,
+    ): void {
+        $paceSec = $this->paceSecondsFor($session->type, $user);
+
+        $hasDistance = isset($given['distance_km']);
+        $hasDuration = isset($given['duration_min']);
+
+        if ($hasDistance && ! $hasDuration) {
+            $session->duration_min = (int) round($session->distance_km * $paceSec / 60);
+        } elseif ($hasDuration && ! $hasDistance) {
+            $session->distance_km = round($session->duration_min * 60 / $paceSec, 1);
+        } elseif (! $hasDistance && ! $hasDuration && isset($given['type']) && $session->duration_min > 0) {
+            // Nur der Typ hat gewechselt: die Dauer bleibt das Verlässliche,
+            // die Distanz folgt der neuen Pace.
+            $session->distance_km = round($session->duration_min * 60 / $paceSec, 1);
+        }
+
+        // Eine Pace aus der alten Einheit passt nach einem Typwechsel nicht
+        // mehr. Sie wird dann neu gesetzt statt irrezuführen.
+        if (! isset($given['pace_target']) && isset($given['type'])) {
+            $session->pace_target = sprintf('%d:%02d', (int) ($paceSec / 60), (int) $paceSec % 60);
+        }
+    }
+
+    /**
+     * Grobes Tempo je Einheitstyp in Sekunden pro Kilometer — als Schnitt
+     * über die ganze Einheit, Ein- und Auslaufen eingerechnet. Ohne
+     * hinterlegte Schwellenpace wird mit 5:30 gerechnet.
+     */
+    private function paceSecondsFor(string $type, ?\App\Models\User $user): int
+    {
+        $threshold = $user?->runnerProfile?->threshold_speed;
+        $t         = $threshold > 0 ? $threshold * 60 : 330;
+
+        return (int) round(match ($type) {
+            'long_run'         => $t + 70,
+            'easy_run'         => $t + 60,
+            'progressive_run'  => $t + 45,
+            'interval'         => $t + 25,
+            'tempo_run'        => $t + 15,
+            'test_run'         => $t - 10,
+            default            => $t + 40,
+        });
     }
 
     /** „Sonntag, 23.08." — damit die Rückmeldung im Chat lesbar ist. */
@@ -601,6 +673,16 @@ class CoachChatService
 
     private function executeCoachTool(\App\Models\User $user, string $toolName, array $args): array
     {
+        // Was das Modell tatsaechlich uebergibt, war bisher nirgends
+        // nachlesbar. Genau daran haengt aber jede Fehlersuche: der Titel
+        // stimmte, die Distanz nicht — ohne den Aufruf im Log bleibt nur
+        // Raten, ob das Feld fehlte oder das Speichern.
+        \Illuminate\Support\Facades\Log::info('Coach tool call', [
+            'user_id' => $user->id,
+            'tool'    => $toolName,
+            'args'    => $args,
+        ]);
+
         switch ($toolName) {
             case 'remember_user_fact': {
                 $fact = trim($args['fact'] ?? '');
@@ -631,7 +713,7 @@ class CoachChatService
                     $session = $this->newSessionFor($user, $date, $args['type'] ?? 'easy_run');
                 }
 
-                $this->applySessionFields($session, $args);
+                $this->applySessionFields($session, $args, $user);
                 $session->save();
 
                 $this->invalidateCoachCaches($user);
@@ -659,7 +741,7 @@ class CoachChatService
                 if ($this->isRun($type)) {
                     $existing = $this->plannedRunOn($user, $date);
                     if ($existing) {
-                        $this->applySessionFields($existing, $args);
+                        $this->applySessionFields($existing, $args, $user);
                         $existing->save();
                         $this->invalidateCoachCaches($user);
 
@@ -671,13 +753,15 @@ class CoachChatService
                 }
 
                 $session = $this->newSessionFor($user, $date, $type);
-                $this->applySessionFields($session, $args);
+                $this->applySessionFields($session, $args, $user);
                 $session->save();
 
                 $this->invalidateCoachCaches($user);
 
                 return [
-                    'message' => "Neue Einheit am {$date} angelegt: {$session->title}.",
+                    'message' => "Neue Einheit am {$date} angelegt: {$session->title}"
+                        . ($session->distance_km ? ", {$session->distance_km} km" : '')
+                        . ($session->duration_min ? ", {$session->duration_min} min" : '') . '.',
                     'action'  => ['type' => 'session_created', 'label' => "Einheit ergaenzt ({$this->dayLabel($date)}): {$session->title}", 'reload' => true],
                 ];
             }
