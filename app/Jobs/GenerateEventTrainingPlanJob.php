@@ -47,7 +47,7 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
         }
 
         if ($event->days_until < 0) {
-            $event->update(['plan_generating' => false, 'plan_error' => 'Event liegt in der Vergangenheit.']);
+            $event->update(['plan_generating' => false, 'plan_generating_at' => null, 'plan_error' => 'Event liegt in der Vergangenheit.']);
             return;
         }
 
@@ -80,12 +80,12 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
             $aiSessions = $planner->generateEventTrainingPlan($context);
         } catch (\Throwable $e) {
             Log::error('GenerateEventTrainingPlanJob: OpenAI error', ['error' => $e->getMessage(), 'event_id' => $event->id]);
-            $event->update(['plan_generating' => false, 'plan_error' => 'Der Coach konnte gerade keinen Plan erstellen. Bitte versuche es erneut.']);
+            $event->update(['plan_generating' => false, 'plan_generating_at' => null, 'plan_error' => 'Der Coach konnte gerade keinen Plan erstellen. Bitte versuche es erneut.']);
             return;
         }
 
         if (! $aiSessions) {
-            $event->update(['plan_generating' => false, 'plan_error' => 'Plan konnte nicht erstellt werden. Bitte versuche es erneut.']);
+            $event->update(['plan_generating' => false, 'plan_generating_at' => null, 'plan_error' => 'Plan konnte nicht erstellt werden. Bitte versuche es erneut.']);
             return;
         }
 
@@ -288,7 +288,7 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
             }
         } catch (\Throwable $e) {
             Log::error('GenerateEventTrainingPlanJob: database error', ['error' => $e->getMessage(), 'event_id' => $event->id]);
-            $event->update(['plan_generating' => false, 'plan_error' => 'Plan konnte nicht gespeichert werden. Bitte versuche es erneut.']);
+            $event->update(['plan_generating' => false, 'plan_generating_at' => null, 'plan_error' => 'Plan konnte nicht gespeichert werden. Bitte versuche es erneut.']);
             return;
         }
 
@@ -301,7 +301,7 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
         ]);
 
         // Success — clear generation state
-        $event->update(['plan_generating' => false, 'plan_error' => null]);
+        $event->update(['plan_generating' => false, 'plan_generating_at' => null, 'plan_error' => null]);
 
         if ($user->push_notifications_enabled && $user->notify_plan_updated) {
             $coachName = $user->coach?->name ?? 'Dein Coach';
@@ -325,8 +325,9 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
     public function failed(\Throwable $e): void
     {
         Event::where('id', $this->eventId)->update([
-            'plan_generating' => false,
-            'plan_error'      => 'Plan-Erstellung fehlgeschlagen. Bitte versuche es erneut.',
+            'plan_generating'    => false,
+            'plan_generating_at' => null,
+            'plan_error'         => 'Plan-Erstellung fehlgeschlagen. Bitte versuche es erneut.',
         ]);
     }
 

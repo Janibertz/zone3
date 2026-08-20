@@ -24,6 +24,38 @@ class Event extends Model
 
     protected $appends = ['distance_label', 'target_time_formatted'];
 
+    /**
+     * Wie lange eine Planerstellung laufen darf, bevor sie als
+     * haengengeblieben gilt.
+     *
+     * Bewusst ueber dem Job-Timeout von 1800 Sekunden: solange der Job noch
+     * laufen koennte, darf kein zweiter gestartet werden — zwei gleichzeitige
+     * Laeufe wuerden sich gegenseitig die Plaene unter den Fuessen wegloeschen.
+     */
+    public const PLAN_GENERATING_STALE_MINUTES = 35;
+
+    /**
+     * Laeuft gerade wirklich eine Planerstellung?
+     *
+     * Ein gesetzter Schalter ohne Zeitstempel stammt aus der Zeit vor dieser
+     * Pruefung — also aus einem Lauf, der nie zu Ende kam.
+     */
+    public function isGeneratingPlan(): bool
+    {
+        if (! $this->plan_generating) {
+            return false;
+        }
+
+        return $this->plan_generating_at !== null
+            && $this->plan_generating_at->gt(now()->subMinutes(self::PLAN_GENERATING_STALE_MINUTES));
+    }
+
+    /** Der Schalter steht, aber niemand rechnet mehr. */
+    public function hasStalePlanGeneration(): bool
+    {
+        return (bool) $this->plan_generating && ! $this->isGeneratingPlan();
+    }
+
     protected $fillable = [
         'user_id',
         'name',
@@ -35,6 +67,7 @@ class Event extends Model
         'target_time_minutes',
         'target_yards',
         'plan_generating',
+        'plan_generating_at',
         'plan_error',
         'notes',
     ];
@@ -46,6 +79,7 @@ class Event extends Model
         'target_time_minutes' => 'integer',
         'target_yards'        => 'integer',
         'plan_generating'     => 'boolean',
+        'plan_generating_at'  => 'datetime',
     ];
 
     public function isBackyard(): bool

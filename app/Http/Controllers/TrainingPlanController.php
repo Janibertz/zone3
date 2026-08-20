@@ -35,6 +35,20 @@ class TrainingPlanController extends Controller
             $plan->update(['is_active' => false]);
         }
 
+        // Einen haengengebliebenen Lauf hier aufraeumen. Die Seite ist der
+        // einzige Ort, an dem jemand den Zustand ueberhaupt bemerkt — und
+        // ohne das Aufraeumen bliebe die Schaltfläche wirkungslos, weil
+        // generate() bei gesetztem Schalter nichts tut.
+        if ($event->hasStalePlanGeneration()) {
+            $event->update([
+                'plan_generating'    => false,
+                'plan_generating_at' => null,
+                'plan_error'         => $plan
+                    ? null
+                    : 'Die letzte Plan-Erstellung wurde unterbrochen. Bitte starte sie erneut.',
+            ]);
+        }
+
         // Die Rennzeit aus Strava uebernehmen.
         //
         // Der Lauf kommt ohnehin ueber den Webhook herein, und die
@@ -104,7 +118,7 @@ class TrainingPlanController extends Controller
                 'target_distance_km'    => $event->target_distance_km,
                 'target_time_formatted' => $event->target_time_formatted,
                 'days_until'            => $event->days_until,
-                'plan_generating'       => (bool) $event->plan_generating,
+                'plan_generating'       => $event->isGeneratingPlan(),
                 'plan_error'            => $event->plan_error,
             ],
             'backyard' => $backyard,
@@ -229,14 +243,20 @@ class TrainingPlanController extends Controller
             ], 422);
         }
 
-        // Already running for this event → don't queue a second job
-        if ($event->plan_generating) {
+        // Already running for this event → don't queue a second job.
+        // Ein haengengebliebener Schalter zaehlt nicht als "laeuft": sonst
+        // liesse sich die Planerstellung nie wieder anstossen.
+        if ($event->isGeneratingPlan()) {
             return response()->json(['generating' => true]);
         }
 
         // Dispatch the heavy AI generation to the queue so the single-threaded
         // web process is never blocked by the 100s+ OpenAI reasoning call.
-        $event->update(['plan_generating' => true, 'plan_error' => null]);
+        $event->update([
+            'plan_generating'    => true,
+            'plan_generating_at' => now(),
+            'plan_error'         => null,
+        ]);
         GenerateEventTrainingPlanJob::dispatch($event->id, Auth::id());
 
         return response()->json(['generating' => true]);
@@ -249,9 +269,21 @@ class TrainingPlanController extends Controller
     {
         abort_if($event->user_id !== Auth::id(), 403);
 
-        if ($event->plan_generating) {
+        if ($event->isGeneratingPlan()) {
             return response()->json(['status' => 'generating']);
         }
+
+        // Sonst wartet die Oberflaeche endlos auf ein Ende, das nicht kommt.
+        if ($event->hasStalePlanGeneration()) {
+            $event->update([
+                'plan_generating'    => false,
+                'plan_generating_at' => null,
+                'plan_error'         => 'Die Plan-Erstellung wurde unterbrochen. Bitte starte sie erneut.',
+            ]);
+
+            return response()->json(['status' => 'failed', 'error' => $event->plan_error]);
+        }
+
         if ($event->plan_error) {
             return response()->json(['status' => 'failed', 'error' => $event->plan_error]);
         }

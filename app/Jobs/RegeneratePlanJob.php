@@ -127,6 +127,18 @@ class RegeneratePlanJob implements ShouldQueue
                 ->where('id', $newPlan->id)
                 ->update(['is_active' => true, 'needs_plan_update' => false]);
 
+            // Fuer dieses Event steht jetzt ein frischer Plan. Ein noch
+            // gesetzter Erstellungs-Schalter kann nur von einem Lauf stammen,
+            // der nicht mehr kommt — die Planseite zeigte sonst weiter
+            // "analysiert deine Daten", obwohl der Plan daneben liegt.
+            if ($event->plan_generating) {
+                $event->update([
+                    'plan_generating'    => false,
+                    'plan_generating_at' => null,
+                    'plan_error'         => null,
+                ]);
+            }
+
             // Was sich geändert hat, bleibt nachlesbar — der alte Plan ist
             // an dieser Stelle bereits gelöscht.
             app(\App\Services\PlanRevisionRecorder::class)->record(
