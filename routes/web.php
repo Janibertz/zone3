@@ -109,33 +109,9 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         $secs = (int)(($ts - $mins) * 60);
         $thresholdPaceFormatted = sprintf('%d:%02d', $mins, $secs);
 
-        // Race predictions using Jack Daniels T-pace relationships
-        $tpSec = $ts * 60; // threshold pace in seconds/km
-        $races = [
-            '5k'       => ['distance' => 5.0,     'multiplier' => 0.90, 'label' => '5 km'],
-            '10k'      => ['distance' => 10.0,    'multiplier' => 0.95, 'label' => '10 km'],
-            'half'     => ['distance' => 21.0975, 'multiplier' => 1.03, 'label' => 'Halbmarathon'],
-            'marathon' => ['distance' => 42.195,  'multiplier' => 1.12, 'label' => 'Marathon'],
-        ];
-
-        $racePredictions = [];
-        foreach ($races as $key => $race) {
-            $paceSec   = $tpSec * $race['multiplier'];
-            $totalSec  = (int)($paceSec * $race['distance']);
-            $paceMin   = (int)($paceSec / 60);
-            $paceSecs  = (int)($paceSec % 60);
-            $h  = (int)($totalSec / 3600);
-            $m  = (int)(($totalSec % 3600) / 60);
-            $s  = $totalSec % 60;
-
-            $racePredictions[$key] = [
-                'label'      => $race['label'],
-                'pace'       => sprintf('%d:%02d', $paceMin, $paceSecs),
-                'total_time' => $h > 0
-                    ? sprintf('%d:%02d:%02d', $h, $m, $s)
-                    : sprintf('%d:%02d', $m, $s),
-            ];
-        }
+        // Dieselbe Quelle wie auf der Planseite — die Formel stand hier
+        // als zweite Kopie und musste von Hand mitgepflegt werden.
+        $racePredictions = app(\App\Services\RacePredictionService::class)->standardDistances($ts);
     }
 
     // Today's session from the active training plan

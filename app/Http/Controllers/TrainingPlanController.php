@@ -10,6 +10,7 @@ use App\Models\RunnerProfile;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Services\AI\CoachingTextService;
+use App\Services\RacePredictionService;
 use App\Services\TrainingLoadService;
 use App\Services\WeatherService;
 use App\Services\WebPushService;
@@ -86,7 +87,7 @@ class TrainingPlanController extends Controller
         // Backyard Ultra uses a separate yard-readiness estimate instead.
         $profile    = RunnerProfile::where('user_id', Auth::id())->first();
         $threshPred = (! $event->isBackyard() && $profile?->threshold_speed)
-            ? $this->calcThresholdPrediction($profile->threshold_speed, $event->race_distance, $event->distance_km)
+            ? app(RacePredictionService::class)->fromThreshold($profile->threshold_speed, $event->race_distance, $event->distance_km)
             : null;
 
         // Delta vs. target time (positive = faster than goal)
@@ -630,51 +631,6 @@ class TrainingPlanController extends Controller
         if ($mps <= 0) return null;
         $secPerKm = 1000 / $mps;
         return sprintf('%d:%02d', (int)($secPerKm / 60), (int)($secPerKm % 60));
-    }
-
-    /**
-     * Calculate race prediction from threshold pace using Jack Daniels T-pace relationships.
-     * Identical formula to the Dashboard race prediction — guarantees matching values.
-     */
-    private function calcThresholdPrediction(float $thresholdSpeed, string $raceDistance, ?float $customKm): ?array
-    {
-        $tpSec = $thresholdSpeed * 60;
-
-        $known = [
-            '5km'           => ['km' => 5.0,     'mul' => 0.90],
-            '10km'          => ['km' => 10.0,    'mul' => 0.95],
-            'half_marathon' => ['km' => 21.0975, 'mul' => 1.03],
-            'marathon'      => ['km' => 42.195,  'mul' => 1.12],
-        ];
-
-        if (isset($known[$raceDistance])) {
-            $km  = $known[$raceDistance]['km'];
-            $mul = $known[$raceDistance]['mul'];
-        } elseif ($customKm > 0) {
-            $km = $customKm;
-            // Linearly interpolate multiplier between the four known anchor points
-            if ($km <= 5.0)        $mul = 0.90;
-            elseif ($km <= 10.0)   $mul = 0.90 + ($km -  5.0) /  5.0    * 0.05;
-            elseif ($km <= 21.098) $mul = 0.95 + ($km - 10.0) / 11.098  * 0.08;
-            elseif ($km <= 42.195) $mul = 1.03 + ($km - 21.098) / 21.097 * 0.09;
-            else                   $mul = 1.12 + ($km - 42.195) / 42.195 * 0.05;
-        } else {
-            return null;
-        }
-
-        $paceSec   = $tpSec * $mul;
-        $totalSec  = (int)($paceSec * $km);
-        $paceMin   = (int)($paceSec / 60);
-        $paceSecs  = (int)($paceSec % 60);
-        $h = (int)($totalSec / 3600);
-        $m = (int)(($totalSec % 3600) / 60);
-        $s = $totalSec % 60;
-
-        return [
-            'time'      => $h > 0 ? sprintf('%d:%02d:%02d', $h, $m, $s) : sprintf('%d:%02d', $m, $s),
-            'pace'      => sprintf('%d:%02d', $paceMin, $paceSecs),
-            'total_sec' => $totalSec,
-        ];
     }
 
     /**

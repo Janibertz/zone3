@@ -8,6 +8,7 @@ use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\AI\CoachingTextService;
 use App\Services\PredictFinishTimeService;
+use App\Services\RacePredictionService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -23,7 +24,11 @@ class GenerateRacePredictionJob implements ShouldQueue
         public readonly int $planId,
     ) {}
 
-    public function handle(PredictFinishTimeService $predictor, CoachingTextService $text): void
+    public function handle(
+        PredictFinishTimeService $predictor,
+        CoachingTextService $text,
+        RacePredictionService $prediction,
+    ): void
     {
         $plan = TrainingPlan::with('event')->find($this->planId);
         if (! $plan || ! $plan->event) return;
@@ -39,6 +44,32 @@ class GenerateRacePredictionJob implements ShouldQueue
         if (! $data) {
             Log::info('GenerateRacePredictionJob: insufficient runs', ['plan_id' => $this->planId]);
             return;
+        }
+
+        // ── Die Zahl, die der Athlet sieht ────────────────────────────────────
+        //
+        // Der Predictor rechnet nach Riegel aus den letzten Laeufen hoch. Die
+        // Planseite zeigt aber die Prognose aus der Schwellenpace, sobald eine
+        // hinterlegt ist — und ueberschrieb die Riegel-Werte beim Rendern.
+        // Der Text daneben entstand weiter aus den Riegel-Zahlen: in der
+        // Kachel stand 3:26, im Text darunter 3:36. Beides fuer denselben
+        // Marathon, beides an einem Tag berechnet.
+        //
+        // Trend und Laufanzahl kommen weiter aus dem Predictor — die kann die
+        // Schwellenformel nicht liefern.
+        $profile   = $user->runnerProfile;
+        $threshold = ($profile?->threshold_speed && ! $event->isBackyard())
+            ? $prediction->fromThreshold($profile->threshold_speed, $event->race_distance, $event->distance_km)
+            : null;
+
+        if ($threshold) {
+            $targetSec = ($event->target_time_hours * 3600) + ($event->target_time_minutes * 60);
+
+            $data['predicted_finish_time'] = $threshold['time'];
+            $data['predicted_pace']        = $threshold['pace'];
+            $data['prediction_target_delta_sec'] = $targetSec > 0
+                ? $targetSec - $threshold['total_sec']
+                : null;
         }
 
         // ── Generate AI recommendation text ───────────────────────────────────
