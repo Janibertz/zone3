@@ -825,14 +825,20 @@ const lapHeightPct = computed(() => {
                 <!-- ══ KOPF ══════════════════════════════════════════ -->
                 <header class="px-1">
                     <Link :href="route('events.index')"
-                        class="-ml-2 mb-2 inline-flex items-center gap-1 rounded-field px-2 py-1 text-sm font-medium text-ink-3 transition-colors hover:text-ink">
+                        class="-ml-2 mb-1 inline-flex h-9 items-center gap-1 rounded-field px-2 text-sm font-medium text-ink-3 transition-colors hover:text-ink">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
                         </svg>
                         Events
                     </Link>
 
-                    <div class="flex flex-wrap items-start justify-between gap-4">
+                    <!--
+                        Auf dem Telefon untereinander: Titel oben, Schaltflaechen
+                        darunter ueber die volle Breite. Nebeneinander gestellt
+                        brach die Zeile um, und die Knoepfe landeten in 36 Pixel
+                        Hoehe am linken Rand — schlecht zu treffen und schief.
+                    -->
+                    <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                         <div class="min-w-0 flex-1">
                             <div class="flex flex-wrap items-center gap-2">
                                 <span class="inline-flex h-6 items-center rounded-full px-2.5 text-xs font-bold"
@@ -852,28 +858,42 @@ const lapHeightPct = computed(() => {
 
                             <h1 class="mt-2 text-2xl font-bold tracking-tight text-ink lg:text-3xl">{{ event.name }}</h1>
 
-                            <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[15px] text-ink-3">
-                                <span>{{ new Date(event.event_date).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' }) }}</span>
-                                <span aria-hidden="true">·</span>
-                                <span class="font-medium text-ink-2">{{ event.distance_label }}</span>
-                                <template v-if="event.target_time_formatted">
+                            <!--
+                                Vier Angaben in einer Kette aus Mittelpunkten
+                                brachen auf dem Telefon mitten im Wort um, mit
+                                Trennzeichen am Zeilenende. Jetzt zwei feste
+                                Gruppen, die je fuer sich zusammenbleiben: Datum
+                                und Distanz, darunter Ziel und Countdown. Ab sm
+                                stehen beide wieder in einer Zeile.
+                            -->
+                            <div class="mt-1.5 space-y-0.5 text-sm text-ink-3 sm:flex sm:flex-wrap sm:items-center sm:gap-x-3 sm:space-y-0 sm:text-[15px]">
+                                <div class="flex flex-wrap items-center gap-x-2">
+                                    <span>{{ new Date(event.event_date).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' }) }}</span>
                                     <span aria-hidden="true">·</span>
-                                    <span>Ziel {{ event.target_time_formatted }}</span>
-                                </template>
-                                <span aria-hidden="true">·</span>
-                                <span :class="event.days_until <= 7 && event.days_until >= 0 ? 'font-semibold text-danger' : ''">
-                                    {{ event.days_until > 0 ? `noch ${event.days_until} Tage` : event.days_until === 0 ? 'Heute!' : 'Vorbei' }}
-                                </span>
+                                    <span class="font-medium text-ink-2">{{ event.distance_label }}</span>
+                                </div>
+                                <span class="hidden sm:inline" aria-hidden="true">·</span>
+                                <div class="flex flex-wrap items-center gap-x-2">
+                                    <template v-if="event.target_time_formatted">
+                                        <span>Ziel {{ event.target_time_formatted }}</span>
+                                        <span aria-hidden="true">·</span>
+                                    </template>
+                                    <span :class="event.days_until <= 7 && event.days_until >= 0 ? 'font-semibold text-danger' : ''">
+                                        {{ event.days_until > 0 ? `noch ${event.days_until} Tage` : event.days_until === 0 ? 'Heute!' : 'Vorbei' }}
+                                    </span>
+                                </div>
                             </div>
                         </div>
 
-                        <div v-if="!isPastEvent" class="flex shrink-0 gap-2">
-                            <AppButton v-if="currentPlan?.is_active" variant="ghost" size="sm" @click="cancelModal = true">
+                        <div v-if="!isPastEvent" class="flex gap-2 sm:shrink-0">
+                            <AppButton v-if="currentPlan?.is_active" variant="ghost" size="md" class="flex-1 sm:flex-none"
+                                @click="cancelModal = true">
                                 Abbrechen
                             </AppButton>
                             <AppButton
                                 :variant="currentPlan?.is_active ? 'secondary' : 'primary'"
-                                size="sm"
+                                size="md"
+                                class="flex-1 sm:flex-none"
                                 :loading="generating"
                                 @click="generatePlan"
                             >
@@ -885,8 +905,13 @@ const lapHeightPct = computed(() => {
 
                 <!-- ══ HINWEISE ══════════════════════════════════════ -->
                 <Transition enter-active-class="transition-all duration-300" enter-from-class="opacity-0 -translate-y-2" leave-to-class="opacity-0">
+                    <!--
+                        flex-wrap statt starrer Zeile: die Schaltflaeche rutscht
+                        auf dem Telefon unter den Text und nimmt dort die volle
+                        Breite ein, statt ihn auf 200 Pixel zusammenzudruecken.
+                    -->
                     <div v-if="wellbeingBanner && todaySession"
-                        class="flex items-start gap-3 rounded-card p-4 shadow-card"
+                        class="flex flex-wrap items-start gap-3 rounded-card p-4 shadow-card"
                         :class="{
                             'bg-danger-soft':  wellbeingBanner.level === 'danger',
                             'bg-warn-soft':    wellbeingBanner.level === 'warning',
@@ -905,7 +930,8 @@ const lapHeightPct = computed(() => {
                             </p>
                             <p v-if="wellbeingBanner.tip" class="mt-0.5 text-[13px] text-ink-2">{{ wellbeingBanner.tip }}</p>
                         </div>
-                        <AppButton v-if="wellbeingBanner.level === 'danger'" variant="danger" size="sm" class="shrink-0"
+                        <AppButton v-if="wellbeingBanner.level === 'danger'" variant="danger" size="md"
+                            class="w-full sm:w-auto sm:shrink-0"
                             @click="openSkipModal(todaySession, 'Krank')">
                             Kein Training
                         </AppButton>
@@ -913,7 +939,7 @@ const lapHeightPct = computed(() => {
                 </Transition>
 
                 <div v-if="currentPlan?.needs_plan_update && !isPastEvent"
-                    class="flex items-start gap-3 rounded-card bg-warn-soft p-4 shadow-card">
+                    class="flex flex-wrap items-start gap-3 rounded-card bg-warn-soft p-4 shadow-card">
                     <span class="mt-0.5 shrink-0 text-xl leading-none">🔗</span>
                     <div class="min-w-0 flex-1">
                         <p class="text-sm font-semibold text-warn-ink">Neue Strava-Aktivität importiert</p>
@@ -921,7 +947,7 @@ const lapHeightPct = computed(() => {
                             {{ coachName }} sollte den verbleibenden Plan neu berechnen.
                         </p>
                     </div>
-                    <AppButton variant="secondary" size="sm" class="shrink-0" :loading="generating" @click="generatePlan">
+                    <AppButton variant="secondary" size="md" class="w-full sm:w-auto sm:shrink-0" :loading="generating" @click="generatePlan">
                         Aktualisieren
                     </AppButton>
                 </div>

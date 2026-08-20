@@ -179,14 +179,19 @@ watch(() => form.race_distance, (val) => {
             <div class="space-y-5 px-4 py-4 lg:px-6 lg:py-6">
 
                 <!-- ══ KOPF ══════════════════════════════════════════ -->
-                <header class="flex flex-wrap items-end justify-between gap-4 px-1">
+                <!--
+                    Auf dem Telefon untereinander, die Schaltflaeche ueber die
+                    volle Breite: nebeneinander brach sie ohnehin um und stand
+                    dann schmal am linken Rand.
+                -->
+                <header class="flex flex-col gap-4 px-1 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
                     <div class="min-w-0">
                         <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Events &amp; Rennen</h1>
                         <p class="mt-1 text-[15px] text-ink-3">
                             Plane deine Wettkämpfe — {{ coachName }} baut den Plan dazu.
                         </p>
                     </div>
-                    <AppButton class="shrink-0" @click="openCreate">
+                    <AppButton class="w-full sm:w-auto sm:shrink-0" @click="openCreate">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                         </svg>

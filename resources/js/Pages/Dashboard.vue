@@ -1146,11 +1146,12 @@ async function saveWeek() {
                                 eine volle Woche kannst du hier einmalig eintragen.
                             </p>
                         </div>
-                        <div class="flex shrink-0 gap-2">
-                            <AppButton variant="ghost" size="sm" :loading="weekSaving" @click="confirmWeek">
+                        <!-- Volle Breite auf dem Telefon, 44 Pixel hoch statt 36. -->
+                        <div class="flex w-full gap-2 sm:w-auto sm:shrink-0">
+                            <AppButton variant="ghost" size="md" class="flex-1 sm:flex-none" :loading="weekSaving" @click="confirmWeek">
                                 Wie immer
                             </AppButton>
-                            <AppButton variant="secondary" size="sm" @click="openWeekSheet">
+                            <AppButton variant="secondary" size="md" class="flex-1 sm:flex-none" @click="openWeekSheet">
                                 Anpassen
                             </AppButton>
                         </div>
