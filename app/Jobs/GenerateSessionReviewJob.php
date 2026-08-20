@@ -6,7 +6,6 @@ use App\Models\CoachMessage;
 use App\Models\TrainingSession;
 use App\Services\AI\SessionContentService;
 use App\Services\TrainingLoadService;
-use App\Services\WebPushService;
 use App\Services\WeatherService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -37,7 +36,6 @@ class GenerateSessionReviewJob implements ShouldQueue
         SessionContentService $sessions,
         WeatherService $weather,
         TrainingLoadService $loadService,
-        WebPushService $push,
     ): void {
         $session = TrainingSession::with(['user.coach', 'activity'])->find($this->sessionId);
         if (! $session) return;
@@ -90,15 +88,8 @@ class GenerateSessionReviewJob implements ShouldQueue
             'content' => $chatContent,
         ]);
 
-        // Push notification.
-        if ($user->push_notifications_enabled) {
-            $push->sendToUser(
-                $user,
-                'Neues Coach-Review 📋',
-                mb_strimwidth($result['review'], 0, 120, '…'),
-                '/events',
-            );
-        }
+        // Die Benachrichtigung haengt am Anlegen der Chat-Nachricht
+        // (CoachMessageObserver) — hier waere sie die zweite.
     }
 
     /** Short label of the completed session, e.g. "Long Run – 19.6 km". */
@@ -120,13 +111,34 @@ class GenerateSessionReviewJob implements ShouldQueue
         $lines = [];
         $typeLabel = $this->typeLabels()[$s->type] ?? $s->type;
 
-        // Planned target
-        $planned = [];
-        if ($s->distance_km)  $planned[] = "{$s->distance_km} km";
-        if ($s->duration_min) $planned[] = "{$s->duration_min} min";
-        if ($s->pace_target)  $planned[] = "Pace {$s->pace_target}";
-        if ($s->zone)         $planned[] = "Zone {$s->zone}";
-        $lines[] = 'Geplant: ' . $typeLabel . (empty($planned) ? '' : ' (' . implode(', ', $planned) . ')');
+        // ── Plan oder nicht ──────────────────────────────────────────────
+        // Die Felder distance_km/duration_min/pace_target tragen nach dem
+        // Strava-Import die TATSAECHLICHEN Werte. Was geplant war, steht im
+        // Schnappschuss, den der Import vorher anlegt. Ohne ihn stand hier
+        // zweimal dieselbe Zahl, und eine Abweichung war unsichtbar.
+        $snapshot = $s->planned_snapshot;
+
+        if ($s->was_unplanned) {
+            $wasRest = ($snapshot['type'] ?? null) === 'rest';
+            $lines[] = $wasRest
+                ? 'EINORDNUNG: Ungeplant — fuer diesen Tag war ein RUHETAG vorgesehen.'
+                : 'EINORDNUNG: Ungeplant — fuer diesen Tag stand keine Einheit im Plan.';
+        } elseif ($snapshot) {
+            $plannedType = $this->typeLabels()[$snapshot['type'] ?? ''] ?? ($snapshot['type'] ?? $typeLabel);
+
+            $planned = [];
+            if (! empty($snapshot['distance_km']))  $planned[] = "{$snapshot['distance_km']} km";
+            if (! empty($snapshot['duration_min'])) $planned[] = "{$snapshot['duration_min']} min";
+            if (! empty($snapshot['pace_target']))  $planned[] = "Pace {$snapshot['pace_target']}";
+            if (! empty($snapshot['zone']))         $planned[] = "Zone {$snapshot['zone']}";
+
+            $lines[] = 'EINORDNUNG: Geplante Einheit.';
+            $lines[] = 'Geplant war: ' . $plannedType . (empty($planned) ? '' : ' (' . implode(', ', $planned) . ')');
+        } else {
+            // Aeltere Einheiten, die vor Einfuehrung des Schnappschusses
+            // importiert wurden. Lieber offen sagen als etwas behaupten.
+            $lines[] = 'EINORDNUNG: Geplante Einheit — die urspruenglichen Planwerte liegen nicht mehr vor.';
+        }
 
         $activity = $s->activity;
         if ($activity) {
@@ -141,6 +153,16 @@ class GenerateSessionReviewJob implements ShouldQueue
             if ($activity->max_heartrate)     $act[] = 'Max-Puls ' . (int) $activity->max_heartrate . ' bpm';
             if ($activity->total_elevation_gain) $act[] = round($activity->total_elevation_gain) . ' hm';
             $lines[] = 'Absolviert: ' . (empty($act) ? 'keine Detaildaten' : implode(', ', $act));
+
+            // Die Abweichung wird ausgerechnet, nicht geschaetzt. Ein
+            // Sprachmodell, das "12,4 km" und "11 km" gegenueberstellt,
+            // verrechnet sich zuverlaessig irgendwann.
+            if (! $s->was_unplanned && $snapshot) {
+                $deltas = $this->planDeltas($snapshot, $km, $min, (float) $activity->average_speed);
+                $lines[] = $deltas
+                    ? 'Abweichung vom Plan: ' . implode(', ', $deltas)
+                    : 'Abweichung vom Plan: wie geplant umgesetzt.';
+            }
 
             // Baseline: same session type over the last 90 days (excluding this one).
             $baseline = $this->baselineFor($s);
@@ -213,6 +235,76 @@ class GenerateSessionReviewJob implements ShouldQueue
         }
 
         return implode("\n", array_map(fn ($l) => "- {$l}", $lines));
+    }
+
+    /**
+     * Abweichungen zwischen Plan und Wirklichkeit — in Worten, die im Prompt
+     * stehen koennen. Leer, wenn alles innerhalb der Toleranz liegt.
+     *
+     * Toleranzen bewusst grosszuegig: eine Runde mehr oder ein paar Sekunden
+     * Pace sind kein Abweichen vom Plan, sondern normales Laufen.
+     *
+     * @return list<string>
+     */
+    private function planDeltas(array $snapshot, ?float $actualKm, ?int $actualMin, float $actualSpeed): array
+    {
+        $out = [];
+
+        $planKm = $snapshot['distance_km'] ?? null;
+        if ($planKm > 0 && $actualKm) {
+            $diff = $actualKm - $planKm;
+            $pct  = ($diff / $planKm) * 100;
+            if (abs($pct) >= 10) {
+                $out[] = sprintf('%s km (%+.1f km, %+d %%)', $actualKm, $diff, (int) round($pct));
+            }
+        }
+
+        $planMin = $snapshot['duration_min'] ?? null;
+        if ($planMin > 0 && $actualMin) {
+            $diff = $actualMin - $planMin;
+            $pct  = ($diff / $planMin) * 100;
+            if (abs($pct) >= 10) {
+                $out[] = sprintf('%d min (%+d min, %+d %%)', $actualMin, $diff, (int) round($pct));
+            }
+        }
+
+        // Pace-Ziele stehen als "5:30" oder als Spanne "5:30-6:00" im Plan.
+        $target = $this->paceRangeSeconds($snapshot['pace_target'] ?? null);
+        if ($target && $actualSpeed > 0) {
+            $actualSec = 1000 / $actualSpeed;
+
+            if ($actualSec < $target['min'] - 10) {
+                $out[] = sprintf('%s min/km — %d s/km schneller als vorgesehen',
+                    $this->secondsToPace($actualSec), (int) round($target['min'] - $actualSec));
+            } elseif ($actualSec > $target['max'] + 10) {
+                $out[] = sprintf('%s min/km — %d s/km langsamer als vorgesehen',
+                    $this->secondsToPace($actualSec), (int) round($actualSec - $target['max']));
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * "5:30" oder "5:30-6:00" in Sekunden je Kilometer.
+     *
+     * @return array{min: float, max: float}|null
+     */
+    private function paceRangeSeconds(?string $pace): ?array
+    {
+        if (! $pace || $pace === 'null') return null;
+
+        preg_match_all('/(\d{1,2}):(\d{2})/', $pace, $m, PREG_SET_ORDER);
+        if (! $m) return null;
+
+        $values = array_map(fn ($p) => (int) $p[1] * 60 + (int) $p[2], $m);
+
+        return ['min' => (float) min($values), 'max' => (float) max($values)];
+    }
+
+    private function secondsToPace(float $seconds): string
+    {
+        return sprintf('%d:%02d', (int) ($seconds / 60), (int) round($seconds) % 60);
     }
 
     /**

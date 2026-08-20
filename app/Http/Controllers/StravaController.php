@@ -330,6 +330,8 @@ class StravaController extends Controller
                 'pace_target'      => null,
                 'zone'             => null,
                 'intensity'        => 'medium',
+                // Kein Planeintrag dahinter — als ungeplant kennzeichnen.
+                'was_unplanned'    => true,
                 'status'           => 'completed',
                 'sort_order'       => 999,
             ]);
@@ -360,6 +362,9 @@ class StravaController extends Controller
                     'event_id'         => $plan->event_id,
                     'activity_id'      => $activity->id,
                     'planned_date'     => $date,
+                    // Geplant war Ruhe — das ist keine erfuellte Einheit.
+                    'was_unplanned'    => true,
+                    'planned_snapshot' => ['type' => 'rest', 'title' => $session->title],
                     'type'             => 'easy_run',
                     'title'            => $activity->name,
                     'distance_km'      => $distKm,
@@ -371,8 +376,21 @@ class StravaController extends Controller
                     'sort_order'       => 0,
                 ]);
             } else {
-                // Replace planned session data with actual Strava data
+                // Der Plan wird hier von den echten Werten ueberschrieben.
+                // Vorher festhalten, was geplant war — sonst laesst sich
+                // hinterher nicht mehr sagen, ob die Einheit so gelaufen
+                // wurde wie vorgesehen. Das Coach-Review las bis dahin fuer
+                // "Geplant" und "Absolviert" dieselben Felder.
                 $session->update([
+                    'planned_snapshot' => $session->planned_snapshot ?? [
+                        'type'         => $session->type,
+                        'title'        => $session->title,
+                        'distance_km'  => $session->distance_km,
+                        'duration_min' => $session->duration_min,
+                        'pace_target'  => $session->pace_target,
+                        'zone'         => $session->zone,
+                        'intensity'    => $session->intensity,
+                    ],
                     'status'       => 'completed',
                     'activity_id'  => $activity->id,
                     'distance_km'  => $distKm ?? $session->distance_km,
@@ -416,6 +434,8 @@ class StravaController extends Controller
             'pace_target'      => $pace,
             'zone'             => null,
             'intensity'        => 'medium',
+            // Es gab an dem Tag keine geplante Einheit — dieser Lauf kam dazu.
+            'was_unplanned'    => true,
             'status'           => 'completed',
             'sort_order'       => 999,
         ]);

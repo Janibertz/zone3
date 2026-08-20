@@ -473,6 +473,9 @@ class TrainingPlanController extends Controller
             'zone'         => $s->zone,
             'intensity'    => $s->intensity,
             'exercises'    => $s->exercises,
+            // Der Plan, bevor Strava die Ist-Werte darueber geschrieben hat.
+            'planned_snapshot' => $s->planned_snapshot,
+            'was_unplanned'    => (bool) $s->was_unplanned,
             'status'           => $s->status,
             'skip_reason'      => $s->skip_reason,
             'sort_order'       => $s->sort_order,

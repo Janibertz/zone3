@@ -255,6 +255,32 @@ function updateSessionInList(updated) {
 // Typ-Tabelle liegt in useSessionTypes — Dashboard und Plan teilen sie sich.
 const typeOf = (t) => sessionType(t);
 
+/**
+ * Der geplante Zustand einer Einheit — er steht im Schnappschuss, weil der
+ * Strava-Import distance_km, duration_min und pace_target mit den echten
+ * Werten ueberschreibt.
+ */
+function plannedSummary(session) {
+    const p = session.planned_snapshot;
+    if (!p) return '';
+
+    const bits = [];
+    if (p.distance_km)  bits.push(`${p.distance_km} km`);
+    if (p.duration_min) bits.push(`${p.duration_min} min`);
+    if (p.pace_target)  bits.push(`${p.pace_target} /km`);
+
+    return bits.join(' · ');
+}
+
+/** Nur zeigen, wenn der Plan tatsaechlich etwas anderes sagte. */
+function plannedDiffers(session) {
+    const p = session.planned_snapshot;
+    if (!p || session.was_unplanned || session.status !== 'completed') return false;
+
+    return (p.distance_km  && p.distance_km  !== session.distance_km)
+        || (p.duration_min && p.duration_min !== session.duration_min);
+}
+
 // Strength / core / mobility sessions carry an "exercises" list instead of a run
 // structure — they get a different detail view (no run steps, no Garmin export).
 const STRENGTH_TYPES = ['strength', 'core', 'mobility'];
@@ -986,12 +1012,14 @@ const lapHeightPct = computed(() => {
                                                 ? 'ring-2 ring-accent' : '',
                                         ]"
                                     >
-                                        <p v-if="session.title === 'Ungeplante Einheit'"
+                                        <p v-if="session.was_unplanned"
                                             class="flex items-center gap-1.5 bg-warn-soft px-4 py-2 text-[12px] font-medium text-warn-ink">
                                             <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                                             </svg>
-                                            Nicht im Plan — aus Strava importiert
+                                            {{ session.planned_snapshot?.type === 'rest'
+                                                ? 'Nicht im Plan — für diesen Tag war Ruhe vorgesehen'
+                                                : 'Nicht im Plan — aus Strava importiert' }}
                                         </p>
 
                                         <div class="flex gap-3.5 p-4">
@@ -1027,6 +1055,12 @@ const lapHeightPct = computed(() => {
                                                 </p>
                                                 <p v-if="session.skip_reason" class="mt-1 text-[13px] italic text-ink-3">
                                                     Grund: {{ session.skip_reason }}
+                                                </p>
+
+                                                <!-- Was ursprünglich geplant war. Die Felder daneben
+                                                     tragen nach dem Strava-Import die Ist-Werte. -->
+                                                <p v-if="plannedDiffers(session)" class="mt-1 text-[13px] text-ink-3">
+                                                    Geplant war: {{ plannedSummary(session) }}
                                                 </p>
 
                                                 <!-- Kennzahlen -->

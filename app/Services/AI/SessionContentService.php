@@ -400,6 +400,10 @@ Absolvierte Einheit: {$sessionLabel}
 {$factsBlock}
 
 Aufgabe:
+- Beginne mit der EINORDNUNG aus den Daten:
+  · Stand die Einheit im Plan und wurde sie im Rahmen umgesetzt, sag das kurz und geh weiter.
+  · Steht dort eine "Abweichung vom Plan", benenne sie mit den Zahlen und ordne sie ein — deutlich länger oder schneller als vorgesehen ist nicht automatisch gut, sondern kostet Erholung und kann die nächste Schlüsseleinheit gefährden. Zu kurz oder zu langsam ist ebenfalls kein Drama, wenn der Kontext (Schlaf, Stress, Belastung) es erklärt.
+  · Ist die Einheit als UNGEPLANT ausgewiesen, sag das ausdrücklich und bewerte sie als Zusatzbelastung: passt sie zum Trainingsstand, oder geht sie auf Kosten der nächsten geplanten Einheit? War der Tag als RUHETAG vorgesehen, benenne das offen.
 - 2–4 Sätze Review in direkter Ansprache (du). Konkret mit Zahlen aus den Daten, ehrlich und motivierend — niemals generisch.
 - Hebe AUFFÄLLIGKEITEN hervor (z.B. Puls deutlich höher/niedriger als sonst, ungewöhnliche Pace, starke aerobe Entkopplung/Puls-Drift) und nenne eine plausible Ursache aus den Kontextdaten (Schlaf, Stress, Wetter, Ermüdung/Belastung).
 - Hat eine Auffälligkeit MEHRERE plausible Ursachen, stelle dem Athleten EINE kurze, konkrete Rückfrage ("question") und biete 2–4 knappe Antwortoptionen ("options") an (z.B. "Schlecht geschlafen", "Wetter", "Müde Beine", "Alles normal").
