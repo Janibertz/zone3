@@ -12,243 +12,249 @@ class AthleteProfileService
 {
     use TalksToOpenAI;
 
+    /** Unterhalb dieser Dauer ist eine Runde kein Belastungsintervall, sondern eine Steigerung. */
+    private const WORK_LAP_MIN_SECONDS = 90;
+
+    /** Nur so viele Einheiten bekommen ihre Intervalle mitgeliefert. */
+    private const MAX_DETAILED = 8;
+
+    /** Plausible Grenzen einer Schwellenpace in Minuten je Kilometer. */
+    private const PACE_MIN = 2.5;
+    private const PACE_MAX = 12.0;
+
     /**
-     * Calculate threshold pace (Schwellenpace) from last 10 activities using AI.
+     * Schätzt die Schwellenpace (LT2) aus den letzten Läufen.
      *
-     * Algorithm:
-     * - Categorizes runs by duration: threshold-range (35-75 min) = highest relevance,
-     *   tempo runs (20-35 min) = high relevance (slightly faster than threshold, corrected),
-     *   long easy runs (>100 min) = minimal relevance (almost always easy pace).
-     * - Combines recency weight × category relevance for a total weight per activity.
-     * - Pre-calculates a mathematical estimate from only the relevant activities.
-     * - Passes structured data + estimate to AI for final refinement.
+     * Was hier NICHT passiert: die Herzfrequenz als Filter benutzen. Der
+     * Ø-Puls einer Intervalleinheit liegt strukturell unter der LTHR, weil
+     * Einlaufen und Trabpausen mitgemittelt werden — genau die wertvollste
+     * Einheit sähe damit am unwichtigsten aus. Stattdessen bekommt das Modell
+     * die einzelnen Belastungsintervalle, in denen Pace und Puls tatsächlich
+     * etwas über die Schwelle aussagen.
      *
-     * Returns threshold pace as float minutes (e.g. 4.183 = 4:11 min/km), or null on failure.
-     *
-     * When $lthr is provided, HR-proximity to LTHR becomes the primary relevance signal:
-     *   - avg_hr within ±5 bpm of LTHR  → direct threshold effort  (weight ×5.0)
-     *   - avg_hr within ±10 bpm of LTHR → near-threshold            (weight ×3.5)
-     *   - avg_hr >10 bpm below LTHR     → easy/recovery run         (weight ×0.15)
-     *   - avg_hr >5 bpm above LTHR      → VO2max / race effort      (weight ×1.0, pace slightly too fast)
-     * Duration-based weighting is combined additively when HR data is missing.
+     * @param  array<int,array<string,mixed>>  $activities  Vollständige Aktivitätszeilen inkl. laps.
+     * @return array{pace: float, range: ?string, confidence: string, evidence: list<string>}|null
      */
-    public function calculateThresholdPaceWithAI(array $activities, ?int $lthr = null): ?float
+    public function calculateThresholdPaceWithAI(array $activities, ?int $lthr = null): ?array
     {
         if (empty($activities)) {
             return null;
         }
 
-        $count       = count($activities);
-        $processed   = [];
-        $hasAnyHR    = false;
+        $lines    = [];
+        $detailed = 0;
 
-        foreach ($activities as $index => $activity) {
+        foreach ($activities as $activity) {
             if (($activity['average_speed'] ?? 0) <= 0 || ($activity['distance'] ?? 0) < 3000) {
                 continue;
             }
 
-            $paceSecPerKm = 1000 / $activity['average_speed'];
-            $durationMin  = ($activity['moving_time'] ?? 0) / 60;
-            $distanceKm   = $activity['distance'] / 1000;
-            $recency      = $count - $index;
-            $avgHR        = $activity['average_heartrate'] ?? null;
+            $distanceKm  = $activity['distance'] / 1000;
+            $durationMin = ($activity['moving_time'] ?? 0) / 60;
+            $avgHr       = $activity['average_heartrate'] ?? null;
+            $maxHr       = $activity['max_heartrate'] ?? null;
 
-            if ($avgHR) {
-                $hasAnyHR = true;
-            }
+            $hrBits = [];
+            if ($avgHr) $hrBits[] = 'Ø-Puls ' . (int) $avgHr . ' bpm';
+            if ($maxHr) $hrBits[] = 'Max ' . (int) $maxHr . ' bpm';
 
-            // ── HR-based relevance (primary when LTHR + HR data are available) ──
-            $hrRelevance  = null;
-            $hrDiff       = null;
-            $hrCategory   = 'Kein HF-Daten';
-            $hrNote       = '';
+            $line = sprintf(
+                '- [%s] %s: %.2f km, %.0f min, Ø-Pace %s min/km%s',
+                $this->activityDate($activity),
+                $activity['name'] ?? 'Lauf',
+                $distanceKm,
+                $durationMin,
+                PaceFormat::fromSpeed($activity['average_speed']),
+                $hrBits ? ', ' . implode(', ', $hrBits) : ', keine Pulsdaten',
+            );
 
-            if ($lthr && $avgHR) {
-                $hrDiff = $avgHR - $lthr;
-
-                if (abs($hrDiff) <= 5) {
-                    $hrRelevance = 5.0;
-                    $hrCategory  = 'DIREKT an Schwelle (±5 bpm)';
-                    $hrNote      = 'Pace = Schwellenpace';
-                } elseif (abs($hrDiff) <= 10) {
-                    $hrRelevance = 3.5;
-                    $hrCategory  = 'Nahe Schwelle (±10 bpm)';
-                    $hrNote      = $hrDiff > 0 ? 'Leicht über Schwelle → Pace etwas schneller' : 'Leicht unter Schwelle → Pace etwas langsamer';
-                } elseif ($hrDiff < -10) {
-                    $hrRelevance = 0.15;
-                    $hrCategory  = 'Easy/Recovery (>' . abs($hrDiff) . ' bpm unter LTHR)';
-                    $hrNote      = 'Easy-Pace — ignorieren';
-                } else {
-                    // HR above LTHR: race/VO2max effort — pace too fast for threshold
-                    $hrRelevance = 1.0;
-                    $hrCategory  = 'Über Schwelle (+' . $hrDiff . ' bpm)';
-                    $hrNote      = 'VO2max/Race — Pace etwas schneller als Schwelle';
+            // Die Belastungsintervalle. Ohne sie sieht das Modell von einer
+            // Einheit "4x 8 Min Schwelle" nur einen Mischwert aus Intervallen,
+            // Trabpausen und Einlaufen — und damit eine Pace, die niemand
+            // gelaufen ist.
+            if ($detailed < self::MAX_DETAILED) {
+                $work = $this->workIntervals($activity);
+                if ($work !== []) {
+                    $line .= "\n    Belastungsintervalle: " . implode(' | ', $work);
+                    $detailed++;
                 }
             }
 
-            // ── Duration-based relevance (fallback or complement) ──
-            if ($durationMin >= 35 && $durationMin <= 75) {
-                $durationRelevance = 3.0;
-                $durationCategory  = 'Schwellenlauf-Bereich (35-75 min)';
-            } elseif ($durationMin >= 20 && $durationMin < 35) {
-                $durationRelevance = 2.0;
-                $durationCategory  = 'Tempolauf (20-35 min)';
-            } elseif ($durationMin > 75 && $durationMin <= 100) {
-                $durationRelevance = 0.7;
-                $durationCategory  = 'Mittellanger Lauf (75-100 min)';
-            } elseif ($durationMin > 100) {
-                $durationRelevance = 0.1;
-                $durationCategory  = 'Langer Easy-Lauf (>100 min)';
-            } else {
-                $durationRelevance = 0.3;
-                $durationCategory  = 'Kurzer Lauf (<20 min)';
-            }
-
-            // When HR data is available for this activity, HR-relevance leads.
-            // When HR is missing, fall back to duration-relevance.
-            $finalRelevance = $hrRelevance !== null
-                ? max($hrRelevance, $durationRelevance * 0.3) // HR primary + small duration bonus
-                : $durationRelevance;
-
-            $totalWeight = round($recency * $finalRelevance, 2);
-            $date = isset($activity['start_date'])
-                ? (is_string($activity['start_date'])
-                    ? substr($activity['start_date'], 0, 10)
-                    : date('Y-m-d', strtotime($activity['start_date'])))
-                : '—';
-
-            $processed[] = [
-                'date'              => $date,
-                'name'              => $activity['name'],
-                'distance_km'       => round($distanceKm, 2),
-                'duration_min'      => round($durationMin, 1),
-                'pace'              => PaceFormat::fromSpeed($activity['average_speed']),
-                'pace_sec'          => $paceSecPerKm,
-                'avg_hr'            => $avgHR ? (int)$avgHR : null,
-                'hr_diff_to_lthr'   => $hrDiff !== null ? (int)$hrDiff : null,
-                'hr_category'       => $hrRelevance !== null ? $hrCategory : $durationCategory,
-                'hr_note'           => $hrNote ?: ($durationRelevance >= 2.0 ? 'Relevante Dauer' : 'Wenig relevant'),
-                'recency'           => $recency,
-                'final_relevance'   => $finalRelevance,
-                'total_weight'      => $totalWeight,
-            ];
+            $lines[] = $line;
         }
 
-        if (empty($processed)) {
+        if (empty($lines)) {
             return null;
         }
 
-        // ── Build activity list for prompt ────────────────────────────────────
-        $activityLines = [];
-        foreach ($processed as $a) {
-            $hrStr = $a['avg_hr']
-                ? "HF: {$a['avg_hr']} bpm" . ($a['hr_diff_to_lthr'] !== null ? ' (' . sprintf('%+d', $a['hr_diff_to_lthr']) . ' bpm zur LTHR)' : '')
-                : 'HF: keine Daten';
-            $activityLines[] = sprintf(
-                '- [%s] %s: %.2f km, %.0f min, Pace: %s min/km, %s',
-                $a['date'], $a['name'], $a['distance_km'], $a['duration_min'], $a['pace'], $hrStr
-            );
-        }
-        $activitiesText = implode("\n", $activityLines);
-        $lthrText       = $lthr ? "{$lthr}" : 'nicht hinterlegt';
+        $activitiesText = implode("\n", $lines);
+
+        // Die LTHR ist selbst eine Schaetzung — sie stand hier als Tatsache,
+        // und jede Abweichung davon wurde dem Athleten angelastet statt dem
+        // Referenzwert.
+        $lthrText = $lthr
+            ? "Hinterlegte LTHR: {$lthr} bpm. Das ist ein geschätzter Richtwert, kein gemessener. "
+                . "Passt er zu keiner Einheit in der Liste, ist eher der Wert zu hoch angesetzt "
+                . "als der Athlet zu langsam — sage das dann in der Begründung."
+            : 'Keine LTHR hinterlegt.';
 
         $prompt = <<<PROMPT
-Du bist ein Sportwissenschaftler und Lauf-Coach spezialisiert auf Laktatschwellen-Diagnostik (LT2 / Lactate Threshold).
+Du bist Sportwissenschaftler mit Schwerpunkt Laktatschwellen-Diagnostik.
 
-Ziel:
-Bestimme die physiologisch plausibelste Schwellenpace (Threshold Pace / LT2 Pace) des Athleten anhand der Trainings- und Wettkampfdaten.
+**Aufgabe:** Schätze die Schwellenpace (LT2) dieses Athleten.
 
-Definition Schwellenpace:
-Die Schwellenpace ist die maximale Pace, die typischerweise etwa 45–70 Minuten haltbar ist. Sie entspricht ungefähr der Intensität an der Laktatschwelle (LT2).
+**Definition:** Die Laufgeschwindigkeit an der oberen Schwelle — eine hohe, kontrollierte
+Belastung, die je nach Athlet etwa 30 bis 60 Minuten haltbar ist. Die Dauer ist
+individuell und keine feste Regel.
 
-Wichtige physiologische Regeln:
+**Herzfrequenz richtig lesen:**
+{$lthrText}
+- Die HF ist ein Hinweis, kein Filter. Eine Einheit unterhalb der LTHR kann sehr wohl
+  Schwellenarbeit gewesen sein.
+- Der Ø-Puls einer ganzen Einheit ist bei Intervalltraining wertlos: Einlaufen,
+  Trabpausen und Auslaufen ziehen ihn nach unten. Vergleiche ihn NIE direkt mit der LTHR.
+- Wo "Belastungsintervalle" angegeben sind, zählen ausschließlich diese Werte.
+- Cardiac Drift, Hitze, Ermüdung, Koffein und optische Messfehler verfälschen die HF.
 
-* Aktivitäten mit Herzfrequenz nahe der LTHR sind relevant, dürfen aber NICHT automatisch direkt als Schwellenpace interpretiert werden.
-* Lange Wettkämpfe (>75 Minuten) liegen häufig leicht unterhalb der tatsächlichen Schwellenpace.
-* Halbmarathon-Pace ist typischerweise ca. 3–6 % langsamer als die tatsächliche Schwellenpace.
-* Wenn eine Pace länger als 75 Minuten gehalten wurde, muss die Schwellenpace entsprechend etwas schneller geschätzt werden.
-* Durchschnitts-Herzfrequenz allein reicht NICHT zur Schwellenbestimmung aus:
+**Gewichtung der Einheiten:**
+1. Am wichtigsten: gezielte Schwellenintervalle, Tempoläufe, 20–60 min zusammenhängend
+   hart, Wettkämpfe zwischen 5 km und Halbmarathon.
+2. Wichtig: progressive Läufe, längere Intervalle ab 5 min.
+3. Mittel: zügige Dauerläufe.
+4. Kaum: lockere Dauerläufe, Recovery.
+5. Gar nicht: Ultras, Backyards und sehr lange langsame Läufe. Deren Pace sagt über die
+   Schwelle nichts aus — rechne sie AUF KEINEN FALL hoch.
 
-  * Cardiac Drift
-  * Wettkampfadrenalin
-  * Temperatur
-  * Ermüdung
-  * Koffein
-    können die HF verfälschen.
-* Neuere Aktivitäten sind wichtiger als ältere.
-* Intervalle, Tempodauerläufe und Wettkämpfe sind relevanter als lockere Dauerläufe.
+**Wettkämpfe** sind starke Ankerpunkte. Ein Halbmarathon liegt meist etwas unter der
+Schwellenpace, aber der Abstand ist individuell — benutze keine feste Prozentregel.
 
-Analyse-Logik:
+**Zeitliche Nähe** zählt, aber nach einem Ultra oder Marathon ist die Leistung
+vorübergehend gedrückt; werte solche Wochen nicht als Rückschritt.
 
-1. Aktivitäten mit HF innerhalb ±5 bpm zur LTHR:
+**Wenn die Daten es nicht hergeben:** erfinde keine Genauigkeit. Gib den plausibelsten
+Bereich an und setze "confidence" ehrlich. Ein fehlender Anker im Bereich von 30–60
+Minuten nahe der Schwelle bedeutet "low".
 
-   * sehr relevant
-   * aber Dauer berücksichtigen
-2. Aktivitäten mit HF innerhalb ±10 bpm:
+Keine einfache Durchschnittsbildung, keine lineare HF-zu-Pace-Umrechnung, keine
+Schätzung aus einer einzigen Einheit.
 
-   * unterstützende Datenpunkte
-3. Aktivitäten mehr als 10 bpm unter LTHR:
-
-   * meist Easy/Recovery
-   * nur gering gewichten
-4. Läufe >75 Minuten:
-
-   * Pace typischerweise 3–8 % schneller auf Schwelle hochrechnen
-5. Läufe zwischen 35–70 Minuten:
-
-   * höchste physiologische Relevanz
-6. Intervall- und Tempoeinheiten:
-
-   * stärker gewichten als lockere Läufe
-7. Ziel:
-
-   * physiologisch plausible LT2-Pace
-   * keine reine HF-Gleichsetzung
-
-Wichtige Regeln:
-
-* Nutze keine einfache Durchschnittsbildung.
-* Nutze keine lineare HF-zu-Pace-Umrechnung.
-* Berücksichtige Dauer, Belastungsart und physiologische Plausibilität.
-* Ignoriere offensichtlich lockere Läufe weit unterhalb der Schwelle weitgehend.
-* Wenn Wettkampfdaten vorhanden sind, nutze sie intelligent zur Hochrechnung der Schwellenpace.
-
-Athletendaten:
-Schwellen-Herzfrequenz (LTHR): {$lthrText} bpm
-
-Aktivitäten:
+**Aktivitäten (neueste zuerst):**
 {$activitiesText}
 
-Gib ausschließlich dieses JSON zurück:
-{"threshold_pace":"M:SS"}
+Antworte ausschließlich mit diesem JSON:
+{"threshold_pace":"M:SS","range":"M:SS-M:SS","confidence":"high|medium|low","evidence":["kurze Begründung","..."]}
 PROMPT;
 
-        // gpt-5.5 is a reasoning model: the JSON output is tiny but the internal
-        // reasoning over ~20 activities needs plenty of headroom, otherwise the
-        // whole budget is spent on reasoning and the content comes back empty.
         $text = $this->ai->chat('threshold_pace', [
             ['role' => 'system', 'content' => 'Du bist ein präziser Sportwissenschaftler. Antworte ausschließlich mit JSON.'],
             ['role' => 'user',   'content' => $prompt],
         ], 0.1, 3000);
 
         $json = $this->ai->jsonObject($text);
-        if ($json !== null) {
-            if (isset($json['threshold_pace'])) {
-                $result = $this->paceStringToFloat($json['threshold_pace']);
-                if ($result !== null) {
-                    Log::info('Threshold pace calculated', [
-                        'lthr'        => $lthr,
-                        'has_hr_data' => $hasAnyHR,
-                        'ai_result'   => $json['threshold_pace'],
-                        'activities'  => count($processed),
-                    ]);
-                    return $result;
-                }
-            }
+        $pace = isset($json['threshold_pace']) ? $this->paceStringToFloat((string) $json['threshold_pace']) : null;
+
+        if ($pace === null) {
+            Log::warning('Threshold pace AI parse failed', ['text' => $text]);
+            return null;
         }
 
-        Log::warning('Threshold pace AI parse failed', ['text' => $text]);
-        return null;
+        // Eine Zahl ausserhalb jeder Plausibilitaet ist keine Schaetzung,
+        // sondern ein Fehler — und sie wuerde alle Pace-Zonen mitreissen.
+        if ($pace < self::PACE_MIN || $pace > self::PACE_MAX) {
+            Log::warning('Threshold pace outside plausible range', ['pace' => $pace]);
+            return null;
+        }
+
+        $confidence = strtolower((string) ($json['confidence'] ?? 'medium'));
+        if (! in_array($confidence, ['high', 'medium', 'low'], true)) {
+            $confidence = 'medium';
+        }
+
+        $evidence = is_array($json['evidence'] ?? null)
+            ? array_values(array_filter(array_map('trim', array_map('strval', $json['evidence']))))
+            : [];
+
+        Log::info('Threshold pace calculated', [
+            'lthr'       => $lthr,
+            'pace'       => $json['threshold_pace'],
+            'confidence' => $confidence,
+            'activities' => count($lines),
+            'detailed'   => $detailed,
+        ]);
+
+        return [
+            'pace'       => $pace,
+            'range'      => ! empty($json['range']) ? (string) $json['range'] : null,
+            'confidence' => $confidence,
+            'evidence'   => array_slice($evidence, 0, 4),
+        ];
+    }
+
+    /**
+     * Die Belastungsintervalle einer Einheit.
+     *
+     * Als Belastung gilt eine Runde, die schneller lief als die Einheit im
+     * Schnitt und lang genug war, um etwas auszusagen. Ein Dauerlauf ohne
+     * Struktur liefert damit nichts — richtig so, dort ist der Mittelwert
+     * bereits die ganze Wahrheit.
+     *
+     * @return list<string>
+     */
+    private function workIntervals(array $activity): array
+    {
+        $laps = $activity['laps'] ?? null;
+        if (! is_array($laps) || count($laps) < 3) {
+            return [];
+        }
+
+        $avgSecPerKm = 1000 / $activity['average_speed'];
+        $work        = [];
+
+        foreach ($laps as $lap) {
+            $meters  = (float) ($lap['distance'] ?? 0);
+            $seconds = (int) ($lap['moving_time'] ?? $lap['elapsed_time'] ?? 0);
+
+            if ($meters <= 0 || $seconds < self::WORK_LAP_MIN_SECONDS) {
+                continue;
+            }
+
+            $secPerKm = $seconds / ($meters / 1000);
+
+            // Drei Prozent Vorsprung auf den Schnitt der Einheit: genug, um
+            // Trabpausen und Auslaufen auszuschliessen, wenig genug, um einen
+            // gleichmaessigen Tempolauf noch als Belastung zu erkennen.
+            if ($secPerKm > $avgSecPerKm * 0.97) {
+                continue;
+            }
+
+            $entry = sprintf('%.0f min @ %s', $seconds / 60, $this->secondsToPace($secPerKm));
+            if (! empty($lap['average_heartrate'])) {
+                $entry .= ' (' . (int) $lap['average_heartrate'] . ' bpm)';
+            }
+
+            $work[] = $entry;
+        }
+
+        // Ist alles schneller als der Schnitt, war es kein Intervalltraining,
+        // sondern eine Messeigenheit — dann lieber nichts sagen.
+        return count($work) >= 2 && count($work) <= 20 ? $work : [];
+    }
+
+    private function activityDate(array $activity): string
+    {
+        $raw = $activity['start_date'] ?? null;
+        if (! $raw) {
+            return '—';
+        }
+
+        return is_string($raw) ? substr($raw, 0, 10) : date('Y-m-d', strtotime((string) $raw));
+    }
+
+    private function secondsToPace(float $seconds): string
+    {
+        $total = (int) round($seconds);
+
+        return sprintf('%d:%02d', intdiv($total, 60), $total % 60);
     }
 
     /**

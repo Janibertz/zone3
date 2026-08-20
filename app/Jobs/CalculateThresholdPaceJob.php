@@ -3,11 +3,13 @@
 namespace App\Jobs;
 
 use App\Models\RunnerProfile;
+use App\Models\TrainingPlan;
 use App\Models\User;
 use App\Services\AI\AthleteProfileService;
 use App\Services\WebPushService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Log;
 
 class CalculateThresholdPaceJob implements ShouldQueue
 {
@@ -15,6 +17,12 @@ class CalculateThresholdPaceJob implements ShouldQueue
 
     public int $tries = 2;
     public int $timeout = 90;
+
+    /** Mehr Aenderung auf einen Schlag ist kein Formzuwachs, sondern ein Ausreisser. */
+    private const MAX_JUMP = 0.08;
+
+    /** Ab dieser Aenderung lohnt es, die Zielpaces im Plan neu schreiben zu lassen. */
+    private const REPLAN_THRESHOLD = 0.015;
 
     public function __construct(public readonly int $userId) {}
 
@@ -43,23 +51,65 @@ class CalculateThresholdPaceJob implements ShouldQueue
             ['has_completed_setup' => false]
         );
 
-        $thresholdPace = $profiles->calculateThresholdPaceWithAI($last20, $profile->threshold_heart_rate);
+        $result = $profiles->calculateThresholdPaceWithAI($last20, $profile->threshold_heart_rate);
 
-        if ($thresholdPace === null) {
+        if ($result === null) {
             $profile->threshold_pace_calculating = false;
             $profile->save();
             return;
         }
 
+        $thresholdPace = $result['pace'];
+        $previous      = $profile->threshold_speed;
+
+        // ── Zwei Gruende, den alten Wert zu behalten ─────────────────────
+        //
+        // Der Wert wanderte bisher ungeprueft in threshold_speed, von dort in
+        // die Pace-Zonen und in jede Renn-Prognose. Und weil die Temperatur
+        // bei einem Reasoning-Modell nicht durchgereicht wird, gibt es gegen
+        // Streuung von Lauf zu Lauf sonst nichts.
+        $reject = null;
+
+        if ($previous > 0 && $result['confidence'] === 'low') {
+            // Ohne belastbaren Anker die vorhandene Schaetzung austauschen
+            // hiesse, Rauschen gegen Rauschen zu tauschen.
+            $reject = 'niedrige Konfidenz';
+        } elseif ($previous > 0 && abs($thresholdPace - $previous) / $previous > self::MAX_JUMP) {
+            // Ueber acht Prozent in einem Schritt ist keine Formentwicklung.
+            $reject = sprintf('Sprung um %+.1f %%', (($thresholdPace - $previous) / $previous) * 100);
+        }
+
+        if ($reject !== null) {
+            Log::info('Threshold pace verworfen', [
+                'user_id'    => $this->userId,
+                'grund'      => $reject,
+                'vorschlag'  => round($thresholdPace, 4),
+                'bestand'    => round($previous, 4),
+                'confidence' => $result['confidence'],
+            ]);
+
+            $profile->threshold_pace_calculating   = false;
+            $profile->threshold_pace_calculated_at = now();
+            $profile->save();
+            return;
+        }
+
         $mins = (int) $thresholdPace;
-        $secs = (int) (($thresholdPace - $mins) * 60);
+        $secs = (int) round(($thresholdPace - $mins) * 60);
+        if ($secs === 60) {
+            $mins++;
+            $secs = 0;
+        }
         $paceFormatted = sprintf('%d:%02d', $mins, $secs);
 
-        $history = $profile->threshold_pace_history ?? [];
+        $history   = $profile->threshold_pace_history ?? [];
         $history[] = [
             'date'           => now()->format('d.m.Y'),
             'pace'           => round($thresholdPace, 4),
             'pace_formatted' => $paceFormatted,
+            'confidence'     => $result['confidence'],
+            'range'          => $result['range'],
+            'evidence'       => $result['evidence'],
         ];
 
         $profile->threshold_speed              = $thresholdPace;
@@ -69,14 +119,34 @@ class CalculateThresholdPaceJob implements ShouldQueue
         $profile->threshold_pace_calculating   = false;
         $profile->save();
 
-        // Notify user if pace changed and notifications are enabled
+        // ── Der Plan haengt daran ────────────────────────────────────────
+        //
+        // Die Pace-Zonen im Profil und die Renn-Prognose rechnen ab sofort
+        // mit dem neuen Wert. Die Zielpaces der geplanten Einheiten sind
+        // dagegen Zeichenketten, die beim Erstellen des Plans festgeschrieben
+        // wurden — sie aenderten sich nie. Profil und Plan liefen damit
+        // auseinander, bis zufaellig etwas anderes eine Neuberechnung
+        // ausloeste. Bei einer nennenswerten Aenderung wird der Plan jetzt
+        // selbst vorgemerkt; RegeneratePlanJob buendelt das ueber seine
+        // Sechs-Stunden-Sperre.
+        $changed = $previous > 0 ? abs($thresholdPace - $previous) / $previous : 1.0;
+
+        if ($changed >= self::REPLAN_THRESHOLD) {
+            $plan = TrainingPlan::where('user_id', $this->userId)->where('is_active', true)->first();
+
+            if ($plan) {
+                $plan->update(['needs_plan_update' => true]);
+                RegeneratePlanJob::dispatch($this->userId)->delay(now()->addMinutes(2));
+            }
+        }
+
         if ($user->push_notifications_enabled && $user->notify_threshold_pace) {
-            $webPush->sendToUser(
-                $user,
-                'Schwellenpace aktualisiert 🏃',
-                "Deine neue Schwellenpace: {$paceFormatted} min/km",
-                '/profile'
-            );
+            $body = "Deine neue Schwellenpace: {$paceFormatted} min/km";
+            if ($result['confidence'] === 'low') {
+                $body .= ' (grobe Schätzung — es fehlt eine harte Einheit als Anker)';
+            }
+
+            $webPush->sendToUser($user, 'Schwellenpace aktualisiert 🏃', $body, '/profile');
         }
     }
 
