@@ -182,6 +182,9 @@ function renderMarkdown(text) {
 const actionIcons = {
     memory:           '🧠',
     session_modified: '✏️',
+    session_created:  '➕',
+    session_moved:    '📅',
+    session_deleted:  '🗑️',
     sessions_skipped: '⏸️',
     event_updated:    '🎯',
 };
@@ -196,6 +199,9 @@ function actionClass(type) {
     return {
         memory:           'bg-accent-soft text-accent-ink',
         session_modified: 'bg-warn-soft text-warn-ink',
+        session_created:  'bg-success-soft text-success-ink',
+        session_moved:    'bg-warn-soft text-warn-ink',
+        session_deleted:  'bg-danger-soft text-danger-ink',
         sessions_skipped: 'bg-warn-soft text-warn-ink',
         event_updated:    'bg-success-soft text-success-ink',
     }[type] ?? 'bg-surface-2 text-ink-2';

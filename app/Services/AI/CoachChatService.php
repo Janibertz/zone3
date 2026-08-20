@@ -337,8 +337,16 @@ class CoachChatService
         $systemPrompt = $this->ai->systemPrompt(
             "Du bist {$coachName}, der persönliche Lauf-Coach von {$user->name}. ".
             "Du kennst alle Trainingsdaten und antwortest wie ein echter Coach der seinen Athleten kennt. ".
-            "Du hast Werkzeuge um: Infos dauerhaft zu merken (remember_user_fact), die heutige Einheit anzupassen (modify_today_session), Einheiten bei Krankheit/Urlaub zu überspringen (skip_training_sessions), Zielzeiten zu aktualisieren (update_event_target). ".
+            "Du kannst den Trainingsplan wirklich verändern. Deine Werkzeuge: Einheiten anlegen (create_training_session), ändern (modify_training_session, an JEDEM Tag – nicht nur heute), verschieben (move_training_session), löschen (delete_training_session), bei Krankheit/Urlaub überspringen (skip_training_sessions), Zielzeiten anpassen (update_event_target) und Infos dauerhaft merken (remember_user_fact). ".
             "Nutze Tools proaktiv: Athlet sagt er ist krank → überspringe Einheiten. 'Zu leicht' → ändere Einheit. Präferenz geäußert → merke sie dir. ".
+            // Der Coach hatte lange nur ein Werkzeug fuer HEUTE. Bat der
+            // Athlet um eine Aenderung am Sonntag, passte kein Werkzeug — und
+            // das Modell beschrieb die Aenderung einfach, statt sie
+            // vorzunehmen. Der Athlet las eine perfekte Zusage und fand
+            // danach den alten Plan vor.
+            "WICHTIG: Behaupte NIE, du hättest etwas am Plan geändert, ohne das passende Werkzeug aufgerufen zu haben. Formulierungen wie „den ersetzen wir“ oder „ich habe eingeplant“ sind nur erlaubt, nachdem das Werkzeug gelaufen ist und Erfolg gemeldet hat. ".
+            "Will der Athlet eine Einheit an einem bestimmten Tag, rufe das Werkzeug SOFORT auf und beschreibe die Einheit erst danach. Kannst du etwas nicht ändern, sage das klar, statt es zu beschreiben. ".
+            "Pro Tag gibt es höchstens EIN Lauftraining. Soll an einem Tag etwas anderes laufen, ändere die bestehende Einheit — lege keine zweite daneben. ".
             "Antworte auf Deutsch, sprich mit 'du'. Passe Länge der Antwort der Frage an. Nutze Markdown für strukturierte Antworten. ".
             "Stütze dich IMMER auf echte Zahlen aus den Daten.".
             $contextBlock
@@ -386,10 +394,11 @@ class CoachChatService
                 ], 'required' => ['fact']],
             ]],
             ['type' => 'function', 'function' => [
-                'name'        => 'modify_today_session',
-                'description' => 'Ändere die heutige Trainingseinheit. Nutze dies bei "zu leicht", "mach es schwerer", "ich möchte heute Intervalle für 60 min" etc. Alle Felder sind optional – ändere nur was nötig.',
+                'name'        => 'modify_training_session',
+                'description' => 'Ändere eine geplante Trainingseinheit — an einem beliebigen Tag, nicht nur heute. Nutze dies bei "zu leicht", "mach es schwerer", "am Sonntag lieber 25 km". Ohne "date" gilt heute. Alle Inhaltsfelder sind optional – ändere nur was nötig. Steht an dem Tag noch nichts, wird die Einheit angelegt.',
                 'parameters'  => ['type' => 'object', 'properties' => [
-                    'type'         => ['type' => 'string', 'enum' => ['easy_run','tempo_run','interval','long_run','progressive_run','test_run','race_prep'], 'description' => 'Trainingstyp'],
+                    'date'         => ['type' => 'string', 'description' => 'Tag der Einheit als YYYY-MM-DD. Weglassen für heute.'],
+                    'type'         => ['type' => 'string', 'enum' => ['easy_run','tempo_run','interval','long_run','progressive_run','test_run','race_prep','strength','core','mobility','rest'], 'description' => 'Trainingstyp'],
                     'title'        => ['type' => 'string', 'description' => 'Titel der Einheit'],
                     'description'  => ['type' => 'string', 'description' => 'Detaillierte Beschreibung des Workouts inkl. Intervallstruktur'],
                     'distance_km'  => ['type' => 'number', 'description' => 'Zieldistanz in km'],
@@ -397,6 +406,37 @@ class CoachChatService
                     'pace_target'  => ['type' => 'string', 'description' => 'Zielpace im Format M:SS'],
                     'zone'         => ['type' => 'integer', 'minimum' => 1, 'maximum' => 5, 'description' => 'Herzfrequenzzone'],
                 ]],
+            ]],
+            ['type' => 'function', 'function' => [
+                'name'        => 'create_training_session',
+                'description' => 'Lege eine zusätzliche Trainingseinheit im Plan an — z.B. eine Krafteinheit neben einem Lauf. Für einen Lauf an einem Tag, an dem schon ein Lauf steht, nimm modify_training_session: pro Tag gibt es nur EIN Lauftraining.',
+                'parameters'  => ['type' => 'object', 'properties' => [
+                    'date'         => ['type' => 'string', 'description' => 'Tag der Einheit als YYYY-MM-DD'],
+                    'type'         => ['type' => 'string', 'enum' => ['easy_run','tempo_run','interval','long_run','progressive_run','test_run','race_prep','strength','core','mobility'], 'description' => 'Trainingstyp'],
+                    'title'        => ['type' => 'string', 'description' => 'Titel der Einheit'],
+                    'description'  => ['type' => 'string', 'description' => 'Detaillierte Beschreibung des Workouts'],
+                    'distance_km'  => ['type' => 'number', 'description' => 'Zieldistanz in km'],
+                    'duration_min' => ['type' => 'integer', 'description' => 'Zieldauer in Minuten'],
+                    'pace_target'  => ['type' => 'string', 'description' => 'Zielpace im Format M:SS'],
+                    'zone'         => ['type' => 'integer', 'minimum' => 1, 'maximum' => 5, 'description' => 'Herzfrequenzzone'],
+                ], 'required' => ['date', 'type']],
+            ]],
+            ['type' => 'function', 'function' => [
+                'name'        => 'move_training_session',
+                'description' => 'Verschiebe eine geplante Einheit auf einen anderen Tag — "der lange Lauf passt mir Samstag besser". Steht am Zieltag schon ein Lauf, wird er ersetzt.',
+                'parameters'  => ['type' => 'object', 'properties' => [
+                    'from_date' => ['type' => 'string', 'description' => 'Bisheriger Tag YYYY-MM-DD'],
+                    'to_date'   => ['type' => 'string', 'description' => 'Neuer Tag YYYY-MM-DD'],
+                    'type'      => ['type' => 'string', 'description' => 'Nur nötig, wenn am Ausgangstag mehrere Einheiten stehen'],
+                ], 'required' => ['from_date', 'to_date']],
+            ]],
+            ['type' => 'function', 'function' => [
+                'name'        => 'delete_training_session',
+                'description' => 'Lösche eine geplante Einheit ganz aus dem Plan. Für "war krank" oder "hab ich ausgelassen" nimm stattdessen skip_training_sessions — das bleibt in der Historie sichtbar. Löschen ist für Einheiten, die es gar nicht erst geben sollte.',
+                'parameters'  => ['type' => 'object', 'properties' => [
+                    'date' => ['type' => 'string', 'description' => 'Tag der Einheit YYYY-MM-DD'],
+                    'type' => ['type' => 'string', 'description' => 'Nur nötig, wenn an dem Tag mehrere Einheiten stehen'],
+                ], 'required' => ['date']],
             ]],
             ['type' => 'function', 'function' => [
                 'name'        => 'skip_training_sessions',
@@ -447,6 +487,118 @@ class CoachChatService
         };
     }
 
+    /**
+     * Datum eines Werkzeugaufrufs prüfen. Vergangene Tage sind für Änderungen
+     * gesperrt — was gelaufen ist, ist gelaufen, und ein Plan, der rückwirkend
+     * umgeschrieben wird, macht jede Auswertung wertlos.
+     */
+    private function toolDate(?string $date, bool $allowPast = false): ?string
+    {
+        if (! $date) {
+            return now()->toDateString();
+        }
+
+        try {
+            $parsed = \Carbon\CarbonImmutable::parse($date)->toDateString();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (! $allowPast && $parsed < now()->toDateString()) {
+            return null;
+        }
+
+        return $parsed;
+    }
+
+    /** Eine geplante Einheit an einem Tag, optional nach Typ. */
+    private function plannedSessionOn(\App\Models\User $user, string $date, ?string $type = null): ?\App\Models\TrainingSession
+    {
+        return \App\Models\TrainingSession::where('user_id', $user->id)
+            ->whereDate('planned_date', $date)
+            ->where('status', '!=', 'skipped')
+            ->when($type, fn ($q) => $q->where('type', $type))
+            ->orderBy('sort_order')
+            ->first();
+    }
+
+    /** Das Lauftraining eines Tages — davon gibt es höchstens eines. */
+    private function plannedRunOn(\App\Models\User $user, string $date): ?\App\Models\TrainingSession
+    {
+        return \App\Models\TrainingSession::where('user_id', $user->id)
+            ->whereDate('planned_date', $date)
+            ->where('status', 'planned')
+            ->whereIn('type', \App\Services\TrainingPlanValidator::RUN_TYPES)
+            ->orderBy('sort_order')
+            ->first();
+    }
+
+    private function isRun(string $type): bool
+    {
+        return in_array($type, \App\Services\TrainingPlanValidator::RUN_TYPES, true);
+    }
+
+    /**
+     * Eine neue Einheit, die im aktiven Plan landet.
+     *
+     * Ohne training_plan_id taucht sie auf der Planseite nicht auf — die lädt
+     * ausschließlich Einheiten des Plans. Der Athlet bekäme dann eine Zusage
+     * im Chat und einen unveränderten Plan.
+     */
+    private function newSessionFor(\App\Models\User $user, string $date, string $type): \App\Models\TrainingSession
+    {
+        $plan = \App\Models\TrainingPlan::where('user_id', $user->id)
+            ->where('is_active', true)
+            ->latest()
+            ->first();
+
+        $session = new \App\Models\TrainingSession();
+        $session->user_id          = $user->id;
+        $session->training_plan_id = $plan?->id;
+        $session->event_id         = $plan?->event_id;
+        $session->planned_date     = $date;
+        $session->status           = 'planned';
+        $session->sort_order       = $this->isRun($type) ? 1 : 2;
+        $session->type             = $type;
+        $session->title            = $this->sessionTitleFor($type);
+        $session->description      = '';
+        $session->intensity        = $this->intensityFor($type);
+
+        return $session;
+    }
+
+    /**
+     * Die vom Werkzeug gelieferten Felder übernehmen. title, description und
+     * intensity sind in der Datenbank Pflicht, stehen aber nicht in jeder
+     * Werkzeugbeschreibung — ohne Vorbelegung scheiterte das Speichern, und
+     * der Athlet sah nur „Server Error".
+     */
+    private function applySessionFields(\App\Models\TrainingSession $session, array $args): void
+    {
+        foreach (['type', 'title', 'description', 'distance_km', 'duration_min', 'pace_target', 'zone'] as $field) {
+            if (array_key_exists($field, $args) && $args[$field] !== null) {
+                $session->{$field} = $args[$field];
+            }
+        }
+
+        $session->title       = $session->title       ?: $this->sessionTitleFor($session->type);
+        $session->description = $session->description ?? '';
+        $session->intensity   = $session->intensity   ?: $this->intensityFor($session->type);
+
+        // Schritteliste und Verpflegungshinweise gehören zur alten Vorgabe.
+        $session->steps          = null;
+        $session->nutrition_tips = null;
+    }
+
+    /** „Sonntag, 23.08." — damit die Rückmeldung im Chat lesbar ist. */
+    private function dayLabel(string $date): string
+    {
+        $days = [1 => 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+        $d    = \Carbon\CarbonImmutable::parse($date);
+
+        return $days[$d->isoWeekday()] . ', ' . $d->format('d.m.');
+    }
+
     private function executeCoachTool(\App\Models\User $user, string $toolName, array $args): array
     {
         switch ($toolName) {
@@ -458,44 +610,144 @@ class CoachChatService
                 return ['message' => 'Gespeichert.', 'action' => ['type' => 'memory', 'label' => 'Gemerkt: ' . mb_substr($fact, 0, 80)]];
             }
 
-            case 'modify_today_session': {
-                $today   = now()->toDateString();
-                $session = \App\Models\TrainingSession::where('user_id', $user->id)
-                    ->whereDate('planned_date', $today)->where('status', '!=', 'skipped')->orderBy('sort_order')->first();
-                if (!$session) {
-                    // Gibt es fuer heute noch nichts, wird eine Einheit
-                    // angelegt. title, description und intensity sind in der
-                    // Datenbank Pflicht, stehen aber nicht in der
-                    // Werkzeugbeschreibung — ohne Vorbelegung scheiterte das
-                    // Einfuegen, und der Athlet sah nur "Server Error".
-                    $session = new \App\Models\TrainingSession();
-                    $session->user_id      = $user->id;
-                    $session->planned_date = $today;
-                    $session->status       = 'planned';
-                    $session->sort_order   = 1;
-                    $session->type         = $args['type'] ?? 'easy_run';
-                    $session->title        = 'Vom Coach geplant';
-                    $session->description  = '';
-                    $session->intensity    = 'medium';
-                }
-                foreach (['type','title','description','distance_km','duration_min','pace_target','zone'] as $f) {
-                    if (array_key_exists($f, $args)) $session->{$f} = $args[$f];
+            // Der alte Name bleibt gueltig: er stand nur fuer heute, und
+            // genau daran scheiterte jede Bitte wie "plane mir den Sonntag
+            // um". Der Coach antwortete dann so, als haette er es getan.
+            case 'modify_today_session':
+            case 'modify_training_session': {
+                $date = $this->toolDate($args['date'] ?? null);
+                if (! $date) {
+                    return ['message' => 'Das Datum liegt in der Vergangenheit — vergangene Einheiten aendere ich nicht.', 'action' => null];
                 }
 
-                // Auch bestehende Einheiten koennen Luecken haben, etwa wenn
-                // der Coach den Typ aendert. Die Pflichtfelder muessen stehen.
-                $session->title       = $session->title       ?: $this->sessionTitleFor($session->type);
-                $session->description = $session->description ?? '';
-                $session->intensity   = $session->intensity   ?: $this->intensityFor($session->type);
-                // Clear cached steps and nutrition tips so they get regenerated with the new parameters
-                $session->steps         = null;
-                $session->nutrition_tips = null;
+                $session = $this->plannedSessionOn($user, $date, $args['type'] ?? null)
+                    ?? $this->plannedSessionOn($user, $date);
+
+                if ($session && $session->status === 'completed') {
+                    return ['message' => 'Diese Einheit ist bereits absolviert und bleibt, wie sie ist.', 'action' => null];
+                }
+
+                if (! $session) {
+                    $session = $this->newSessionFor($user, $date, $args['type'] ?? 'easy_run');
+                }
+
+                $this->applySessionFields($session, $args);
                 $session->save();
 
-                // Regenerate the dashboard recommendation + daily message with the new context
                 $this->invalidateCoachCaches($user);
-                $label = $session->title ?? ($args['type'] ?? 'Training');
-                return ['message' => 'Einheit aktualisiert.', 'action' => ['type' => 'session_modified', 'label' => 'Training angepasst: ' . $label, 'reload' => true]];
+
+                $when = $this->dayLabel($date);
+                return [
+                    'message' => "Einheit am {$date} aktualisiert: {$session->title}"
+                        . ($session->distance_km ? ", {$session->distance_km} km" : '')
+                        . ($session->duration_min ? ", {$session->duration_min} min" : '') . '.',
+                    'action'  => ['type' => 'session_modified', 'label' => "Training angepasst ({$when}): {$session->title}", 'reload' => true],
+                ];
+            }
+
+            case 'create_training_session': {
+                $date = $this->toolDate($args['date'] ?? null);
+                if (! $date) {
+                    return ['message' => 'Das Datum liegt in der Vergangenheit — dort lege ich nichts mehr an.', 'action' => null];
+                }
+
+                $type = $args['type'] ?? 'easy_run';
+
+                // Ein Lauftraining pro Tag. Steht dort schon ein Lauf, wird er
+                // ersetzt statt verdoppelt — dieselbe Regel, nach der auch der
+                // Planer arbeitet.
+                if ($this->isRun($type)) {
+                    $existing = $this->plannedRunOn($user, $date);
+                    if ($existing) {
+                        $this->applySessionFields($existing, $args);
+                        $existing->save();
+                        $this->invalidateCoachCaches($user);
+
+                        return [
+                            'message' => "An dem Tag stand bereits ein Lauf — er wurde ersetzt statt verdoppelt: {$existing->title}. Pro Tag gibt es nur ein Lauftraining. Sage das dem Athleten.",
+                            'action'  => ['type' => 'session_modified', 'label' => "Training angepasst ({$this->dayLabel($date)}): {$existing->title}", 'reload' => true],
+                        ];
+                    }
+                }
+
+                $session = $this->newSessionFor($user, $date, $type);
+                $this->applySessionFields($session, $args);
+                $session->save();
+
+                $this->invalidateCoachCaches($user);
+
+                return [
+                    'message' => "Neue Einheit am {$date} angelegt: {$session->title}.",
+                    'action'  => ['type' => 'session_created', 'label' => "Einheit ergaenzt ({$this->dayLabel($date)}): {$session->title}", 'reload' => true],
+                ];
+            }
+
+            case 'move_training_session': {
+                $from = $this->toolDate($args['from_date'] ?? null, allowPast: true);
+                $to   = $this->toolDate($args['to_date'] ?? null);
+
+                if (! $from || ! $to) {
+                    return ['message' => 'Der Zieltag liegt in der Vergangenheit — dorthin verschiebe ich nichts.', 'action' => null];
+                }
+
+                $session = $this->plannedSessionOn($user, $from, $args['type'] ?? null)
+                    ?? $this->plannedSessionOn($user, $from);
+
+                if (! $session) {
+                    return ['message' => "Am {$from} steht keine geplante Einheit, die ich verschieben koennte.", 'action' => null];
+                }
+
+                $replaced = '';
+                if ($this->isRun($session->type)) {
+                    $clash = $this->plannedRunOn($user, $to);
+                    if ($clash && $clash->id !== $session->id) {
+                        $clash->delete();
+                        $replaced = " Der dort geplante Lauf ({$clash->title}) ist entfallen — pro Tag nur ein Lauftraining.";
+                    }
+                }
+
+                $session->planned_date    = $to;
+                $session->steps           = null;
+                $session->nutrition_tips  = null;
+                $session->save();
+
+                $this->invalidateCoachCaches($user);
+
+                return [
+                    'message' => "{$session->title} von {$from} auf {$to} verschoben.{$replaced}",
+                    'action'  => ['type' => 'session_moved', 'label' => "Verschoben auf {$this->dayLabel($to)}: {$session->title}", 'reload' => true],
+                ];
+            }
+
+            case 'delete_training_session': {
+                $date = $this->toolDate($args['date'] ?? null, allowPast: true);
+                if (! $date) {
+                    return ['message' => 'Kein gueltiges Datum.', 'action' => null];
+                }
+
+                $query = \App\Models\TrainingSession::where('user_id', $user->id)
+                    ->whereDate('planned_date', $date)
+                    ->where('status', 'planned');
+
+                if (! empty($args['type'])) {
+                    $query->where('type', $args['type']);
+                }
+
+                $sessions = $query->get();
+                if ($sessions->isEmpty()) {
+                    return ['message' => "Am {$date} steht keine geplante Einheit, die ich loeschen koennte.", 'action' => null];
+                }
+
+                $titles = $sessions->pluck('title')->implode(', ');
+                $count  = $sessions->count();
+                $sessions->each->delete();
+
+                $this->invalidateCoachCaches($user);
+
+                return [
+                    'message' => "{$count} Einheit(en) am {$date} geloescht: {$titles}.",
+                    'action'  => ['type' => 'session_deleted', 'label' => "Geloescht ({$this->dayLabel($date)}): {$titles}", 'reload' => true],
+                ];
             }
 
             case 'skip_training_sessions': {

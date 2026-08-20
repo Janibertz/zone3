@@ -13,6 +13,13 @@ class TrainingPlan extends Model
         'user_id',
         'event_id',
         'sessions',
+        // is_active war nur als Cast hinterlegt, nicht als fillable. Die Jobs
+        // setzen die Spalte über den Query Builder und kamen damit durch;
+        // TrainingPlanController::show() benutzt aber $plan->update(...), um
+        // den Plan eines vergangenen Events stillzulegen — und das lief ins
+        // Leere. Der alte Plan blieb aktiv, und wer danach „den aktiven Plan"
+        // suchte, konnte den falschen bekommen.
+        'is_active',
         'context',
         'needs_plan_update',
         'availability_overrides',
