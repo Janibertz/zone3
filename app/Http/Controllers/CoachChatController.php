@@ -33,6 +33,28 @@ class CoachChatController extends Controller
         return response()->json(['messages' => $messages]);
     }
 
+    /**
+     * Den Gespraechsverlauf loeschen.
+     *
+     * Bewusst getrennt vom Gemerkten: der Verlauf ist die Unterhaltung, die
+     * Notizen sind das, was der Coach ueber den Athleten gelernt hat. Wer
+     * aufraeumen will, meint fast immer nur das Erste.
+     */
+    public function destroyMessages(Request $request): JsonResponse
+    {
+        $deleted = CoachMessage::where('user_id', $request->user()->id)->delete();
+
+        return response()->json(['success' => true, 'deleted' => $deleted]);
+    }
+
+    /** Das Gemerkte loeschen — der Coach vergisst, was er ueber dich weiss. */
+    public function destroyNotes(Request $request): JsonResponse
+    {
+        $request->user()->runnerProfile?->update(['coach_notes' => null]);
+
+        return response()->json(['success' => true]);
+    }
+
     public function send(Request $request): JsonResponse
     {
         $request->validate(['message' => 'required|string|max:2000']);

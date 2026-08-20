@@ -48,6 +48,7 @@ class PlanContextBuilder
             otherEvents:           $this->otherEvents($user, $event, $windowTo),
             finalizedSessions:     $finalized,
             followUpGoal:          $this->followUpGoal($user, $event),
+            coachNotes:            $user->runnerProfile?->coach_notes,
         );
 
         // Gerüst und Garmin-Zusammenfassung bauen auf dem Rest auf.

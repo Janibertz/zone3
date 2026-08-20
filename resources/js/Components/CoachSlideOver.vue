@@ -2,6 +2,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { usePage, router } from '@inertiajs/vue3';
 import { useCoachChat } from '@/Composables/useCoachChat';
+import AppButton from '@/Components/UI/AppButton.vue';
 import axios from 'axios';
 
 const { isOpen, close } = useCoachChat();
@@ -210,8 +211,41 @@ function closePanel() {
     }
 }
 
+// ── Aufräumen ────────────────────────────────────────────────────────────────
+// Verlauf und Gemerktes sind zwei verschiedene Dinge: der Verlauf ist die
+// Unterhaltung, die Notizen sind das, was der Coach über dich gelernt hat.
+// Wer aufräumen will, meint fast immer nur das Erste.
+const menuOpen = ref(false);
+const confirming = ref(null);   // 'messages' | 'notes' | null
+const clearing = ref(false);
+
+const confirmText = computed(() => confirming.value === 'notes'
+    ? 'Alles löschen, was sich der Coach über dich gemerkt hat? Der Gesprächsverlauf bleibt.'
+    : 'Den gesamten Gesprächsverlauf löschen? Was sich der Coach gemerkt hat, bleibt.');
+
+async function confirmClear() {
+    clearing.value = true;
+    try {
+        if (confirming.value === 'notes') {
+            await axios.delete(route('coach.notes.destroy'));
+        } else {
+            await axios.delete(route('coach.messages.destroy'));
+            messages.value = [];
+        }
+        confirming.value = null;
+    } finally {
+        clearing.value = false;
+    }
+}
+
 function onKeydown(e) {
-    if (e.key === 'Escape' && isOpen.value) closePanel();
+    if (e.key !== 'Escape' || !isOpen.value) return;
+
+    // Erst das Obenliegende schließen, nicht gleich das ganze Panel.
+    if (confirming.value)  { confirming.value = null; return; }
+    if (menuOpen.value)    { menuOpen.value = false;  return; }
+
+    closePanel();
 }
 
 onMounted(() => window.addEventListener('keydown', onKeydown));
@@ -271,6 +305,33 @@ watch(isOpen, async (val) => {
                             {{ coach?.tagline ?? 'Persönlicher Lauf-Coach' }}
                         </p>
                     </div>
+                    <div class="relative shrink-0">
+                        <button
+                            aria-label="Mehr"
+                            class="flex h-9 w-9 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink active:scale-95"
+                            @click="menuOpen = !menuOpen"
+                        >
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75h.008v.008H12V6.75Zm0 5.25h.008v.008H12V12Zm0 5.25h.008v.008H12v-.008Z" />
+                            </svg>
+                        </button>
+
+                        <div v-if="menuOpen" class="fixed inset-0 z-10" @click="menuOpen = false" />
+
+                        <div v-if="menuOpen"
+                            class="absolute right-0 z-20 mt-1 w-60 overflow-hidden rounded-card bg-surface py-1 shadow-2xl">
+                            <button class="block w-full px-4 py-2.5 text-left text-[13px] text-ink-2 transition-colors hover:bg-surface-2"
+                                @click="menuOpen = false; confirming = 'messages'">
+                                Gesprächsverlauf löschen
+                            </button>
+                            <button class="block w-full px-4 py-2.5 text-left text-[13px] text-ink-2 transition-colors hover:bg-surface-2"
+                                @click="menuOpen = false; confirming = 'notes'">
+                                Gemerktes löschen
+                                <span class="mt-0.5 block text-[11px] text-ink-3">Was der Coach über dich weiß</span>
+                            </button>
+                        </div>
+                    </div>
+
                     <button
                         aria-label="Schließen"
                         class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink active:scale-95"
@@ -281,6 +342,17 @@ watch(isOpen, async (val) => {
                         </svg>
                     </button>
                 </header>
+
+                <!-- Sicherheitsabfrage -->
+                <div v-if="confirming" class="shrink-0 bg-danger-soft px-4 py-3.5">
+                    <p class="text-[13px] leading-relaxed text-danger-ink">{{ confirmText }}</p>
+                    <div class="mt-3 flex gap-2">
+                        <AppButton variant="danger" size="sm" :loading="clearing" @click="confirmClear">
+                            Ja, löschen
+                        </AppButton>
+                        <AppButton variant="ghost" size="sm" @click="confirming = null">Abbrechen</AppButton>
+                    </div>
+                </div>
 
                 <!-- ── Verlauf ────────────────────────────────────── -->
                 <div ref="messagesEl" class="flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4">

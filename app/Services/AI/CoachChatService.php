@@ -454,9 +454,7 @@ class CoachChatService
                 $fact = trim($args['fact'] ?? '');
                 if (!$fact) return ['message' => 'Keine Angabe.', 'action' => null];
                 $profile = $user->runnerProfile ?? \App\Models\RunnerProfile::firstOrCreate(['user_id' => $user->id]);
-                $existing = $profile->coach_notes ?? '';
-                $profile->coach_notes = trim($existing . "\n- " . $fact);
-                $profile->save();
+                $profile->rememberNote($fact);
                 return ['message' => 'Gespeichert.', 'action' => ['type' => 'memory', 'label' => 'Gemerkt: ' . mb_substr($fact, 0, 80)]];
             }
 

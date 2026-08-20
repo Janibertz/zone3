@@ -128,6 +128,35 @@ class RunnerProfile extends Model
     }
 
     /**
+     * Wie viele Notizen der Coach behält.
+     *
+     * Die Liste wuchs bisher unbegrenzt: jede Antwort auf eine Rückfrage und
+     * jede im Chat gemerkte Kleinigkeit blieb für immer stehen. Solange das
+     * nur der Chat las, war es Ballast. Seit auch die Planerstellung es liest,
+     * wäre es schädlich — ein Knieproblem vom März würde noch im September
+     * jede Intervalleinheit dämpfen. Die neuesten Notizen stehen unten.
+     */
+    public const MAX_COACH_NOTES = 25;
+
+    /**
+     * Eine Notiz anhängen und die Liste auf die jüngsten Einträge kürzen.
+     */
+    public function rememberNote(string $note): void
+    {
+        $note = trim($note);
+        if ($note === '') {
+            return;
+        }
+
+        $lines   = preg_split('/\R/', (string) $this->coach_notes, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $lines[] = '- [' . now()->format('d.m.Y') . '] ' . $note;
+
+        $this->update([
+            'coach_notes' => implode("\n", array_slice($lines, -self::MAX_COACH_NOTES)),
+        ]);
+    }
+
+    /**
      * Convert minutes (float) to pace format (MM:SS)
      * E.g. 5.5 = "5:30"
      */

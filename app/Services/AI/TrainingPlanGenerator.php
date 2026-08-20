@@ -40,6 +40,18 @@ class TrainingPlanGenerator
         $skeleton              = $c->skeleton;
         $garminText            = $c->garminText;
 
+        // Was der Athlet dem Coach erzählt hat — Antworten auf dessen
+        // Rückfragen nach einer Einheit, im Chat gemerkte Vorlieben und
+        // Einschränkungen. Das floss bisher nur zurück in den Chat. Der
+        // Planer sah es nie, obwohl genau dort die Konsequenz hingehört:
+        // Wer schreibt, dass sein Knie zwickt, will nicht am nächsten Tag
+        // ein Intervalltraining im Plan finden.
+        $notes          = trim((string) $c->coachNotes);
+        $coachNotesText = $notes === '' ? '' : "\n\n**Was du über diesen Athleten weißt (aus seinen eigenen Angaben):**\n"
+            . "{$notes}\n"
+            . "Beziehe das in die Planung ein. Wenn eine Angabe einer Einheit im Gerüst widerspricht "
+            . "(Beschwerden, Belastung, Vorlieben), passe Inhalt und Intensität an — der Slot bleibt.";
+
         $today        = now()->format('Y-m-d');
         $eventDate    = $event->event_date->format('Y-m-d');
         $daysUntil    = $event->days_until;
@@ -415,7 +427,7 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 **Letzte Aktivitäten (4 Wochen):**
 {$activitiesText}
 
-**{$wellbeingText}**{$garminBlock}
+**{$wellbeingText}**{$garminBlock}{$coachNotesText}
 
 **{$loadText}**
 
@@ -479,7 +491,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 **Letzte Aktivitäten (4 Wochen):**
 {$activitiesText}
 
-**{$wellbeingText}**{$garminBlock}
+**{$wellbeingText}**{$garminBlock}{$coachNotesText}
 
 **{$loadText}**
 

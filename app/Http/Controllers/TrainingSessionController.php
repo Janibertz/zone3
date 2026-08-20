@@ -99,14 +99,18 @@ class TrainingSessionController extends Controller
         $answer = trim($request->input('feedback'));
         $session->update(['review_feedback' => $answer]);
 
-        // Persist as a coach note → flows into the next plan generation & chat context.
-        $profile = Auth::user()->runnerProfile;
-        if ($profile) {
-            $date     = $session->planned_date->format('d.m.Y');
-            $note     = "Rückmeldung zu \"{$session->review_question}\" ({$session->title}, {$date}): {$answer}";
-            $existing = $profile->coach_notes ?? '';
-            $profile->update(['coach_notes' => trim($existing . "\n- " . $note)]);
-        }
+        // Die Notiz landet im Gedächtnis des Coaches — und seit dem
+        // PlanContextBuilder auch im Prompt der Planerstellung.
+        $date = $session->planned_date->format('d.m.Y');
+        \App\Models\RunnerProfile::firstOrCreate(['user_id' => Auth::id()])->rememberNote(
+            "Rückmeldung zu \"{$session->review_question}\" ({$session->title}, {$date}): {$answer}"
+        );
+
+        // Und der Plan reagiert darauf. Bisher war die Rückfrage folgenlos:
+        // Der Athlet antwortete, die Antwort wurde gespeichert, danach
+        // passierte nichts. Wer schreibt, dass die Einheit zu hart war, will
+        // das im Plan sehen — nicht erst beim nächsten Strava-Import.
+        $this->triggerCoachReaction($session);
 
         return response()->json(['session' => $this->formatSession($session->fresh())]);
     }

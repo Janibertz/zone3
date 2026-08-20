@@ -564,6 +564,9 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     // Coach Chat
     Route::get('/api/coach/messages', [CoachChatController::class, 'messages'])->name('coach.messages');
     Route::post('/api/coach/chat', [CoachChatController::class, 'send'])->name('coach.send');
+    // Verlauf und Gemerktes sind zwei verschiedene Dinge und werden einzeln geloescht.
+    Route::delete('/api/coach/messages', [CoachChatController::class, 'destroyMessages'])->name('coach.messages.destroy');
+    Route::delete('/api/coach/notes',    [CoachChatController::class, 'destroyNotes'])->name('coach.notes.destroy');
     Route::post('/api/coach/pr-dismiss', [AIController::class, 'dismissPr'])->name('coach.pr.dismiss');
 });
 
