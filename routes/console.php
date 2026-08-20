@@ -14,6 +14,11 @@ Schedule::command('push:wellbeing-reminders')->everyMinute();
 // Every Monday at 07:00: generate weekly AI review for all athletes
 Schedule::command('ai:weekly-review')->weeklyOn(1, '07:00');
 
+// Sonntag 18:00: an die Wochenabfrage erinnern. Der Command prueft selbst,
+// ob sie bei dem Nutzer ueberhaupt noch aussteht. Bewusst am Abend — Montag
+// frueh laeuft plan:auto-update, da ist die Antwort schon zu spaet.
+Schedule::command('push:week-check')->weeklyOn(0, '18:00');
+
 // Every day at 05:00: detect plan gaps and queue regeneration for athletes with upcoming races
 Schedule::command('plan:auto-update')->dailyAt('05:00');
 
