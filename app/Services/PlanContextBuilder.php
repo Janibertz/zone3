@@ -27,7 +27,27 @@ class PlanContextBuilder
         private readonly ReturnToRunService $returnToRun,
         private readonly TrainingPaceService $paces,
         private readonly WeeklyVolumeService $volume,
+        private readonly LongRunPlanService $longRuns,
     ) {}
+
+    /**
+     * Der längste verfügbare Tag der Woche. Er begrenzt, wie lang der lange
+     * Lauf überhaupt werden kann — wer sonntags drei Stunden hat, kann eine
+     * andere Leiter steigen als wer eine hat.
+     */
+    private function longestDayBudget(?array $availability): ?int
+    {
+        if (! $availability) {
+            return null;
+        }
+
+        $minutes = collect($availability)
+            ->filter(fn ($d) => ($d['available'] ?? false))
+            ->map(fn ($d) => (int) ($d['duration_min'] ?? 0))
+            ->max();
+
+        return $minutes > 0 ? $minutes : null;
+    }
 
     public function build(User $user, Event $event, array $availabilityOverrides = []): PlanContext
     {
@@ -43,6 +63,21 @@ class PlanContextBuilder
         // Erkennung — und beide widersprachen sich im selben Prompt.
         $comeback = $this->returnToRun->forPlan($user, $wellbeing, $finalized);
 
+        $availability = $user->runnerProfile?->weekly_availability;
+        $paces        = $this->paces->forEvent($event, $user->runnerProfile?->threshold_speed);
+        $volume       = $this->volume->forUser($user->id, $windowFrom);
+
+        // Die langen Läufe stehen vor dem Wochengerüst fest — sie sind der
+        // Grund, warum der Plan überhaupt so aussieht, wie er aussieht, und
+        // nicht das Ergebnis dessen, was am Sonntag noch übrig ist.
+        $longRuns = $this->longRuns->forEvent(
+            $event,
+            $volume,
+            $paces['long_sec'] ?? null,
+            $this->longestDayBudget($availability),
+            $windowFrom,
+        );
+
         $context = new PlanContext(
             event:                 $event,
             windowFrom:            $windowFrom,
@@ -51,7 +86,7 @@ class PlanContextBuilder
             recentActivities:      $this->recentActivities($user),
             wellbeing:             $wellbeing,
             sessionRatings:        $this->sessionRatings($user),
-            weeklyAvailability:    $user->runnerProfile?->weekly_availability,
+            weeklyAvailability:    $availability,
             availabilityOverrides: $availabilityOverrides,
             trainingLoad:          $this->trainingLoad->calculate($user->id),
             pastPlanResults:       $this->pastPlanResults($user),
@@ -61,8 +96,9 @@ class PlanContextBuilder
             coachNotes:            $user->runnerProfile?->coach_notes,
             comeback:              $comeback,
             crossTraining:         $this->crossTraining($user),
-            paces:                 $this->paces->forEvent($event, $user->runnerProfile?->threshold_speed),
-            volume:                $this->volume->forUser($user->id, $windowFrom),
+            paces:                 $paces,
+            volume:                $volume,
+            longRuns:              $longRuns,
         );
 
         // Gerüst und Garmin-Zusammenfassung bauen auf dem Rest auf.
@@ -71,10 +107,11 @@ class PlanContextBuilder
                 $event,
                 $windowFrom,
                 $windowTo,
-                $context->weeklyAvailability,
+                $availability,
                 $availabilityOverrides,
                 $context->finalizedDates(),
                 $comeback,
+                $longRuns,
             ),
             garminText: empty($user->garmin_session)
                 ? null

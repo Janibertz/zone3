@@ -103,8 +103,17 @@ class TrainingPlanGenerator
             ? app(\App\Services\TrainingPaceService::class)->toPromptSection($c->paces)
             : '';
 
+        // Die Leiter der langen Läufe. Sie steht vor dem Wochenumfang, weil
+        // sie ihn mitbestimmt: der lange Lauf kommt zuerst, der Rest der
+        // Woche füllt auf.
+        $longRunText  = $c->longRuns
+            ? app(\App\Services\LongRunPlanService::class)->toPromptSection($c->longRuns)
+            : '';
+        $ladderWeeks  = $c->longRuns['weeks'] ?? [];
+        $nextLongRun  = $ladderWeeks ? array_values($ladderWeeks)[0]['km'] : null;
+
         $volumeText = $c->volume
-            ? app(\App\Services\WeeklyVolumeService::class)->toPromptSection($c->volume, $event)
+            ? app(\App\Services\WeeklyVolumeService::class)->toPromptSection($c->volume, $event, $nextLongRun)
             : '';
 
         // Die Trainingsphase kommt aus dem Event — dieselbe, die der Athlet
@@ -431,7 +440,7 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 **{$profileText}**{$paceText}
 
 **Letzte Läufe (4 Wochen):**
-{$activitiesText}{$crossText}{$volumeText}
+{$activitiesText}{$crossText}{$volumeText}{$longRunText}
 
 **{$wellbeingText}**{$garminBlock}{$coachNotesText}
 
@@ -502,7 +511,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 **{$profileText}**{$paceText}
 
 **Letzte Läufe (4 Wochen):**
-{$activitiesText}{$crossText}{$volumeText}
+{$activitiesText}{$crossText}{$volumeText}{$longRunText}
 
 **{$wellbeingText}**{$garminBlock}{$coachNotesText}
 

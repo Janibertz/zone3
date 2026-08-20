@@ -90,6 +90,7 @@ class WeeklyPatternService
         array $overrides = [],
         array $finalizedDates = [],
         ?array $comeback = null,
+        ?array $longRuns = null,
     ): array {
         $days     = $this->availabilityPerDate($from, $to, $weeklyAvailability, $overrides, $finalizedDates);
         $priority = self::PRIORITIES[$event->race_distance] ?? self::DEFAULT_PRIORITY;
@@ -107,7 +108,19 @@ class WeeklyPatternService
                 : $this->planWeek($days, $dates, $priority, $maxHard);
         }
 
-        return ['days' => $days, 'weeks' => $weeks, 'priority' => $priority, 'comeback' => $comeback];
+        // Der lange Lauf bekommt seine Zieldistanz aus der Leiter — sie ist
+        // rückwärts vom Renntag gerechnet und nicht Sache des Modells.
+        if ($longRuns) {
+            $this->applyLongRuns($days, $longRuns);
+        }
+
+        return [
+            'days'      => $days,
+            'weeks'     => $weeks,
+            'priority'  => $priority,
+            'comeback'  => $comeback,
+            'long_runs' => $longRuns,
+        ];
     }
 
     /**
@@ -171,6 +184,32 @@ class WeeklyPatternService
         }
 
         return $days;
+    }
+
+    /**
+     * Die Zieldistanz der Leiter an den Longrun-Slot der jeweiligen Woche
+     * hängen. Steht in einer Woche kein langer Lauf, gibt es auch nichts zu
+     * setzen — die Leiter erzwingt keinen Slot, sie füllt einen.
+     */
+    private function applyLongRuns(array &$days, array $longRuns): void
+    {
+        foreach ($days as $date => $day) {
+            foreach ($day['slots'] as $i => $slot) {
+                if ($slot['type'] !== 'long_run') {
+                    continue;
+                }
+
+                $target = $longRuns['weeks'][$day['week']] ?? null;
+                if (! $target) {
+                    continue;
+                }
+
+                $days[$date]['slots'][$i]['target_km']  = $target['km'];
+                $days[$date]['slots'][$i]['target_min'] = $target['min'];
+                $days[$date]['slots'][$i]['race_km']    = $target['mp_km'];
+                $days[$date]['slots'][$i]['kind']       = $target['kind'];
+            }
+        }
     }
 
     /** @return array<string,list<string>> Wochenschlüssel → Daten der Woche */
@@ -534,6 +573,13 @@ class WeeklyPatternService
 
                 if (! empty($slot['fixed'])) {
                     $parts[] = "type=\"{$slot['type']}\" — FESTER TERMIN: {$slot['label']}{$slotCap}";
+                    continue;
+                }
+
+                // Beim langen Lauf steht die Distanz fest, nicht nur der Typ.
+                if (isset($slot['target_km'])) {
+                    $race    = $slot['race_km'] > 0 ? ", davon {$slot['race_km']} km im Zielrenntempo am Ende" : '';
+                    $parts[] = "type=\"long_run\" — {$slot['target_km']} km (~{$slot['target_min']} min){$race}";
                     continue;
                 }
 

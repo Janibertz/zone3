@@ -107,7 +107,7 @@ class WeeklyVolumeService
      * wachsen darf. Ohne diese Grenze plante das Modell Sprünge, die jeder
      * Coach als Verletzungsrisiko erkennen würde.
      */
-    public function toPromptSection(array $v, Event $event): string
+    public function toPromptSection(array $v, Event $event, ?float $nextLongRunKm = null): string
     {
         if (! $v['has_data']) {
             return "\n\n**Wochenumfang:** keine Laufdaten der letzten Wochen — steige vorsichtig ein und steigere den Umfang erst, wenn Einheiten tatsächlich absolviert werden.";
@@ -135,11 +135,18 @@ class WeeklyVolumeService
 
         $weeksLeft = $event->weeks_until;
 
+        // Ein langer Lauf, der allein schon an die Wochengrenze stößt, macht
+        // die Grenze unsinnig. Dann steigt sie mit ihm — der lange Lauf ist
+        // das Rückgrat der Woche, nicht ihr Rest.
+        $ceiling = $nextLongRunKm > 0
+            ? max($v['next_week_max'], round($nextLongRunKm * 1.8, 1))
+            : $v['next_week_max'];
+
         return "\n\n**Wochenumfang (nur Läufe):**\n" . implode("\n", $lines)
             . "\n\nDurchschnitt der letzten vollen Wochen: {$v['avg_km']} km. Längster Lauf im Zeitraum: {$v['longest_run']} km.{$trend}"
             . "\n\n**Regeln zum Umfang (bindend):**\n"
-            . "- Der Wochenumfang der kommenden Woche darf {$v['next_week_max']} km NICHT überschreiten (max. " . self::MAX_PROGRESSION_PCT . " % Steigerung). Wer krank war oder Einheiten abgesagt hat, steigert gar nicht, sondern hält oder reduziert.\n"
-            . "- Der lange Lauf steigt höchstens um 2 km pro Woche über den bisher längsten ({$v['longest_run']} km) hinaus.\n"
+            . "- Der Wochenumfang der kommenden Woche darf {$ceiling} km NICHT überschreiten (max. " . self::MAX_PROGRESSION_PCT . " % Steigerung), den langen Lauf eingerechnet. Wer krank war oder Einheiten abgesagt hat, steigert gar nicht, sondern hält oder reduziert.\n"
+            . "- Der lange Lauf ist davon ausgenommen: seine Distanz steht in der Leiter weiter unten und geht vor. Der Rest der Woche füllt auf, was danach noch übrig ist.\n"
             . "- Jede dritte bis vierte Woche ist eine Entlastungswoche mit rund 25 % weniger Umfang — plane sie ein, wenn die letzten Wochen durchgehend gestiegen sind.\n"
             . "- Etwa 80 % des Wochenumfangs sind locker (Zone 1–2), höchstens 20 % intensiv. Das gilt über die Woche, nicht über die einzelne Einheit.\n"
             . "- Rechne die geplanten Distanzen selbst zusammen und halte diese Summe ein. Noch {$weeksLeft} Wochen bis zum Rennen — der Umfang muss dorthin führen, nicht ins Übertraining.";

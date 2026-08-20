@@ -52,6 +52,7 @@ class TrainingPlanValidator
         $sessions = $this->enforceAvailability($sessions, $days);
         $sessions = $this->enforceOneHardPerDay($sessions);
         $sessions = $this->enforceOneRunPerDay($sessions, $days);
+        $sessions = $this->enforceLongRunTargets($sessions, $days);
         $sessions = $this->enforceSlotCaps($sessions, $days);
         $sessions = $this->enforceDailyBudget($sessions, $days);
         $sessions = $this->restoreMissingSlots($sessions, $days);
@@ -205,6 +206,47 @@ class TrainingPlanValidator
             fn ($i) => ! isset($drop[$i]),
             ARRAY_FILTER_USE_KEY
         ));
+    }
+
+    /**
+     * Der lange Lauf hat eine Zieldistanz, keine Empfehlung.
+     *
+     * Sie kommt aus einer Leiter, die vom Renntag rückwärts gerechnet ist —
+     * genau das macht sie zum Rückgrat einer Marathonvorbereitung. Ein
+     * Modell, das daraus „so um die 18 km" macht, oder das sich vom
+     * Zeitbudget des Tages verleiten lässt, bricht die Leiter.
+     *
+     * Toleriert wird eine kleine Abweichung: runde Zahlen im Plan sind
+     * angenehmer als 23,4 km, und für die Wirkung ist es einerlei.
+     */
+    private function enforceLongRunTargets(array $sessions, array $days): array
+    {
+        foreach ($days as $date => $day) {
+            $slot = collect($day['slots'] ?? [])->first(fn ($s) => isset($s['target_km']));
+            if (! $slot) {
+                continue;
+            }
+
+            foreach ($sessions as &$s) {
+                if ($s['date'] !== $date || ($s['type'] ?? '') !== 'long_run') {
+                    continue;
+                }
+
+                $km        = (float) ($s['distance_km'] ?? 0);
+                $tolerance = max(1.5, $slot['target_km'] * 0.1);
+
+                if ($km > 0 && abs($km - $slot['target_km']) <= $tolerance) {
+                    continue;
+                }
+
+                $this->note("{$date}: langer Lauf mit {$km} km statt {$slot['target_km']} km aus der Leiter → korrigiert");
+                $s['distance_km']  = $slot['target_km'];
+                $s['duration_min'] = $slot['target_min'];
+            }
+            unset($s);
+        }
+
+        return $sessions;
     }
 
     /**
@@ -411,6 +453,26 @@ class TrainingPlanValidator
                 'zone'         => null,
                 'intensity'    => in_array($slot['type'], WeeklyPatternService::HARD_TYPES, true) ? 'high' : 'medium',
                 '_hard'        => in_array($slot['type'], WeeklyPatternService::HARD_TYPES, true),
+            ];
+        }
+
+        // Kommt der lange Lauf aus der Leiter, gilt deren Distanz und Dauer.
+        if (isset($slot['target_km'])) {
+            $race = $slot['race_km'] > 0
+                ? " Die letzten {$slot['race_km']} km im Zielrenntempo."
+                : '';
+
+            return [
+                'date'         => $date,
+                'type'         => 'long_run',
+                'title'        => 'Langer Lauf',
+                'description'  => "Gleichmäßig locker über {$slot['target_km']} km, Tempo bewusst zurückhalten.{$race} Trinken und essen mitnehmen.",
+                'distance_km'  => $slot['target_km'],
+                'duration_min' => $slot['target_min'],
+                'pace_target'  => null,
+                'zone'         => 2,
+                'intensity'    => 'medium',
+                '_hard'        => false,
             ];
         }
 

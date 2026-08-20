@@ -50,6 +50,9 @@ class TrainingPaceService
             'marathon'   => $this->pace($t * 1.12),
             'interval'   => $this->range($t - 12, $t + 4),
             'repetition' => $this->pace($t - 20),
+            // Der numerische Wert für alles, was mit Distanzen rechnet —
+            // die Leiter der langen Läufe zum Beispiel.
+            'long_sec'   => (int) round($t + 70),
         ];
 
         $km = $this->raceKm($event);

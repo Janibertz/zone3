@@ -35,6 +35,7 @@ readonly class PlanContext
         public array $crossTraining = [],
         public ?array $paces = null,
         public ?array $volume = null,
+        public ?array $longRuns = null,
         public ?array $skeleton = null,
         public ?string $garminText = null,
     ) {}
@@ -71,6 +72,7 @@ readonly class PlanContext
             crossTraining:         $this->crossTraining,
             paces:                 $this->paces,
             volume:                $this->volume,
+            longRuns:              $this->longRuns,
             skeleton:              $skeleton    ?? $this->skeleton,
             garminText:            $garminText  ?? $this->garminText,
         );
