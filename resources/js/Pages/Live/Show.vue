@@ -104,9 +104,19 @@ function clock(totalSeconds) {
         : `${m}:${String(s).padStart(2, '0')}`;
 }
 
-const elapsedTotal = computed(() =>
-    hasStarted.value ? Math.floor(elapsedMs.value / 1000) : null
-);
+/**
+ * Gesamtzeit. Steht der Endstand fest, bleibt sie stehen.
+ *
+ * Vorher hing hier nur `hasStarted` dran — die Uhr lief nach dem Rennen
+ * einfach weiter, obwohl oben schon der Endstand stand. Beim Backyard
+ * beginnt jede Runde zur vollen Stunde: wer N Runden geschafft hat, war
+ * genau N Stunden unterwegs.
+ */
+const elapsedTotal = computed(() => {
+    if (isOver.value) return (data.value.stoppedAtYard ?? 0) * 3600;
+
+    return hasStarted.value ? Math.floor(elapsedMs.value / 1000) : null;
+});
 
 const startLabel = computed(() =>
     new Date(data.value.startsAt).toLocaleString('de-DE', {
@@ -355,7 +365,17 @@ async function refresh() {
 
 onMounted(() => {
     clockTimer = setInterval(() => { now.value = Date.now(); }, 1000);
-    pollTimer  = setInterval(refresh, 45_000);
+    // Nach dem Rennen reicht ein Blick alle paar Minuten. Die Seite ist
+    // oeffentlich und bleibt gern tagelang offen — alle 45 Sekunden zu
+    // fragen, ob sich an einem abgeschlossenen Lauf etwas geaendert hat,
+    // ist unnoetige Last. Ganz aufhoeren darf sie nicht: die Crew kann den
+    // Endstand zuruecknehmen und weiter Meldungen schreiben.
+    let pollTick = 0;
+    pollTimer = setInterval(() => {
+        pollTick++;
+        if (isOver.value && pollTick % 4 !== 0) return;
+        refresh();
+    }, 45_000);
     initMap();
 
     window.addEventListener('keydown', onKeydown);
@@ -562,7 +582,7 @@ onUnmounted(() => {
             <!-- Gesamtzeit -->
             <section v-if="hasStarted" class="rounded-card bg-surface px-5 py-4 shadow-card">
                 <div class="flex items-baseline justify-between">
-                    <span class="text-[13px] text-ink-3">Unterwegs seit</span>
+                    <span class="text-[13px] text-ink-3">{{ isOver ? 'Gesamtzeit' : 'Unterwegs seit' }}</span>
                     <span class="text-xl font-bold tabular-nums text-ink">{{ clock(elapsedTotal) }}</span>
                 </div>
             </section>
