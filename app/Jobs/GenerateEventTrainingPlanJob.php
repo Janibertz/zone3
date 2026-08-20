@@ -67,6 +67,13 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
             ->whereIn('status', ['skipped', 'completed'])
             ->get();
 
+        // Der Stand vor der Erstellung. Beim ersten Plan leer, bei einer vom
+        // Nutzer angestossenen Neuerstellung nicht — beides gehoert in den
+        // Aenderungsverlauf.
+        $sessionsBefore = TrainingSession::whereIn('training_plan_id', $existingPlanIds)
+            ->where('status', 'planned')
+            ->get();
+
         // ── Call AI ──────────────────────────────────────────────────────────
         $planner->withCoach($user->coach?->personality_prompt)->forUser($user->id);
         try {
@@ -125,6 +132,16 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
             DB::table('training_plans')
                 ->where('id', $plan->id)
                 ->update(['is_active' => true, 'needs_plan_update' => false]);
+
+            app(\App\Services\PlanRevisionRecorder::class)->record(
+                user:        $user,
+                event:       $event,
+                newPlan:     $plan,
+                oldSessions: $sessionsBefore,
+                newSessions: $aiSessions,
+                corrections: $checked['report'] ?? [],
+                triggeredBy: $sessionsBefore->isEmpty() ? 'initial' : 'user',
+            );
 
             // Erhaltene Einheiten blockieren ihren Tag nur für Läufe. Vorher
             // fiel an einem Doppel-Tag die Krafteinheit mit weg, sobald der

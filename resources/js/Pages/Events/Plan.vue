@@ -34,7 +34,17 @@ const props = defineProps({
     backyard:     { type: Object, default: null }, // { readiness, rhythm } for Backyard Ultra events
     planIsRolling: { type: Boolean, default: false }, // race beyond the rolling window → plan extends over time
     isPastEvent:  { type: Boolean, default: false },
+    // Aenderungsverlauf: was jede Neuberechnung am Plan geaendert hat.
+    revisions:    { type: Array, default: () => [] },
 });
+
+const revisionsOpen = ref(false);
+
+const revisionTone = {
+    added:   { dot: 'bg-success' },
+    removed: { dot: 'bg-ink-3' },
+    changed: { dot: 'bg-info' },
+};
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const currentPlan     = ref(props.plan);
@@ -965,9 +975,19 @@ const lapHeightPct = computed(() => {
                         <section class="min-w-0">
                             <SectionHeader :title="isPastEvent ? 'Trainings-Auswertung' : 'Trainingsplan'">
                                 <template #action>
-                                    <span v-if="currentPlan" class="text-[13px] text-ink-3">
-                                        {{ currentPlan.generated_at }}
-                                    </span>
+                                    <div class="flex items-center gap-3">
+                                        <button
+                                            v-if="revisions.length"
+                                            type="button"
+                                            @click="revisionsOpen = true"
+                                            class="text-[13px] font-medium text-accent hover:underline"
+                                        >
+                                            Verlauf
+                                        </button>
+                                        <span v-if="currentPlan" class="text-[13px] text-ink-3">
+                                            {{ currentPlan.generated_at }}
+                                        </span>
+                                    </div>
                                 </template>
                             </SectionHeader>
 
@@ -1335,6 +1355,54 @@ const lapHeightPct = computed(() => {
                 </template>
             </div>
         </div>
+
+        <!-- ══════════════════════════════════════════════════════
+             ÄNDERUNGSVERLAUF
+             ══════════════════════════════════════════════════════ -->
+        <AppSheet :show="revisionsOpen" tall title="Änderungsverlauf" subtitle="Was sich am Plan geändert hat" @close="revisionsOpen = false">
+            <div class="space-y-5">
+                <article v-for="rev in revisions" :key="rev.id" class="rounded-card bg-surface-2 p-4">
+                    <header class="mb-3 flex items-baseline justify-between gap-3">
+                        <span class="text-[13px] font-semibold text-ink">{{ rev.label }}</span>
+                        <span class="shrink-0 text-[12px] text-ink-3">{{ rev.at }}</span>
+                    </header>
+
+                    <ul v-if="rev.changes.length" class="space-y-2.5">
+                        <li v-for="(c, i) in rev.changes" :key="i" class="flex gap-2.5">
+                            <span class="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full"
+                                  :class="(revisionTone[c.kind] || revisionTone.changed).dot" />
+                            <div class="min-w-0 text-[13px] leading-relaxed">
+                                <span class="font-medium text-ink">{{ c.label }}</span>
+                                <span class="mx-1.5 text-ink-3">·</span>
+                                <template v-if="c.kind === 'added'">
+                                    <span class="text-ink-2">neu: {{ c.to }}</span>
+                                </template>
+                                <template v-else-if="c.kind === 'removed'">
+                                    <span class="text-ink-3 line-through">{{ c.from }}</span>
+                                </template>
+                                <template v-else>
+                                    <span class="text-ink-3 line-through">{{ c.from }}</span>
+                                    <span class="mx-1.5 text-ink-3">→</span>
+                                    <span class="text-ink-2">{{ c.to }}</span>
+                                </template>
+                            </div>
+                        </li>
+                    </ul>
+                    <p v-else class="text-[13px] text-ink-3">Keine Änderungen an den geplanten Einheiten.</p>
+
+                    <!-- Was der Prüfer an der Antwort des Modells korrigieren musste.
+                         Stand bisher nur im Log. -->
+                    <div v-if="rev.corrections.length" class="mt-3.5 border-t border-line pt-3">
+                        <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-3">Automatisch korrigiert</p>
+                        <ul class="space-y-1">
+                            <li v-for="(corr, i) in rev.corrections" :key="i" class="text-[12px] leading-relaxed text-ink-3">
+                                {{ corr }}
+                            </li>
+                        </ul>
+                    </div>
+                </article>
+            </div>
+        </AppSheet>
 
         <!-- ══════════════════════════════════════════════════════
              KEIN TRAINING

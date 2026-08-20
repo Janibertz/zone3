@@ -10,6 +10,31 @@ class TrainingSession extends Model
 {
     use HasFactory;
 
+    /**
+     * Die deutschen Bezeichnungen der Einheitentypen.
+     *
+     * Lag bisher als private Methode im Review-Job und in zwei Varianten im
+     * Chat-Service — mit unterschiedlichem Umfang, weil neue Typen nur an
+     * einer der Stellen nachgetragen wurden.
+     */
+    public const TYPE_LABELS = [
+        'easy_run'          => 'Lockerer Lauf',
+        'tempo_run'         => 'Tempolauf',
+        'interval'          => 'Intervalltraining',
+        'long_run'          => 'Langer Lauf',
+        'progressive_run'   => 'Progressiver Lauf',
+        'test_run'          => 'Testlauf',
+        'race_prep'         => 'Rennvorbereitung',
+        'back_to_back_long' => 'Back-to-Back Longrun',
+        'time_on_feet'      => 'Time on Feet',
+        'night_run'         => 'Nachtlauf',
+        'yard_simulation'   => 'Yard-Simulation',
+        'strength'          => 'Krafttraining',
+        'core'              => 'Core-Training',
+        'mobility'          => 'Mobility',
+        'rest'              => 'Ruhetag',
+    ];
+
     protected $fillable = [
         'user_id',
         'training_plan_id',

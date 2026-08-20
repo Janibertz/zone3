@@ -396,21 +396,6 @@ class GenerateSessionReviewJob implements ShouldQueue
     /** @return array<string,string> */
     private function typeLabels(): array
     {
-        return [
-            'easy_run'          => 'Lockerer Lauf',
-            'tempo_run'         => 'Tempolauf',
-            'interval'          => 'Intervalltraining',
-            'long_run'          => 'Langer Lauf',
-            'progressive_run'   => 'Progressiver Lauf',
-            'test_run'          => 'Testlauf',
-            'race_prep'         => 'Rennvorbereitung',
-            'back_to_back_long' => 'Back-to-Back Longrun',
-            'time_on_feet'      => 'Time on Feet',
-            'night_run'         => 'Nachtlauf',
-            'yard_simulation'   => 'Yard-Simulation',
-            'strength'          => 'Krafttraining',
-            'core'              => 'Core-Training',
-            'mobility'          => 'Mobility',
-        ];
+        return \App\Models\TrainingSession::TYPE_LABELS;
     }
 }

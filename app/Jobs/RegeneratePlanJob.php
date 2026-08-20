@@ -68,6 +68,12 @@ class RegeneratePlanJob implements ShouldQueue
             ->whereIn('status', ['skipped', 'completed'])
             ->get();
 
+        // Der Stand vor der Neuberechnung — Grundlage für den Änderungsverlauf.
+        // Gleich unten werden diese Einheiten gelöscht.
+        $sessionsBefore = TrainingSession::whereIn('training_plan_id', $oldPlanIds)
+            ->where('status', 'planned')
+            ->get();
+
         // ── Call OpenAI ─────────────────────────────────────────────────────────
         $planner->withCoach($user->coach?->personality_prompt)->forUser($user->id);
         try {
@@ -120,6 +126,18 @@ class RegeneratePlanJob implements ShouldQueue
             DB::table('training_plans')
                 ->where('id', $newPlan->id)
                 ->update(['is_active' => true, 'needs_plan_update' => false]);
+
+            // Was sich geändert hat, bleibt nachlesbar — der alte Plan ist
+            // an dieser Stelle bereits gelöscht.
+            app(\App\Services\PlanRevisionRecorder::class)->record(
+                user:        $user,
+                event:       $event,
+                newPlan:     $newPlan,
+                oldSessions: $sessionsBefore,
+                newSessions: $aiSessions,
+                corrections: $checked['report'] ?? [],
+                triggeredBy: $this->userTriggered ? 'user' : 'auto',
+            );
 
             // Erhaltene Einheiten blockieren ihren Tag nur für die eigene
             // Sorte — sonst fiele an einem Doppel-Tag die Krafteinheit weg,

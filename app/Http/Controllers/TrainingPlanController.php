@@ -117,6 +117,23 @@ class TrainingPlanController extends Controller
             ] : null,
             'sessions'    => $sessions,
             'isPastEvent' => $isPastEvent,
+
+            // Der Änderungsverlauf. Er hängt am Event, nicht am Plan — jede
+            // Neuberechnung löscht den Plan, der Verlauf überlebt sie.
+            'revisions'   => \App\Models\PlanRevision::where('user_id', Auth::id())
+                ->where('event_id', $event->id)
+                ->latest()
+                ->limit(20)
+                ->get()
+                ->map(fn ($r) => [
+                    'id'          => $r->id,
+                    'at'          => $r->created_at->format('d.m.Y H:i'),
+                    'kind'        => $r->triggered_by,
+                    'label'       => $r->triggerLabel(),
+                    'changes'     => $r->changes ?? [],
+                    'corrections' => $r->corrections ?? [],
+                ])
+                ->values(),
         ]);
     }
 
