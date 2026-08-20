@@ -139,23 +139,28 @@ const moreNavItems = computed(() => {
         <!-- ══════════════════════════════════════
              UPDATE BANNER
              ══════════════════════════════════════ -->
-        <div
+        <!--
+            Der ganze Banner ist die Schaltflaeche, nicht nur der Knopf darin.
+            Auf dem iPhone lag er unter der Dynamic Island und war nicht
+            antippbar; ein 24 Pixel hoher Knopf am rechten Rand war auch ohne
+            Insel schon knapp fuer einen Daumen.
+        -->
+        <button
             v-if="updateReady"
-            class="fixed inset-x-0 top-0 z-50 flex items-center justify-between gap-3 bg-accent px-4 py-2.5 text-sm text-white shadow-card"
+            type="button"
+            @click="reload"
+            class="fixed inset-x-0 top-0 z-50 flex w-full items-center justify-between gap-3 bg-accent px-4 pb-3 pt-safe-banner text-left text-sm text-white shadow-card transition-colors active:bg-accent/80"
         >
-            <div class="flex items-center gap-2">
+            <span class="flex items-center gap-2">
                 <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
                 </svg>
                 <span class="font-medium">Neue Version verfügbar</span>
-            </div>
-            <button
-                @click="reload"
-                class="shrink-0 rounded-field bg-surface/20 px-3 py-1 text-xs font-semibold transition-colors hover:bg-surface/30"
-            >
+            </span>
+            <span class="shrink-0 rounded-field bg-surface/20 px-3 py-2 text-xs font-semibold">
                 Jetzt aktualisieren
-            </button>
-        </div>
+            </span>
+        </button>
 
         <!-- ══════════════════════════════════════
              PWA INSTALL BANNER (mobile, dismissable)
@@ -171,7 +176,7 @@ const moreNavItems = computed(() => {
             <!-- Android: native install prompt -->
             <div
                 v-if="isInstallable"
-                class="fixed inset-x-0 top-0 z-50 flex items-center gap-3 bg-accent px-4 py-3 text-white shadow-card lg:hidden"
+                class="fixed inset-x-0 top-0 z-50 flex items-center gap-3 bg-accent px-4 pb-3 pt-safe-banner text-white shadow-card lg:hidden"
             >
                 <button @click="dismissInstall" class="shrink-0 text-white/70 transition-colors hover:text-white" aria-label="Schließen">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -196,7 +201,7 @@ const moreNavItems = computed(() => {
             <!-- iOS Safari: manual share-sheet instructions -->
             <div
                 v-else-if="isIOSHint"
-                class="fixed inset-x-0 top-0 z-50 bg-accent px-4 py-3 text-white shadow-card lg:hidden"
+                class="fixed inset-x-0 top-0 z-50 bg-accent px-4 pb-3 pt-safe-banner text-white shadow-card lg:hidden"
             >
                 <div class="flex items-start gap-3">
                     <button @click="dismissInstall" class="mt-0.5 shrink-0 text-white/70 transition-colors hover:text-white" aria-label="Schließen">

@@ -204,6 +204,15 @@
   /* Sheets: content must clear the home indicator */
   .pb-safe-sheet     { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
 
+  /*
+   * Oben angeheftete Banner (Update, Installation). Sie sitzen auf top-0 und
+   * lagen damit auf dem iPhone unter der Dynamic Island: sichtbar, aber nicht
+   * antippbar — die Insel faengt die Beruehrung ab. `pt-safe` allein reicht
+   * nicht, es wuerde das eigene Innenabstand-Padding ersetzen. Deshalb beides
+   * zusammen.
+   */
+  .pt-safe-banner    { padding-top: calc(0.75rem + env(safe-area-inset-top)); }
+
   /* Scroll containers without a visible scrollbar (carousels, chip rows) */
   .no-scrollbar               { scrollbar-width: none; -ms-overflow-style: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
