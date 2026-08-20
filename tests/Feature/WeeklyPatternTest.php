@@ -184,8 +184,12 @@ class WeeklyPatternTest extends TestCase
             ['date' => $date, 'type' => 'interval', 'title' => 'Intervalle', 'duration_min' => 60],
         ], $skeleton);
 
-        $entry = collect($result['sessions'])->firstWhere('date', $date);
-        $this->assertSame('interval', $entry['type']);
+        $onDate = collect($result['sessions'])->where('date', $date);
+        $runs   = $onDate->whereIn('type', TrainingPlanValidator::RUN_TYPES);
+
+        // Der Tag behält eine Laufeinheit — welche, entscheidet das Gerüst.
+        $this->assertCount(1, $runs);
+        $this->assertNotSame('rest', $runs->first()['type']);
     }
 
     /** Verfuegbar ohne Zeitangabe heisst „keine Obergrenze", nicht „gesperrt". */
@@ -371,7 +375,11 @@ class WeeklyPatternTest extends TestCase
     public function test_two_hard_sessions_on_one_day_get_downgraded(): void
     {
         $skeleton = $this->build($this->event(), $this->availability(180));
-        $date     = array_key_first($skeleton['days']);
+
+        // Ein Tag, an dem das Gerüst selbst eine harte Einheit vorsieht —
+        // sonst ersetzt der Validator beide durch die Vorgabe des Tages.
+        $date = collect($skeleton['days'])
+            ->first(fn ($d) => collect($d['slots'])->contains(fn ($s) => $s['type'] === 'interval'))['date'];
 
         $result = $this->validate([
             ['date' => $date, 'type' => 'interval',  'title' => 'A', 'duration_min' => 60],
@@ -382,6 +390,11 @@ class WeeklyPatternTest extends TestCase
         $hard   = $onDate->filter(fn ($s) => in_array($s['type'], WeeklyPatternService::HARD_TYPES, true));
 
         $this->assertCount(1, $hard);
+        $this->assertSame('interval', $hard->first()['type']);
+
+        // Die zweite harte Einheit wird nicht zum zweiten lockeren Lauf —
+        // sie verschwindet. Ein Lauftraining pro Tag.
+        $this->assertCount(1, $onDate->whereIn('type', TrainingPlanValidator::RUN_TYPES));
     }
 
     public function test_days_outside_the_window_are_dropped(): void

@@ -23,6 +23,17 @@ class TrainingPlanValidator
         'yard_simulation', 'night_run', 'strength', 'core', 'mobility',
     ];
 
+    /**
+     * Alles, wofür man Laufschuhe anzieht. Der Athlet will davon höchstens
+     * eines pro Tag — eine zweite Einheit darf nur Kraft, Core oder Mobility
+     * sein.
+     */
+    public const RUN_TYPES = [
+        'easy_run', 'tempo_run', 'interval', 'long_run', 'progressive_run',
+        'test_run', 'back_to_back_long', 'time_on_feet', 'yard_simulation',
+        'night_run', 'race_prep',
+    ];
+
     private array $report = [];
 
     /**
@@ -40,6 +51,8 @@ class TrainingPlanValidator
         $sessions = $this->fixTypes($sessions, $days);
         $sessions = $this->enforceAvailability($sessions, $days);
         $sessions = $this->enforceOneHardPerDay($sessions);
+        $sessions = $this->enforceOneRunPerDay($sessions, $days);
+        $sessions = $this->enforceSlotCaps($sessions, $days);
         $sessions = $this->enforceDailyBudget($sessions, $days);
         $sessions = $this->restoreMissingSlots($sessions, $days);
         $sessions = $this->fillMissingDays($sessions, $days);
@@ -144,6 +157,97 @@ class TrainingPlanValidator
     }
 
     /**
+     * Ein Lauftraining pro Tag — mehr nicht.
+     *
+     * Zwei harte Einheiten hat der Validator schon immer erkannt; hart plus
+     * locker lief durch. Genau das entstand, wenn zwei Vorgaben im Prompt
+     * sich widersprachen (Gerüst: Tempolauf, Sicherheitsregel: 30 Minuten
+     * locker): das Modell legte beides auf denselben Tag und erfüllte damit
+     * formal beide. Was danebenpasst, ist Kraft oder Mobility.
+     */
+    private function enforceOneRunPerDay(array $sessions, array $days): array
+    {
+        $byDate = [];
+        foreach ($sessions as $i => $s) {
+            if (in_array($s['type'] ?? '', self::RUN_TYPES, true)) {
+                $byDate[$s['date']][] = $i;
+            }
+        }
+
+        $drop = [];
+        foreach ($byDate as $date => $indexes) {
+            if (count($indexes) < 2) {
+                continue;
+            }
+
+            $slotTypes = array_column($days[$date]['slots'] ?? [], 'type');
+
+            // Bleiben darf die Einheit, die das Gerüst vorsieht; sonst die
+            // härtere, bei Gleichstand die längere.
+            usort($indexes, function ($a, $b) use ($sessions, $slotTypes) {
+                $rank = fn ($i) => [
+                    in_array($sessions[$i]['type'], $slotTypes, true) ? 1 : 0,
+                    ! empty($sessions[$i]['_hard']) ? 1 : 0,
+                    (int) ($sessions[$i]['duration_min'] ?? 0),
+                ];
+
+                return $rank($b) <=> $rank($a);
+            });
+
+            foreach (array_slice($indexes, 1) as $i) {
+                $this->note("{$date}: zweite Laufeinheit (\"{$sessions[$i]['type']}\") → entfernt, ein Lauf pro Tag");
+                $drop[$i] = true;
+            }
+        }
+
+        return array_values(array_filter(
+            $sessions,
+            fn ($i) => ! isset($drop[$i]),
+            ARRAY_FILTER_USE_KEY
+        ));
+    }
+
+    /**
+     * Die Obergrenze der einzelnen Einheit einhalten.
+     *
+     * Das Tagesbudget allein reicht nicht: beim Wiedereinstieg nach einer
+     * Krankheit darf die erste Einheit 30 Minuten dauern, auch wenn der Tag
+     * 120 hergibt. Diese Grenze steht im Gerüst und wurde bisher von nichts
+     * geprüft.
+     */
+    private function enforceSlotCaps(array $sessions, array $days): array
+    {
+        foreach ($days as $date => $day) {
+            foreach ($day['slots'] ?? [] as $slot) {
+                $cap = (int) ($slot['max_min'] ?? 0);
+                if ($cap <= 0) {
+                    continue;
+                }
+
+                foreach ($sessions as &$s) {
+                    if ($s['date'] !== $date || ($s['type'] ?? '') !== $slot['type']) {
+                        continue;
+                    }
+
+                    $dur = (int) ($s['duration_min'] ?? 0);
+                    if ($dur <= $cap) {
+                        continue;
+                    }
+
+                    $this->note("{$date}: {$s['type']} mit {$dur} min, erlaubt sind {$cap} → gekürzt");
+                    $s['duration_min'] = $cap;
+                    if (! empty($s['distance_km'])) {
+                        $s['distance_km'] = round($s['distance_km'] * $cap / $dur, 1);
+                    }
+                }
+                unset($s);
+            }
+        }
+
+        return $sessions;
+    }
+
+    /**
      * Tagesbudget einhalten. Gekürzt wird die weiche Einheit zuerst — die
      * Pflichteinheit des Tages bleibt vollständig.
      */
@@ -214,6 +318,20 @@ class TrainingPlanValidator
                 );
 
                 $entry = $this->placeholder($date, $slot);
+
+                // Steht dort schon ein Lauf — nur eben der falsche —, wird er
+                // ersetzt und nicht ergänzt. Sonst hätte der Tag am Ende zwei.
+                if (in_array($slot['type'], self::RUN_TYPES, true)) {
+                    $runIndex = collect($sessions)->search(
+                        fn ($s) => $s['date'] === $date && in_array($s['type'] ?? '', self::RUN_TYPES, true)
+                    );
+
+                    if ($runIndex !== false) {
+                        $this->note("{$date}: {$sessions[$runIndex]['type']} statt {$slot['type']} aus dem Gerüst → ersetzt");
+                        $sessions[$runIndex] = $entry;
+                        continue;
+                    }
+                }
 
                 if ($restIndex !== false) {
                     $this->note("{$date}: {$slot['type']} fehlte (stand als Ruhetag) → eingesetzt");

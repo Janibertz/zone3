@@ -15,7 +15,7 @@ class ReturnToRunService
 {
     private const GAP_DAYS            = 7;   // gap that counts as a break
     private const RECENT_WINDOW_DAYS  = 28;  // only surface recent comebacks
-    private const TOTAL_STEPS         = 5;
+    public const TOTAL_STEPS          = 5;
 
     /** Build-up steps — single source of truth for the card and the recommendation. */
     public const STEPS = [
@@ -134,17 +134,152 @@ class ReturnToRunService
             'step'          => $step,
             'total_steps'   => self::TOTAL_STEPS,
             'pre_return'    => $returnStart === null,
+            'break_at'      => $breakAt?->toDateString(),
             'current'       => ['n' => $step] + self::STEPS[$step],
             'steps'         => array_map(fn ($n) => ['n' => $n, 'label' => self::STEPS[$n]['label']], range(1, self::TOTAL_STEPS)),
         ];
     }
 
+    /**
+     * Wiedereinstiegs-Stufe für die Planung — oder null, wenn normal
+     * trainiert werden darf.
+     *
+     * Der Planer hatte diese Erkennung als eigene Kopie: er las Krank-Flags
+     * und Absagegründe selbst und schrieb daraus eine Stufenregel in den
+     * Prompt. Das Wochengerüst wusste davon nichts und legte trotzdem einen
+     * Tempolauf auf denselben Tag. Damit standen zwei bindende Vorgaben im
+     * Prompt, die sich widersprachen — das Modell erfüllte beide, indem es
+     * zwei Läufe an einen Tag legte. Beide Seiten fragen jetzt hier.
+     *
+     * @param  array  $wellbeing          Einträge der letzten 14 Tage, neueste zuerst
+     * @param  array  $finalizedSessions  Abgeschlossene/abgesagte Einheiten
+     */
+    public function forPlan(User $user, array $wellbeing = [], array $finalizedSessions = []): ?array
+    {
+        $signal = $this->planSignal($wellbeing, $finalizedSessions);
+        $base   = $this->statusFor($user);
+
+        // Das jüngere Signal gewinnt: wer nach der Trainingspause krank
+        // wurde, fängt wieder vorne an.
+        if ($signal && $base && ($base['break_at'] ?? null) && $base['break_at'] >= $signal['date']) {
+            $signal = null;
+        }
+
+        if ($signal) {
+            $trigger = $signal['trigger'];
+            $step    = $this->runsSince($user, $signal['date']) + 1;
+            $details = $signal['details'];
+        } elseif ($base) {
+            $trigger = $base['trigger'];
+            $step    = $base['step'];
+            $details = [$base['trigger_label'] . ($base['break_at'] ? " seit {$base['break_at']}" : '')];
+        } else {
+            return null;
+        }
+
+        // Ab Stufe 5 gilt wieder der Normalbetrieb — dann braucht die Planung
+        // keine Sonderbehandlung.
+        if ($step >= self::TOTAL_STEPS) {
+            return null;
+        }
+
+        $current = self::STEPS[$step];
+
+        return [
+            'trigger'       => $trigger,
+            'trigger_label' => $this->triggerLabel($trigger),
+            'step'          => $step,
+            'total_steps'   => self::TOTAL_STEPS,
+            'type'          => $current['type'],
+            'zone'          => $current['zone'],
+            'max_min'       => $current['max_min'],
+            'rule'          => $current['rule'],
+            'details'       => $details,
+        ];
+    }
+
+    /**
+     * Krankheit, Verletzung, Erschöpfung oder anhaltend schlechtes Wellbeing
+     * in den letzten sieben Tagen — dieselben Signale, die vorher im
+     * Plan-Prompt ausgewertet wurden.
+     *
+     * @return array{trigger: string, date: string, details: list<string>}|null
+     */
+    private function planSignal(array $wellbeing, array $finalizedSessions): ?array
+    {
+        $since = Carbon::now()->startOfDay()->subDays(7)->toDateString();
+
+        // Selbstauskunft: krank oder verletzt.
+        foreach (array_slice($wellbeing, 0, 7) as $w) {
+            if (($w['date'] ?? '') < $since) continue;
+            if (! empty($w['is_sick'])) {
+                return ['trigger' => 'sick', 'date' => $w['date'], 'details' => ["krank am {$w['date']}"]];
+            }
+            if (! empty($w['is_injured'])) {
+                return ['trigger' => 'injured', 'date' => $w['date'], 'details' => ["verletzt am {$w['date']}"]];
+            }
+        }
+
+        // Abgesagte Einheiten mit einem Grund, der gegen Training spricht.
+        foreach ($finalizedSessions as $s) {
+            if (($s['status'] ?? '') !== 'skipped') continue;
+            if (($s['date'] ?? '') < $since) continue;
+
+            $reason = mb_strtolower((string) ($s['skip_reason'] ?? ''));
+            foreach ([
+                'sick'      => ['krank', 'sick'],
+                'injured'   => ['verletzt', 'injur'],
+                'exhausted' => ['erschöpft', 'erschopft', 'exhausted'],
+            ] as $trigger => $needles) {
+                foreach ($needles as $needle) {
+                    if (str_contains($reason, $needle)) {
+                        return [
+                            'trigger' => $trigger,
+                            'date'    => $s['date'],
+                            'details' => ["Absage am {$s['date']} (Grund: {$s['skip_reason']})"],
+                        ];
+                    }
+                }
+            }
+        }
+
+        // Anhaltend schlechte Werte — auch ohne gesetztes Krank-Flag.
+        $last7 = array_slice($wellbeing, 0, 7);
+        if (count($last7) < 3) {
+            return null;
+        }
+
+        $avg     = fn (string $key) => array_sum(array_column($last7, $key)) / count($last7);
+        $details = [];
+
+        if ($avg('energy') < 4)   $details[] = sprintf('Ø Energie %.1f/10 (letzte 7 Tage)', $avg('energy'));
+        if ($avg('soreness') > 7) $details[] = sprintf('Ø Muskelkater %.1f/10 (letzte 7 Tage)', $avg('soreness'));
+        if ($avg('sleep') < 4)    $details[] = sprintf('Ø Schlaf %.1f/10 (letzte 7 Tage)', $avg('sleep'));
+        if ($avg('stress') > 7)   $details[] = sprintf('Ø Stress %.1f/10 (letzte 7 Tage)', $avg('stress'));
+
+        return $details
+            ? ['trigger' => 'poor_wellbeing', 'date' => $last7[0]['date'], 'details' => $details]
+            : null;
+    }
+
+    /** Läufe seit einem Datum — daraus ergibt sich die Stufe. */
+    private function runsSince(User $user, string $date): int
+    {
+        return $user->activities()
+            ->where('type', 'Run')
+            ->where('distance', '>', 0)
+            ->whereDate('start_date', '>=', $date)
+            ->count();
+    }
+
     private function triggerLabel(string $trigger): string
     {
         return match ($trigger) {
-            'injured' => 'Verletzung',
-            'sick'    => 'Krankheit',
-            default   => 'Trainingspause',
+            'injured'        => 'Verletzung',
+            'sick'           => 'Krankheit',
+            'exhausted'      => 'starker Erschöpfung',
+            'poor_wellbeing' => 'anhaltend schlechtem Wellbeing',
+            default          => 'Trainingspause',
         };
     }
 }

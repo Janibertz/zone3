@@ -24,6 +24,7 @@ class PlanContextBuilder
         private readonly TrainingLoadService $trainingLoad,
         private readonly WeeklyPatternService $pattern,
         private readonly GarminHealthSummary $garmin,
+        private readonly ReturnToRunService $returnToRun,
     ) {}
 
     public function build(User $user, Event $event, array $availabilityOverrides = []): PlanContext
@@ -32,6 +33,13 @@ class PlanContextBuilder
         $windowTo   = $windowFrom->addDays(min(Event::PLAN_HORIZON_DAYS, $event->days_until + 1) - 1);
 
         $finalized = $this->finalizedSessions($user, $event);
+        $wellbeing = $this->wellbeing($user);
+
+        // Ob der Athlet gerade wieder einsteigt, entscheidet eine Stelle für
+        // alle: das Gerüst legt danach die Einheiten fest, und der Prompt
+        // beschreibt dieselbe Stufe. Vorher hatte jede Seite ihre eigene
+        // Erkennung — und beide widersprachen sich im selben Prompt.
+        $comeback = $this->returnToRun->forPlan($user, $wellbeing, $finalized);
 
         $context = new PlanContext(
             event:                 $event,
@@ -39,7 +47,7 @@ class PlanContextBuilder
             windowTo:              $windowTo,
             profile:               $this->profile($user),
             recentActivities:      $this->recentActivities($user),
-            wellbeing:             $this->wellbeing($user),
+            wellbeing:             $wellbeing,
             sessionRatings:        $this->sessionRatings($user),
             weeklyAvailability:    $user->runnerProfile?->weekly_availability,
             availabilityOverrides: $availabilityOverrides,
@@ -49,6 +57,7 @@ class PlanContextBuilder
             finalizedSessions:     $finalized,
             followUpGoal:          $this->followUpGoal($user, $event),
             coachNotes:            $user->runnerProfile?->coach_notes,
+            comeback:              $comeback,
         );
 
         // Gerüst und Garmin-Zusammenfassung bauen auf dem Rest auf.
@@ -60,6 +69,7 @@ class PlanContextBuilder
                 $context->weeklyAvailability,
                 $availabilityOverrides,
                 $context->finalizedDates(),
+                $comeback,
             ),
             garminText: empty($user->garmin_session)
                 ? null

@@ -252,109 +252,37 @@ class TrainingPlanGenerator
                 . "\nPasse die Folgetage entsprechend an (z.B. Erschöpfung → morgen leichter planen).";
         }
 
-        // Recovery detection: illness / injury / exhaustion / poor wellbeing in the last 7 days
+        // ── Wiedereinstieg nach Krankheit, Verletzung oder Erschöpfung ───────
+        // Die Erkennung stand früher hier: dieselbe Auswertung von Krank-Flags
+        // und Absagegründen, die auch das Dashboard macht — nur in einer
+        // zweiten Kopie und dem Wochengerüst unbekannt. Das Ergebnis war ein
+        // Prompt mit zwei bindenden, unvereinbaren Vorgaben: das Gerüst legte
+        // einen Tempolauf auf denselben Tag, an dem diese Regel eine lockere
+        // halbe Stunde verlangte. Das Modell legte daraufhin beides an einen
+        // Tag. Jetzt kommt die Stufe aus dem Kontext, und das Gerüst darüber
+        // setzt sie bereits um — der Text erklärt sie nur noch.
         $recoveryWarning = '';
-        $recoveryTrigger = null; // 'sick' | 'injured' | 'exhausted' | 'poor_wellbeing'
-        $recoveryDetails = [];
-
-        // Check wellbeing entries (last 7 days)
-        $last7Wellbeing = array_slice($wellbeingData, 0, 7);
-        foreach ($last7Wellbeing as $w) {
-            if (! empty($w['is_sick'])) {
-                $recoveryTrigger = 'sick';
-                $recoveryDetails[] = "krank am {$w['date']}";
-                break;
-            }
-            if (! empty($w['is_injured'])) {
-                $recoveryTrigger = 'injured';
-                $recoveryDetails[] = "verletzt am {$w['date']}";
-                break;
-            }
-        }
-
-        // Check skipped sessions (last 7 days) for illness/injury/exhaustion reasons
-        if ($recoveryTrigger === null) {
-            $sevenDaysAgo = now()->subDays(7)->format('Y-m-d');
-            foreach ($finalizedSessions as $s) {
-                if (($s['status'] ?? '') !== 'skipped') continue;
-                if (($s['date'] ?? '') < $sevenDaysAgo) continue;
-                $reason = mb_strtolower($s['skip_reason'] ?? '');
-                if (str_contains($reason, 'krank') || str_contains($reason, 'sick')) {
-                    $recoveryTrigger = 'sick';
-                    $recoveryDetails[] = "Krank-Skip am {$s['date']}";
-                    break;
-                }
-                if (str_contains($reason, 'verletzt') || str_contains($reason, 'injur')) {
-                    $recoveryTrigger = 'injured';
-                    $recoveryDetails[] = "Verletzt-Skip am {$s['date']}";
-                    break;
-                }
-                if (str_contains($reason, 'erschöpft') || str_contains($reason, 'erschopft') || str_contains($reason, 'exhausted')) {
-                    $recoveryTrigger = 'exhausted';
-                    $recoveryDetails[] = "Erschöpft-Skip am {$s['date']}";
-                    break;
-                }
-            }
-        }
-
-        // Check sustained poor wellbeing over last 7 days (even without sick/injured flag)
-        if ($recoveryTrigger === null && count($last7Wellbeing) >= 3) {
-            $avgEnergy   = array_sum(array_column($last7Wellbeing, 'energy'))   / count($last7Wellbeing);
-            $avgSoreness = array_sum(array_column($last7Wellbeing, 'soreness')) / count($last7Wellbeing);
-            $avgSleep    = array_sum(array_column($last7Wellbeing, 'sleep'))    / count($last7Wellbeing);
-            $avgStress   = array_sum(array_column($last7Wellbeing, 'stress'))   / count($last7Wellbeing);
-
-            if ($avgEnergy < 4) {
-                $recoveryTrigger = 'poor_wellbeing';
-                $recoveryDetails[] = sprintf('Ø Energie %.1f/10 (letzte 7 Tage)', $avgEnergy);
-            }
-            if ($avgSoreness > 7) {
-                $recoveryTrigger = 'poor_wellbeing';
-                $recoveryDetails[] = sprintf('Ø Muskelkater %.1f/10 (letzte 7 Tage)', $avgSoreness);
-            }
-            if ($avgSleep < 4) {
-                $recoveryDetails[] = sprintf('Ø Schlaf %.1f/10 (letzte 7 Tage)', $avgSleep);
-                if ($recoveryTrigger === null) $recoveryTrigger = 'poor_wellbeing';
-            }
-            if ($avgStress > 7) {
-                $recoveryDetails[] = sprintf('Ø Stress %.1f/10 (letzte 7 Tage)', $avgStress);
-                if ($recoveryTrigger === null) $recoveryTrigger = 'poor_wellbeing';
-            }
-        }
-
-        if ($recoveryTrigger !== null) {
-            $triggerLabel = match($recoveryTrigger) {
-                'sick'          => 'Krankheit',
-                'injured'       => 'Verletzung',
-                'exhausted'     => 'starker Erschöpfung',
-                'poor_wellbeing'=> 'anhaltend schlechtem Wellbeing',
-            };
-            $detailStr = empty($recoveryDetails) ? '' : "\nErkannte Signale: " . implode(', ', $recoveryDetails);
+        if ($comeback = $c->comeback) {
+            $label     = $comeback['trigger_label'];
+            $step      = $comeback['step'];
+            $total     = $comeback['total_steps'];
+            $rule      = $comeback['rule'];
+            $maxMin    = $comeback['max_min'] ? "max. {$comeback['max_min']} min" : 'ohne feste Obergrenze';
+            $zone      = $comeback['zone'] ? "Zone {$comeback['zone']}" : 'lockeres Tempo';
+            $detailStr = empty($comeback['details']) ? '' : "\nErkannte Signale: " . implode(', ', $comeback['details']);
 
             $recoveryWarning = <<<WARN
 
-⚠️ **PFLICHT-SICHERHEITSREGEL — Wiederaufnahme nach {$triggerLabel} (letzte 7 Tage):**{$detailStr}
+⚠️ **PFLICHT-SICHERHEITSREGEL — Wiederaufnahme nach {$label}:**{$detailStr}
 
 MEDIZINISCHE WARNUNG: Nach Infekten, Verletzungen und starker Erschöpfung besteht erhöhtes Risiko einer Herzmuskelentzündung (Myokarditis) bei zu früher intensiver Belastung.
 
-VERPFLICHTENDE STUFENREGEL — zähle TRAININGSEINHEITEN, nicht Kalendertage (Ruhetage zählen nicht):
+Der Athlet steht auf **Stufe {$step} von {$total}**. Die Stufe zählt TRAININGSEINHEITEN, nicht Kalendertage — Ruhetage zählen nicht mit.
+- Für die nächste Einheit gilt: {$rule}
+- Umfang: {$maxMin}, Intensität: {$zone}.
 
-Einheit 1 (erste Trainingseinheit nach der Pause):
-- type="easy_run", Zone 1–2, max. 30 min, sehr lockeres Tempo
-- intensity="low", KEIN Tempolauf, KEIN Intervall
-
-Einheit 2 (zweite Trainingseinheit):
-- type="easy_run", Zone 2, max. 40 min, lockeres Tempo
-- intensity="low"
-
-Ab Einheit 3 (dritte Trainingseinheit und danach):
-- Schrittweise Steigerung erlaubt — z.B. tempo_run mit reduziertem Umfang
-- Keine Intervalle oder Long Runs vor Einheit 4
-
-Ab Einheit 5:
-- Normale Intensität möglich
-
-Ruhetage zwischen den Einheiten zählen NICHT — es geht um Trainingsbelastungen, nicht um Kalendertage.
+Das Wochengerüst unten ist bereits nach dieser Leiter gebaut: Typ und Maximaldauer jeder Einheit setzen die Stufenregel um, und mit jeder absolvierten Einheit rückt sie eine Stufe weiter.
+Deine Aufgabe ist, die vorgegebenen Einheiten entsprechend zu beschreiben — NICHT, eine zusätzliche Einheit einzuplanen, um die Regel zu erfüllen. Ein zusätzlicher „lockerer Wiedereinstieg" neben der Einheit des Tages wäre ein zweites Lauftraining am selben Tag und damit falsch.
 Coach-Ton: Empathisch, fürsorglich, motivierend — Erholung ist Training.
 
 WARN;
@@ -454,10 +382,11 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 - Berücksichtige Wellbeing & Trainingsbelastung: schlechter Schlaf/hoher Stress oder TSB < −30 → leichtere Einheiten / mehr Ruhe.
 - Mindestens ein Ruhetag pro Woche.
 - VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die GESAMTE Trainingsdauer eines Tages (bei zwei Einheiten die Summe) darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
-- DOPPEL-EINHEITEN: Welche Tage zwei Einheiten bekommen, steht im Wochengeruest oben. Erfinde keine zusaetzlichen. Bei zwei Eintraegen am selben "date": Tageszeit im title kennzeichnen ("Morgens: ...", "Abends: ..."), Morgen-Einheit zuerst, Summe beider duration_min <= Tages-Maximum, und niemals zwei harte Einheiten am selben Tag.
+- EIN LAUFTRAINING PRO TAG: An einem Tag steht hoechstens EINE Laufeinheit (easy_run, tempo_run, interval, long_run, progressive_run, test_run, race_prep). Zwei Laeufe am selben Tag sind immer falsch — auch dann, wenn der zweite locker waere, und auch dann, wenn eine andere Regel eine zusaetzliche lockere Einheit nahezulegen scheint. Passt eine Vorgabe nicht zur Einheit des Tages, aendere die Einheit, statt eine zweite danebenzustellen.
+- ZWEITE EINHEIT: Nur strength, core oder mobility duerfen als zweiter Eintrag zu einem Tag dazukommen, und nur wenn das Wochengeruest sie dort vorsieht. Bei zwei Eintraegen am selben "date": Tageszeit im title kennzeichnen ("Morgens: ...", "Abends: ..."), Laufeinheit zuerst, Summe beider duration_min <= Tages-Maximum.
 - ANDERE RENNEVENTS: An Tagen mit anderen Rennevents im Planungszeitraum IMMER type="rest".
 
-**Antworte ausschließlich mit einem JSON-Array — in der Regel EIN Eintrag pro offenem Tag von heute ({$today}) bis {$planEndDate}. An Tagen mit viel Zeit sind ausnahmsweise ZWEI Einträge mit demselben "date" erlaubt (siehe Doppel-Einheiten-Regel). Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
+**Antworte ausschließlich mit einem JSON-Array — in der Regel EIN Eintrag pro offenem Tag von heute ({$today}) bis {$planEndDate}. Ein zweiter Eintrag mit demselben "date" ist nur erlaubt, wenn das Wochengerüst dort eine strength-, core- oder mobility-Einheit vorsieht — niemals ein zweiter Lauf. Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
 [
   {
     "date": "YYYY-MM-DD",
@@ -521,11 +450,12 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 - ANDERE RENNEVENTS: An Tagen mit anderen Rennevents im Planungszeitraum IMMER type="rest" — der Athlet läuft ein Rennen, kein zusätzliches Training.
 - VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die GESAMTE Trainingsdauer eines Tages (bei zwei Einheiten die Summe) darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
 - ZIELORIENTIERUNG (wichtig): Plane ehrgeizig und zielgerichtet auf die Zielzeit {$targetTime} hin — mit klarer Progression aus Umfang und spezifischem Tempo an der Zielpace. Sei nicht unnötig konservativ, solange Wellbeing und Trainingsbelastung es zulassen. Zeigt der aktuelle Leistungsstand (Aktivitäten, Schwellenpace), dass die Zielzeit deutlich zu leicht ODER unrealistisch ist, spiegle das in der description der Schlüssel-Einheiten wider (was nötig ist, um das Ziel zu erreichen bzw. dass ein ehrgeizigeres Ziel drin wäre).
-- DOPPEL-EINHEITEN: Welche Tage zwei Einheiten bekommen, steht im Wochengeruest oben. Erfinde keine zusaetzlichen. Bei zwei Eintraegen am selben "date": Tageszeit im title kennzeichnen ("Morgens: ...", "Abends: ..."), Morgen-Einheit zuerst, Summe beider duration_min <= Tages-Maximum, und niemals zwei harte Einheiten am selben Tag.
+- EIN LAUFTRAINING PRO TAG: An einem Tag steht hoechstens EINE Laufeinheit (easy_run, tempo_run, interval, long_run, progressive_run, test_run, race_prep). Zwei Laeufe am selben Tag sind immer falsch — auch dann, wenn der zweite locker waere, und auch dann, wenn eine andere Regel eine zusaetzliche lockere Einheit nahezulegen scheint. Passt eine Vorgabe nicht zur Einheit des Tages, aendere die Einheit, statt eine zweite danebenzustellen.
+- ZWEITE EINHEIT: Nur strength, core oder mobility duerfen als zweiter Eintrag zu einem Tag dazukommen, und nur wenn das Wochengeruest sie dort vorsieht. Bei zwei Eintraegen am selben "date": Tageszeit im title kennzeichnen ("Morgens: ...", "Abends: ..."), Laufeinheit zuerst, Summe beider duration_min <= Tages-Maximum.
 - PROGRESSIVE LÄUFE (progressive_run): Lauf beginnt in Zone 1–2 und steigert sich Kilometer für Kilometer bis Zone 3–4 gegen Ende. Ideal für Tempoaufbau ohne volle Belastung. Max. 1× pro Woche, nur in Build- und Peak-Phase, nicht im Tapering.
 - TESTLÄUFE (test_run): 5k oder 10k Zeitversuch bei maximalem persönlichen Effort (Zone 4–5) — so schnell wie möglich über die gesamte Distanz. Zweck: objektive Fortschrittsmessung und automatische Neukalibrierung der Schwellenpace. Plane exakt alle 4–6 Wochen — niemals in den letzten 14 Tagen vor dem A-Event. Nach einem test_run folgt IMMER ein easy_run als Regeneration. Kündige den Testlauf im title-Feld deutlich an, z.B. "5k Zeitversuch".
 
-**Antworte ausschließlich mit einem JSON-Array — in der Regel EIN Eintrag pro offenem Tag von heute ({$today}) bis {$planEndDate}. An Tagen mit viel Zeit sind ausnahmsweise ZWEI Einträge mit demselben "date" erlaubt (siehe Doppel-Einheiten-Regel). Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
+**Antworte ausschließlich mit einem JSON-Array — in der Regel EIN Eintrag pro offenem Tag von heute ({$today}) bis {$planEndDate}. Ein zweiter Eintrag mit demselben "date" ist nur erlaubt, wenn das Wochengerüst dort eine strength-, core- oder mobility-Einheit vorsieht — niemals ein zweiter Lauf. Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
 [
   {
     "date": "YYYY-MM-DD",

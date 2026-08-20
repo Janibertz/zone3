@@ -31,6 +31,7 @@ readonly class PlanContext
         public array $finalizedSessions = [],
         public ?array $followUpGoal = null,
         public ?string $coachNotes = null,
+        public ?array $comeback = null,
         public ?array $skeleton = null,
         public ?string $garminText = null,
     ) {}
@@ -63,6 +64,7 @@ readonly class PlanContext
             finalizedSessions:     $this->finalizedSessions,
             followUpGoal:          $this->followUpGoal,
             coachNotes:            $this->coachNotes,
+            comeback:              $this->comeback,
             skeleton:              $skeleton    ?? $this->skeleton,
             garminText:            $garminText  ?? $this->garminText,
         );
