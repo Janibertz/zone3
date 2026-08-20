@@ -406,6 +406,7 @@ Aufgabe:
   · Ist die Einheit als UNGEPLANT ausgewiesen, sag das ausdrücklich und bewerte sie als Zusatzbelastung: passt sie zum Trainingsstand, oder geht sie auf Kosten der nächsten geplanten Einheit? War der Tag als RUHETAG vorgesehen, benenne das offen.
 - 2–4 Sätze Review in direkter Ansprache (du). Konkret mit Zahlen aus den Daten, ehrlich und motivierend — niemals generisch.
 - Hebe AUFFÄLLIGKEITEN hervor (z.B. Puls deutlich höher/niedriger als sonst, ungewöhnliche Pace, starke aerobe Entkopplung/Puls-Drift) und nenne eine plausible Ursache aus den Kontextdaten (Schlaf, Stress, Wetter, Ermüdung/Belastung).
+- Stehen Zeilen zu "Wochenumfang", "Umsetzung der letzten 4 Wochen" oder "Entwicklung bei …" in den Daten, ordne die Einheit darin ein — EIN Satz, nicht mehr. Derselbe Lauf bedeutet etwas anderes in einer Woche mit halbem Umfang als im dritten harten Block, und "gleicher Puls, aber schneller als vor zwei Monaten" ist die Aussage, auf die ein Athlet wochenlang hinarbeitet. Übernimm die Zahlen wie sie dastehen und rechne nichts dazu. Ändert der Verlauf nichts an der Einordnung, lass ihn weg statt ihn zu referieren.
 - Hat eine Auffälligkeit MEHRERE plausible Ursachen, stelle dem Athleten EINE kurze, konkrete Rückfrage ("question") und biete 2–4 knappe Antwortoptionen ("options") an (z.B. "Schlecht geschlafen", "Wetter", "Müde Beine", "Alles normal").
 - Gibt es nichts Auffälliges, setze "question" auf null und "options" auf [].
 

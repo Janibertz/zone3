@@ -200,6 +200,15 @@ class GenerateSessionReviewJob implements ShouldQueue
             $lines[] = 'Absolviert: manuell abgehakt, keine Aktivitätsdaten (Puls/Pace nicht verfügbar).';
         }
 
+        // ── Die Wochen davor ────────────────────────────────────
+        // Das Review sah bisher genau eine Einheit und einen 90-Tage-
+        // Mittelwert. Damit lässt sich sagen, ob der Lauf gut war, aber
+        // nicht, ob es aufwärts geht — und das ist die einzige Frage, die
+        // einen Athleten über Wochen wirklich interessiert.
+        foreach ($this->weeklyContext($s) as $line) {
+            $lines[] = $line;
+        }
+
         // Wellbeing on the training day.
         $wb = $s->user->wellbeingEntries()->whereDate('date', $s->planned_date->toDateString())->first();
         if ($wb) {
@@ -302,9 +311,20 @@ class GenerateSessionReviewJob implements ShouldQueue
         return ['min' => (float) min($values), 'max' => (float) max($values)];
     }
 
+    /**
+     * Erst runden, dann teilen.
+     *
+     * Andersherum lief die Minute daneben, sobald der Wert knapp unter einer
+     * vollen lag: 359,97 s/km ergaben Minute 5 (abgeschnitten) und Sekunde 0
+     * (aufgerundet) — also "5:00" fuer eine Sechs-Minuten-Pace. Sichtbar wurde
+     * es erst, als der Vergleich zweier Zeitraeume beide Zahlen nebeneinander
+     * stellte und die Differenz nicht mehr zu ihnen passte.
+     */
     private function secondsToPace(float $seconds): string
     {
-        return sprintf('%d:%02d', (int) ($seconds / 60), (int) round($seconds) % 60);
+        $total = (int) round($seconds);
+
+        return sprintf('%d:%02d', intdiv($total, 60), $total % 60);
     }
 
     /**
@@ -313,6 +333,157 @@ class GenerateSessionReviewJob implements ShouldQueue
      *
      * @return array{avg_hr:?int, avg_pace:?string, count:int}|null
      */
+    /**
+     * Der Verlauf der letzten Wochen: Umfang, Verlässlichkeit, Entwicklung.
+     *
+     * Alles hier ist gerechnet und nicht geschätzt. Ein Sprachmodell, dem
+     * man Wochenlisten hinlegt und "gibt es einen Trend?" fragt, findet
+     * zuverlässig einen — auch wenn keiner da ist.
+     *
+     * @return list<string>
+     */
+    private function weeklyContext(TrainingSession $s): array
+    {
+        $lines = [];
+        $end   = \Carbon\CarbonImmutable::parse($s->planned_date)->endOfWeek();
+
+        // Wochenumfang: vier abgeschlossene Wochen plus die laufende.
+        $weeks = [];
+        for ($i = 4; $i >= 0; $i--) {
+            $from = $end->subWeeks($i)->startOfWeek();
+            $to   = $from->endOfWeek();
+
+            $runs = \App\Models\Activity::where('user_id', $s->user_id)
+                ->where('type', 'Run')
+                ->whereBetween('start_date', [$from->startOfDay(), $to->endOfDay()])
+                ->get(['distance']);
+
+            $weeks[] = [
+                'label' => $from->format('d.m.'),
+                'km'    => round($runs->sum('distance') / 1000, 1),
+                'runs'  => $runs->count(),
+            ];
+        }
+
+        if (array_sum(array_column($weeks, 'runs')) > 0) {
+            $lines[] = 'Wochenumfang (ab KW-Beginn, letzte 5 Wochen): ' . implode(', ', array_map(
+                fn ($w) => "{$w['label']} {$w['km']} km in {$w['runs']} " . ($w['runs'] === 1 ? 'Lauf' : 'Läufen'),
+                $weeks,
+            ));
+
+            // Zwei Wochen gegen die zwei davor. Einzelne Wochen schwanken zu
+            // stark, um daraus etwas abzuleiten; die laufende Woche ist noch
+            // unvollständig und bleibt draußen.
+            $recentKm = array_sum(array_column(array_slice($weeks, 2, 2), 'km'));
+            $beforeKm = array_sum(array_column(array_slice($weeks, 0, 2), 'km'));
+
+            if ($beforeKm > 0) {
+                $pct = (int) round((($recentKm - $beforeKm) / $beforeKm) * 100);
+                $lines[] = 'Umfang-Entwicklung: ' . match (true) {
+                    $pct >=  15 => "deutlich mehr ({$pct} % gegenüber den zwei Wochen davor)",
+                    $pct <= -15 => "deutlich weniger ({$pct} % gegenüber den zwei Wochen davor)",
+                    default     => "stabil ({$pct} % gegenüber den zwei Wochen davor)",
+                };
+            }
+        }
+
+        // Verlässlichkeit: was war geplant, was ist daraus geworden.
+        $since = $end->subWeeks(4)->startOfWeek()->toDateString();
+        $past  = TrainingSession::where('user_id', $s->user_id)
+            ->where('type', '!=', 'rest')
+            ->where('planned_date', '>=', $since)
+            ->where('planned_date', '<=', $s->planned_date->toDateString())
+            ->get(['status', 'was_unplanned']);
+
+        $planned   = $past->where('was_unplanned', false)->count();
+        $done      = $past->where('was_unplanned', false)->where('status', 'completed')->count();
+        $skipped   = $past->where('status', 'skipped')->count();
+        $unplanned = $past->where('was_unplanned', true)->count();
+
+        if ($planned > 0) {
+            $quote = (int) round(($done / $planned) * 100);
+            $line  = "Umsetzung der letzten 4 Wochen: {$done} von {$planned} geplanten Einheiten absolviert ({$quote} %)";
+            if ($skipped > 0)   $line .= ", {$skipped} ausgelassen";
+            if ($unplanned > 0) $line .= ", {$unplanned} zusätzlich ungeplant gelaufen";
+            $lines[] = $line;
+        }
+
+        if ($trend = $this->typeTrend($s)) {
+            $lines[] = $trend;
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Derselbe Einheitentyp jetzt gegen früher: die letzten vier Wochen
+     * gegen die acht Wochen davor.
+     *
+     * Der aussagekräftigste Satz eines Coaches ist "gleicher Puls, aber
+     * schneller". Dafür braucht es beide Werte aus beiden Zeiträumen —
+     * die Pace allein sagt nichts, weil sie auch Tagesform sein kann.
+     */
+    private function typeTrend(TrainingSession $s): ?string
+    {
+        $window = function (int $fromDaysAgo, int $toDaysAgo) use ($s) {
+            $rows = \App\Models\Activity::query()
+                ->whereIn('id', function ($q) use ($s, $fromDaysAgo, $toDaysAgo) {
+                    $q->select('activity_id')
+                        ->from('training_sessions')
+                        ->where('user_id', $s->user_id)
+                        ->where('type', $s->type)
+                        ->where('status', 'completed')
+                        ->where('id', '!=', $s->id)
+                        ->whereNotNull('activity_id')
+                        ->where('planned_date', '>=', now()->subDays($fromDaysAgo)->toDateString())
+                        ->where('planned_date', '<',  now()->subDays($toDaysAgo)->toDateString());
+                })
+                ->get(['average_heartrate', 'average_speed']);
+
+            $speeds = $rows->pluck('average_speed')->filter(fn ($v) => $v > 0);
+            $hrs    = $rows->pluck('average_heartrate')->filter();
+
+            return [
+                'count' => $rows->count(),
+                'speed' => $speeds->count() ? (float) $speeds->avg() : null,
+                'hr'    => $hrs->count()    ? (float) $hrs->avg()    : null,
+            ];
+        };
+
+        $now  = $window(28, 0);
+        $then = $window(84, 28);
+
+        if ($now['count'] < 2 || $then['count'] < 2 || ! $now['speed'] || ! $then['speed']) {
+            return null;
+        }
+
+        $secNow  = 1000 / $now['speed'];
+        $secThen = 1000 / $then['speed'];
+        $deltaS  = (int) round($secThen - $secNow);   // positiv = schneller geworden
+
+        $typeLabel = $this->typeLabels()[$s->type] ?? $s->type;
+        $paceText  = match (true) {
+            $deltaS >=  5 => "{$deltaS} s/km schneller",
+            $deltaS <= -5 => abs($deltaS) . ' s/km langsamer',
+            default       => 'gleich schnell',
+        };
+
+        $line = "Entwicklung bei {$typeLabel}: letzte 4 Wochen ({$now['count']} Einheiten) "
+            . "{$this->secondsToPace($secNow)} min/km gegenüber {$this->secondsToPace($secThen)} min/km "
+            . "in den 8 Wochen davor ({$then['count']} Einheiten) — {$paceText}";
+
+        if ($now['hr'] && $then['hr']) {
+            $hrDelta = (int) round($now['hr'] - $then['hr']);
+            $line .= '. Ø-Puls dabei ' . match (true) {
+                $hrDelta >=  3 => "+{$hrDelta} bpm höher",
+                $hrDelta <= -3 => "{$hrDelta} bpm niedriger",
+                default        => 'praktisch unverändert',
+            };
+        }
+
+        return $line;
+    }
+
     private function baselineFor(TrainingSession $s): ?array
     {
         $activities = \App\Models\Activity::query()
