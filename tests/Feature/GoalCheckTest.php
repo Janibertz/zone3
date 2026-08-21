@@ -192,6 +192,55 @@ class GoalCheckTest extends TestCase
         $this->assertSame('3:25', $check['suggested'], 'Vorgeschlagen wird die Prognose, auf fünf Minuten gerundet');
     }
 
+    // ── Welches Rennen gemeint ist ───────────────────────────────────────
+
+    /**
+     * Ein kleineres Rennen zwischendurch darf die Frage nicht kapern.
+     *
+     * Zuerst nahm die Pruefung schlicht das naechste A- oder B-Event nach
+     * Datum. Bei einem Athleten mit einem 5-km-Lauf neun Tage vor dem
+     * Marathon pruefte sie damit die Zielzeit des 5ers — die passte, und
+     * ueber den Marathon fiel kein Wort.
+     */
+    public function test_the_check_follows_the_active_plan_not_the_next_race(): void
+    {
+        $user = $this->athlete();
+        $this->weeklyVolume($user, 25, 16);
+
+        $marathon = $this->marathon($user, 3, 30, daysUntil: 40);
+
+        // Ein B-Event davor, dessen Ziel voellig in Ordnung ist.
+        Event::create([
+            'user_id' => $user->id, 'name' => 'Sportcheck 5k', 'event_date' => now()->addDays(30),
+            'race_distance' => '5km', 'priority' => 'B',
+            'target_time_hours' => 0, 'target_time_minutes' => 20,
+        ]);
+
+        \App\Models\TrainingPlan::create([
+            'user_id' => $user->id, 'event_id' => $marathon->id,
+            'sessions' => [], 'is_active' => true,
+        ]);
+
+        $event = GoalCheckController::eventFor($user->fresh());
+
+        $this->assertSame($marathon->id, $event->id, 'Gefragt wird nach dem Ziel, das den Plan bestimmt');
+    }
+
+    /** Ohne aktiven Plan zaehlt die Prioritaet vor dem Datum. */
+    public function test_without_a_plan_the_a_event_wins(): void
+    {
+        $user = $this->athlete();
+        $marathon = $this->marathon($user, 3, 30, daysUntil: 40);
+
+        Event::create([
+            'user_id' => $user->id, 'name' => 'Sportcheck 5k', 'event_date' => now()->addDays(30),
+            'race_distance' => '5km', 'priority' => 'B',
+            'target_time_hours' => 0, 'target_time_minutes' => 20,
+        ]);
+
+        $this->assertSame($marathon->id, GoalCheckController::eventFor($user->fresh())->id);
+    }
+
     // ── Wann geschwiegen wird ────────────────────────────────────────────
 
     /** Kurz vor dem Rennen ist die Zielzeit Renntaktik, keine Planungsfrage. */

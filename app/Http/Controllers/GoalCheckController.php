@@ -25,12 +25,35 @@ use Illuminate\Support\Facades\Auth;
  */
 class GoalCheckController extends Controller
 {
-    /** Das Event, um dessen Ziel es geht: das nächste A- oder B-Rennen. */
+    /**
+     * Das Event, um dessen Ziel es geht: das, auf das der aktive Plan
+     * zuläuft.
+     *
+     * Zuerst stand hier schlicht „das nächste A- oder B-Rennen nach Datum".
+     * Das griff daneben, sobald zwischen heute und dem Hauptrennen ein
+     * kleineres liegt: Bei einem Athleten mit einem 5-km-Lauf neun Tage vor
+     * dem Marathon prüfte die Frage die Zielzeit des 5ers — die passte, und
+     * über den Marathon fiel kein Wort. Gefragt gehört nach dem Ziel, das
+     * den Plan bestimmt.
+     */
     public static function eventFor(User $user): ?Event
     {
+        $plan = \App\Models\TrainingPlan::where('user_id', $user->id)
+            ->where('is_active', true)
+            ->whereNotNull('event_id')
+            ->latest()
+            ->first();
+
+        if ($plan?->event && $plan->event->days_until >= 0) {
+            return $plan->event;
+        }
+
+        // Ohne aktiven Plan zaehlt die Prioritaet vor dem Datum: ein A-Event
+        // ist das Hauptrennen, auch wenn ein B-Event frueher liegt.
         return Event::where('user_id', $user->id)
             ->whereDate('event_date', '>=', now()->toDateString())
             ->whereIn('priority', ['A', 'B'])
+            ->orderByRaw("CASE priority WHEN 'A' THEN 0 ELSE 1 END")
             ->orderBy('event_date')
             ->first();
     }
