@@ -87,9 +87,16 @@ const beispielWoche = [
             <div class="mx-auto max-w-5xl">
                 <div class="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
                     <div>
+                        <!--
+                            Zwei Bloecke statt Text mit <br>: Vue faltet den
+                            Zeilenumbruch im Quelltext weg, und wenn das <br>
+                            auf dem Telefon ausgeblendet ist, klebte "der" an
+                            "nachfragt" — im Browser nachgesehen stand dort
+                            "dernachfragt.".
+                        -->
                         <h1 class="text-[2.1rem] font-bold leading-[1.1] tracking-tight sm:text-5xl">
-                            Ein Coach, der<br class="hidden sm:block" />
-                            <span class="text-accent">nachfragt.</span>
+                            <span class="block">Ein Coach, der</span>
+                            <span class="block text-accent">nachfragt.</span>
                         </h1>
                         <p class="mt-5 max-w-md text-[17px] leading-relaxed text-ink-2">
                             Zone3 liest deine Läufe aus Strava, rechnet daraus deine Schwellenpace
