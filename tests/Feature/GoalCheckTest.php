@@ -96,6 +96,40 @@ class GoalCheckTest extends TestCase
         $this->assertNotNull($check['suggested'], 'Es braucht einen konkreten Vorschlag, nicht nur „langsamer"');
     }
 
+    /**
+     * Der Grund, warum der Median zaehlt und nicht der Mittelwert: drei ruhige
+     * Wochen plus ein Backyard ergeben einen Schnitt, der einen Unterbau
+     * vortaeuscht, den es nicht gibt.
+     */
+    public function test_one_huge_week_does_not_fake_a_base(): void
+    {
+        $user   = $this->athlete();
+        $monday = CarbonImmutable::today()->startOfWeek();
+
+        // Drei Alltagswochen um 25 km …
+        foreach ([1, 2, 3] as $w) {
+            Activity::create([
+                'user_id' => $user->id, 'strava_id' => $this->seq++, 'name' => 'Woche', 'type' => 'Run',
+                'distance' => 25000, 'moving_time' => 9000, 'elapsed_time' => 9000,
+                'start_date' => $monday->subWeeks($w),
+            ]);
+        }
+        // … und ein einzelner Backyard über 69 km.
+        Activity::create([
+            'user_id' => $user->id, 'strava_id' => $this->seq++, 'name' => 'Backyard', 'type' => 'Run',
+            'distance' => 69000, 'moving_time' => 36000, 'elapsed_time' => 36000,
+            'start_date' => $monday->subWeeks(4),
+        ]);
+
+        $event = $this->marathon($user, 3, 30);
+        $check = $this->check($user, $event);
+
+        // Mittelwert wäre 36 km (60 %) und hätte geschwiegen; der Median ist
+        // 25 km (42 %) und stellt die Frage.
+        $this->assertNotNull($check, 'Ein einzelner grosser Tag ersetzt keine Wiederholung');
+        $this->assertSame('pace_ok_base_thin', $check['kind']);
+    }
+
     /** Wer den Unterbau hat, wird nicht gefragt. */
     public function test_a_solid_base_with_matching_pace_asks_nothing(): void
     {

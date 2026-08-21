@@ -30,7 +30,7 @@ class WeeklyVolumeService
     /**
      * @return array{
      *     has_data: bool, weeks: list<array{label: string, km: float, runs: int, longest: float}>,
-     *     avg_km: float, last_km: float, trend_pct: float|null,
+     *     avg_km: float, median_km: float, last_km: float, trend_pct: float|null,
      *     longest_run: float, next_week_max: float
      * }
      */
@@ -81,7 +81,7 @@ class WeeklyVolumeService
         if (! $withRuns) {
             return [
                 'has_data' => false, 'weeks' => array_values($weeks),
-                'avg_km' => 0.0, 'last_km' => 0.0, 'trend_pct' => null,
+                'avg_km' => 0.0, 'median_km' => 0.0, 'last_km' => 0.0, 'trend_pct' => null,
                 'longest_run' => 0.0, 'next_week_max' => 0.0,
             ];
         }
@@ -91,10 +91,24 @@ class WeeklyVolumeService
         $last    = (float) end($complete)['km'];
         $longest = round(max(array_column($complete, 'longest')), 1);
 
+        // Der Median daneben, weil der Mittelwert bei zackigem Training das
+        // Falsche misst. Wer drei ruhige Wochen um 25 km laeuft und dazu
+        // einen Backyard ueber 69 km, hat einen Schnitt von 44 — und einen
+        // Alltag von 25. Fuer alles, was nach Regelmaessigkeit fragt, ist der
+        // Median die ehrlichere Zahl; ein einzelner grosser Tag ersetzt keine
+        // Wiederholung.
+        $sorted = array_column($recent, 'km');
+        sort($sorted);
+        $mid    = intdiv(count($sorted), 2);
+        $median = count($sorted) % 2
+            ? $sorted[$mid]
+            : round(($sorted[$mid - 1] + $sorted[$mid]) / 2, 1);
+
         return [
             'has_data'      => true,
             'weeks'         => array_values($weeks),
             'avg_km'        => $avg,
+            'median_km'     => round($median, 1),
             'last_km'       => $last,
             'trend_pct'     => $avg > 0 ? round(($last - $avg) / $avg * 100) : null,
             'longest_run'   => $longest,

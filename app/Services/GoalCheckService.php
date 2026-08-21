@@ -101,9 +101,20 @@ class GoalCheckService
         // Positiv: das Ziel verlangt mehr Tempo, als die Form hergibt.
         $deltaSec = (int) round($predictPace - $targetPace);
 
-        $volume     = $this->volume->forUser($user->id, $today);
-        $weeklyKm   = $volume['avg_km'] ?? 0.0;
-        $longestKm  = $volume['longest_run'] ?? 0.0;
+        $volume    = $this->volume->forUser($user->id, $today);
+        $longestKm = $volume['longest_run'] ?? 0.0;
+
+        // Der Median, nicht der Mittelwert.
+        //
+        // Wer drei ruhige Wochen um 25 km läuft und dazu einen Backyard über
+        // 69 km, hat einen Schnitt von 44 — und einen Alltag von 25. Der
+        // Mittelwert hätte hier „Unterbau reicht" gesagt und die Frage
+        // verschluckt, die genau dieser Athlet braucht. Umfang ist eine Frage
+        // der Wiederholung, und ein einzelner großer Tag ist keine.
+        //
+        // Beim längsten Lauf bleibt es beim Maximum: dort ist die Spitze die
+        // richtige Kennzahl. Man hat 30 km geschafft oder nicht.
+        $weeklyKm = $volume['median_km'] ?? 0.0;
 
         // Der schwächere der beiden Werte bestimmt die Ausdauer — ein langer
         // Lauf allein trägt keinen Marathon, und Wochenkilometer ohne langen
@@ -207,7 +218,7 @@ class GoalCheckService
                 $predicted['time'], $deltaSec, $weeks,
             ),
             'too_conservative' => sprintf(
-                'Deine Schwellenpace trägt %s, und dein Unterbau passt dazu — %s km pro Woche, längster Lauf %s km. Dein Ziel liegt %d Sekunden je Kilometer darunter.',
+                'Deine Schwellenpace trägt %s, und dein Unterbau passt dazu — typische Woche %s km, längster Lauf %s km. Dein Ziel liegt %d Sekunden je Kilometer darunter.',
                 $predicted['time'], $this->num($weekly), $this->num($longest), abs($deltaSec),
             ),
             'pace_ok_base_thin' => sprintf(
