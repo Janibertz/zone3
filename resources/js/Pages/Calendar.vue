@@ -2,6 +2,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
+import { paceWithUnit } from '@/Composables/useSessionTypes';
 
 const props = defineProps({
     activities:       { type: Array, default: () => [] },
@@ -401,11 +402,14 @@ const sessionDotColors = {
                                     </span>
                                     <div class="flex-1 min-w-0">
                                         <p class="text-sm font-semibold text-ink leading-tight">{{ s.title }}</p>
-                                        <p class="text-xs mt-0.5" :class="sessionTypeColors[s.type] || 'text-ink-3'">{{ sessionTypeLabels[s.type] || s.type }}</p>
+                                        <!-- Als Pille, nicht als Absatz: die Flaechenfarbe lief sonst
+                                             ueber die volle Breite und sah aus wie ein Fehler. -->
+                                        <span class="mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium"
+                                            :class="sessionTypeColors[s.type] || 'bg-surface-2 text-ink-3'">{{ sessionTypeLabels[s.type] || s.type }}</span>
                                         <div class="flex gap-2 mt-1 flex-wrap">
                                             <span v-if="s.distance_km" class="text-xs text-ink-3">{{ s.distance_km }} km</span>
                                             <span v-if="s.duration_min" class="text-xs text-ink-3">{{ s.duration_min }} min</span>
-                                            <span v-if="s.pace_target && s.pace_target !== 'null'" class="text-xs text-ink-3">{{ s.pace_target }}/km</span>
+                                            <span v-if="paceWithUnit(s.pace_target)" class="text-xs text-ink-3">{{ paceWithUnit(s.pace_target) }}</span>
                                         </div>
                                         <span v-if="s.status === 'completed'" class="text-xs text-success-ink font-medium">✓ Erledigt</span>
                                         <span v-else-if="s.status === 'skipped'" class="text-xs text-ink-3">Übersprungen<span v-if="s.skip_reason"> — {{ s.skip_reason }}</span></span>
