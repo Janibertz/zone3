@@ -668,7 +668,17 @@ const eventsInMonth = computed(() => {
 const calendarPickerDay = ref(null);
 
 function openCalendarDay(d) {
+    // Ein Renntag ist im Raster orange hervorgehoben, war aber nur ueber das
+    // title-Attribut zu identifizieren — und das gibt es auf einem Telefon
+    // nicht. Man sah einen markierten Tag und kam nicht heran. Ohne eigene
+    // Aktivitaet fuehrt der Tag jetzt zum Event.
+    if (d.hasEvent && !d.hasActivity) {
+        router.visit(route('events.plan.show', d.event.id));
+        return;
+    }
+
     if (!d.hasActivity) return;
+
     const activities = activeDaysInMonth.value.get(d.day);
     if (activities.length === 1) {
         openActivityDetail(activities[0]);
@@ -1319,7 +1329,14 @@ async function saveWeek() {
                                             class="flex items-center gap-3 rounded-field bg-surface-2 px-3.5 py-3">
                                             <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="stepBarColor[step.type]" />
                                             <div class="min-w-0 flex-1">
-                                                <p class="truncate text-[15px] font-medium text-ink">
+                                                <!--
+                                                    Ohne truncate: neben Dauer und Pace
+                                                    blieben auf dem Telefon knapp 180
+                                                    Pixel fuer den Text, und genau der
+                                                    sagt, was zu tun ist. Lieber zwei
+                                                    Zeilen als abgeschnitten.
+                                                -->
+                                                <p class="text-[15px] font-medium leading-snug text-ink">
                                                     <template v-if="step.isGroup">{{ step.repetitions }}× </template>{{ step.label }}
                                                 </p>
                                                 <p v-if="step.isGroup && step.pairedRest" class="text-[13px] text-ink-3">
@@ -1505,10 +1522,17 @@ async function saveWeek() {
                                     </div>
 
                                     <p class="mb-2 text-[13px] font-semibold text-ink-2">Anstrengung (RPE)</p>
-                                    <div class="mb-4 flex flex-wrap gap-1.5">
+                                    <!--
+                                        Zehn Knoepfe zu 36 Pixel passen auf dem
+                                        Telefon nicht in eine Zeile: die Skala
+                                        brach als 7 + 3 um und war als Skala
+                                        nicht mehr lesbar. Zwei Reihen zu fuenf
+                                        sind geordnet und besser zu treffen.
+                                    -->
+                                    <div class="mb-4 grid grid-cols-5 gap-1.5 sm:grid-cols-10">
                                         <button v-for="n in 10" :key="n"
                                             @click="ratingEffort = ratingEffort === n ? 0 : n"
-                                            class="h-9 w-9 rounded-full text-[13px] font-bold transition-all active:scale-90"
+                                            class="h-11 rounded-full text-[13px] font-bold transition-all active:scale-90 sm:h-9"
                                             :class="n === ratingEffort
                                                 ? (n <= 3 ? 'bg-success text-white' : n <= 6 ? 'bg-warn text-white' : 'bg-danger text-white')
                                                 : 'bg-surface-2 text-ink-3 hover:bg-surface-3'"
@@ -1810,9 +1834,9 @@ async function saveWeek() {
 
                         <AppCard>
                             <div class="mb-4 flex items-center justify-center gap-2">
-                                <button @click="prevMonth" class="flex h-9 w-9 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink">‹</button>
+                                <button @click="prevMonth" class="flex h-11 w-11 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink sm:h-9 sm:w-9">‹</button>
                                 <h4 class="min-w-[150px] text-center text-[15px] font-semibold text-ink">{{ currentMonthLabel }}</h4>
-                                <button @click="nextMonth" class="flex h-9 w-9 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink">›</button>
+                                <button @click="nextMonth" class="flex h-11 w-11 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink sm:h-9 sm:w-9">›</button>
                             </div>
 
                             <div class="mb-2 grid grid-cols-7 gap-1 text-center text-[12px] font-semibold text-ink-3">
