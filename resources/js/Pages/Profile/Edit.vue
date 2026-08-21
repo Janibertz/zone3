@@ -1321,7 +1321,7 @@ const inputClass = 'z-input';
                             <div class="h-10 w-10 rounded-field bg-surface-2 flex items-center justify-center text-xl shrink-0">🔗</div>
                             <div>
                                 <p class="text-sm font-semibold text-ink">Nicht verbunden</p>
-                                <p class="text-xs text-ink-3 mt-0.5">Verbinde Strava um deine Läufe zu importieren</p>
+                                <p class="text-xs text-ink-3 mt-0.5">Verbinde Strava um deine Aktivitäten zu importieren</p>
                             </div>
                         </div>
                         <div class="mt-4 flex flex-wrap gap-3">

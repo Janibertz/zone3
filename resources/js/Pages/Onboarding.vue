@@ -735,7 +735,7 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                     <div class="text-center">
                         <div class="w-16 h-16 mx-auto rounded-card bg-gradient-to-br from-danger to-danger flex items-center justify-center shadow-lg text-3xl">💪</div>
                         <h2 class="mt-4 text-2xl font-bold text-ink">Kraft & Core</h2>
-                        <p class="mt-2 text-ink-3">Läufer:innen vernachlässigen oft Kraft & Rumpf — dabei beugt es Verletzungen vor und macht dich schneller. Soll dein Coach Kraft- & Core-Einheiten in den Plan einbauen?</p>
+                        <p class="mt-2 text-ink-3">Ausdauersportler:innen vernachlässigen oft Kraft & Rumpf — dabei beugt es Verletzungen vor und macht dich schneller. Soll dein Coach Kraft- & Core-Einheiten in den Plan einbauen?</p>
                     </div>
 
                     <!-- Toggle -->

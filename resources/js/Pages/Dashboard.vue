@@ -323,7 +323,7 @@ async function sendToGarminConnect({ email, password } = {}) {
 }
 
 // ── Begrüßung ────────────────────────────────────────────────────────────────
-const firstName = computed(() => (page.props.auth?.user?.name ?? '').split(' ')[0] || 'Läufer');
+const firstName = computed(() => (page.props.auth?.user?.name ?? '').split(' ')[0] || 'Athlet');
 
 const greeting = computed(() => {
     const h = new Date().getHours();
@@ -1595,7 +1595,13 @@ async function saveWeek() {
                                 </p>
                             </div>
                             <div>
-                                <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Ø Pace</p>
+                                <!--
+                                    Die Kilometer daneben summieren alles, was aus
+                                    Strava kommt — auch Radfahren. Die Pace kann das
+                                    nicht: sie ergibt nur ueber Laeufe einen Sinn.
+                                    Also steht jetzt dran, worauf sie sich bezieht.
+                                -->
+                                <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Ø Pace · Läufe</p>
                                 <p class="mt-1 text-xl font-bold tabular-nums text-ink">{{ weekStats.avgPace }}</p>
                             </div>
                         </div>
