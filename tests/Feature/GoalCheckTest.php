@@ -353,6 +353,46 @@ class GoalCheckTest extends TestCase
         $this->assertTrue(GoalCheckController::isDue($event->fresh()));
     }
 
+    /**
+     * Der Merker gehoert zur Entscheidung, nicht zum Anschauen. Ein Merker
+     * ohne goal_confirmed_at kann nur aus dem fehlerhaften discuss-Aufruf
+     * stammen — die Reparatur-Migration raeumt genau diese weg.
+     */
+    public function test_a_week_mark_without_a_decision_is_repaired(): void
+    {
+        $user  = $this->athlete();
+        $this->weeklyVolume($user, 25, 16);
+        $event = $this->marathon($user, 3, 30);
+
+        // Der Zustand, den der alte discuss-Endpunkt hinterliess.
+        $event->update(['goal_check_week' => GoalCheckController::weekKey(), 'goal_confirmed_at' => null]);
+        $this->assertFalse(GoalCheckController::isDue($event->fresh()));
+
+        \Illuminate\Support\Facades\DB::table('events')
+            ->whereNotNull('goal_check_week')
+            ->whereNull('goal_confirmed_at')
+            ->update(['goal_check_week' => null]);
+
+        $this->assertTrue(GoalCheckController::isDue($event->fresh()), 'Nach der Reparatur steht die Frage wieder aus');
+    }
+
+    /** Eine echte Entscheidung raeumt die Migration nicht weg. */
+    public function test_a_real_decision_survives_the_repair(): void
+    {
+        $user  = $this->athlete();
+        $this->weeklyVolume($user, 25, 16);
+        $event = $this->marathon($user, 3, 30);
+
+        $this->actingAs($user)->postJson(route('goal-check.confirm'))->assertOk();
+
+        \Illuminate\Support\Facades\DB::table('events')
+            ->whereNotNull('goal_check_week')
+            ->whereNull('goal_confirmed_at')
+            ->update(['goal_check_week' => null]);
+
+        $this->assertFalse(GoalCheckController::isDue($event->fresh()), 'Wer entschieden hat, bleibt in Ruhe');
+    }
+
     // ── Die Entscheidung wirkt ───────────────────────────────────────────
 
     public function test_adjusting_sets_the_new_target(): void
