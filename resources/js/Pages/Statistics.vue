@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import AppCard from '@/Components/UI/AppCard.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
@@ -14,7 +14,28 @@ const props = defineProps({
     weeklyStats:  Array,
     paceTrend:    Array,
     totals:       Object,
+    sport:        { type: String, default: 'all' },
+    sportOptions: { type: Array,  default: () => [] },
 });
+
+/**
+ * Die Seite zaehlte fest nur Laeufe. Ueber Strava kommt aber alles herein —
+ * wer Rad faehrt, sah seine Kilometer nirgends. Gefiltert wird auf dem
+ * Server, damit auch die Summen stimmen und nicht nur die Anzeige.
+ */
+const sportFilter = ref(props.sport);
+
+watch(sportFilter, (value) => {
+    if (value === props.sport) return;
+    router.get(route('statistics.index'), { sport: value }, { preserveScroll: true, preserveState: true });
+});
+
+/** „Läufe" stimmt nur, solange auch nur Laeufe gezaehlt werden. */
+const countLabel = computed(() => ({
+    run: 'Läufe', ride: 'Fahrten', swim: 'Einheiten', walk: 'Touren', strength: 'Einheiten',
+}[props.sport] ?? 'Aktivitäten'));
+
+const timeLabel = computed(() => (props.sport === 'run' ? 'Laufzeit' : 'Zeit'));
 
 const hasData = computed(() => (props.totals?.runs ?? 0) > 0);
 
@@ -188,19 +209,21 @@ const avgDistance = computed(() => {
                 <header class="flex items-end justify-between gap-3 px-1">
                     <div class="min-w-0">
                         <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Statistiken</h1>
-                        <p class="mt-1 text-[15px] text-ink-3">Deine Laufanalyse auf einen Blick</p>
+                        <p class="mt-1 text-[15px] text-ink-3">Deine Trainingsanalyse auf einen Blick</p>
                     </div>
                     <AppButton :href="route('wrapped.index')" variant="secondary" size="sm" class="shrink-0">
                         <span aria-hidden="true">🎁</span> Rückblick
                     </AppButton>
                 </header>
 
+                <SegmentedControl v-if="sportOptions.length" v-model="sportFilter" :options="sportOptions" />
+
                 <template v-if="hasData">
                     <!-- ── Gesamtbilanz ───────────────────────────── -->
                     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                        <StatTile label="Läufe" :value="totals.runs" />
+                        <StatTile :label="countLabel" :value="totals.runs" />
                         <StatTile label="Distanz" :value="km(totals.km)" unit="km" />
-                        <StatTile label="Laufzeit" :value="formatTime(totals.time_min)" />
+                        <StatTile :label="timeLabel" :value="formatTime(totals.time_min)" />
                         <StatTile
                             label="Ø Pace"
                             :value="totals.avg_pace ?? '–'"

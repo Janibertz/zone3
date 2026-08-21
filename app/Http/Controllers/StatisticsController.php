@@ -9,16 +9,41 @@ use Inertia\Inertia;
 
 class StatisticsController extends Controller
 {
+    /**
+     * Strava-Typen je Sportart-Gruppe. Dieselbe Einteilung wie im Frontend
+     * (useActivityTypes.js) — sie muss zusammenpassen, sonst filtert der
+     * Reiter etwas anderes, als er verspricht.
+     */
+    private const SPORT_TYPES = [
+        'run'      => ['Run', 'VirtualRun', 'TrailRun'],
+        'ride'     => ['Ride', 'VirtualRide', 'EBikeRide'],
+        'swim'     => ['Swim'],
+        'walk'     => ['Walk', 'Hike'],
+        'strength' => ['Workout', 'WeightTraining', 'Yoga'],
+    ];
+
     public function index(Request $request)
     {
         $user = $request->user();
 
+        // Die Seite zaehlte fest nur Laeufe. Ueber Strava kommt aber alles
+        // herein, und wer Rad faehrt, sah seine Kilometer nirgends.
+        $sport = $request->string('sport')->toString() ?: 'all';
+        if ($sport !== 'all' && ! isset(self::SPORT_TYPES[$sport])) {
+            $sport = 'all';
+        }
+
+        $ofSport = fn ($query) => $sport === 'all'
+            ? $query
+            : $query->whereIn('type', self::SPORT_TYPES[$sport]);
+
         // Last 12 months of data
         $since = now()->subMonths(12)->startOfMonth();
 
-        $activities = Activity::where('user_id', $user->id)
-            ->where('type', 'Run')
-            ->where('start_date', '>=', $since)
+        $activities = $ofSport(
+            Activity::where('user_id', $user->id)
+                ->where('start_date', '>=', $since)
+        )
             ->orderBy('start_date')
             ->get(['id', 'start_date', 'distance', 'moving_time']);
 
@@ -59,9 +84,10 @@ class StatisticsController extends Controller
             ];
         }
 
-        // Pace trend (last 20 runs, avg pace min/km)
+        // Der Pace-Verlauf bleibt bei Laeufen: eine Minutenzahl je Kilometer
+        // ueber Radfahrten waere zwar rechenbar, aber ohne Aussage.
         $last20 = Activity::where('user_id', $user->id)
-            ->where('type', 'Run')
+            ->whereIn('type', self::SPORT_TYPES['run'])
             ->where('average_speed', '>', 0)
             ->orderByDesc('start_date')
             ->limit(20)
@@ -83,10 +109,12 @@ class StatisticsController extends Controller
         })->values();
 
         // Totals
-        $totalRuns = Activity::where('user_id', $user->id)->where('type', 'Run')->count();
-        $totalKm   = round(Activity::where('user_id', $user->id)->where('type', 'Run')->sum('distance') / 1000, 1);
-        $totalTime = Activity::where('user_id', $user->id)->where('type', 'Run')->sum('moving_time');
-        $totalElevation = Activity::where('user_id', $user->id)->where('type', 'Run')->sum('total_elevation_gain');
+        $totals = $ofSport(Activity::where('user_id', $user->id));
+
+        $totalRuns      = (clone $totals)->count();
+        $totalKm        = round((clone $totals)->sum('distance') / 1000, 1);
+        $totalTime      = (clone $totals)->sum('moving_time');
+        $totalElevation = (clone $totals)->sum('total_elevation_gain');
 
         $avgPaceSec = null;
         $avgPaceLabel = null;
@@ -99,6 +127,8 @@ class StatisticsController extends Controller
         }
 
         return Inertia::render('Statistics', [
+            'sport'        => $sport,
+            'sportOptions' => $this->sportOptions($user->id),
             'monthlyStats' => $monthlyStats,
             'weeklyStats'  => $weeklyStats,
             'paceTrend'    => $paceTrend,
@@ -110,5 +140,33 @@ class StatisticsController extends Controller
                 'avg_pace'   => $avgPaceLabel,
             ],
         ]);
+    }
+
+    /**
+     * Nur die Sportarten anbieten, die der Athlet auch betreibt — ein Reiter
+     * fuer Schwimmen, unter dem nie etwas steht, hilft niemandem, und auf dem
+     * Telefon ist der Platz ohnehin knapp.
+     *
+     * @return list<array{value: string, label: string}>
+     */
+    private function sportOptions(int $userId): array
+    {
+        $present = Activity::where('user_id', $userId)
+            ->select('type')
+            ->distinct()
+            ->pluck('type')
+            ->all();
+
+        $labels = ['run' => 'Laufen', 'ride' => 'Rad', 'swim' => 'Schwimmen', 'walk' => 'Gehen', 'strength' => 'Kraft'];
+        $groups = [];
+
+        foreach (self::SPORT_TYPES as $group => $types) {
+            if (array_intersect($types, $present)) {
+                $groups[] = ['value' => $group, 'label' => $labels[$group]];
+            }
+        }
+
+        // Ein einzelner Reiter neben "Alle" ist kein Filter, sondern Zierde.
+        return count($groups) < 2 ? [] : array_merge([['value' => 'all', 'label' => 'Alle']], $groups);
     }
 }

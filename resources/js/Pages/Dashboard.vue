@@ -7,6 +7,8 @@ import AppButton from '@/Components/UI/AppButton.vue';
 import GarminSendSheet from '@/Components/UI/GarminSendSheet.vue';
 import GarminRecovery from '@/Components/GarminRecovery.vue';
 import { Head, usePage } from '@inertiajs/vue3';
+import { matchesSport, sportOptions } from '@/Composables/useActivityTypes';
+import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 import { Inertia } from '@inertiajs/inertia';
 import { router } from '@inertiajs/vue3';
 import { ref, watch, computed, onMounted } from 'vue';
@@ -512,6 +514,21 @@ const washTone = computed(() =>
 
 // ── Wochenstreifen ───────────────────────────────────────────────────────────
 /** Sieben Tage ab Montag mit Kilometern und Trainings-Flag. */
+/**
+ * Sportart-Filter fuer den Wochenblock.
+ *
+ * Das Dashboard bekommt alle Aktivitaeten aus Strava und rechnete sie
+ * zusammen, als waeren es Laeufe: eine 40-km-Radfahrt landete in den
+ * Wochenkilometern und faerbte den Tagesbalken, waehrend die Pace daneben
+ * nur aus Laeufen kam. Jetzt zaehlt alles mit — aber sichtbar, und
+ * umschaltbar.
+ */
+const sportFilter  = ref('all');
+const sportChoices = computed(() => sportOptions(props.recentActivities));
+const sportedActivities = computed(
+    () => props.recentActivities.filter(a => matchesSport(a, sportFilter.value)),
+);
+
 const weekStrip = computed(() => {
     const labels = ['M', 'D', 'M', 'D', 'F', 'S', 'S'];
     const now = new Date();
@@ -521,7 +538,7 @@ const weekStrip = computed(() => {
     monday.setHours(0, 0, 0, 0);
 
     const kmPerDay = new Map();
-    props.recentActivities.forEach(a => {
+    sportedActivities.value.forEach(a => {
         if (!a.start_date) return;
         const k = dayKey(new Date(a.start_date));
         kmPerDay.set(k, (kmPerDay.get(k) || 0) + (a.distance || 0) / 1000);
@@ -563,7 +580,7 @@ const lastWeekKm = computed(() => {
     const lastWeekCutoff = new Date(lastWeekStart);
     lastWeekCutoff.setDate(lastWeekStart.getDate() + dow + 1);
 
-    const meters = props.recentActivities
+    const meters = sportedActivities.value
         .filter(a => {
             if (!a.start_date) return false;
             const d = new Date(a.start_date);
@@ -584,7 +601,7 @@ const weekTrend = computed(() => {
 
 // Computed: total distance across all activities
 const totalDistanceKm = computed(() => {
-    const total = props.recentActivities.reduce((sum, a) => sum + (a.distance || 0), 0);
+    const total = sportedActivities.value.reduce((sum, a) => sum + (a.distance || 0), 0);
     return (total / 1000).toFixed(1);
 });
 
@@ -599,9 +616,9 @@ const weekStats = computed(() => {
     startOfWeek.setDate(now.getDate() - dow);
     startOfWeek.setHours(0, 0, 0, 0);
 
-    const weekActs = props.recentActivities.filter(a => a.start_date && new Date(a.start_date) >= startOfWeek);
+    const weekActs = sportedActivities.value.filter(a => a.start_date && new Date(a.start_date) >= startOfWeek);
     const km = (weekActs.reduce((s, a) => s + (a.distance || 0), 0) / 1000).toFixed(1);
-    const runs = weekActs.filter(a => ['Run', 'VirtualRun', 'TrailRun'].includes(a.type)).length;
+    const runs = weekActs.length;
     const runSpeeds = weekActs.filter(a => a.type === 'Run' && a.average_speed > 0).map(a => a.average_speed);
     const avgPace = runSpeeds.length
         ? formatPaceFromSpeed(runSpeeds.reduce((s, v) => s + v, 0) / runSpeeds.length)
@@ -612,14 +629,16 @@ const weekStats = computed(() => {
 // This month stats
 const monthStats = computed(() => {
     const now = new Date();
-    const acts = props.recentActivities.filter(a => {
+    const acts = sportedActivities.value.filter(a => {
         if (!a.start_date) return false;
         const d = new Date(a.start_date);
         return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
     });
     return {
         km: (acts.reduce((s, a) => s + (a.distance || 0), 0) / 1000).toFixed(1),
-        runs: acts.filter(a => ['Run', 'VirtualRun', 'TrailRun'].includes(a.type)).length,
+        // Gezaehlt wird, was der Filter durchlaesst — sonst stuende neben
+        // Radkilometern eine Zahl, die nur Laeufe meint.
+        runs: acts.length,
     };
 });
 
@@ -1565,6 +1584,20 @@ async function saveWeek() {
                     </SectionHeader>
 
                     <AppCard>
+                        <!--
+                            Der Filter steht ueber dem Streifen und nicht in der
+                            Kopfzeile: dort teilt er sich den Platz mit der
+                            Schaltflaeche und wird auf dem Telefon zum Gedraenge.
+                            Er erscheint nur, wenn es ueberhaupt mehr als eine
+                            Sportart zu unterscheiden gibt.
+                        -->
+                        <SegmentedControl
+                            v-if="sportChoices.length"
+                            v-model="sportFilter"
+                            :options="sportChoices"
+                            class="mb-4"
+                        />
+
                         <!-- Wochenstreifen -->
                         <div class="grid grid-cols-7 gap-1.5">
                             <div v-for="d in weekStrip" :key="d.key" class="flex flex-col items-center gap-2">
