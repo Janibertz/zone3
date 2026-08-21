@@ -4,6 +4,7 @@ import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import axios from 'axios';
 import GarminSendSheet from '@/Components/UI/GarminSendSheet.vue';
+import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 
 const props = defineProps({
     workouts:  Array,
@@ -99,12 +100,28 @@ function formatDuration(min) {
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
-async function deleteWorkout(w) {
-    if (!confirm(`„${w.name}" wirklich löschen?`)) return;
+/**
+ * Geloescht wird ueber das Sheet der App, nicht ueber den nativen Dialog.
+ *
+ * `confirm()` reisst auf dem Telefon ein Systemfenster auf, das nichts mit
+ * der App zu tun hat — und blockiert nebenbei alles andere. Den Rest der
+ * App fragt laengst ConfirmSheet.
+ */
+const pendingDelete = ref(null);
+
+function askDelete(w) {
+    pendingDelete.value = w;
+}
+
+async function deleteWorkout() {
+    const w = pendingDelete.value;
+    if (!w) return;
+
     deleting.value = w.id;
     try {
         await axios.delete(route('workouts.destroy', w.id));
         workouts.value = workouts.value.filter(x => x.id !== w.id);
+        pendingDelete.value = null;
     } finally {
         deleting.value = null;
     }
@@ -216,29 +233,38 @@ async function sendToGarmin({ email, password, date } = {}) {
 
                     <div class="p-4">
                         <!-- Title row -->
-                        <div class="flex items-start justify-between gap-2 mb-3">
-                            <div class="flex-1 min-w-0">
-                                <h3 class="font-semibold text-ink text-sm truncate">{{ w.name }}</h3>
+                        <!--
+                            Auf dem Telefon standen vier Symbolknoepfe neben dem
+                            Titel und liessen ihm rund 120 Pixel: aus
+                            "KRAFT / 500FAST - 500SLOW" wurde "KRAFT / 500S…".
+                            Der Name ist das Einzige, woran man ein Workout
+                            erkennt — er bekommt die Zeile fuer sich.
+                        -->
+                        <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
+                            <div class="min-w-0 flex-1">
+                                <h3 class="text-sm font-semibold text-ink sm:truncate">{{ w.name }}</h3>
                                 <span class="inline-block mt-1 text-[11px] font-medium px-2 py-0.5 rounded-full" :class="TYPE_COLORS[w.type]">
                                     {{ TYPE_LABELS[w.type] ?? w.type }}
                                 </span>
                             </div>
                             <!-- Actions -->
-                            <div class="flex gap-1 shrink-0">
+                            <!-- 28 Pixel sind fuer einen Daumen zu wenig, erst recht
+                                 fuer "Loeschen". Auf dem Telefon 44, ab sm wieder kompakt. -->
+                            <div class="flex shrink-0 gap-1 self-end sm:self-auto">
                                 <button @click="openGarminModal(w)" title="Zu Garmin senden"
-                                    class="p-1.5 rounded-lg text-ink-3 hover:text-accent hover:bg-accent-soft transition-colors">
+                                    class="p-3.5 sm:p-1.5 rounded-lg text-ink-3 hover:text-accent hover:bg-accent-soft transition-colors">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" /></svg>
                                 </button>
                                 <button @click="duplicateWorkout(w)" title="Duplizieren"
-                                    class="p-1.5 rounded-lg text-ink-3 hover:text-ink-2 hover:bg-surface-2 transition-colors">
+                                    class="p-3.5 sm:p-1.5 rounded-lg text-ink-3 hover:text-ink-2 hover:bg-surface-2 transition-colors">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" /></svg>
                                 </button>
                                 <Link :href="route('workouts.edit', w.id)" title="Bearbeiten"
-                                    class="p-1.5 rounded-lg text-ink-3 hover:text-ink-2 hover:bg-surface-2 transition-colors">
+                                    class="p-3.5 sm:p-1.5 rounded-lg text-ink-3 hover:text-ink-2 hover:bg-surface-2 transition-colors">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
                                 </Link>
-                                <button @click="deleteWorkout(w)" :disabled="deleting === w.id" title="Löschen"
-                                    class="p-1.5 rounded-lg text-ink-3 hover:text-danger hover:bg-danger-soft transition-colors disabled:opacity-40">
+                                <button @click="askDelete(w)" :disabled="deleting === w.id" title="Löschen"
+                                    class="p-3.5 sm:p-1.5 rounded-lg text-ink-3 hover:text-danger hover:bg-danger-soft transition-colors disabled:opacity-40">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
                                 </button>
                             </div>
@@ -266,6 +292,16 @@ async function sendToGarmin({ email, password, date } = {}) {
                 </div>
             </div>
         </div>
+
+        <ConfirmSheet
+            :show="pendingDelete !== null"
+            title="Workout löschen?"
+            :message="pendingDelete ? `„${pendingDelete.name}“ wird dauerhaft entfernt.` : null"
+            confirm-label="Ja, löschen"
+            :loading="deleting === pendingDelete?.id"
+            @confirm="deleteWorkout"
+            @close="pendingDelete = null"
+        />
 
         <!-- Zu Garmin senden -->
         <GarminSendSheet
