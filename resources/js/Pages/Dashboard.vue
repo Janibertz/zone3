@@ -524,7 +524,7 @@ const washTone = computed(() =>
  * umschaltbar.
  */
 const sportFilter  = ref('all');
-const sportChoices = computed(() => sportOptions(props.recentActivities));
+const sportChoices = sportOptions();
 const sportedActivities = computed(
     () => props.recentActivities.filter(a => matchesSport(a, sportFilter.value)),
 );

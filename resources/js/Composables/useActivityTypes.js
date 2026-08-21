@@ -43,30 +43,27 @@ export const GROUPS = {
 };
 
 /**
- * Filteroptionen aus dem, was der Athlet tatsächlich macht. Wer nie
- * schwimmt, braucht keinen Schwimm-Reiter — und auf einem Telefon ist der
- * Platz dafür ohnehin nicht da.
+ * Die Filterreiter: Laufen, Rad, Schwimmen — fest, nicht aus den Daten
+ * abgeleitet.
  *
- * @param {Array}  activities  Aktivitäten mit `type`
- * @param {number} max         Höchstzahl an Sportarten neben „Alle"
+ * Anfangs standen hier nur die Sportarten, die der Athlet auch betreibt.
+ * Das war als Aufräumen gedacht, nimmt der App aber ihre Form: die drei
+ * Disziplinen sind die Struktur, auf die Zone3 zulaufen soll, und ein
+ * leerer Schwimm-Reiter ist eine Einladung, keine Lücke.
+ *
+ * Gehen, Kraft und alles Übrige bleiben klassifiziert — sie zählen unter
+ * „Alle" mit, bekommen aber keinen eigenen Reiter. Die Summe der drei
+ * Disziplinen ist deshalb kleiner als „Alle", und das ist richtig so.
  */
-export function sportOptions(activities, max = 3) {
-    const counts = new Map();
+export const SPORT_FILTERS = [
+    { value: 'all',  label: 'Alle' },
+    { value: 'run',  label: 'Laufen' },
+    { value: 'ride', label: 'Rad' },
+    { value: 'swim', label: 'Schwimmen' },
+];
 
-    (activities ?? []).forEach(a => {
-        const g = activityType(a.type).group;
-        counts.set(g, (counts.get(g) ?? 0) + 1);
-    });
-
-    const sorted = [...counts.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, max)
-        .map(([group]) => ({ value: group, label: GROUPS[group] ?? group }));
-
-    // Ein einzelner Reiter neben „Alle" ist kein Filter, sondern Zierde.
-    if (sorted.length < 2) return [];
-
-    return [{ value: 'all', label: 'Alle' }, ...sorted];
+export function sportOptions() {
+    return SPORT_FILTERS;
 }
 
 /** Passt eine Aktivität zur gewählten Gruppe? */

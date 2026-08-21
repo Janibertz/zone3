@@ -128,7 +128,7 @@ class StatisticsController extends Controller
 
         return Inertia::render('Statistics', [
             'sport'        => $sport,
-            'sportOptions' => $this->sportOptions($user->id),
+            'sportOptions' => $this->sportOptions(),
             'monthlyStats' => $monthlyStats,
             'weeklyStats'  => $weeklyStats,
             'paceTrend'    => $paceTrend,
@@ -143,30 +143,27 @@ class StatisticsController extends Controller
     }
 
     /**
-     * Nur die Sportarten anbieten, die der Athlet auch betreibt — ein Reiter
-     * fuer Schwimmen, unter dem nie etwas steht, hilft niemandem, und auf dem
-     * Telefon ist der Platz ohnehin knapp.
+     * Die Filterreiter: Laufen, Rad, Schwimmen — fest, nicht aus dem
+     * Datenbestand abgeleitet.
+     *
+     * Zuerst standen hier nur die Sportarten, die der Athlet auch betreibt.
+     * Das nimmt der App aber ihre Form: die drei Disziplinen sind die
+     * Struktur, auf die Zone3 zulaeuft, und ein leerer Schwimm-Reiter ist
+     * eine Einladung, keine Luecke. Gehen und Kraft zaehlen unter "Alle"
+     * mit, ohne eigenen Reiter — die Summe der drei ist deshalb kleiner als
+     * "Alle", und das ist richtig so.
+     *
+     * Dieselbe Liste steht in useActivityTypes.js; sie muss zusammenpassen.
      *
      * @return list<array{value: string, label: string}>
      */
-    private function sportOptions(int $userId): array
+    private function sportOptions(): array
     {
-        $present = Activity::where('user_id', $userId)
-            ->select('type')
-            ->distinct()
-            ->pluck('type')
-            ->all();
-
-        $labels = ['run' => 'Laufen', 'ride' => 'Rad', 'swim' => 'Schwimmen', 'walk' => 'Gehen', 'strength' => 'Kraft'];
-        $groups = [];
-
-        foreach (self::SPORT_TYPES as $group => $types) {
-            if (array_intersect($types, $present)) {
-                $groups[] = ['value' => $group, 'label' => $labels[$group]];
-            }
-        }
-
-        // Ein einzelner Reiter neben "Alle" ist kein Filter, sondern Zierde.
-        return count($groups) < 2 ? [] : array_merge([['value' => 'all', 'label' => 'Alle']], $groups);
+        return [
+            ['value' => 'all',  'label' => 'Alle'],
+            ['value' => 'run',  'label' => 'Laufen'],
+            ['value' => 'ride', 'label' => 'Rad'],
+            ['value' => 'swim', 'label' => 'Schwimmen'],
+        ];
     }
 }

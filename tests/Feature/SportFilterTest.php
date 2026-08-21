@@ -84,32 +84,46 @@ class SportFilterTest extends TestCase
             ->assertInertia(fn ($page) => $page->has('paceTrend', 2));
     }
 
-    /** Nur angebotene Sportarten, die es auch gibt. */
-    public function test_only_practised_sports_are_offered(): void
+    /**
+     * Die drei Disziplinen stehen fest — auch fuer jemanden, der noch nie
+     * geschwommen ist. Sie sind die Struktur der App, nicht eine Auswertung
+     * des Datenbestands.
+     */
+    public function test_the_three_disciplines_are_always_offered(): void
     {
         $user = $this->athlete();
 
         $this->actingAs($user)->get(route('statistics.index'))
             ->assertInertia(function ($page) {
-                $options = collect($page->toArray()['props']['sportOptions'])->pluck('value');
+                $options = collect($page->toArray()['props']['sportOptions'])->pluck('value')->all();
 
-                $this->assertContains('all', $options);
-                $this->assertContains('run', $options);
-                $this->assertContains('ride', $options);
-                $this->assertContains('walk', $options);
-                $this->assertNotContains('swim', $options, 'Schwimmen steht nicht im Datenbestand');
+                $this->assertSame(['all', 'run', 'ride', 'swim'], $options);
             });
     }
 
-    /** Wer nur läuft, braucht keinen Filter. */
-    public function test_a_single_sport_gets_no_filter(): void
+    /** Auch wer ausschliesslich laeuft, sieht die Reiter. */
+    public function test_a_single_sport_still_gets_the_filter(): void
     {
         $user = User::factory()->create(['onboarding_completed_at' => now()]);
         $this->addActivity($user, 'Run', 10);
-        $this->addActivity($user, 'TrailRun', 14);
 
         $this->actingAs($user)->get(route('statistics.index'))
-            ->assertInertia(fn ($page) => $page->where('sportOptions', []));
+            ->assertInertia(fn ($page) => $page->has('sportOptions', 4));
+    }
+
+    /**
+     * Gehen und Kraft haben keinen Reiter, zaehlen aber unter „Alle" mit.
+     * Die Summe der drei Disziplinen ist deshalb kleiner als „Alle".
+     */
+    public function test_activities_without_a_tab_still_count_under_all(): void
+    {
+        $user = $this->athlete(); // 22 km Laufen, 40 km Rad, 3 km Gehen
+
+        $this->actingAs($user)->get(route('statistics.index'))
+            ->assertInertia(fn ($page) => $page->where('totals.km', 65));
+
+        $this->actingAs($user)->get(route('statistics.index', ['sport' => 'swim']))
+            ->assertInertia(fn ($page) => $page->where('totals.runs', 0));
     }
 
     /** Ein erfundener Wert in der URL fällt auf „alle" zurück. */
