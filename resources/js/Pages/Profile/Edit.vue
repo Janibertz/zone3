@@ -557,7 +557,14 @@ const inputClass = 'z-input';
 <template>
     <Head title="Profil" />
     <AuthenticatedLayout>
-        <div class="px-4 py-4 lg:px-6 lg:py-6 space-y-5">
+        <!--
+            flex-col statt space-y: auf dem Telefon stand die Abschnittsliste
+            hinter rund 1200 Pixeln Bestzeiten. Die Liste ist aber die
+            Navigation dieser Seite — man scrollte an allem vorbei, um
+            ueberhaupt irgendwohin zu kommen. Per order steht sie jetzt oben;
+            ab lg bleibt die bisherige Reihenfolge.
+        -->
+        <div class="flex flex-col gap-5 px-4 py-4 lg:px-6 lg:py-6">
 
             <!-- ══ PROFILE HERO ══ -->
             <div class="bg-surface rounded-card shadow-card p-5 sm:p-6">
@@ -636,7 +643,9 @@ const inputClass = 'z-input';
             </div>
 
             <!-- ══ PERSÖNLICHE REKORDE ══ -->
-            <div v-if="hasAnyPr" class="bg-surface rounded-card shadow-card p-5 sm:p-6">
+            <!-- Waehrend ein Abschnitt offen ist, haben die Rekorde darunter nichts zu suchen. -->
+            <div v-if="hasAnyPr" class="order-3 rounded-card bg-surface p-5 shadow-card sm:p-6 lg:order-none"
+                :class="sectionOpen ? 'hidden lg:block' : ''">
                 <div class="flex items-center gap-3">
                     <span class="text-xl">🏆</span>
                     <div>
@@ -674,7 +683,7 @@ const inputClass = 'z-input';
             </div>
 
             <!-- ══ ABSCHNITTE — Telefon: Liste ══ -->
-            <div v-if="!sectionOpen" class="overflow-hidden rounded-card bg-surface shadow-card lg:hidden">
+            <div v-if="!sectionOpen" class="order-2 overflow-hidden rounded-card bg-surface shadow-card lg:order-none lg:hidden">
                 <button
                     v-for="(tab, i) in tabs"
                     :key="tab.key"
@@ -697,7 +706,7 @@ const inputClass = 'z-input';
             <button
                 v-if="sectionOpen"
                 type="button"
-                class="-ml-2 inline-flex h-11 items-center gap-1 rounded-field px-2 text-sm font-medium text-ink-3 transition-colors active:text-ink lg:hidden"
+                class="order-1 -ml-2 inline-flex h-11 items-center gap-1 rounded-field px-2 text-sm font-medium text-ink-3 transition-colors active:text-ink lg:order-none lg:hidden"
                 @click="sectionOpen = false"
             >
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
@@ -707,7 +716,7 @@ const inputClass = 'z-input';
             </button>
 
             <!-- ══ REITER — ab lg ══ -->
-            <div class="hidden gap-1 rounded-full bg-surface-2 p-1 lg:flex" role="tablist">
+            <div class="order-2 hidden gap-1 rounded-full bg-surface-2 p-1 lg:order-none lg:flex" role="tablist">
                 <button
                     v-for="tab in tabs"
                     :key="tab.key"
@@ -725,7 +734,7 @@ const inputClass = 'z-input';
             </div>
 
             <!-- ══ TAB CONTENT ══ -->
-            <div class="overflow-hidden rounded-card bg-surface shadow-card"
+            <div class="order-2 overflow-hidden rounded-card bg-surface shadow-card lg:order-none"
                 :class="sectionOpen ? 'block' : 'hidden lg:block'">
 
                 <!-- ── PERSÖNLICH ── -->
