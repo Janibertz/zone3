@@ -120,6 +120,101 @@ class GarminHealthSummary
     }
 
     /**
+     * Die Werte von heute Nacht — nicht der Wochenschnitt.
+     *
+     * Für den Plan ist der 7-Tage-Schnitt die richtige Auflösung: er zeigt
+     * einen Trend und lässt sich von einer schlechten Nacht nicht aus der
+     * Ruhe bringen. Für die Frage „was mache ich heute" ist er zu träge.
+     * Wer nach vier Stunden Schlaf mit einer HRV 20 % unter der Grundlinie
+     * aufsteht, soll heute etwas anderes laufen — und nicht erst, wenn der
+     * Wochenschnitt nachgezogen hat.
+     *
+     * Verglichen wird trotzdem gegen die eigene Grundlinie: 45 ms HRV sind
+     * für den einen ein Bestwert und für den anderen ein Warnsignal.
+     *
+     * @return array{has_data: bool, lines: list<string>, flags: list<string>, readiness: int|null}
+     */
+    public function forDay(int $userId, ?CarbonImmutable $day = null): array
+    {
+        $day = $day ?? CarbonImmutable::today();
+
+        $today = GarminDailyMetric::where('user_id', $userId)
+            ->whereDate('date', $day->toDateString())
+            ->first();
+
+        if (! $today) {
+            return ['has_data' => false, 'lines' => [], 'flags' => [], 'readiness' => null];
+        }
+
+        $baseline = GarminDailyMetric::where('user_id', $userId)
+            ->where('date', '>=', $day->subDays(self::BASELINE_DAYS)->toDateString())
+            ->where('date', '<', $day->toDateString())
+            ->get();
+
+        $lines = [];
+        $flags = [];
+
+        $against = function (string $field, ?float $value) use ($baseline): ?float {
+            $avg = $this->average($baseline, $field);
+
+            return ($avg === null || $avg == 0.0 || $value === null) ? null : ($value - $avg) / $avg * 100;
+        };
+
+        if ($today->hrv !== null) {
+            $pct = $against('hrv', $today->hrv);
+            $lines[] = sprintf('HRV heute Nacht: %.0f ms%s', $today->hrv,
+                $pct === null ? '' : sprintf(' (%s zur Grundlinie)', $this->deltaLabel($pct)));
+
+            // Unter −10 % ist keine Tagesschwankung mehr.
+            if ($pct !== null && $pct <= -10) {
+                $flags[] = sprintf('HRV %.0f %% unter der Grundlinie', abs($pct));
+            }
+        }
+
+        if ($today->resting_hr !== null) {
+            $pct = $against('resting_hr', $today->resting_hr);
+            $lines[] = sprintf('Ruhepuls heute: %d bpm%s', $today->resting_hr,
+                $pct === null ? '' : sprintf(' (%s zur Grundlinie)', $this->deltaLabel($pct)));
+
+            if ($pct !== null && $pct >= 7) {
+                $flags[] = sprintf('Ruhepuls %.0f %% über der Grundlinie', $pct);
+            }
+        }
+
+        if ($today->sleep_hours !== null) {
+            $lines[] = sprintf('Schlaf letzte Nacht: %.1f h%s', $today->sleep_hours,
+                $today->sleep_score !== null ? sprintf(' (Score %d/100)', $today->sleep_score) : '');
+
+            if ($today->sleep_hours < 5.5) {
+                $flags[] = sprintf('nur %.1f h Schlaf', $today->sleep_hours);
+            }
+        }
+
+        if ($today->body_battery_high !== null) {
+            $lines[] = sprintf('Body Battery: auf %d geladen', $today->body_battery_high);
+
+            if ($today->body_battery_high < 50) {
+                $flags[] = sprintf('Body Battery nur bei %d', $today->body_battery_high);
+            }
+        }
+
+        if ($today->training_readiness !== null) {
+            $lines[] = sprintf('Training Readiness: %d/100', $today->training_readiness);
+
+            if ($today->training_readiness < 35) {
+                $flags[] = sprintf('Garmin meldet Readiness %d/100', $today->training_readiness);
+            }
+        }
+
+        return [
+            'has_data'  => ! empty($lines),
+            'lines'     => $lines,
+            'flags'     => $flags,
+            'readiness' => $today->training_readiness,
+        ];
+    }
+
+    /**
      * Der fertige Prompt-Abschnitt. Ohne Daten kommt bewusst ein Hinweis
      * zurück statt gar nichts — sonst bewertet das Modell das Fehlen als
      * „alles in Ordnung".

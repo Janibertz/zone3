@@ -474,10 +474,28 @@ PROMPT;
      * Adjust a single training session based on today's wellbeing data.
      * Returns updated session fields or null on failure.
      */
-    public function adjustSessionForWellbeing(array $session, \App\Models\WellbeingEntry $wellbeing): ?array
+    /**
+     * @param  array  $garmin  Tageswerte aus {@see \App\Services\GarminHealthSummary::forDay()}
+     */
+    public function adjustSessionForWellbeing(array $session, \App\Models\WellbeingEntry $wellbeing, array $garmin = []): ?array
     {
         $sick    = $wellbeing->is_sick    ? 'Ja' : 'Nein';
         $injured = $wellbeing->is_injured ? 'Ja' : 'Nein';
+
+        // Die gemessenen Werte der Uhr. Sie liegen längst in der Datenbank und
+        // fließen in die Planerstellung ein — nur die tägliche Anpassung sah
+        // sie nicht. Der Plan-Prompt sagt „gemessene Erholung schlägt die
+        // Selbsteinschätzung"; genau hier wurde danach nicht gehandelt.
+        if (! empty($garmin['has_data'])) {
+            $garminText = "\n\n**Gemessene Werte der Uhr (heute Nacht):**\n- "
+                . implode("\n- ", $garmin['lines']);
+
+            if (! empty($garmin['flags'])) {
+                $garminText .= "\n\n⚠️ Auffällig: " . implode(', ', $garmin['flags']) . '.';
+            }
+        } else {
+            $garminText = "\n\n**Gemessene Werte der Uhr:** keine vorhanden — entscheide allein nach der Selbsteinschätzung.";
+        }
 
         $prompt = <<<PROMPT
 Du bist ein Lauf-Coach. Passe die folgende Trainingseinheit an den aktuellen Gesundheitszustand des Athleten an.
@@ -498,7 +516,7 @@ Du bist ein Lauf-Coach. Passe die folgende Trainingseinheit an den aktuellen Ges
 - Muskelkater: {$wellbeing->muscle_soreness}/10
 - Stress: {$wellbeing->stress_level}/10
 - Krank: {$sick}
-- Verletzt: {$injured}
+- Verletzt: {$injured}{$garminText}
 
 **Anpassungsregeln:**
 - Krank oder verletzt → Typ "rest", Distanz 0, Dauer 0, Intensität "rest"
@@ -506,6 +524,13 @@ Du bist ein Lauf-Coach. Passe die folgende Trainingseinheit an den aktuellen Ges
 - Muskelkater ≥ 7 → Typ zu "easy_run", Intensität "low", Pace 30-45 Sek langsamer
 - Stress ≥ 8 → Dauer kürzen um 20%, Intensität reduzieren
 - Sonst → leichte Anpassung der Beschreibung mit Hinweis auf Wellbeing
+
+**Wenn die Uhr etwas anderes sagt als der Athlet:**
+- Die gemessenen Werte wiegen schwerer als die Selbsteinschätzung. Wer sich gut fühlt, aber eine deutlich gefallene HRV, einen erhöhten Ruhepuls oder eine Readiness unter 35 hat, bekommt trotzdem die leichtere Einheit — die Uhr sieht die Erholung, das Gefühl sieht die Motivation.
+- Umgekehrt gilt das nicht: Wer sich schlecht fühlt, bekommt die leichtere Einheit auch dann, wenn die Werte gut aussehen.
+- Ein einzelnes Warnsignal → Intensität eine Stufe zurück, Umfang um 20 % kürzen. Zwei oder mehr → auf easy_run in Zone 2 zurückfallen.
+- Kürze die Einheit, statt sie zu streichen. Nur bei Krankheit, Verletzung oder mehreren schweren Signalen wird daraus ein Ruhetag.
+- Sage in der description in einem Halbsatz, WORAN die Anpassung liegt („Ruhepuls 8 % über der Grundlinie"). Der Athlet soll die Zahl sehen, nicht nur das Ergebnis.
 
 Antworte ausschließlich mit JSON (kein anderer Text):
 {

@@ -6,6 +6,7 @@ use App\Models\TrainingSession;
 use App\Models\WellbeingEntry;
 use App\Models\User;
 use App\Services\AI\SessionContentService;
+use App\Services\GarminHealthSummary;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -22,7 +23,7 @@ class AdjustPlanForWellbeingJob implements ShouldQueue
         public readonly int $wellbeingEntryId,
     ) {}
 
-    public function handle(SessionContentService $sessions): void
+    public function handle(SessionContentService $sessions, GarminHealthSummary $garmin): void
     {
         $user = User::find($this->userId);
         if (! $user) return;
@@ -48,7 +49,13 @@ class AdjustPlanForWellbeingJob implements ShouldQueue
             return;
         }
 
-        $adjusted = $sessions->adjustSessionForWellbeing($session->toArray(), $wellbeing);
+        // Die gemessenen Werte des Tages — nicht der Wochenschnitt. Fuer die
+        // Frage "was mache ich heute" ist der zu traege: wer nach vier
+        // Stunden Schlaf aufsteht, soll heute etwas anderes laufen und nicht
+        // erst, wenn der Schnitt nachgezogen hat.
+        $metrics = $garmin->forDay($this->userId, \Carbon\CarbonImmutable::parse($today));
+
+        $adjusted = $sessions->adjustSessionForWellbeing($session->toArray(), $wellbeing, $metrics);
 
         if (! $adjusted) {
             Log::warning('AdjustPlanForWellbeingJob: AI returned no result', [
@@ -64,9 +71,10 @@ class AdjustPlanForWellbeingJob implements ShouldQueue
         ])));
 
         Log::info('AdjustPlanForWellbeingJob: session adjusted', [
-            'user_id'    => $this->userId,
-            'session_id' => $session->id,
-            'new_type'   => $adjusted['type'] ?? null,
+            'user_id'      => $this->userId,
+            'session_id'   => $session->id,
+            'new_type'     => $adjusted['type'] ?? null,
+            'garmin_flags' => $metrics['flags'] ?? [],
         ]);
     }
 
