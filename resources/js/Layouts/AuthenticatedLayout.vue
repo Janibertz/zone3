@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useDarkMode } from '@/Composables/useDarkMode';
 import { useCoachChat } from '@/Composables/useCoachChat';
@@ -13,6 +13,34 @@ import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 
 const { updateReady, startVersionPolling, reload } = useVersionCheck();
 onMounted(() => startVersionPolling());
+
+/**
+ * Der schwebende Hilfe-Knopf blendet sich beim Abwärtsscrollen aus.
+ *
+ * Er liegt ueber dem Inhalt und verdeckte deshalb in jeder Scrollposition
+ * Text. Beim Lesen geht es abwaerts — dann ist er weg; beim Hochwischen und
+ * ganz oben ist er wieder da. Bewusst nicht "waehrend des Scrollens
+ * ausblenden und danach zurueck": genau beim Stehenbleiben will man lesen,
+ * und genau dann laege er wieder im Weg.
+ */
+const helpVisible = ref(true);
+
+onMounted(() => {
+    let last = window.scrollY;
+
+    const onScroll = () => {
+        const y = window.scrollY;
+
+        // Kleine Ausschlaege ignorieren, sonst flackert er bei jedem Wackeln.
+        if (Math.abs(y - last) < 8) return;
+
+        helpVisible.value = y < last || y < 40;
+        last = y;
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onUnmounted(() => window.removeEventListener('scroll', onScroll));
+});
 
 // Pull-to-refresh (touch devices only)
 const { pullDistance, refreshing, threshold: ptrThreshold } = usePullToRefresh();
@@ -392,9 +420,17 @@ const moreNavItems = computed(() => {
         <!-- Coach Chat Slide-Over -->
         <CoachSlideOver />
 
-        <!-- Floating Help Button -->
+        <!--
+            Der Hilfe-Knopf schwebt ueber dem Inhalt und lag damit in jeder
+            Scrollposition auf irgendeinem Text — auf 390 Pixeln faellt das
+            deutlich mehr auf als am Desktop. Er verschwindet jetzt, sobald es
+            abwaerts geht, und kommt beim Hochwischen zurueck.
+        -->
         <Link :href="route('support.tickets.index')"
-            class="fixed bottom-24 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-accent text-white shadow-card transition-all hover:scale-105 lg:bottom-6 lg:right-6"
+            class="fixed bottom-24 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-accent text-white shadow-card transition-all duration-200 hover:scale-105 lg:bottom-6 lg:right-6"
+            :class="helpVisible
+                ? 'pointer-events-auto translate-y-0 opacity-100'
+                : 'pointer-events-none translate-y-4 opacity-0'"
             title="Support & Feedback"
         >
             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
