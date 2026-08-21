@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue';
-import { sessionType } from '@/Composables/useSessionTypes';
+import { paceWithUnit, sessionType } from '@/Composables/useSessionTypes';
 
 /**
  * Eine Trainingseinheit als Karte — geplant, empfohlen oder eingebucht.
@@ -32,7 +32,8 @@ const metrics = computed(() => {
     const out = [];
     if (s.duration_min) out.push(`${s.duration_min} min`);
     if (s.distance_km)  out.push(`${s.distance_km} km`);
-    if (s.pace_target && s.pace_target !== 'null') out.push(`${s.pace_target} /km`);
+    const pace = paceWithUnit(s.pace_target);
+    if (pace) out.push(pace);
     if (s.zone)         out.push(`Zone ${s.zone}`);
     return out;
 });
@@ -45,12 +46,18 @@ const metrics = computed(() => {
         class="block rounded-card bg-surface p-5 shadow-card"
         :class="href ? 'transition-transform duration-150 active:scale-[0.99]' : ''"
     >
-        <div class="flex items-start justify-between gap-3">
+        <!--
+            Auf dem Telefon standen die beiden Pillen neben dem Titel und
+            liessen ihm rund 110 Pixel: aus „Sanfter Wiedereinstieg" wurde
+            „Sanfter Wi…". Der Titel ist das Wichtigste an der Karte — er
+            bekommt jetzt die volle Breite, die Pillen ruecken darunter.
+        -->
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
             <div class="flex min-w-0 items-center gap-2.5">
                 <span class="shrink-0 text-xl leading-none">{{ meta.emoji }}</span>
-                <h3 class="truncate text-[17px] font-bold leading-tight text-ink">{{ session.title }}</h3>
+                <h3 class="text-[17px] font-bold leading-tight text-ink">{{ session.title }}</h3>
             </div>
-            <div class="flex shrink-0 gap-1.5">
+            <div class="flex flex-wrap gap-1.5 sm:shrink-0">
                 <span class="rounded-full px-2.5 py-1 text-[12px] font-semibold" :class="meta.pill">{{ meta.label }}</span>
                 <span v-if="badge" class="rounded-full px-2.5 py-1 text-[12px] font-semibold" :class="badgeClass">{{ badge }}</span>
             </div>

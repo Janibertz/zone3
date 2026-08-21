@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
-import { sessionType } from '@/Composables/useSessionTypes';
+import { paceWithUnit, sessionType } from '@/Composables/useSessionTypes';
 import AppButton from '@/Components/UI/AppButton.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
@@ -279,7 +279,8 @@ function plannedSummary(session) {
     const bits = [];
     if (p.distance_km)  bits.push(`${p.distance_km} km`);
     if (p.duration_min) bits.push(`${p.duration_min} min`);
-    if (p.pace_target)  bits.push(`${p.pace_target} /km`);
+    const pace = paceWithUnit(p.pace_target);
+    if (pace) bits.push(pace);
 
     return bits.join(' · ');
 }

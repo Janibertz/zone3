@@ -52,6 +52,23 @@ export function sessionType(type) {
     return { ...meta, ...ACCENTS[meta.accent] };
 }
 
+/**
+ * Die Pace-Vorgabe einer Einheit mit genau einer Einheit dahinter.
+ *
+ * Angezeigt wurde „5:08–5:43 min/km /km": die Karte haengte „/km" an, und
+ * seit die Tempotabelle im Plan-Prompt die Paces als „min/km" nennt, schreibt
+ * das Modell die Einheit selbst mit in pace_target. Beides zusammen ergab den
+ * doppelten Zusatz. Hier wird ein vorhandener Zusatz abgeraeumt, egal in
+ * welcher Schreibweise er kommt.
+ */
+export function paceWithUnit(paceTarget) {
+    if (!paceTarget || paceTarget === 'null') return null;
+
+    const clean = String(paceTarget).replace(/\s*(min)?\s*\/\s*km\.?\s*$/i, '').trim();
+
+    return clean ? `${clean} /km` : null;
+}
+
 export function useSessionTypes() {
-    return { sessionType, SESSION_TYPES };
+    return { sessionType, SESSION_TYPES, paceWithUnit };
 }
