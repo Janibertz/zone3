@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 
 const props = defineProps({
     activities:       { type: Array, default: () => [] },
@@ -20,16 +20,19 @@ function prevMonth() {
     if (calMonth.value === 0) { calMonth.value = 11; calYear.value--; }
     else calMonth.value--;
     selected.value = null;
+    selectToday();
 }
 function nextMonth() {
     if (calMonth.value === 11) { calMonth.value = 0; calYear.value++; }
     else calMonth.value++;
     selected.value = null;
+    selectToday();
 }
 function goToday() {
     calYear.value  = today.getFullYear();
     calMonth.value = today.getMonth();
     selected.value = null;
+    selectToday();
 }
 
 const monthLabel = computed(() =>
@@ -148,12 +151,40 @@ function visibleSessions(d) {
     return d.sessions;
 }
 
+/**
+ * Jeder Tag des Monats ist waehlbar — auch ein leerer.
+ *
+ * Vorher passierte beim Antippen eines Tages ohne Inhalt schlicht nichts.
+ * Am Schreibtisch faellt das kaum auf, weil die Zelle den Inhalt selbst
+ * zeigt; auf dem Telefon zeigt die Zelle nur noch Punkte, und dann ist ein
+ * Tippen ohne jede Reaktion ein kaputter Knopf.
+ */
 function selectDay(d) {
     if (!d.currentMonth) return;
-    const sessions = visibleSessions(d);
-    if (d.activities.length === 0 && !d.event && sessions.length === 0) return;
-    selected.value = { day: d.day, activities: d.activities, event: d.event, sessions };
+    selected.value = { day: d.day, activities: d.activities, event: d.event, sessions: visibleSessions(d) };
 }
+
+const selectedDate = computed(() => {
+    if (!selected.value) return '';
+    return new Date(calYear.value, calMonth.value, selected.value.day)
+        .toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+});
+
+const selectedIsEmpty = computed(() =>
+    selected.value
+    && !selected.value.event
+    && selected.value.activities.length === 0
+    && selected.value.sessions.length === 0
+);
+
+/** Beim Aufschlagen steht der heutige Tag unten — nicht eine leere Karte. */
+function selectToday() {
+    const week = calendarWeeks.value.flat();
+    const d = week.find(x => x.isToday) ?? week.find(x => x.currentMonth);
+    if (d) selectDay(d);
+}
+
+onMounted(selectToday);
 
 const sessionTypeLabels = {
     rest: 'Ruhetag', easy_run: 'Lockerer Lauf', tempo_run: 'Tempolauf',
@@ -190,25 +221,25 @@ const sessionDotColors = {
                 </div>
                 <div class="flex items-center gap-2">
                     <button @click="prevMonth"
-                        class="h-9 w-9 rounded-field flex items-center justify-center bg-surface text-ink-3 hover:text-ink hover:border-line-strong transition">
+                        class="flex h-11 w-11 items-center justify-center rounded-field bg-surface text-ink-3 transition hover:border-line-strong hover:text-ink sm:h-9 sm:w-9">
                         ‹
                     </button>
                     <button @click="goToday"
-                        class="px-4 h-9 rounded-field text-sm font-semibold bg-surface text-ink-2 hover:border-accent transition min-w-[140px] text-center">
+                        class="h-11 min-w-[140px] flex-1 rounded-field px-4 text-center text-sm font-semibold text-ink-2 transition bg-surface hover:border-accent sm:h-9 sm:flex-none">
                         {{ monthLabel }}
                     </button>
                     <button @click="nextMonth"
-                        class="h-9 w-9 rounded-field flex items-center justify-center bg-surface text-ink-3 hover:text-ink hover:border-line-strong transition">
+                        class="flex h-11 w-11 items-center justify-center rounded-field bg-surface text-ink-3 transition hover:border-line-strong hover:text-ink sm:h-9 sm:w-9">
                         ›
                     </button>
                     <button @click="goToday"
-                        class="px-4 h-9 rounded-field text-sm font-semibold bg-accent hover:opacity-90 text-white transition">
+                        class="h-11 shrink-0 rounded-field bg-accent px-4 text-sm font-semibold text-white transition hover:opacity-90 sm:h-9">
                         Heute
                     </button>
                 </div>
             </div>
 
-            <div class="flex gap-6 items-start">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
 
                 <!-- Kalender Grid -->
                 <div class="flex-1 bg-surface rounded-card border border-line overflow-hidden shadow-card">
@@ -226,18 +257,28 @@ const sessionDotColors = {
                             class="grid grid-cols-7"
                             :class="wi < calendarWeeks.length - 1 ? 'border-b border-line' : ''">
 
+                            <!--
+                                Auf dem Telefon zeigt die Zelle nur, DASS an dem
+                                Tag etwas war — Punkte statt Text. Sieben Spalten
+                                zu 44 Pixeln haben fuer Titel und Dauer keinen
+                                Platz: der Titel schrumpfte auf "…" und die
+                                Kilometer brachen mittendrin ab ("22.4 k"). Was
+                                an dem Tag ansteht, steht darunter in der
+                                Tagesliste. Ab sm bleibt alles wie gehabt.
+                            -->
                             <div v-for="(d, di) in week" :key="di"
-                                class="min-h-[90px] sm:min-h-[110px] p-1.5 sm:p-2 border-r border-line last:border-r-0 transition-colors"
+                                class="min-h-[56px] border-r border-line p-1 transition-colors last:border-r-0 sm:min-h-[110px] sm:p-2"
                                 :class="{
                                     'bg-accent-soft/50': d.isToday,
                                     'opacity-40': !d.currentMonth,
-                                    'cursor-pointer hover:bg-surface-2/50': d.currentMonth && (d.activities.length > 0 || d.event || d.sessions.length > 0),
+                                    'cursor-pointer hover:bg-surface-2/50': d.currentMonth,
+                                    'ring-2 ring-inset ring-accent': selected && selected.day === d.day && d.currentMonth,
                                 }"
                                 @click="selectDay(d)">
 
                                 <!-- Tag Zahl -->
-                                <div class="flex items-center justify-between mb-1">
-                                    <span class="text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full"
+                                <div class="mb-1 flex items-center justify-between">
+                                    <span class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
                                         :class="{
                                             'bg-accent text-white': d.isToday,
                                             'text-ink-3': !d.currentMonth,
@@ -247,11 +288,23 @@ const sessionDotColors = {
                                     </span>
                                     <!-- Event Marker -->
                                     <span v-if="d.event"
-                                        class="text-xs px-1.5 py-0.5 rounded-md font-bold text-white leading-none"
+                                        class="rounded-md px-1.5 py-0.5 text-xs font-bold leading-none text-white"
                                         :class="priorityColor(d.event.priority)">
                                         {{ d.event.priority }}
                                     </span>
                                 </div>
+
+                                <!-- Marker statt Inhalt (nur Telefon) -->
+                                <div class="flex flex-wrap items-center gap-1 px-0.5 sm:hidden">
+                                    <span v-if="d.event" class="h-1.5 w-1.5 rounded-full bg-danger" />
+                                    <span v-for="act in d.activities.slice(0, 3)" :key="'a' + act.id"
+                                        class="h-1.5 w-1.5 rounded-full bg-accent" />
+                                    <span v-for="s in visibleSessions(d).slice(0, 3)" :key="'s' + s.id"
+                                        class="h-1.5 w-1.5 rounded-full"
+                                        :class="s.status === 'skipped' ? 'bg-surface-3' : (sessionDotColors[s.type] ?? 'bg-info')" />
+                                </div>
+
+                                <div class="hidden sm:block">
 
                                 <!-- Event Label -->
                                 <div v-if="d.event"
@@ -283,20 +336,36 @@ const sessionDotColors = {
                                 <div v-if="visibleSessions(d).length > 1" class="px-1.5 text-xs text-ink-3">
                                     +{{ visibleSessions(d).length - 1 }} weitere
                                 </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Sidebar Detail Panel -->
-                <div class="hidden lg:block w-72 flex-shrink-0">
-                    <div v-if="!selected" class="bg-surface rounded-card border border-line p-5 text-center shadow-card">
-                        <div class="text-3xl mb-3">📅</div>
+                <!--
+                    Der Tagesbereich stand nur ab lg daneben. Auf dem Telefon
+                    gab es ihn gar nicht — und damit keinen Ort, an dem der
+                    Inhalt eines Tages lesbar gewesen waere. Jetzt steht er
+                    unter dem Raster und rueckt erst ab lg an die Seite.
+                -->
+                <div class="w-full lg:w-72 lg:flex-shrink-0">
+                    <div v-if="!selected" class="rounded-card border border-line bg-surface p-5 text-center shadow-card">
+                        <div class="mb-3 text-3xl">📅</div>
                         <p class="text-sm font-semibold text-ink-2">Tag auswählen</p>
-                        <p class="text-xs text-ink-3 mt-1">Klicke auf einen Tag mit Aktivitäten, Events oder Trainingseinheiten</p>
+                        <p class="mt-1 text-xs text-ink-3">Tippe auf einen Tag im Raster</p>
                     </div>
 
-                    <div v-else class="bg-surface rounded-card border border-line shadow-card overflow-hidden">
+                    <div v-else class="overflow-hidden rounded-card border border-line bg-surface shadow-card">
+                        <!-- Datum als Kopfzeile — sonst weiss man nicht, welcher Tag hier steht -->
+                        <div class="flex items-baseline justify-between gap-3 border-b border-line px-4 py-3">
+                            <p class="text-sm font-bold text-ink">{{ selectedDate }}</p>
+                            <p v-if="selected.day === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear()"
+                                class="shrink-0 text-xs font-semibold text-accent-ink">Heute</p>
+                        </div>
+
+                        <div v-if="selectedIsEmpty" class="px-4 py-6 text-center">
+                            <p class="text-sm text-ink-3">Nichts geplant, nichts aufgezeichnet.</p>
+                        </div>
                         <!-- Event -->
                         <div v-if="selected.event" class="p-4 border-b border-line">
                             <div class="flex items-center gap-2 mb-2">
@@ -360,10 +429,7 @@ const sessionDotColors = {
                         </div>
 
                         <!-- Aktivitäten -->
-                        <div class="p-4">
-                            <div v-if="selected.activities.length === 0" class="text-sm text-ink-3 text-center py-4">
-                                Keine Aktivitäten an diesem Tag
-                            </div>
+                        <div v-if="selected.activities.length" class="p-4">
                             <div v-for="act in selected.activities" :key="act.id" class="mb-4 last:mb-0">
                                 <h4 class="font-semibold text-ink text-sm mb-2">🏃 {{ act.name }}</h4>
                                 <div class="grid grid-cols-2 gap-2">
