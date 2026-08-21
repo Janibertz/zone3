@@ -48,8 +48,20 @@ class GoalCheckService
     private const ASK_FASTER_SEC = 8;    // Ziel ist schneller als die Form
     private const ASK_SLOWER_SEC = 20;   // Ziel ist deutlich langsamer
 
-    /** Darunter trägt der Unterbau die Zielzeit nicht. */
-    private const THIN_BASE = 0.6;
+    /**
+     * Darunter trägt der Unterbau die Zielzeit nicht.
+     *
+     * Zuerst standen hier 60 %. Das klang nach einer vorsichtigen Schwelle,
+     * ist aber keine: Wer zwei Drittel des nötigen Marathonumfangs läuft,
+     * hat nicht „fast genug", sondern zu wenig — und bekam von der Prüfung
+     * trotzdem Schweigen. Ein realer Fall lag bei 61 % und fiel damit um
+     * einen Prozentpunkt durch das Raster.
+     *
+     * Der Preis ist bekannt: bei 70 % wird häufiger gefragt. Das ist die
+     * richtige Richtung für den Fehler, den man machen kann — eine Frage zu
+     * viel kostet einen Klick, eine Frage zu wenig kostet ein Rennen.
+     */
+    private const THIN_BASE = 0.7;
 
     /** So kurz vor dem Rennen ist die Zielzeit Renntaktik, keine Planungsfrage. */
     private const QUIET_DAYS_BEFORE_RACE = 14;

@@ -130,6 +130,31 @@ class GoalCheckTest extends TestCase
         $this->assertSame('pace_ok_base_thin', $check['kind']);
     }
 
+    /**
+     * Der Fall, an dem die Schwelle von 60 auf 70 Prozent gehoben wurde:
+     * zwei ruhige Wochen, zwei Ausreisser. Der Median liegt bei 36,6 km und
+     * damit bei 61 % der noetigen 60 — mit der alten Schwelle ein
+     * Prozentpunkt zu viel, um zu fragen.
+     */
+    public function test_a_base_at_two_thirds_is_not_enough(): void
+    {
+        $user   = $this->athlete();
+        $monday = CarbonImmutable::today()->startOfWeek();
+
+        foreach ([[1, 22.9], [2, 24.1], [3, 49.0], [4, 81.0]] as [$w, $km]) {
+            Activity::create([
+                'user_id' => $user->id, 'strava_id' => $this->seq++, 'name' => 'Woche', 'type' => 'Run',
+                'distance' => $km * 1000, 'moving_time' => 9000, 'elapsed_time' => 9000,
+                'start_date' => $monday->subWeeks($w),
+            ]);
+        }
+
+        $check = $this->check($user, $this->marathon($user, 3, 30));
+
+        $this->assertNotNull($check, 'Median 36,6 km sind 61 % der noetigen 60 — das traegt keinen Marathon');
+        $this->assertSame('pace_ok_base_thin', $check['kind']);
+    }
+
     /** Wer den Unterbau hat, wird nicht gefragt. */
     public function test_a_solid_base_with_matching_pace_asks_nothing(): void
     {
