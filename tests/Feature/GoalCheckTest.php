@@ -1,0 +1,231 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Http\Controllers\GoalCheckController;
+use App\Models\Activity;
+use App\Models\Event;
+use App\Models\User;
+use App\Services\GoalCheckService;
+use Carbon\CarbonImmutable;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+/**
+ * Ein Trainingsplan steht auf der Annahme, dass das Ziel erreichbar ist.
+ * Nachgerechnet hat das bisher niemand — die Zahl wurde beim Anlegen des
+ * Events eingetragen und dann monatelang durchgezogen.
+ *
+ * Der Kern der Prüfung: sie steht auf zwei Beinen. Die Prognose aus der
+ * Schwellenpace beschreibt das Tempo, nicht die Fähigkeit, es über die
+ * Distanz zu halten. Ein Läufer mit 4:22 Schwellenpace und 25
+ * Wochenkilometern bekommt 3:26 als Marathonprognose — als Tempoaussage
+ * richtig, als Rennaussage falsch.
+ */
+class GoalCheckTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private int $seq = 910000;
+
+    private function athlete(float $thresholdPace = 4.3667): User
+    {
+        $user = User::factory()->create(['onboarding_completed_at' => now()]);
+        $user->runnerProfile()->create(['threshold_speed' => $thresholdPace]);
+
+        return $user->refresh();
+    }
+
+    /** Volle Wochen mit gleichmäßigem Umfang, damit der Schnitt eindeutig ist. */
+    private function weeklyVolume(User $user, float $kmPerWeek, float $longest): void
+    {
+        $monday = CarbonImmutable::today()->startOfWeek();
+
+        for ($w = 1; $w <= 4; $w++) {
+            $start = $monday->subWeeks($w);
+            Activity::create([
+                'user_id' => $user->id, 'strava_id' => $this->seq++, 'name' => 'Lang', 'type' => 'Run',
+                'distance' => $longest * 1000, 'moving_time' => 3600, 'elapsed_time' => 3600,
+                'start_date' => $start,
+            ]);
+            $rest = max(0, $kmPerWeek - $longest);
+            if ($rest > 0) {
+                Activity::create([
+                    'user_id' => $user->id, 'strava_id' => $this->seq++, 'name' => 'Rest', 'type' => 'Run',
+                    'distance' => $rest * 1000, 'moving_time' => 3600, 'elapsed_time' => 3600,
+                    'start_date' => $start->addDay(),
+                ]);
+            }
+        }
+    }
+
+    private function marathon(User $user, int $h, int $m, int $daysUntil = 60): Event
+    {
+        return Event::create([
+            'user_id' => $user->id, 'name' => 'Berlin Marathon',
+            'event_date' => now()->addDays($daysUntil),
+            'race_distance' => 'marathon', 'priority' => 'A',
+            'target_time_hours' => $h, 'target_time_minutes' => $m,
+        ]);
+    }
+
+    private function check(User $user, Event $event): ?array
+    {
+        return app(GoalCheckService::class)->forEvent($user->fresh(), $event->fresh());
+    }
+
+    // ── Der Fall, für den es die Prüfung gibt ────────────────────────────
+
+    /**
+     * Tempo trägt, Unterbau nicht. Eine Prüfung, die nur die Prognose
+     * hochrechnet, würde hier „passt schon" sagen — mit einer Zahl, die
+     * Sicherheit vortäuscht.
+     */
+    public function test_pace_carries_the_goal_but_the_base_does_not(): void
+    {
+        $user = $this->athlete();            // Schwelle 4:22 → Prognose 3:26
+        $this->weeklyVolume($user, 25, 16);  // 25 km/Woche, längster 16 km
+        $event = $this->marathon($user, 3, 30);
+
+        $check = $this->check($user, $event);
+
+        $this->assertNotNull($check);
+        $this->assertSame('pace_ok_base_thin', $check['kind']);
+        $this->assertStringContainsString('Unterbau', $check['detail']);
+        $this->assertStringContainsString('25', $check['detail'], 'Die Zahl gehört in die Begründung');
+        $this->assertNotNull($check['suggested'], 'Es braucht einen konkreten Vorschlag, nicht nur „langsamer"');
+    }
+
+    /** Wer den Unterbau hat, wird nicht gefragt. */
+    public function test_a_solid_base_with_matching_pace_asks_nothing(): void
+    {
+        $user = $this->athlete();
+        $this->weeklyVolume($user, 65, 32);
+        $event = $this->marathon($user, 3, 30);
+
+        $this->assertNull($this->check($user, $event));
+    }
+
+    // ── Beide Richtungen ─────────────────────────────────────────────────
+
+    public function test_an_unreachable_goal_is_flagged(): void
+    {
+        $user = $this->athlete();
+        $this->weeklyVolume($user, 65, 32);
+        $event = $this->marathon($user, 2, 50);   // deutlich schneller als 3:26
+
+        $check = $this->check($user, $event);
+
+        $this->assertSame('too_ambitious', $check['kind']);
+        $this->assertNotNull($check['suggested']);
+    }
+
+    /** Das motivierendere Ende: die Daten tragen mehr, als der Athlet sich zutraut. */
+    public function test_a_goal_that_sells_the_athlete_short_is_flagged(): void
+    {
+        $user = $this->athlete();
+        $this->weeklyVolume($user, 65, 32);
+        $event = $this->marathon($user, 5, 0);
+
+        $check = $this->check($user, $event);
+
+        $this->assertSame('too_conservative', $check['kind']);
+        $this->assertSame('3:25', $check['suggested'], 'Vorgeschlagen wird die Prognose, auf fünf Minuten gerundet');
+    }
+
+    // ── Wann geschwiegen wird ────────────────────────────────────────────
+
+    /** Kurz vor dem Rennen ist die Zielzeit Renntaktik, keine Planungsfrage. */
+    public function test_no_question_in_the_last_two_weeks(): void
+    {
+        $user = $this->athlete();
+        $this->weeklyVolume($user, 25, 16);
+        $event = $this->marathon($user, 3, 30, daysUntil: 9);
+
+        $this->assertNull($this->check($user, $event));
+    }
+
+    /** Ohne Laufdaten ist jede Aussage geraten. */
+    public function test_without_running_data_there_is_no_verdict(): void
+    {
+        $user  = $this->athlete();
+        $event = $this->marathon($user, 3, 30);
+
+        $this->assertNull($this->check($user, $event));
+    }
+
+    /** Der Backyard hat keine Zielzeit, die man verfehlen könnte. */
+    public function test_backyard_is_left_alone(): void
+    {
+        $user = $this->athlete();
+        $this->weeklyVolume($user, 25, 16);
+
+        $event = Event::create([
+            'user_id' => $user->id, 'name' => 'Backyard', 'event_date' => now()->addDays(60),
+            'race_distance' => 'backyard_ultra', 'priority' => 'A',
+            'target_time_hours' => 0, 'target_time_minutes' => 0, 'target_yards' => 12,
+        ]);
+
+        $this->assertNull($this->check($user, $event));
+    }
+
+    // ── Einmal fragen, nicht jeden Sonntag ───────────────────────────────
+
+    public function test_a_decision_silences_the_question(): void
+    {
+        $user  = $this->athlete();
+        $this->weeklyVolume($user, 25, 16);
+        $event = $this->marathon($user, 3, 30);
+
+        $this->assertTrue(GoalCheckController::isDue($event));
+
+        $this->actingAs($user)->postJson(route('goal-check.confirm'))->assertOk();
+
+        $this->assertFalse(GoalCheckController::isDue($event->fresh()), 'In derselben Woche nicht noch einmal');
+    }
+
+    /** Eine Entscheidung hält vier Wochen — danach ist die Lage eine andere. */
+    public function test_the_question_returns_after_four_weeks(): void
+    {
+        $user  = $this->athlete();
+        $this->weeklyVolume($user, 25, 16);
+        $event = $this->marathon($user, 3, 30);
+
+        $event->update([
+            'goal_check_week'   => '2020-W01',
+            'goal_confirmed_at' => now()->subWeeks(5),
+        ]);
+
+        $this->assertTrue(GoalCheckController::isDue($event->fresh()));
+    }
+
+    // ── Die Entscheidung wirkt ───────────────────────────────────────────
+
+    public function test_adjusting_sets_the_new_target(): void
+    {
+        $user  = $this->athlete();
+        $this->weeklyVolume($user, 25, 16);
+        $event = $this->marathon($user, 3, 30);
+
+        $this->actingAs($user)
+            ->postJson(route('goal-check.adjust'), ['hours' => 3, 'minutes' => 45])
+            ->assertOk();
+
+        $event->refresh();
+
+        $this->assertSame(3, $event->target_time_hours);
+        $this->assertSame(45, $event->target_time_minutes);
+        $this->assertNotNull($event->goal_confirmed_at, 'Ein gesetztes Ziel ist eine Entscheidung');
+    }
+
+    public function test_a_zero_target_is_refused(): void
+    {
+        $user  = $this->athlete();
+        $this->weeklyVolume($user, 25, 16);
+        $this->marathon($user, 3, 30);
+
+        $this->actingAs($user)
+            ->postJson(route('goal-check.adjust'), ['hours' => 0, 'minutes' => 0])
+            ->assertStatus(422);
+    }
+}

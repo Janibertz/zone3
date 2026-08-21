@@ -19,6 +19,11 @@ Schedule::command('ai:weekly-review')->weeklyOn(1, '07:00');
 // frueh laeuft plan:auto-update, da ist die Antwort schon zu spaet.
 Schedule::command('push:week-check')->weeklyOn(0, '18:00');
 
+// Die Zielpruefung laeuft vor der Wochenabfrage: die Woche zu planen hilft
+// wenig, wenn das Ziel nicht mehr stimmt, auf das sie hinfuehrt. Zwei Stunden
+// Abstand, damit nicht zwei Benachrichtigungen gleichzeitig ankommen.
+Schedule::command('push:goal-check')->weeklyOn(0, '16:00');
+
 // Every day at 05:00: detect plan gaps and queue regeneration for athletes with upcoming races
 Schedule::command('plan:auto-update')->dailyAt('05:00');
 

@@ -26,6 +26,7 @@ const props = defineProps({
     stravaConnected: Boolean,
     stravaAccount: Object,
     events: { type: Array, default: () => [] },
+    goalCheck:        { type: Object, default: null },
     recentActivities: {
         type: Array,
         default: () => [],
@@ -523,6 +524,56 @@ const washTone = computed(() =>
  * nur aus Laeufen kam. Jetzt zaehlt alles mit — aber sichtbar, und
  * umschaltbar.
  */
+/**
+ * Die wöchentliche Zielprüfung.
+ *
+ * Ein Trainingsplan steht auf der Annahme, dass das Ziel erreichbar ist —
+ * und die hat bisher niemand nachgerechnet. Die Karte fragt nur, wenn es
+ * etwas zu entscheiden gibt; alles Übrige entscheidet der Server.
+ */
+const goalBusy      = ref(false);
+const goalAnswered  = ref(false);
+const goalEditing   = ref(false);
+const goalHours     = ref(props.goalCheck?.suggested_hours ?? 0);
+const goalMinutes   = ref(props.goalCheck?.suggested_minutes ?? 0);
+
+async function goalConfirm() {
+    goalBusy.value = true;
+    try {
+        await axios.post('/api/goal-check/confirm');
+        goalAnswered.value = true;
+    } finally {
+        goalBusy.value = false;
+    }
+}
+
+async function goalAdjust() {
+    goalBusy.value = true;
+    try {
+        await axios.post('/api/goal-check/adjust', {
+            hours: Number(goalHours.value), minutes: Number(goalMinutes.value),
+        });
+        goalAnswered.value = true;
+        // Der Plan rechnet im Hintergrund neu; die Seite holt sich den
+        // neuen Stand, sobald der Job durch ist.
+        setTimeout(() => router.reload({ preserveScroll: true }), 1500);
+    } finally {
+        goalBusy.value = false;
+    }
+}
+
+/** „Erklär mir das" — die Frage wandert in den Chat, wo man sie besprechen kann. */
+async function goalDiscuss() {
+    goalBusy.value = true;
+    try {
+        await axios.post('/api/goal-check/discuss');
+        goalAnswered.value = true;
+        openChat(`Warum passt meine Zielzeit ${props.goalCheck?.target} für ${props.goalCheck?.event_name} nicht mehr?`);
+    } finally {
+        goalBusy.value = false;
+    }
+}
+
 const sportFilter  = ref('all');
 const sportChoices = sportOptions();
 const sportedActivities = computed(
@@ -1162,6 +1213,70 @@ async function saveWeek() {
              Inhalt laeuft ueber die volle Breite. -->
         <div class="z-wash min-h-screen" :class="washTone">
             <div class="space-y-5 px-4 py-4 lg:px-6 lg:py-6">
+
+                <!-- ══════════════════════════════════════════════════
+                     ZIELPRÜFUNG — wöchentlich, nur bei echter Abweichung
+                     ══════════════════════════════════════════════════ -->
+                <AppCard v-if="goalCheck && !goalAnswered">
+                    <div class="flex items-start gap-3">
+                        <span class="mt-0.5 shrink-0 text-xl leading-none">
+                            {{ goalCheck.kind === 'too_conservative' ? '🚀' : '🎯' }}
+                        </span>
+                        <div class="min-w-0 flex-1">
+                            <h2 class="text-[15px] font-semibold text-ink">{{ goalCheck.headline }}</h2>
+                            <p class="mt-1 text-[13px] leading-relaxed text-ink-3">{{ goalCheck.detail }}</p>
+
+                            <!-- Die beiden Zahlen nebeneinander: worauf der Plan
+                                 zielt, und was die Form derzeit trägt. -->
+                            <div class="mt-3 flex gap-2">
+                                <div class="flex-1 rounded-field bg-surface-2 px-3 py-2">
+                                    <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Dein Ziel</p>
+                                    <p class="mt-0.5 text-lg font-bold tabular-nums text-ink">{{ goalCheck.target }}</p>
+                                </div>
+                                <div class="flex-1 rounded-field bg-surface-2 px-3 py-2">
+                                    <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Deine Form</p>
+                                    <p class="mt-0.5 text-lg font-bold tabular-nums text-ink">{{ goalCheck.predicted }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Anpassen: der Vorschlag steht drin, änderbar bleibt er. -->
+                    <div v-if="goalEditing" class="mt-4 rounded-field bg-surface-2 p-3">
+                        <p class="text-[13px] font-medium text-ink-2">Neue Zielzeit</p>
+                        <div class="mt-2 flex items-center gap-2">
+                            <input v-model="goalHours" type="number" min="0" max="23" inputmode="numeric"
+                                class="z-input w-20 text-center" aria-label="Stunden" />
+                            <span class="text-lg font-bold text-ink-3">:</span>
+                            <input v-model="goalMinutes" type="number" min="0" max="59" inputmode="numeric"
+                                class="z-input w-20 text-center" aria-label="Minuten" />
+                            <span class="text-[13px] text-ink-3">Std</span>
+                        </div>
+                        <div class="mt-3 flex gap-2">
+                            <AppButton variant="ghost" size="md" class="flex-1" @click="goalEditing = false">
+                                Zurück
+                            </AppButton>
+                            <AppButton size="md" class="flex-1" :loading="goalBusy" @click="goalAdjust">
+                                Ziel setzen
+                            </AppButton>
+                        </div>
+                        <p class="mt-2 text-[12px] text-ink-3">
+                            Der Plan wird danach neu berechnet. Von dir gesetzte Einheiten bleiben erhalten.
+                        </p>
+                    </div>
+
+                    <div v-else class="mt-4 flex flex-wrap gap-2">
+                        <AppButton size="md" class="flex-1" :loading="goalBusy" @click="goalEditing = true">
+                            {{ goalCheck.suggested ? `Auf ${goalCheck.suggested} ändern` : 'Ziel anpassen' }}
+                        </AppButton>
+                        <AppButton variant="secondary" size="md" class="flex-1" :loading="goalBusy" @click="goalConfirm">
+                            Ziel bleibt
+                        </AppButton>
+                        <AppButton variant="ghost" size="md" class="w-full sm:w-auto" :loading="goalBusy" @click="goalDiscuss">
+                            Erklär mir das
+                        </AppButton>
+                    </div>
+                </AppCard>
 
                 <!-- ══════════════════════════════════════════════════
                      WOCHENABFRAGE — Sonntag und Montag

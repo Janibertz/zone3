@@ -5,7 +5,7 @@ import { useCoachChat } from '@/Composables/useCoachChat';
 import AppButton from '@/Components/UI/AppButton.vue';
 import axios from 'axios';
 
-const { isOpen, close } = useCoachChat();
+const { isOpen, close, takePending } = useCoachChat();
 const page  = usePage();
 const coach = computed(() => page.props.coach);
 
@@ -262,6 +262,17 @@ watch(isOpen, async (val) => {
         await fetchMessages();
         await nextTick();
         scrollToBottom();
+
+        // Wer den Chat aus der Zielprüfung heraus öffnet, hat seine Frage
+        // schon gestellt — sie kommt als pendingMessage mit und geht direkt
+        // raus. Ein leerer Chat würde ihn zwingen, sie noch einmal zu
+        // formulieren.
+        const pending = takePending();
+        if (pending) {
+            await sendMessage(pending);
+            return;
+        }
+
         inputEl.value?.focus();
     }
 }, { immediate: true });

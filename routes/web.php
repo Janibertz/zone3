@@ -293,6 +293,13 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             return ['used' => \App\Models\AiLog::todayCountForUser($user->id), 'limit' => $limit];
         })(),
 
+        // Die wöchentliche Zielprüfung. Sie steht vor der Wochenabfrage, weil
+        // sie die groessere Frage stellt: die Woche zu planen hilft wenig,
+        // wenn das Ziel nicht mehr stimmt, auf das sie hinführt.
+        'goalCheck' => \App\Http\Controllers\GoalCheckController::current(
+            $user, app(\App\Services\GoalCheckService::class)
+        ),
+
         // Wochenabfrage — Sonntag und Montag, einmal je Woche. Das Raster im
         // Profil ist der Normalfall; Urlaub und volle Wochen sind Ausnahmen,
         // fuer die es bisher keine Eingabe gab.
@@ -525,6 +532,12 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     // Wellbeing Routes
     Route::get('/api/wellbeing/today', [WellbeingController::class, 'today'])->name('wellbeing.today');
     // Wochenabfrage: passt die kommende Woche zum Raster im Profil?
+    // Wöchentliche Zielprüfung — bleibt das Ziel, wird es angepasst, oder
+    // wird darüber geredet?
+    Route::post('/api/goal-check/confirm', [\App\Http\Controllers\GoalCheckController::class, 'confirm'])->name('goal-check.confirm');
+    Route::post('/api/goal-check/adjust',  [\App\Http\Controllers\GoalCheckController::class, 'adjust'])->name('goal-check.adjust');
+    Route::post('/api/goal-check/discuss', [\App\Http\Controllers\GoalCheckController::class, 'discuss'])->name('goal-check.discuss');
+
     Route::post('/api/week-availability/confirm', [\App\Http\Controllers\WeekAvailabilityController::class, 'confirm'])->name('week-availability.confirm');
     Route::post('/api/week-availability',         [\App\Http\Controllers\WeekAvailabilityController::class, 'store'])->name('week-availability.store');
 
