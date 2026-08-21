@@ -20,6 +20,28 @@ class HandleInertiaRequests extends Middleware
     /**
      * Determine the current asset version.
      */
+    /**
+     * Die App im Voraus laden — aber nur fuer angemeldete Nutzer.
+     *
+     * `Vite::prefetch()` stand global im AppServiceProvider. Damit hing an
+     * jeder Seite ein Rattenschwanz von 61 prefetch-Links, auch an der
+     * Startseite: Wer zone3.run zum ersten Mal aufruft und noch gar kein
+     * Konto hat, lud im Hintergrund die komplette Anwendung herunter —
+     * Dashboard, Aktivitaeten, Workouts, Kalender. Auf dem Telefon ueber
+     * Mobilfunk ist das genau die Wartezeit, die niemand versteht.
+     *
+     * Wer angemeldet ist, profitiert davon: dort ist der naechste Klick
+     * wirklich eine dieser Seiten.
+     */
+    public function handle(Request $request, \Closure $next)
+    {
+        if ($request->user()) {
+            \Illuminate\Support\Facades\Vite::prefetch(concurrency: 3);
+        }
+
+        return parent::handle($request, $next);
+    }
+
     public function version(Request $request): ?string
     {
         return parent::version($request);
