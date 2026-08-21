@@ -337,19 +337,67 @@ const hasAnyPr = computed(() => (props.personalRecords ?? []).some(d => d.entrie
 const prDistances = computed(() => (props.personalRecords ?? []).filter(d => d.entries.length > 0));
 const medal = (rank) => (rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉');
 
-// Compact inverted sparkline path (faster time → higher) for a distance's history.
-function prSparkline(key) {
+/**
+ * Der Verlauf der Bestzeit einer Distanz.
+ *
+ * Vorher zeichnete die Linie jeden einzelnen Best-Effort, den Strava je
+ * gemeldet hat — bei 89 Läufen also 89 Punkte, überwiegend lockere
+ * Dauerläufe. Zwischen Minimum und Maximum normiert ergab das ein Zickzack,
+ * in dem jeder ruhige Lauf ein Ausschlag war. Es stand neben einer Karte
+ * mit der Überschrift „Persönliche Rekorde" und zeigte alles außer denen.
+ *
+ * Gezeichnet wird jetzt das laufende Minimum: die Treppe, auf der sich die
+ * Bestzeit verbessert hat. Sie kann nur fallen, steht also nie im
+ * Widerspruch zu den drei Zeiten darunter — und eine flache Linie heißt
+ * schlicht: seit dem ersten Mal nicht mehr unterboten.
+ */
+function prTrend(key) {
     const pts = props.prHistory?.[key] ?? [];
     if (pts.length < 2) return null;
-    const times = pts.map(p => p.elapsed_time);
-    const min = Math.min(...times);
-    const range = (Math.max(...times) - min) || 1;
-    const w = 120, h = 32, n = pts.length;
-    return pts.map((p, i) => {
+
+    let best = Infinity;
+    const records = pts.map(p => {
+        best = Math.min(best, p.elapsed_time);
+        return { date: p.date, time: best };
+    });
+
+    const first = records[0].time;
+    const last  = records[records.length - 1].time;
+    const range = (first - last) || 1;
+
+    const w = 96, h = 24, n = records.length;
+
+    // Ohne jede Verbesserung ist die Treppe eine Gerade — dann zeigt eine
+    // Linie auf halber Hoehe ehrlicher an, dass sich nichts getan hat, als
+    // eine, die am oberen Rand klebt.
+    const path = records.map((r, i) => {
         const x = (i / (n - 1)) * w;
-        const y = ((p.elapsed_time - min) / range) * (h - 4) + 2; // invert: lower time = smaller y
+        const y = first === last ? h / 2 : h - 2 - ((first - r.time) / range) * (h - 4);
         return (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1);
     }).join(' ');
+
+    const gained = Math.round(first - last);
+
+    return {
+        path,
+        w, h,
+        endX: w,
+        endY: first === last ? h / 2 : 2,
+        gained,
+        label: gained > 0
+            ? `−${formatGain(gained)} seit ${monthLabel(records[0].date)}`
+            : `unverändert seit ${monthLabel(records[0].date)}`,
+    };
+}
+
+/** „27 s" oder „1:12" — Sekunden bleiben Sekunden, ab einer Minute wird es Zeit. */
+function formatGain(sec) {
+    if (sec < 60) return `${sec} s`;
+    return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')} min`;
+}
+
+function monthLabel(iso) {
+    return new Date(iso + 'T00:00:00').toLocaleDateString('de-DE', { month: 'short', year: '2-digit' });
 }
 
 // ── Weekly availability ──────────────────────────────────────────────────────
@@ -659,11 +707,28 @@ const inputClass = 'z-input';
                         :key="dist.key"
                         class="rounded-card bg-surface-2 p-4"
                     >
-                        <div class="flex items-center justify-between mb-3">
+                        <!--
+                            Die Linie braucht eine Beschriftung, sonst ist sie
+                            Dekoration: darunter steht, wie viel die Bestzeit
+                            seit wann gewonnen hat. preserveAspectRatio="none"
+                            ist raus — es zog die Kurve in die Breite.
+                        -->
+                        <div class="mb-3 flex items-start justify-between gap-3">
                             <h3 class="text-sm font-bold text-ink">{{ dist.label }}</h3>
-                            <svg v-if="prSparkline(dist.key)" viewBox="0 0 120 32" class="h-6 w-24 text-accent" preserveAspectRatio="none">
-                                <path :d="prSparkline(dist.key)" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                            </svg>
+                            <div v-if="prTrend(dist.key)" class="shrink-0 text-right">
+                                <svg :viewBox="`0 0 ${prTrend(dist.key).w} ${prTrend(dist.key).h}`"
+                                    class="h-6 w-24 text-accent" role="img"
+                                    :aria-label="`Verlauf der Bestzeit: ${prTrend(dist.key).label}`">
+                                    <path :d="prTrend(dist.key).path" fill="none" stroke="currentColor"
+                                        stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" />
+                                    <circle :cx="prTrend(dist.key).endX - 2" :cy="prTrend(dist.key).endY"
+                                        r="2.25" fill="currentColor" />
+                                </svg>
+                                <p class="mt-0.5 text-[11px] tabular-nums"
+                                    :class="prTrend(dist.key).gained > 0 ? 'text-success' : 'text-ink-3'">
+                                    {{ prTrend(dist.key).label }}
+                                </p>
+                            </div>
                         </div>
                         <ul class="space-y-1">
                             <li v-for="entry in dist.entries" :key="entry.rank">
