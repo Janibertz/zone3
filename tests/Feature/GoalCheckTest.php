@@ -155,6 +155,34 @@ class GoalCheckTest extends TestCase
         $this->assertSame('pace_ok_base_thin', $check['kind']);
     }
 
+    /**
+     * Ein Vorschlag, der dem bestehenden Ziel entspricht, ist keiner.
+     *
+     * Der Aufschlag mass zuerst gegen 80 % Unterbau statt gegen 100, und
+     * gerundet wurde nach dem Vergleich statt davor. Bei 61 % Unterbau kamen
+     * so 2,9 % Aufschlag heraus — 3:32, gerundet 3:30, also exakt die
+     * Zielzeit, die zur Debatte stand. Der Knopf haette "Auf 3:30 aendern"
+     * geheissen.
+     */
+    public function test_the_suggestion_is_meaningfully_slower_than_the_goal(): void
+    {
+        $user   = $this->athlete();
+        $monday = CarbonImmutable::today()->startOfWeek();
+
+        foreach ([[1, 22.9], [2, 24.1], [3, 49.0], [4, 81.0]] as [$w, $km]) {
+            Activity::create([
+                'user_id' => $user->id, 'strava_id' => $this->seq++, 'name' => 'Woche', 'type' => 'Run',
+                'distance' => $km * 1000, 'moving_time' => 9000, 'elapsed_time' => 9000,
+                'start_date' => $monday->subWeeks($w),
+            ]);
+        }
+
+        $check = $this->check($user, $this->marathon($user, 3, 30));
+
+        $this->assertNotSame($check['target'], $check['suggested']);
+        $this->assertSame('3:40', $check['suggested'], 'Prognose 3:26 plus Aufschlag fuer 39 % fehlenden Unterbau');
+    }
+
     /** Wer den Unterbau hat, wird nicht gefragt. */
     public function test_a_solid_base_with_matching_pace_asks_nothing(): void
     {

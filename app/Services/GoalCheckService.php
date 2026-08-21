@@ -197,12 +197,18 @@ class GoalCheckService
             return $this->roundToFive($predictedSec);
         }
 
-        $shortfall = max(0.0, 0.8 - $endurance);
-        $suggested = (int) round($predictedSec * (1 + $shortfall * $spec['penalty']));
+        // Der Aufschlag misst gegen den vollstaendigen Unterbau, nicht gegen
+        // 80 % davon. Mit 0.8 als Bezug bekam ein Athlet bei 61 % Unterbau
+        // ganze 2,9 % Aufschlag — zwei Minuten auf einen Marathon, bei dem
+        // vierzig Prozent des noetigen Umfangs fehlen. Der Fehlbetrag muss
+        // sich im Vorschlag wiederfinden, sonst ist er Zierde.
+        $shortfall = max(0.0, 1.0 - $endurance);
+        $suggested = $this->roundToFive((int) round($predictedSec * (1 + $shortfall * $spec['penalty'])));
 
-        // Einen schnelleren Vorschlag als das bestehende Ziel gibt es hier
-        // nicht — sonst widerspricht sich die Frage selbst.
-        return $suggested > $targetSec ? $this->roundToFive($suggested) : null;
+        // Gerundet wird vor dem Vergleich, nicht danach: 3:32 wurde sonst zu
+        // 3:30 und damit zum Vorschlag, das Ziel auf das Ziel zu aendern.
+        // Und weniger als eine Rundungsstufe Unterschied ist kein Vorschlag.
+        return $suggested >= $targetSec + 300 ? $suggested : null;
     }
 
     /** Zielzeiten sind Verabredungen, keine Messwerte — auf fünf Minuten gerundet. */
