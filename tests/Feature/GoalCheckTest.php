@@ -320,6 +320,24 @@ class GoalCheckTest extends TestCase
         $this->assertFalse(GoalCheckController::isDue($event->fresh()), 'In derselben Woche nicht noch einmal');
     }
 
+    /**
+     * Nachfragen ist keine Entscheidung.
+     *
+     * Zuerst verbrauchte "Erklaer mir das" die Frage fuer die ganze Woche.
+     * Wer sich erklaeren liess und danach nichts tat, sah die Karte erst am
+     * naechsten Sonntag wieder — obwohl nichts entschieden war.
+     */
+    public function test_asking_for_an_explanation_keeps_the_question_open(): void
+    {
+        $user  = $this->athlete();
+        $this->weeklyVolume($user, 25, 16);
+        $event = $this->marathon($user, 3, 30);
+
+        $this->actingAs($user)->postJson(route('goal-check.discuss'))->assertOk();
+
+        $this->assertTrue(GoalCheckController::isDue($event->fresh()), 'Die Frage steht weiter aus');
+    }
+
     /** Eine Entscheidung hält vier Wochen — danach ist die Lage eine andere. */
     public function test_the_question_returns_after_four_weeks(): void
     {

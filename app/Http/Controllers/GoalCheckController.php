@@ -145,15 +145,21 @@ class GoalCheckController extends Controller
     }
 
     /**
-     * „Erklär mir das." Die Frage ist damit für diese Woche gestellt und
-     * beantwortet — weiter geht es im Chat, nicht auf der Karte.
+     * „Erklär mir das."
+     *
+     * Bewusst ohne Wochenmerker: Nachfragen ist keine Entscheidung. Zuerst
+     * verbrauchte dieser Klick die Frage für die ganze Woche — wer sich
+     * erklären ließ und danach nichts tat, sah die Karte erst am nächsten
+     * Sonntag wieder, obwohl nichts entschieden war. Die Frage bleibt
+     * stehen, bis sie beantwortet ist.
+     *
+     * Der Endpunkt bleibt trotzdem: Er markiert im Log, dass die Erklärung
+     * angefragt wurde, und die Oberfläche braucht eine Zusage, bevor sie
+     * den Chat öffnet.
      */
     public function discuss(Request $request): JsonResponse
     {
-        $event = self::eventFor($request->user());
-        $event?->update(['goal_check_week' => self::weekKey()]);
-
-        return response()->json(['success' => true]);
+        return response()->json(['success' => (bool) self::eventFor($request->user())]);
     }
 
     /** Der aktuelle Befund — für Dashboard und Push. */

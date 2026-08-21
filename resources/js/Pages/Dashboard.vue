@@ -8,6 +8,7 @@ import GarminSendSheet from '@/Components/UI/GarminSendSheet.vue';
 import GarminRecovery from '@/Components/GarminRecovery.vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import { matchesSport, sportOptions } from '@/Composables/useActivityTypes';
+import { useCoachChat } from '@/Composables/useCoachChat';
 import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 import { Inertia } from '@inertiajs/inertia';
 import { router } from '@inertiajs/vue3';
@@ -524,6 +525,8 @@ const washTone = computed(() =>
  * nur aus Laeufen kam. Jetzt zaehlt alles mit — aber sichtbar, und
  * umschaltbar.
  */
+const { open: openChat } = useCoachChat();
+
 /**
  * Die wöchentliche Zielprüfung.
  *
@@ -562,12 +565,15 @@ async function goalAdjust() {
     }
 }
 
-/** „Erklär mir das" — die Frage wandert in den Chat, wo man sie besprechen kann. */
+/**
+ * „Erklär mir das" — die Frage wandert in den Chat, wo man sie besprechen
+ * kann. Die Karte bleibt: Nachfragen ist keine Entscheidung, und sie steht
+ * beim nächsten Laden wieder da, bis eine gefallen ist.
+ */
 async function goalDiscuss() {
     goalBusy.value = true;
     try {
         await axios.post('/api/goal-check/discuss');
-        goalAnswered.value = true;
         openChat(`Warum passt meine Zielzeit ${props.goalCheck?.target} für ${props.goalCheck?.event_name} nicht mehr?`);
     } finally {
         goalBusy.value = false;
