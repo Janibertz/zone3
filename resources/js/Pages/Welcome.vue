@@ -25,19 +25,26 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
                     <div class="w-8 h-8 rounded-lg bg-accent flex items-center justify-center text-white font-bold text-sm">Z3</div>
                     <span class="font-bold text-lg tracking-tight">Zone3</span>
                 </div>
-                <div class="flex items-center gap-3">
+                <!--
+                    whitespace-nowrap: "Kostenlos starten" brach auf dem
+                    Telefon auf drei Zeilen um und machte aus dem Knopf einen
+                    56 Pixel hohen Klotz. Auf schmalen Geraeten steht dort
+                    "Starten" — die lange Fassung passt erst ab sm.
+                -->
+                <div class="flex shrink-0 items-center gap-2 sm:gap-3">
                     <Link v-if="$page.props.auth.user" :href="route('dashboard')"
-                        class="px-4 py-2 rounded-lg bg-accent hover:opacity-90 text-sm font-semibold transition">
+                        class="whitespace-nowrap rounded-lg bg-accent px-4 py-2 text-sm font-semibold transition hover:opacity-90">
                         Dashboard
                     </Link>
                     <template v-else>
                         <Link v-if="canLogin" :href="route('login')"
-                            class="px-4 py-2 rounded-lg text-sm font-medium text-white/70 hover:text-white transition">
+                            class="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-white/70 transition hover:text-white sm:px-4">
                             Anmelden
                         </Link>
                         <Link v-if="canRegister" :href="route('register')"
-                            class="px-4 py-2 rounded-lg bg-accent hover:opacity-90 text-sm font-semibold transition">
-                            Kostenlos starten
+                            class="whitespace-nowrap rounded-lg bg-accent px-3 py-2 text-sm font-semibold transition hover:opacity-90 sm:px-4">
+                            <span class="sm:hidden">Starten</span>
+                            <span class="hidden sm:inline">Kostenlos starten</span>
                         </Link>
                     </template>
                 </div>
