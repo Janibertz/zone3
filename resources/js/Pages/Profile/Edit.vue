@@ -30,21 +30,40 @@ const activeTab = ref('personal');
 // Alle vier Zahlen beziehen sich auf Laeufe — deshalb steht hier "Läufe"
 // und nicht "Aktivitäten": Radtouren und Schwimmen zaehlen nicht mit.
 const heroStats = computed(() => [
-    { label: 'Läufe',          value: props.athleteStats?.total_runs ?? 0 },
-    { label: 'km gesamt',      value: props.athleteStats?.total_km   ?? 0 },
-    { label: 'km längster',    value: props.athleteStats?.longest_km ?? 0 },
-    { label: 'Ø Pace',         value: props.athleteStats?.avg_pace   ?? '–' },
+    { label: 'Läufe',        value: props.athleteStats?.total_runs ?? 0 },
+    { label: 'Kilometer',    value: props.athleteStats?.total_km   ?? 0 },
+    { label: 'Längster',     value: props.athleteStats?.longest_km ?? 0, unit: 'km' },
+    { label: 'Ø Pace',       value: props.athleteStats?.avg_pace   ?? '–' },
 ]);
 
 const tabs = [
-    { key: 'personal',      label: 'Persönlich' },
-    { key: 'coach',         label: 'Mein Coach' },
-    { key: 'athlete',       label: 'Athletenprofil' },
-    { key: 'notifications', label: 'Benachrichtigungen' },
-    { key: 'connections',   label: 'Verbindungen' },
-    { key: 'security',      label: 'Sicherheit' },
-    { key: 'account',       label: 'Konto' },
+    { key: 'personal',      label: 'Persönlich',         hint: () => user.value?.name },
+    { key: 'coach',         label: 'Mein Coach',         hint: () => savedCoachName.value },
+    { key: 'athlete',       label: 'Athletenprofil',     hint: () => (props.runnerProfile?.threshold_speed ? 'Schwellenpace hinterlegt' : 'Noch unvollständig') },
+    { key: 'notifications', label: 'Benachrichtigungen', hint: () => null },
+    { key: 'connections',   label: 'Verbindungen',       hint: () => (props.stravaConnected ? 'Strava verbunden' : 'Strava nicht verbunden') },
+    { key: 'security',      label: 'Sicherheit',         hint: () => null },
+    { key: 'account',       label: 'Konto',              hint: () => null },
 ];
+
+/**
+ * Auf dem Telefon ist das Profil eine Einstellungsliste, kein Reiterband.
+ *
+ * Sieben Reiter ergaben eine Leiste von 802 Pixeln bei 343 sichtbaren:
+ * zweieinhalb Reiter zu sehen, viereinhalb hinter dem rechten Rand.
+ * Benachrichtigungen, Verbindungen, Sicherheit und Konto waren damit
+ * praktisch versteckt. Ab lg bleibt es beim Reiterband — dort ist der Platz
+ * da, und der Wechsel ohne Seitenwechsel ist bequemer.
+ */
+const sectionOpen = ref(false);
+
+function openSection(key) {
+    activeTab.value = key;
+    sectionOpen.value = true;
+    nextTick(() => window.scrollTo({ top: 0 }));
+}
+
+const activeTabLabel = computed(() => tabs.find(t => t.key === activeTab.value)?.label ?? '');
 
 const distanceOptions = ['5 km', '10 km', 'Halbmarathon', 'Marathon', 'Ultra'];
 
@@ -595,7 +614,7 @@ const inputClass = 'z-input';
                     </div>
 
                     <!-- Edit button -->
-                    <AppButton variant="secondary" size="sm" class="shrink-0 self-start sm:self-auto" @click="activeTab = 'personal'">
+                    <AppButton variant="secondary" size="sm" class="shrink-0 self-start sm:self-auto" @click="openSection('personal')">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                         </svg>
@@ -608,7 +627,9 @@ const inputClass = 'z-input';
                 <!-- Stats row -->
                 <div class="mt-5 grid grid-cols-2 gap-y-4 border-t border-line pt-5 sm:grid-cols-4">
                     <div v-for="stat in heroStats" :key="stat.label" class="min-w-0">
-                        <p class="text-2xl font-bold tabular-nums tracking-tight text-ink">{{ stat.value }}</p>
+                        <p class="text-2xl font-bold tabular-nums tracking-tight text-ink">
+                            {{ stat.value }}<span v-if="stat.unit" class="ml-0.5 text-sm font-medium text-ink-3">{{ stat.unit }}</span>
+                        </p>
                         <p class="mt-0.5 truncate text-xs font-medium uppercase tracking-wide text-ink-3">{{ stat.label }}</p>
                     </div>
                 </div>
@@ -652,13 +673,41 @@ const inputClass = 'z-input';
                 </div>
             </div>
 
-            <!-- ══ TABS ══ -->
-            <!-- Sieben Reiter passen selten in eine Zeile. Der Verlauf am
-                 rechten Rand zeigt, dass es weitergeht — vorher brach die
-                 Leiste einfach ab und „Konto" war unsichtbar. -->
-            <div class="relative">
-            <div class="flex gap-1 overflow-x-auto rounded-full bg-surface-2 p-1" role="tablist"
-                style="-webkit-overflow-scrolling:touch;scrollbar-width:none;">
+            <!-- ══ ABSCHNITTE — Telefon: Liste ══ -->
+            <div v-if="!sectionOpen" class="overflow-hidden rounded-card bg-surface shadow-card lg:hidden">
+                <button
+                    v-for="(tab, i) in tabs"
+                    :key="tab.key"
+                    type="button"
+                    class="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors active:bg-surface-2"
+                    :class="i < tabs.length - 1 ? 'border-b border-line' : ''"
+                    @click="openSection(tab.key)"
+                >
+                    <span class="min-w-0 flex-1">
+                        <span class="block text-[15px] font-medium text-ink">{{ tab.label }}</span>
+                        <span v-if="tab.hint()" class="mt-0.5 block truncate text-[13px] text-ink-3">{{ tab.hint() }}</span>
+                    </span>
+                    <svg class="h-4 w-4 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Zurück aus einem Abschnitt — nur auf dem Telefon nötig -->
+            <button
+                v-if="sectionOpen"
+                type="button"
+                class="-ml-2 inline-flex h-11 items-center gap-1 rounded-field px-2 text-sm font-medium text-ink-3 transition-colors active:text-ink lg:hidden"
+                @click="sectionOpen = false"
+            >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                </svg>
+                Profil
+            </button>
+
+            <!-- ══ REITER — ab lg ══ -->
+            <div class="hidden gap-1 rounded-full bg-surface-2 p-1 lg:flex" role="tablist">
                 <button
                     v-for="tab in tabs"
                     :key="tab.key"
@@ -674,11 +723,10 @@ const inputClass = 'z-input';
                     {{ tab.label }}
                 </button>
             </div>
-                <span class="pointer-events-none absolute inset-y-1 right-1 w-10 rounded-r-full bg-gradient-to-l from-canvas to-transparent" />
-            </div>
 
             <!-- ══ TAB CONTENT ══ -->
-            <div class="bg-surface rounded-card shadow-card overflow-hidden">
+            <div class="overflow-hidden rounded-card bg-surface shadow-card"
+                :class="sectionOpen ? 'block' : 'hidden lg:block'">
 
                 <!-- ── PERSÖNLICH ── -->
                 <template v-if="activeTab === 'personal'">
