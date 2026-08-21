@@ -28,7 +28,7 @@ defineEmits(['update:modelValue']);
             type="button"
             role="tab"
             :aria-selected="modelValue === opt.value"
-            class="flex-1 whitespace-nowrap rounded-full px-2.5 py-2 text-[13px] font-medium transition-all duration-150 active:scale-[0.98] sm:px-3 sm:text-sm"
+            class="flex-1 whitespace-nowrap rounded-full px-2.5 py-3 text-[13px] font-medium transition-all duration-150 active:scale-[0.98] sm:px-3 sm:py-2 sm:text-sm"
             :class="modelValue === opt.value
                 ? 'bg-surface text-ink shadow-card'
                 : 'text-ink-3 hover:text-ink-2'"

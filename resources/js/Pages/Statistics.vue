@@ -30,12 +30,27 @@ watch(sportFilter, (value) => {
     router.get(route('statistics.index'), { sport: value }, { preserveScroll: true, preserveState: true });
 });
 
-/** „Läufe" stimmt nur, solange auch nur Laeufe gezaehlt werden. */
-const countLabel = computed(() => ({
-    run: 'Läufe', ride: 'Fahrten', swim: 'Einheiten', walk: 'Touren', strength: 'Einheiten',
-}[props.sport] ?? 'Aktivitäten'));
+/**
+ * „Läufe" stimmt nur, solange auch nur Laeufe gezaehlt werden. Steht der
+ * Filter auf Rad, sind es Fahrten — und unter „Alle" ist es beides, also
+ * weder das eine noch das andere.
+ */
+const COUNT_WORDS = {
+    run:  ['Lauf', 'Läufe'],
+    ride: ['Fahrt', 'Fahrten'],
+    swim: ['Einheit', 'Einheiten'],
+    all:  ['Aktivität', 'Aktivitäten'],
+};
 
-const timeLabel = computed(() => (props.sport === 'run' ? 'Laufzeit' : 'Zeit'));
+const countWords = computed(() => COUNT_WORDS[props.sport] ?? COUNT_WORDS.all);
+const countLabel = computed(() => countWords.value[1]);
+const timeLabel  = computed(() => (props.sport === 'run' ? 'Laufzeit' : 'Zeit'));
+
+/** „8 Fahrten", „1 Lauf" — mit der Einzahl, wo sie hingehoert. */
+function counted(n) {
+    const [one, many] = countWords.value;
+    return `${n ?? 0} ${(n ?? 0) === 1 ? one : many}`;
+}
 
 const hasData = computed(() => (props.totals?.runs ?? 0) > 0);
 
@@ -255,7 +270,7 @@ const avgDistance = computed(() => {
                                             <span class="text-sm font-medium text-ink-3">km</span>
                                         </p>
                                         <p class="mt-1 text-[13px] text-ink-3">
-                                            {{ active?.runs ?? 0 }} {{ (active?.runs ?? 0) === 1 ? 'Lauf' : 'Läufe' }}
+                                            {{ counted(active?.runs) }}
                                             <template v-if="active?.time_min"> · {{ formatTime(active.time_min) }}</template>
                                         </p>
                                     </div>
@@ -386,7 +401,7 @@ const avgDistance = computed(() => {
                                 </div>
 
                                 <p v-else class="px-5 py-12 text-center text-sm text-ink-3">
-                                    Noch zu wenig Läufe für einen Trend
+                                    Noch zu wenig Daten für einen Trend
                                 </p>
 
                                 <div v-if="paceStats" class="mt-5 grid grid-cols-3 divide-x divide-line border-t border-line">
@@ -417,14 +432,14 @@ const avgDistance = computed(() => {
                                 label="Beste Woche"
                                 :value="km(bestWeek.km)"
                                 unit="km"
-                                :hint="`${bestWeek.label} · ${bestWeek.runs} Läufe`"
+                                :hint="`${bestWeek.label} · ${counted(bestWeek.runs)}`"
                             />
                             <StatTile
                                 v-if="bestMonth"
                                 label="Bester Monat"
                                 :value="km(bestMonth.km)"
                                 unit="km"
-                                :hint="`${bestMonth.label} · ${bestMonth.runs} Läufe`"
+                                :hint="`${bestMonth.label} · ${counted(bestMonth.runs)}`"
                             />
                             <StatTile
                                 v-if="longestRun"
@@ -438,7 +453,7 @@ const avgDistance = computed(() => {
                                 label="Ø pro Lauf"
                                 :value="km(avgDistance)"
                                 unit="km"
-                                :hint="`über ${totals.runs} Läufe`"
+                                :hint="`über ${counted(totals.runs)}`"
                             />
                         </div>
                     </section>
@@ -447,7 +462,7 @@ const avgDistance = computed(() => {
                 <!-- ── Ohne Daten ─────────────────────────────────── -->
                 <AppCard v-else>
                     <EmptyState
-                        title="Noch keine Läufe"
+                        title="Noch keine Aktivitäten"
                         description="Sobald deine ersten Aktivitäten da sind, entsteht hier deine Auswertung."
                     >
                         <template #icon>
