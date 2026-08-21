@@ -599,6 +599,12 @@ class CoachChatService
         $session->description = $session->description ?? '';
         $session->intensity   = $session->intensity   ?: $this->intensityFor($session->type);
 
+        // Was ueber den Chat gesetzt wurde, hat der Athlet ausdruecklich
+        // bestellt. Beide Plan-Jobs raeumen vor dem Schreiben alles Geplante
+        // ab — ohne diese Markierung war ein "ich moechte am Sonntag 25 km
+        // laufen" beim naechsten Durchlauf still wieder weg.
+        $session->pinned_at = now();
+
         // Schritteliste und Verpflegungshinweise gehören zur alten Vorgabe.
         $session->steps          = null;
         $session->nutrition_tips = null;
@@ -790,9 +796,10 @@ class CoachChatService
                     }
                 }
 
-                $session->planned_date    = $to;
-                $session->steps           = null;
-                $session->nutrition_tips  = null;
+                $session->planned_date   = $to;
+                $session->steps          = null;
+                $session->nutrition_tips = null;
+                $session->pinned_at      = now();
                 $session->save();
 
                 $this->invalidateCoachCaches($user);

@@ -590,6 +590,8 @@ class TrainingPlanController extends Controller
             // Der Plan, bevor Strava die Ist-Werte darueber geschrieben hat.
             'planned_snapshot' => $s->planned_snapshot,
             'was_unplanned'    => (bool) $s->was_unplanned,
+            // Vom Athleten selbst gesetzt — ueberlebt jede Neuberechnung.
+            'pinned'           => $s->pinned_at !== null,
             'status'           => $s->status,
             'skip_reason'      => $s->skip_reason,
             'sort_order'       => $s->sort_order,

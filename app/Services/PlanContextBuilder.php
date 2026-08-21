@@ -55,6 +55,7 @@ class PlanContextBuilder
         $windowTo   = $windowFrom->addDays(min(Event::PLAN_HORIZON_DAYS, $event->days_until + 1) - 1);
 
         $finalized = $this->finalizedSessions($user, $event);
+        $pinned    = $this->pinnedSessions($user, $event);
         $wellbeing = $this->wellbeing($user);
 
         // Ob der Athlet gerade wieder einsteigt, entscheidet eine Stelle für
@@ -95,6 +96,7 @@ class PlanContextBuilder
             followUpGoal:          $this->followUpGoal($user, $event),
             coachNotes:            $user->runnerProfile?->coach_notes,
             comeback:              $comeback,
+            pinnedSessions:        $pinned,
             crossTraining:         $this->crossTraining($user),
             paces:                 $paces,
             volume:                $volume,
@@ -109,7 +111,7 @@ class PlanContextBuilder
                 $windowTo,
                 $availability,
                 $availabilityOverrides,
-                $context->finalizedDates(),
+                $context->blockedDates(),
                 $comeback,
                 $longRuns,
             ),
@@ -308,6 +310,30 @@ class PlanContextBuilder
      * den Planer, die vergangenen sieben Tage als Begründungskontext
      * (Krankheit, Verletzung, Erschöpfung).
      */
+    /**
+     * Einheiten, die der Athlet selbst gesetzt hat und die deshalb stehen
+     * bleiben. Fuer den Planer sind sie belegte Tage: er soll darum herum
+     * planen, nicht daneben.
+     */
+    private function pinnedSessions(User $user, Event $event): array
+    {
+        return TrainingSession::where('user_id', $user->id)
+            ->where('event_id', $event->id)
+            ->whereNotNull('pinned_at')
+            ->where('status', 'planned')
+            ->where('planned_date', '>=', now()->toDateString())
+            ->orderBy('planned_date')
+            ->get()
+            ->map(fn ($s) => [
+                'date'         => $s->planned_date->format('Y-m-d'),
+                'type'         => $s->type,
+                'title'        => $s->title,
+                'distance_km'  => $s->distance_km,
+                'duration_min' => $s->duration_min,
+            ])
+            ->toArray();
+    }
+
     private function finalizedSessions(User $user, Event $event): array
     {
         $planIds = TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->pluck('id');

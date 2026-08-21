@@ -110,7 +110,13 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
             // One-active-plan rule: deactivate all other plans
             TrainingPlan::where('user_id', $user->id)->update(['is_active' => false]);
 
-            TrainingSession::whereIn('training_plan_id', $existingPlanIds)->where('status', 'planned')->delete();
+            // Was der Athlet selbst gesetzt hat, ueberlebt die Neuberechnung.
+            // Ohne diese Ausnahme verschwand ein im Chat bestellter Longrun
+            // beim naechsten Durchlauf still wieder.
+            TrainingSession::whereIn('training_plan_id', $existingPlanIds)
+                ->where('status', 'planned')
+                ->whereNull('pinned_at')
+                ->delete();
             TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->delete();
 
             $plan = TrainingPlan::create([
@@ -132,6 +138,16 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
             DB::table('training_plans')
                 ->where('id', $plan->id)
                 ->update(['is_active' => true, 'needs_plan_update' => false]);
+
+            // Der alte Plan ist geloescht; die gesetzten Einheiten haengen
+            // sonst an einer Plan-ID, die es nicht mehr gibt — die Planseite
+            // laedt ausschliesslich Einheiten des aktiven Plans und haette
+            // sie damit nicht mehr gezeigt.
+            TrainingSession::where('user_id', $user->id)
+                ->where('event_id', $event->id)
+                ->whereNotNull('pinned_at')
+                ->where('status', 'planned')
+                ->update(['training_plan_id' => $plan->id]);
 
             app(\App\Services\PlanRevisionRecorder::class)->record(
                 user:        $user,

@@ -32,6 +32,7 @@ readonly class PlanContext
         public ?array $followUpGoal = null,
         public ?string $coachNotes = null,
         public ?array $comeback = null,
+        public array $pinnedSessions = [],
         public array $crossTraining = [],
         public ?array $paces = null,
         public ?array $volume = null,
@@ -44,6 +45,18 @@ readonly class PlanContext
     public function finalizedDates(): array
     {
         return collect($this->finalizedSessions)->pluck('date')->filter()->unique()->values()->all();
+    }
+
+    /**
+     * Tage, die der Planer nicht mehr belegen darf: abgeschlossene, abgesagte
+     * — und solche, die der Athlet selbst gesetzt hat. Fuer das Geruest ist
+     * der Unterschied keiner: der Tag ist vergeben.
+     */
+    public function blockedDates(): array
+    {
+        return collect($this->finalizedSessions)
+            ->concat($this->pinnedSessions)
+            ->pluck('date')->filter()->unique()->values()->all();
     }
 
     /**
@@ -69,6 +82,7 @@ readonly class PlanContext
             followUpGoal:          $this->followUpGoal,
             coachNotes:            $this->coachNotes,
             comeback:              $this->comeback,
+            pinnedSessions:        $this->pinnedSessions,
             crossTraining:         $this->crossTraining,
             paces:                 $this->paces,
             volume:                $this->volume,

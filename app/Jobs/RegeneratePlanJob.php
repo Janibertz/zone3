@@ -104,7 +104,13 @@ class RegeneratePlanJob implements ShouldQueue
         // ── Replace plan in DB ──────────────────────────────────────────────────
         try {
             // $oldPlanIds already computed above (before AI call)
-            TrainingSession::whereIn('training_plan_id', $oldPlanIds)->where('status', 'planned')->delete();
+            // Was der Athlet selbst gesetzt hat, ueberlebt die Neuberechnung.
+            // Ohne diese Ausnahme verschwand ein im Chat bestellter Longrun
+            // beim naechsten Durchlauf still wieder.
+            TrainingSession::whereIn('training_plan_id', $oldPlanIds)
+                ->where('status', 'planned')
+                ->whereNull('pinned_at')
+                ->delete();
             TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->delete();
 
             $newPlan = TrainingPlan::create([
@@ -126,6 +132,16 @@ class RegeneratePlanJob implements ShouldQueue
             DB::table('training_plans')
                 ->where('id', $newPlan->id)
                 ->update(['is_active' => true, 'needs_plan_update' => false]);
+
+            // Der alte Plan ist geloescht; die gesetzten Einheiten haengen
+            // sonst an einer Plan-ID, die es nicht mehr gibt — die Planseite
+            // laedt ausschliesslich Einheiten des aktiven Plans und haette
+            // sie damit nicht mehr gezeigt.
+            TrainingSession::where('user_id', $user->id)
+                ->where('event_id', $event->id)
+                ->whereNotNull('pinned_at')
+                ->where('status', 'planned')
+                ->update(['training_plan_id' => $newPlan->id]);
 
             // Fuer dieses Event steht jetzt ein frischer Plan. Ein noch
             // gesetzter Erstellungs-Schalter kann nur von einem Lauf stammen,

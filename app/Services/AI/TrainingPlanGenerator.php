@@ -339,6 +339,30 @@ class TrainingPlanGenerator
                 . "\nPasse die Folgetage entsprechend an (z.B. Erschöpfung → morgen leichter planen).";
         }
 
+        // Vom Athleten selbst gesetzte Einheiten. Fuer das Geruest sind ihre
+        // Tage gesperrt; der Prompt muss den Grund kennen, sonst haelt das
+        // Modell sie fuer eine Luecke und plant sie zu.
+        $pinnedText = '';
+        if ($c->pinnedSessions) {
+            $lines = [];
+            foreach ($c->pinnedSessions as $ps) {
+                $umfang = trim(($ps['distance_km'] ? "{$ps['distance_km']} km" : '')
+                    . ($ps['duration_min'] ? ($ps['distance_km'] ? ', ' : '') . "{$ps['duration_min']} min" : ''));
+                $lines[] = "- {$ps['date']}: {$ps['title']} ({$ps['type']}" . ($umfang ? ", {$umfang}" : '') . ')';
+            }
+
+            $pinnedText = "
+
+**Vom Athleten selbst gesetzt — unveränderlich:**
+"
+                . implode("
+", $lines)
+                . "
+Diese Tage NICHT im Array zurückgeben und nichts daneben planen. Der Athlet hat sie ausdrücklich so bestellt; sie wiegen schwerer als das Wochengerüst und als die Leiter der langen Läufe."
+                . "
+Plane die übrigen Tage darum herum: rechne ihren Umfang in die Wochensumme mit ein, und lege den Tag davor und danach entsprechend leichter an.";
+        }
+
         // ── Wiedereinstieg nach Krankheit, Verletzung oder Erschöpfung ───────
         // Die Erkennung stand früher hier: dieselbe Auswertung von Krank-Flags
         // und Absagegründen, die auch das Dashboard macht — nur in einer
@@ -451,7 +475,7 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 **Bisherige Einheitsbewertungen (Athleten-Feedback):**
 {$ratingsText}{$phaseText}
 
-**{$availabilityText}**{$otherEventsText}{$followUpGoalText}{$finalizedText}{$recoveryWarning}{$perDateAvailText}{$strengthBlock}
+**{$availabilityText}**{$otherEventsText}{$followUpGoalText}{$finalizedText}{$pinnedText}{$recoveryWarning}{$perDateAvailText}{$strengthBlock}
 
 **Wenn sich Signale widersprechen, gilt diese Rangfolge — von oben nach unten:**
 1. Gesundheit: Krankheit, Verletzung, Wiedereinstieg. Schlägt alles andere, auch das Renndatum.
@@ -522,7 +546,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 **Bisherige Einheitsbewertungen (Athleten-Feedback):**
 {$ratingsText}{$phaseText}{$focusText}
 
-**{$availabilityText}**{$otherEventsText}{$finalizedText}{$recoveryWarning}{$perDateAvailText}{$strengthBlock}
+**{$availabilityText}**{$otherEventsText}{$finalizedText}{$pinnedText}{$recoveryWarning}{$perDateAvailText}{$strengthBlock}
 
 **Wenn sich Signale widersprechen, gilt diese Rangfolge — von oben nach unten:**
 1. Gesundheit: Krankheit, Verletzung, Wiedereinstieg. Schlägt alles andere, auch das Renndatum.
