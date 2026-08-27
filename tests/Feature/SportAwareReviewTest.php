@@ -65,9 +65,13 @@ class SportAwareReviewTest extends TestCase
         return $method->invoke($job, $session);
     }
 
-    private function entry(?string $sport, int $meters, int $seconds, int $daysAgo = 0, string $type = 'easy_run'): TrainingSession
+    private function entry(?string $sport, int $meters, int $seconds, int $daysAgo = 0, ?string $type = null): TrainingSession
     {
         $date = now()->subDays($daysAgo);
+
+        // So legt der Import es an: Fremdsport bekommt den eigenen Typ.
+        $isRunLike = $sport === null || in_array($sport, TrainingSession::RUN_SPORTS, true);
+        $type ??= $isRunLike ? 'easy_run' : 'cross_training';
 
         $activity = Activity::create([
             'user_id'           => $this->user->id,
@@ -184,6 +188,31 @@ class SportAwareReviewTest extends TestCase
         $facts = $this->facts($this->entry('Swim', 1500, 2400));
 
         $this->assertStringContainsString('LAUF-Kilometer', $facts);
+    }
+
+    /** Fremdsport ist keine Planabweichung — er steht nie im Laufplan. */
+    public function test_cross_training_is_not_framed_as_a_deviation(): void
+    {
+        $facts = $this->facts($this->entry('Swim', 1500, 2400));
+
+        $this->assertStringContainsString('Alternativtraining', $facts);
+        $this->assertStringContainsString('KEINE Abweichung', $facts);
+        $this->assertStringNotContainsString('EINORDNUNG: Ungeplant', $facts);
+    }
+
+    /** Schwimmer denken in Metern, nicht in Kilometern. */
+    public function test_a_swim_distance_is_reported_in_metres(): void
+    {
+        $facts = $this->facts($this->entry('Swim', 1350, 1320));
+
+        $this->assertStringContainsString('1350 m', $facts);
+        $this->assertStringNotContainsString('1.35 km', $facts);
+    }
+
+    /** Ein Lauf bleibt bei Kilometern. */
+    public function test_a_run_distance_stays_in_kilometres(): void
+    {
+        $this->assertStringContainsString('10 km', $this->facts($this->entry(null, 10000, 3000)));
     }
 
     // ── Keine Vermischung der Vergleiche ─────────────────────────────────

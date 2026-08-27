@@ -144,6 +144,10 @@ Separation now hangs on **two** fields, deliberately:
 
 `isRun()` requires both to agree (`RUN_TYPES` ∧ `RUN_SPORTS`), so a legacy row with `easy_run` + `Ride` still fails the check. `runsOnly()` is the query scope. `sportLabel()` gives the German name; controllers expose it as `sport_label` (null for runs).
 
+A cross-training session still gets a review — it just gets the right one: the sport is named, running pace and zones are off limits, swim distance is reported in metres, and the framing is "Alternativtraining, KEINE Abweichung vom Laufplan" rather than "ungeplant".
+
+**Reviews are written once and then stand.** A migration repairs the session, never the text that was already written about it. `review:rewrite` clears `coach_review`/`reviewed_at` and re-dispatches the job (`--user`, `--session`, `--cross`, `--days`, `--yes`) — it costs one model call per session and posts a fresh chat message, so it is deliberately manual.
+
 **`TrainingLoadService` computes TSS per sport.** Pace-based rTSS is running-only. A bike moves faster than a human runs, so the intensity factor pinned at its 1.5 ceiling: a 25-minute ride scored 94 TSS against 64 for a 10 km run, and 40 minutes of swimming scored 6. CTL/ATL/TSB — and with them the "Form" line in the plan prompt — were wrong for anyone who cross-trains. Other sports use heart rate (comparable across sports; speed is not), falling back to duration.
 
 ### Pinned sessions

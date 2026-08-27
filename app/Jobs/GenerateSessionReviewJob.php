@@ -140,7 +140,17 @@ class GenerateSessionReviewJob implements ShouldQueue
         // zweimal dieselbe Zahl, und eine Abweichung war unsichtbar.
         $snapshot = $s->planned_snapshot;
 
-        if ($s->was_unplanned) {
+        if ($s->isCrossTraining()) {
+            // Fremdsport steht nie im Laufplan — ihn als "ungeplant" zu
+            // fuehren, liest sich wie eine Planabweichung. Das war er nicht.
+            $lines[] = 'EINORDNUNG: ' . $s->sportLabel() . ' — Alternativtraining. Steht naturgemaess'
+                . ' nicht im Laufplan und ist KEINE Abweichung davon. Frag nicht nach dem Lauf.';
+
+            if (($snapshot['type'] ?? null) === 'rest') {
+                $lines[] = 'Fuer diesen Tag war im Laufplan ein Ruhetag vorgesehen — ordne ein, ob'
+                    . ' die Einheit die Erholung stoert oder als lockere Bewegung durchgeht.';
+            }
+        } elseif ($s->was_unplanned) {
             $wasRest = ($snapshot['type'] ?? null) === 'rest';
             $lines[] = $wasRest
                 ? 'EINORDNUNG: Ungeplant — fuer diesen Tag war ein RUHETAG vorgesehen.'
@@ -170,7 +180,13 @@ class GenerateSessionReviewJob implements ShouldQueue
             // Groesse, die der Coach einordnen kann.
             $pace = $s->isRun() ? $this->paceFromSpeed((float) $activity->average_speed) : null;
             $act  = [];
-            if ($km)  $act[] = "{$km} km";
+            // Schwimmer denken in Metern. "1.35 km" liest sich wie eine
+            // Laufdistanz und lud frueher dazu ein, sie als solche zu werten.
+            if ($km) {
+                $act[] = in_array($s->sport_type, ['Swim', 'OpenWaterSwim'], true)
+                    ? round($km * 1000) . ' m'
+                    : "{$km} km";
+            }
             if ($min) $act[] = "{$min} min";
             if ($pace) $act[] = "Ø-Pace {$pace} min/km";
             if ($activity->average_heartrate) $act[] = 'Ø-Puls ' . (int) $activity->average_heartrate . ' bpm';
