@@ -303,6 +303,7 @@ class StravaController extends Controller
                     $strengthSession->update([
                         'status'       => 'completed',
                         'activity_id'  => $activity->id,
+                        'sport_type'   => $activity->type,
                         'duration_min' => $durMin ?? $strengthSession->duration_min,
                     ]);
                     $strengthSession->trainingPlan?->update(['needs_plan_update' => true]);
@@ -317,6 +318,12 @@ class StravaController extends Controller
             $activePlan = TrainingPlan::where('user_id', $userId)->where('is_active', true)->latest()->first();
             if (! $activePlan) return;
 
+            // Die Sportart wird mitgefuehrt. Vorher landete alles, was nicht
+            // Lauf und nicht Kraft war — Schwimmen, Radfahren, Yoga — als
+            // `easy_run` in der Datenbank. Der Coach las den Trainingstyp,
+            // sah "Lockerer Lauf" und fragte den Athleten nach seinem Lauf.
+            $isRunLike = in_array($activity->type, TrainingSession::RUN_SPORTS, true);
+
             TrainingSession::create([
                 'user_id'          => $userId,
                 'training_plan_id' => $activePlan->id,
@@ -324,8 +331,12 @@ class StravaController extends Controller
                 'activity_id'      => $activity->id,
                 'planned_date'     => $date,
                 'type'             => $isStrength ? 'strength' : 'easy_run',
+                'sport_type'       => $activity->type,
                 'title'            => $activity->name,
-                'distance_km'      => $isStrength ? null : $distKm,
+                // Nur Laufkilometer zaehlen in den Wochenumfang. Eine
+                // 1,5-km-Schwimmeinheit neben einem 20-km-Longrun waere sonst
+                // in jeder Statistik dieselbe Einheit "Kilometer".
+                'distance_km'      => ($isStrength || ! $isRunLike) ? null : $distKm,
                 'duration_min'     => $durMin,
                 'pace_target'      => null,
                 'zone'             => null,

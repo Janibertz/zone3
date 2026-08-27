@@ -92,12 +92,22 @@ class GenerateSessionReviewJob implements ShouldQueue
         // (CoachMessageObserver) — hier waere sie die zweite.
     }
 
-    /** Short label of the completed session, e.g. "Long Run – 19.6 km". */
+    /**
+     * Kurzbezeichnung der Einheit, z.B. "Langer Lauf – 19,6 km".
+     *
+     * Bei einer Fremdsportart steht die Sportart vorn statt des
+     * Trainingstyps. Der Typ ist dort ohnehin nur ein Platzhalter aus dem
+     * Import ("easy_run"), und genau der landete bisher im Etikett: der
+     * Coach begruesste eine Schwimmeinheit als "Lockerer Lauf".
+     */
     private function sessionLabel(TrainingSession $s): string
     {
-        $typeLabel = $this->typeLabels()[$s->type] ?? $s->type;
-        $bits = [$typeLabel];
-        if ($s->title) $bits[] = $s->title;
+        $bits = [$s->isRun() ? ($this->typeLabels()[$s->type] ?? $s->type) : $s->sportLabel()];
+
+        if ($s->title) {
+            $bits[] = $s->title;
+        }
+
         return implode(' – ', array_unique($bits));
     }
 
@@ -110,6 +120,18 @@ class GenerateSessionReviewJob implements ShouldQueue
     {
         $lines = [];
         $typeLabel = $this->typeLabels()[$s->type] ?? $s->type;
+
+        // ── Die Sportart ─────────────────────────────────────────────────
+        // Alles, was nicht Laufen ist, kam aus dem Import mit dem Platzhalter
+        // "easy_run" herein. Ohne diese Zeile hielt der Coach jede
+        // Schwimmeinheit fuer einen Lauf und fragte entsprechend.
+        if (! $s->isRun()) {
+            $lines[] = 'SPORTART: ' . $s->sportLabel()
+                . ' — KEIN Lauf. Sprich ueber diese Sportart, nicht ueber Laufen.';
+            $lines[] = 'Pace, Laufzonen und Schwellenwerte sind hier NICHT aussagekraeftig'
+                . ' und duerfen nicht bewertet werden.';
+            $typeLabel = $s->sportLabel();
+        }
 
         // ── Plan oder nicht ──────────────────────────────────────────────
         // Die Felder distance_km/duration_min/pace_target tragen nach dem
@@ -144,7 +166,9 @@ class GenerateSessionReviewJob implements ShouldQueue
         if ($activity) {
             $km   = $activity->distance > 0 ? round($activity->distance / 1000, 2) : null;
             $min  = $activity->moving_time > 0 ? (int) round($activity->moving_time / 60) : null;
-            $pace = $this->paceFromSpeed((float) $activity->average_speed);
+            // Eine Pace in min/km ist beim Schwimmen und Radfahren keine
+            // Groesse, die der Coach einordnen kann.
+            $pace = $s->isRun() ? $this->paceFromSpeed((float) $activity->average_speed) : null;
             $act  = [];
             if ($km)  $act[] = "{$km} km";
             if ($min) $act[] = "{$min} min";
@@ -412,6 +436,13 @@ class GenerateSessionReviewJob implements ShouldQueue
             $lines[] = $trend;
         }
 
+        if (! $s->isRun()) {
+            $lines[] = 'Die Zahlen oben sind LAUF-Kilometer. Diese Einheit war '
+                . $s->sportLabel() . ' und zaehlt dort nicht mit — ordne sie als '
+                . 'Ergaenzung zum Lauftraining ein (Belastung fuer den Koerper, '
+                . 'aber kein Laufumfang).';
+        }
+
         return $lines;
     }
 
@@ -425,6 +456,13 @@ class GenerateSessionReviewJob implements ShouldQueue
      */
     private function typeTrend(TrainingSession $s): ?string
     {
+        // Eine Schwimmeinheit traegt den Platzhalter-Typ "easy_run" aus dem
+        // Import. Ohne diese Sperre wuerde sie gegen echte lockere Laeufe
+        // verglichen und deren Schnitt verfaelschen.
+        if (! $s->isRun()) {
+            return null;
+        }
+
         $window = function (int $fromDaysAgo, int $toDaysAgo) use ($s) {
             $rows = \App\Models\Activity::query()
                 ->whereIn('id', function ($q) use ($s, $fromDaysAgo, $toDaysAgo) {
@@ -434,6 +472,8 @@ class GenerateSessionReviewJob implements ShouldQueue
                         ->where('type', $s->type)
                         ->where('status', 'completed')
                         ->where('id', '!=', $s->id)
+                        ->where(fn ($q2) => $q2->whereNull('sport_type')
+                            ->orWhereIn('sport_type', TrainingSession::RUN_SPORTS))
                         ->whereNotNull('activity_id')
                         ->where('planned_date', '>=', now()->subDays($fromDaysAgo)->toDateString())
                         ->where('planned_date', '<',  now()->subDays($toDaysAgo)->toDateString());
@@ -486,6 +526,10 @@ class GenerateSessionReviewJob implements ShouldQueue
 
     private function baselineFor(TrainingSession $s): ?array
     {
+        if (! $s->isRun()) {
+            return null;
+        }
+
         $activities = \App\Models\Activity::query()
             ->whereIn('id', function ($q) use ($s) {
                 $q->select('activity_id')
@@ -495,6 +539,10 @@ class GenerateSessionReviewJob implements ShouldQueue
                     ->where('status', 'completed')
                     ->where('id', '!=', $s->id)
                     ->whereNotNull('activity_id')
+                    // Nur Laufeinheiten — sonst zoege eine importierte
+                    // Radfahrt mit demselben Platzhalter-Typ den Schnitt.
+                    ->where(fn ($q2) => $q2->whereNull('sport_type')
+                        ->orWhereIn('sport_type', TrainingSession::RUN_SPORTS))
                     ->where('planned_date', '>=', now()->subDays(90)->toDateString());
             })
             ->get(['average_heartrate', 'average_speed']);

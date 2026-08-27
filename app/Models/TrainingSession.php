@@ -35,6 +35,61 @@ class TrainingSession extends Model
         'rest'              => 'Ruhetag',
     ];
 
+    /**
+     * Sportarten, wie Strava sie liefert.
+     *
+     * NULL heisst Laufen — der Normalfall und alles, was aus dem Plan stammt.
+     * Nur importierte Fremdsportarten tragen hier einen Wert.
+     */
+    public const SPORT_LABELS = [
+        'Run'            => 'Lauf',
+        'TrailRun'       => 'Trailrun',
+        'VirtualRun'     => 'Laufband',
+        'Swim'           => 'Schwimmen',
+        'Ride'           => 'Radfahren',
+        'VirtualRide'    => 'Indoor-Radfahren',
+        'GravelRide'     => 'Gravelbike',
+        'MountainBikeRide' => 'Mountainbike',
+        'EBikeRide'      => 'E-Bike',
+        'Walk'           => 'Spaziergang',
+        'Hike'           => 'Wanderung',
+        'WeightTraining' => 'Krafttraining',
+        'Workout'        => 'Workout',
+        'Yoga'           => 'Yoga',
+        'Rowing'         => 'Rudern',
+        'Elliptical'     => 'Crosstrainer',
+        'StairStepper'   => 'Stepper',
+        'Crossfit'       => 'CrossFit',
+        'AlpineSki'      => 'Ski',
+        'NordicSki'      => 'Langlauf',
+        'Snowboard'      => 'Snowboard',
+        'Skating'        => 'Inline-Skating',
+        'Golf'           => 'Golf',
+        'Soccer'         => 'Fussball',
+        'Tennis'         => 'Tennis',
+        'Badminton'      => 'Badminton',
+    ];
+
+    /** Sportarten, deren Pace und Distanz mit dem Laufen vergleichbar sind. */
+    public const RUN_SPORTS = ['Run', 'TrailRun', 'VirtualRun'];
+
+    /** Die Sportart im Klartext. Ohne Angabe: Laufen. */
+    public function sportLabel(): string
+    {
+        if ($this->sport_type === null) {
+            return 'Lauf';
+        }
+
+        return self::SPORT_LABELS[$this->sport_type] ?? $this->sport_type;
+    }
+
+    /** Zaehlt diese Einheit in Wochenkilometer und Pace-Vergleiche? */
+    public function isRun(): bool
+    {
+        return $this->sport_type === null
+            || in_array($this->sport_type, self::RUN_SPORTS, true);
+    }
+
     protected $fillable = [
         'user_id',
         'training_plan_id',
@@ -42,6 +97,7 @@ class TrainingSession extends Model
         'activity_id',
         'planned_date',
         'type',
+        'sport_type',
         'title',
         'description',
         'distance_km',

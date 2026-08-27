@@ -400,6 +400,7 @@ Absolvierte Einheit: {$sessionLabel}
 {$factsBlock}
 
 Aufgabe:
+- Steht in den Daten eine Zeile "SPORTART", war das KEIN Lauf. Sprich ueber genau diese Sportart und benutze ihre Sprache — bei Schwimmen Bahnen und Technik, beim Radfahren Watt, Trittfrequenz und Dauer. Bewerte dort NIEMALS Pace in min/km, Laufzonen oder die Schwellenpace, und frage auch nicht nach dem Lauf. Ordne die Einheit als Ergaenzung zum Lauftraining ein: was sie dem Athleten bringt und ob sie neben dem Laufpensum sinnvoll liegt.
 - Beginne mit der EINORDNUNG aus den Daten:
   · Stand die Einheit im Plan und wurde sie im Rahmen umgesetzt, sag das kurz und geh weiter.
   · Steht dort eine "Abweichung vom Plan", benenne sie mit den Zahlen und ordne sie ein — deutlich länger oder schneller als vorgesehen ist nicht automatisch gut, sondern kostet Erholung und kann die nächste Schlüsseleinheit gefährden. Zu kurz oder zu langsam ist ebenfalls kein Drama, wenn der Kontext (Schlaf, Stress, Belastung) es erklärt.
