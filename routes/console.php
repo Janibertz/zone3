@@ -24,6 +24,12 @@ Schedule::command('push:week-check')->weeklyOn(0, '18:00');
 // Abstand, damit nicht zwei Benachrichtigungen gleichzeitig ankommen.
 Schedule::command('push:goal-check')->weeklyOn(0, '16:00');
 
+// Sonntag 19:00: die kommende Woche schreiben. Eine Stunde nach der
+// Verfuegbarkeitsabfrage — wer geantwortet hat, bekommt seine Woche mit der
+// Antwort, wer nicht, bekommt sie nach dem Raster aus dem Profil. Der Lauf
+// ist billig: hat sich nichts geaendert, wird das Modell nicht gefragt.
+Schedule::command('plan:write-week')->weeklyOn(0, '19:00');
+
 // Every day at 05:00: detect plan gaps and queue regeneration for athletes with upcoming races
 Schedule::command('plan:auto-update')->dailyAt('05:00');
 

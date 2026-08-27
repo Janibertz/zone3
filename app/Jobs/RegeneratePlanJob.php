@@ -37,6 +37,7 @@ class RegeneratePlanJob implements ShouldQueue
     public const REASON_WELLBEING    = 'wellbeing';     // Krankheit, Erschoepfung
     public const REASON_THRESHOLD    = 'threshold';     // Schwellenpace verschoben
     public const REASON_GAP          = 'gap';           // Planfenster laeuft aus
+    public const REASON_WEEKLY       = 'weekly';       // Sonntags: die kommende Woche schreiben
     public const REASON_AUTO         = 'auto';
 
     /**
@@ -49,6 +50,10 @@ class RegeneratePlanJob implements ShouldQueue
         self::REASON_SKIP,
         self::REASON_AVAILABILITY,
         self::REASON_WELLBEING,
+        // Der Wochenschreiber ist der verabredete Zeitpunkt, an dem sich die
+        // Woche aendern DARF. Wuerde er die naechsten Tage einfrieren, koennte
+        // er genau die Tage nicht schreiben, um die es ihm geht.
+        self::REASON_WEEKLY,
     ];
 
     /**
@@ -73,6 +78,7 @@ class RegeneratePlanJob implements ShouldQueue
             self::REASON_MANUAL       => 'manual',
             self::REASON_SKIP,
             self::REASON_WELLBEING    => 'user',
+            self::REASON_WEEKLY       => 'weekly',
             self::REASON_AVAILABILITY => 'availability',
             default                   => 'auto',
         };
@@ -469,12 +475,16 @@ class RegeneratePlanJob implements ShouldQueue
 
         if ($user->push_notifications_enabled && $user->notify_plan_updated) {
             $coachName = $user->coach?->name ?? 'Dein Coach';
-            $webPush->sendToUser(
-                $user,
-                "{$coachName} hat deinen Plan aktualisiert",
-                "Dein Trainingsplan für {$event->name} wurde automatisch neu berechnet.",
-                "/events/{$event->id}/plan"
-            );
+
+            // Die Wochenplanung ist kein "wurde neu berechnet" — sie ist der
+            // verabredete Zeitpunkt, an dem die Woche entsteht.
+            [$title, $body] = $this->reason === self::REASON_WEEKLY
+                ? ["Deine Woche steht 🗓️",
+                   "{$coachName} hat deine Trainingswoche geschrieben. Schau sie dir an."]
+                : ["{$coachName} hat deinen Plan aktualisiert",
+                   "Dein Trainingsplan für {$event->name} wurde neu berechnet."];
+
+            $webPush->sendToUser($user, $title, $body, "/events/{$event->id}/plan");
         }
 
         // Refresh race prediction in background

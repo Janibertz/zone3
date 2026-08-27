@@ -23,6 +23,7 @@ class PlanRevision extends Model
     public const TRIGGER_LABELS = [
         'initial' => 'Erster Plan',
         'manual'  => 'Von dir neu berechnet',
+        'weekly'  => 'Wochenplanung',
         'user'    => 'Nach deiner Rückmeldung',
         'auto'    => 'Automatisch angepasst',
     ];

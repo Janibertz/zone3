@@ -99,6 +99,7 @@ A regeneration deletes every `planned` session and has the model invent them aga
 | `REASON_SKIP` | bypassed | none | session skipped |
 | `REASON_AVAILABILITY` | bypassed | none | weekly availability answered |
 | `REASON_WELLBEING` | bypassed | none | illness / exhaustion |
+| `REASON_WEEKLY` | bypassed | none | `plan:write-week`, Sunday 19:00 |
 | `REASON_THRESHOLD` | applies | 3 days | threshold pace moved ≥ 1.5 % |
 | `REASON_GAP` | applies | 3 days | `plan:auto-update` |
 | `REASON_AUTO` | applies | 3 days | unplanned Strava activity |
@@ -106,6 +107,12 @@ A regeneration deletes every `planned` session and has the model invent them aga
 **Freeze** (`FREEZE_DAYS = 3`) means sessions in that window survive the delete, get re-linked to the new plan, and are skipped when the new sessions are written. The athlete arranges their week around these days; an automatic run must not rewrite them. Anything the athlete asked for themselves freezes nothing.
 
 **Completing a session dispatches nothing.** Neither does a Strava import that matches a planned session. What they add flows into the next scheduled regeneration through the context.
+
+### The weekly rhythm
+
+`plan:write-week` runs **Sunday 19:00** — an hour after `push:week-check` asks for availability. Whoever answered gets their week built on that answer; whoever didn't gets it from the profile grid. Then the week stands until the athlete changes something. `--force` runs it off-schedule; without it the command only fires on Sunday or Monday.
+
+`REASON_WEEKLY` freezes nothing: this is the agreed moment at which the week *may* change, and a freeze would block exactly the days it exists to write. It stays cheap because partial regeneration skips the model entirely when nothing is stale, and its push says "Deine Woche steht" rather than "wurde neu berechnet".
 
 ### Partial regeneration
 
