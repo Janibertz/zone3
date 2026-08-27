@@ -39,7 +39,7 @@ class TrainingLoadService
         $activities = Activity::where('user_id', $userId)
             ->where('start_date', '>=', Carbon::now()->subDays(180))
             ->orderBy('start_date')
-            ->get(['id', 'start_date', 'moving_time', 'average_speed', 'distance', 'average_heartrate']);
+            ->get(['id', 'type', 'start_date', 'moving_time', 'average_speed', 'distance', 'average_heartrate']);
 
         // Aggregate TSS per calendar day
         $dailyTSS = [];
@@ -91,13 +91,32 @@ class TrainingLoadService
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
+    /**
+     * Belastung einer Aktivität in TSS.
+     *
+     * Die Pace-Rechnung gilt AUSSCHLIESSLICH fürs Laufen. Vorher lief jede
+     * Aktivität durch dieselbe Formel, und weil ein Rad schneller fährt als
+     * ein Mensch läuft, schlug der Intensitätsfaktor am oberen Anschlag an:
+     * eine Radfahrt von 25 Minuten kam auf 94 TSS, ein Zehn-Kilometer-Lauf
+     * auf 64. Eine Stunde auf dem Rad zählte dreimal so viel wie derselbe
+     * Lauf. In der Gegenrichtung dasselbe Bild — 40 Minuten Schwimmen
+     * ergaben 6 TSS, praktisch nichts.
+     *
+     * Damit war CTL/ATL/TSB für jeden verfälscht, der auch etwas anderes
+     * macht als laufen. Diese Werte stehen als "Form" im Plan-Prompt.
+     *
+     * Für Fremdsportarten trägt die Herzfrequenz: sie ist über Sportarten
+     * hinweg vergleichbar, die Geschwindigkeit ist es nicht.
+     */
     private function activityTSS(Activity $activity, ?float $thresholdPaceSec, ?int $thresholdHr): float
     {
         $durationHours = $activity->moving_time / 3600;
         if ($durationHours <= 0) return 0.0;
 
-        // 1. Pace-based rTSS — most accurate for running
-        if ($thresholdPaceSec && $activity->average_speed > 0 && $activity->distance > 100) {
+        $isRun = in_array($activity->type, \App\Models\TrainingSession::RUN_SPORTS, true);
+
+        // 1. Pace-based rTSS — nur beim Laufen aussagekräftig
+        if ($isRun && $thresholdPaceSec && $activity->average_speed > 0 && $activity->distance > 100) {
             $avgPaceSec = 1000 / $activity->average_speed; // sec per km
             // IF > 1 means faster than threshold (more stress)
             $if = $thresholdPaceSec / $avgPaceSec;
@@ -112,7 +131,10 @@ class TrainingLoadService
             return round($durationHours * $if * $if * 100, 1);
         }
 
-        // 3. Duration-based fallback (moderate effort assumed)
+        // 3. Duration-based fallback (moderate effort assumed).
+        //    Ohne Pulsdaten laesst sich die Intensitaet einer Fremdsportart
+        //    nicht bestimmen — eine mittlere Belastung anzunehmen ist die
+        //    ehrlichste Schaetzung.
         return round($durationHours * 60, 1);
     }
 

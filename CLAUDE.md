@@ -111,9 +111,20 @@ A regeneration deletes every `planned` session and has the model invent them aga
 
 Free days used to be written into the prompt as `type="rest" ODER lockere Einheit` — the model decided, differently on every run. `WeeklyPatternService::assignFreeDays()` decides now: the day after a hard session is rest, every week has at least one, everything else becomes an easy run. The validator enforces it. A test asserts that building the skeleton twice yields the same thing.
 
-### Sport type
+### Sports are separated on two fields
 
-`training_sessions.sport_type` carries the Strava sport (`NULL` = running). Before that, everything that was neither a run nor strength was stored as `easy_run`: the coach reviewed a swim as a run, and a 1.5 km swim polluted the pace baseline and the weekly running volume. `isRun()` gates every pace/volume comparison; `sportLabel()` gives the German name.
+Everything that was neither a run nor strength used to be stored as `type = 'easy_run'`. The coach reviewed a swim as a run, a 1.5 km swim polluted the pace baseline and the weekly running volume, and — worst — the load calculation rated every activity by *running pace*.
+
+Separation now hangs on **two** fields, deliberately:
+
+| Field | Meaning |
+|---|---|
+| `type` | what kind of training — `easy_run`, `interval`, `strength`, **`cross_training`** |
+| `sport_type` | what it was done with — Strava's sport, `NULL` = running |
+
+`isRun()` requires both to agree (`RUN_TYPES` ∧ `RUN_SPORTS`), so a legacy row with `easy_run` + `Ride` still fails the check. `runsOnly()` is the query scope. `sportLabel()` gives the German name; controllers expose it as `sport_label` (null for runs).
+
+**`TrainingLoadService` computes TSS per sport.** Pace-based rTSS is running-only. A bike moves faster than a human runs, so the intensity factor pinned at its 1.5 ceiling: a 25-minute ride scored 94 TSS against 64 for a 10 km run, and 40 minutes of swimming scored 6. CTL/ATL/TSB — and with them the "Form" line in the plan prompt — were wrong for anyone who cross-trains. Other sports use heart rate (comparable across sports; speed is not), falling back to duration.
 
 ### Pinned sessions
 

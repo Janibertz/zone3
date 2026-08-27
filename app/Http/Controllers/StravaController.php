@@ -329,7 +329,10 @@ class StravaController extends Controller
                 'event_id'         => $activePlan->event_id,
                 'activity_id'      => $activity->id,
                 'planned_date'     => $date,
-                'type'             => $isStrength ? 'strength' : 'easy_run',
+                // Kein Lauf-Platzhalter mehr. `cross_training` faellt aus
+                // jeder Laufauswertung schon am Typ heraus — auch dort, wo
+                // jemand vergisst, zusaetzlich die Sportart zu pruefen.
+                'type'             => $isStrength ? 'strength' : 'cross_training',
                 'sport_type'       => $activity->type,
                 'title'            => $activity->name,
                 // Nur Laufkilometer zaehlen in den Wochenumfang. Eine

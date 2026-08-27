@@ -955,6 +955,9 @@ XML;
             'id'           => $s->id,
             'planned_date' => $s->planned_date->format('Y-m-d'),
             'type'         => $s->type,
+            // Die Sportart, damit die Oberflaeche "Schwimmen" zeigen kann
+            // und nicht nur "Alternativtraining".
+            'sport_label'  => $s->isRun() ? null : $s->sportLabel(),
             'title'        => $s->title,
             'description'  => $s->description,
             'distance_km'  => $s->distance_km,

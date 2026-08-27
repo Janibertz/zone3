@@ -32,6 +32,7 @@ class TrainingSession extends Model
         'strength'          => 'Krafttraining',
         'core'              => 'Core-Training',
         'mobility'          => 'Mobility',
+        'cross_training'    => 'Alternativtraining',
         'rest'              => 'Ruhetag',
     ];
 
@@ -73,6 +74,20 @@ class TrainingSession extends Model
     /** Sportarten, deren Pace und Distanz mit dem Laufen vergleichbar sind. */
     public const RUN_SPORTS = ['Run', 'TrailRun', 'VirtualRun'];
 
+    /**
+     * Trainingstypen, die tatsaechlich Laufen bedeuten.
+     *
+     * Die Trennung haengt an ZWEI Feldern, und das ist Absicht: `type` sagt,
+     * welche Art von Training gemeint war, `sport_type`, womit es absolviert
+     * wurde. Eine Auswertung, die nur eines von beiden prueft, laesst sonst
+     * eine Schwimmeinheit als lockeren Lauf durchgehen.
+     */
+    public const RUN_TYPES = [
+        'easy_run', 'tempo_run', 'interval', 'long_run',
+        'progressive_run', 'test_run', 'race_prep',
+        'back_to_back_long', 'time_on_feet', 'night_run', 'yard_simulation',
+    ];
+
     /** Die Sportart im Klartext. Ohne Angabe: Laufen. */
     public function sportLabel(): string
     {
@@ -83,11 +98,34 @@ class TrainingSession extends Model
         return self::SPORT_LABELS[$this->sport_type] ?? $this->sport_type;
     }
 
-    /** Zaehlt diese Einheit in Wochenkilometer und Pace-Vergleiche? */
+    /**
+     * Zaehlt diese Einheit in Wochenkilometer und Pace-Vergleiche?
+     *
+     * Beide Felder muessen stimmen. Ein `cross_training` faellt schon am Typ
+     * heraus, eine importierte Radfahrt mit altem Lauf-Platzhalter an der
+     * Sportart.
+     */
     public function isRun(): bool
     {
+        if (! in_array($this->type, self::RUN_TYPES, true)) {
+            return false;
+        }
+
         return $this->sport_type === null
             || in_array($this->sport_type, self::RUN_SPORTS, true);
+    }
+
+    /** Fremdsport: zaehlt als Belastung, aber nicht als Lauftraining. */
+    public function isCrossTraining(): bool
+    {
+        return $this->type === 'cross_training';
+    }
+
+    /** Nur Laufeinheiten. */
+    public function scopeRunsOnly($query)
+    {
+        return $query->whereIn('type', self::RUN_TYPES)
+            ->where(fn ($q) => $q->whereNull('sport_type')->orWhereIn('sport_type', self::RUN_SPORTS));
     }
 
     protected $fillable = [

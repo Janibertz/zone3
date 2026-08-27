@@ -414,7 +414,7 @@ class GenerateSessionReviewJob implements ShouldQueue
         // Verlässlichkeit: was war geplant, was ist daraus geworden.
         $since = $end->subWeeks(4)->startOfWeek()->toDateString();
         $past  = TrainingSession::where('user_id', $s->user_id)
-            ->where('type', '!=', 'rest')
+            ->whereNotIn('type', ['rest', 'cross_training'])
             ->where('planned_date', '>=', $since)
             ->where('planned_date', '<=', $s->planned_date->toDateString())
             ->get(['status', 'was_unplanned']);
@@ -424,12 +424,26 @@ class GenerateSessionReviewJob implements ShouldQueue
         $skipped   = $past->where('status', 'skipped')->count();
         $unplanned = $past->where('was_unplanned', true)->count();
 
+        // Fremdsport getrennt zaehlen. Als "zusaetzlich ungeplant gelaufen"
+        // waere eine Schwimmeinheit schlicht falsch beschrieben.
+        $crossCount = TrainingSession::where('user_id', $s->user_id)
+            ->where('type', 'cross_training')
+            ->where('status', 'completed')
+            ->where('planned_date', '>=', $since)
+            ->where('planned_date', '<=', $s->planned_date->toDateString())
+            ->count();
+
         if ($planned > 0) {
             $quote = (int) round(($done / $planned) * 100);
-            $line  = "Umsetzung der letzten 4 Wochen: {$done} von {$planned} geplanten Einheiten absolviert ({$quote} %)";
+            $line  = "Umsetzung der letzten 4 Wochen: {$done} von {$planned} geplanten Laufeinheiten absolviert ({$quote} %)";
             if ($skipped > 0)   $line .= ", {$skipped} ausgelassen";
             if ($unplanned > 0) $line .= ", {$unplanned} zusätzlich ungeplant gelaufen";
             $lines[] = $line;
+        }
+
+        if ($crossCount > 0) {
+            $lines[] = "Alternativtraining im selben Zeitraum: {$crossCount} Einheiten "
+                . '(Schwimmen, Rad o.ä. — zaehlen als Belastung, nicht als Laufumfang)';
         }
 
         if ($trend = $this->typeTrend($s)) {

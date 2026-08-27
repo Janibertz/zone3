@@ -19,6 +19,7 @@ class TrainingPlanValidator
     /** Alles, was die Oberfläche kennt. Andere Typen dürfen nicht in die DB. */
     public const KNOWN_TYPES = [
         'rest', 'easy_run', 'tempo_run', 'interval', 'long_run', 'race_prep',
+        'cross_training',
         'progressive_run', 'test_run', 'back_to_back_long', 'time_on_feet',
         'yard_simulation', 'night_run', 'strength', 'core', 'mobility',
     ];

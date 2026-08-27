@@ -35,6 +35,10 @@ export const SESSION_TYPES = {
         icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8" />` },
     mobility:          { label: 'Mobility',                 emoji: '🧘', accent: 'success',
         icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8" />` },
+    // Importierter Fremdsport: Schwimmen, Rad, Yoga. Landete frueher als
+    // "Lockerer Lauf" in der Liste — die Sportart steht in sport_type.
+    cross_training:    { label: 'Alternativtraining',       emoji: '🔀', accent: 'info',
+        icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />` },
 };
 
 /** Tailwind-Klassen je Akzent, alle aus den Design-Tokens. */

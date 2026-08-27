@@ -1536,7 +1536,8 @@ const lapHeightPct = computed(() => {
                 <div v-if="detailSession">
                     <div class="flex flex-wrap items-center gap-2">
                         <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold" :class="typeOf(detailSession.type).pill">
-                            {{ typeOf(detailSession.type).label }}
+                            <!-- Bei Fremdsport die Sportart statt "Alternativtraining". -->
+                            {{ detailSession.sport_label || typeOf(detailSession.type).label }}
                         </span>
                         <span v-if="detailSession.zone"
                             class="rounded-full bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-ink-2">

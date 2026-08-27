@@ -118,13 +118,25 @@ class SportAwareReviewTest extends TestCase
 
     public function test_a_trail_run_still_counts_as_running(): void
     {
-        $this->assertTrue((new TrainingSession(['sport_type' => 'TrailRun']))->isRun());
+        $this->assertTrue((new TrainingSession(['type' => 'long_run', 'sport_type' => 'TrailRun']))->isRun());
+    }
+
+    /**
+     * Beide Felder muessen stimmen. Der Trainingstyp allein reicht nicht —
+     * genau daran lag der urspruengliche Fehler, als eine Schwimmeinheit mit
+     * `easy_run` gespeichert wurde.
+     */
+    public function test_both_fields_have_to_agree(): void
+    {
+        $this->assertFalse((new TrainingSession(['type' => 'easy_run', 'sport_type' => 'Ride']))->isRun());
+        $this->assertFalse((new TrainingSession(['type' => 'cross_training', 'sport_type' => 'Run']))->isRun());
+        $this->assertTrue((new TrainingSession(['type' => 'easy_run', 'sport_type' => null]))->isRun());
     }
 
     /** Eine unbekannte Sportart wird durchgereicht, nicht verschluckt. */
     public function test_an_unknown_sport_keeps_its_name(): void
     {
-        $session = new TrainingSession(['sport_type' => 'Kitesurf']);
+        $session = new TrainingSession(['type' => 'cross_training', 'sport_type' => 'Kitesurf']);
 
         $this->assertFalse($session->isRun());
         $this->assertSame('Kitesurf', $session->sportLabel());
