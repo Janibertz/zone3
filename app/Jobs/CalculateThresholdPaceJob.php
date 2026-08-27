@@ -136,7 +136,7 @@ class CalculateThresholdPaceJob implements ShouldQueue
 
             if ($plan) {
                 $plan->update(['needs_plan_update' => true]);
-                RegeneratePlanJob::dispatch($this->userId)->delay(now()->addMinutes(2));
+                RegeneratePlanJob::dispatch($this->userId, RegeneratePlanJob::REASON_THRESHOLD)->delay(now()->addMinutes(2));
             }
         }
 

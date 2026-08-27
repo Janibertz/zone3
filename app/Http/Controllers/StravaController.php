@@ -293,7 +293,7 @@ class StravaController extends Controller
             // Strength activity → complete a planned strength/core/mobility session on this date
             if ($isStrength) {
                 $strengthSession = TrainingSession::where('user_id', $userId)
-                    ->where('planned_date', $date)
+                    ->whereDate('planned_date', $date)
                     ->where('status', 'planned')
                     ->whereIn('type', ['strength', 'core', 'mobility'])
                     ->whereHas('trainingPlan', fn ($q) => $q->where('is_active', true))
@@ -306,7 +306,6 @@ class StravaController extends Controller
                         'sport_type'   => $activity->type,
                         'duration_min' => $durMin ?? $strengthSession->duration_min,
                     ]);
-                    $strengthSession->trainingPlan?->update(['needs_plan_update' => true]);
                     return;
                 }
             }
@@ -352,7 +351,7 @@ class StravaController extends Controller
         // 1. Find any planned RUN session in the active plan on the same date
         //    (strength/core/mobility sessions are only completed by strength activities)
         $session = TrainingSession::where('user_id', $userId)
-            ->where('planned_date', $date)
+            ->whereDate('planned_date', $date)
             ->where('status', 'planned')
             ->whereNotIn('type', ['strength', 'core', 'mobility'])
             ->whereHas('trainingPlan', fn ($q) => $q->where('is_active', true))
@@ -414,8 +413,12 @@ class StravaController extends Controller
                     $this->dispatchCalculationForTestRun($userId);
                 }
             }
-            // Flag plan for recalculation
-            $session->trainingPlan?->update(['needs_plan_update' => true]);
+            // BEWUSST KEINE Neuberechnung: der Athlet ist gelaufen, was im
+            // Plan stand. Frueher warf jeder Import den gesamten Restplan neu,
+            // und weil das Modell nicht deterministisch ist, sah die Woche
+            // danach anders aus als vorher — ohne dass sich etwas geaendert
+            // haette. Die Einheit fliesst ueber den Kontext in die naechste
+            // planmaessige Berechnung ein.
             return;
         }
 
@@ -451,7 +454,10 @@ class StravaController extends Controller
             'sort_order'       => 999,
         ]);
 
-        // Signal that the remaining planned sessions should be recalculated
+        // Ein ungeplanter Lauf ist echte Zusatzbelastung und bleibt damit ein
+        // Anlass. Die naechsten Tage sind davon geschuetzt (siehe
+        // RegeneratePlanJob::FREEZE_DAYS) — die Anpassung greift ab dem
+        // vierten Tag.
         $activePlan->needs_plan_update = true;
         $activePlan->save();
     }
@@ -501,7 +507,7 @@ class StravaController extends Controller
             ->exists();
 
         if ($needs) {
-            RegeneratePlanJob::dispatch($userId)->delay(now()->addMinutes(5));
+            RegeneratePlanJob::dispatch($userId, RegeneratePlanJob::REASON_AUTO)->delay(now()->addMinutes(5));
         }
     }
 

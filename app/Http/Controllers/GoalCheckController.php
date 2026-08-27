@@ -135,7 +135,7 @@ class GoalCheckController extends Controller
             'goal_confirmed_at'   => now(),
         ]);
 
-        RegeneratePlanJob::dispatch($request->user()->id, userTriggered: true);
+        RegeneratePlanJob::dispatch($request->user()->id, RegeneratePlanJob::REASON_AVAILABILITY);
 
         return response()->json([
             'success'     => true,

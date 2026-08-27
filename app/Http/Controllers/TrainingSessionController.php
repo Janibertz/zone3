@@ -24,7 +24,22 @@ class TrainingSessionController extends Controller
 
         $session->update(['status' => 'completed']);
 
-        $this->triggerCoachReaction($session);
+        // BEWUSST KEINE Neuberechnung des Plans.
+        //
+        // Eine abgehakte Einheit ist kein Anlass: der Athlet hat getan, was
+        // im Plan stand, und damit ist nichts eingetreten, worauf der Plan
+        // reagieren muesste. Vorher warf genau das den gesamten Restplan neu
+        // — und weil ein Sprachmodell nicht deterministisch ist, kam jedes
+        // Mal etwas anderes heraus. Ruhetage verschwanden, ein Schwellenlauf
+        // wurde ueber Nacht zu zwanzig lockeren Minuten.
+        //
+        // Was die Einheit an neuer Erkenntnis bringt, fliesst ueber den
+        // Kontext in die naechste planmaessige Neuberechnung ein.
+        $this->refreshCoachMessages();
+
+        if ($session->trainingPlan) {
+            GenerateRacePredictionJob::dispatch($session->trainingPlan->id)->delay(now()->addSeconds(15));
+        }
 
         // Coach review of the completed session. Delayed so a matching Strava import
         // (webhook) can attach the activity first and enrich the review with real
@@ -51,31 +66,43 @@ class TrainingSessionController extends Controller
             'skip_reason' => $request->reason,
         ]);
 
-        $this->triggerCoachReaction($session);
+        // Eine ausgelassene Einheit IST ein Anlass — hier fehlt dem Plan
+        // etwas, und der Athlet erwartet, dass der Coach darauf eingeht.
+        $this->triggerCoachReaction($session, RegeneratePlanJob::REASON_SKIP);
 
         return response()->json(['session' => $this->formatSession($session)]);
     }
 
     /**
-     * Flag the plan for regeneration and clear cached coaching messages
-     * so the dashboard shows a fresh, context-aware response on next load.
+     * Den Plan zur Neuberechnung vormerken — nur mit ausdruecklichem Anlass.
+     *
+     * Der Anlass wandert bis in den Job durch und entscheidet dort, wie weit
+     * die Neuberechnung in die nahe Zukunft hineinreichen darf.
      */
-    private function triggerCoachReaction(TrainingSession $session): void
+    private function triggerCoachReaction(TrainingSession $session, string $reason): void
     {
         $plan = $session->trainingPlan;
+
         if ($plan) {
             $plan->update(['needs_plan_update' => true]);
-            RegeneratePlanJob::dispatch($session->user_id, true)->delay(now()->addSeconds(10));
+            RegeneratePlanJob::dispatch($session->user_id, $reason)->delay(now()->addSeconds(10));
 
-            // Update race prediction when a session is completed (new performance data)
             if ($session->status === 'completed') {
                 GenerateRacePredictionJob::dispatch($plan->id)->delay(now()->addSeconds(15));
             }
         }
 
-        // Invalidate today's coaching message so it regenerates with the new context
-        $user = Auth::user();
-        $user->runnerProfile?->update([
+        $this->refreshCoachMessages();
+    }
+
+    /**
+     * Die zwischengespeicherten Coach-Texte verwerfen, damit das Dashboard
+     * sie mit dem neuen Stand neu schreibt. Das hat mit der Planung nichts
+     * zu tun und kostet keine Planberechnung.
+     */
+    private function refreshCoachMessages(): void
+    {
+        Auth::user()->runnerProfile?->update([
             'today_recommendation' => null,
             'recommendation_date'  => null,
             'daily_message'        => null,
@@ -106,11 +133,11 @@ class TrainingSessionController extends Controller
             "Rückmeldung zu \"{$session->review_question}\" ({$session->title}, {$date}): {$answer}"
         );
 
-        // Und der Plan reagiert darauf. Bisher war die Rückfrage folgenlos:
-        // Der Athlet antwortete, die Antwort wurde gespeichert, danach
-        // passierte nichts. Wer schreibt, dass die Einheit zu hart war, will
-        // das im Plan sehen — nicht erst beim nächsten Strava-Import.
-        $this->triggerCoachReaction($session);
+        // Die Antwort fliesst ueber coach_notes in die naechste planmaessige
+        // Neuberechnung ein — sie loest keine eigene aus. Wer schreibt, dass
+        // die Einheit zu hart war, meint damit die kommenden Wochen und
+        // nicht den Plan fuer morgen frueh.
+        $this->refreshCoachMessages();
 
         return response()->json(['session' => $this->formatSession($session->fresh())]);
     }

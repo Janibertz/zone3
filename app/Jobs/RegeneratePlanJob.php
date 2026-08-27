@@ -21,10 +21,79 @@ class RegeneratePlanJob implements ShouldQueue
     public int $tries   = 1;
     public int $timeout = 600; // reasoning model + OpenAI latency can exceed 2 min
 
+    /**
+     * Warum neu gerechnet wird. Der Anlass entscheidet zweierlei: ob die
+     * Sechs-Stunden-Sperre greift, und wie weit in die nahe Zukunft die
+     * Neuberechnung ueberhaupt hineinreichen darf.
+     *
+     * Vorher gab es dafuer einen Wahrheitswert `userTriggered`, der nur die
+     * Sperre umging. Jede Neuberechnung wuerfelte damit den gesamten
+     * Restplan neu — auch die, die durch nichts weiter ausgeloest war, als
+     * dass der Athlet getan hatte, was im Plan stand.
+     */
+    public const REASON_MANUAL       = 'manual';        // Knopfdruck auf der Planseite
+    public const REASON_SKIP         = 'skip';          // Einheit ausgelassen
+    public const REASON_AVAILABILITY = 'availability';  // Wochenabfrage beantwortet
+    public const REASON_WELLBEING    = 'wellbeing';     // Krankheit, Erschoepfung
+    public const REASON_THRESHOLD    = 'threshold';     // Schwellenpace verschoben
+    public const REASON_GAP          = 'gap';           // Planfenster laeuft aus
+    public const REASON_AUTO         = 'auto';
+
+    /**
+     * Anlaesse, die der Athlet selbst gesetzt hat. Sie umgehen die Sperre
+     * und duerfen bis in den heutigen Tag hineinreichen — wer eine Einheit
+     * auslaesst oder krank ist, will die Antwort darauf sofort sehen.
+     */
+    private const IMMEDIATE = [
+        self::REASON_MANUAL,
+        self::REASON_SKIP,
+        self::REASON_AVAILABILITY,
+        self::REASON_WELLBEING,
+    ];
+
+    /**
+     * Wie viele Tage im Voraus unantastbar sind, wenn die Neuberechnung
+     * NICHT vom Athleten ausgeloest wurde.
+     *
+     * Der Athlet stellt sich auf seine Einheiten ein. Ein Schwellentraining,
+     * das ueber Nacht zu zwanzig lockeren Minuten wird, ist auch dann
+     * aergerlich, wenn die neue Einheit fuer sich genommen sinnvoll waere.
+     */
+    public const FREEZE_DAYS = 3;
+
     public function __construct(
-        public readonly int  $userId,
-        public readonly bool $userTriggered = false, // bypass debounce for user actions (skip/complete)
+        public readonly int    $userId,
+        public readonly string $reason = self::REASON_AUTO,
     ) {}
+
+    /** Wie der Anlass im Aenderungsverlauf heisst. */
+    private function revisionLabel(): string
+    {
+        return match ($this->reason) {
+            self::REASON_MANUAL       => 'manual',
+            self::REASON_SKIP,
+            self::REASON_WELLBEING    => 'user',
+            self::REASON_AVAILABILITY => 'availability',
+            default                   => 'auto',
+        };
+    }
+
+    /** Umgeht diese Neuberechnung die Sechs-Stunden-Sperre? */
+    private function isImmediate(): bool
+    {
+        return in_array($this->reason, self::IMMEDIATE, true);
+    }
+
+    /**
+     * Bis zu welchem Tag bleiben geplante Einheiten unangetastet?
+     * Null heisst: nichts ist eingefroren.
+     */
+    private function frozenThrough(): ?string
+    {
+        return $this->isImmediate()
+            ? null
+            : now()->addDays(self::FREEZE_DAYS)->toDateString();
+    }
 
     public function handle(
         TrainingPlanGenerator $planner,
@@ -44,7 +113,7 @@ class RegeneratePlanJob implements ShouldQueue
 
         // Debounce: skip if plan was regenerated less than 6 hours ago (batches Strava-sync triggers)
         // User-triggered actions (skip/complete) bypass this debounce for immediate response
-        if (! $this->userTriggered && $plan->created_at->gt(now()->subHours(6))) {
+        if (! $this->isImmediate() && $plan->created_at->gt(now()->subHours(6))) {
             Log::info('RegeneratePlanJob: plan recently created, skipping', ['plan_id' => $plan->id]);
             $plan->update(['needs_plan_update' => false]);
             return;
@@ -107,9 +176,15 @@ class RegeneratePlanJob implements ShouldQueue
             // Was der Athlet selbst gesetzt hat, ueberlebt die Neuberechnung.
             // Ohne diese Ausnahme verschwand ein im Chat bestellter Longrun
             // beim naechsten Durchlauf still wieder.
+            $frozenThrough = $this->frozenThrough();
+
             TrainingSession::whereIn('training_plan_id', $oldPlanIds)
                 ->where('status', 'planned')
                 ->whereNull('pinned_at')
+                // Die naechsten Tage bleiben stehen, wenn niemand ausdruecklich
+                // um eine Aenderung gebeten hat. Der Athlet richtet seine Woche
+                // danach ein.
+                ->when($frozenThrough, fn ($q) => $q->whereDate('planned_date', '>', $frozenThrough))
                 ->delete();
             TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->delete();
 
@@ -139,8 +214,10 @@ class RegeneratePlanJob implements ShouldQueue
             // sie damit nicht mehr gezeigt.
             TrainingSession::where('user_id', $user->id)
                 ->where('event_id', $event->id)
-                ->whereNotNull('pinned_at')
                 ->where('status', 'planned')
+                ->where(fn ($q) => $q
+                    ->whereNotNull('pinned_at')
+                    ->when($frozenThrough, fn ($q2) => $q2->orWhereDate('planned_date', '<=', $frozenThrough)))
                 ->update(['training_plan_id' => $newPlan->id]);
 
             // Fuer dieses Event steht jetzt ein frischer Plan. Ein noch
@@ -164,7 +241,7 @@ class RegeneratePlanJob implements ShouldQueue
                 oldSessions: $sessionsBefore,
                 newSessions: $aiSessions,
                 corrections: $checked['report'] ?? [],
-                triggeredBy: $this->userTriggered ? 'user' : 'auto',
+                triggeredBy: $this->revisionLabel(),
             );
 
             // Erhaltene Einheiten blockieren ihren Tag nur für die eigene
@@ -186,9 +263,23 @@ class RegeneratePlanJob implements ShouldQueue
                 $session->update(['training_plan_id' => $newPlan->id]);
             }
 
+            // Tage, die stehengeblieben sind, duerfen nicht doppelt angelegt
+            // werden — sonst stuenden dort zwei Einheiten.
+            $keptDates = TrainingSession::where('training_plan_id', $newPlan->id)
+                ->where('status', 'planned')
+                ->pluck('planned_date')
+                ->map(fn ($d) => $d->format('Y-m-d'))
+                ->unique()
+                ->flip()
+                ->toArray();
+
             foreach ($aiSessions as $i => $s) {
                 $date  = $s['date'] ?? '';
                 $extra = in_array($s['type'] ?? '', $extraTypes, true);
+
+                if (isset($keptDates[$date])) {
+                    continue;
+                }
 
                 if ($extra ? isset($preservedExtraDates[$date]) : isset($preservedRunDates[$date])) {
                     continue;
@@ -231,7 +322,7 @@ class RegeneratePlanJob implements ShouldQueue
                 foreach ($recentRuns as $run) {
                     $date          = $run->start_date->toDateString();
                     $plannedOnDate = TrainingSession::where('training_plan_id', $newPlan->id)
-                        ->where('planned_date', $date)
+                        ->whereDate('planned_date', $date)
                         ->where('status', 'planned')
                         ->orderBy('sort_order')
                         ->get();

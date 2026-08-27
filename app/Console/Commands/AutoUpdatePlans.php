@@ -73,7 +73,7 @@ class AutoUpdatePlans extends Command
                     }
 
                     $plan->update(['needs_plan_update' => true]);
-                    RegeneratePlanJob::dispatch($plan->user_id);
+                    RegeneratePlanJob::dispatch($plan->user_id, RegeneratePlanJob::REASON_GAP);
                 } else {
                     $this->line("✓ Plan ok for user #{$plan->user_id} ({$coverageAhead}d ahead, window {$coveredInWindow}/{$expected})");
                 }

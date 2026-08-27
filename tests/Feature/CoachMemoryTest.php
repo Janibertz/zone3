@@ -148,6 +148,12 @@ class CoachMemoryTest extends TestCase
 
     // ── Die Rückfrage des Coaches hat eine Folge ─────────────────────────
 
+    /**
+     * Die Antwort landet im Gedaechtnis — nicht in einer sofortigen
+     * Neuberechnung. Frueher warf sie den Restplan neu; das war der Grund,
+     * warum sich ein eingeplantes Schwellentraining ueber Nacht in zwanzig
+     * lockere Minuten verwandeln konnte.
+     */
     public function test_answering_the_review_question_reaches_the_plan(): void
     {
         Queue::fake();
@@ -187,7 +193,11 @@ class CoachMemoryTest extends TestCase
             'Die Antwort muss im Gedächtnis des Coaches landen'
         );
 
-        $this->assertTrue($plan->refresh()->needs_plan_update, 'Der Plan muss zur Neuberechnung vorgemerkt sein');
-        Queue::assertPushed(RegeneratePlanJob::class);
+        // Und der Plan bleibt stehen. Die Antwort wirkt ueber coach_notes auf
+        // die naechste planmaessige Berechnung — sie wirft nicht die laufende
+        // Woche um. Wer schreibt, dass die Einheit zu hart war, meint die
+        // kommenden Wochen und nicht den Plan fuer morgen frueh.
+        $this->assertFalse((bool) $plan->refresh()->needs_plan_update);
+        Queue::assertNotPushed(RegeneratePlanJob::class);
     }
 }

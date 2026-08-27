@@ -55,6 +55,8 @@ User → RunnerProfile (threshold_speed, pace_zones JSON, heart_rate_zones JSON,
 `TrainingSession.status`: `planned` → `completed` / `skipped`
 `TrainingSession.pinned_at`: set by the athlete via coach chat — survives regeneration (see below).
 
+Match sessions by date with `whereDate('planned_date', …)`, never `where(...)`. MySQL stores a bare `2026-08-27` for a `date` column, SQLite (the test connection) stores `2026-08-27 00:00:00` — an equality comparison silently matches nothing under the test suite while working in production.
+
 ## The plan pipeline
 
 This is the core of the app and the part with the most hard-won rules. Do not treat it as one AI call.
@@ -84,6 +86,34 @@ PlanRevisionRecorder           stores diff + corrections → visible in the plan
 - Days outside the window, past the race, or already finalized are dropped.
 
 **Where corrections show up:** `plan_revisions.corrections`, rendered in the plan page's "Verlauf" — the fastest way to judge whether prompt changes landed. `Log::info('Plan validator corrected the AI output')` carries the same list.
+
+### When the plan may change (and when it may not)
+
+A regeneration deletes every `planned` session and has the model invent them again. The model is not deterministic, so **every regeneration is a fresh roll of the dice** — rest days vanished, a threshold run became twenty easy minutes. Two of the seven triggers were "the athlete did what the plan said", the worst possible reason to redraw a plan.
+
+`RegeneratePlanJob` now takes a **reason**, and the reason decides two things: whether the 6-hour debounce applies, and how far into the near future the run may reach.
+
+| Reason | Debounce | Freeze | Dispatched from |
+|---|---|---|---|
+| `REASON_MANUAL` | bypassed | none | plan page button |
+| `REASON_SKIP` | bypassed | none | session skipped |
+| `REASON_AVAILABILITY` | bypassed | none | weekly availability answered |
+| `REASON_WELLBEING` | bypassed | none | illness / exhaustion |
+| `REASON_THRESHOLD` | applies | 3 days | threshold pace moved ≥ 1.5 % |
+| `REASON_GAP` | applies | 3 days | `plan:auto-update` |
+| `REASON_AUTO` | applies | 3 days | unplanned Strava activity |
+
+**Freeze** (`FREEZE_DAYS = 3`) means sessions in that window survive the delete, get re-linked to the new plan, and are skipped when the new sessions are written. The athlete arranges their week around these days; an automatic run must not rewrite them. Anything the athlete asked for themselves freezes nothing.
+
+**Completing a session dispatches nothing.** Neither does a Strava import that matches a planned session. What they add flows into the next scheduled regeneration through the context.
+
+### Rest days are binding
+
+Free days used to be written into the prompt as `type="rest" ODER lockere Einheit` — the model decided, differently on every run. `WeeklyPatternService::assignFreeDays()` decides now: the day after a hard session is rest, every week has at least one, everything else becomes an easy run. The validator enforces it. A test asserts that building the skeleton twice yields the same thing.
+
+### Sport type
+
+`training_sessions.sport_type` carries the Strava sport (`NULL` = running). Before that, everything that was neither a run nor strength was stored as `easy_run`: the coach reviewed a swim as a run, and a 1.5 km swim polluted the pace baseline and the weekly running volume. `isRun()` gates every pace/volume comparison; `sportLabel()` gives the German name.
 
 ### Pinned sessions
 

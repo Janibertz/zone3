@@ -229,7 +229,7 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
                 foreach ($recentRuns as $run) {
                     $date         = $run->start_date->toDateString();
                     $plannedOnDate = TrainingSession::where('training_plan_id', $plan->id)
-                        ->where('planned_date', $date)
+                        ->whereDate('planned_date', $date)
                         ->where('status', 'planned')
                         ->orderBy('sort_order')
                         ->get();
