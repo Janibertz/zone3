@@ -621,7 +621,9 @@ class WeeklyPatternService
         foreach ($skeleton['days'] as $date => $day) {
             $wd = $weekdays[$day['weekday']];
 
-            if ($day['finalized']) {
+            // Abgeschlossene Tage und solche, die unveraendert stehen
+            // bleiben, gehoeren nicht in die Liste der zu planenden Tage.
+            if ($day['finalized'] || ! empty($day['kept'])) {
                 continue;
             }
 

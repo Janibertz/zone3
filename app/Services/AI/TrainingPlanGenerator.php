@@ -342,6 +342,27 @@ class TrainingPlanGenerator
         // Vom Athleten selbst gesetzte Einheiten. Fuer das Geruest sind ihre
         // Tage gesperrt; der Prompt muss den Grund kennen, sonst haelt das
         // Modell sie fuer eine Luecke und plant sie zu.
+        // Tage, die unveraendert stehen bleiben.
+        //
+        // Ihr Geruest-Slot hat sich nicht geaendert, also gibt es dort nichts
+        // neu zu erfinden. Sie stehen bereits in der Datenbank und werden nur
+        // genannt, damit das Modell die Woche als Ganzes sieht und die
+        // offenen Tage dazu passend fuellt.
+        $keptText = '';
+        if ($c->keptSessions) {
+            $lines = [];
+            foreach ($c->keptSessions as $ks) {
+                $umfang = trim(($ks['distance_km'] ? "{$ks['distance_km']} km" : '')
+                    . ($ks['duration_min'] ? ($ks['distance_km'] ? ', ' : '') . "{$ks['duration_min']} min" : ''));
+                $lines[] = "- {$ks['date']}: {$ks['title']} ({$ks['type']}" . ($umfang ? ", {$umfang}" : '') . ')';
+            }
+
+            $keptText = "\n\n**Steht bereits und bleibt unveraendert:**\n"
+                . implode("\n", $lines)
+                . "\nDiese Tage NICHT im Array zurueckgeben. Sie sind Teil der Woche und zaehlen"
+                . " in die Wochenbelastung mit — plane die offenen Tage passend dazu.";
+        }
+
         $pinnedText = '';
         if ($c->pinnedSessions) {
             $lines = [];
@@ -475,7 +496,7 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 **Bisherige Einheitsbewertungen (Athleten-Feedback):**
 {$ratingsText}{$phaseText}
 
-**{$availabilityText}**{$otherEventsText}{$followUpGoalText}{$finalizedText}{$pinnedText}{$recoveryWarning}{$perDateAvailText}{$strengthBlock}
+**{$availabilityText}**{$otherEventsText}{$followUpGoalText}{$finalizedText}{$pinnedText}{$keptText}{$recoveryWarning}{$perDateAvailText}{$strengthBlock}
 
 **Wenn sich Signale widersprechen, gilt diese Rangfolge — von oben nach unten:**
 1. Gesundheit: Krankheit, Verletzung, Wiedereinstieg. Schlägt alles andere, auch das Renndatum.
@@ -546,7 +567,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 **Bisherige Einheitsbewertungen (Athleten-Feedback):**
 {$ratingsText}{$phaseText}{$focusText}
 
-**{$availabilityText}**{$otherEventsText}{$finalizedText}{$pinnedText}{$recoveryWarning}{$perDateAvailText}{$strengthBlock}
+**{$availabilityText}**{$otherEventsText}{$finalizedText}{$pinnedText}{$keptText}{$recoveryWarning}{$perDateAvailText}{$strengthBlock}
 
 **Wenn sich Signale widersprechen, gilt diese Rangfolge — von oben nach unten:**
 1. Gesundheit: Krankheit, Verletzung, Wiedereinstieg. Schlägt alles andere, auch das Renndatum.

@@ -84,7 +84,9 @@ class TrainingPlanValidator
             }
 
             // Abgeschlossene Tage gehören dem Athleten, nicht dem Modell.
-            if (! empty($days[$date]['finalized'])) {
+            // Erhaltene Tage ebenso — sie stehen bereits in der Datenbank
+            // und wurden dem Modell nur als Kontext genannt.
+            if (! empty($days[$date]['finalized']) || ! empty($days[$date]['kept'])) {
                 return false;
             }
 
@@ -362,7 +364,7 @@ class TrainingPlanValidator
     private function restoreMissingSlots(array $sessions, array $days): array
     {
         foreach ($days as $date => $day) {
-            if ($day['finalized'] || ! $day['available'] || ! $day['slots']) {
+            if ($day['finalized'] || ! empty($day['kept']) || ! $day['available'] || ! $day['slots']) {
                 continue;
             }
 
@@ -416,7 +418,7 @@ class TrainingPlanValidator
         $covered = collect($sessions)->pluck('date')->flip();
 
         foreach ($days as $date => $day) {
-            if ($day['finalized'] || isset($covered[$date])) {
+            if ($day['finalized'] || ! empty($day['kept']) || isset($covered[$date])) {
                 continue;
             }
 

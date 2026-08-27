@@ -33,6 +33,8 @@ readonly class PlanContext
         public ?string $coachNotes = null,
         public ?array $comeback = null,
         public array $pinnedSessions = [],
+        /** Tage, die unveraendert stehen bleiben — siehe PlanDeltaService. */
+        public array $keptSessions = [],
         public array $crossTraining = [],
         public ?array $paces = null,
         public ?array $volume = null,
@@ -63,7 +65,7 @@ readonly class PlanContext
      * Kopie mit Gerüst und Garmin-Text. Beide entstehen erst, nachdem der
      * restliche Kontext steht — das Gerüst braucht die Verfügbarkeit.
      */
-    public function with(?array $skeleton = null, ?string $garminText = null): self
+    public function with(?array $skeleton = null, ?string $garminText = null, ?array $keptSessions = null): self
     {
         return new self(
             event:                 $this->event,
@@ -83,6 +85,7 @@ readonly class PlanContext
             coachNotes:            $this->coachNotes,
             comeback:              $this->comeback,
             pinnedSessions:        $this->pinnedSessions,
+            keptSessions:          $keptSessions ?? $this->keptSessions,
             crossTraining:         $this->crossTraining,
             paces:                 $this->paces,
             volume:                $this->volume,

@@ -143,6 +143,70 @@ class RegeneratePlanJob implements ShouldQueue
             ->where('status', 'planned')
             ->get();
 
+        // ── Was muss ueberhaupt neu geschrieben werden? ─────────────────────
+        //
+        // Das Geruest ist deterministisch. Traegt ein Tag denselben Slot wie
+        // vorher und steht dort bereits eine Einheit, gibt es nichts neu zu
+        // erfinden — und genau dieses Neu-Erfinden war der Grund, warum
+        // derselbe Donnerstag nach jeder Neuberechnung anders aussah.
+        //
+        // Eingefrorene Tage zaehlen immer als erhalten: sie sollen sich
+        // nicht aendern, also darf das Modell sie auch nicht neu schreiben.
+        $frozenThrough = $this->frozenThrough();
+
+        $delta = app(\App\Services\PlanDeltaService::class)->split($skeleton, $sessionsBefore);
+
+        $keptDates = collect($delta['keep'])
+            ->merge($frozenThrough
+                ? $sessionsBefore->filter(fn ($s) => $s->planned_date->format('Y-m-d') <= $frozenThrough)
+                    ->map(fn ($s) => $s->planned_date->format('Y-m-d'))
+                : [])
+            ->unique()
+            ->values();
+
+        $staleDates = collect($delta['stale'])->reject(fn ($d) => $keptDates->contains($d))->values();
+
+        // Nichts zu tun. Der Aufruf beim Modell entfaellt vollstaendig —
+        // frueher lief er auch dann, wenn das Ergebnis dasselbe sein musste.
+        if ($staleDates->isEmpty()) {
+            Log::info('RegeneratePlanJob: nichts zu aendern', [
+                'user_id' => $this->userId,
+                'reason'  => $this->reason,
+                'kept'    => $keptDates->count(),
+            ]);
+            $plan->update(['needs_plan_update' => false]);
+            return;
+        }
+
+        // Die erhaltenen Tage aus dem Geruest nehmen und dem Modell als
+        // Kontext nennen. Beides zusammen sorgt dafuer, dass es sie nicht
+        // zurueckgibt und die offenen Tage trotzdem dazu passend fuellt.
+        $keptSessions = [];
+        foreach ($keptDates as $date) {
+            if (isset($skeleton['days'][$date])) {
+                $skeleton['days'][$date]['kept'] = true;
+            }
+
+            foreach ($sessionsBefore->filter(fn ($s) => $s->planned_date->format('Y-m-d') === $date) as $kept) {
+                $keptSessions[] = [
+                    'date'         => $date,
+                    'type'         => $kept->type,
+                    'title'        => $kept->title,
+                    'distance_km'  => $kept->distance_km,
+                    'duration_min' => $kept->duration_min,
+                ];
+            }
+        }
+
+        $context = $context->with(skeleton: $skeleton, keptSessions: $keptSessions);
+
+        Log::info('RegeneratePlanJob: Teil-Neuberechnung', [
+            'user_id' => $this->userId,
+            'reason'  => $this->reason,
+            'stale'   => $staleDates->count(),
+            'kept'    => $keptDates->count(),
+        ]);
+
         // ── Call OpenAI ─────────────────────────────────────────────────────────
         $planner->withCoach($user->coach?->personality_prompt)->forUser($user->id);
         try {
@@ -176,15 +240,13 @@ class RegeneratePlanJob implements ShouldQueue
             // Was der Athlet selbst gesetzt hat, ueberlebt die Neuberechnung.
             // Ohne diese Ausnahme verschwand ein im Chat bestellter Longrun
             // beim naechsten Durchlauf still wieder.
-            $frozenThrough = $this->frozenThrough();
-
+            // Geloescht wird nur, was tatsaechlich neu geschrieben wird.
+            // Erhaltene Tage (unveraendertes Geruest oder eingefroren) und
+            // vom Athleten gesetzte Einheiten bleiben stehen.
             TrainingSession::whereIn('training_plan_id', $oldPlanIds)
                 ->where('status', 'planned')
                 ->whereNull('pinned_at')
-                // Die naechsten Tage bleiben stehen, wenn niemand ausdruecklich
-                // um eine Aenderung gebeten hat. Der Athlet richtet seine Woche
-                // danach ein.
-                ->when($frozenThrough, fn ($q) => $q->whereDate('planned_date', '>', $frozenThrough))
+                ->whereIn('planned_date', $staleDates->all())
                 ->delete();
             TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->delete();
 
@@ -215,9 +277,6 @@ class RegeneratePlanJob implements ShouldQueue
             TrainingSession::where('user_id', $user->id)
                 ->where('event_id', $event->id)
                 ->where('status', 'planned')
-                ->where(fn ($q) => $q
-                    ->whereNotNull('pinned_at')
-                    ->when($frozenThrough, fn ($q2) => $q2->orWhereDate('planned_date', '<=', $frozenThrough)))
                 ->update(['training_plan_id' => $newPlan->id]);
 
             // Fuer dieses Event steht jetzt ein frischer Plan. Ein noch

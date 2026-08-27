@@ -107,6 +107,19 @@ A regeneration deletes every `planned` session and has the model invent them aga
 
 **Completing a session dispatches nothing.** Neither does a Strava import that matches a planned session. What they add flows into the next scheduled regeneration through the context.
 
+### Partial regeneration
+
+The skeleton is deterministic — it follows from availability, race distance, comeback step and the long-run ladder, none of which drift on their own. `PlanDeltaService::split()` compares it against the sessions already in the database and returns `keep` / `stale`:
+
+- day carries the slot types the skeleton wants (optional second slots may be missing) → **keep**
+- skeleton says rest and a rest sits there → **keep**
+- long run more than 10 % off the ladder's target → **stale**
+- day empty, wrong type, or something extra → **stale**
+
+Frozen days always count as kept. **If `stale` is empty the job returns without calling the model at all** — previously it ran even when the answer had to be the same.
+
+Otherwise kept days are marked `kept` in the skeleton (dropped from the day list, ignored by the validator's `dropUnknownDates` / `fillMissingDays` / slot restoration) and passed to the prompt as `keptSessions`: "steht bereits und bleibt unverändert — nicht zurückgeben". The model sees the whole week but only writes the open days, and only those get deleted and recreated.
+
 ### Rest days are binding
 
 Free days used to be written into the prompt as `type="rest" ODER lockere Einheit` — the model decided, differently on every run. `WeeklyPatternService::assignFreeDays()` decides now: the day after a hard session is rest, every week has at least one, everything else becomes an easy run. The validator enforces it. A test asserts that building the skeleton twice yields the same thing.
