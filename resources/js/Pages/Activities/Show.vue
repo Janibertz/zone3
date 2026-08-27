@@ -5,12 +5,45 @@ import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import AppCard from '@/Components/UI/AppCard.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
+import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
+import { router } from '@inertiajs/vue3';
 
 const props = defineProps({
     activity:      Object,
     paceZones:     Object,
     linkedSession: Object,
 });
+
+// ── Löschen ───────────────────────────────────────────────────────────────────
+// Unwiderruflich, deshalb mit Rückfrage. Die Rückfrage sagt auch, was mit der
+// verknüpften Trainingseinheit passiert — sonst bliebe unklar, ob der Plan
+// eine Lücke bekommt.
+const confirmDelete = ref(false);
+const deleting      = ref(false);
+const deleteError   = ref('');
+
+const deleteMessage = computed(() => {
+    const base = 'Die Aktivität wird endgültig gelöscht und beim nächsten Strava-Abgleich nicht erneut geladen.';
+
+    if (!props.linkedSession) return base;
+
+    return props.linkedSession.was_unplanned
+        ? `${base} Der dazugehörige Eintrag im Trainingsplan verschwindet mit ihr.`
+        : `${base} Die geplante Einheit bleibt im Plan und steht danach wieder als offen.`;
+});
+
+async function destroyActivity() {
+    deleting.value    = true;
+    deleteError.value = '';
+
+    try {
+        await axios.delete(route('activities.destroy', props.activity.id));
+        router.visit(route('activities.index'));
+    } catch (e) {
+        deleteError.value = e.response?.data?.message ?? 'Löschen fehlgeschlagen. Bitte versuche es erneut.';
+        deleting.value    = false;
+    }
+}
 
 // ── Lap helpers ───────────────────────────────────────────────────────────────
 
@@ -631,6 +664,28 @@ onUnmounted(() => {
                         </AppButton>
                     </AppCard>
                 </div>
+
+                <!-- ── Löschen ────────────────────────────────────── -->
+                <div class="pt-2">
+                    <p v-if="deleteError" class="z-error mb-2 text-center">{{ deleteError }}</p>
+                    <button
+                        type="button"
+                        class="mx-auto block text-[13px] font-medium text-ink-3 transition-colors hover:text-danger-ink"
+                        @click="confirmDelete = true"
+                    >
+                        Aktivität löschen
+                    </button>
+                </div>
+
+                <ConfirmSheet
+                    :show="confirmDelete"
+                    title="Aktivität löschen?"
+                    :message="deleteMessage"
+                    confirm-label="Endgültig löschen"
+                    :loading="deleting"
+                    @confirm="destroyActivity"
+                    @close="confirmDelete = false"
+                />
 
                 <!-- ── Strava ─────────────────────────────────────── -->
                 <div v-if="activity.strava_id" class="flex justify-center pb-2 pt-1">

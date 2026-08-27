@@ -4,12 +4,37 @@ namespace App\Http\Controllers;
 
 use App\Models\Activity;
 use App\Models\TrainingSession;
+use App\Services\ActivityDeletionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
 class ActivityController extends Controller
 {
+    /**
+     * Eine Aktivität löschen.
+     *
+     * Bis hierher ging das nirgends — auch nicht im Admin-Bereich. Wer eine
+     * Einheit versehentlich aufgezeichnet oder zum Ausprobieren angelegt
+     * hatte, wurde sie nicht mehr los, und sie zaehlte weiter in
+     * Wochenumfang, Belastung und Schwellenpace.
+     *
+     * Das Aufraeumen macht {@see ActivityDeletionService} — es haengt mehr
+     * daran als die Zeile selbst.
+     */
+    public function destroy(Activity $activity, ActivityDeletionService $deletion)
+    {
+        abort_if($activity->user_id !== Auth::id(), 403);
+
+        $result = $deletion->delete($activity);
+
+        return response()->json([
+            'success'  => true,
+            'restored' => $result['sessions_restored'],
+            'deleted'  => $result['sessions_deleted'],
+        ]);
+    }
+
     public function show(Activity $activity)
     {
         abort_if($activity->user_id !== Auth::id(), 403);
@@ -52,6 +77,8 @@ class ActivityController extends Controller
                 'rating'           => $linkedSession->rating,
                 'effort_perceived' => $linkedSession->effort_perceived,
                 'feeling_notes'    => $linkedSession->feeling_notes,
+                // Entscheidet, was die Loesch-Rueckfrage ueber den Plan sagt.
+                'was_unplanned'    => (bool) $linkedSession->was_unplanned,
             ] : null,
         ]);
     }

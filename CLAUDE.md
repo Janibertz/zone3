@@ -222,6 +222,14 @@ Inertia.js — no API calls, all data passed as props from Laravel controllers.
 - `useActivityTypes.js` — Strava type → label/emoji/group/pill, plus `SPORT_FILTERS`. Mirrored in `StatisticsController::SPORT_TYPES`; the two must agree.
 - `useSessionTypes.js` — session type → label/colour, and `paceWithUnit()` (the model writes "min/km" into `pace_target` itself; appending the unit produced "5:08–5:43 min/km /km")
 
+### Deleting an activity
+
+`DELETE /activities/{activity}` → `ActivityDeletionService`. A bare `$activity->delete()` is not enough:
+
+- `training_sessions.activity_id` is `nullOnDelete`, so a session the import completed would stay on `completed` with the run's numbers but no evidence behind them. A session the import *created* (`was_unplanned`) is deleted with it; a **planned** session is restored from `planned_snapshot` and goes back to `planned`, review and rating cleared. Without a snapshot the numbers stay — inventing them would be worse.
+- `race_analysis_text` pointing at it is cleared; `best_efforts` cascade away.
+- **A tombstone is required.** The manual sync runs `Activity::updateOrCreate` over Strava's recent activities and would re-create the deleted one on the next run. `ignored_strava_activities` holds (user_id, strava_id); both the sync and the webhook check it. The webhook alone would not have brought it back — it only handles `aspect_type = create` — but the sync would.
+
 ## Strava Webhook
 
 `POST /strava/webhook` — no auth token, verified via `STRAVA_WEBHOOK_VERIFY_TOKEN` query param. Imports activity → matches to planned sessions retroactively → records best efforts → sends push notification.

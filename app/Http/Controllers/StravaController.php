@@ -79,7 +79,15 @@ class StravaController extends Controller
         $newRunCount   = 0;
         $lapBackfilled = 0;
 
+        // Was der Athlet geloescht hat, bleibt geloescht. Ohne diese Sperre
+        // legt updateOrCreate es beim naechsten Abgleich wieder an.
+        $ignored = array_flip(\App\Models\IgnoredStravaActivity::idsFor($user->id));
+
         foreach ($activities as $activityData) {
+            if (isset($ignored[$activityData['id']])) {
+                continue;
+            }
+
             $isNew = ! Activity::where('strava_id', $activityData['id'])
                 ->where('user_id', $user->id)
                 ->exists();
@@ -209,6 +217,11 @@ class StravaController extends Controller
         if (! $activityData) return response('OK');
 
         $userId = $account->user_id;
+
+        if (\App\Models\IgnoredStravaActivity::where('user_id', $userId)
+            ->where('strava_id', $activityData['id'])->exists()) {
+            return response('OK');
+        }
 
         $activity = Activity::updateOrCreate(
             ['strava_id' => $activityData['id'], 'user_id' => $userId],
