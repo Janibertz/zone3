@@ -109,11 +109,32 @@ class TrainingPlanValidator
         return $sessions;
     }
 
-    /** An nicht verfügbaren Tagen darf nichts stehen als Ruhe. */
+    /**
+     * An nicht verfügbaren Tagen darf nichts stehen als Ruhe — und an
+     * Ruhetagen, die das Gerüst festgelegt hat, ebenso wenig.
+     *
+     * Der zweite Fall ist neu. Freie Tage waren im Prompt als „rest ODER
+     * lockere Einheit" ausgeschrieben, die Entscheidung lag beim Modell und
+     * fiel bei jedem Durchlauf anders aus. Jetzt legt das Gerüst sie fest,
+     * und was festgelegt ist, muss auch durchgesetzt werden — ein Hinweis im
+     * Prompt allein hat sich noch nie als Durchsetzung bewährt.
+     */
     private function enforceAvailability(array $sessions, array $days): array
     {
         foreach ($sessions as &$s) {
-            if ($days[$s['date']]['available'] || ($s['type'] ?? '') === 'rest') {
+            $day = $days[$s['date']];
+
+            if (($s['type'] ?? '') === 'rest') {
+                continue;
+            }
+
+            if (! empty($day['rest'])) {
+                $this->note("{$s['date']}: Ruhetag im Gerüst, aber \"{$s['type']}\" geplant → rest");
+                $s = $this->restEntry($s['date']);
+                continue;
+            }
+
+            if ($day['available']) {
                 continue;
             }
 

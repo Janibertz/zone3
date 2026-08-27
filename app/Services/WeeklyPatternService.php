@@ -106,6 +106,10 @@ class WeeklyPatternService
             $weeks[$weekKey] = $step !== null && $step < ReturnToRunService::TOTAL_STEPS
                 ? $this->planComebackWeek($days, $dates, $step, $priority, $maxHard)
                 : $this->planWeek($days, $dates, $priority, $maxHard);
+
+            // Was danach noch frei ist, wird HIER entschieden — nicht vom
+            // Modell. Siehe assignFreeDays().
+            $this->assignFreeDays($days, $dates);
         }
 
         // Der lange Lauf bekommt seine Zieldistanz aus der Leiter — sie ist
@@ -477,6 +481,80 @@ class WeeklyPatternService
     }
 
     /**
+     * Die freien Tage einer Woche festlegen: Ruhetag oder lockerer Lauf.
+     *
+     * Das war bis hierher offen. Das Gerüst schrieb für einen freien Tag
+     * `type="rest" ODER lockere Einheit` in den Prompt und überließ die
+     * Entscheidung dem Modell — bei jedem Durchlauf neu. Der Athlet sah
+     * am Montag zwei Ruhetage in seiner Woche und am Dienstag keinen mehr,
+     * ohne dass sich irgendetwas an seiner Lage geändert hätte. Ein
+     * Sprachmodell ist nicht deterministisch; wer es zweimal fragt, bekommt
+     * zweimal etwas anderes.
+     *
+     * Die Regel ist bewusst schlicht und nachvollziehbar:
+     *   · Der Tag nach einer harten Einheit ist Erholung — Ruhetag.
+     *   · Jede Woche hat mindestens einen Ruhetag. Fällt keiner an, wird
+     *     der freie Tag mit dem kleinsten Zeitbudget dazu erklärt.
+     *   · Alles Übrige wird ein lockerer Lauf in Zone 2.
+     *
+     * @param  list<string>  $dates  Die Tage dieser Woche
+     */
+    private function assignFreeDays(array &$days, array $dates): void
+    {
+        $free = array_values(array_filter(
+            $dates,
+            fn ($d) => $days[$d]['available']
+                && ! $days[$d]['finalized']
+                && empty($days[$d]['slots']),
+        ));
+
+        if ($free === []) {
+            return;
+        }
+
+        $restDates = [];
+
+        foreach ($free as $date) {
+            $previous = CarbonImmutable::parse($date)->subDay()->format('Y-m-d');
+
+            // Der Vortag kann außerhalb des Fensters liegen — dann ist über
+            // ihn nichts bekannt und der Tag bleibt ein lockerer Lauf.
+            $afterHard = isset($days[$previous]) && collect($days[$previous]['slots'] ?? [])
+                ->contains(fn ($slot) => (bool) ($slot['hard'] ?? false));
+
+            if ($afterHard) {
+                $restDates[$date] = true;
+            }
+        }
+
+        // Mindestens ein echter Ruhetag pro Woche.
+        if ($restDates === []) {
+            $lowest = $free[0];
+            foreach ($free as $date) {
+                if ($days[$date]['budget_min'] > 0
+                    && ($days[$lowest]['budget_min'] === 0 || $days[$date]['budget_min'] < $days[$lowest]['budget_min'])) {
+                    $lowest = $date;
+                }
+            }
+            $restDates[$lowest] = true;
+        }
+
+        foreach ($free as $date) {
+            if (isset($restDates[$date])) {
+                $days[$date]['rest'] = true;
+                continue;
+            }
+
+            $days[$date]['slots'][] = [
+                'type'    => 'easy_run',
+                'hard'    => false,
+                'max_min' => $days[$date]['budget_min'],
+                'filler'  => true,
+            ];
+        }
+    }
+
+    /**
      * Zweite Einheit an Tagen, an denen nach der Pflichteinheit noch Zeit
      * übrig ist. Bewusst an die Restzeit gekoppelt und nicht an eine feste
      * Schwelle — wer 75 Minuten hat und 45 verbraucht, kann 30 Minuten Core
@@ -554,6 +632,13 @@ class WeeklyPatternService
 
             $cap = $day['budget_min'] > 0 ? "max. {$day['budget_min']} min" : 'ohne feste Obergrenze';
 
+            // Ruhetage sind verbindlich wie jede andere Vorgabe. Vorher stand
+            // hier "rest ODER lockere Einheit", und das Modell wuerfelte.
+            if (! empty($day['rest'])) {
+                $lines[] = "- {$date} ({$wd}): RUHETAG → type=\"rest\" PFLICHT";
+                continue;
+            }
+
             if (! $day['slots']) {
                 $lines[] = "- {$date} ({$wd}): frei, {$cap} → type=\"rest\" ODER lockere Einheit";
                 continue;
@@ -614,6 +699,7 @@ class WeeklyPatternService
             . "- Tage mit zwei Einträgen bekommen ZWEI Objekte mit demselben \"date\"; die Summe beider duration_min darf das Tages-Maximum nicht überschreiten.\n"
             . "- Steht bei einer Einheit \"max. N min\", ist das ihre Obergrenze — nicht die des Tages. Sie zu überschreiten oder die fehlende Zeit mit einer zweiten Einheit aufzufüllen, ist beides falsch.\n"
             . "- Als [optional] markierte Zweiteinheiten darfst du weglassen, wenn sie an dem Tag nicht sinnvoll sind — aber niemals durch eine harte Einheit ersetzen.\n"
+            . "- Als RUHETAG markierte Tage sind Pflicht: type=\"rest\", keine Einheit, auch keine lockere. Der Athlet hat sie fest eingeplant und richtet seine Woche danach ein.\n"
             . "- Tage ohne Vorgabe: entweder type=\"rest\" oder eine lockere Ergänzung, niemals eine harte Einheit.\n"
             . "- Erfinde KEINE zusätzlichen harten Einheiten und verschiebe KEINE Termine.\n"
             . "- FESTE TERMINE sind auswärtige Einheiten (Laufclub, Vereinstraining). Ihr Inhalt steht NICHT fest und wechselt wöchentlich. Schreibe dort KEINE erfundene Struktur hinein: kurzer title mit dem Namen des Termins, und eine description, die sagt, dass der Inhalt vor Ort vorgegeben wird. Setze pace_target=null. Plane an diesem Tag nichts Zusätzliches und ziehe die Einheit bei der Wochenbelastung mit ein.";

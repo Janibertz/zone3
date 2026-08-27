@@ -418,4 +418,124 @@ class WeeklyPatternTest extends TestCase
         $dates = collect($result['sessions'])->pluck('date')->unique();
         $this->assertCount(count($skeleton['days']), $dates);
     }
+
+    // ── Ruhetage sind verbindlich ────────────────────────────────────────
+
+    /**
+     * Der Kern: freie Tage waren im Prompt als "rest ODER lockere Einheit"
+     * ausgeschrieben. Das Modell entschied, und zwar bei jedem Durchlauf
+     * neu — der Athlet sah am Montag zwei Ruhetage und am Dienstag keinen.
+     */
+    public function test_every_week_has_at_least_one_binding_rest_day(): void
+    {
+        $skeleton = $this->build($this->event(), $this->availability());
+
+        $byWeek = [];
+        foreach ($skeleton['days'] as $date => $day) {
+            $byWeek[CarbonImmutable::parse($date)->format('o-\WW')][] = ! empty($day['rest']);
+        }
+
+        foreach ($byWeek as $week => $flags) {
+            $this->assertContains(true, $flags, "Woche {$week} ohne Ruhetag");
+        }
+    }
+
+    /** Kein freier Tag bleibt offen — er ist entweder Ruhetag oder belegt. */
+    public function test_no_day_is_left_to_the_model(): void
+    {
+        $skeleton = $this->build($this->event(), $this->availability());
+
+        foreach ($skeleton['days'] as $date => $day) {
+            if (! $day['available'] || $day['finalized']) {
+                continue;
+            }
+
+            $this->assertTrue(
+                ! empty($day['rest']) || ! empty($day['slots']),
+                "{$date} ist weder Ruhetag noch belegt — das entschiede das Modell",
+            );
+        }
+    }
+
+    /** Der Tag nach einer harten Einheit ist Erholung. */
+    public function test_the_day_after_a_hard_session_is_rest(): void
+    {
+        $skeleton = $this->build($this->event(), $this->availability());
+        $days     = $skeleton['days'];
+        $checked  = 0;
+
+        foreach ($days as $date => $day) {
+            $hard = collect($day['slots'] ?? [])->contains(fn ($s) => ! empty($s['hard']));
+            if (! $hard) {
+                continue;
+            }
+
+            $next = CarbonImmutable::parse($date)->addDay()->format('Y-m-d');
+            if (! isset($days[$next]) || ! $days[$next]['available'] || $days[$next]['finalized']) {
+                continue;
+            }
+
+            // Der Folgetag kann selbst eine Pflichteinheit tragen; nur wenn er
+            // frei geblieben waere, muss er Ruhetag sein.
+            if (empty($days[$next]['slots'])) {
+                $this->assertTrue(! empty($days[$next]['rest']), "{$next} folgt auf eine harte Einheit");
+                $checked++;
+            }
+        }
+
+        $this->assertGreaterThan(0, $checked, 'Kein Folgetag zum Pruefen — Testaufbau stimmt nicht');
+    }
+
+    /** Zweimal bauen ergibt zweimal dasselbe. Genau das war vorher nicht so. */
+    public function test_the_skeleton_is_deterministic(): void
+    {
+        $event = $this->event();
+
+        $a = $this->build($event, $this->availability());
+        $b = $this->build($event, $this->availability());
+
+        $this->assertSame(
+            array_map(fn ($d) => [$d['rest'] ?? false, array_column($d['slots'] ?? [], 'type')], $a['days']),
+            array_map(fn ($d) => [$d['rest'] ?? false, array_column($d['slots'] ?? [], 'type')], $b['days']),
+        );
+    }
+
+    /** Das Geruest schreibt den Ruhetag als Pflicht in den Prompt. */
+    public function test_the_prompt_marks_rest_days_as_mandatory(): void
+    {
+        $skeleton = $this->build($this->event(), $this->availability());
+        $text     = app(WeeklyPatternService::class)->toPromptSection($skeleton);
+
+        $this->assertStringContainsString('RUHETAG', $text);
+        $this->assertStringContainsString('PFLICHT', $text);
+    }
+
+    /** Und der Validator setzt ihn durch, egal was das Modell zurueckgibt. */
+    public function test_the_validator_restores_a_rest_day(): void
+    {
+        $skeleton = $this->build($this->event(), $this->availability());
+
+        $restDate = collect($skeleton['days'])
+            ->filter(fn ($d) => ! empty($d['rest']))
+            ->keys()
+            ->first();
+
+        $this->assertNotNull($restDate, 'Kein Ruhetag im Geruest');
+
+        // Das Modell plant dort trotzdem eine Einheit.
+        $answer = [[
+            'date' => $restDate, 'type' => 'tempo_run', 'title' => 'Tempolauf',
+            'description' => '', 'distance_km' => 10, 'duration_min' => 50,
+            'pace_target' => '4:30', 'zone' => 4, 'intensity' => 'high',
+        ]];
+
+        $checked = app(TrainingPlanValidator::class)->validate(
+            $answer, $skeleton, now()->addDays(60)->toDateString()
+        );
+
+        $onDate = collect($checked['sessions'])->firstWhere('date', $restDate);
+
+        $this->assertSame('rest', $onDate['type']);
+        $this->assertNotEmpty($checked['report']);
+    }
 }
