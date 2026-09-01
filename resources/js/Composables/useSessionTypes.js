@@ -65,14 +65,27 @@ export function sessionType(type) {
  * doppelten Zusatz. Hier wird ein vorhandener Zusatz abgeraeumt, egal in
  * welcher Schreibweise er kommt.
  */
-export function paceWithUnit(paceTarget) {
+/**
+ * Der nackte Pace-Wert, ohne Einheit.
+ *
+ * Das Modell schreibt die Einheit selbst ins Feld ("5:07–5:42 min/km").
+ * Wer sie danebenschreibt, bekommt "5:07–5:42 min/km /km" — genau das
+ * stand auf der Planseite.
+ */
+export function paceValue(paceTarget) {
     if (!paceTarget || paceTarget === 'null') return null;
 
     const clean = String(paceTarget).replace(/\s*(min)?\s*\/\s*km\.?\s*$/i, '').trim();
+
+    return clean || null;
+}
+
+export function paceWithUnit(paceTarget) {
+    const clean = paceValue(paceTarget);
 
     return clean ? `${clean} /km` : null;
 }
 
 export function useSessionTypes() {
-    return { sessionType, SESSION_TYPES, paceWithUnit };
+    return { sessionType, SESSION_TYPES, paceWithUnit, paceValue };
 }

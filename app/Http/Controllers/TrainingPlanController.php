@@ -154,7 +154,10 @@ class TrainingPlanController extends Controller
             // Neuberechnung löscht den Plan, der Verlauf überlebt sie.
             'revisions'   => \App\Models\PlanRevision::where('user_id', Auth::id())
                 ->where('event_id', $event->id)
+                // Nach der ID als zweitem Kriterium: zwei Revisionen in
+                // derselben Sekunde standen sonst in beliebiger Reihenfolge.
                 ->latest()
+                ->latest('id')
                 ->limit(20)
                 ->get()
                 ->map(fn ($r) => [

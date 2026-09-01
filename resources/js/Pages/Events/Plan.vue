@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
-import { paceWithUnit, sessionType } from '@/Composables/useSessionTypes';
+import { paceValue, paceWithUnit, sessionType } from '@/Composables/useSessionTypes';
 import AppButton from '@/Components/UI/AppButton.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
@@ -1131,8 +1131,8 @@ const lapHeightPct = computed(() => {
                                                     class="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px] tabular-nums text-ink-2">
                                                     <span v-if="session.distance_km"><strong class="font-semibold text-ink">{{ session.distance_km }}</strong> km</span>
                                                     <span v-if="session.duration_min"><strong class="font-semibold text-ink">{{ session.duration_min }}</strong> min</span>
-                                                    <span v-if="session.pace_target && session.pace_target !== 'null'">
-                                                        <strong class="font-semibold text-ink">{{ session.pace_target }}</strong> /km
+                                                    <span v-if="paceValue(session.pace_target)">
+                                                        <strong class="font-semibold text-ink">{{ paceValue(session.pace_target) }}</strong> /km
                                                     </span>
                                                     <span v-if="session.zone" class="rounded-full px-2 py-0.5 text-[11px] font-semibold"
                                                         :class="typeOf(session.type).pill">Zone {{ session.zone }}</span>
@@ -1565,8 +1565,8 @@ const lapHeightPct = computed(() => {
                         <p class="text-xl font-bold tabular-nums text-ink">{{ totalStepDuration || detailSession.duration_min }}</p>
                         <p class="mt-0.5 text-[12px] font-medium uppercase tracking-wide text-ink-3">min</p>
                     </div>
-                    <div v-if="detailSession.pace_target && detailSession.pace_target !== 'null'" class="rounded-card bg-surface-2 p-4">
-                        <p class="text-xl font-bold tabular-nums text-ink">{{ detailSession.pace_target }}</p>
+                    <div v-if="paceValue(detailSession.pace_target)" class="rounded-card bg-surface-2 p-4">
+                        <p class="text-xl font-bold tabular-nums text-ink">{{ paceValue(detailSession.pace_target) }}</p>
                         <p class="mt-0.5 text-[12px] font-medium uppercase tracking-wide text-ink-3">min/km</p>
                     </div>
                 </div>
