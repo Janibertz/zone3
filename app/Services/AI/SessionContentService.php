@@ -33,7 +33,7 @@ class SessionContentService
         }
 
         $prompt = <<<PROMPT
-Du bist Ernährungsberater für Leistungssportler. Erstelle präzise, athletengerechte Verpflegungstipps für die folgende Laufeinheit. Verzichte auf allgemeine Ratschläge — der Athlet kennt die Basics. Gib stattdessen konkrete Mengen, exaktes Timing und bewährte Sportprodukte.
+Du bist Ernährungsberater für Leistungssportler. Gib die WENIGEN Hinweise, die für diese Laufeinheit wirklich zählen — knapp, mit Menge und Zeitpunkt. Der Athlet kennt die Grundlagen; alles Selbstverständliche bleibt weg.
 
 **Einheit:**
 - Typ: {$type}
@@ -43,7 +43,7 @@ Du bist Ernährungsberater für Leistungssportler. Erstelle präzise, athletenge
 - Intensität: {$intens}
 - Renntag: {$session['is_race']}
 
-**Protokoll nach Einheitstyp:**
+**Referenz (NICHT abschreiben — daraus das eine Wesentliche ziehen):**
 
 Unter 45 min / lockeres Lauftempo:
 - Vorher: Nüchtern oder 1-2h nach letzter Mahlzeit, kein extra Snack nötig
@@ -67,11 +67,18 @@ Intervall / Tempo:
 
 Antworte ausschließlich mit JSON (kein anderer Text):
 {
-  "before": [{"icon": "🍝", "text": "..."}, ...],
-  "during": [{"icon": "💧", "text": "..."}, ...],
-  "after":  [{"icon": "🥩", "text": "..."}, ...]
+  "before": [{"icon": "🍝", "text": "..."}],
+  "during": [{"icon": "💧", "text": "..."}],
+  "after":  [{"icon": "🥩", "text": "..."}]
 }
-Max. 3 Punkte pro Abschnitt. Konkrete Mengen, Produkte, Zeitangaben. Kein Allgemeinwissen. Alle Texte auf Deutsch.
+
+SO KURZ WIE MÖGLICH. Der Athlet will einen Blick, keine Lektüre:
+- HÖCHSTENS ZWEI Punkte je Abschnitt, lieber einer.
+- Jeder Punkt HÖCHSTENS 70 Zeichen. Ein Halbsatz, kein Satzgefüge.
+- Nur was für DIESE Einheit zählt. Gibt es nichts zu sagen, gib eine leere Liste zurück — besonders bei "during" unter 60 Minuten.
+- Menge und Zeitpunkt ja, Markennamen und Erklärungen nein.
+- Beispiel für die Länge: "30 g Whey innerhalb 30 min" oder "Alle 40 min ein Gel".
+Alle Texte auf Deutsch.
 PROMPT;
 
         $text = $this->ai->chat('nutrition', [
@@ -115,14 +122,14 @@ PROMPT;
         }
 
         $prompt = <<<PROMPT
-Du bist Ernährungsberater für Kraft- und Athletiktraining von Ausdauersportlern. Erstelle präzise, athletengerechte Verpflegungstipps für die folgende Kraft-/Core-Einheit. KEINE Lauf-/Renn-Ernährung (keine Gels, keine Renn-Kohlenhydrate während der Einheit). Fokus: Energie für die Einheit, Hydration während der Einheit, Muskelregeneration (Proteinsynthese) danach. Verzichte auf Allgemeinplätze — gib konkrete Mengen, Timing und Produkte.
+Du bist Ernährungsberater für Kraft- und Athletiktraining von Ausdauersportlern. Gib die WENIGEN Hinweise, die für diese Kraft-/Core-Einheit zählen — knapp, mit Menge und Zeitpunkt. KEINE Lauf-/Renn-Ernährung (keine Gels). Worauf es ankommt: Protein danach.
 
 **Einheit:**
 - Typ: {$typeLabel}
 - Dauer: {$durMin} min
 - Intensität: {$intens}{$exerciseLines}
 
-**Protokoll für Kraft-/Core-Training:**
+**Referenz (NICHT abschreiben — daraus das eine Wesentliche ziehen):**
 
 Vorher (vor dem Training):
 - 1,5–2h vorher ausgewogene Mahlzeit mit Kohlenhydraten + Protein (z.B. Reis/Kartoffeln + Hähnchen/Tofu, oder Haferflocken + Skyr)
@@ -141,11 +148,18 @@ Nachher (nach dem Training):
 
 Antworte ausschließlich mit JSON (kein anderer Text):
 {
-  "before": [{"icon": "🍚", "text": "..."}, ...],
-  "during": [{"icon": "💧", "text": "..."}, ...],
-  "after":  [{"icon": "🥩", "text": "..."}, ...]
+  "before": [{"icon": "🍚", "text": "..."}],
+  "during": [{"icon": "💧", "text": "..."}],
+  "after":  [{"icon": "🥩", "text": "..."}]
 }
-Max. 3 Punkte pro Abschnitt. Konkrete Mengen, Produkte, Zeitangaben. Kein Allgemeinwissen. Alle Texte auf Deutsch.
+
+SO KURZ WIE MÖGLICH. Der Athlet will einen Blick, keine Lektüre:
+- HÖCHSTENS ZWEI Punkte je Abschnitt, lieber einer.
+- Jeder Punkt HÖCHSTENS 70 Zeichen. Ein Halbsatz, kein Satzgefüge.
+- Nur was für DIESE Einheit zählt. Gibt es nichts zu sagen, gib eine leere Liste zurück — besonders bei "during" unter 60 Minuten.
+- Menge und Zeitpunkt ja, Markennamen und Erklärungen nein.
+- Beispiel für die Länge: "30 g Whey innerhalb 30 min" oder "Alle 40 min ein Gel".
+Alle Texte auf Deutsch.
 PROMPT;
 
         $text = $this->ai->chat('nutrition', [
@@ -154,6 +168,22 @@ PROMPT;
         ], 0.5, 1500, 30, $this->ai->mini());
 
         return $this->ai->jsonObject($text);
+    }
+
+    /**
+     * Bis zu so vielen Minuten Abweichung gilt als Rundung und wird in der
+     * Struktur ausgeglichen. Alles darueber ist ein echter Widerspruch
+     * zwischen Beschreibung und Dauer — den verdeckt man nicht.
+     */
+    public const STEP_ROUNDING_TOLERANCE_MIN = 2;
+
+    /** Die Gesamtdauer einer Schritteliste, Wiederholungen eingerechnet. */
+    public static function stepsTotalMinutes(array $steps): int
+    {
+        return (int) array_sum(array_map(
+            fn ($s) => (int) ($s['duration_min'] ?? 0) * max(1, (int) ($s['repetitions'] ?? 1)),
+            $steps,
+        ));
     }
 
     /**
@@ -339,6 +369,21 @@ PROMPT;
         if ($total === $targetMin) return $steps;
 
         $diff = $targetMin - $total;
+
+        // Nur Rundungsreste ausgleichen.
+        //
+        // Vorher wurde JEDE Differenz hier hineingedrueckt — und zwar ins
+        // Auslaufen. Wer in der Beschreibung "danach 10 min auslaufen" las
+        // und in der Struktur 7 fand, sah genau das: die Beschreibung
+        // beschrieb 58 Minuten, die Einheit war auf 55 gesetzt, und die drei
+        // fehlenden Minuten wurden dem Auslaufen abgezogen.
+        //
+        // Die Schritte folgen der Beschreibung — das ist ihr Zweck. Weicht
+        // die Summe staerker ab, ist nicht die Struktur falsch, sondern die
+        // Dauer der Einheit. Der Aufrufer zieht sie nach.
+        if (abs($diff) > self::STEP_ROUNDING_TOLERANCE_MIN) {
+            return $steps;
+        }
 
         // Absorb the leftover time in the EASY/continuous portion — never by
         // stretching a repeated work interval. Its per-rep duration is

@@ -274,7 +274,25 @@ class TrainingSessionController extends Controller
         // already shown separately in the "Trainingsstruktur" visualization. (Previously
         // this rebuilt the description from the steps and overwrote the coaching text,
         // so loading the structure replaced the athlete-facing prose with "9 min einlaufen…".)
-        $session->update(['steps' => $steps]);
+        $update = ['steps' => $steps];
+
+        // Die Struktur folgt der Beschreibung. Ergibt sie eine andere Dauer als
+        // die Einheit, war die Zahl daneben falsch — nicht die Struktur. Vorher
+        // wurde die Differenz stillschweigend dem Auslaufen abgezogen, und der
+        // Athlet las "10 min auslaufen" und fand 7.
+        $stepMinutes = SessionContentService::stepsTotalMinutes($steps);
+
+        if ($stepMinutes > 0 && $stepMinutes !== (int) $session->duration_min) {
+            $update['duration_min'] = $stepMinutes;
+
+            // Distanz mitziehen, sonst behauptet die Einheit eine Pace, die
+            // niemand laeuft.
+            if ($session->duration_min > 0 && $session->distance_km > 0) {
+                $update['distance_km'] = round($session->distance_km * $stepMinutes / $session->duration_min, 1);
+            }
+        }
+
+        $session->update($update);
 
         return response()->json([
             'steps'       => $steps,
