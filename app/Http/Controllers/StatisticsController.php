@@ -98,7 +98,7 @@ class StatisticsController extends Controller
         $paceTrend = $last20->map(function ($a) {
             $paceSecPerKm = $a->average_speed > 0 ? 1000 / $a->average_speed : 0;
             $paceMin = (int) ($paceSecPerKm / 60);
-            $paceSec = (int) ($paceSecPerKm % 60);
+            $paceSec = ((int) $paceSecPerKm) % 60;
             return [
                 'date'       => Carbon::parse($a->start_date)->format('d.m'),
                 'pace_sec'   => (int) $paceSecPerKm,
@@ -122,7 +122,7 @@ class StatisticsController extends Controller
             $avgSpeed = $last20->avg('average_speed');
             if ($avgSpeed > 0) {
                 $avgPaceSec = 1000 / $avgSpeed;
-                $avgPaceLabel = sprintf('%d:%02d', (int)($avgPaceSec / 60), (int)($avgPaceSec % 60));
+                $avgPaceLabel = sprintf('%d:%02d', (int)($avgPaceSec / 60), ((int) $avgPaceSec) % 60);
             }
         }
 

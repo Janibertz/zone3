@@ -483,7 +483,7 @@ class StravaController extends Controller
     {
         if ($mps <= 0) return null;
         $secPerKm = 1000 / $mps;
-        return sprintf('%d:%02d', (int)($secPerKm / 60), (int)($secPerKm % 60));
+        return sprintf('%d:%02d', (int)($secPerKm / 60), ((int) $secPerKm) % 60);
     }
 
     /**

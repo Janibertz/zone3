@@ -25,7 +25,7 @@ class PaceFormat
 
         $secondsPerKm = 1000 / $metersPerSecond;
 
-        return sprintf('%d:%02d', (int) ($secondsPerKm / 60), (int) ($secondsPerKm % 60));
+        return sprintf('%d:%02d', (int) ($secondsPerKm / 60), ((int) $secondsPerKm) % 60);
     }
 
     /** Sekunden als „HH:MM:SS". */

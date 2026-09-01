@@ -19,6 +19,22 @@ php artisan test --filter TestName   # single test
 php artisan pwa:icons
 ```
 
+## Local development
+
+Laragon's MySQL is the local database. Import a Coolify dump into `zone3`, point `.env` at it, and **null the live tokens immediately** — a production dump carries working Strava and Garmin credentials:
+
+```sql
+UPDATE strava_accounts SET access_token='', refresh_token='';
+UPDATE users SET garmin_session=NULL, password='', remember_token=NULL;
+UPDATE push_subscriptions SET public_key='', auth_token='';
+```
+
+Local and production run the same schema; `php artisan migrate` after importing an older dump.
+
+Develop and verify against the local copy, then push to `main`. Two things only real data can answer: `plan_revisions.corrections` (what the validator keeps having to fix) and `ai_logs.full_prompt` / `full_response` (what the model actually returns for a given prompt). Reading the prompt tells you what *should* go wrong; these tell you what does.
+
+`.env` holds a live `OPENAI_API_KEY`. Any command that reaches a generator spends real money — mock `OpenAIClient` when you only need the prompt.
+
 ## Deployment
 
 Deploy via **GitHub → Coolify** (push to `main` branch triggers deploy, ~2 minutes). No local dev server and no local database — `startup.sh` is the container entry point and handles migrations, seeding, cache, queue worker, scheduler, and PWA icon generation automatically.

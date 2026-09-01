@@ -222,7 +222,7 @@ class ProfileController extends Controller
         if ($speed <= 0) return '–';
         $secPerKm = 1000 / $speed;
         $min = (int) ($secPerKm / 60);
-        $sec = (int) ($secPerKm % 60);
+        $sec = ((int) $secPerKm) % 60;
         return sprintf('%d:%02d', $min, $sec);
     }
 }

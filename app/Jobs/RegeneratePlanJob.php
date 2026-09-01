@@ -499,13 +499,13 @@ class RegeneratePlanJob implements ShouldQueue
     {
         if ($mps <= 0) return '—';
         $spk = 1000 / $mps;
-        return (int)($spk / 60) . ':' . str_pad((int)($spk % 60), 2, '0', STR_PAD_LEFT);
+        return (int)($spk / 60) . ':' . str_pad(((int) $spk) % 60, 2, '0', STR_PAD_LEFT);
     }
 
     private function paceFromSpeed(float $mps): ?string
     {
         if ($mps <= 0) return null;
         $secPerKm = 1000 / $mps;
-        return sprintf('%d:%02d', (int)($secPerKm / 60), (int)($secPerKm % 60));
+        return sprintf('%d:%02d', (int)($secPerKm / 60), ((int) $secPerKm) % 60);
     }
 }
