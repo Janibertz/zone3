@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Services\PaceFormat;
 
 class ProfileController extends Controller
 {
@@ -219,10 +220,6 @@ class ProfileController extends Controller
 
     private function speedToPace(float $speed): string
     {
-        if ($speed <= 0) return '–';
-        $secPerKm = 1000 / $speed;
-        $min = (int) ($secPerKm / 60);
-        $sec = ((int) $secPerKm) % 60;
-        return sprintf('%d:%02d', $min, $sec);
+        return $speed > 0 ? PaceFormat::fromSpeed($speed) : '–';
     }
 }

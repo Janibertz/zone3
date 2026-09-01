@@ -3,6 +3,7 @@
 namespace App\Services\AI;
 
 use Illuminate\Support\Facades\Log;
+use App\Services\PaceFormat;
 
 /**
  * Inhalte einer einzelnen Einheit: Schritteliste, Verpflegung und das
@@ -225,8 +226,7 @@ PROMPT;
         $profile       = $session->user?->runnerProfile;
         $thresholdLine = '';
         if ($profile?->threshold_speed) {
-            $ts = $profile->threshold_speed;
-            $tPace = sprintf('%d:%02d', (int)$ts, (int)round(($ts - (int)$ts) * 60));
+            $tPace = PaceFormat::fromMinutes($profile->threshold_speed);
             $thresholdLine = "\nSchwellenpace des Athleten: {$tPace} min/km";
         }
 

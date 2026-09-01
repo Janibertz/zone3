@@ -18,6 +18,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
+use App\Services\PaceFormat;
 
 class StravaController extends Controller
 {
@@ -481,9 +482,9 @@ class StravaController extends Controller
     /** Convert Strava average_speed (m/s) to "M:SS" pace string, or null. */
     private function paceFromSpeed(float $mps): ?string
     {
-        if ($mps <= 0) return null;
-        $secPerKm = 1000 / $mps;
-        return sprintf('%d:%02d', (int)($secPerKm / 60), ((int) $secPerKm) % 60);
+        $pace = PaceFormat::fromSpeed($mps);
+
+        return $pace === PaceFormat::NONE ? null : $pace;
     }
 
     /**

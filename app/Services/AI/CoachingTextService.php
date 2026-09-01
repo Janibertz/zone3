@@ -3,6 +3,7 @@
 namespace App\Services\AI;
 
 use Illuminate\Support\Facades\Log;
+use App\Services\PaceFormat;
 
 /**
  * Alle erzeugten Texte rund ums Training: Tagesempfehlung, Tagesnachricht,

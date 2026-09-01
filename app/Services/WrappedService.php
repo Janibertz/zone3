@@ -6,6 +6,7 @@ use App\Models\Activity;
 use App\Models\BestEffort;
 use App\Models\User;
 use Carbon\Carbon;
+use App\Services\PaceFormat;
 
 /**
  * Aggregates a year or month into a "Wrapped"-style retrospective:
@@ -180,6 +181,6 @@ class WrappedService
     {
         if ($mps <= 0) return '–';
         $secPerKm = (int) round(1000 / $mps);
-        return sprintf('%d:%02d', intdiv($secPerKm, 60), $secPerKm % 60);
+        return PaceFormat::fromSeconds($secPerKm);
     }
 }

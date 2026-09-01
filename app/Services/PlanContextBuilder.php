@@ -8,6 +8,7 @@ use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use App\Services\PaceFormat;
 
 /**
  * Sammelt den Kontext für die Planerstellung.
@@ -202,12 +203,8 @@ class PlanContextBuilder
             return null;
         }
 
-        $pace = $rp->threshold_speed;
-        $mins = (int) $pace;
-        $secs = (int) (($pace - $mins) * 60);
-
         return [
-            'threshold_pace' => sprintf('%d:%02d', $mins, $secs),
+            'threshold_pace' => PaceFormat::fromMinutes($rp->threshold_speed),
             'threshold_hr'   => $rp->threshold_heart_rate,
             'max_hr'         => $rp->max_heart_rate,
             'strength'       => [
@@ -373,6 +370,6 @@ class PlanContextBuilder
     {
         $secondsPerKm = 1000 / $metersPerSecond;
 
-        return sprintf('%d:%02d', (int) ($secondsPerKm / 60), ((int) $secondsPerKm) % 60);
+        return PaceFormat::fromSeconds($secondsPerKm);
     }
 }

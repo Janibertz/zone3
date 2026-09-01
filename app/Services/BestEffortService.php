@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Activity;
 use App\Models\BestEffort;
+use App\Services\PaceFormat;
 
 /**
  * Imports Strava "best efforts" (fastest 1k/5k/10k/half/marathon section
@@ -202,6 +203,6 @@ class BestEffortService
         }
         $secPerKm = (int) round($sec * 1000 / $distanceM);
 
-        return sprintf('%d:%02d', intdiv($secPerKm, 60), $secPerKm % 60);
+        return PaceFormat::fromSeconds($secPerKm);
     }
 }

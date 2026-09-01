@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Services\PaceFormat;
 
 class RunnerProfile extends Model
 {
@@ -162,9 +163,6 @@ class RunnerProfile extends Model
      */
     private function minutesToPace(float $minutes): string
     {
-        if ($minutes <= 0) return '—';
-        $mins = (int)$minutes;
-        $secs = (int)(($minutes - $mins) * 60);
-        return sprintf('%d:%02d', $mins, $secs);
+        return PaceFormat::fromMinutes($minutes);
     }
 }

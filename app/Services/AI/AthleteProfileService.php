@@ -3,6 +3,7 @@
 namespace App\Services\AI;
 
 use Illuminate\Support\Facades\Log;
+use App\Services\PaceFormat;
 
 /**
  * Werte, die den Athleten beschreiben: Schwellenpace, Pace-Zonen und die
@@ -252,9 +253,7 @@ PROMPT;
 
     private function secondsToPace(float $seconds): string
     {
-        $total = (int) round($seconds);
-
-        return sprintf('%d:%02d', intdiv($total, 60), $total % 60);
+        return PaceFormat::fromSeconds($seconds);
     }
 
     /**

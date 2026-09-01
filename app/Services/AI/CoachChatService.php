@@ -2,6 +2,8 @@
 
 namespace App\Services\AI;
 
+use App\Services\PaceFormat;
+
 /**
  * Der Chat mit dem Coach — inklusive der Werkzeuge, mit denen das Modell
  * Trainingsdaten lesen und Einheiten aendern darf.
@@ -24,16 +26,11 @@ class CoachChatService
         $mpsToMSS = function (float $mps): string {
             if ($mps <= 0) return '—';
             $secPerKm = 1000 / $mps;
-            return sprintf('%d:%02d', (int)($secPerKm / 60), (int)$secPerKm % 60);
+            return PaceFormat::fromSeconds($secPerKm);
         };
 
         // Helper: threshold_speed float (e.g. 5.5) → "5:30"
-        $floatMinToMSS = function (?float $min): string {
-            if (!$min) return '—';
-            $m = (int)$min;
-            $s = (int)round(($min - $m) * 60);
-            return sprintf('%d:%02d', $m, $s);
-        };
+        $floatMinToMSS = fn (?float $min): string => PaceFormat::fromMinutes($min);
 
         // ── Runner profile ────────────────────────────────────────────────
         $profileLines = [];
@@ -234,12 +231,12 @@ class CoachChatService
         $mpsToMSS = function (float $mps): string {
             if ($mps <= 0) return '—';
             $s = 1000 / $mps;
-            return sprintf('%d:%02d', (int)($s / 60), (int)$s % 60);
+            return PaceFormat::fromSeconds($s);
         };
         $floatMinToMSS = function (?float $min): string {
             if (!$min) return '—';
             $m = (int)$min;
-            return sprintf('%d:%02d', $m, (int)round(($min - $m) * 60));
+            return PaceFormat::fromMinutes($min);
         };
 
         // Profile
@@ -643,7 +640,7 @@ class CoachChatService
         // Eine Pace aus der alten Einheit passt nach einem Typwechsel nicht
         // mehr. Sie wird dann neu gesetzt statt irrezuführen.
         if (! isset($given['pace_target']) && isset($given['type'])) {
-            $session->pace_target = sprintf('%d:%02d', (int) ($paceSec / 60), (int) $paceSec % 60);
+            $session->pace_target = PaceFormat::fromSeconds($paceSec);
         }
     }
 

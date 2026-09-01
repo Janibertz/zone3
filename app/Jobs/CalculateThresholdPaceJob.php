@@ -10,6 +10,7 @@ use App\Services\WebPushService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use App\Services\PaceFormat;
 
 class CalculateThresholdPaceJob implements ShouldQueue
 {
@@ -94,13 +95,9 @@ class CalculateThresholdPaceJob implements ShouldQueue
             return;
         }
 
-        $mins = (int) $thresholdPace;
-        $secs = (int) round(($thresholdPace - $mins) * 60);
-        if ($secs === 60) {
-            $mins++;
-            $secs = 0;
-        }
-        $paceFormatted = sprintf('%d:%02d', $mins, $secs);
+        // Der Uebertrag auf 60 Sekunden steckt jetzt in PaceFormat — hier
+        // stand er als eigene Fallunterscheidung, in den anderen Kopien nicht.
+        $paceFormatted = PaceFormat::fromMinutes($thresholdPace);
 
         $history   = $profile->threshold_pace_history ?? [];
         $history[] = [

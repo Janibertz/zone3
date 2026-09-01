@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Activity;
 use App\Models\Event;
+use App\Services\PaceFormat;
 
 class PredictFinishTimeService
 {
@@ -59,7 +60,7 @@ class PredictFinishTimeService
         $predictedSec = (int) round($best['projected_seconds']);
         $timeStr      = $this->formatSeconds($predictedSec);
         $paceSecPerKm = $predictedSec / $targetKm;
-        $paceStr      = sprintf('%d:%02d', (int)($paceSecPerKm / 60), (int)($paceSecPerKm) % 60);
+        $paceStr      = PaceFormat::fromSeconds($paceSecPerKm);
 
         // Gap to target time
         $targetSec = null;

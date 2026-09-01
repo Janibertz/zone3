@@ -10,6 +10,7 @@ use App\Services\WeatherService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use App\Services\PaceFormat;
 
 /**
  * Generate the coach's post-session review from the real data of a completed
@@ -362,9 +363,7 @@ class GenerateSessionReviewJob implements ShouldQueue
      */
     private function secondsToPace(float $seconds): string
     {
-        $total = (int) round($seconds);
-
-        return sprintf('%d:%02d', intdiv($total, 60), $total % 60);
+        return PaceFormat::fromSeconds($seconds);
     }
 
     /**
@@ -637,9 +636,9 @@ class GenerateSessionReviewJob implements ShouldQueue
 
     private function paceFromSpeed(float $mps): ?string
     {
-        if ($mps <= 0) return null;
-        $secPerKm = 1000 / $mps;
-        return sprintf('%d:%02d', (int) ($secPerKm / 60), ((int) $secPerKm) % 60);
+        $pace = PaceFormat::fromSpeed($mps);
+
+        return $pace === PaceFormat::NONE ? null : $pace;
     }
 
     /** @return array<string,string> */

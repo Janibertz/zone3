@@ -13,6 +13,7 @@ use App\Services\WeatherService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Services\PaceFormat;
 
 class AIController extends Controller
 {
@@ -380,8 +381,7 @@ class AIController extends Controller
     private function formatPace(?float $paceMinutes): ?string
     {
         if (! $paceMinutes) return null;
-        $mins = (int) $paceMinutes;
-        $secs = (int) (($paceMinutes - $mins) * 60);
-        return sprintf('%d:%02d', $mins, $secs);
+
+        return PaceFormat::fromMinutes($paceMinutes);
     }
 }

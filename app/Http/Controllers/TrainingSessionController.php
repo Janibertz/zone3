@@ -11,6 +11,7 @@ use App\Services\AI\SessionContentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
+use App\Services\PaceFormat;
 
 class TrainingSessionController extends Controller
 {
@@ -315,7 +316,7 @@ class TrainingSessionController extends Controller
         $user    = Auth::user();
         $rp      = $user->runnerProfile;
         $profile = $rp ? [
-            'threshold_speed'      => sprintf('%d:%02d', (int) $rp->threshold_speed, (int)(($rp->threshold_speed - (int) $rp->threshold_speed) * 60)),
+            'threshold_speed'      => PaceFormat::fromMinutes($rp->threshold_speed),
             'threshold_heart_rate' => $rp->threshold_heart_rate,
             'max_heart_rate'       => $rp->max_heart_rate,
         ] : null;
@@ -964,7 +965,7 @@ XML;
 
     private function secPerKmToPaceString(int $sec): string
     {
-        return sprintf('%d:%02d', intdiv($sec, 60), $sec % 60);
+        return PaceFormat::fromSeconds($sec);
     }
 
     private function formatSession(TrainingSession $s): array

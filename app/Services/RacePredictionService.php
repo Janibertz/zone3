@@ -101,7 +101,7 @@ class RacePredictionService
 
         return [
             'time'      => $this->clock($totalSec),
-            'pace'      => sprintf('%d:%02d', (int) ($paceSec / 60), (int) $paceSec % 60),
+            'pace'      => PaceFormat::fromSeconds($paceSec),
             'total_sec' => $totalSec,
         ];
     }

@@ -17,6 +17,7 @@ use App\Services\WebPushService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
+use App\Services\PaceFormat;
 
 class TrainingPlanController extends Controller
 {
@@ -567,7 +568,7 @@ class TrainingPlanController extends Controller
 
     private function secToPace(int $sec): string
     {
-        return sprintf('%d:%02d', intdiv($sec, 60), $sec % 60);
+        return PaceFormat::fromSeconds($sec);
     }
 
     private function kmLabel(float $km): string
@@ -629,16 +630,14 @@ class TrainingPlanController extends Controller
 
     private function formatPace(float $mps): string
     {
-        if ($mps <= 0) return '—';
-        $spk = 1000 / $mps;
-        return (int)($spk / 60) . ':' . str_pad(((int) $spk) % 60, 2, '0', STR_PAD_LEFT);
+        return PaceFormat::fromSpeed($mps);
     }
 
     private function paceFromSpeed(float $mps): ?string
     {
-        if ($mps <= 0) return null;
-        $secPerKm = 1000 / $mps;
-        return sprintf('%d:%02d', (int)($secPerKm / 60), ((int) $secPerKm) % 60);
+        $pace = PaceFormat::fromSpeed($mps);
+
+        return $pace === PaceFormat::NONE ? null : $pace;
     }
 
     /**

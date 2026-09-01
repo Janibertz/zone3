@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Event;
+use App\Services\PaceFormat;
 
 /**
  * Die konkreten Tempos, in denen ein Plan gelaufen werden soll.
@@ -82,7 +83,8 @@ class TrainingPaceService
 
         return $paces + [
             'race_km'        => round($km, 3),
-            'target_pace'    => $targetPace !== null ? $this->pace($targetPace) : null,
+            // Zielpace wird abgerundet — siehe PaceFormat::target().
+            'target_pace'    => $targetPace !== null ? PaceFormat::target($targetPace) : null,
             'target_time'    => $targetSec > 0 ? $this->clock($targetSec) : null,
             'predicted_pace' => $predicted['pace'] ?? null,
             'predicted_time' => $predicted['time'] ?? null,
@@ -194,7 +196,7 @@ class TrainingPaceService
 
     private function pace(float $secondsPerKm): string
     {
-        return sprintf('%d:%02d', (int) ($secondsPerKm / 60), (int) $secondsPerKm % 60);
+        return PaceFormat::fromSeconds($secondsPerKm);
     }
 
     private function range(float $from, float $to): string

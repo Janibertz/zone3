@@ -201,6 +201,24 @@ Both plan jobs delete `status = 'planned'` sessions before writing the new plan.
 
 `ReturnToRunService` is the single source for "is this athlete coming back from something". `statusFor()` feeds the dashboard card, `forPlan()` feeds both the skeleton and the plan prompt. Before that they had separate detections and contradicted each other inside the same prompt — the skeleton demanded a tempo run on the day the safety rule demanded 30 easy minutes, and the model satisfied both by planning two runs.
 
+### Pace formatting
+
+**`App\Services\PaceFormat` is the only place that turns a number into `M:SS`.** It used to exist in twenty-three copies across controllers, jobs and services, and they did not agree: most truncated, the coach review rounded. The same run read 5:59 on one page and 6:00 on another.
+
+| Method | Input | Rounding |
+|---|---|---|
+| `fromSeconds()` | seconds per km | round — the canonical one |
+| `fromSpeed()` | m/s (Strava) | round |
+| `fromMinutes()` | decimal minutes (`threshold_speed`, 5.5 = 5:30) | round |
+| `target()` | seconds per km of a **goal** | **floor** |
+| `hms()` | seconds | — |
+
+`target()` is not cosmetic. 3:30 over 42.195 km is 298.6 s/km: rounded that reads 4:59, and running it lands on 3:30:22 — the goal missed. Floored it reads 4:58 → 3:29:36. A measured pace describes, a target pace instructs.
+
+Always round once on whole seconds, then split. Truncating the minute while rounding the second produced "5:00" for a six-minute pace.
+
+Total times (`3:26:21`, `1:35 Std`) stay out of this class — different quantity, different presentation.
+
 ### Race Prediction (Jack Daniels T-Pace)
 
 **Source of truth: `RacePredictionService`.** Used by the dashboard route, `TrainingPlanController` and `GenerateRacePredictionJob` — the formula previously existed three times and the numbers drifted apart.
