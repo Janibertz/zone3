@@ -429,6 +429,28 @@ WARN;
         $reachesRace = ($daysUntil + 1) <= $horizon;            // window includes race day?
         $planEndDate = $reachesRace ? $eventDate : now()->addDays($totalDays - 1)->format('Y-m-d');
 
+        // Welche Tage das Modell ueberhaupt schreiben soll.
+        //
+        // Die Schluss-Anweisung nannte bisher das ganze Fenster ("ein Eintrag
+        // pro Tag von heute bis X") — und sie ist das Letzte, was das Modell
+        // liest. Bei einer Teil-Neuberechnung stand oben "diese Tage NICHT
+        // zurueckgeben" und unten "einen Eintrag pro Tag". An echten Daten
+        // gemessen: das Geruest enthielt EINEN Tag, das Modell lieferte NEUN.
+        // Es hat nicht getroedelt, es hat der letzten Anweisung gehorcht.
+        $openDates = [];
+        foreach ($skeleton['days'] ?? [] as $date => $day) {
+            if (empty($day['finalized']) && empty($day['kept'])) {
+                $openDates[] = $date;
+            }
+        }
+
+        $openList = $openDates === []
+            ? "von heute ({$today}) bis {$planEndDate}"
+            : (count($openDates) > 6
+                ? 'fuer diese ' . count($openDates) . ' Tage: ' . implode(', ', $openDates)
+                : 'fuer GENAU diese Tage: ' . implode(', ', $openDates));
+
+
         // Window-end rule wording (race day only included when the race is inside the window)
         $endRuleBackyard = $reachesRace
             ? "Am Renntag ({$eventDate}): type=\"race_prep\", title=\"{$event->name}\", beschreibe die Renn-Strategie (langsames, konstantes Rundentempo, Verpflegung pro Runde, Pausen-Management)."
@@ -524,7 +546,7 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 - ZWEITE EINHEIT: Nur strength, core oder mobility duerfen als zweiter Eintrag zu einem Tag dazukommen, und nur wenn das Wochengeruest sie dort vorsieht. Bei zwei Eintraegen am selben "date": Tageszeit im title kennzeichnen ("Morgens: ...", "Abends: ..."), Laufeinheit zuerst, Summe beider duration_min <= Tages-Maximum.
 - ANDERE RENNEVENTS: An Tagen mit anderen Rennevents im Planungszeitraum IMMER type="rest".
 
-**Antworte ausschließlich mit einem JSON-Array — in der Regel EIN Eintrag pro offenem Tag von heute ({$today}) bis {$planEndDate}. Ein zweiter Eintrag mit demselben "date" ist nur erlaubt, wenn das Wochengerüst dort eine strength-, core- oder mobility-Einheit vorsieht — niemals ein zweiter Lauf. Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
+**Antworte ausschließlich mit einem JSON-Array — EIN Eintrag {$openList}. Kein Eintrag für einen anderen Tag; alles andere steht bereits und wurde oben genannt. Ein zweiter Eintrag mit demselben "date" ist nur erlaubt, wenn das Wochengerüst dort eine strength-, core- oder mobility-Einheit vorsieht — niemals ein zweiter Lauf. Ist einer dieser Tage ein Ruhetag, gehört er als Eintrag mit type="rest" dazu.**
 [
   {
     "date": "YYYY-MM-DD",
@@ -594,7 +616,7 @@ Reduziere im Zweifel die Intensität einer Einheit, nicht ihre Existenz — ein 
 - EIN LAUFTRAINING PRO TAG: An einem Tag steht hoechstens EINE Laufeinheit (easy_run, tempo_run, interval, long_run, progressive_run, test_run, race_prep). Zwei Laeufe am selben Tag sind immer falsch — auch dann, wenn der zweite locker waere, und auch dann, wenn eine andere Regel eine zusaetzliche lockere Einheit nahezulegen scheint. Passt eine Vorgabe nicht zur Einheit des Tages, aendere die Einheit, statt eine zweite danebenzustellen.
 - ZWEITE EINHEIT: Nur strength, core oder mobility duerfen als zweiter Eintrag zu einem Tag dazukommen, und nur wenn das Wochengeruest sie dort vorsieht. Bei zwei Eintraegen am selben "date": Tageszeit im title kennzeichnen ("Morgens: ...", "Abends: ..."), Laufeinheit zuerst, Summe beider duration_min <= Tages-Maximum.
 
-**Antworte ausschließlich mit einem JSON-Array — in der Regel EIN Eintrag pro offenem Tag von heute ({$today}) bis {$planEndDate}. Ein zweiter Eintrag mit demselben "date" ist nur erlaubt, wenn das Wochengerüst dort eine strength-, core- oder mobility-Einheit vorsieht — niemals ein zweiter Lauf. Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
+**Antworte ausschließlich mit einem JSON-Array — EIN Eintrag {$openList}. Kein Eintrag für einen anderen Tag; alles andere steht bereits und wurde oben genannt. Ein zweiter Eintrag mit demselben "date" ist nur erlaubt, wenn das Wochengerüst dort eine strength-, core- oder mobility-Einheit vorsieht — niemals ein zweiter Lauf. Ist einer dieser Tage ein Ruhetag, gehört er als Eintrag mit type="rest" dazu.**
 [
   {
     "date": "YYYY-MM-DD",
