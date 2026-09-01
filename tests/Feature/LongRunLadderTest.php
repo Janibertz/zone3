@@ -120,8 +120,13 @@ class LongRunLadderTest extends TestCase
 
         $this->assertFalse($ladder['reachable']);
         $this->assertLessThan(32.0, $ladder['peak_km']);
-        $this->assertStringContainsString('Zielzeit unwahrscheinlich', $ladder['verdict']);
-        $this->assertStringContainsString('Nicht beschönigen', $ladder['verdict']);
+
+        // Der Befund steht hier — das Urteil ueber die Zielzeit nicht.
+        // Es faellt in der "Einordnung" der Tempo-Sektion, die Tempo UND
+        // Ausdauer zusammen betrachtet; stand es an beiden Stellen,
+        // widersprachen sie sich im selben Prompt.
+        $this->assertStringContainsString('reicht der lange Lauf nur bis', $ladder['verdict']);
+        $this->assertStringNotContainsString('Zielzeit unwahrscheinlich', $ladder['verdict']);
     }
 
     /**

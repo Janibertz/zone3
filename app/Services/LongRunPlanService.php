@@ -250,9 +250,13 @@ class LongRunPlanService
 
         $missing = round($idealPeak - $peak, 1);
 
-        return "Bis zum Rennen reicht der lange Lauf nur bis {$peak} km statt der für einen {$label} nötigen {$idealPeak} km — es fehlen {$missing} km, und die Wochen dafür sind nicht mehr da. "
-            . "Plane die Leiter trotzdem konsequent, aber sage es dem Athleten in der description des längsten Laufs offen: "
-            . "Mit dieser Vorbereitung ist die Zielzeit unwahrscheinlich, und die letzten Kilometer werden hart. Ein realistischeres Ziel oder ein späteres Rennen wäre die ehrlichere Antwort. Nicht beschönigen.";
+        // Nur der Befund, kein Urteil über die Zielzeit. Das fällt an einer
+        // Stelle — in der „Einordnung" weiter oben, die Tempo und Ausdauer
+        // zusammen betrachtet. Stand es hier ebenfalls, widersprachen sich
+        // beide Abschnitte im selben Prompt.
+        return "Bis zum Rennen reicht der lange Lauf nur bis {$peak} km statt der für einen {$label} nötigen {$idealPeak} km — "
+            . "es fehlen {$missing} km, und die Wochen dafür sind nicht mehr da. "
+            . "Plane die Leiter trotzdem konsequent bis dorthin, wo sie hinkommt.";
     }
 
     /** Der Abschnitt für den Prompt. */

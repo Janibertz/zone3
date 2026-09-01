@@ -419,6 +419,36 @@ class WeeklyPatternTest extends TestCase
         $this->assertCount(count($skeleton['days']), $dates);
     }
 
+    /** Die Wochenübersicht muss die Tagesliste widerspiegeln, nicht widersprechen. */
+    public function test_the_weekly_overview_matches_the_day_list(): void
+    {
+        $skeleton = $this->build($this->event(), $this->availability());
+        $text     = app(WeeklyPatternService::class)->toPromptSection($skeleton);
+
+        // Alles, was in der Tagesliste als Laufeinheit steht.
+        $inDays = [];
+        foreach ($skeleton['days'] as $day) {
+            foreach ($day['slots'] ?? [] as $slot) {
+                if (in_array($slot['type'], WeeklyPatternService::RUN_SLOT_TYPES, true)) {
+                    $inDays[$slot['type']] = true;
+                }
+            }
+        }
+
+        [, $overview] = explode('Wochenübersicht:', $text, 2);
+        [$overview]   = explode('Regeln zum Gerüst', $overview, 2);
+
+        foreach (['easy_run', 'tempo_run', 'interval', 'long_run'] as $type) {
+            if (str_contains($overview, $type)) {
+                $this->assertArrayHasKey(
+                    $type,
+                    $inDays,
+                    "Die Übersicht nennt {$type}, die Tagesliste kennt ihn nicht",
+                );
+            }
+        }
+    }
+
     // ── Ruhetage sind verbindlich ────────────────────────────────────────
 
     /**

@@ -95,7 +95,10 @@ class TrainingPaceService
      * Der Abschnitt für den Prompt. Bewusst als Tabelle mit Zahlen — „locker
      * in Zone 2" ist eine Absicht, „5:08–5:43 min/km" ist eine Anweisung.
      */
-    public function toPromptSection(array $p): string
+    /**
+     * @param  array|null  $longRuns  Ergebnis von {@see LongRunPlanService::forEvent()}
+     */
+    public function toPromptSection(array $p, ?array $longRuns = null): string
     {
         $lines = [
             "- ZIELRENNTEMPO (darauf führt der Plan hin): " . ($p['target_pace'] ? "{$p['target_pace']} min/km" : 'keine Zielzeit hinterlegt'),
@@ -121,10 +124,50 @@ class TrainingPaceService
             $text .= "\n\n**Ziel gegen Ist:** Zielzeit {$p['target_time']} ({$p['target_pace']} min/km) — "
                 . "aus der aktuellen Schwellenpace ergibt sich {$p['predicted_time']} ({$p['predicted_pace']} min/km). "
                 . "Das Ziel verlangt also ein Renntempo, das {$sign} ist.\n"
-                . "Einordnung: {$p['verdict']}";
+                . "Einordnung: " . $this->combinedVerdict($p, $longRuns);
         }
 
         return $text;
+    }
+
+    /**
+     * Das EINE Urteil über die Frage „ist das Ziel realistisch".
+     *
+     * Es gab davon zwei. Der Tempo-Vergleich sah nur die Schwellenpace und
+     * schrieb „Das Ziel passt zur heutigen Form"; die Leiter der langen
+     * Läufe sah nur die Ausdauer und schrieb im selben Prompt „Mit dieser
+     * Vorbereitung ist die Zielzeit unwahrscheinlich". Beides stand als
+     * Tatsache da, ohne Rangfolge. Das Modell musste sich für eines
+     * entscheiden — und schrieb mal das eine, mal das andere in die
+     * description. Für den Athleten sah das aus wie ein Fehler, und es war
+     * auch einer: unserer.
+     *
+     * Tempo und Ausdauer sind zwei Voraussetzungen. Fehlt die Ausdauer, ist
+     * das Ziel unerreichbar, egal wie gut die Schwellenpace aussieht — die
+     * Leiter hat deshalb Vorrang.
+     */
+    private function combinedVerdict(array $p, ?array $longRuns): string
+    {
+        $paceVerdict = $p['verdict'];
+
+        // Ohne Leiter oder mit tragender Leiter zählt der Tempo-Vergleich.
+        if (! $longRuns || ! array_key_exists('reachable', $longRuns) || $longRuns['reachable']) {
+            return $paceVerdict;
+        }
+
+        $peak  = $longRuns['peak_km'] ?? null;
+        $ideal = $longRuns['ideal_peak_km'] ?? null;
+
+        if (! $peak || ! $ideal) {
+            return $paceVerdict;
+        }
+
+        return "Das Tempo trägt, die Ausdauer noch nicht. Aus der Schwellenpace allein wäre die Zielzeit erreichbar, "
+            . "aber der lange Lauf kommt bis zum Renntag nur auf {$peak} km statt der nötigen {$ideal} km. "
+            . "Der begrenzende Faktor ist also die Distanz, nicht die Geschwindigkeit. "
+            . "Plane das Renntempo weiter konsequent, aber sage dem Athleten in der description des längsten Laufs "
+            . "offen, dass die Zielzeit mit dieser Vorbereitung unwahrscheinlich ist und die letzten Kilometer hart "
+            . "werden. Nicht beschönigen, und nicht mit mehr Umfang gegensteuern — dafür ist die Zeit zu knapp.";
     }
 
     /** Wie ambitioniert das Ziel gemessen an der heutigen Form ist. */

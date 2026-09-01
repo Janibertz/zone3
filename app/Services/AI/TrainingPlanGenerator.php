@@ -100,7 +100,7 @@ class TrainingPlanGenerator
         // Tempi und Wochenumfang: die beiden Größen, aus denen ein Plan
         // gebaut wird. Sie standen bisher in keinem Prompt.
         $paceText = $c->paces
-            ? app(\App\Services\TrainingPaceService::class)->toPromptSection($c->paces)
+            ? app(\App\Services\TrainingPaceService::class)->toPromptSection($c->paces, $c->longRuns)
             : '';
 
         // Die Leiter der langen Läufe. Sie steht vor dem Wochenumfang, weil
@@ -593,8 +593,6 @@ Reduziere im Zweifel die Intensität einer Einheit, nicht ihre Existenz — ein 
 - ZIELORIENTIERUNG: Der Plan führt auf {$targetTime} hin. Das Renntempo aus der Tabelle oben gehört regelmäßig ins Training — es ist die spezifischste Vorbereitung, die es gibt. Sei nicht unnötig konservativ, solange Gesundheit, Erholung und Belastung es zulassen. Was die Einordnung oben zum Verhältnis von Ziel und heutiger Form sagt, gehört in die description der Schlüsseleinheiten.
 - EIN LAUFTRAINING PRO TAG: An einem Tag steht hoechstens EINE Laufeinheit (easy_run, tempo_run, interval, long_run, progressive_run, test_run, race_prep). Zwei Laeufe am selben Tag sind immer falsch — auch dann, wenn der zweite locker waere, und auch dann, wenn eine andere Regel eine zusaetzliche lockere Einheit nahezulegen scheint. Passt eine Vorgabe nicht zur Einheit des Tages, aendere die Einheit, statt eine zweite danebenzustellen.
 - ZWEITE EINHEIT: Nur strength, core oder mobility duerfen als zweiter Eintrag zu einem Tag dazukommen, und nur wenn das Wochengeruest sie dort vorsieht. Bei zwei Eintraegen am selben "date": Tageszeit im title kennzeichnen ("Morgens: ...", "Abends: ..."), Laufeinheit zuerst, Summe beider duration_min <= Tages-Maximum.
-- PROGRESSIVE LÄUFE (progressive_run): Lauf beginnt in Zone 1–2 und steigert sich Kilometer für Kilometer bis Zone 3–4 gegen Ende. Ideal für Tempoaufbau ohne volle Belastung. Max. 1× pro Woche, nur in Build- und Peak-Phase, nicht im Tapering.
-- TESTLÄUFE (test_run): 5k oder 10k Zeitversuch bei maximalem persönlichen Effort (Zone 4–5) — so schnell wie möglich über die gesamte Distanz. Zweck: objektive Fortschrittsmessung und automatische Neukalibrierung der Schwellenpace. Plane exakt alle 4–6 Wochen — niemals in den letzten 14 Tagen vor dem A-Event. Nach einem test_run folgt IMMER ein easy_run als Regeneration. Kündige den Testlauf im title-Feld deutlich an, z.B. "5k Zeitversuch".
 
 **Antworte ausschließlich mit einem JSON-Array — in der Regel EIN Eintrag pro offenem Tag von heute ({$today}) bis {$planEndDate}. Ein zweiter Eintrag mit demselben "date" ist nur erlaubt, wenn das Wochengerüst dort eine strength-, core- oder mobility-Einheit vorsieht — niemals ein zweiter Lauf. Bereits abgeschlossene Tage (siehe oben) NICHT zurückgeben. Ruhetage MÜSSEN als Eintrag mit type="rest" enthalten sein.**
 [

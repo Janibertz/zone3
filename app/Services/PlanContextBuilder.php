@@ -114,6 +114,11 @@ class PlanContextBuilder
                 $context->blockedDates(),
                 $comeback,
                 $longRuns,
+                // Der Umfangsdeckel gehoert ins Geruest, nicht nur in den
+                // Prompt: sonst belegt das Geruest die Tage nach
+                // Verfuegbarkeit und der Deckel daneben ist unerfuellbar.
+                $volume,
+                $paces['long_sec'] ?? null,
             ),
             garminText: empty($user->garmin_session)
                 ? null

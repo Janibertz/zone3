@@ -25,7 +25,8 @@ class WeeklyVolumeService
     private const WEEKS = 6;
 
     /** So viel darf der Wochenumfang höchstens wachsen. */
-    private const MAX_PROGRESSION_PCT = 10;
+    /** Auch das Geruest rechnet damit — siehe WeeklyPatternService::applyVolumeBudget(). */
+    public const MAX_PROGRESSION_PCT = 10;
 
     /**
      * @return array{

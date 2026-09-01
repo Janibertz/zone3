@@ -34,6 +34,9 @@ class WeeklyPatternService
     /** Ein geplanter Lauf unter 20 Minuten ist kein sinnvoller Trainingsreiz. */
     public const MIN_USEFUL_RUN_MINUTES = 20;
 
+    /** Alles, wofür Laufschuhe nötig sind — die Typen, die Wochenumfang kosten. */
+    public const RUN_SLOT_TYPES = ['easy_run', 'tempo_run', 'interval', 'long_run', 'progressive_run', 'test_run'];
+
     /** Diese Typen zählen als harte Einheit — nie zwei davon an einem Tag. */
     public const HARD_TYPES = ['tempo_run', 'interval', 'test_run', 'progressive_run'];
 
@@ -94,6 +97,8 @@ class WeeklyPatternService
         array $finalizedDates = [],
         ?array $comeback = null,
         ?array $longRuns = null,
+        ?array $volume = null,
+        ?int $planningPaceSec = null,
     ): array {
         $days     = $this->availabilityPerDate($from, $to, $weeklyAvailability, $overrides, $finalizedDates);
         $priority = self::PRIORITIES[$event->race_distance] ?? self::DEFAULT_PRIORITY;
@@ -119,6 +124,13 @@ class WeeklyPatternService
         // rückwärts vom Renntag gerechnet und nicht Sache des Modells.
         if ($longRuns) {
             $this->applyLongRuns($days, $longRuns);
+        }
+
+        // Und danach bekommt jede übrige Laufeinheit ihren Anteil am
+        // Wochenumfang. Muss NACH der Leiter laufen: der lange Lauf geht vor,
+        // der Rest teilt sich, was übrig bleibt.
+        if ($volume && ! empty($volume['has_data']) && $planningPaceSec > 0) {
+            $this->applyVolumeBudget($days, $volume, $planningPaceSec, $priority);
         }
 
         return [
@@ -217,6 +229,219 @@ class WeeklyPatternService
                 $days[$date]['slots'][$i]['kind']       = $target['kind'];
             }
         }
+    }
+
+    /**
+     * Den Wochenumfang auf die Laufeinheiten verteilen.
+     *
+     * Hier lag der folgenschwerste Widerspruch des ganzen Prompts. Das
+     * Gerüst belegte die Tage nach VERFÜGBARKEIT und schrieb je Tag „max.
+     * 120 min" — das Modell las das als Auftrag. Der Umfangsblock daneben
+     * sagte gleichzeitig „der Wochenumfang darf 35,2 km nicht
+     * überschreiten". Beides stand als bindend im selben Prompt.
+     *
+     * Für einen realen Fall hiess das: fünf Einheiten mit zusammen 383
+     * Minuten Laufzeit — rund 71 km — gegen einen Deckel von 35,2 km. Es
+     * gab keine Antwort, die beide Vorgaben erfüllt. Das Modell musste eine
+     * brechen, und welche, entschied es jedes Mal neu. Genau das sieht der
+     * Athlet als „schon wieder ein Fehler im Plan".
+     *
+     * Jetzt rechnet das Gerüst es aus:
+     *   · Der lange Lauf steht (Leiter) und geht ab.
+     *   · Was übrig bleibt, teilen sich die anderen Laufeinheiten.
+     *   · Reicht der Anteil nicht für einen sinnvollen Lauf, fällt die
+     *     unwichtigste Einheit weg — statt fünf Alibi-Läufe zu planen.
+     *   · Die Verfügbarkeit bleibt Obergrenze, wird aber nie zum Ziel.
+     *
+     * @param  list<string>  $priority  Wunschreihenfolge; von hinten wird gestrichen.
+     */
+    private function applyVolumeBudget(array &$days, array $volume, int $paceSec, array $priority): void
+    {
+        $budgetKm = (float) ($volume['next_week_max'] ?? 0);
+        if ($budgetKm <= 0) {
+            return;
+        }
+
+        // Der Deckel wächst über das Fenster mit — mit derselben Rate von
+        // 10 %, die auch im Umfangsblock des Prompts steht. Bliebe er flach,
+        // hungerte die zweite Woche aus: ihr langer Lauf ist laut Leiter
+        // länger, und vom selben Deckel bliebe für den Rest der Woche
+        // weniger übrig als in der ersten.
+        $week = 0;
+        foreach ($this->groupByWeek($days) as $dates) {
+            $this->budgetWeek(
+                $days,
+                $dates,
+                $budgetKm * (1 + WeeklyVolumeService::MAX_PROGRESSION_PCT / 100) ** $week,
+                $paceSec,
+                $priority,
+            );
+            $week++;
+        }
+    }
+
+    /**
+     * Mindestdauern, damit eine Einheit ihren Zweck erfuellt.
+     *
+     * Eine Schwelleneinheit braucht Einlaufen, Hauptteil und Auslaufen —
+     * unter 45 Minuten bleibt davon nichts uebrig. Ein lockerer Lauf unter
+     * 30 Minuten ist ein Spaziergang mit Laufschuhen.
+     */
+    private const MIN_MINUTES_PER_TYPE = [
+        'tempo_run'       => 45,
+        'interval'        => 45,
+        'progressive_run' => 40,
+        'test_run'        => 40,
+        'easy_run'        => 30,
+    ];
+
+    /** @param list<string> $dates */
+    private function budgetWeek(array &$days, array $dates, float $budgetKm, int $paceSec, array $priority): void
+    {
+        $open    = [];
+        $takenKm = 0.0;
+
+        foreach ($dates as $date) {
+            foreach ($days[$date]['slots'] ?? [] as $i => $slot) {
+                if (! in_array($slot['type'], self::RUN_SLOT_TYPES, true)) {
+                    continue;
+                }
+
+                // Der lange Lauf steht schon (Leiter) und geht ab.
+                if (isset($slot['target_km'])) {
+                    $takenKm += (float) $slot['target_km'];
+                    continue;
+                }
+
+                // Ein fester Termin ist nicht verhandelbar: der Athlet geht
+                // hin, ob er im Budget steht oder nicht. Er verbraucht die
+                // Zeit, die er dauert.
+                if (! empty($slot['fixed'])) {
+                    $minutes = (int) ($slot['max_min'] ?: $days[$date]['budget_min']);
+                    $km      = $minutes * 60 / $paceSec;
+
+                    $days[$date]['slots'][$i]['target_km']  = round($km, 1);
+                    $days[$date]['slots'][$i]['target_min'] = $minutes;
+                    $takenKm += $km;
+                    continue;
+                }
+
+                $open[] = [
+                    'date'  => $date,
+                    'index' => $i,
+                    'type'  => $slot['type'],
+                    'cap'   => (int) ($slot['max_min'] ?: $days[$date]['budget_min']),
+                ];
+            }
+        }
+
+        if ($open === []) {
+            return;
+        }
+
+        // Ab hier wird in Minuten gerechnet — das ist die Groesse, in der
+        // der Athlet seine Woche plant, und die Verfuegbarkeit steht auch
+        // darin.
+        $budgetMin = max(0.0, ($budgetKm - $takenKm)) * $paceSec / 60;
+
+        // Solange das Budget die Mindestdauern nicht traegt, faellt die
+        // unwichtigste Einheit weg. Lieber drei Laeufe mit Substanz als
+        // fuenf, die keinen Reiz setzen.
+        while (count($open) > 1 && $this->minutesNeeded($open) > $budgetMin) {
+            $victim = $this->leastImportant($open, $priority);
+            if ($victim === null) {
+                break;
+            }
+
+            unset($days[$open[$victim]['date']]['slots'][$open[$victim]['index']]);
+            array_splice($open, $victim, 1);
+        }
+
+        // Reicht es nicht einmal fuer die letzte Einheit, bleibt sie
+        // trotzdem stehen — eine Woche ohne jeden Lauf waere kein Plan.
+        // Sie wird dann eben kurz.
+        $base = [];
+        foreach ($open as $k => $slot) {
+            $base[$k] = min($this->minMinutesFor($slot['type']), $slot['cap']);
+        }
+
+        // Was ueber die Mindestdauern hinaus uebrig ist, wird im Verhaeltnis
+        // der Mindestdauern verteilt — die Schluesseleinheit waechst also
+        // staerker als der lockere Lauf.
+        $surplus = $budgetMin - array_sum($base);
+        $weights = array_sum($base) > 0 ? $base : array_fill(0, count($open), 1);
+
+        foreach ($open as $k => $slot) {
+            $minutes = $base[$k];
+
+            if ($surplus > 0) {
+                $minutes += $surplus * ($weights[$k] / array_sum($weights));
+            }
+
+            $minutes = (int) round(min($minutes, $slot['cap']));
+            $km      = $minutes * 60 / $paceSec;
+
+            $days[$slot['date']]['slots'][$slot['index']]['target_km']  = round($km, 1);
+            $days[$slot['date']]['slots'][$slot['index']]['target_min'] = $minutes;
+        }
+
+        // Aufgeräumt, damit die Indizes nach dem Streichen wieder passen.
+        // Wer dabei seine einzige Einheit verloren hat, wird Ruhetag — sonst
+        // fiele der Tag im Prompt zurück auf „frei: rest ODER lockere
+        // Einheit", und genau diesen Münzwurf haben wir abgeschafft.
+        foreach ($dates as $date) {
+            if (! isset($days[$date]['slots'])) {
+                continue;
+            }
+
+            $days[$date]['slots'] = array_values($days[$date]['slots']);
+
+            if ($days[$date]['slots'] === [] && $days[$date]['available'] && empty($days[$date]['finalized'])) {
+                $days[$date]['rest'] = true;
+            }
+        }
+    }
+
+    /** Wie viele Minuten die offenen Einheiten mindestens brauchen. */
+    private function minutesNeeded(array $open): float
+    {
+        $sum = 0.0;
+        foreach ($open as $slot) {
+            $sum += min($this->minMinutesFor($slot['type']), $slot['cap']);
+        }
+
+        return $sum;
+    }
+
+    private function minMinutesFor(string $type): int
+    {
+        return self::MIN_MINUTES_PER_TYPE[$type] ?? self::MIN_USEFUL_RUN_MINUTES;
+    }
+
+    /**
+     * Welche der offenen Einheiten am ehesten entbehrlich ist.
+     *
+     * Die Wunschreihenfolge des Zieltyps gilt rückwärts: beim Marathon
+     * fliegt der lockere Lauf vor dem Tempolauf. Feste Termine stehen hier
+     * gar nicht erst zur Wahl — sie sind vorher aus der Liste heraus.
+     *
+     * @param  list<array{date:string,index:int,type:string,cap:int}>  $open
+     */
+    private function leastImportant(array $open, array $priority): ?int
+    {
+        $rank = array_flip($priority);
+        $worst = null;
+        $worstRank = -1;
+
+        foreach ($open as $i => $slot) {
+            $r = $rank[$slot['type']] ?? count($priority);
+            if ($r > $worstRank) {
+                $worstRank = $r;
+                $worst = $i;
+            }
+        }
+
+        return $worst;
     }
 
     /** @return array<string,list<string>> Wochenschlüssel → Daten der Woche */
@@ -705,27 +930,62 @@ class WeeklyPatternService
                     : '';
 
                 if (! empty($slot['fixed'])) {
-                    $parts[] = "type=\"{$slot['type']}\" — FESTER TERMIN: {$slot['label']}{$slotCap}";
+                    // Der Inhalt steht dort nicht fest, der Umfang zaehlt
+                    // trotzdem in die Woche — deshalb ein Richtwert.
+                    $rough = isset($slot['target_km'])
+                        ? " (rechne mit rund {$slot['target_km']} km fuer die Wochenbilanz)"
+                        : '';
+                    $parts[] = "type=\"{$slot['type']}\" — FESTER TERMIN: {$slot['label']}{$slotCap}{$rough}";
                     continue;
                 }
 
                 // Beim langen Lauf steht die Distanz fest, nicht nur der Typ.
-                if (isset($slot['target_km'])) {
-                    $race    = $slot['race_km'] > 0 ? ", davon {$slot['race_km']} km im Zielrenntempo am Ende" : '';
+                if ($slot['type'] === 'long_run' && isset($slot['target_km'])) {
+                    $race    = ($slot['race_km'] ?? 0) > 0 ? ", davon {$slot['race_km']} km im Zielrenntempo am Ende" : '';
                     $parts[] = "type=\"long_run\" — {$slot['target_km']} km (~{$slot['target_min']} min){$race}";
                     continue;
                 }
 
                 $optional = ! empty($slot['optional']) ? ' [optional, weglassen wenn unpassend]' : '';
+
+                // Der Zielumfang kommt aus dem Wochenbudget. Ohne ihn stand
+                // dort nur die Verfuegbarkeit — und das Modell las eine
+                // Obergrenze von 120 Minuten als Auftrag, 120 Minuten zu
+                // planen.
+                if (isset($slot['target_km'])) {
+                    $parts[] = "type=\"{$slot['type']}\" ({$label}) — Ziel {$slot['target_km']} km"
+                        . " (~{$slot['target_min']} min){$slotCap}{$optional}";
+                    continue;
+                }
+
                 $parts[]  = "type=\"{$slot['type']}\" ({$label}{$slotCap}){$optional}";
             }
 
-            $lines[] = "- {$date} ({$wd}): {$cap} gesamt → " . implode(' + ', $parts);
+            $lines[] = "- {$date} ({$wd}): hoechstens {$cap} → " . implode(' + ', $parts);
+        }
+
+        // Die Übersicht wird aus den TAGEN gebildet, nicht aus dem Ergebnis
+        // der Wochenplanung. Letzteres entsteht, bevor das Umfangsbudget
+        // Einheiten streicht — die Übersicht behauptete danach Einheiten,
+        // die in der Tagesliste darunter gar nicht mehr standen.
+        $byWeek = [];
+        foreach ($skeleton['days'] as $day) {
+            if ($day['finalized'] || ! empty($day['kept'])) {
+                continue;
+            }
+
+            foreach ($day['slots'] ?? [] as $slot) {
+                if (in_array($slot['type'], self::RUN_SLOT_TYPES, true)) {
+                    $byWeek[$day['week']][] = $slot['type'];
+                }
+            }
         }
 
         $planned = [];
-        foreach ($skeleton['weeks'] as $weekKey => $week) {
-            $list = $week['planned'] ? implode(', ', $week['planned']) : 'keine (zu wenig verfügbare Tage)';
+        foreach (array_keys($skeleton['weeks']) as $weekKey) {
+            $list = ! empty($byWeek[$weekKey])
+                ? implode(', ', $byWeek[$weekKey])
+                : 'keine Laufeinheit';
             $planned[] = "- {$weekKey}: {$list}";
         }
 
@@ -748,7 +1008,6 @@ class WeeklyPatternService
             . "- Steht bei einer Einheit \"max. N min\", ist das ihre Obergrenze — nicht die des Tages. Sie zu überschreiten oder die fehlende Zeit mit einer zweiten Einheit aufzufüllen, ist beides falsch.\n"
             . "- Als [optional] markierte Zweiteinheiten darfst du weglassen, wenn sie an dem Tag nicht sinnvoll sind — aber niemals durch eine harte Einheit ersetzen.\n"
             . "- Als RUHETAG markierte Tage sind Pflicht: type=\"rest\", keine Einheit, auch keine lockere. Der Athlet hat sie fest eingeplant und richtet seine Woche danach ein.\n"
-            . "- Tage ohne Vorgabe: entweder type=\"rest\" oder eine lockere Ergänzung, niemals eine harte Einheit.\n"
             . "- Erfinde KEINE zusätzlichen harten Einheiten und verschiebe KEINE Termine.\n"
             . "- FESTE TERMINE sind auswärtige Einheiten (Laufclub, Vereinstraining). Ihr Inhalt steht NICHT fest und wechselt wöchentlich. Schreibe dort KEINE erfundene Struktur hinein: kurzer title mit dem Namen des Termins, und eine description, die sagt, dass der Inhalt vor Ort vorgegeben wird. Setze pace_target=null. Plane an diesem Tag nichts Zusätzliches und ziehe die Einheit bei der Wochenbelastung mit ein.";
     }

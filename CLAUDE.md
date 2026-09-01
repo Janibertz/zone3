@@ -127,6 +127,31 @@ Frozen days always count as kept. **If `stale` is empty the job returns without 
 
 Otherwise kept days are marked `kept` in the skeleton (dropped from the day list, ignored by the validator's `dropUnknownDates` / `fillMissingDays` / slot restoration) and passed to the prompt as `keptSessions`: "steht bereits und bleibt unverändert — nicht zurückgeben". The model sees the whole week but only writes the open days, and only those get deleted and recreated.
 
+### The weekly volume drives the skeleton
+
+This was the most consequential contradiction in the prompt. The skeleton filled days by **availability** and wrote "max. 120 min" per day; the model read that as an instruction. Two sections above, the volume block said, as binding: "der Wochenumfang darf 35,2 km NICHT überschreiten". For a real case that meant five sessions totalling 383 minutes — about 71 km — against a 35.2 km ceiling. No answer satisfies both. The model had to break one, and which one it broke it decided anew every time.
+
+`WeeklyPatternService::applyVolumeBudget()` now runs after the long-run ladder:
+
+- the long run's km come from the ladder and are subtracted first
+- a fixed appointment consumes the time it actually takes (the athlete goes either way)
+- what remains is shared across the other run slots, each with a **minimum** (`MIN_MINUTES_PER_TYPE`: 45 min for quality, 30 for easy)
+- if the budget cannot carry them all, the least important is dropped (reverse `PRIORITIES`) — three sessions with substance beat five without
+- a day that loses its only slot becomes `rest`, never an open day
+- availability stays a **ceiling**, never a target
+
+Each run slot then carries `target_km` / `target_min`, and the prompt says `— Ziel 8.1 km (~45 min)` next to `hoechstens max. 120 min`. The validator pulls a session back when it deviates more than 30 % (10 % for the long run, which comes from the ladder).
+
+The ceiling grows by `WeeklyVolumeService::MAX_PROGRESSION_PCT` per week across the window; flat would starve week two, whose long run is longer.
+
+### One verdict on the goal, not two
+
+`TrainingPaceService` judged the goal from threshold pace ("Das Ziel passt zur heutigen Form"); `LongRunPlanService` judged it from the ladder ("Mit dieser Vorbereitung ist die Zielzeit unwahrscheinlich"). Both landed in the same prompt as fact, with no precedence, and the model picked one at random for the description.
+
+`TrainingPaceService::combinedVerdict()` is now the only place that answers it, and it takes the ladder into account: speed and endurance are two preconditions, and a ladder that cannot reach the required peak overrides a flattering pace comparison. `LongRunPlanService` states the km shortfall as a finding and says nothing about the goal.
+
+**The weekly overview is derived from the days**, not from `planWeek`'s return — that runs before the budget drops slots, so the overview used to name sessions the day list no longer had.
+
 ### Rest days are binding
 
 Free days used to be written into the prompt as `type="rest" ODER lockere Einheit` — the model decided, differently on every run. `WeeklyPatternService::assignFreeDays()` decides now: the day after a hard session is rest, every week has at least one, everything else becomes an easy run. The validator enforces it. A test asserts that building the skeleton twice yields the same thing.

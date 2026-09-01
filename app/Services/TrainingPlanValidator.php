@@ -254,28 +254,55 @@ class TrainingPlanValidator
     private function enforceLongRunTargets(array $sessions, array $days): array
     {
         foreach ($days as $date => $day) {
-            $slot = collect($day['slots'] ?? [])->first(fn ($s) => isset($s['target_km']));
-            if (! $slot) {
-                continue;
-            }
-
-            foreach ($sessions as &$s) {
-                if ($s['date'] !== $date || ($s['type'] ?? '') !== 'long_run') {
+            foreach ($day['slots'] ?? [] as $slot) {
+                if (! isset($slot['target_km'], $slot['target_min'])) {
                     continue;
                 }
 
-                $km        = (float) ($s['distance_km'] ?? 0);
-                $tolerance = max(1.5, $slot['target_km'] * 0.1);
-
-                if ($km > 0 && abs($km - $slot['target_km']) <= $tolerance) {
+                // Ein fester Termin traegt nur einen Richtwert fuer die
+                // Wochenbilanz. Was dort tatsaechlich gelaufen wird,
+                // entscheidet der Laufclub, nicht der Plan.
+                if (! empty($slot['fixed'])) {
                     continue;
                 }
 
-                $this->note("{$date}: langer Lauf mit {$km} km statt {$slot['target_km']} km aus der Leiter → korrigiert");
-                $s['distance_km']  = $slot['target_km'];
-                $s['duration_min'] = $slot['target_min'];
+                // Der lange Lauf kommt aus der Leiter und wird eng gefuehrt.
+                // Alle anderen Zielwerte sind eine Aufteilung des
+                // Wochenumfangs — dort darf das Modell mehr abweichen,
+                // solange es nicht die ganze Verfuegbarkeit ausschoepft.
+                $isLongRun = $slot['type'] === 'long_run';
+                $tolerance = $isLongRun ? 0.10 : 0.30;
+
+                foreach ($sessions as &$s) {
+                    if ($s['date'] !== $date || ($s['type'] ?? '') !== $slot['type']) {
+                        continue;
+                    }
+
+                    if ($isLongRun) {
+                        $km    = (float) ($s['distance_km'] ?? 0);
+                        $allow = max(1.5, $slot['target_km'] * $tolerance);
+
+                        if ($km > 0 && abs($km - $slot['target_km']) <= $allow) {
+                            continue;
+                        }
+
+                        $this->note("{$date}: langer Lauf mit {$km} km statt {$slot['target_km']} km aus der Leiter → korrigiert");
+                    } else {
+                        $min   = (int) ($s['duration_min'] ?? 0);
+                        $allow = max(10, (int) round($slot['target_min'] * $tolerance));
+
+                        if ($min > 0 && abs($min - $slot['target_min']) <= $allow) {
+                            continue;
+                        }
+
+                        $this->note("{$date}: {$slot['type']} mit {$min} min statt {$slot['target_min']} min aus dem Wochenumfang → korrigiert");
+                    }
+
+                    $s['distance_km']  = $slot['target_km'];
+                    $s['duration_min'] = $slot['target_min'];
+                }
+                unset($s);
             }
-            unset($s);
         }
 
         return $sessions;
@@ -527,8 +554,11 @@ class TrainingPlanValidator
         }
 
         // Kommt der lange Lauf aus der Leiter, gilt deren Distanz und Dauer.
-        if (isset($slot['target_km'])) {
-            $race = $slot['race_km'] > 0
+        // Die Typpruefung ist noetig, seit JEDER Laufslot einen Zielumfang
+        // traegt — ohne sie wurde aus einem fehlenden lockeren Lauf ein
+        // langer.
+        if ($slot['type'] === 'long_run' && isset($slot['target_km'])) {
+            $race = ($slot['race_km'] ?? 0) > 0
                 ? " Die letzten {$slot['race_km']} km im Zielrenntempo."
                 : '';
 
@@ -554,12 +584,19 @@ class TrainingPlanValidator
             default     => ['Ergänzende Einheit', 'Lockere Ergänzung zum Lauftraining.', 2, 'low'],
         };
 
+        // Steht ein Zielumfang aus dem Wochenbudget bereit, gilt er auch fuer
+        // den Notnagel — sonst faellt die Wochenbilanz auseinander, sobald
+        // eine Einheit nachgesetzt werden muss.
+        if (isset($slot['target_km'], $slot['target_min'])) {
+            $minutes = (int) $slot['target_min'];
+        }
+
         return [
             'date'         => $date,
             'type'         => $slot['type'],
             'title'        => $title,
             'description'  => $desc,
-            'distance_km'  => 0,
+            'distance_km'  => (float) ($slot['target_km'] ?? 0),
             'duration_min' => $minutes,
             'pace_target'  => null,
             'zone'         => $zone,
