@@ -31,6 +31,9 @@ class WeeklyPatternService
      */
     private const SECOND_SLOT_MAX_MINUTES = 30;
 
+    /** Ein geplanter Lauf unter 20 Minuten ist kein sinnvoller Trainingsreiz. */
+    public const MIN_USEFUL_RUN_MINUTES = 20;
+
     /** Diese Typen zählen als harte Einheit — nie zwei davon an einem Tag. */
     public const HARD_TYPES = ['tempo_run', 'interval', 'test_run', 'progressive_run'];
 
@@ -237,7 +240,9 @@ class WeeklyPatternService
     {
         $usable = array_values(array_filter(
             $dates,
-            fn ($d) => $days[$d]['available'] && ! $days[$d]['finalized']
+            fn ($d) => $days[$d]['available']
+                && ! $days[$d]['finalized']
+                && $this->canFitUsefulRun($days[$d])
         ));
 
         if (! $usable) {
@@ -338,7 +343,9 @@ class WeeklyPatternService
     {
         $usable = array_values(array_filter(
             $dates,
-            fn ($d) => $days[$d]['available'] && ! $days[$d]['finalized']
+            fn ($d) => $days[$d]['available']
+                && ! $days[$d]['finalized']
+                && $this->canFitUsefulRun($days[$d])
         ));
 
         if (! $usable) {
@@ -358,6 +365,10 @@ class WeeklyPatternService
             // Ruhetag — das ist der Sinn eines vorsichtigen Wiedereinstiegs.
             if ($lastRun !== null && $step <= 2
                 && CarbonImmutable::parse($lastRun)->diffInDays(CarbonImmutable::parse($date)) < 2) {
+                // Der Ruhetag zwischen den ersten beiden Comeback-Läufen
+                // ist medizinisch begründet. Er darf später weder von
+                // assignFreeDays noch vom Normalplan aufgefüllt werden.
+                $days[$date]['rest'] = true;
                 continue;
             }
 
@@ -407,9 +418,18 @@ class WeeklyPatternService
         // Woche ohne jede Vorgabe da — und das Modell füllte sie nach
         // eigenem Ermessen.
         if ($step >= ReturnToRunService::TOTAL_STEPS) {
-            // planWeek zaehlt die schon belegten Tage mit — die Liste ist
-            // danach vollstaendig und wird nicht ergaenzt, sondern ersetzt.
-            $planned = $this->planWeek($days, $dates, $priority, $maxHard)['planned'];
+            // Die Comeback-Tage sind abgeschlossen: Der Normalplan darf nur
+            // die RESTLICHEN Tage füllen. Mit der ganzen Woche legte er
+            // rückwirkend z.B. ein Intervall auf den bewussten Ruhetag
+            // zwischen Einheit 1 und 2.
+            $remaining = $lastRun === null
+                ? []
+                : array_values(array_filter($dates, fn ($date) => $date > $lastRun));
+
+            if ($remaining !== []) {
+                $normal = $this->planWeek($days, $remaining, $priority, $maxHard);
+                $planned = [...$planned, ...$normal['planned']];
+            }
         }
 
         return ['planned' => $planned, 'dropped' => [], 'usable_days' => count($usable)];
@@ -501,11 +521,25 @@ class WeeklyPatternService
      */
     private function assignFreeDays(array &$days, array $dates): void
     {
+        // Verfügbarkeit unter 20 Minuten ist kein Trainingsfenster. Ohne
+        // diese Festlegung schrieb der Prompt „frei" und das Modell erfand
+        // daraus Mini-Läufe wie „8 Minuten Zone 2".
+        foreach ($dates as $date) {
+            if ($days[$date]['available']
+                && ! $days[$date]['finalized']
+                && empty($days[$date]['slots'])
+                && ! $this->canFitUsefulRun($days[$date])) {
+                $days[$date]['rest'] = true;
+            }
+        }
+
         $free = array_values(array_filter(
             $dates,
             fn ($d) => $days[$d]['available']
                 && ! $days[$d]['finalized']
-                && empty($days[$d]['slots']),
+                && empty($days[$d]['slots'])
+                && empty($days[$d]['rest'])
+                && $this->canFitUsefulRun($days[$d]),
         ));
 
         if ($free === []) {
@@ -599,6 +633,18 @@ class WeeklyPatternService
             'interval', 'tempo_run' => min($budget, 60),
             default     => min($budget, 45),
         };
+    }
+
+    /**
+     * Eine Verfügbarkeit ist eine Obergrenze, kein Auftrag, jede Minute zu
+     * füllen. Reichen weniger als 20 Minuten, bleibt der Tag Ruhetag statt
+     * dass das Modell einen 8-Minuten-"Mini-Reset" erfindet.
+     */
+    private function canFitUsefulRun(array $day): bool
+    {
+        $budget = (int) ($day['budget_min'] ?? 0);
+
+        return $budget === 0 || $budget >= self::MIN_USEFUL_RUN_MINUTES;
     }
 
     /**

@@ -16,6 +16,9 @@ namespace App\Services;
  */
 class TrainingPlanValidator
 {
+    /** Kein geplanter Lauf unter dieser Dauer — dann ist Erholung sinnvoller. */
+    private const MIN_USEFUL_RUN_MINUTES = WeeklyPatternService::MIN_USEFUL_RUN_MINUTES;
+
     /** Alles, was die Oberfläche kennt. Andere Typen dürfen nicht in die DB. */
     public const KNOWN_TYPES = [
         'rest', 'easy_run', 'tempo_run', 'interval', 'long_run', 'race_prep',
@@ -57,6 +60,11 @@ class TrainingPlanValidator
         $sessions = $this->enforceSlotCaps($sessions, $days);
         $sessions = $this->enforceDailyBudget($sessions, $days);
         $sessions = $this->restoreMissingSlots($sessions, $days);
+        // Ein eingesetzter Notnagel muss ebenfalls noch ins Tagesbudget
+        // passen; erst danach entscheiden wir, ob ein kurzer Lauf überhaupt
+        // einen Trainingsreiz ergibt.
+        $sessions = $this->enforceDailyBudget($sessions, $days);
+        $sessions = $this->enforceMinimumUsefulRunDuration($sessions);
         $sessions = $this->fillMissingDays($sessions, $days);
 
         usort($sessions, fn ($a, $b) => [$a['date'], $b['_hard'] ?? false] <=> [$b['date'], $a['_hard'] ?? false]);
@@ -354,6 +362,44 @@ class TrainingPlanValidator
         }
 
         return $sessions;
+    }
+
+    /**
+     * Eine Lauf-Einheit mit 8 oder 15 Minuten erzeugt nur Planrauschen.
+     * Sie wird nicht künstlich auf 20 Minuten verlängert — die angegebene
+     * Verfügbarkeit bleibt verbindlich — sondern zu einem Ruhetag.
+     */
+    private function enforceMinimumUsefulRunDuration(array $sessions): array
+    {
+        $seenRest = [];
+
+        foreach ($sessions as &$s) {
+            if (! in_array($s['type'] ?? '', self::RUN_TYPES, true)) {
+                continue;
+            }
+
+            $duration = (int) ($s['duration_min'] ?? 0);
+            if ($duration >= self::MIN_USEFUL_RUN_MINUTES) {
+                continue;
+            }
+
+            $this->note("{$s['date']}: {$duration} min {$s['type']} sind kein sinnvoller Lauf → Ruhetag");
+            $s = $this->restEntry($s['date']);
+        }
+        unset($s);
+
+        return array_values(array_filter($sessions, function ($s) use (&$seenRest) {
+            if (($s['type'] ?? '') !== 'rest') {
+                return true;
+            }
+
+            if (isset($seenRest[$s['date']])) {
+                return false;
+            }
+
+            $seenRest[$s['date']] = true;
+            return true;
+        }));
     }
 
     /**

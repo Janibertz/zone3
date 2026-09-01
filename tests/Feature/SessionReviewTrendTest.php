@@ -98,7 +98,7 @@ class SessionReviewTrendTest extends TestCase
         $facts = $this->facts($today);
 
         $this->assertStringContainsString('Wochenumfang', $facts);
-        $this->assertStringContainsString('Läufen', $facts);
+        $this->assertStringContainsString('Lauf', $facts);
     }
 
     /** Wer den Umfang deutlich steigert, bekommt das benannt. */

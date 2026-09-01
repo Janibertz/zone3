@@ -257,6 +257,66 @@ class OneRunPerDayTest extends TestCase
         $this->assertSame(30, $entry['duration_min']);
     }
 
+    /** Der Ruhetag zwischen Comeback-Einheit 1 und 2 bleibt wirklich frei. */
+    public function test_the_first_comeback_rest_day_is_never_backfilled(): void
+    {
+        $user = $this->athlete(sickToday: true);
+        $skeleton = $this->skeleton($user, [
+            'step' => 1, 'total_steps' => 5, 'trigger' => 'sick', 'trigger_label' => 'Krankheit',
+        ]);
+
+        $firstRun = collect($skeleton['days'])->first(fn ($day) => $day['slots'] !== []);
+        $restDay = $skeleton['days'][CarbonImmutable::parse($firstRun['date'])->addDay()->toDateString()];
+
+        $this->assertTrue($restDay['rest']);
+        $this->assertSame([], $restDay['slots']);
+    }
+
+    /** Ein 8-Minuten-"Mini-Reset" ist kein sinnvoller geplanter Lauf. */
+    public function test_a_sub_twenty_minute_run_becomes_a_rest_day(): void
+    {
+        $date = CarbonImmutable::today()->addDay()->toDateString();
+        $skeleton = [
+            'days' => [
+                $date => [
+                    'date'      => $date,
+                    'available' => true,
+                    'budget_min'=> 45,
+                    'finalized' => false,
+                    'kept'      => false,
+                    'rest'      => false,
+                    'slots'     => [['type' => 'easy_run', 'hard' => false, 'max_min' => 45]],
+                ],
+            ],
+        ];
+
+        $result = app(TrainingPlanValidator::class)->validate([
+            ['date' => $date, 'type' => 'easy_run', 'title' => 'Mini-Reset', 'duration_min' => 8, 'distance_km' => 1.5],
+        ], $skeleton);
+
+        $entry = $result['sessions'][0];
+        $this->assertSame('rest', $entry['type']);
+        $this->assertSame(0, $entry['duration_min']);
+        $this->assertStringContainsString('kein sinnvoller Lauf', implode("\n", $result['report']));
+    }
+
+    /** Sehr kurze Verfügbarkeit erzeugt schon im Gerüst einen Ruhetag. */
+    public function test_an_eight_minute_availability_is_a_rest_day_not_a_run_slot(): void
+    {
+        $user = $this->athlete();
+        $availability = $this->availability();
+        $availability['wednesday'] = ['available' => true, 'duration_min' => 8];
+
+        $from = CarbonImmutable::today()->next('wednesday');
+        $skeleton = app(WeeklyPatternService::class)->build(
+            $this->event($user), $from, $from->addDays(6), $availability
+        );
+
+        $day = $skeleton['days'][$from->toDateString()];
+        $this->assertTrue($day['rest']);
+        $this->assertSame([], $day['slots']);
+    }
+
     /** Nach der Krankheit steht die Stufe auch im Kontext des Planers. */
     public function test_the_plan_context_carries_the_comeback(): void
     {
