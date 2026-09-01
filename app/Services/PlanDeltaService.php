@@ -26,11 +26,17 @@ use Illuminate\Support\Collection;
 class PlanDeltaService
 {
     /**
-     * Wie weit die gelaufene Distanz eines langen Laufs von der Leiter
-     * abweichen darf, bevor der Tag als geändert gilt. Dieselbe Toleranz,
-     * die auch der Validator anlegt — runde Zahlen sind gewollt.
+     * Wie weit eine Einheit von ihrem Zielumfang abweichen darf, bevor der
+     * Tag als geändert gilt.
+     *
+     * Dieselben Werte, die der Validator anlegt — und das ist keine
+     * Kosmetik: Wäre der Vergleich hier strenger, würde er genau die
+     * Einheiten als veraltet melden, die der Validator gerade erst
+     * durchgewunken hat. Die Folge wäre eine Schleife, in der jede
+     * Neuberechnung wieder das Modell ruft.
      */
     private const LONG_RUN_TOLERANCE = 0.10;
+    private const RUN_TOLERANCE      = 0.30;
 
     /**
      * @param  array                             $skeleton  Das frisch gebaute Gerüst
@@ -117,30 +123,49 @@ class PlanDeltaService
             return false;
         }
 
-        return $this->longRunStillFits($slots, $sessions);
+        return $this->targetsStillFit($slots, $sessions);
     }
 
     /**
-     * Die Leiter der langen Läufe rechnet rückwärts vom Renntag. Verschiebt
-     * sie sich, muss der lange Lauf neu geschrieben werden — auch wenn der
-     * Typ derselbe geblieben ist.
+     * Trägt jede Einheit noch den Umfang, den das Gerüst für sie vorsieht?
+     *
+     * Beim langen Lauf kommt die Zahl aus der Leiter und wird eng geführt.
+     * Bei allen anderen ist sie ein Anteil am Wochenumfang — dort darf mehr
+     * abweichen, sonst gilt ein Tag als geändert, den der Validator gerade
+     * erst akzeptiert hat.
+     *
+     * Feste Termine bleiben aussen vor. Ihr Zielumfang ist nur ein Richtwert
+     * für die Wochenbilanz; was der Laufclub tatsächlich macht, weiss der
+     * Plan nicht, und der Prompt verlangt dort ausdrücklich KEINE erfundene
+     * Struktur. Ohne diese Ausnahme war ein Tag mit festem Termin dauerhaft
+     * „veraltet" — und damit lief bei jeder Neuberechnung wieder das Modell,
+     * obwohl sich nichts geändert hatte.
      *
      * @param  Collection<int,TrainingSession>  $sessions
      */
-    private function longRunStillFits(array $slots, Collection $sessions): bool
+    private function targetsStillFit(array $slots, Collection $sessions): bool
     {
         foreach ($slots as $slot) {
             $target = $slot['target_km'] ?? null;
-            if (! $target) {
+
+            if (! $target || ! empty($slot['fixed'])) {
                 continue;
             }
 
             $session = $sessions->firstWhere('type', $slot['type']);
-            if (! $session || ! $session->distance_km) {
+            if (! $session) {
                 return false;
             }
 
-            if (abs($session->distance_km - $target) > $target * self::LONG_RUN_TOLERANCE) {
+            // Ohne Distanz lässt sich nichts vergleichen — dann entscheidet
+            // die Dauer, die immer dasteht.
+            if (! $session->distance_km) {
+                continue;
+            }
+
+            $tolerance = $slot['type'] === 'long_run' ? self::LONG_RUN_TOLERANCE : self::RUN_TOLERANCE;
+
+            if (abs($session->distance_km - $target) > $target * $tolerance) {
                 return false;
             }
         }

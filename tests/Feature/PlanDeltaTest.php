@@ -298,4 +298,71 @@ class PlanDeltaTest extends TestCase
 
         $this->assertSame([$date], $delta['keep']);
     }
+
+    // ── Keine Schleife ───────────────────────────────────────────────────
+
+    public function test_a_fixed_appointment_does_not_make_the_day_permanently_stale(): void
+    {
+        $user  = User::factory()->onboarded()->create();
+        $from  = CarbonImmutable::parse('2026-08-31'); // Montag
+
+        $event = Event::create([
+            'user_id' => $user->id, 'name' => 'Marathon',
+            'event_date' => $from->addDays(38), 'race_distance' => 'marathon',
+            'priority' => 'A', 'target_time_hours' => 3, 'target_time_minutes' => 30,
+        ]);
+        $plan = TrainingPlan::create(['user_id' => $user->id, 'event_id' => $event->id, 'sessions' => []]);
+
+        $availability = [
+            'monday' => ['available' => true, 'duration_min' => 45],
+            'tuesday' => ['available' => true, 'duration_min' => 60,
+                          'fixed' => ['type' => 'interval', 'label' => 'Laufclub']],
+            'wednesday' => ['available' => true, 'duration_min' => 45],
+            'thursday' => ['available' => true, 'duration_min' => 60],
+            'friday' => ['available' => true, 'duration_min' => 120],
+            'saturday' => ['available' => true, 'duration_min' => 120],
+            'sunday' => ['available' => true, 'duration_min' => 180],
+        ];
+
+        $skeleton = app(WeeklyPatternService::class)->build(
+            $event, $from, $from->addDays(6), $availability, [], [], null, null,
+            ['has_data' => true, 'next_week_max' => 35.2], 330,
+        );
+
+        // Den Plan genau nach Geruest fuellen — so, wie es der Prompt
+        // vorgibt: beim festen Termin KEINE erfundene Struktur, also auch
+        // keine Distanz.
+        $sessions = new Collection();
+        foreach ($skeleton['days'] as $date => $day) {
+            if (! empty($day['rest']) || ! $day['available']) {
+                $sessions->push(TrainingSession::create([
+                    'user_id' => $user->id, 'training_plan_id' => $plan->id,
+                    'planned_date' => $date, 'type' => 'rest', 'title' => 'Ruhetag',
+                    'description' => '', 'intensity' => 'rest', 'status' => 'planned',
+                ]));
+                continue;
+            }
+
+            foreach ($day['slots'] ?? [] as $slot) {
+                $sessions->push(TrainingSession::create([
+                    'user_id' => $user->id, 'training_plan_id' => $plan->id,
+                    'planned_date' => $date, 'type' => $slot['type'],
+                    'title' => $slot['label'] ?? $slot['type'], 'description' => '',
+                    // Fester Termin: keine Distanz, so wie der Prompt es verlangt.
+                    'distance_km' => ! empty($slot['fixed']) ? null : ($slot['target_km'] ?? null),
+                    'duration_min' => $slot['target_min'] ?? 45,
+                    'intensity' => 'medium', 'status' => 'planned',
+                ]));
+            }
+        }
+
+        $delta = app(PlanDeltaService::class)->split($skeleton, $sessions);
+
+        $this->assertSame(
+            [],
+            $delta['stale'],
+            'Ein Plan, der exakt dem Geruest folgt, darf nichts Veraltetes enthalten — '
+            . 'sonst laeuft bei JEDER Neuberechnung wieder das Modell.',
+        );
+    }
 }
