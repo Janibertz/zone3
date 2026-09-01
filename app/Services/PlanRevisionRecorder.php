@@ -38,8 +38,9 @@ class PlanRevisionRecorder
         array $newSessions,
         array $corrections = [],
         string $triggeredBy = 'auto',
+        array $untouchedDates = [],
     ): ?PlanRevision {
-        $changes = $this->diff($oldSessions, $newSessions);
+        $changes = $this->diff($oldSessions, $newSessions, $untouchedDates);
 
         // Beim ersten Plan gibt es nichts zu vergleichen — der Eintrag
         // entsteht trotzdem, damit der Verlauf einen Anfang hat.
@@ -62,19 +63,31 @@ class PlanRevisionRecorder
      * @param  array<int,array<string,mixed>>   $newSessions
      * @return array<int,array<string,string>>
      */
-    public function diff(Collection $oldSessions, array $newSessions): array
+    public function diff(Collection $oldSessions, array $newSessions, array $untouchedDates = []): array
     {
         $today = CarbonImmutable::today()->toDateString();
 
+        // Tage, die die Teil-Neuberechnung gar nicht angefasst hat, gehoeren
+        // nicht in den Verlauf — weder als geaendert noch als entfallen.
+        //
+        // Ohne diese Ausnahme war der Verlauf grob irrefuehrend: das Modell
+        // bekommt nur die offenen Tage zu sehen und liefert auch nur die
+        // zurueck. Alles Erhaltene stand damit im "vorher", fehlte im
+        // "nachher" — und wurde als "entfaellt" ausgewiesen. Der Athlet las
+        // in seinem Verlauf, neun Tage seien geloescht worden, waehrend sie
+        // unveraendert in seinem Plan standen.
+        $skip = array_flip($untouchedDates);
+
         $old = $oldSessions
-            ->filter(fn ($s) => $s->planned_date?->toDateString() >= $today)
+            ->filter(fn ($s) => $s->planned_date?->toDateString() >= $today
+                && ! isset($skip[$s->planned_date->toDateString()]))
             ->groupBy(fn ($s) => $s->planned_date->toDateString())
             ->map(fn ($day) => $day->map(fn ($s) => $this->describeSession(
                 $s->type, $s->title, $s->distance_km, $s->duration_min
             ))->sort()->values()->all());
 
         $new = collect($newSessions)
-            ->filter(fn ($s) => ($s['date'] ?? '') >= $today)
+            ->filter(fn ($s) => ($s['date'] ?? '') >= $today && ! isset($skip[$s['date'] ?? '']))
             ->groupBy(fn ($s) => $s['date'])
             ->map(fn ($day) => $day->map(fn ($s) => $this->describeSession(
                 $s['type'] ?? '', $s['title'] ?? null, $s['distance_km'] ?? null, $s['duration_min'] ?? null

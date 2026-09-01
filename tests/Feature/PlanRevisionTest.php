@@ -158,6 +158,51 @@ class PlanRevisionTest extends TestCase
         $this->assertStringNotContainsString('Krafttraining', $changes[0]['to']);
     }
 
+    /**
+     * Der Verlauf darf unberuehrte Tage nicht als entfallen melden.
+     *
+     * An echten Daten gefunden: eine Neuberechnung am 1.9. wies neun Tage
+     * als "entfaellt" aus, die unveraendert im Plan standen. Die
+     * Teil-Neuberechnung zeigt dem Modell nur die offenen Tage, und es
+     * liefert auch nur die zurueck — alles Erhaltene stand damit im
+     * "vorher" und fehlte im "nachher".
+     */
+    public function test_untouched_days_do_not_appear_as_removed(): void
+    {
+        $user  = User::factory()->onboarded()->create();
+        $event = $this->event($user);
+        $plan  = TrainingPlan::create(['user_id' => $user->id, 'event_id' => $event->id, 'sessions' => []]);
+
+        $touched   = now()->addDay()->toDateString();
+        $untouched = now()->addDays(5)->toDateString();
+
+        $before = new Collection([
+            $this->oldSession($user, $plan, $touched,   ['type' => 'easy_run', 'distance_km' => 8]),
+            $this->oldSession($user, $plan, $untouched, ['type' => 'long_run', 'distance_km' => 24]),
+        ]);
+
+        // Das Modell liefert nur den offenen Tag zurueck.
+        $answer = [['date' => $touched, 'type' => 'tempo_run', 'distance_km' => 10, 'duration_min' => 50]];
+
+        $changes = app(PlanRevisionRecorder::class)->diff($before, $answer, [$untouched]);
+
+        $this->assertCount(1, $changes, 'Nur der tatsaechlich geaenderte Tag gehoert in den Verlauf');
+        $this->assertSame($touched, $changes[0]['date']);
+    }
+
+    /** Ohne die Angabe bleibt es beim vollstaendigen Vergleich. */
+    public function test_without_untouched_dates_everything_is_compared(): void
+    {
+        $user  = User::factory()->onboarded()->create();
+        $event = $this->event($user);
+        $plan  = TrainingPlan::create(['user_id' => $user->id, 'event_id' => $event->id, 'sessions' => []]);
+
+        $date = now()->addDays(5)->toDateString();
+        $before = new Collection([$this->oldSession($user, $plan, $date, ['type' => 'long_run', 'distance_km' => 24])]);
+
+        $this->assertSame('removed', app(PlanRevisionRecorder::class)->diff($before, [])[0]['kind']);
+    }
+
     // ── Der Eintrag ──────────────────────────────────────────────────────
 
     public function test_a_revision_is_written_and_survives_the_plan(): void

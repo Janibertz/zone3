@@ -307,6 +307,8 @@ class RegeneratePlanJob implements ShouldQueue
                 newSessions: $aiSessions,
                 corrections: $checked['report'] ?? [],
                 triggeredBy: $this->revisionLabel(),
+                // Sonst meldet der Verlauf die erhaltenen Tage als entfallen.
+                untouchedDates: $keptDates->all(),
             );
 
             // Erhaltene Einheiten blockieren ihren Tag nur für die eigene

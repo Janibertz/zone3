@@ -85,6 +85,8 @@ PlanRevisionRecorder           stores diff + corrections → visible in the plan
 - The long run's distance comes from the ladder, with a 10 % tolerance for round numbers.
 - Days outside the window, past the race, or already finalized are dropped.
 
+**A local copy of production makes this measurable.** Laragon's MySQL is already installed; import a Coolify dump into `zone3` and point `.env` at it. Null the live tokens right after import (`strava_accounts.access_token/refresh_token`, `users.garmin_session`, `push_subscriptions.*`) so nothing can hit the real accounts. Then `plan_revisions.corrections` and `ai_logs.full_prompt/full_response` answer what no amount of reading the prompt can: what the model actually does. Two bugs were found that way in minutes — the revision diff reporting untouched days as deleted, and the ladder prescribing a long run longer than the day it lands on.
+
 **Where corrections show up:** `plan_revisions.corrections`, rendered in the plan page's "Verlauf" — the fastest way to judge whether prompt changes landed. `Log::info('Plan validator corrected the AI output')` carries the same list.
 
 ### When the plan may change (and when it may not)

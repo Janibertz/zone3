@@ -151,6 +151,46 @@ class LongRunLadderTest extends TestCase
         $this->assertSame(0.0, $ladder['weeks']['2026-W36']['mp_km'] ?? 0.0, '10 km braucht kein Renntempo im Longrun');
     }
 
+    /**
+     * Die Leiter rechnet mit dem laengsten Tag der WOCHE, das Geruest legt
+     * den langen Lauf auf den laengsten FREIEN Tag. Ist der kuerzer, passte
+     * die Zieldistanz nicht hinein — in Jans Logs vier Mal
+     * "long_run mit 177 min, erlaubt sind 120 → gekuerzt".
+     */
+    public function test_the_long_run_fits_the_day_it_actually_lands_on(): void
+    {
+        $event  = $this->event();
+        $ladder = $this->ladder(28.0);
+        $from   = CarbonImmutable::parse(self::TODAY);
+
+        // Der Sonntag mit den drei Stunden ist gesperrt — der lange Lauf
+        // muss auf einen kuerzeren Tag ausweichen.
+        $availability = collect(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'])
+            ->mapWithKeys(fn ($d) => [$d => $d === 'sunday'
+                ? ['available' => false, 'duration_min' => 0]
+                : ['available' => true, 'duration_min' => $d === 'saturday' ? 120 : 60]])
+            ->all();
+
+        $skeleton = app(WeeklyPatternService::class)
+            ->build($event, $from, $from->addDays(13), $availability, [], [], null, $ladder);
+
+        foreach ($skeleton['days'] as $date => $day) {
+            foreach ($day['slots'] ?? [] as $slot) {
+                if ($slot['type'] !== 'long_run') {
+                    continue;
+                }
+
+                $cap = (int) ($slot['max_min'] ?: $day['budget_min']);
+
+                $this->assertLessThanOrEqual(
+                    $cap,
+                    $slot['target_min'],
+                    "{$date}: langer Lauf laenger als der Tag hergibt — der Validator muesste jedes Mal kuerzen",
+                );
+            }
+        }
+    }
+
     // ── Durchsetzung ─────────────────────────────────────────────────────
 
     /** Das Gerüst trägt die Distanz an den Longrun-Slot. */

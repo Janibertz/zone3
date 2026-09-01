@@ -223,9 +223,31 @@ class WeeklyPatternService
                     continue;
                 }
 
-                $days[$date]['slots'][$i]['target_km']  = $target['km'];
-                $days[$date]['slots'][$i]['target_min'] = $target['min'];
-                $days[$date]['slots'][$i]['race_km']    = $target['mp_km'];
+                $km   = (float) $target['km'];
+                $min   = (int) $target['min'];
+                $mpKm  = (float) $target['mp_km'];
+
+                // Die Leiter rechnet mit dem laengsten Tag der WOCHE. Das
+                // Geruest legt den langen Lauf aber auf den laengsten FREIEN
+                // Tag — ist der kuerzer, weil der Sonntag schon gelaufen oder
+                // gesperrt ist, passt die Zieldistanz nicht hinein. Im Prompt
+                // stand dann eine Vorgabe, die niemand erfuellen kann, und
+                // der Validator musste sie jedes Mal kuerzen: in den Logs
+                // vier Mal "long_run mit 177 min, erlaubt sind 120".
+                $cap = (int) ($slot['max_min'] ?: $day['budget_min']);
+
+                if ($cap > 0 && $min > $cap) {
+                    $factor = $cap / $min;
+                    $km     = round($km * $factor, 1);
+                    $mpKm   = round($mpKm * $factor, 1);
+                    $min    = $cap;
+
+                    $days[$date]['slots'][$i]['shortened'] = true;
+                }
+
+                $days[$date]['slots'][$i]['target_km']  = $km;
+                $days[$date]['slots'][$i]['target_min'] = $min;
+                $days[$date]['slots'][$i]['race_km']    = $mpKm;
                 $days[$date]['slots'][$i]['kind']       = $target['kind'];
             }
         }
@@ -941,8 +963,11 @@ class WeeklyPatternService
 
                 // Beim langen Lauf steht die Distanz fest, nicht nur der Typ.
                 if ($slot['type'] === 'long_run' && isset($slot['target_km'])) {
-                    $race    = ($slot['race_km'] ?? 0) > 0 ? ", davon {$slot['race_km']} km im Zielrenntempo am Ende" : '';
-                    $parts[] = "type=\"long_run\" — {$slot['target_km']} km (~{$slot['target_min']} min){$race}";
+                    $race     = ($slot['race_km'] ?? 0) > 0 ? ", davon {$slot['race_km']} km im Zielrenntempo am Ende" : '';
+                    $shortened = ! empty($slot['shortened'])
+                        ? ' — auf das Zeitbudget dieses Tages gekuerzt, die Leiter haette mehr vorgesehen'
+                        : '';
+                    $parts[] = "type=\"long_run\" — {$slot['target_km']} km (~{$slot['target_min']} min){$race}{$shortened}";
                     continue;
                 }
 
