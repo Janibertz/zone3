@@ -560,9 +560,18 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::post('/api/coach/pr-dismiss', [AIController::class, 'dismissPr'])->name('coach.pr.dismiss');
 });
 
-// Strava Webhook — no auth middleware (called by Strava servers)
-Route::get('/strava/webhook', [StravaController::class, 'webhookVerify'])->name('strava.webhook.verify');
-Route::post('/strava/webhook', [StravaController::class, 'webhook'])->name('strava.webhook');
+// Strava-Webhook — ohne Auth-Middleware, Strava ruft von aussen an.
+//
+// Das Throttle ist die eigentliche Absicherung. Strava signiert nicht, und
+// der Endpunkt loest Arbeit aus: einen Job, der eine Aktivitaet ueber die
+// API nachlaedt. Stravas Kontingent liegt bei 200 Aufrufen je 15 Minuten —
+// wer hier ungebremst hineinruft, verbraucht es und legt damit den echten
+// Import lahm. 60 Ereignisse je Minute liegen weit ueber allem, was ein
+// Athlet erzeugen kann, und weit unter dem, was schaden koennte.
+Route::middleware('throttle:60,1')->group(function () {
+    Route::get('/strava/webhook', [StravaController::class, 'webhookVerify'])->name('strava.webhook.verify');
+    Route::post('/strava/webhook', [StravaController::class, 'webhook'])->name('strava.webhook');
+});
 
 // GitHub Webhook — no auth middleware, signature-verified
 Route::post('/webhook/github', [WebhookController::class, 'github'])->name('webhook.github');

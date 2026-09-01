@@ -179,9 +179,8 @@ class PlanStabilityTest extends TestCase
             'average_speed' => 12000 / 3300,
         ]);
 
-        $controller = new \App\Http\Controllers\StravaController();
-        $method     = new \ReflectionMethod($controller, 'matchActivityToSession');
-        $method->invoke($controller, $this->user->id, $activity);
+        app(\App\Services\StravaImportService::class)
+            ->matchActivityToSession($this->user->id, $activity);
 
         $this->assertSame('completed', $session->refresh()->status);
         $this->assertFalse((bool) $this->plan->refresh()->needs_plan_update, 'Der Plan bleibt stehen');

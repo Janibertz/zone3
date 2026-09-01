@@ -19,6 +19,8 @@ php artisan test --filter TestName   # single test
 php artisan pwa:icons
 ```
 
+**Tests never talk to the network.** `Tests\TestCase::setUp()` calls `Http::preventStrayRequests()`, and it is there for a reason: `QUEUE_CONNECTION` is `sync` under test, so every `dispatch` runs immediately — a test that imported an activity ran `GenerateSessionReviewJob`, which calls OpenAI with the live key. `Http::fake()` with a URL pattern does **not** catch that; anything not matching the pattern goes out for real. The only visible sign was two tests taking four seconds instead of twenty milliseconds. A test that needs a call fakes it explicitly.
+
 ## Local development
 
 Laragon's MySQL is the local database. Import a Coolify dump into `zone3`, point `.env` at it, and **null the live tokens immediately** — a production dump carries working Strava and Garmin credentials:
@@ -293,7 +295,17 @@ Inertia.js — no API calls, all data passed as props from Laravel controllers.
 
 ## Strava Webhook
 
-`POST /strava/webhook` — no auth token, verified via `STRAVA_WEBHOOK_VERIFY_TOKEN` query param. Imports activity → matches to planned sessions retroactively → records best efforts → sends push notification.
+`POST /strava/webhook` → `ImportStravaActivityJob`. The handler takes the event and hands it on; that is all it does in the request.
+
+It used to do the whole import inline: fetch the activity from Strava (two HTTP calls when the token had expired), store it, match it to the planned session, write best efforts, dispatch reviews, send a push — HTTP again. The web process is single-threaded, so the site stood still for the duration. And Strava **redelivers an event when the response is slow**, so the slowness fed itself.
+
+The job does the work: `StravaImportService` (the import and matching logic, shared with the manual sync) → best efforts → `GenerateSessionReviewJob` per completed session → push. It retries three times — Strava sometimes sends the event before the activity is served by the API, and a silent `return` would lose the run — and `ShouldBeUnique` keeps a redelivery from sending a second push for the same activity. Everything in it is repeatable: `updateOrCreate` on (strava_id, user_id), the `activity_id` check, `reviewed_at`.
+
+**Strava does not sign its webhooks.** There is no signature to verify, unlike GitHub — an earlier note in this file claiming the POST checks `STRAVA_WEBHOOK_VERIFY_TOKEN` was wrong; that token only ever guarded the GET handshake. The protection is elsewhere:
+
+- only `owner_id` and `object_id` are taken from the body, and the activity is then **fetched from the API** with the account's token — a forged call cannot inject invented data
+- `throttle:60,1` on the route: the endpoint triggers work, and Strava's own quota is 200 calls per 15 minutes, so an unthrottled flood would exhaust it and break the real import
+- optionally a secret in the URL. `callbackTokenMatches()` reads `token=…` out of `services.strava.webhook_callback_url` — Strava calls exactly the URL you registered, query string included. No token registered (today's state) means nothing is demanded; append `?token=…` to `STRAVA_WEBHOOK_CALLBACK_URL` and re-run `strava:subscribe-webhook`, and both POST and handshake start enforcing it. Both sides read the same URL, so this cannot lock you out.
 
 ## Garmin
 

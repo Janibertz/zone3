@@ -76,9 +76,8 @@ class SportSeparationTest extends TestCase
 
     private function import(Activity $activity): void
     {
-        $controller = new \App\Http\Controllers\StravaController();
-        $method     = new \ReflectionMethod($controller, 'matchActivityToSession');
-        $method->invoke($controller, $this->user->id, $activity);
+        app(\App\Services\StravaImportService::class)
+            ->matchActivityToSession($this->user->id, $activity);
     }
 
     private function tss(Activity $activity): float

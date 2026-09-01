@@ -2,26 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\CalculateThresholdPaceJob;
-use App\Jobs\GenerateSessionReviewJob;
-use App\Jobs\RegeneratePlanJob;
+use App\Jobs\ImportStravaActivityJob;
 use App\Models\Activity;
-use App\Models\RunnerProfile;
 use App\Models\StravaAccount;
-use App\Models\TrainingPlan;
-use App\Models\TrainingSession;
-use App\Models\User;
 use App\Services\BestEffortService;
+use App\Services\StravaImportService;
 use App\Services\StravaService;
-use App\Services\WebPushService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
-use App\Services\PaceFormat;
 
 class StravaController extends Controller
 {
+    public function __construct(private readonly StravaImportService $importer) {}
+
     public function connect(StravaService $strava): RedirectResponse
     {
         return redirect()->away($strava->getAuthorizationUrl());
@@ -112,7 +107,7 @@ class StravaController extends Controller
                     'location_city'        => $activityData['location_city'] ?? null,
                     'location_state'       => $activityData['location_state'] ?? null,
                     'location_country'     => $activityData['location_country'] ?? null,
-                    'polyline'             => $this->extractPolyline($activityData),
+                    'polyline'             => $this->importer->extractPolyline($activityData),
                 ]
             );
 
@@ -122,16 +117,16 @@ class StravaController extends Controller
                 // list endpoint carries neither).
                 $detail = $strava->fetchActivity($account, (int) $activityData['id']);
                 if ($detail) {
-                    $this->applyStartCoords($activity, $detail);
+                    $this->importer->applyStartCoords($activity, $detail);
                     if (! empty($detail['laps'])) {
-                        $activity->laps = $this->normalizeLaps($detail['laps']);
+                        $activity->laps = $this->importer->normalizeLaps($detail['laps']);
                         $activity->save();
                     }
                     if ($activity->type === 'Run') {
                         $newRunCount++;
                         $newRecords = $bestEfforts->syncFromActivityData($activity, $detail);
                         if (! empty($newRecords)) {
-                            $this->flagPendingPr($user->id, $activity->id);
+                            $this->importer->flagPendingPr($user->id, $activity->id);
                         }
                     } else {
                         // Mark non-runs as processed so the backfill skips them.
@@ -143,10 +138,10 @@ class StravaController extends Controller
                 // No celebration for these historical runs.
                 $detail = $strava->fetchActivity($account, (int) $activityData['id']);
                 if ($detail) {
-                    $this->applyStartCoords($activity, $detail);
+                    $this->importer->applyStartCoords($activity, $detail);
                     if ($activity->laps === null) {
                         $activity->laps = ! empty($detail['laps'])
-                            ? $this->normalizeLaps($detail['laps'])
+                            ? $this->importer->normalizeLaps($detail['laps'])
                             : [];
                         $activity->save();
                     }
@@ -160,11 +155,11 @@ class StravaController extends Controller
             }
 
             // Match to plan sessions or create unplanned entry for all activity types
-            $this->matchActivityToSession($user->id, $activity);
+            $this->importer->matchActivityToSession($user->id, $activity);
         }
 
-        $this->dispatchCalculationIfDue($user->id, $newRunCount);
-        $this->dispatchPlanRegenerationIfNeeded($user->id);
+        $this->importer->dispatchCalculationIfDue($user->id, $newRunCount);
+        $this->importer->dispatchPlanRegenerationIfNeeded($user->id);
 
         if ($newCount === 0) {
             $message = 'Keine neuen Aktivitäten gefunden.';
@@ -185,6 +180,10 @@ class StravaController extends Controller
      */
     public function webhookVerify(Request $request): \Illuminate\Http\JsonResponse|Response
     {
+        if (! $this->callbackTokenMatches($request)) {
+            return response('Unauthorized', 401);
+        }
+
         $verifyToken = config('services.strava.webhook_verify_token', 'zone3_webhook');
 
         if (
@@ -198,10 +197,29 @@ class StravaController extends Controller
     }
 
     /**
-     * Strava webhook event handler (POST) — triggered automatically when a new activity is created.
+     * Strava-Webhook (POST) — ein neues Ereignis von Strava.
+     *
+     * Der Handler nimmt es an und gibt es weiter. Der Import selbst lief
+     * frueher hier drin: Aktivitaet bei Strava abholen, zuordnen,
+     * Bestzeiten schreiben, Push verschicken — alles im Request, auf einem
+     * einthreadigen Webserver. Wer Zone3 in diesen Sekunden oeffnete,
+     * wartete mit. Und weil Strava dasselbe Ereignis erneut zustellt, wenn
+     * die Antwort ausbleibt, machte die Langsamkeit sich selbst schlimmer.
+     *
+     * Strava signiert seine Webhooks nicht — es gibt hier keine Signatur zu
+     * pruefen, anders als bei GitHub. Der Schutz liegt woanders: aus dem
+     * Rumpf werden nur zwei Zahlen genommen, und die Aktivitaet wird
+     * anschliessend ueber die API mit dem Token des Kontos GEHOLT. Ein
+     * gefaelschter Aufruf kann damit keine erfundenen Daten einschleusen.
+     * Was er koennte, ist Arbeit ausloesen; dagegen steht das Throttle auf
+     * der Route.
      */
-    public function webhook(Request $request, StravaService $strava, WebPushService $webPush, BestEffortService $bestEfforts): Response
+    public function webhook(Request $request): Response
     {
+        if (! $this->callbackTokenMatches($request)) {
+            return response('Unauthorized', 401);
+        }
+
         $data = $request->all();
 
         if (
@@ -212,399 +230,41 @@ class StravaController extends Controller
         }
 
         $account = StravaAccount::where('strava_id', $data['owner_id'] ?? null)->first();
-        if (! $account) return response('OK');
-
-        $activityData = $strava->fetchActivity($account, (int) $data['object_id']);
-        if (! $activityData) return response('OK');
-
-        $userId = $account->user_id;
-
-        if (\App\Models\IgnoredStravaActivity::where('user_id', $userId)
-            ->where('strava_id', $activityData['id'])->exists()) {
+        if (! $account) {
             return response('OK');
         }
 
-        $activity = Activity::updateOrCreate(
-            ['strava_id' => $activityData['id'], 'user_id' => $userId],
-            [
-                'name'                 => $activityData['name'] ?? 'Aktivität',
-                'description'          => $activityData['description'] ?? null,
-                'type'                 => $activityData['type'] ?? 'Run',
-                'distance'             => $activityData['distance'] ?? 0,
-                'moving_time'          => $activityData['moving_time'] ?? 0,
-                'elapsed_time'         => $activityData['elapsed_time'] ?? 0,
-                'total_elevation_gain' => $activityData['total_elevation_gain'] ?? 0,
-                'average_speed'        => $activityData['average_speed'] ?? 0,
-                'average_watts'        => $activityData['average_watts'] ?? null,
-                'max_speed'            => $activityData['max_speed'] ?? 0,
-                'average_heartrate'    => $activityData['average_heartrate'] ?? null,
-                'max_heartrate'        => $activityData['max_heartrate'] ?? null,
-                'start_date'           => $activityData['start_date'] ?? now(),
-                'location_city'        => $activityData['location_city'] ?? null,
-                'location_state'       => $activityData['location_state'] ?? null,
-                'location_country'     => $activityData['location_country'] ?? null,
-                'polyline'             => $this->extractPolyline($activityData),
-                'laps'                 => ! empty($activityData['laps'])
-                    ? $this->normalizeLaps($activityData['laps'])
-                    : null,
-                'start_lat'            => $activityData['start_latlng'][0] ?? null,
-                'start_lng'            => $activityData['start_latlng'][1] ?? null,
-            ]
-        );
-
-        $isRun = $activity->type === 'Run';
-        $this->dispatchCalculationIfDue($userId, $isRun ? 1 : 0);
-        $this->matchActivityToSession($userId, $activity);
-        $this->dispatchPlanRegenerationIfNeeded($userId);
-
-        // Generate a coach review for every session this activity just completed.
-        TrainingSession::where('user_id', $userId)
-            ->where('activity_id', $activity->id)
-            ->where('status', 'completed')
-            ->whereNull('reviewed_at')
-            ->pluck('id')
-            ->each(fn ($id) => GenerateSessionReviewJob::dispatch($id)->delay(now()->addSeconds(20)));
-        if ($isRun) {
-            // Webhook payload is the full activity detail → best_efforts present.
-            $newRecords = $bestEfforts->syncFromActivityData($activity, $activityData);
-            if (! empty($newRecords)) {
-                $this->flagPendingPr($userId, $activity->id);
-            }
-        }
-
-        // Push notification for the user
-        $user = User::find($userId);
-        if ($user && $user->push_notifications_enabled) {
-            $distKm  = $activity->distance > 0 ? round($activity->distance / 1000, 1) . ' km' : '';
-            $body    = trim($activity->name . ($distKm ? " · {$distKm}" : ''));
-            $webPush->sendToUser(
-                $user,
-                'Neue Aktivität importiert 🏃',
-                $body,
-                '/activities'
-            );
-        }
+        ImportStravaActivityJob::dispatch($account->id, (int) $data['object_id']);
 
         return response('OK');
     }
 
     /**
-     * Match a Strava activity to a planned training session (Runs only),
-     * or create an unplanned completed entry for any activity type.
+     * Traegt der Aufruf das Token aus der registrierten Callback-URL?
+     *
+     * Strava signiert seine Webhooks nicht. Das einzige Geheimnis, das sich
+     * mitgeben laesst, steht in der URL, die man bei der Anmeldung
+     * hinterlegt — Strava ruft genau diese auf, Query-String eingeschlossen.
+     *
+     * Deshalb wird hier nichts konfiguriert und nichts zusaetzlich gesetzt:
+     * die Pruefung liest das Token aus `webhook_callback_url`. Steht dort
+     * keins — der heutige Stand —, gibt es nichts zu pruefen und die Methode
+     * sagt ja. Wer sie scharf stellen will, haengt `?token=…` an
+     * `STRAVA_WEBHOOK_CALLBACK_URL` und meldet den Webhook neu an; ab dann
+     * greift sie von selbst, auch im Handshake. Man kann sich damit nicht
+     * aussperren, denn beide Seiten lesen dieselbe URL.
      */
-    private function matchActivityToSession(int $userId, Activity $activity): void
+    private function callbackTokenMatches(Request $request): bool
     {
-        $date = $activity->start_date->toDateString();
+        $callbackUrl = (string) config('services.strava.webhook_callback_url');
 
-        // Strength activities (gym, kettlebell, …) come in as WeightTraining/Workout.
-        $isStrength = in_array($activity->type, ['WeightTraining', 'Workout'], true);
+        parse_str((string) parse_url($callbackUrl, PHP_URL_QUERY), $params);
+        $expected = $params['token'] ?? null;
 
-        // Non-Run activities skip the run-session matching below.
-        if ($activity->type !== 'Run') {
-            $distKm = $activity->distance > 0 ? round($activity->distance / 1000, 2) : null;
-            $durMin = $activity->moving_time > 0 ? (int) round($activity->moving_time / 60) : null;
-
-            // Strength activity → complete a planned strength/core/mobility session on this date
-            if ($isStrength) {
-                $strengthSession = TrainingSession::where('user_id', $userId)
-                    ->whereDate('planned_date', $date)
-                    ->where('status', 'planned')
-                    ->whereIn('type', ['strength', 'core', 'mobility'])
-                    ->whereHas('trainingPlan', fn ($q) => $q->where('is_active', true))
-                    ->first();
-
-                if ($strengthSession) {
-                    $strengthSession->update([
-                        'status'       => 'completed',
-                        'activity_id'  => $activity->id,
-                        'sport_type'   => $activity->type,
-                        'duration_min' => $durMin ?? $strengthSession->duration_min,
-                    ]);
-                    return;
-                }
-            }
-
-            // No matching planned session → create an unplanned completed entry
-            if (TrainingSession::where('user_id', $userId)->where('activity_id', $activity->id)->exists()) {
-                return;
-            }
-            $activePlan = TrainingPlan::where('user_id', $userId)->where('is_active', true)->latest()->first();
-            if (! $activePlan) return;
-
-            // Die Sportart wird mitgefuehrt. Vorher landete alles, was nicht
-            // Lauf und nicht Kraft war — Schwimmen, Radfahren, Yoga — als
-            // `easy_run` in der Datenbank. Der Coach las den Trainingstyp,
-            // sah "Lockerer Lauf" und fragte den Athleten nach seinem Lauf.
-            $isRunLike = in_array($activity->type, TrainingSession::RUN_SPORTS, true);
-
-            TrainingSession::create([
-                'user_id'          => $userId,
-                'training_plan_id' => $activePlan->id,
-                'event_id'         => $activePlan->event_id,
-                'activity_id'      => $activity->id,
-                'planned_date'     => $date,
-                // Kein Lauf-Platzhalter mehr. `cross_training` faellt aus
-                // jeder Laufauswertung schon am Typ heraus — auch dort, wo
-                // jemand vergisst, zusaetzlich die Sportart zu pruefen.
-                'type'             => $isStrength ? 'strength' : 'cross_training',
-                'sport_type'       => $activity->type,
-                'title'            => $activity->name,
-                // Nur Laufkilometer zaehlen in den Wochenumfang. Eine
-                // 1,5-km-Schwimmeinheit neben einem 20-km-Longrun waere sonst
-                // in jeder Statistik dieselbe Einheit "Kilometer".
-                'distance_km'      => ($isStrength || ! $isRunLike) ? null : $distKm,
-                'duration_min'     => $durMin,
-                'pace_target'      => null,
-                'zone'             => null,
-                'intensity'        => 'medium',
-                // Kein Planeintrag dahinter — als ungeplant kennzeichnen.
-                'was_unplanned'    => true,
-                'status'           => 'completed',
-                'sort_order'       => 999,
-            ]);
-            return;
+        if (! $expected) {
+            return true;
         }
 
-        // 1. Find any planned RUN session in the active plan on the same date
-        //    (strength/core/mobility sessions are only completed by strength activities)
-        $session = TrainingSession::where('user_id', $userId)
-            ->whereDate('planned_date', $date)
-            ->where('status', 'planned')
-            ->whereNotIn('type', ['strength', 'core', 'mobility'])
-            ->whereHas('trainingPlan', fn ($q) => $q->where('is_active', true))
-            ->first();
-
-        $distKm = $activity->distance > 0 ? round($activity->distance / 1000, 2) : null;
-        $durMin = $activity->moving_time > 0 ? (int) round($activity->moving_time / 60) : null;
-        $pace   = $this->paceFromSpeed($activity->average_speed);
-
-        if ($session) {
-            if ($session->type === 'rest') {
-                // User ran on a rest day — delete rest entry, create real run entry
-                $plan = $session->trainingPlan;
-                $session->delete();
-                TrainingSession::create([
-                    'user_id'          => $userId,
-                    'training_plan_id' => $plan->id,
-                    'event_id'         => $plan->event_id,
-                    'activity_id'      => $activity->id,
-                    'planned_date'     => $date,
-                    // Geplant war Ruhe — das ist keine erfuellte Einheit.
-                    'was_unplanned'    => true,
-                    'planned_snapshot' => ['type' => 'rest', 'title' => $session->title],
-                    'type'             => 'easy_run',
-                    'title'            => $activity->name,
-                    'distance_km'      => $distKm,
-                    'duration_min'     => $durMin,
-                    'pace_target'      => $pace,
-                    'zone'             => null,
-                    'intensity'        => 'medium',
-                    'status'           => 'completed',
-                    'sort_order'       => 0,
-                ]);
-            } else {
-                // Der Plan wird hier von den echten Werten ueberschrieben.
-                // Vorher festhalten, was geplant war — sonst laesst sich
-                // hinterher nicht mehr sagen, ob die Einheit so gelaufen
-                // wurde wie vorgesehen. Das Coach-Review las bis dahin fuer
-                // "Geplant" und "Absolviert" dieselben Felder.
-                $session->update([
-                    'planned_snapshot' => $session->planned_snapshot ?? [
-                        'type'         => $session->type,
-                        'title'        => $session->title,
-                        'distance_km'  => $session->distance_km,
-                        'duration_min' => $session->duration_min,
-                        'pace_target'  => $session->pace_target,
-                        'zone'         => $session->zone,
-                        'intensity'    => $session->intensity,
-                    ],
-                    'status'       => 'completed',
-                    'activity_id'  => $activity->id,
-                    'distance_km'  => $distKm ?? $session->distance_km,
-                    'duration_min' => $durMin ?? $session->duration_min,
-                    'pace_target'  => $pace ?? $session->pace_target,
-                ]);
-
-                // Test run completed: bypass 24h cooldown and recalculate threshold immediately
-                if ($session->type === 'test_run') {
-                    $this->dispatchCalculationForTestRun($userId);
-                }
-            }
-            // BEWUSST KEINE Neuberechnung: der Athlet ist gelaufen, was im
-            // Plan stand. Frueher warf jeder Import den gesamten Restplan neu,
-            // und weil das Modell nicht deterministisch ist, sah die Woche
-            // danach anders aus als vorher — ohne dass sich etwas geaendert
-            // haette. Die Einheit fliesst ueber den Kontext in die naechste
-            // planmaessige Berechnung ein.
-            return;
-        }
-
-        // 2. No planned session – check if an unplanned entry for this activity already exists
-        if (TrainingSession::where('user_id', $userId)->where('activity_id', $activity->id)->exists()) {
-            return;
-        }
-
-        // Create an unplanned completed entry in the active plan
-        $activePlan = TrainingPlan::where('user_id', $userId)
-            ->where('is_active', true)
-            ->latest()
-            ->first();
-
-        if (! $activePlan) return;
-
-        TrainingSession::create([
-            'user_id'          => $userId,
-            'training_plan_id' => $activePlan->id,
-            'event_id'         => $activePlan->event_id,
-            'activity_id'      => $activity->id,
-            'planned_date'     => $date,
-            'type'             => 'easy_run',
-            'title'            => $activity->name,
-            'distance_km'      => $distKm,
-            'duration_min'     => $durMin,
-            'pace_target'      => $pace,
-            'zone'             => null,
-            'intensity'        => 'medium',
-            // Es gab an dem Tag keine geplante Einheit — dieser Lauf kam dazu.
-            'was_unplanned'    => true,
-            'status'           => 'completed',
-            'sort_order'       => 999,
-        ]);
-
-        // Ein ungeplanter Lauf ist echte Zusatzbelastung und bleibt damit ein
-        // Anlass. Die naechsten Tage sind davon geschuetzt (siehe
-        // RegeneratePlanJob::FREEZE_DAYS) — die Anpassung greift ab dem
-        // vierten Tag.
-        $activePlan->needs_plan_update = true;
-        $activePlan->save();
-    }
-
-    /** Convert Strava average_speed (m/s) to "M:SS" pace string, or null. */
-    private function paceFromSpeed(float $mps): ?string
-    {
-        $pace = PaceFormat::fromSpeed($mps);
-
-        return $pace === PaceFormat::NONE ? null : $pace;
-    }
-
-    /**
-     * Dispatch AI calculation job if:
-     *  - At least one new Run was added
-     *  - Last calculation was > 24h ago (or never)
-     *  - No calculation is already running
-     */
-    private function dispatchCalculationIfDue(int $userId, int $newRunCount): void
-    {
-        if ($newRunCount === 0) return;
-
-        $profile = RunnerProfile::firstOrCreate(
-            ['user_id' => $userId],
-            ['has_completed_setup' => false]
-        );
-
-        $lastCalc = $profile->threshold_pace_calculated_at;
-        $isDue    = $lastCalc === null || $lastCalc->lt(now()->subHours(24));
-
-        if ($isDue && ! $profile->threshold_pace_calculating) {
-            $profile->threshold_pace_calculating = true;
-            $profile->save();
-            CalculateThresholdPaceJob::dispatch($userId);
-        }
-    }
-
-    /**
-     * Dispatch plan regeneration job if the active plan has needs_plan_update = true.
-     * Uses a 5-minute delay to batch multiple activity imports.
-     */
-    private function dispatchPlanRegenerationIfNeeded(int $userId): void
-    {
-        $needs = \App\Models\TrainingPlan::where('user_id', $userId)
-            ->where('is_active', true)
-            ->where('needs_plan_update', true)
-            ->exists();
-
-        if ($needs) {
-            RegeneratePlanJob::dispatch($userId, RegeneratePlanJob::REASON_AUTO)->delay(now()->addMinutes(5));
-        }
-    }
-
-    /**
-     * Flag an activity as the source of a fresh personal record so the dashboard
-     * celebrates it (message generated lazily by GeneratePrMessageJob).
-     */
-    /**
-     * Store the activity's start coordinates (from Strava's start_latlng)
-     * so the weather feature can resolve the user's training location.
-     */
-    private function applyStartCoords(Activity $activity, array $detail): void
-    {
-        $latlng = $detail['start_latlng'] ?? null;
-        if (is_array($latlng) && count($latlng) === 2 && $latlng[0] !== null) {
-            $activity->start_lat = $latlng[0];
-            $activity->start_lng = $latlng[1];
-            $activity->save();
-        }
-    }
-
-    private function flagPendingPr(int $userId, int $activityId): void
-    {
-        $profile = RunnerProfile::where('user_id', $userId)->first();
-        if ($profile) {
-            $profile->pending_pr_activity_id = $activityId;
-            $profile->pending_pr_message     = null; // generated lazily on dashboard load
-            $profile->save();
-        }
-    }
-
-    /**
-     * Normalize raw Strava lap data to a compact format for storage and display.
-     * Keeps only the fields needed for the UI.
-     */
-    private function normalizeLaps(array $rawLaps): array
-    {
-        return array_map(fn ($lap) => [
-            'index'             => $lap['lap_index']         ?? null,
-            'name'              => $lap['name']              ?? null,
-            'elapsed_time'      => $lap['elapsed_time']      ?? 0,
-            'moving_time'       => $lap['moving_time']       ?? 0,
-            'distance'          => $lap['distance']          ?? 0,
-            'average_speed'     => $lap['average_speed']     ?? null,
-            'max_speed'         => $lap['max_speed']         ?? null,
-            'average_heartrate' => $lap['average_heartrate'] ?? null,
-            'max_heartrate'     => $lap['max_heartrate']     ?? null,
-            'pace_zone'         => $lap['pace_zone']         ?? null,
-        ], $rawLaps);
-    }
-
-    /**
-     * Dispatch threshold recalculation for a test run, bypassing the 24h cooldown.
-     * Called when a planned test_run session is matched to a Strava activity.
-     */
-    private function dispatchCalculationForTestRun(int $userId): void
-    {
-        $profile = RunnerProfile::firstOrCreate(
-            ['user_id' => $userId],
-            ['has_completed_setup' => false]
-        );
-        if (! $profile->threshold_pace_calculating) {
-            $profile->threshold_pace_calculating = true;
-            $profile->save();
-            CalculateThresholdPaceJob::dispatch($userId);
-        }
-    }
-
-    /**
-     * Extract the best available polyline from Strava activity data.
-     * List endpoint → summary_polyline only.
-     * Single activity endpoint → polyline (detailed) preferred, fallback summary_polyline.
-     * Returns null if neither is present or both are empty strings.
-     */
-    private function extractPolyline(array $activityData): ?array
-    {
-        $poly = $activityData['map']['polyline'] ?? null;
-        if (empty($poly)) {
-            $poly = $activityData['map']['summary_polyline'] ?? null;
-        }
-        return $poly ? ['polyline' => $poly] : null;
+        return hash_equals((string) $expected, (string) $request->query('token', ''));
     }
 }
