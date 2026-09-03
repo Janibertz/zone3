@@ -49,6 +49,17 @@ function stamp(value) {
 
 // ── Actions ──────────────────────────────────────────────────
 function toggleAdmin()  { router.patch(route('admin.users.toggle-admin',  props.user.id), {}, { preserveScroll: true }); }
+
+/**
+ * Als dieser Athlet anmelden.
+ *
+ * Der schnellste Weg, eine Meldung zu verstehen, ist die Seite zu sehen,
+ * die er sieht. Administratoren lassen sich nicht übernehmen — das prüft
+ * der Controller.
+ */
+function impersonate() {
+    router.post(route('admin.users.impersonate', props.user.id));
+}
 function toggleActive() { router.patch(route('admin.users.toggle-active', props.user.id), {}, { preserveScroll: true }); }
 function deleteUser()   { router.delete(route('admin.users.destroy',      props.user.id)); }
 
@@ -201,6 +212,14 @@ const zoneColors = [
                     </div>
                     <!-- Konto-Aktionen -->
                     <div class="flex flex-wrap gap-2 shrink-0">
+                        <!-- Administratoren lassen sich nicht uebernehmen —
+                             der Controller lehnt es ab, der Knopf zeigt es
+                             gar nicht erst an. -->
+                        <button
+                            v-if="!user.is_admin"
+                            @click="impersonate"
+                            class="px-3 py-1.5 text-xs rounded-field border border-accent/25 text-accent-ink transition-colors hover:bg-accent-soft"
+                        >Als {{ user.name.split(' ')[0] }} ansehen</button>
                         <button @click="toggleAdmin"
                             class="px-3 py-1.5 text-xs rounded-field border transition-colors"
                             :class="user.is_admin

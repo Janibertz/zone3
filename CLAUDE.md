@@ -345,6 +345,22 @@ Two separate connection paths — do not confuse them:
 
 Routes in `routes/admin.php` — protected by `is_admin` on User. Manual threshold recalculation, AI log viewer (all OpenAI calls with tokens + duration), coach personality editor, push test sender, settings page showing both models.
 
+### Impersonation — `Als … ansehen`
+
+`POST /admin/users/{user}/impersonate` logs the admin in as that athlete; `POST /impersonate/stop` comes back. The fastest way to understand a report is to see the page the athlete sees — "there is a gap in my plan today" cost hours of database queries that one click would have answered.
+
+Three rules, all load-bearing:
+
+- **An admin cannot be impersonated.** Otherwise it is a quiet way to act administratively under someone else's name.
+- **The stop route lives in `web.php`, not the admin group.** During impersonation you *are* the athlete, and the athlete is not an admin — behind the admin middleware you could not get out again. It checks the session instead.
+- **An impersonated session carries no admin rights.** A test asserts `/admin/*` returns 403 while impersonating; that is the assertion that matters most in the file.
+
+A warn-coloured banner sits on every page while it runs (`auth.impersonating` is shared from `HandleInertiaRequests`) — without it you mistake someone else's data for your own. Start and stop are both logged.
+
+### `/admin/activities` — activities across all athletes
+
+From a report: "ich habe keine Möglichkeit eine Aktivität zu löschen … noch nicht mal im Admin Bereich." The athlete can now delete their own; an admin still saw nobody else's. Filter by athlete, sport or name; the list shows how many training sessions hang on each activity, because deleting one with a session attached changes the plan rather than just tidying up. Deletion goes through `ActivityDeletionService` — never a bare `delete()`, or the next Strava sync brings it back.
+
 ### `/admin/system` — does the machine run
 
 The rest of the admin answers "how is the product doing": users, activities, AI cost, coach split. Twice in one week the question was "is the system working", and there was no way to ask it — the Strava import stopped and nothing showed whether the job ran or why it failed; two days vanished from a plan while the revision history reported a change for exactly those days.

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { Link, usePage } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import { useDarkMode } from '@/Composables/useDarkMode';
 import { useCoachChat } from '@/Composables/useCoachChat';
 import { useVersionCheck } from '@/Composables/useVersionCheck';
@@ -143,6 +143,23 @@ const moreNavItems = computed(() => {
 
 <template>
     <div class="min-h-screen bg-canvas">
+
+        <!-- ══════════════════════════════════════
+             ÜBERNAHME LÄUFT
+             ═══════════════════════════════════════
+             Wer als jemand anderes unterwegs ist, muss das auf JEDER Seite
+             sehen. Sonst hält man fremde Daten für die eigenen und ändert
+             im Zweifel etwas am falschen Account. -->
+        <div
+            v-if="$page.props.auth?.impersonating"
+            class="sticky top-0 z-50 flex items-center justify-center gap-3 bg-warn px-4 py-2 text-xs font-semibold text-warn-ink pt-safe-banner"
+        >
+            <span>Du siehst Zone3 als {{ $page.props.auth.user?.name }}</span>
+            <button
+                class="rounded-field bg-warn-ink/15 px-2 py-1 underline"
+                @click="router.post(route('impersonate.stop'))"
+            >Zurück zu meinem Account</button>
+        </div>
 
         <!-- ══════════════════════════════════════
              PULL-TO-REFRESH INDICATOR (mobile)

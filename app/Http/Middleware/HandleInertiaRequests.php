@@ -61,6 +61,12 @@ class HandleInertiaRequests extends Middleware
                 'isAdmin'        => (bool) $request->user()?->is_admin,
                 'garminEmail'    => $request->user()?->garmin_email,
                 'garminConnected'=> !empty($request->user()?->garmin_session),
+                // Laeuft gerade eine Uebernahme? Dann gehoert das sichtbar
+                // auf jede Seite — sonst haelt man fremde Daten fuer eigene
+                // und aendert im Zweifel etwas am falschen Account.
+                'impersonating'  => $request->session()->has(
+                    \App\Http\Controllers\Admin\AdminImpersonationController::SESSION_KEY
+                ),
             ],
             'coach' => function () use ($request) {
                 $user = $request->user();

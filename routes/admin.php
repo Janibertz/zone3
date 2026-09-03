@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminAiLogController;
+use App\Http\Controllers\Admin\AdminActivityController;
 use App\Http\Controllers\Admin\AdminCoachController;
 use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\AdminImpersonationController;
 use App\Http\Controllers\Admin\AdminNewsletterController;
 use App\Http\Controllers\Admin\AdminSettingsController;
 use App\Http\Controllers\Admin\AdminSupportController;
@@ -25,6 +27,14 @@ Route::post('/users/{user}/recalculate-threshold',  [AdminUserController::class,
 Route::post('/users/{user}/reset-password',         [AdminUserController::class, 'resetPassword'])        ->name('users.reset-password');
 Route::patch('/users/{user}/ai-limit',              [AdminUserController::class, 'updateAiLimit'])         ->name('users.ai-limit');
 Route::delete('/users/{user}',                     [AdminUserController::class, 'destroy'])             ->name('users.destroy');
+// Als Athlet anmelden. Das BEENDEN liegt in web.php — waehrend der
+// Uebernahme ist man kein Admin mehr und kaeme hier nicht mehr durch.
+Route::post('/users/{user}/impersonate',           [AdminImpersonationController::class, 'start'])      ->name('users.impersonate');
+
+// Aktivitaeten ueber alle Athleten — inklusive Loeschen, das es im
+// Admin-Bereich bis hierher nicht gab.
+Route::get('/activities',                          [AdminActivityController::class, 'index'])           ->name('activities.index');
+Route::delete('/activities/{activity}',            [AdminActivityController::class, 'destroy'])         ->name('activities.destroy');
 
 // Systemstatus — Queue, fehlgeschlagene Aufgaben, Plan-Luecken, Anbindungen.
 Route::get('/system',                         [AdminSystemController::class, 'index'])         ->name('system.index');

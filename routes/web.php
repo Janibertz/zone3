@@ -560,6 +560,15 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::post('/api/coach/pr-dismiss', [AIController::class, 'dismissPr'])->name('coach.pr.dismiss');
 });
 
+// Zurueck aus einer Uebernahme in den eigenen Admin-Account.
+//
+// Bewusst NICHT hinter der Admin-Middleware: waehrend der Uebernahme ist
+// der angemeldete Nutzer der Athlet, und der ist kein Admin. Der Controller
+// prueft stattdessen die Session — ohne laufende Uebernahme passiert nichts.
+Route::post('/impersonate/stop', [\App\Http\Controllers\Admin\AdminImpersonationController::class, 'stop'])
+    ->middleware('auth')
+    ->name('impersonate.stop');
+
 // Strava-Webhook — ohne Auth-Middleware, Strava ruft von aussen an.
 //
 // Das Throttle ist die eigentliche Absicherung. Strava signiert nicht, und
