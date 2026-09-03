@@ -151,6 +151,18 @@ Frozen days always count as kept. **If `stale` is empty the job returns without 
 
 Otherwise kept days are marked `kept` in the skeleton (dropped from the day list, ignored by the validator's `dropUnknownDates` / `fillMissingDays` / slot restoration) and passed to the prompt as `keptSessions`: "steht bereits und bleibt unverändert — nicht zurückgeben". The model sees the whole week but only writes the open days, and only those get deleted and recreated.
 
+### No day may end up empty
+
+Twice a day in the plan held nothing at all — 31 Aug and 3 Sep. The app showed a hole mid-week. Both days were in the skeleton, and for both the revision history dutifully reported a change.
+
+**The history could not catch it, because the history is written from the model's output and before the sessions are persisted.** `PlanRevisionRecorder::record()` diffs `sessionsBefore` against `$aiSessions`, and it is called above the creation loop — it describes the intention, not the result. It reported an easy run for a day that never got one. Treat "Verlauf" as what was asked for, not as what is in the database.
+
+Several switches can drop a day, each defensible on its own: the model may omit it, the validator only fills a missing day when it is neither `finalized` nor `kept`, and the creation loop skips dates it considers taken. Rather than harden each switch, `RegeneratePlanJob::sealGaps()` looks at what actually landed: any skeleton day with **no session at all** (any plan, any status) gets a rest day and a `Log::warning`. A rest day is the honest filler — an invented workout would be worse than the admission that nothing is planned.
+
+It queries by range with `whereDate`, not `whereIn` with date strings: under SQLite the latter matches nothing, and the guard would have papered the whole week with rest days. The test caught exactly that.
+
+Worth knowing: when the model omits a day the **validator already restores the skeleton's slot with the right type** — `sealGaps` is the last line of defence for the `finalized` / `kept` paths it skips, not the normal route.
+
 ### The weekly volume drives the skeleton
 
 This was the most consequential contradiction in the prompt. The skeleton filled days by **availability** and wrote "max. 120 min" per day; the model read that as an instruction. Two sections above, the volume block said, as binding: "der Wochenumfang darf 35,2 km NICHT überschreiten". For a real case that meant five sessions totalling 383 minutes — about 71 km — against a 35.2 km ceiling. No answer satisfies both. The model had to break one, and which one it broke it decided anew every time.

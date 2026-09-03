@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\Event;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
@@ -375,6 +376,9 @@ class RegeneratePlanJob implements ShouldQueue
                 ]);
             }
 
+            // Ein Gerüsttag ohne Einheit ist ein Loch im Plan.
+            $this->sealGaps($user, $event, $newPlan, $skeleton);
+
             // ── Retroactive run matching ──────────────────────────────────────
             $planDates = collect($aiSessions)->pluck('date');
             $planStart = $planDates->min();
@@ -506,5 +510,90 @@ class RegeneratePlanJob implements ShouldQueue
         $pace = PaceFormat::fromSpeed($mps);
 
         return $pace === PaceFormat::NONE ? null : $pace;
+    }
+
+    /**
+     * Kein Gerüsttag darf am Ende leer sein.
+     *
+     * Zweimal ist genau das passiert — am 31.08. und am 03.09. Beide Male
+     * stand der Tag im Gerüst, beide Male meldete der Verlauf eine Änderung,
+     * und beide Male gab es hinterher keine einzige Einheit an dem Datum. In
+     * der App sah das aus wie ein Loch mitten in der Woche.
+     *
+     * Der Weg dahin ist lang: das Modell kann einen Tag weglassen, der
+     * Validator trägt ihn nur nach, wenn er weder `finalized` noch `kept`
+     * ist, und die Anlege-Schleife überspringt Tage, die sie für schon
+     * belegt hält. Jede dieser Weichen ist für sich richtig; zusammen können
+     * sie einen Tag fallen lassen, ohne dass irgendwo etwas rot wird.
+     *
+     * Statt jede Weiche einzeln abzusichern, wird hier am Ende nachgesehen,
+     * was tatsächlich in der Datenbank steht. Das ist die einzige Stelle, an
+     * der die Frage überhaupt beantwortbar ist: der Verlauf wird aus der
+     * MODELLAUSGABE geschrieben, nicht aus dem Ergebnis — er hätte das Loch
+     * nie gemeldet, und hat es auch nicht.
+     *
+     * Gefüllt wird mit einem Ruhetag. Ein erfundenes Training wäre schlimmer
+     * als die ehrliche Aussage, dass hier nichts geplant ist — und der
+     * Logeintrag sagt, dass etwas schiefging.
+     *
+     * @param  array<string, mixed>  $skeleton
+     */
+    private function sealGaps(User $user, Event $event, TrainingPlan $newPlan, array $skeleton): void
+    {
+        $days = $skeleton['days'] ?? [];
+        if ($days === []) {
+            return;
+        }
+
+        // Was an dem Tag ueberhaupt existiert — gleich welcher Plan, gleich
+        // welcher Status. Nur ein wirklich leerer Tag ist ein Loch; eine
+        // abgehakte oder ausgelassene Einheit ist keins.
+        //
+        // Ueber whereDate und einen Bereich, nicht ueber whereIn: MySQL legt
+        // in einer date-Spalte `2026-08-27` ab, SQLite `2026-08-27 00:00:00`.
+        // Ein whereIn mit blossen Datumsstrings trifft unter SQLite nichts —
+        // dann saehe jeder Tag leer aus und die Kontrolle wuerde die ganze
+        // Woche mit Ruhetagen zupflastern.
+        $keys = array_keys($days);
+
+        $occupied = TrainingSession::where('user_id', $user->id)
+            ->whereDate('planned_date', '>=', min($keys))
+            ->whereDate('planned_date', '<=', max($keys))
+            ->pluck('planned_date')
+            ->map(fn ($d) => $d->format('Y-m-d'))
+            ->flip();
+
+        $filled = [];
+
+        foreach ($days as $date => $day) {
+            if (isset($occupied[$date])) {
+                continue;
+            }
+
+            TrainingSession::create([
+                'user_id'          => $user->id,
+                'training_plan_id' => $newPlan->id,
+                'event_id'         => $event->id,
+                'planned_date'     => $date,
+                'type'             => 'rest',
+                'title'            => 'Ruhetag',
+                'description'      => 'Für diesen Tag kam keine Einheit zurück — eingetragen, damit der Plan keine Lücke hat.',
+                'intensity'        => 'low',
+                'status'           => 'planned',
+                'sort_order'       => 0,
+            ]);
+
+            $filled[] = $date;
+        }
+
+        if ($filled !== []) {
+            Log::warning('Plan hatte Lücken — mit Ruhetagen geschlossen', [
+                'user_id' => $user->id,
+                'event_id' => $event->id,
+                'plan_id' => $newPlan->id,
+                'dates'   => $filled,
+                'reason'  => $this->reason,
+            ]);
+        }
     }
 }
