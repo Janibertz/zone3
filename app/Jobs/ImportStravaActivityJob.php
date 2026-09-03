@@ -44,6 +44,25 @@ class ImportStravaActivityJob implements ShouldQueue, ShouldBeUnique
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     /**
+     * Eine eigene Queue, mit eigenem Worker.
+     *
+     * Das ist der Preis dafuer, den Import aus dem Request zu nehmen, und er
+     * war beim Umbau nicht bezahlt: Zone3 faehrt EINEN Worker fuer ALLE Jobs.
+     * Plangenerierung, Reviews, Schwellenpace, Prognosen — alles laeuft dort
+     * im Gaensemarsch, ein Plan braucht 30 bis 70 Sekunden, und der Worker
+     * laeuft mit --timeout=1800.
+     *
+     * Solange der Import im Request lief, ging ihn dieser Rueckstau nichts
+     * an. In der Queue stand er ploetzlich dahinter: der Lauf kam an, und die
+     * Aktivitaet erschien Minuten spaeter oder, wenn ein Job haengt, gar
+     * nicht. Genau das war nach dem Umbau zu sehen.
+     *
+     * `imports` hat deshalb einen eigenen Worker in startup.sh. Ein Import
+     * wartet damit hoechstens auf einen anderen Import — und die sind kurz.
+     */
+    public const QUEUE = 'imports';
+
+    /**
      * Strava antwortet nicht immer sofort — das Ereignis kommt, bevor die
      * Aktivität über die API abrufbar ist. Ein einzelner Versuch verlöre
      * den Lauf still.
@@ -63,7 +82,9 @@ class ImportStravaActivityJob implements ShouldQueue, ShouldBeUnique
     public function __construct(
         public readonly int $accountId,
         public readonly int $stravaActivityId,
-    ) {}
+    ) {
+        $this->onQueue(self::QUEUE);
+    }
 
     public function uniqueId(): string
     {
@@ -120,6 +141,13 @@ class ImportStravaActivityJob implements ShouldQueue, ShouldBeUnique
                 $importer->flagPendingPr($userId, $activity->id);
             }
         }
+
+        Log::info('Strava-Aktivitaet importiert', [
+            'user_id'   => $userId,
+            'strava_id' => $this->stravaActivityId,
+            'type'      => $activity->type,
+            'name'      => $activity->name,
+        ]);
 
         $user = User::find($userId);
         if ($user && $user->push_notifications_enabled) {

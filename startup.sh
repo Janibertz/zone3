@@ -26,11 +26,33 @@ echo "[startup] Starting queue worker in background..."
 (
   while true; do
     php artisan queue:work \
+      --queue=default \
       --sleep=3 \
       --tries=3 \
       --timeout=1800 \
       --max-jobs=500
     echo "[worker] Restarting queue worker..."
+    sleep 2
+  done
+) &
+
+# Ein eigener Worker fuer den Strava-Import.
+#
+# Der Worker oben arbeitet alles ab, was mit OpenAI spricht: ein Plan braucht
+# 30 bis 70 Sekunden, und --timeout=1800 laesst einen haengenden Job eine
+# halbe Stunde stehen. Solange der Import im Request lief, ging ihn das nichts
+# an; in derselben Queue stand er dahinter und kam Minuten zu spaet oder gar
+# nicht. Importe sind kurz und warten hier nur aufeinander.
+echo "[startup] Starting import worker in background..."
+(
+  while true; do
+    php artisan queue:work \
+      --queue=imports \
+      --sleep=3 \
+      --tries=3 \
+      --timeout=300 \
+      --max-jobs=500
+    echo "[worker] Restarting import worker..."
     sleep 2
   done
 ) &

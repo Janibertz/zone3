@@ -41,7 +41,11 @@ Develop and verify against the local copy, then push to `main`. Two things only 
 
 Deploy via **GitHub → Coolify** (push to `main` branch triggers deploy, ~2 minutes). No local dev server and no local database — `startup.sh` is the container entry point and handles migrations, seeding, cache, queue worker, scheduler, and PWA icon generation automatically.
 
-The queue worker and scheduler both run as background loops inside the same container process (not systemd/supervisor). The PHP dev server (`php artisan serve`) is the web process — **single-threaded by default**, so any slow synchronous request blocks the whole site. Heavy work (every OpenAI call) belongs in a queued job; the controller starts it and the frontend polls a status endpoint. `PHP_CLI_SERVER_WORKERS=8` in `startup.sh` is a safety net, not a substitute.
+**Two queue workers, and the split matters.** `default` carries everything that talks to OpenAI — plan generation (30-70 s, sometimes minutes), reviews, threshold pace, predictions — on a single worker with `--timeout=1800`. `imports` carries `ImportStravaActivityJob` and has a worker of its own.
+
+That second worker is not tidiness, it is a bug fix. Moving the Strava import out of the request put it in line behind the AI jobs, where it had never been: the run finished, and the activity appeared minutes later or not at all. An import waits only for other imports now, and those are short. A new job that must not wait behind plan generation belongs on `imports` too — `ImportStravaActivityJob::QUEUE`. Note that `Queueable` already declares `$queue`, so redeclaring the property is a composition error; call `$this->onQueue(...)` in the constructor.
+
+The queue workers and scheduler all run as background loops inside the same container process (not systemd/supervisor). The PHP dev server (`php artisan serve`) is the web process — **single-threaded by default**, so any slow synchronous request blocks the whole site. Heavy work (every OpenAI call) belongs in a queued job; the controller starts it and the frontend polls a status endpoint. `PHP_CLI_SERVER_WORKERS=8` in `startup.sh` is a safety net, not a substitute.
 
 ## Architecture
 
@@ -298,6 +302,8 @@ Inertia.js — no API calls, all data passed as props from Laravel controllers.
 `POST /strava/webhook` → `ImportStravaActivityJob`. The handler takes the event and hands it on; that is all it does in the request.
 
 It used to do the whole import inline: fetch the activity from Strava (two HTTP calls when the token had expired), store it, match it to the planned session, write best efforts, dispatch reviews, send a push — HTTP again. The web process is single-threaded, so the site stood still for the duration. And Strava **redelivers an event when the response is slow**, so the slowness fed itself.
+
+The job runs on the **`imports` queue**, which has its own worker — see Deployment. On the shared `default` queue it sat behind plan generation and arrived minutes late or never.
 
 The job does the work: `StravaImportService` (the import and matching logic, shared with the manual sync) → best efforts → `GenerateSessionReviewJob` per completed session → push. It retries three times — Strava sometimes sends the event before the activity is served by the API, and a silent `return` would lose the run — and `ShouldBeUnique` keeps a redelivery from sending a second push for the same activity. Everything in it is repeatable: `updateOrCreate` on (strava_id, user_id), the `activity_id` check, `reviewed_at`.
 

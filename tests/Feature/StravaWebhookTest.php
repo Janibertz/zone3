@@ -41,6 +41,18 @@ class StravaWebhookTest extends TestCase
     {
         parent::setUp();
 
+        // `StravaService` liest seine Zugangsdaten im Konstruktor in
+        // typisierte string-Eigenschaften. Fehlen sie — in CI wird
+        // .env.example kopiert, und dort standen sie nicht —, kommt null an
+        // und der Container wirft einen TypeError. Ein Test soll nicht davon
+        // abhaengen, was zufaellig in der Umgebung steht.
+        config([
+            'services.strava.client_id'            => 'test-client',
+            'services.strava.client_secret'        => 'test-secret',
+            'services.strava.redirect'             => 'https://zone3.test/strava/callback',
+            'services.strava.webhook_verify_token' => 'test-verify-token',
+        ]);
+
         $this->user = User::factory()->onboarded()->create();
 
         $this->account = StravaAccount::create([
@@ -86,6 +98,28 @@ class StravaWebhookTest extends TestCase
             ImportStravaActivityJob::class,
             fn ($job) => $job->accountId === $this->account->id && $job->stravaActivityId === 998877,
         );
+    }
+
+    /**
+     * Der Import gehoert auf seine eigene Queue.
+     *
+     * Zone3 faehrt einen Worker fuer alles, was mit OpenAI spricht — ein Plan
+     * braucht 30 bis 70 Sekunden, und der Worker laeuft mit --timeout=1800.
+     * Solange der Import im Request lief, ging ihn dieser Rueckstau nichts
+     * an. Ihn ohne eigene Queue in die Warteschlange zu setzen, hat genau das
+     * kaputtgemacht: der Lauf kam an, die Aktivitaet Minuten spaeter oder nie.
+     *
+     * `startup.sh` startet fuer `imports` einen zweiten Worker. Faellt diese
+     * Zuordnung weg, steht der Import wieder hinter der Plangenerierung —
+     * ohne dass irgendetwas rot wuerde. Deshalb steht sie hier.
+     */
+    public function test_the_import_does_not_queue_behind_the_ai_jobs(): void
+    {
+        Queue::fake();
+
+        $this->postJson('/strava/webhook', $this->event())->assertOk();
+
+        Queue::assertPushedOn('imports', ImportStravaActivityJob::class);
     }
 
     /**
@@ -166,7 +200,7 @@ class StravaWebhookTest extends TestCase
 
         $handshake = [
             'hub_mode'         => 'subscribe',
-            'hub_verify_token' => config('services.strava.webhook_verify_token'),
+            'hub_verify_token' => 'test-verify-token',
             'hub_challenge'    => 'abc123',
         ];
 
