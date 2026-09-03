@@ -163,6 +163,8 @@ It queries by range with `whereDate`, not `whereIn` with date strings: under SQL
 
 Worth knowing: when the model omits a day the **validator already restores the skeleton's slot with the right type** — `sealGaps` is the last line of defence for the `finalized` / `kept` paths it skips, not the normal route.
 
+**A day can also be emptied outside a regeneration.** The reported case: the athlete skipped Wednesday for lack of time, the regeneration moved that session to Thursday, then he told the coach he could manage Wednesday after all — and the coach moved it back. `move_training_session` sets `planned_date` and saves; nobody looked at what stayed behind, and Thursday became a hole. `sealGaps()` cannot catch this, because no regeneration runs. `CoachChatService::sealVacatedDay()` closes the day where it is emptied — after a move and after a delete — and only when nothing else is left on it.
+
 ### The weekly volume drives the skeleton
 
 This was the most consequential contradiction in the prompt. The skeleton filled days by **availability** and wrote "max. 120 min" per day; the model read that as an instruction. Two sections above, the volume block said, as binding: "der Wochenumfang darf 35,2 km NICHT überschreiten". For a real case that meant five sessions totalling 383 minutes — about 71 km — against a 35.2 km ceiling. No answer satisfies both. The model had to break one, and which one it broke it decided anew every time.
