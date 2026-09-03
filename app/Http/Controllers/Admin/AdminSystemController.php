@@ -38,6 +38,8 @@ class AdminSystemController extends Controller
             'planHealth'   => $this->health->planHealth(),
             'integrations' => $this->health->integrations(),
             'environment'  => $this->health->environment(),
+            // Dasselbe Urteil wie auf der Uebersicht — nicht ein zweites.
+            'summary'      => $this->health->summary(),
         ]);
     }
 

@@ -25,21 +25,10 @@ const props = defineProps({
  * hat tagelang niemand nachgesehen, weil niemand wusste, dass es etwas
  * nachzusehen gab.
  */
-const trouble = computed(() => {
-    const h = props.systemHealth ?? {};
-    const out = [];
-
-    if (h.stale_queues?.length)  out.push(`Queue steht: ${h.stale_queues.join(', ')}`);
-    if (h.failed)                out.push(`${h.failed} fehlgeschlagene Aufgabe(n)`);
-    if (h.stuck)                 out.push(`${h.stuck} hängende Plangenerierung(en)`);
-    if (h.plans_with_gaps)       out.push(`${h.plans_with_gaps} Plan/Pläne mit Lücken`);
-    if (h.orphans_planned)       out.push(`${h.orphans_planned} Einheit(en) ohne Plan`);
-
-    return out;
-});
+const trouble = computed(() => props.systemHealth?.issues ?? []);
 
 /** Eine stehende Queue ist ein Ausfall, alles andere eine Auffälligkeit. */
-const troubleIsSevere = computed(() => (props.systemHealth?.stale_queues?.length ?? 0) > 0);
+const troubleIsSevere = computed(() => props.systemHealth?.severe === true);
 
 function formatDate(d) {
     if (!d) return '—';

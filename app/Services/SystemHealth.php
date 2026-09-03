@@ -400,12 +400,44 @@ class SystemHealth
     {
         $plans = $this->planHealth();
 
+        $stale  = collect($this->queues())->where('stale', true)->pluck('queue')->values()->all();
+        $failed = Schema::hasTable('failed_jobs') ? DB::table('failed_jobs')->count() : 0;
+        $gaps   = count($plans['gaps']);
+        $stuck  = count($plans['stuck']);
+
+        // Die Formulierungen gehoeren hierher, nicht in zwei Vue-Dateien.
+        // Sonst urteilen Systemseite und Uebersicht ueber dieselben Daten
+        // verschieden — genau das ist passiert: die Uebersicht meldete
+        // „5 Einheit(en) ohne Plan", waehrend die Systemseite daneben
+        // „Keine Auffaelligkeiten" schrieb.
+        $issues = [];
+
+        if ($stale !== []) {
+            $issues[] = 'Queue steht: ' . implode(', ', $stale);
+        }
+        if ($failed > 0) {
+            $issues[] = "{$failed} fehlgeschlagene Aufgabe(n)";
+        }
+        if ($stuck > 0) {
+            $issues[] = "{$stuck} haengende Plangenerierung(en)";
+        }
+        if ($gaps > 0) {
+            $issues[] = "{$gaps} Plan/Plaene mit Luecken";
+        }
+        if ($plans['orphans_planned'] > 0) {
+            $issues[] = "{$plans['orphans_planned']} Einheit(en) ohne Plan";
+        }
+
         return [
-            'stale_queues'    => collect($this->queues())->where('stale', true)->pluck('queue')->values()->all(),
-            'failed'          => Schema::hasTable('failed_jobs') ? DB::table('failed_jobs')->count() : 0,
-            'plans_with_gaps' => count($plans['gaps']),
+            'stale_queues'    => $stale,
+            'failed'          => $failed,
+            'plans_with_gaps' => $gaps,
             'orphans_planned' => $plans['orphans_planned'],
-            'stuck'           => count($plans['stuck']),
+            'stuck'           => $stuck,
+            'issues'          => $issues,
+            // Eine stehende Queue ist ein Ausfall, alles andere eine
+            // Auffaelligkeit.
+            'severe'          => $stale !== [],
         ];
     }
 }

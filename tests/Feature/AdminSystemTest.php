@@ -285,6 +285,32 @@ class AdminSystemTest extends TestCase
         $this->assertSame(0, $summary['plans_with_gaps']);
         $this->assertSame(0, $summary['stuck']);
         $this->assertSame([], $summary['stale_queues']);
+        $this->assertSame([], $summary['issues'], 'Ohne Befund keine Meldung');
+        $this->assertFalse($summary['severe']);
+    }
+
+    /**
+     * Systemseite und Uebersicht muessen dasselbe sagen.
+     *
+     * Sie taten es nicht: die Uebersicht meldete „5 Einheit(en) ohne Plan",
+     * waehrend die Systemseite daneben „Keine Auffaelligkeiten" schrieb —
+     * zwei Urteile ueber dieselben Daten, weil beide Seiten selbst
+     * entschieden. Der Wortlaut kommt jetzt aus SystemHealth.
+     */
+    public function test_both_pages_get_the_same_verdict(): void
+    {
+        [$user, $plan] = $this->athleteWithPlan();
+        $this->unit($user, $plan, now()->addDay()->toDateString());
+        TrainingSession::where('user_id', $user->id)->update(['training_plan_id' => null]);
+
+        $summary = app(SystemHealth::class)->summary();
+
+        $this->assertNotEmpty($summary['issues'], 'Eine Einheit ohne Plan ist ein Befund');
+        $this->assertStringContainsString('ohne Plan', implode(' ', $summary['issues']));
+
+        $page = $this->actingAs($this->admin())->get('/admin/system')->viewData('page')['props'];
+
+        $this->assertSame($summary['issues'], $page['summary']['issues']);
     }
 
     public function test_a_stale_queue_reaches_the_summary(): void

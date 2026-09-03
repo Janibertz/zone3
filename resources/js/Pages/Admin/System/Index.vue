@@ -9,6 +9,7 @@ const props = defineProps({
     planHealth:   Object,
     integrations: Object,
     environment:  Object,
+    summary:      Object,
 });
 
 const page  = usePage();
@@ -27,14 +28,23 @@ function act(method, url, key, options = {}) {
 
 // ── Ableitungen ──────────────────────────────────────────────────────────
 
-const queueTrouble = computed(() => props.queues.filter((q) => q.stale).length);
-
+/**
+ * Das Urteil kommt aus `SystemHealth::summary()` — dieselbe Quelle wie die
+ * Warnzeile auf der Übersicht.
+ *
+ * Vorher entschied diese Seite selbst, und zwar nach anderen Kriterien:
+ * die Übersicht meldete „5 Einheit(en) ohne Plan", während hier daneben
+ * „Keine Auffälligkeiten" stand. Zwei Urteile über dieselben Daten.
+ */
 const headline = computed(() => {
-    if (queueTrouble.value > 0)              return { tone: 'danger',  text: 'Eine Queue steht — der Worker arbeitet sie nicht ab.' };
-    if (props.failedJobs.total > 0)          return { tone: 'warn',    text: `${props.failedJobs.total} fehlgeschlagene Aufgabe(n).` };
-    if (props.planHealth.gaps.length > 0)    return { tone: 'warn',    text: `${props.planHealth.gaps.length} Plan/Pläne mit Lücken.` };
-    if (props.planHealth.stuck.length > 0)   return { tone: 'warn',    text: 'Eine Plangenerierung hängt.' };
-    return { tone: 'success', text: 'Keine Auffälligkeiten.' };
+    const issues = props.summary?.issues ?? [];
+
+    if (issues.length === 0) return { tone: 'success', text: 'Keine Auffälligkeiten.' };
+
+    return {
+        tone: props.summary.severe ? 'danger' : 'warn',
+        text: issues.join(' · '),
+    };
 });
 
 const toneClass = {
