@@ -63,6 +63,28 @@ class PlanRevisionRecorder
      * @param  array<int,array<string,mixed>>   $newSessions
      * @return array<int,array<string,string>>
      */
+    /**
+     * WAS hier verglichen wird, entscheidet der Aufrufer — und er hat es
+     * lange falsch entschieden.
+     *
+     * `$newSessions` war der vom Validator geprueffte Plan, uebergeben BEVOR
+     * die Einheiten geschrieben wurden — also naeher an der Wahrheit, als es
+     * zunaechst aussieht, aber eben nicht sie. Was danach noch geschieht,
+     * sah der Verlauf nicht: die Anlege-Schleife ueberspringt Tage, die sie
+     * fuer belegt haelt, und `sealGaps()` traegt Ruhetage nach. Dort entstand
+     * die Meldung „Ruhetag → Lockerer Lauf" fuer einen Tag, an dem nie eine
+     * Einheit stand.
+     *
+     * Beide Jobs uebergeben jetzt den Stand, der tatsaechlich in der
+     * Datenbank steht. Das schliesst die Luecke nicht durch eine weitere
+     * Sonderregel, sondern dadurch, dass es keine zweite Quelle mehr gibt.
+     *
+     * `$untouchedDates` stammt aus derselben Zeit: erhaltene Tage fehlten in
+     * der Modellantwort und wurden als „entfaellt" ausgewiesen. Wer den
+     * echten Stand vergleicht, braucht die Ausnahme nicht mehr — dort stehen
+     * die erhaltenen Tage auf beiden Seiten. Der Parameter bleibt, weil er
+     * fuer sich richtig ist; die Jobs uebergeben ihn nicht mehr.
+     */
     public function diff(Collection $oldSessions, array $newSessions, array $untouchedDates = []): array
     {
         $today = CarbonImmutable::today()->toDateString();

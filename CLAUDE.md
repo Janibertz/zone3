@@ -155,7 +155,11 @@ Otherwise kept days are marked `kept` in the skeleton (dropped from the day list
 
 Twice a day in the plan held nothing at all — 31 Aug and 3 Sep. The app showed a hole mid-week. Both days were in the skeleton, and for both the revision history dutifully reported a change.
 
-**The history could not catch it, because the history is written from the model's output and before the sessions are persisted.** `PlanRevisionRecorder::record()` diffs `sessionsBefore` against `$aiSessions`, and it is called above the creation loop — it describes the intention, not the result. It reported an easy run for a day that never got one. Treat "Verlauf" as what was asked for, not as what is in the database.
+**The history could not catch it, because it was written before the sessions were persisted.** `PlanRevisionRecorder::record()` diffed `sessionsBefore` against `$aiSessions` — note that this is the *validated* plan, not the raw model answer, so it was closer to the truth than it first appears. What it could not see is everything that happens **after**: the creation loop skips dates it considers taken, and `sealGaps()` adds rest days. That is where "Ruhetag → Lockerer Lauf" came from for a day that never held a session.
+
+Both plan jobs now record **after** writing and diff against what is actually in the database (`RegeneratePlanJob::writtenPlan()`). This removes the second source rather than adding another rule for it. `diff()` still accepts `untouchedDates`, but neither job passes it any more: with the real state on both sides, kept days match by themselves — and a kept day whose session vanished now shows up as removed, which is exactly the signal that was missing.
+
+Worth knowing for anyone writing a test here: the divergence is narrow and hard to construct. Two attempts at a regression test passed with the old code too, because the validator had already reconciled the difference. The change is right by construction, not because a test proves the old behaviour wrong.
 
 Several switches can drop a day, each defensible on its own: the model may omit it, the validator only fills a missing day when it is neither `finalized` nor `kept`, and the creation loop skips dates it considers taken. Rather than harden each switch, `RegeneratePlanJob::sealGaps()` looks at what actually landed: any skeleton day with **no session at all** (any plan, any status) gets a rest day and a `Log::warning`. A rest day is the honest filler — an invented workout would be worse than the admission that nothing is planned.
 

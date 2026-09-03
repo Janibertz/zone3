@@ -14,6 +14,7 @@ const props = defineProps({
     aiLogs:           Array,
     aiStats:          Object,
     aiTodayUsed:      Number,
+    planDiagnostics:  Object,
 });
 
 const page  = usePage();
@@ -25,9 +26,26 @@ const showWeeklyModal    = ref(false);
 
 const tabs = [
     { key: 'overview',  label: 'Übersicht' },
+    { key: 'plan',      label: 'Plan' },
     { key: 'ai',        label: 'AI-Aktivität' },
     { key: 'wellbeing', label: 'Wellbeing' },
 ];
+
+const diag = computed(() => props.planDiagnostics ?? {});
+
+function shortDate(value) {
+    if (!value) return '—';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+function stamp(value) {
+    if (!value) return '—';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
 
 // ── Actions ──────────────────────────────────────────────────
 function toggleAdmin()  { router.patch(route('admin.users.toggle-admin',  props.user.id), {}, { preserveScroll: true }); }
@@ -540,6 +558,121 @@ const zoneColors = [
                         </table>
                     </div>
                     <p v-else class="text-sm text-ink-3">Keine Wellbeing-Einträge vorhanden.</p>
+                </div>
+            </template>
+
+            <!-- ══════════════════════════════════════════════════
+                 TAB: PLAN
+                 ══════════════════════════════════════════════════ -->
+            <template v-if="activeTab === 'plan'">
+
+                <!-- Aktiver Plan -->
+                <div class="bg-surface rounded-card p-6 shadow-card">
+                    <h2 class="text-sm font-semibold text-ink-2 mb-4">Aktiver Plan</h2>
+
+                    <p v-if="!diag.plan" class="text-sm text-ink-3">Kein aktiver Plan.</p>
+
+                    <div v-else class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                        <div>
+                            <p class="text-xs text-ink-3">Zeitraum</p>
+                            <p class="text-sm font-medium text-ink">{{ shortDate(diag.plan.from) }} – {{ shortDate(diag.plan.to) }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-ink-3">Geplant</p>
+                            <p class="text-sm font-medium text-ink tabular-nums">{{ diag.counts.planned }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-ink-3">Absolviert</p>
+                            <p class="text-sm font-medium text-success-ink tabular-nums">{{ diag.counts.completed }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-ink-3">Ausgelassen</p>
+                            <p class="text-sm font-medium text-ink-3 tabular-nums">{{ diag.counts.skipped }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lücken -->
+                <div class="bg-surface rounded-card p-6 shadow-card">
+                    <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
+                        <div>
+                            <h2 class="text-sm font-semibold text-ink-2">Lücken im Plan</h2>
+                            <p class="text-xs text-ink-3 mt-0.5">
+                                Tage innerhalb des Planzeitraums, an denen keine einzige Einheit steht.
+                            </p>
+                        </div>
+                        <button
+                            v-if="diag.gaps?.length"
+                            class="px-3 py-1.5 rounded-field text-xs font-medium bg-warn-soft text-warn-ink"
+                            @click="router.post(route('admin.system.plan-gaps.fill', user.id), {}, { preserveScroll: true })">
+                            Mit Ruhetagen schliessen
+                        </button>
+                    </div>
+
+                    <p v-if="!diag.gaps?.length" class="text-sm text-success-ink">Keine Lücken.</p>
+                    <div v-else class="flex flex-wrap gap-2">
+                        <span v-for="d in diag.gaps" :key="d"
+                            class="px-2 py-1 rounded-full text-xs bg-warn-soft text-warn-ink">
+                            {{ shortDate(d) }}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Einheiten ohne Plan -->
+                <div class="bg-surface rounded-card p-6 shadow-card">
+                    <h2 class="text-sm font-semibold text-ink-2">Einheiten ohne Plan ({{ diag.orphans?.length ?? 0 }})</h2>
+                    <p class="text-xs text-ink-3 mt-0.5 mb-3">
+                        Sie stehen in der Datenbank, aber der Athlet sieht sie nicht — die Planseite lädt
+                        nur Einheiten des aktiven Plans.
+                    </p>
+
+                    <p v-if="!diag.orphans?.length" class="text-sm text-ink-3">Keine.</p>
+                    <div v-else class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <tbody class="divide-y divide-line">
+                                <tr v-for="o in diag.orphans" :key="o.id">
+                                    <td class="py-2 pr-3 text-ink-3 whitespace-nowrap">{{ shortDate(o.date) }}</td>
+                                    <td class="py-2 pr-3 text-ink">{{ o.title }}</td>
+                                    <td class="py-2 pr-3 text-ink-3">{{ o.type }}</td>
+                                    <td class="py-2 text-right text-ink-3">{{ o.status }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Neuberechnungen -->
+                <div class="bg-surface rounded-card p-6 shadow-card">
+                    <h2 class="text-sm font-semibold text-ink-2">Neuberechnungen</h2>
+                    <p class="text-xs text-ink-3 mt-0.5 mb-3">
+                        Der Anlass zählt: jede Neuberechnung ist ein neuer Wurf des Modells. Häufen sich
+                        automatische Läufe, wird der Plan öfter umgeschrieben, als der Athlet erwartet.
+                    </p>
+
+                    <p v-if="!diag.revisions?.length" class="text-sm text-ink-3">Noch keine.</p>
+                    <div v-else class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="text-xs text-ink-3 border-b border-line">
+                                <tr>
+                                    <th class="py-2 pr-3 text-left font-medium">Wann</th>
+                                    <th class="py-2 pr-3 text-left font-medium">Anlass</th>
+                                    <th class="py-2 pr-3 text-right font-medium">Änderungen</th>
+                                    <th class="py-2 text-right font-medium">Korrekturen</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-line">
+                                <tr v-for="r in diag.revisions" :key="r.id">
+                                    <td class="py-2 pr-3 text-ink-3 whitespace-nowrap">{{ stamp(r.at) }}</td>
+                                    <td class="py-2 pr-3 text-ink">{{ r.label }}</td>
+                                    <td class="py-2 pr-3 text-right text-ink-3 tabular-nums">{{ r.changes }}</td>
+                                    <td class="py-2 text-right tabular-nums"
+                                        :class="r.corrections ? 'text-warn-ink font-medium' : 'text-ink-3'">
+                                        {{ r.corrections }}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </template>
 

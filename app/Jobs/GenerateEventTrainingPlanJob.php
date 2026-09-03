@@ -150,16 +150,6 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
                 ->where('status', 'planned')
                 ->update(['training_plan_id' => $plan->id]);
 
-            app(\App\Services\PlanRevisionRecorder::class)->record(
-                user:        $user,
-                event:       $event,
-                newPlan:     $plan,
-                oldSessions: $sessionsBefore,
-                newSessions: $aiSessions,
-                corrections: $checked['report'] ?? [],
-                triggeredBy: $sessionsBefore->isEmpty() ? 'initial' : 'manual',
-            );
-
             // Erhaltene Einheiten blockieren ihren Tag nur für Läufe. Vorher
             // fiel an einem Doppel-Tag die Krafteinheit mit weg, sobald der
             // Lauf von Strava importiert und damit erhalten war.
@@ -214,6 +204,31 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
                     'sort_order'       => $i,
                 ]);
             }
+
+            // Der Verlauf, gegen das was wirklich geschrieben wurde.
+            //
+            // Er stand vorher weiter oben und verglich den vom Validator
+            // geprueften Plan — was die Anlege-Schleife danach ueberspringt,
+            // sah er nicht. Was der Athlet im Verlauf liest, soll das sein,
+            // was in seinem Plan steht.
+            app(\App\Services\PlanRevisionRecorder::class)->record(
+                user:        $user,
+                event:       $event,
+                newPlan:     $plan,
+                oldSessions: $sessionsBefore,
+                newSessions: TrainingSession::where('training_plan_id', $plan->id)
+                    ->where('status', 'planned')
+                    ->get()
+                    ->map(fn (TrainingSession $written) => [
+                        'date'         => $written->planned_date->format('Y-m-d'),
+                        'type'         => $written->type,
+                        'title'        => $written->title,
+                        'distance_km'  => $written->distance_km,
+                        'duration_min' => $written->duration_min,
+                    ])->all(),
+                corrections: $checked['report'] ?? [],
+                triggeredBy: $sessionsBefore->isEmpty() ? 'initial' : 'manual',
+            );
 
             // ── Retroactively match Strava runs in plan window ───────────────
             $planDates = collect($aiSessions)->pluck('date');

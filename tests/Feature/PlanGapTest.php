@@ -148,6 +148,156 @@ class PlanGapTest extends TestCase
             ->all();
     }
 
+    // ── Der Verlauf sagt, was passiert ist ───────────────────────────────
+
+    /**
+     * Der Verlauf darf nichts behaupten, was nicht in der Datenbank steht.
+     *
+     * Genau das tat er: `PlanRevisionRecorder::record()` bekam die Antwort
+     * des Modells und lief, bevor die Einheiten geschrieben wurden. Für den
+     * 3. September meldete er „Ruhetag → Lockerer Lauf (5,5 km, 30 min)",
+     * während an dem Tag nie eine Einheit stand — und schickte damit die
+     * Fehlersuche in die falsche Richtung.
+     *
+     * Geprüft wird deshalb die Zusicherung selbst: für jeden Tag, den der
+     * Verlauf als „so sieht es jetzt aus" ausweist, muss dort auch etwas
+     * stehen. Und für jeden, den er als entfallen meldet, darf nichts stehen.
+     */
+    public function test_the_history_describes_the_database(): void
+    {
+        $dates   = $this->skeletonDates();
+        $skipped = $dates[intdiv(count($dates), 2)];
+
+        $this->generatorSkipping($skipped);
+        $this->regenerate();
+
+        $revision = \App\Models\PlanRevision::where('user_id', $this->user->id)->latest('id')->first();
+        $this->assertNotNull($revision, 'Eine Neuberechnung gehoert in den Verlauf');
+
+        foreach ($revision->changes ?? [] as $change) {
+            $onThatDay = TrainingSession::where('user_id', $this->user->id)
+                ->whereDate('planned_date', $change['date'])
+                ->where('status', 'planned')
+                ->count();
+
+            if ($change['to'] === null) {
+                $this->assertSame(0, $onThatDay,
+                    "Der Verlauf meldet den {$change['date']} als entfallen, im Plan steht aber etwas");
+            } else {
+                $this->assertGreaterThan(0, $onThatDay,
+                    "Der Verlauf meldet fuer den {$change['date']} „{$change['to']}“, im Plan steht nichts");
+            }
+        }
+    }
+
+    /**
+     * Und der Tag, den das Modell verschluckt hat, darf nicht als entfallen
+     * dastehen — der Validator hat ihn ja wiederhergestellt.
+     */
+    public function test_a_restored_day_is_not_reported_as_removed(): void
+    {
+        $dates   = $this->skeletonDates();
+        $skipped = $dates[intdiv(count($dates), 2)];
+
+        $this->generatorSkipping($skipped);
+        $this->regenerate();
+
+        $revision = \App\Models\PlanRevision::where('user_id', $this->user->id)->latest('id')->first();
+
+        $entry = collect($revision->changes ?? [])->firstWhere('date', $skipped);
+
+        if ($entry !== null) {
+            $this->assertNotSame('removed', $entry['kind'],
+                'Der Tag steht im Plan — als entfallen gemeldet zu werden waere falsch');
+        }
+
+        $this->assertTrue(true);
+    }
+
+    /**
+     * Was das Modell zu viel liefert, steht weder im Plan noch im Verlauf.
+     *
+     * Ehrlichkeitshalber: dieser Test unterscheidet die beiden Fassungen des
+     * Recorders NICHT — er ist auch mit der alten grün. `$aiSessions` ist
+     * bereits die vom Validator geprüfte Liste, der Tag ausserhalb des
+     * Fensters war dort also schon entfernt. Er steht hier als Zusicherung
+     * über das Ergebnis, nicht als Regressionstest.
+     *
+     * Die verbleibende Abweichung — was die Anlege-Schleife überspringt und
+     * was `sealGaps()` nachträgt — liess sich im Test nicht herstellen.
+     */
+    public function test_the_history_omits_what_the_validator_threw_away(): void
+    {
+        // Weit hinter dem Planfenster, aber vor dem Rennen.
+        $outside = now()->addDays(45)->format('Y-m-d');
+
+        $this->generatorAlsoAnswering($outside);
+        $this->regenerate();
+
+        $this->assertSame(
+            0,
+            TrainingSession::where('user_id', $this->user->id)->whereDate('planned_date', $outside)->count(),
+            'Der Validator muss den Tag ausserhalb des Fensters verwerfen',
+        );
+
+        $revision = \App\Models\PlanRevision::where('user_id', $this->user->id)->latest('id')->first();
+        $entry    = collect($revision?->changes ?? [])->firstWhere('date', $outside);
+
+        $this->assertNull(
+            $entry,
+            'Der Verlauf darf keine Einheit melden, die nie geschrieben wurde',
+        );
+    }
+
+    /** Ein Modell, das zusätzlich einen Tag ausserhalb des Fensters liefert. */
+    private function generatorAlsoAnswering(string $extraDate): void
+    {
+        $this->mock(TrainingPlanGenerator::class, function ($m) use ($extraDate) {
+            $m->shouldReceive('withCoach')->andReturnSelf();
+            $m->shouldReceive('forUser')->andReturnSelf();
+            $m->shouldReceive('generateEventTrainingPlan')->andReturnUsing(
+                function (PlanContext $c) use ($extraDate) {
+                    $out = [];
+
+                    foreach ($c->skeleton['days'] as $d => $day) {
+                        if ($day['finalized'] || ! empty($day['kept'])) {
+                            continue;
+                        }
+
+                        $isRest = ! $day['available'] || ! empty($day['rest']) || empty($day['slots']);
+
+                        $out[] = [
+                            'date'         => $d,
+                            'type'         => $isRest ? 'rest' : ($day['slots'][0]['type'] ?? 'easy_run'),
+                            'title'        => 'Vom Modell',
+                            'description'  => 'Inhalt',
+                            'distance_km'  => $isRest ? 0 : ($day['slots'][0]['target_km'] ?? 6),
+                            'duration_min' => $isRest ? 0 : 35,
+                            'pace_target'  => $isRest ? null : '6:00',
+                            'zone'         => $isRest ? null : 2,
+                            'intensity'    => $isRest ? 'rest' : 'low',
+                        ];
+                    }
+
+                    // Und einer zu viel.
+                    $out[] = [
+                        'date'         => $extraDate,
+                        'type'         => 'long_run',
+                        'title'        => 'AUSSERHALB DES FENSTERS',
+                        'description'  => 'Haette nie geschrieben werden duerfen',
+                        'distance_km'  => 30,
+                        'duration_min' => 180,
+                        'pace_target'  => '6:00',
+                        'zone'         => 2,
+                        'intensity'    => 'low',
+                    ];
+
+                    return $out;
+                }
+            );
+        });
+    }
+
     // ── Das Ergebnis, nicht die Absicht ──────────────────────────────────
 
     public function test_a_day_the_model_leaves_out_still_gets_an_entry(): void

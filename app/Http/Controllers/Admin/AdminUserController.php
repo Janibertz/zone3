@@ -113,6 +113,10 @@ class AdminUserController extends Controller
             'aiLogs'           => $aiLogs,
             'aiStats'          => $aiStats,
             'aiTodayUsed'      => AiLog::todayCountForUser($user->id),
+            // Was bei der Suche nach der Plan-Luecke gefehlt hat: welche
+            // Neuberechnungen es gab und warum, was im aktiven Plan steht,
+            // und welche Einheiten ohne Plan dastehen.
+            'planDiagnostics'  => app(\App\Services\SystemHealth::class)->forUser($user),
         ]);
     }
 

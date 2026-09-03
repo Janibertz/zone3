@@ -297,6 +297,88 @@ class SystemHealth
         ];
     }
 
+
+    /**
+     * Derselbe Blick, aber auf einen Athleten.
+     *
+     * Was auf der Nutzerseite fehlte, war genau das, was bei der Suche nach
+     * der Plan-Luecke gebraucht wurde: welche Neuberechnungen es gab und
+     * warum, was im aktiven Plan tatsaechlich steht, und welche Einheiten
+     * ohne Plan dastehen — die sind in der Datenbank, aber fuer den
+     * Athleten unsichtbar, weil die Planseite nur den aktiven Plan laedt.
+     *
+     * @return array<string, mixed>
+     */
+    public function forUser(User $user): array
+    {
+        $plan = TrainingPlan::where('user_id', $user->id)
+            ->where('is_active', true)
+            ->latest()
+            ->first();
+
+        $sessions = $plan
+            ? TrainingSession::where('training_plan_id', $plan->id)->get(['id', 'planned_date', 'type', 'status'])
+            : collect();
+
+        $dates = $sessions->map(fn ($s) => $s->planned_date->format('Y-m-d'))->unique()->sort()->values();
+        $holes = [];
+
+        if ($dates->count() >= 2) {
+            $have   = $dates->flip();
+            $cursor = Carbon::parse($dates->first());
+            $last   = Carbon::parse($dates->last());
+
+            for (; $cursor->lte($last); $cursor->addDay()) {
+                $key = $cursor->format('Y-m-d');
+                if (! isset($have[$key])) {
+                    $holes[] = $key;
+                }
+            }
+        }
+
+        $orphans = TrainingSession::where('user_id', $user->id)
+            ->whereNull('training_plan_id')
+            ->orderByDesc('planned_date')
+            ->get(['id', 'planned_date', 'type', 'title', 'status'])
+            ->map(fn ($s) => [
+                'id'     => $s->id,
+                'date'   => $s->planned_date->format('Y-m-d'),
+                'type'   => $s->type,
+                'title'  => $s->title,
+                'status' => $s->status,
+            ]);
+
+        $revisions = \App\Models\PlanRevision::where('user_id', $user->id)
+            ->latest('id')
+            ->limit(12)
+            ->get(['id', 'triggered_by', 'changes', 'corrections', 'created_at'])
+            ->map(fn ($r) => [
+                'id'          => $r->id,
+                'trigger'     => $r->triggered_by,
+                'label'       => \App\Models\PlanRevision::TRIGGER_LABELS[$r->triggered_by] ?? $r->triggered_by,
+                'changes'     => count($r->changes ?? []),
+                'corrections' => count($r->corrections ?? []),
+                'at'          => $r->created_at?->toIso8601String(),
+            ]);
+
+        return [
+            'plan' => $plan ? [
+                'id'      => $plan->id,
+                'created' => $plan->created_at?->toIso8601String(),
+                'from'    => $dates->first(),
+                'to'      => $dates->last(),
+            ] : null,
+            'counts' => [
+                'planned'   => $sessions->where('status', 'planned')->count(),
+                'completed' => $sessions->where('status', 'completed')->count(),
+                'skipped'   => $sessions->where('status', 'skipped')->count(),
+            ],
+            'gaps'      => $holes,
+            'orphans'   => $orphans->all(),
+            'revisions' => $revisions->all(),
+        ];
+    }
+
     /**
      * Die Kurzfassung fuers Dashboard — genug, um zu entscheiden, ob man
      * hinsehen muss, und nicht mehr.

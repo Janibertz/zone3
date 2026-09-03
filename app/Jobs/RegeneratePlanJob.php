@@ -299,20 +299,6 @@ class RegeneratePlanJob implements ShouldQueue
                 ]);
             }
 
-            // Was sich geändert hat, bleibt nachlesbar — der alte Plan ist
-            // an dieser Stelle bereits gelöscht.
-            app(\App\Services\PlanRevisionRecorder::class)->record(
-                user:        $user,
-                event:       $event,
-                newPlan:     $newPlan,
-                oldSessions: $sessionsBefore,
-                newSessions: $aiSessions,
-                corrections: $checked['report'] ?? [],
-                triggeredBy: $this->revisionLabel(),
-                // Sonst meldet der Verlauf die erhaltenen Tage als entfallen.
-                untouchedDates: $keptDates->all(),
-            );
-
             // Erhaltene Einheiten blockieren ihren Tag nur für die eigene
             // Sorte — sonst fiele an einem Doppel-Tag die Krafteinheit weg,
             // sobald der Lauf importiert wurde.
@@ -378,6 +364,26 @@ class RegeneratePlanJob implements ShouldQueue
 
             // Ein Gerüsttag ohne Einheit ist ein Loch im Plan.
             $this->sealGaps($user, $event, $newPlan, $skeleton);
+
+            // Erst JETZT der Verlauf — und gegen das, was wirklich in der
+            // Datenbank steht.
+            //
+            // Vorher stand er weiter oben und verglich $aiSessions — den
+            // vom Validator geprüften Plan. Damit sah er alles, was der
+            // Validator korrigiert, aber nichts von dem, was DANACH noch
+            // geschieht: die Schleife unten überspringt Tage, die sie für
+            // belegt hält, und sealGaps() trägt Ruhetage nach. Dort entstand
+            // die Meldung „Ruhetag → Lockerer Lauf" für einen Tag, an dem nie
+            // eine Einheit stand.
+            app(\App\Services\PlanRevisionRecorder::class)->record(
+                user:        $user,
+                event:       $event,
+                newPlan:     $newPlan,
+                oldSessions: $sessionsBefore,
+                newSessions: $this->writtenPlan($newPlan),
+                corrections: $checked['report'] ?? [],
+                triggeredBy: $this->revisionLabel(),
+            );
 
             // ── Retroactive run matching ──────────────────────────────────────
             $planDates = collect($aiSessions)->pluck('date');
@@ -510,6 +516,35 @@ class RegeneratePlanJob implements ShouldQueue
         $pace = PaceFormat::fromSpeed($mps);
 
         return $pace === PaceFormat::NONE ? null : $pace;
+    }
+
+
+    /**
+     * Der Plan, wie er nach dem Schreiben dasteht.
+     *
+     * Bewusst aus der Datenbank gelesen und nicht aus `$aiSessions`
+     * zusammengesetzt: Validator, Anlege-Schleife und `sealGaps()` koennen
+     * alle noch etwas veraendern, und was der Athlet im Verlauf liest, soll
+     * das sein, was er im Plan sieht.
+     *
+     * Nur `planned` — dieselbe Auswahl wie beim Vorher-Stand, sonst
+     * verglichen wir Aepfel mit Birnen.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function writtenPlan(TrainingPlan $plan): array
+    {
+        return TrainingSession::where('training_plan_id', $plan->id)
+            ->where('status', 'planned')
+            ->get()
+            ->map(fn (TrainingSession $s) => [
+                'date'         => $s->planned_date->format('Y-m-d'),
+                'type'         => $s->type,
+                'title'        => $s->title,
+                'distance_km'  => $s->distance_km,
+                'duration_min' => $s->duration_min,
+            ])
+            ->all();
     }
 
     /**

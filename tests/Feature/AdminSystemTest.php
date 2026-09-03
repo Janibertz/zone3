@@ -301,6 +301,73 @@ class AdminSystemTest extends TestCase
         $this->assertSame(['imports'], app(SystemHealth::class)->summary()['stale_queues']);
     }
 
+    // ── Derselbe Blick auf einen Athleten ────────────────────────────────
+
+    /**
+     * Auf der Nutzerseite fehlte genau das, was bei der Suche nach der
+     * Plan-Lücke gebraucht wurde.
+     */
+    public function test_the_per_user_view_reports_the_same_gap(): void
+    {
+        [$user, $plan] = $this->athleteWithPlan();
+
+        $this->unit($user, $plan, now()->addDay()->toDateString());
+        $this->unit($user, $plan, now()->addDays(3)->toDateString());
+
+        $diag = app(SystemHealth::class)->forUser($user);
+
+        $this->assertNotNull($diag['plan']);
+        $this->assertSame(2, $diag['counts']['planned']);
+        $this->assertContains(now()->addDays(2)->toDateString(), $diag['gaps']);
+    }
+
+    public function test_orphaned_sessions_are_listed_for_the_athlete(): void
+    {
+        [$user, $plan] = $this->athleteWithPlan();
+        $this->unit($user, $plan, now()->addDay()->toDateString());
+
+        TrainingSession::where('user_id', $user->id)->update(['training_plan_id' => null]);
+
+        $diag = app(SystemHealth::class)->forUser($user);
+
+        $this->assertCount(1, $diag['orphans']);
+        $this->assertSame(now()->addDay()->toDateString(), $diag['orphans'][0]['date']);
+    }
+
+    /**
+     * Der Anlass zählt: jede Neuberechnung ist ein neuer Wurf des Modells.
+     */
+    public function test_revisions_are_listed_with_their_trigger(): void
+    {
+        [$user, $plan] = $this->athleteWithPlan();
+
+        \App\Models\PlanRevision::create([
+            'user_id'          => $user->id,
+            'event_id'         => $plan->event_id,
+            'training_plan_id' => $plan->id,
+            'triggered_by'     => 'weekly',
+            'changes'          => [['date' => '2026-09-03', 'kind' => 'removed']],
+            'corrections'      => ['Longrun gekuerzt'],
+        ]);
+
+        $diag = app(SystemHealth::class)->forUser($user);
+
+        $this->assertCount(1, $diag['revisions']);
+        $this->assertSame('weekly', $diag['revisions'][0]['trigger']);
+        $this->assertSame(1, $diag['revisions'][0]['changes']);
+        $this->assertSame(1, $diag['revisions'][0]['corrections']);
+        $this->assertNotSame('weekly', $diag['revisions'][0]['label'], 'Der Anlass bekommt einen deutschen Namen');
+    }
+
+    public function test_an_athlete_without_a_plan_does_not_break_it(): void
+    {
+        $diag = app(SystemHealth::class)->forUser(User::factory()->create());
+
+        $this->assertNull($diag['plan']);
+        $this->assertSame([], $diag['gaps']);
+        $this->assertSame([], $diag['orphans']);
+    }
+
     // ── Umgebung ─────────────────────────────────────────────────────────
 
     public function test_the_environment_block_names_both_models(): void
