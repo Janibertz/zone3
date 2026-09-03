@@ -55,9 +55,9 @@ Zone3 ist eine KI-gestützte Lauf-Trainingsplattform. Die Anwendung besteht aus 
 |---------|-------------|
 | Backend | Laravel 13 (PHP 8.3) |
 | Frontend | Vue 3 + Inertia.js |
-| CSS | Tailwind CSS v4 |
+| CSS | Tailwind CSS v3 |
 | Datenbank | MySQL / MariaDB |
-| KI | OpenAI API (GPT-4o) |
+| KI | OpenAI API (gpt-5.5 · gpt-5.4-mini) |
 | Auth | Strava OAuth + Garmin Connect |
 | Deployment | Coolify (self-hosted) |
 | CI/CD | GitHub → Coolify Webhook |
@@ -130,8 +130,9 @@ exec php artisan serve --host=0.0.0.0 --port=8000
 | Variable | Zweck |
 |----------|-------|
 | `APP_KEY` | Laravel Encryption (auch für garmin_session) |
-| `OPENAI_API_KEY` | GPT-4o Zugriff |
-| `OPENAI_MODEL` | Modell (Standard: gpt-4o) |
+| `OPENAI_API_KEY` | OpenAI-Zugriff |
+| `OPENAI_MODEL` | Hauptmodell (Standard: gpt-5.5-2026-04-23) |
+| `OPENAI_MODEL_MINI` | Modell für kurze Antworten (Standard: gpt-5.4-mini) |
 | `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | Strava OAuth |
 | `FIT_SERVICE_URL` | Python Microservice URL |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push Notifications |
@@ -628,10 +629,22 @@ Zentrale Klasse für alle KI-Aufrufe. Alle Calls werden in `ai_logs` protokollie
 ```php
 // config/services.php
 'openai' => [
-    'api_key' => env('OPENAI_API_KEY'),
-    'model'   => env('OPENAI_MODEL', 'gpt-4o'),
+    'api_key'    => env('OPENAI_API_KEY'),
+    'model'      => env('OPENAI_MODEL',      'gpt-5.5-2026-04-23'),
+    'model_mini' => env('OPENAI_MODEL_MINI', 'gpt-5.4-mini'),
 ]
 ```
+
+Zwei Modelle, bewusst getrennt: `model` beantwortet das Aufwendige
+(Planerstellung, Schwellenpace, Coach-Chat), `model_mini` alles Kurze.
+
+`gpt-5.5` ist ein Reasoning-Modell und verhält sich anders als die
+GPT-4-Reihe davor: `temperature` wird nicht unterstützt und darf nicht
+mitgeschickt werden, das Token-Limit heisst `max_completion_tokens`, und
+die internen Reasoning-Tokens zählen mit. Deshalb sind selbst für kurze
+Antworten mindestens 700 Tokens nötig und für einen vollständigen Plan
+mindestens 16000 — zu wenig liefert eine leere Antwort mit
+`finish_reason: length` zurück.
 
 ## Coach-Persönlichkeit
 
@@ -1175,7 +1188,7 @@ Zwei-Komponenten-System:
 ### 2. Changelog (automatisch)
 - GitHub Webhook → `POST /webhook/github`
 - HMAC-SHA256 Signatur-Verifikation (`GITHUB_WEBHOOK_SECRET`)
-- OpenAI GPT-4o generiert deutschsprachige KI-Zusammenfassung der Änderungen
+- OpenAI (`OPENAI_MODEL_MINI`) generiert deutschsprachige KI-Zusammenfassung der Änderungen
 - `wiki_changelogs` Tabelle speichert Commits, geänderte Dateien, KI-Summary
 
 ## Implementierungs-Details
