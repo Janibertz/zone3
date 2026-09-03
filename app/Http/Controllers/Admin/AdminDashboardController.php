@@ -10,10 +10,13 @@ use App\Models\Event;
 use App\Models\TrainingPlan;
 use App\Models\User;
 use App\Models\WellbeingEntry;
+use App\Services\SystemHealth;
 use Inertia\Inertia;
 
 class AdminDashboardController extends Controller
 {
+    public function __construct(private readonly SystemHealth $health) {}
+
     public function index()
     {
         $today = now()->toDateString();
@@ -79,6 +82,9 @@ class AdminDashboardController extends Controller
             'coachDistribution'     => $coachDistribution,
             'wellbeingTrend'        => $wellbeingTrend,
             'recentUsers'           => $recentUsers,
+            // Eine Seite, die niemand aufruft, hilft niemandem: was auf
+            // /admin/system rot waere, steht hier als eine Zeile.
+            'systemHealth'          => $this->health->summary(),
         ]);
     }
 }

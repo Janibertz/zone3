@@ -6,6 +6,7 @@ use App\Models\Event;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
+use App\Services\SystemHealth;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -243,6 +244,61 @@ class AdminSystemTest extends TestCase
 
         $this->assertSame(1, $props['planHealth']['orphans_total']);
         $this->assertSame(1, $props['planHealth']['orphans_planned']);
+    }
+
+    // ── Die Kurzfassung fuers Dashboard ──────────────────────────────────
+
+    /**
+     * Die Warnzeile auf der Übersicht kommt aus derselben Quelle wie die
+     * Seite. Zwei Rechnungen hiessen zwei Wahrheiten — der wiederkehrende
+     * Fehler in diesem Projekt.
+     *
+     * Geprüft wird `SystemHealth` selbst, nicht die Dashboard-Route: die
+     * benutzt `DATE_FORMAT`, das es nur in MySQL gibt, und ist unter SQLite
+     * nicht aufrufbar.
+     */
+    public function test_the_summary_matches_the_page(): void
+    {
+        $this->failedJob(Str::uuid()->toString());
+
+        [$user, $plan] = $this->athleteWithPlan();
+        $this->unit($user, $plan, now()->addDay()->toDateString());
+        $this->unit($user, $plan, now()->addDays(3)->toDateString());
+
+        $page    = $this->actingAs($this->admin())->get('/admin/system')->viewData('page')['props'];
+        $summary = app(SystemHealth::class)->summary();
+
+        $this->assertSame($page['failedJobs']['total'], $summary['failed']);
+        $this->assertSame(count($page['planHealth']['gaps']), $summary['plans_with_gaps']);
+        $this->assertSame($page['planHealth']['orphans_planned'], $summary['orphans_planned']);
+    }
+
+    /**
+     * Und wenn nichts ist, ist auch nichts zu melden — eine Warnung, die
+     * immer steht, liest bald niemand mehr.
+     */
+    public function test_a_healthy_system_reports_nothing(): void
+    {
+        $summary = app(SystemHealth::class)->summary();
+
+        $this->assertSame(0, $summary['failed']);
+        $this->assertSame(0, $summary['plans_with_gaps']);
+        $this->assertSame(0, $summary['stuck']);
+        $this->assertSame([], $summary['stale_queues']);
+    }
+
+    public function test_a_stale_queue_reaches_the_summary(): void
+    {
+        DB::table('jobs')->insert([
+            'queue'        => 'imports',
+            'payload'      => json_encode(['displayName' => 'App\\Jobs\\ImportStravaActivityJob']),
+            'attempts'     => 0,
+            'reserved_at'  => null,
+            'available_at' => now()->subHour()->timestamp,
+            'created_at'   => now()->subHour()->timestamp,
+        ]);
+
+        $this->assertSame(['imports'], app(SystemHealth::class)->summary()['stale_queues']);
     }
 
     // ── Umgebung ─────────────────────────────────────────────────────────

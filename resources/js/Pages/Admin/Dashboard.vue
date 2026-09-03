@@ -14,7 +14,32 @@ const props = defineProps({
     coachDistribution:     Array,
     wellbeingTrend:        Array,
     recentUsers:           Array,
+    systemHealth:          Object,
 });
+
+/**
+ * Was auf /admin/system rot wäre — hier als eine Zeile.
+ *
+ * Eine Statusseite, die man aktiv aufrufen muss, wird genau dann nicht
+ * aufgerufen, wenn sie gebraucht wird: beim Ausbleiben des Strava-Imports
+ * hat tagelang niemand nachgesehen, weil niemand wusste, dass es etwas
+ * nachzusehen gab.
+ */
+const trouble = computed(() => {
+    const h = props.systemHealth ?? {};
+    const out = [];
+
+    if (h.stale_queues?.length)  out.push(`Queue steht: ${h.stale_queues.join(', ')}`);
+    if (h.failed)                out.push(`${h.failed} fehlgeschlagene Aufgabe(n)`);
+    if (h.stuck)                 out.push(`${h.stuck} hängende Plangenerierung(en)`);
+    if (h.plans_with_gaps)       out.push(`${h.plans_with_gaps} Plan/Pläne mit Lücken`);
+    if (h.orphans_planned)       out.push(`${h.orphans_planned} Einheit(en) ohne Plan`);
+
+    return out;
+});
+
+/** Eine stehende Queue ist ein Ausfall, alles andere eine Auffälligkeit. */
+const troubleIsSevere = computed(() => (props.systemHealth?.stale_queues?.length ?? 0) > 0);
 
 function formatDate(d) {
     if (!d) return '—';
@@ -68,6 +93,21 @@ const maxCoach  = computed(() => Math.max(...(props.coachDistribution?.map(c => 
         </template>
 
         <div class="space-y-8 px-4 py-4 sm:px-6 lg:py-6">
+
+            <!-- ── Systemstatus ──────────────────────────────────── -->
+            <Link
+                v-if="trouble.length"
+                :href="route('admin.system.index')"
+                class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-field border px-4 py-3 text-sm font-medium transition hover:opacity-90"
+                :class="troubleIsSevere
+                    ? 'bg-danger-soft border-danger/25 text-danger-ink'
+                    : 'bg-warn-soft border-warn/25 text-warn-ink'">
+                <span class="font-semibold">System</span>
+                <span v-for="(t, i) in trouble" :key="i" class="opacity-90">
+                    {{ t }}<span v-if="i < trouble.length - 1"> ·</span>
+                </span>
+                <span class="ml-auto text-xs underline">ansehen</span>
+            </Link>
 
             <!-- ── Plattform ─────────────────────────────────────── -->
             <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
