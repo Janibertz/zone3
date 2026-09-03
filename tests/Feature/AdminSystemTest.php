@@ -1,0 +1,257 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Event;
+use App\Models\TrainingPlan;
+use App\Models\TrainingSession;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Tests\TestCase;
+
+/**
+ * Der Systemstatus im Admin-Bereich.
+ *
+ * Er ist aus zwei Fehlersuchen entstanden, die beide unnötig lang gedauert
+ * haben, weil die Antwort nirgends sichtbar war:
+ *
+ *   · Nach dem Umbau des Strava-Webhooks kamen keine Aktivitäten mehr
+ *     herein. Ob der Job lief, ob er fehlschlug, woran — nicht abfragbar.
+ *     Die Ursache war ein Rückstau in der Queue.
+ *   · Im Trainingsplan fehlten zwei Tage komplett, während der Verlauf für
+ *     genau diese Tage eine Änderung meldete.
+ *
+ * Deshalb liest diese Seite durchgehend die Datenbank und nie das, was
+ * vorgesehen war.
+ */
+class AdminSystemTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function admin(): User
+    {
+        return User::factory()->create(['is_admin' => true]);
+    }
+
+    /** @return array{0: User, 1: TrainingPlan} */
+    private function athleteWithPlan(): array
+    {
+        $user = User::factory()->create();
+
+        $event = Event::create([
+            'user_id'             => $user->id,
+            'name'                => 'Zielrennen',
+            'event_date'          => now()->addDays(40),
+            'race_distance'       => 'marathon',
+            'priority'            => 'A',
+            'target_time_hours'   => 3,
+            'target_time_minutes' => 30,
+        ]);
+
+        $plan = TrainingPlan::create([
+            'user_id' => $user->id, 'event_id' => $event->id, 'sessions' => [], 'is_active' => true,
+        ]);
+
+        return [$user, $plan];
+    }
+
+    private function unit(User $user, TrainingPlan $plan, string $date): void
+    {
+        DB::table('training_sessions')->insert([
+            'user_id'          => $user->id,
+            'training_plan_id' => $plan->id,
+            'event_id'         => $plan->event_id,
+            'planned_date'     => $date,
+            'type'             => 'easy_run',
+            'title'            => 'Lauf',
+            'description'      => '',
+            'intensity'        => 'low',
+            'status'           => 'planned',
+            'sort_order'       => 0,
+            'created_at'       => now(),
+            'updated_at'       => now(),
+        ]);
+    }
+
+    // ── Zugang ───────────────────────────────────────────────────────────
+
+    public function test_a_normal_user_cannot_open_it(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->get('/admin/system')
+            ->assertForbidden();
+    }
+
+    public function test_an_admin_can_open_it(): void
+    {
+        $this->actingAs($this->admin())
+            ->get('/admin/system')
+            ->assertOk();
+    }
+
+    // ── Queues ───────────────────────────────────────────────────────────
+
+    /**
+     * Beide Queues stehen auf der Seite, auch wenn sie leer sind. „0 wartend"
+     * ist eine Aussage — eine fehlende Zeile ist keine, und genau die hätte
+     * bei der Webhook-Suche nichts geholfen.
+     */
+    public function test_both_queues_are_listed_even_when_empty(): void
+    {
+        $response = $this->actingAs($this->admin())->get('/admin/system');
+
+        $queues = collect($response->viewData('page')['props']['queues'])->pluck('queue');
+
+        $this->assertTrue($queues->contains('default'));
+        $this->assertTrue($queues->contains('imports'));
+    }
+
+    /**
+     * Eine Aufgabe, die lange wartet, heisst: der Worker dieser Queue
+     * arbeitet nicht. Das ist die Zahl, auf die es ankommt.
+     */
+    public function test_a_long_waiting_job_marks_its_queue_as_stale(): void
+    {
+        DB::table('jobs')->insert([
+            'queue'        => 'imports',
+            'payload'      => json_encode(['displayName' => 'App\\Jobs\\ImportStravaActivityJob']),
+            'attempts'     => 0,
+            'reserved_at'  => null,
+            'available_at' => now()->subMinutes(45)->timestamp,
+            'created_at'   => now()->subMinutes(45)->timestamp,
+        ]);
+
+        $response = $this->actingAs($this->admin())->get('/admin/system');
+
+        $imports = collect($response->viewData('page')['props']['queues'])->firstWhere('queue', 'imports');
+
+        $this->assertSame(1, $imports['pending']);
+        $this->assertTrue($imports['stale'], 'Eine 45 Minuten wartende Aufgabe muss auffallen');
+        $this->assertGreaterThanOrEqual(45, $imports['waiting_min']);
+    }
+
+    // ── Fehlgeschlagene Aufgaben ─────────────────────────────────────────
+
+    private function failedJob(string $uuid, string $class = 'App\\Jobs\\ImportStravaActivityJob'): void
+    {
+        DB::table('failed_jobs')->insert([
+            'uuid'       => $uuid,
+            'connection' => 'database',
+            'queue'      => 'imports',
+            'payload'    => json_encode(['displayName' => $class]),
+            'exception'  => "RuntimeException: Strava lieferte nichts aus.\n#0 irgendwo",
+            'failed_at'  => now(),
+        ]);
+    }
+
+    public function test_failed_jobs_show_their_first_line(): void
+    {
+        $this->failedJob(Str::uuid()->toString());
+
+        $props = $this->actingAs($this->admin())->get('/admin/system')->viewData('page')['props'];
+
+        $this->assertSame(1, $props['failedJobs']['total']);
+        $this->assertStringContainsString('Strava lieferte nichts aus', $props['failedJobs']['recent'][0]['reason']);
+        $this->assertStringNotContainsString('#0', $props['failedJobs']['recent'][0]['reason'], 'Der Stacktrace gehoert nicht in die Liste');
+    }
+
+    public function test_an_admin_can_remove_a_failed_entry(): void
+    {
+        $uuid = Str::uuid()->toString();
+        $this->failedJob($uuid);
+
+        $this->actingAs($this->admin())
+            ->delete("/admin/system/failed/{$uuid}")
+            ->assertRedirect();
+
+        $this->assertSame(0, DB::table('failed_jobs')->count());
+    }
+
+    // ── Plan-Lücken ──────────────────────────────────────────────────────
+
+    /**
+     * Der gemeldete Fall: Dienstag belegt, Mittwoch belegt, Donnerstag
+     * nichts, Freitag wieder belegt.
+     */
+    public function test_a_hole_inside_a_plan_is_found(): void
+    {
+        [$user, $plan] = $this->athleteWithPlan();
+
+        $this->unit($user, $plan, now()->addDay()->toDateString());
+        // Der Tag dazwischen bleibt leer.
+        $this->unit($user, $plan, now()->addDays(3)->toDateString());
+
+        $props = $this->actingAs($this->admin())->get('/admin/system')->viewData('page')['props'];
+
+        $gaps = collect($props['planHealth']['gaps'])->firstWhere('user_id', $user->id);
+
+        $this->assertNotNull($gaps, 'Das Loch muss auffallen');
+        $this->assertContains(now()->addDays(2)->toDateString(), $gaps['dates']);
+    }
+
+    public function test_a_plan_without_holes_is_not_reported(): void
+    {
+        [$user, $plan] = $this->athleteWithPlan();
+
+        foreach ([1, 2, 3] as $offset) {
+            $this->unit($user, $plan, now()->addDays($offset)->toDateString());
+        }
+
+        $props = $this->actingAs($this->admin())->get('/admin/system')->viewData('page')['props'];
+
+        $this->assertNull(collect($props['planHealth']['gaps'])->firstWhere('user_id', $user->id));
+    }
+
+    /**
+     * Das Schliessen kostet bewusst keinen Modellaufruf. Ein Ruhetag sagt
+     * „hier steht kein Training"; ein Loch sagt gar nichts.
+     */
+    public function test_gaps_can_be_closed_with_rest_days(): void
+    {
+        [$user, $plan] = $this->athleteWithPlan();
+
+        $this->unit($user, $plan, now()->addDay()->toDateString());
+        $this->unit($user, $plan, now()->addDays(3)->toDateString());
+
+        $this->actingAs($this->admin())
+            ->post("/admin/system/plan-gaps/{$user->id}")
+            ->assertRedirect();
+
+        $filled = TrainingSession::where('user_id', $user->id)
+            ->whereDate('planned_date', now()->addDays(2)->toDateString())
+            ->first();
+
+        $this->assertNotNull($filled);
+        $this->assertSame('rest', $filled->type);
+    }
+
+    /**
+     * Einheiten ohne Plan sind in der Datenbank und trotzdem unsichtbar —
+     * die Planseite lädt nur Einheiten des aktiven Plans. Genau davon lagen
+     * fünf im Bestand, ohne dass es jemand wissen konnte.
+     */
+    public function test_sessions_without_a_plan_are_counted(): void
+    {
+        [$user, $plan] = $this->athleteWithPlan();
+        $this->unit($user, $plan, now()->addDay()->toDateString());
+
+        TrainingSession::where('user_id', $user->id)->update(['training_plan_id' => null]);
+
+        $props = $this->actingAs($this->admin())->get('/admin/system')->viewData('page')['props'];
+
+        $this->assertSame(1, $props['planHealth']['orphans_total']);
+        $this->assertSame(1, $props['planHealth']['orphans_planned']);
+    }
+
+    // ── Umgebung ─────────────────────────────────────────────────────────
+
+    public function test_the_environment_block_names_both_models(): void
+    {
+        $props = $this->actingAs($this->admin())->get('/admin/system')->viewData('page')['props'];
+
+        $this->assertSame(config('services.openai.model'), $props['environment']['model']);
+        $this->assertSame(config('services.openai.model_mini'), $props['environment']['model_mini']);
+    }
+}

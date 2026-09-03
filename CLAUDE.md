@@ -341,6 +341,22 @@ Two separate connection paths — do not confuse them:
 
 Routes in `routes/admin.php` — protected by `is_admin` on User. Manual threshold recalculation, AI log viewer (all OpenAI calls with tokens + duration), coach personality editor, push test sender, settings page showing both models.
 
+### `/admin/system` — does the machine run
+
+The rest of the admin answers "how is the product doing": users, activities, AI cost, coach split. Twice in one week the question was "is the system working", and there was no way to ask it — the Strava import stopped and nothing showed whether the job ran or why it failed; two days vanished from a plan while the revision history reported a change for exactly those days.
+
+`AdminSystemController` reads the database and never the intention:
+
+- **Queues** — pending per queue, and the age of the oldest waiting job. Age is the signal, not volume: a job waiting ten minutes means that queue's worker is not running. `default` and `imports` are always listed, empty or not.
+- **Failed jobs** — grouped by class (a class appearing four times is a bug, not luck), with the first line of the exception, plus retry / forget / retry-all / flush.
+- **Plan health** — a gap is a date *inside a plan's own span* with no session at all; no skeleton and no model call needed. Plus sessions with `training_plan_id = NULL` (present in the database, invisible to the athlete) and generations stuck past `plan_generating_at`.
+- **Integrations** — per athlete, when Strava last delivered. Connection state stays green while nothing arrives; the date is the honest signal.
+- **Environment** — PHP, Laravel, drivers, DB size, both models, and whether debug is on.
+
+"Mit Ruhetagen schliessen" fills a plan's gaps **without an AI call** — cheap and honest. Real repair with real sessions is a regeneration.
+
+`information_schema` is queried only when the driver is MySQL; under SQLite the tests would otherwise error rather than return nothing.
+
 ## Push Notifications
 
 VAPID-based Web Push (no Firebase). Subscriptions in `push_subscriptions`. Scheduler command `SendWellbeingReminders` runs every minute via polling loop. Expired subscriptions (HTTP 410) are auto-deleted.
