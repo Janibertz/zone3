@@ -253,8 +253,10 @@ function daysAgo(value) {
                 <div class="px-6 py-4 border-b border-line">
                     <h2 class="text-sm font-semibold text-ink-2">Strava</h2>
                     <p class="text-xs text-ink-3 mt-0.5">
-                        Die Frage ist nicht, ob verbunden — die bleibt grün, auch wenn seit Tagen nichts
-                        mehr ankommt. Die Frage ist, wann zuletzt etwas importiert wurde.
+                        „Verbunden" heisst nur, dass ein Refresh-Token vorliegt — der Zugangstoken
+                        selbst laeuft alle paar Stunden ab und wird beim naechsten Abruf automatisch
+                        erneuert; das ist kein Fehler. Die Frage, auf die es ankommt, steht rechts:
+                        wann zuletzt etwas angekommen ist.
                     </p>
                 </div>
 
@@ -263,7 +265,7 @@ function daysAgo(value) {
                         <thead class="text-xs text-ink-3 border-b border-line">
                             <tr>
                                 <th class="px-6 py-2 text-left font-medium">Athlet</th>
-                                <th class="px-3 py-2 text-left font-medium">Token</th>
+                                <th class="px-3 py-2 text-left font-medium">Verbindung</th>
                                 <th class="px-3 py-2 text-left font-medium">Letzte Aktivität</th>
                                 <th class="px-3 py-2 text-left font-medium">Zuletzt importiert</th>
                                 <th class="px-6 py-2 text-right font-medium">Gesamt</th>
@@ -277,8 +279,8 @@ function daysAgo(value) {
                                     </Link>
                                 </td>
                                 <td class="px-3 py-3">
-                                    <span v-if="s.token_expired" class="px-2 py-0.5 rounded-full text-xs bg-warn-soft text-warn-ink">abgelaufen</span>
-                                    <span v-else class="px-2 py-0.5 rounded-full text-xs bg-success-soft text-success-ink">gültig</span>
+                                    <span v-if="s.connected" class="px-2 py-0.5 rounded-full text-xs bg-success-soft text-success-ink">verbunden</span>
+                                    <span v-else class="px-2 py-0.5 rounded-full text-xs bg-danger-soft text-danger-ink">neu verbinden</span>
                                 </td>
                                 <td class="px-3 py-3 whitespace-nowrap"
                                     :class="daysAgo(s.last_activity_at) > 10 ? 'text-warn-ink font-medium' : 'text-ink-3'">

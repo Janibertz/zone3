@@ -354,7 +354,7 @@ The rest of the admin answers "how is the product doing": users, activities, AI 
 - **Queues** — pending per queue, and the age of the oldest waiting job. Age is the signal, not volume: a job waiting ten minutes means that queue's worker is not running. `default` and `imports` are always listed, empty or not.
 - **Failed jobs** — grouped by class (a class appearing four times is a bug, not luck), with the first line of the exception, plus retry / forget / retry-all / flush.
 - **Plan health** — a gap is a date *inside a plan's own span* with no session at all; no skeleton and no model call needed. Plus sessions with `training_plan_id = NULL` (present in the database, invisible to the athlete) and generations stuck past `plan_generating_at`.
-- **Integrations** — per athlete, when Strava last delivered. Connection state stays green while nothing arrives; the date is the honest signal.
+- **Integrations** — per athlete, when Strava last delivered. The date is the honest signal; the connection badge is not, and it does **not** show the access token's expiry. Strava's access token lasts six hours and `StravaService::fetchActivity()` renews it on the next call, so "expired" is the normal state for anyone who has not uploaded today — a warning colour on a healthy system, which teaches you to ignore warnings. The badge reports whether a **refresh token** exists; without one nobody can obtain a new access token and the athlete has to reconnect.
 - **Environment** — PHP, Laravel, drivers, DB size, both models, and whether debug is on.
 
 "Mit Ruhetagen schliessen" fills a plan's gaps **without an AI call** — cheap and honest. Real repair with real sessions is a regeneration.

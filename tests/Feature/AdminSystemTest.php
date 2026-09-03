@@ -368,6 +368,54 @@ class AdminSystemTest extends TestCase
         $this->assertSame([], $diag['orphans']);
     }
 
+    // ── Strava ───────────────────────────────────────────────────────────
+
+    /**
+     * Ein abgelaufener Zugangstoken ist KEIN Fehler.
+     *
+     * Strava gibt sechs Stunden, und `StravaService::fetchActivity()` holt
+     * beim naechsten Abruf selbst einen neuen. Wer laenger nichts hochlaedt,
+     * haette hier sonst dauerhaft eine Warnung stehen — und eine Warnung,
+     * die immer steht, liest bald niemand mehr.
+     */
+    public function test_an_expired_access_token_is_not_a_problem(): void
+    {
+        $user = User::factory()->create();
+
+        \App\Models\StravaAccount::create([
+            'user_id'          => $user->id,
+            'strava_id'        => 1234,
+            'access_token'     => 'alt',
+            'refresh_token'    => 'noch-da',
+            'token_expires_at' => now()->subDays(3),
+        ]);
+
+        $strava = app(SystemHealth::class)->integrations()['strava'];
+
+        $this->assertTrue($strava[0]['connected'], 'Mit Refresh-Token ist die Verbindung in Ordnung');
+    }
+
+    /**
+     * Kaputt ist sie erst ohne Refresh-Token — dann kommt niemand mehr an
+     * einen neuen Zugang, und der Athlet muss Strava neu verbinden.
+     */
+    public function test_a_missing_refresh_token_is(): void
+    {
+        $user = User::factory()->create();
+
+        \App\Models\StravaAccount::create([
+            'user_id'          => $user->id,
+            'strava_id'        => 5678,
+            'access_token'     => '',
+            'refresh_token'    => '',
+            'token_expires_at' => now()->addHours(5),
+        ]);
+
+        $strava = app(SystemHealth::class)->integrations()['strava'];
+
+        $this->assertFalse($strava[0]['connected'], 'Ohne Refresh-Token hilft auch ein gueltiger Zugang nicht lange');
+    }
+
     // ── Umgebung ─────────────────────────────────────────────────────────
 
     public function test_the_environment_block_names_both_models(): void

@@ -231,13 +231,24 @@ class SystemHealth
         $strava = StravaAccount::with('user:id,name')
             ->get()
             ->map(function (StravaAccount $a) use ($lastActivity, $lastImport) {
-                $expired = $a->token_expires_at && $a->token_expires_at->isPast();
+                // NICHT die Frist des Access-Tokens. Der ist kurzlebig —
+                // Strava gibt sechs Stunden — und wird beim naechsten Abruf
+                // automatisch erneuert (StravaService::fetchActivity). Wer
+                // laenger als das nichts hochgeladen hat, haette hier immer
+                // „abgelaufen" stehen: eine Warnfarbe an einem voellig
+                // normalen Zustand, und damit ein Alarm, den man lernt zu
+                // ignorieren.
+                //
+                // Kaputt ist die Verbindung erst ohne Refresh-Token — dann
+                // kann sich niemand mehr einen neuen Zugang holen, und der
+                // Athlet muss Strava neu verbinden.
+                $connected = filled($a->refresh_token);
 
                 return [
                     'user_id'      => $a->user_id,
                     'name'         => $a->user?->name ?? "Nutzer {$a->user_id}",
                     'strava_id'    => $a->strava_id,
-                    'token_expired' => $expired,
+                    'connected'    => $connected,
                     'expires_at'   => $a->token_expires_at?->toIso8601String(),
                     'last_activity_at' => $lastActivity[$a->user_id]->last_at ?? null,
                     'last_import_at'   => $lastImport[$a->user_id]->imported_at ?? null,
