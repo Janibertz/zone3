@@ -335,12 +335,34 @@ The webhook used to be the **only** automatic path, which meant a core feature h
 
 It only touches what is genuinely new: an activity the webhook already imported is skipped entirely — no second match, no second review, no second push. Accounts without a refresh token are skipped with a log line, and one failing account cannot stop the others. Cost is one list call plus one detail call per new activity; with four athletes that is 24 calls an hour against Strava's 200 per 15 minutes.
 
+### Cloudflare sits in front of zone3.run — and it broke the webhook
+
+**The outage that cost several sessions had nothing to do with this code.** Cloudflare's **Bot Fight Mode** was blocking Strava's servers. The endpoint answered every request from a normal network (200 in 0.35 s, correct challenge echo), so from the inside everything looked healthy — and the app cannot see that a request never arrived.
+
+What finally proved it: re-registering the subscription failed with Strava's own verdict.
+
+```
+{"field":"callback url","code":"GET to callback URL does not return 200"}
+```
+
+The identical GET from a laptop returned `{"hub.challenge":"…"}` and 200. Same URL, same parameters, different source IP.
+
+If webhook deliveries ever stop again, check the edge before the code:
+
+- `curl -sD- https://zone3.run/strava/webhook` — a `Server: cloudflare` / `CF-RAY` header means the edge can reject before Laravel ever runs
+- Bot Fight Mode ignores WAF skip rules; it has to be **off** (Security → Bots)
+- A WAF custom rule with action **Skip** on `URI Path equals /strava/webhook` covers the managed rules, Browser Integrity Check and Security Level
+
+**Never delete the subscription before confirming a new one can be created** — Strava allows exactly one, and a failed re-create leaves none at all. Test with a create against the same callback URL first, or accept that the scheduled sync is the only path until it works.
+
 **Checking the subscription** (read-only, answers "is Strava even calling us?"):
 
 ```bash
 curl -sG https://www.strava.com/api/v3/push_subscriptions \
   -d client_id=… -d client_secret=…
 ```
+
+And `strava_webhook_events` answers it from the other side: every call from Strava is recorded **before any filtering**, with its outcome, and shown on `/admin/system`. It lives in the database on purpose — production logs to the container stream, not to a file, so `/admin/system/logs` finds nothing there.
 
 An empty array means no subscription exists and no event will ever arrive — re-register with `php artisan strava:subscribe-webhook`.
 
