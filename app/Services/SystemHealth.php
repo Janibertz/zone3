@@ -391,6 +391,43 @@ class SystemHealth
     }
 
     /**
+     * Die letzten Anrufe von Strava — die Frage, die tagelang offen war.
+     *
+     * Produktion loggt in den Container-Stream, nicht in eine Datei; die
+     * Log-Ansicht findet dort nichts. Diese Zeilen stehen deshalb in der
+     * Datenbank und beantworten unabhaengig vom Logging: kommt ueberhaupt
+     * etwas an, und was wird daraus?
+     *
+     * @return array<string, mixed>
+     */
+    public function webhookHits(int $limit = 15): array
+    {
+        if (! Schema::hasTable('strava_webhook_events')) {
+            return ['total' => 0, 'last_at' => null, 'recent' => []];
+        }
+
+        $recent = \App\Models\StravaWebhookEvent::with('user:id,name')
+            ->latest('id')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($e) => [
+                'at'      => $e->created_at?->toIso8601String(),
+                'aspect'  => trim(($e->object_type ?? '?') . ' / ' . ($e->aspect_type ?? '?')),
+                'owner'   => $e->owner_id,
+                'user'    => $e->user?->name,
+                'outcome' => $e->outcome,
+                'label'   => \App\Models\StravaWebhookEvent::OUTCOME_LABELS[$e->outcome] ?? ($e->outcome ?? 'offen'),
+                'note'    => $e->note,
+            ]);
+
+        return [
+            'total'   => \App\Models\StravaWebhookEvent::count(),
+            'last_at' => \App\Models\StravaWebhookEvent::max('created_at'),
+            'recent'  => $recent->all(),
+        ];
+    }
+
+    /**
      * Die Kurzfassung fuers Dashboard — genug, um zu entscheiden, ob man
      * hinsehen muss, und nicht mehr.
      *

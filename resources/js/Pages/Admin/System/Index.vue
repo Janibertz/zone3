@@ -10,6 +10,7 @@ const props = defineProps({
     integrations: Object,
     environment:  Object,
     summary:      Object,
+    webhookHits:  Object,
 });
 
 const page  = usePage();
@@ -123,6 +124,57 @@ function daysAgo(value) {
                             älteste seit {{ q.waiting_min }} min
                         </p>
                     </div>
+                </div>
+            </div>
+
+            <!-- ── Ruft Strava an? ───────────────────────────────────── -->
+            <div class="bg-surface rounded-card shadow-card">
+                <div class="px-6 py-4 border-b border-line">
+                    <h2 class="text-sm font-semibold text-ink-2">Strava-Webhook</h2>
+                    <p class="text-xs text-ink-3 mt-0.5">
+                        Jeder Anruf von Strava, festgehalten bevor irgendetwas gefiltert wird — in der
+                        Datenbank, nicht im Log: der Container schreibt in seinen Ausgabestrom, nicht in
+                        eine Datei. Steht hier nichts, ruft Strava nicht an, und dann liegt es nicht an
+                        Zone3.
+                    </p>
+                </div>
+
+                <div class="px-6 py-4">
+                    <p v-if="!webhookHits.total" class="text-sm text-warn-ink font-medium">
+                        Noch kein einziger Anruf verzeichnet.
+                    </p>
+                    <p v-else class="text-sm text-ink">
+                        {{ webhookHits.total }} Anruf(e), zuletzt {{ when(webhookHits.last_at) }}
+                    </p>
+                </div>
+
+                <div v-if="webhookHits.recent.length" class="overflow-x-auto border-t border-line">
+                    <table class="w-full text-sm">
+                        <thead class="text-xs text-ink-3 border-b border-line">
+                            <tr>
+                                <th class="px-6 py-2 text-left font-medium">Wann</th>
+                                <th class="px-3 py-2 text-left font-medium">Ereignis</th>
+                                <th class="px-3 py-2 text-left font-medium">Athlet</th>
+                                <th class="px-6 py-2 text-left font-medium">Ergebnis</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line">
+                            <tr v-for="(h, i) in webhookHits.recent" :key="i">
+                                <td class="px-6 py-2 text-ink-3 whitespace-nowrap">{{ when(h.at) }}</td>
+                                <td class="px-3 py-2 text-ink-3 whitespace-nowrap">{{ h.aspect }}</td>
+                                <td class="px-3 py-2 text-ink whitespace-nowrap">{{ h.user ?? h.owner ?? '—' }}</td>
+                                <td class="px-6 py-2">
+                                    <span class="px-2 py-0.5 rounded-full text-xs"
+                                        :class="h.outcome === 'imported'
+                                            ? 'bg-success-soft text-success-ink'
+                                            : 'bg-surface-3 text-ink-3'">
+                                        {{ h.label }}
+                                    </span>
+                                    <span v-if="h.note" class="ml-2 text-xs text-ink-3">{{ h.note }}</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 

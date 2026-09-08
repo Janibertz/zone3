@@ -9,6 +9,7 @@ use App\Services\WebPushService;
 use Illuminate\Support\Facades\Log;
 use App\Models\Activity;
 use App\Models\StravaAccount;
+use App\Models\StravaWebhookEvent;
 use App\Services\BestEffortService;
 use App\Services\StravaImportService;
 use App\Services\StravaService;
@@ -226,17 +227,26 @@ class StravaController extends Controller
 
         // Vor jeder Filterung: dass ueberhaupt jemand angeklopft hat, ist
         // die erste Information, die man bei einer Stoerung braucht.
-        Log::info('Strava-Webhook empfangen', [
+        // In die DATENBANK, nicht nur ins Log: Produktion schreibt in den
+        // Container-Stream, nicht in eine Datei. Die Frage „ruft Strava
+        // ueberhaupt an?" war deshalb tagelang nicht zu beantworten.
+        $event = StravaWebhookEvent::create([
             'object_type' => $data['object_type'] ?? null,
             'aspect_type' => $data['aspect_type'] ?? null,
             'owner_id'    => $data['owner_id'] ?? null,
             'object_id'   => $data['object_id'] ?? null,
         ]);
 
+        Log::info('Strava-Webhook empfangen', $event->only(
+            'object_type', 'aspect_type', 'owner_id', 'object_id',
+        ));
+
         if (
             ($data['object_type'] ?? '') !== 'activity' ||
             ($data['aspect_type'] ?? '') !== 'create'
         ) {
+            $event->update(['outcome' => StravaWebhookEvent::OUTCOME_WRONG_TYPE]);
+
             return response('OK');
         }
 
@@ -246,6 +256,8 @@ class StravaController extends Controller
             Log::warning('Strava-Webhook: kein Konto zu dieser owner_id', [
                 'owner_id' => $data['owner_id'] ?? null,
             ]);
+
+            $event->update(['outcome' => StravaWebhookEvent::OUTCOME_UNKNOWN_OWNER]);
 
             return response('OK');
         }
@@ -258,6 +270,11 @@ class StravaController extends Controller
                 'object_id' => $data['object_id'] ?? null,
             ]);
 
+            $event->update([
+                'user_id' => $account->user_id,
+                'outcome' => StravaWebhookEvent::OUTCOME_NOT_FETCHABLE,
+            ]);
+
             return response('OK');
         }
 
@@ -267,6 +284,11 @@ class StravaController extends Controller
         // Der Athlet hat sie in Zone3 geloescht — der Grabstein haelt sie
         // draussen.
         if (! $activity) {
+            $event->update([
+                'user_id' => $userId,
+                'outcome' => StravaWebhookEvent::OUTCOME_TOMBSTONED,
+            ]);
+
             return response('OK');
         }
 
@@ -305,6 +327,12 @@ class StravaController extends Controller
             'strava_id' => $activity->strava_id,
             'type'      => $activity->type,
             'name'      => $activity->name,
+        ]);
+
+        $event->update([
+            'user_id' => $userId,
+            'outcome' => StravaWebhookEvent::OUTCOME_IMPORTED,
+            'note'    => $activity->name,
         ]);
 
         return response('OK');

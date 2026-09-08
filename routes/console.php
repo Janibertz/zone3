@@ -56,6 +56,11 @@ Schedule::command('livetrack:poll')->everyMinute()->withoutOverlapping();
 // aus, merkt es niemand — sechs Tage lang kam nichts an, waehrend die
 // Subscription gueltig war und der Endpunkt in 0,35 s mit 200 antwortete.
 // Der Webhook bleibt der schnelle Weg; das hier ist das Netz darunter.
-// Ein API-Aufruf je Konto und Durchlauf, Stravas Kontingent liegt bei 200
-// je 15 Minuten.
-Schedule::command('strava:sync')->everyTenMinutes()->withoutOverlapping();
+// Alle fuenf Minuten, nicht oefter — die Rechnung: ein Listenaufruf je Konto
+// und Durchlauf. Bei vier Konten sind das 12 Aufrufe je 15 Minuten (Limit
+// 200) und 1152 am Tag (Limit 2000). Alle zwei Minuten waeren 2880 taeglich
+// und damit ueber dem Tageslimit — dann kaeme gar nichts mehr.
+//
+// Das ist ein Notnagel, kein Ziel. Sobald Stravas Zustellung wieder
+// durchkommt, ist die Aktivitaet in Sekunden da statt in Minuten.
+Schedule::command('strava:sync')->everyFiveMinutes()->withoutOverlapping();

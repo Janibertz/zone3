@@ -42,6 +42,7 @@ class AdminSystemController extends Controller
             'environment'  => $this->health->environment(),
             // Dasselbe Urteil wie auf der Uebersicht — nicht ein zweites.
             'summary'      => $this->health->summary(),
+            'webhookHits'  => $this->health->webhookHits(),
         ]);
     }
 
