@@ -178,6 +178,7 @@ const swapCategory = ref(null);
 
 async function openSwap() {
     swapOpen.value = true;
+    swapDetail.value = null;
 
     if (Object.keys(swapGroups.value).length) return;
 
@@ -193,6 +194,15 @@ async function openSwap() {
     }
 }
 
+/**
+ * Erst ansehen, dann entscheiden.
+ *
+ * Gemeldet: „Ich kann mir die Workout-Struktur nicht angucken und ob in
+ * der Beschreibung noch etwas steht." Eine Einheit zu übernehmen, ohne zu
+ * wissen, was drinsteht, ist ein Blindkauf — und sie steht danach im Plan.
+ */
+const swapDetail = ref(null);
+
 function applyWorkout(workout) {
     const session = props.todayPlanSession;
     if (!session || swapBusy.value) return;
@@ -200,10 +210,28 @@ function applyWorkout(workout) {
     swapBusy.value = workout.id;
     router.post(route('workouts.apply-to-session', [session.id, workout.id]), {}, {
         preserveScroll: true,
-        onSuccess: () => { swapOpen.value = false; },
+        onSuccess: () => { swapOpen.value = false; swapDetail.value = null; },
         onFinish:  () => { swapBusy.value = null; },
     });
 }
+
+/** Ein Abschnitt in einer Zeile: „5× 1000 m · 4 min · 4:10 /km". */
+function stepLine(step) {
+    return [
+        step.duration_min ? `${step.duration_min} min` : null,
+        step.pace_target ? `${step.pace_target} /km` : null,
+        step.zone ? `Zone ${step.zone}` : null,
+    ].filter(Boolean).join(' · ');
+}
+
+const stepTone = {
+    warmup:   'bg-info-soft text-info-ink',
+    work:     'bg-accent-soft text-accent-ink',
+    rest:     'bg-surface-2 text-ink-3',
+    cooldown: 'bg-success-soft text-success-ink',
+};
+
+const stepLabel = { warmup: 'Aufwärmen', work: 'Belastung', rest: 'Pause', cooldown: 'Auslaufen' };
 
 /** „48 min · 9,4 km · 4:22 /km" — nur was gerechnet werden konnte. */
 function workoutSummary(w) {
@@ -2436,6 +2464,76 @@ async function saveWeek() {
                     für alle sichtbar machen.
                 </p>
 
+                <!-- ── Detailansicht: erst ansehen, dann entscheiden ── -->
+                <template v-if="swapDetail">
+                    <button class="text-[13px] text-ink-3 hover:text-ink" @click="swapDetail = null">
+                        ← Zurück zur Auswahl
+                    </button>
+
+                    <div>
+                        <h3 class="text-[17px] font-semibold text-ink">{{ swapDetail.name }}</h3>
+                        <p class="mt-0.5 text-[13px] text-ink-3">
+                            {{ swapTypes[swapDetail.type] ?? swapDetail.type }} · von {{ swapDetail.author }}
+                            <span v-if="swapDetail.times_used"> · {{ swapDetail.times_used }}× genutzt</span>
+                        </p>
+                    </div>
+
+                    <div class="flex flex-wrap gap-3 rounded-field bg-surface-2 px-3 py-2 text-[13px]">
+                        <span v-if="swapDetail.duration_min">
+                            <span class="font-semibold text-ink">{{ swapDetail.duration_min }}</span> min
+                        </span>
+                        <span v-if="swapDetail.distance_km">
+                            <span class="font-semibold text-ink">{{ swapDetail.distance_km }}</span> km
+                        </span>
+                        <span v-if="swapDetail.pace_target">
+                            <span class="font-semibold text-ink">{{ swapDetail.pace_target }}</span> /km
+                        </span>
+                    </div>
+
+                    <p v-if="swapDetail.description" class="whitespace-pre-line text-[14px] text-ink-2">
+                        {{ swapDetail.description }}
+                    </p>
+                    <p v-else class="text-[13px] text-ink-3 italic">Keine Beschreibung hinterlegt.</p>
+
+                    <!-- Die Struktur, Abschnitt für Abschnitt. -->
+                    <div v-if="swapDetail.steps?.length" class="space-y-1.5">
+                        <p class="text-[13px] font-medium text-ink-2">Ablauf</p>
+
+                        <div v-for="(st, i) in swapDetail.steps" :key="i"
+                            class="flex items-baseline gap-2 rounded-field bg-surface px-3 py-2">
+                            <span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                                :class="stepTone[st.type] ?? 'bg-surface-2 text-ink-3'">
+                                {{ stepLabel[st.type] ?? st.type }}
+                            </span>
+                            <div class="min-w-0">
+                                <p class="text-[14px] text-ink">
+                                    <span v-if="st.repetitions" class="font-semibold">{{ st.repetitions }}× </span>{{ st.label }}
+                                </p>
+                                <p class="text-[12px] text-ink-3">{{ stepLine(st) }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="swapDetail.tags?.length" class="flex flex-wrap gap-1">
+                        <span v-for="t in swapDetail.tags" :key="t"
+                            class="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-ink-3">{{ t }}</span>
+                    </div>
+
+                    <div class="flex gap-2 pt-1">
+                        <AppButton :disabled="swapBusy !== null" @click="applyWorkout(swapDetail)">
+                            Für heute übernehmen
+                        </AppButton>
+                        <AppButton variant="secondary" :disabled="swapBusy !== null" @click="swapDetail = null">
+                            Doch nicht
+                        </AppButton>
+                    </div>
+
+                    <p class="text-[12px] text-ink-3">
+                        Ersetzt deine heutige Einheit „{{ props.todayPlanSession?.title }}“ und bleibt dann stehen —
+                        auch wenn der Plan neu berechnet wird.
+                    </p>
+                </template>
+
                 <template v-else>
                     <!-- Nach Lauftyp: die Frage lautet „ich habe Bock auf Intervalle", nicht
                          „ich suche Workout 47". -->
@@ -2454,9 +2552,8 @@ async function saveWeek() {
                     <div class="space-y-2">
                         <button
                             v-for="w in (swapGroups[swapCategory] ?? [])" :key="w.id"
-                            class="w-full rounded-card border border-line bg-surface px-4 py-3 text-left transition-colors hover:bg-surface-2 disabled:opacity-50"
-                            :disabled="swapBusy !== null"
-                            @click="applyWorkout(w)">
+                            class="w-full rounded-card border border-line bg-surface px-4 py-3 text-left transition-colors hover:bg-surface-2"
+                            @click="swapDetail = w">
                             <div class="flex items-baseline justify-between gap-2">
                                 <span class="text-[15px] font-medium text-ink">{{ w.name }}</span>
                                 <span class="shrink-0 text-[12px] text-ink-3">von {{ w.author }}</span>
