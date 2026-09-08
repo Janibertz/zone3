@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use App\Services\LogReader;
 use App\Services\SystemHealth;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -40,6 +42,24 @@ class AdminSystemController extends Controller
             'environment'  => $this->health->environment(),
             // Dasselbe Urteil wie auf der Uebersicht — nicht ein zweites.
             'summary'      => $this->health->summary(),
+        ]);
+    }
+
+    /**
+     * Das Anwendungslog, lesbar ohne Container-Zugang.
+     *
+     * Dreimal in einer Woche hing eine Fehlersuche daran, dass die Antwort
+     * im Log stand und niemand drankam. „Ruft Strava ueberhaupt an?" war
+     * zwei Sitzungen lang eine Zeile entfernt.
+     */
+    public function logs(Request $request, LogReader $reader): Response
+    {
+        return Inertia::render('Admin/System/Logs', [
+            'log'     => $reader->tail(
+                search: $request->string('q')->toString() ?: null,
+                level: $request->string('level')->toString() ?: null,
+            ),
+            'filters' => $request->only('q', 'level'),
         ]);
     }
 

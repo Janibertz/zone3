@@ -374,6 +374,17 @@ A warn-coloured banner sits on every page while it runs (`auth.impersonating` is
 
 From a report: "ich habe keine Möglichkeit eine Aktivität zu löschen … noch nicht mal im Admin Bereich." The athlete can now delete their own; an admin still saw nobody else's. Filter by athlete, sport or name; the list shows how many training sessions hang on each activity, because deleting one with a session attached changes the plan rather than just tidying up. Deletion goes through `ActivityDeletionService` — never a bare `delete()`, or the next Strava sync brings it back.
 
+### `/admin/system/logs` — the application log, without a container
+
+Three debugging sessions in one week stalled because the answer was in the log and nobody could reach it. "Is Strava even calling us?" cost two long sessions and was one line away the whole time.
+
+`LogReader` tails the newest `storage/logs/laravel*.log`. Two things matter when reading a log file, and both are encoded:
+
+- **Never read the whole thing.** The file grows without bound; a `file_get_contents` on 200 MB would block the web process — the same class of mistake as the synchronous webhook. A 512 KB window from the end, and the page says when it truncated.
+- **An entry is not a line.** A stack trace brings a hundred continuation lines; they belong to the entry above, not beside it. Otherwise the view is noise.
+
+Full-text search covers message *and* context (`owner_id`, `user_id`, `strava_id` live there), plus a level filter and one-click shortcuts for the questions actually asked — Strava webhook, Strava import, plan, push.
+
 ### `/admin/system` — does the machine run
 
 The rest of the admin answers "how is the product doing": users, activities, AI cost, coach split. Twice in one week the question was "is the system working", and there was no way to ask it — the Strava import stopped and nothing showed whether the job ran or why it failed; two days vanished from a plan while the revision history reported a change for exactly those days.

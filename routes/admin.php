@@ -38,6 +38,7 @@ Route::delete('/activities/{activity}',            [AdminActivityController::cla
 
 // Systemstatus — Queue, fehlgeschlagene Aufgaben, Plan-Luecken, Anbindungen.
 Route::get('/system',                         [AdminSystemController::class, 'index'])         ->name('system.index');
+Route::get('/system/logs',                    [AdminSystemController::class, 'logs'])          ->name('system.logs');
 Route::post('/system/failed/retry-all',       [AdminSystemController::class, 'retryAllFailed'])->name('system.failed.retry-all');
 Route::delete('/system/failed',               [AdminSystemController::class, 'flushFailed'])   ->name('system.failed.flush');
 Route::post('/system/failed/{uuid}/retry',    [AdminSystemController::class, 'retryFailed'])   ->name('system.failed.retry');

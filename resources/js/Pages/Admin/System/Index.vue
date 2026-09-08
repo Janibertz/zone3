@@ -91,8 +91,10 @@ function daysAgo(value) {
             </div>
 
             <!-- ── Ein Satz zum Zustand ──────────────────────────────── -->
-            <div class="px-4 py-3 border rounded-field text-sm font-medium" :class="toneClass[headline.tone]">
-                {{ headline.text }}
+            <div class="flex flex-wrap items-center gap-3 px-4 py-3 border rounded-field text-sm font-medium"
+                :class="toneClass[headline.tone]">
+                <span>{{ headline.text }}</span>
+                <Link :href="route('admin.system.logs')" class="ml-auto text-xs underline">Log ansehen</Link>
             </div>
 
             <!-- ── Queues ────────────────────────────────────────────── -->
