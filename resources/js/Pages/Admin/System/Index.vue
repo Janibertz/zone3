@@ -345,6 +345,7 @@ function daysAgo(value) {
                                 <td class="px-3 py-3">
                                     <span v-if="s.connected" class="px-2 py-0.5 rounded-full text-xs bg-success-soft text-success-ink">verbunden</span>
                                     <span v-else class="px-2 py-0.5 rounded-full text-xs bg-danger-soft text-danger-ink">neu verbinden</span>
+                                    <span v-if="s.error" class="block mt-1 text-xs text-danger-ink">{{ s.error }}</span>
                                 </td>
                                 <td class="px-3 py-3 whitespace-nowrap"
                                     :class="daysAgo(s.last_activity_at) > 10 ? 'text-warn-ink font-medium' : 'text-ink-3'">

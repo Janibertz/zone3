@@ -23,19 +23,19 @@ use Illuminate\Support\Facades\Log;
  * während die Subscription gültig war, der Endpunkt in 0,35 s mit 200
  * antwortete und der Athlet lief.
  *
- * Dieser Befehl holt alle zehn Minuten selbst. Er ersetzt den Webhook
+ * Dieser Befehl holt alle fünf Minuten selbst. Er ersetzt den Webhook
  * nicht — der bleibt der schnelle Weg, eine Aktivität ist damit binnen
  * Sekunden da. Er ist das Netz darunter: fällt die Zustellung aus, kommt
- * die Aktivität eben zehn Minuten später. Das ist der Unterschied
+ * die Aktivität eben fünf Minuten später. Das ist der Unterschied
  * zwischen „manchmal kaputt" und „manchmal langsam".
  *
  * Angefasst wird nur, was WIRKLICH neu ist. Hat der Webhook die Aktivität
  * schon hereingeholt, passiert hier nichts: keine zweite Zuordnung, kein
  * zweites Review, keine zweite Push-Nachricht.
  *
- * Kosten: ein API-Aufruf je verbundenem Konto und Durchlauf. Bei vier
- * Konten sind das 24 Aufrufe pro Stunde — Stravas Kontingent liegt bei
- * 200 je 15 Minuten.
+ * Kosten: ein Listenaufruf je verbundenem Konto und Durchlauf. Bei vier
+ * Konten sind das 12 je 15 Minuten (Limit 200) und 1152 am Tag (Limit
+ * 2000). Tiefer als fünf Minuten geht deshalb nicht.
  */
 class SyncStravaActivities extends Command
 {
@@ -68,12 +68,24 @@ class SyncStravaActivities extends Command
 
             try {
                 $imported += $this->syncAccount($account, $strava, $importer, $bestEfforts, $webPush);
+
+                // Ein Durchlauf ohne Fehler loescht einen alten Vermerk —
+                // sonst bliebe „neu verbinden" stehen, nachdem der Athlet
+                // genau das getan hat.
+                if ($account->sync_error !== null) {
+                    $account->forceFill(['sync_error' => null, 'sync_error_at' => null])->save();
+                }
             } catch (\Throwable $e) {
                 // Ein Konto darf die anderen nicht mitreissen.
                 Log::error('Strava-Sync fehlgeschlagen', [
                     'user_id'   => $account->user_id,
                     'exception' => $e->getMessage(),
                 ]);
+
+                $account->forceFill([
+                    'sync_error'    => $this->describe($e),
+                    'sync_error_at' => now(),
+                ])->save();
 
                 $this->error("Konto {$account->user_id}: {$e->getMessage()}");
             }
@@ -84,6 +96,31 @@ class SyncStravaActivities extends Command
             : "{$imported} neue Aktivität(en) importiert.");
 
         return self::SUCCESS;
+    }
+
+
+    /**
+     * Der Fehler in einem Satz, den ein Mensch lesen kann.
+     *
+     * Der Unterschied, auf den es ankommt: 401 heisst, dass der Athlet die
+     * Freigabe entzogen hat und neu verbinden muss — daran aendert kein
+     * Wiederholen etwas. Alles andere ist eine Stoerung, die von selbst
+     * vorbeigeht.
+     */
+    private function describe(\Throwable $e): string
+    {
+        if ($e instanceof \Illuminate\Http\Client\RequestException) {
+            $status = $e->response->status();
+
+            return match (true) {
+                $status === 401 => 'Strava weist den Zugang ab (401) — der Athlet muss neu verbinden.',
+                $status === 429 => 'Stravas Kontingent ist erschoepft (429).',
+                $status >= 500  => "Strava antwortet mit {$status}.",
+                default         => "Strava antwortet mit {$status}.",
+            };
+        }
+
+        return mb_substr($e->getMessage(), 0, 200);
     }
 
     private function syncAccount(

@@ -23,9 +23,9 @@ use Tests\TestCase;
  * Tage ohne Import, während die Subscription gültig war, der Endpunkt in
  * 0,35 s mit 200 antwortete und der Athlet lief.
  *
- * `strava:sync` läuft alle zehn Minuten und holt selbst. Der Webhook
+ * `strava:sync` läuft alle fünf Minuten und holt selbst. Der Webhook
  * bleibt der schnelle Weg; das hier macht aus „manchmal kaputt" ein
- * „manchmal zehn Minuten später".
+ * „manchmal fünf Minuten später".
  */
 class StravaScheduledSyncTest extends TestCase
 {
@@ -218,6 +218,73 @@ class StravaScheduledSyncTest extends TestCase
         ]);
 
         $this->artisan('strava:sync')->assertSuccessful();
+    }
+
+    // ── Ein Konto, das Strava ablehnt ────────────────────────────────────
+
+    /**
+     * Gefunden in der ersten Logzeile, die je in Produktion lesbar war:
+     * „Strava-Sync fehlgeschlagen {user_id: 8, HTTP 401}". Der Athlet hatte
+     * null Aktivitäten und nie einen Import — und die Systemseite zeigte ihn
+     * trotzdem grün als „verbunden", weil ein Refresh-Token in der Datenbank
+     * steht. Ein vorhandener Token und ein gültiger sind zwei Dinge.
+     */
+    public function test_a_rejected_account_is_marked(): void
+    {
+        Queue::fake();
+        Http::preventStrayRequests();
+        Http::fake(['www.strava.com/api/v3/athlete/activities*' => Http::response('', 401)]);
+
+        $this->artisan('strava:sync')->assertSuccessful();
+
+        $account = $this->account->fresh();
+
+        $this->assertNotNull($account->sync_error);
+        $this->assertStringContainsString('401', $account->sync_error);
+        $this->assertStringContainsString('neu verbinden', $account->sync_error);
+        $this->assertNotNull($account->sync_error_at);
+    }
+
+    public function test_a_marked_account_is_no_longer_shown_as_connected(): void
+    {
+        $this->account->forceFill([
+            'sync_error'    => 'Strava weist den Zugang ab (401) — der Athlet muss neu verbinden.',
+            'sync_error_at' => now(),
+        ])->save();
+
+        $strava = app(\App\Services\SystemHealth::class)->integrations()['strava'];
+
+        $this->assertFalse($strava[0]['connected']);
+        $this->assertStringContainsString('401', $strava[0]['error']);
+    }
+
+    /**
+     * Und der Vermerk verschwindet wieder, sobald es klappt — sonst stünde
+     * „neu verbinden" noch da, nachdem der Athlet genau das getan hat.
+     */
+    public function test_a_successful_run_clears_the_mark(): void
+    {
+        $this->account->forceFill(['sync_error' => 'irgendwas', 'sync_error_at' => now()])->save();
+
+        $this->stravaHas();
+        $this->artisan('strava:sync')->assertSuccessful();
+
+        $this->assertNull($this->account->fresh()->sync_error);
+    }
+
+    /**
+     * Andere Fehler bekommen ihren eigenen Satz — ein erschöpftes Kontingent
+     * geht von selbst vorbei, ein 401 nicht.
+     */
+    public function test_a_rate_limit_reads_differently_than_a_rejection(): void
+    {
+        Queue::fake();
+        Http::preventStrayRequests();
+        Http::fake(['www.strava.com/api/v3/athlete/activities*' => Http::response('', 429)]);
+
+        $this->artisan('strava:sync');
+
+        $this->assertStringContainsString('Kontingent', $this->account->fresh()->sync_error);
     }
 
     public function test_a_single_account_can_be_targeted(): void

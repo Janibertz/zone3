@@ -242,13 +242,19 @@ class SystemHealth
                 // Kaputt ist die Verbindung erst ohne Refresh-Token — dann
                 // kann sich niemand mehr einen neuen Zugang holen, und der
                 // Athlet muss Strava neu verbinden.
-                $connected = filled($a->refresh_token);
+                // Ein vorhandener Refresh-Token ist nicht dasselbe wie ein
+                // gueltiger. Wer Zone3 bei Strava entzieht, hinterlaesst
+                // einen, der beim Abgleich mit 401 abgewiesen wird — und
+                // stand hier trotzdem auf gruen.
+                $connected = $a->isUsable();
 
                 return [
                     'user_id'      => $a->user_id,
                     'name'         => $a->user?->name ?? "Nutzer {$a->user_id}",
                     'strava_id'    => $a->strava_id,
                     'connected'    => $connected,
+                    'error'        => $a->sync_error,
+                    'error_at'     => $a->sync_error_at?->toIso8601String(),
                     'expires_at'   => $a->token_expires_at?->toIso8601String(),
                     'last_activity_at' => $lastActivity[$a->user_id]->last_at ?? null,
                     'last_import_at'   => $lastImport[$a->user_id]->imported_at ?? null,
