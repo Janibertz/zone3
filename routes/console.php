@@ -56,11 +56,11 @@ Schedule::command('livetrack:poll')->everyMinute()->withoutOverlapping();
 // aus, merkt es niemand — sechs Tage lang kam nichts an, waehrend die
 // Subscription gueltig war und der Endpunkt in 0,35 s mit 200 antwortete.
 // Der Webhook bleibt der schnelle Weg; das hier ist das Netz darunter.
-// Alle fuenf Minuten, nicht oefter — die Rechnung: ein Listenaufruf je Konto
-// und Durchlauf. Bei vier Konten sind das 12 Aufrufe je 15 Minuten (Limit
-// 200) und 1152 am Tag (Limit 2000). Alle zwei Minuten waeren 2880 taeglich
-// und damit ueber dem Tageslimit — dann kaeme gar nichts mehr.
+// Alle fuenfzehn Minuten. Waehrend der Webhook ausfiel, lief das hier alle
+// fuenf — da war es der einzige Weg. Jetzt traegt die Zustellung wieder und
+// eine Aktivitaet ist in einer Sekunde da; der Abgleich ist reine
+// Rueckversicherung und darf entsprechend selten laufen.
 //
-// Das ist ein Notnagel, kein Ziel. Sobald Stravas Zustellung wieder
-// durchkommt, ist die Aktivitaet in Sekunden da statt in Minuten.
-Schedule::command('strava:sync')->everyFiveMinutes()->withoutOverlapping();
+// Die Rechnung: ein Listenaufruf je Konto und Durchlauf. Bei vier Konten
+// sind das 4 je 15 Minuten (Limit 200) und 384 am Tag (Limit 2000).
+Schedule::command('strava:sync')->everyFifteenMinutes()->withoutOverlapping();

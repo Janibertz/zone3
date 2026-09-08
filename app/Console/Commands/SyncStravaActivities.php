@@ -23,10 +23,10 @@ use Illuminate\Support\Facades\Log;
  * während die Subscription gültig war, der Endpunkt in 0,35 s mit 200
  * antwortete und der Athlet lief.
  *
- * Dieser Befehl holt alle fünf Minuten selbst. Er ersetzt den Webhook
+ * Dieser Befehl holt alle fünfzehn Minuten selbst. Er ersetzt den Webhook
  * nicht — der bleibt der schnelle Weg, eine Aktivität ist damit binnen
  * Sekunden da. Er ist das Netz darunter: fällt die Zustellung aus, kommt
- * die Aktivität eben fünf Minuten später. Das ist der Unterschied
+ * die Aktivität eben eine Viertelstunde später. Das ist der Unterschied
  * zwischen „manchmal kaputt" und „manchmal langsam".
  *
  * Angefasst wird nur, was WIRKLICH neu ist. Hat der Webhook die Aktivität
@@ -34,8 +34,9 @@ use Illuminate\Support\Facades\Log;
  * zweites Review, keine zweite Push-Nachricht.
  *
  * Kosten: ein Listenaufruf je verbundenem Konto und Durchlauf. Bei vier
- * Konten sind das 12 je 15 Minuten (Limit 200) und 1152 am Tag (Limit
- * 2000). Tiefer als fünf Minuten geht deshalb nicht.
+ * Konten sind das 4 je 15 Minuten (Limit 200) und 384 am Tag (Limit 2000).
+ * Wer den Takt erhöht, rechnet nach: unter fünf Minuten reisst das
+ * Tageslimit.
  */
 class SyncStravaActivities extends Command
 {

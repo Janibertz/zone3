@@ -338,13 +338,13 @@ An `update` for an activity that was never imported does nothing; importing it i
 
 **Strava does not sign its webhooks** — there is no signature to verify, unlike GitHub. The protection is that only `owner_id` and `object_id` are taken from the body, and the activity is then fetched from the API with the account's token, so a forged call cannot inject invented data.
 
-### The safety net: `strava:sync` every five minutes
+### The safety net: `strava:sync` every fifteen minutes
 
 The webhook used to be the **only** automatic path, which meant a core feature hung on something we do not control: Strava has to deliver, and when it stops, nobody notices. That is exactly what happened — six days without an import while the subscription was valid, the endpoint answered 200 in 0.35 s, and the athlete kept running.
 
-`Schedule::command('strava:sync')->everyFiveMinutes()` fetches for every connected account. The webhook stays the fast path (seconds); this turns "sometimes broken" into "sometimes five minutes late". Do not go below five: one list call per account per run means 1152 a day for four athletes, and Strava's daily ceiling is 2000.
+`Schedule::command('strava:sync')->everyFifteenMinutes()` fetches for every connected account. The webhook stays the fast path (seconds); this turns "sometimes broken" into "sometimes a quarter of an hour late". It ran every five minutes while the webhook was down, when it was the only path; with delivery working again it is pure insurance and may run rarely. Do not go below five minutes: one list call per account per run is 1152 a day for four athletes, against Strava's daily ceiling of 2000.
 
-It only touches what is genuinely new: an activity the webhook already imported is skipped entirely — no second match, no second review, no second push. Accounts without a refresh token are skipped with a log line, and one failing account cannot stop the others. Cost is one list call plus one detail call per new activity; with four athletes that is 12 per 15 minutes against Strava's limit of 200.
+It only touches what is genuinely new: an activity the webhook already imported is skipped entirely — no second match, no second review, no second push. Accounts without a refresh token are skipped with a log line, and one failing account cannot stop the others. Cost is one list call plus one detail call per new activity; with four athletes that is 4 per 15 minutes against Strava's limit of 200, and 384 a day.
 
 ### Cloudflare sits in front of zone3.run — and it broke the webhook
 

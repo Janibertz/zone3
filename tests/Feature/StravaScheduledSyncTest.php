@@ -23,9 +23,9 @@ use Tests\TestCase;
  * Tage ohne Import, während die Subscription gültig war, der Endpunkt in
  * 0,35 s mit 200 antwortete und der Athlet lief.
  *
- * `strava:sync` läuft alle fünf Minuten und holt selbst. Der Webhook
+ * `strava:sync` läuft alle fünfzehn Minuten und holt selbst. Der Webhook
  * bleibt der schnelle Weg; das hier macht aus „manchmal kaputt" ein
- * „manchmal fünf Minuten später".
+ * „manchmal eine Viertelstunde später".
  */
 class StravaScheduledSyncTest extends TestCase
 {
