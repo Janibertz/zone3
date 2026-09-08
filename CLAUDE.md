@@ -122,6 +122,20 @@ PlanRevisionRecorder           stores diff + corrections → visible in the plan
 
 **The Garmin sync on save now always runs** when Garmin is connected, guarded only by a three-minute lock. It used to skip whenever *any* metric existed for today, which missed the common case: check in at breakfast, sync the watch afterwards, and the night's values never arrived — so the coach proposed on half the data.
 
+### Shared workouts — the athlete swaps today's session
+
+Reported: *"Ich hatte 30 Min Zone2 auf dem Plan, ich habe aber Bock auf Intervalle."* The plan says what is sensible; the day's form sometimes says otherwise, and the only answer used to be "do it or don't".
+
+**Dashboard → Einheit tauschen** lists workouts other athletes have shared, grouped by run type, and applies one to today's session. The session is replaced, `steps` come straight from the workout, and it gets `pinned_at` — the athlete chose it, so a regeneration must not discard it.
+
+This deliberately reuses the existing workout builder instead of adding a curated template table beside it. The reason it works at all is a decision already made in the builder: **its blocks carry `pace_zone`, not fixed paces.** A shared workout is therefore athlete-independent by construction — `WorkoutPaceResolver` turns zones into seconds from *this* runner's `pace_zones` (midpoint of the band), falling back to offsets from `threshold_speed` when the table is missing. Those offsets are copied from `AthleteProfileService::calculatePaceZonesWithAI()`; inventing a second set would be exactly the duplicate-truth mistake this project keeps paying for. A test asserts two athletes get different paces from the same workout.
+
+The rules around sharing:
+
+- **Only the creator publishes** (`workouts.toggle-public`), and only the creator can edit. Nobody edits someone else's workout.
+- **An admin can only withdraw a sharing** (`/admin/workouts`), never change or delete it. The workout disappears from everyone else's picker and stays with its creator, with the reason shown next to it — a silent disappearance would be worse than a "no".
+- **Re-publishing clears the admin's note**, or it would stand there permanently after it stopped applying.
+
 ### When the plan may change (and when it may not)
 
 A regeneration deletes every `planned` session and has the model invent them again. The model is not deterministic, so **every regeneration is a fresh roll of the dice** — rest days vanished, a threshold run became twenty easy minutes. Two of the seven triggers were "the athlete did what the plan said", the worst possible reason to redraw a plan.

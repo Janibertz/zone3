@@ -20,13 +20,29 @@ class Workout extends Model
         'estimated_duration_min',
         'times_used',
         'last_used_at',
+        'is_public',
+        'published_at',
+        'unpublished_reason',
     ];
 
     protected $casts = [
         'blocks'       => 'array',
         'tags'         => 'array',
         'last_used_at' => 'datetime',
+        'published_at' => 'datetime',
+        'is_public'    => 'boolean',
     ];
+
+    /**
+     * Die Workouts, die allen offenstehen.
+     *
+     * Freigegeben hat sie ihr Ersteller; ein Admin kann die Freigabe
+     * zuruecknehmen, aber niemand kann ein fremdes Workout aendern.
+     */
+    public function scopeShared($query)
+    {
+        return $query->where('is_public', true);
+    }
 
     public function user()
     {

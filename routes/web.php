@@ -542,6 +542,10 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/workouts',                        [\App\Http\Controllers\WorkoutController::class, 'index'])    ->name('workouts.index');
     Route::get('/workouts/new',                    [\App\Http\Controllers\WorkoutController::class, 'create'])   ->name('workouts.create');
     Route::get('/workouts/list',                   [\App\Http\Controllers\WorkoutController::class, 'list'])     ->name('workouts.list');
+    // Geteilte Workouts: der Ersteller gibt frei, jeder darf anwenden.
+    Route::get('/workouts/shared',                 [\App\Http\Controllers\WorkoutController::class, 'shared'])       ->name('workouts.shared');
+    Route::post('/workouts/{workout}/public',      [\App\Http\Controllers\WorkoutController::class, 'togglePublic']) ->name('workouts.toggle-public');
+    Route::post('/training-sessions/{session}/workout/{workout}', [\App\Http\Controllers\WorkoutController::class, 'applyToSession'])->name('workouts.apply-to-session');
     Route::get('/workouts/{workout}/edit',         [\App\Http\Controllers\WorkoutController::class, 'edit'])     ->name('workouts.edit');
     Route::post('/workouts',                       [\App\Http\Controllers\WorkoutController::class, 'store'])    ->name('workouts.store');
     Route::put('/workouts/{workout}',              [\App\Http\Controllers\WorkoutController::class, 'update'])   ->name('workouts.update');

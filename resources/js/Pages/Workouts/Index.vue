@@ -127,6 +127,27 @@ async function deleteWorkout() {
     }
 }
 
+/**
+ * Ein Workout für alle freigeben — oder die Freigabe zurücknehmen.
+ *
+ * Geteilt wird die STRUKTUR, nicht das Tempo: die Blöcke tragen Zonen, und
+ * jeder Läufer bekommt die Sekunden aus seiner eigenen Schwellenpace
+ * gerechnet. Ein „4×1000 m in Zone 5" ist damit für jeden richtig.
+ *
+ * Ändern kann ein freigegebenes Workout weiterhin nur sein Ersteller.
+ */
+const publishing = ref(null);
+
+async function togglePublic(w) {
+    publishing.value = w.id;
+    try {
+        const { data } = await axios.post(route('workouts.toggle-public', w.id));
+        Object.assign(w, data.workout);
+    } finally {
+        publishing.value = null;
+    }
+}
+
 async function duplicateWorkout(w) {
     const { data } = await axios.post(route('workouts.duplicate', w.id));
     workouts.value.unshift(data.workout);
@@ -279,6 +300,28 @@ async function sendToGarmin({ email, password, date } = {}) {
                                 <span class="font-semibold text-ink">{{ formatDuration(w.estimated_duration_min) }}</span>
                             </span>
                             <span v-if="w.times_used > 0">{{ w.times_used }}× genutzt</span>
+                        </div>
+
+                        <!-- Freigabe: geteilt wird die Struktur, nicht das Tempo. -->
+                        <div class="mt-3 flex flex-wrap items-center gap-2">
+                            <button
+                                :disabled="publishing === w.id"
+                                class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50"
+                                :class="w.is_public
+                                    ? 'bg-success-soft text-success-ink'
+                                    : 'bg-surface-2 text-ink-3 hover:text-ink'"
+                                @click.stop="togglePublic(w)">
+                                <span class="h-1.5 w-1.5 rounded-full"
+                                    :class="w.is_public ? 'bg-success' : 'bg-ink-3'"></span>
+                                {{ w.is_public ? 'Für alle freigegeben' : 'Nur für mich' }}
+                            </button>
+
+                            <span v-if="w.is_public" class="text-[11px] text-ink-3">
+                                Andere sehen die Struktur, die Paces rechnen sie sich selbst.
+                            </span>
+                            <span v-else-if="w.unpublished_reason" class="text-[11px] text-warn-ink">
+                                {{ w.unpublished_reason }}
+                            </span>
                         </div>
 
                         <!-- Tags -->

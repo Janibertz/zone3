@@ -155,6 +155,65 @@ const flash = page.props?.flash || {};
  * vorfand, erlebte seinen Plan als etwas, das ihm zustösst. Jetzt steht
  * hier ein Vorschlag, und die Entscheidung gehört dem Athleten.
  */
+
+/**
+ * Einheit tauschen — gegen ein geteiltes Workout.
+ *
+ * Gemeldet: „Ich hatte 30 Min Zone2 auf dem Plan, ich habe aber Bock auf
+ * Intervalle." Der Plan sagt, was sinnvoll ist; die Tagesform sagt manchmal
+ * etwas anderes, und darauf gab es bisher nur die Antwort „machen oder
+ * lassen".
+ *
+ * Die Workouts kommen von Athleten, die sie freigegeben haben. Geteilt wird
+ * die Struktur — die Paces rechnet der Server aus der Schwellenpace DIESES
+ * Läufers.
+ */
+const swapOpen    = ref(false);
+const swapLoading = ref(false);
+const swapBusy    = ref(null);
+const swapGroups  = ref({});
+const swapTypes   = ref({});
+const swapHasPaces = ref(true);
+const swapCategory = ref(null);
+
+async function openSwap() {
+    swapOpen.value = true;
+
+    if (Object.keys(swapGroups.value).length) return;
+
+    swapLoading.value = true;
+    try {
+        const { data } = await axios.get(route('workouts.shared'));
+        swapGroups.value   = data.workouts ?? {};
+        swapTypes.value    = data.types ?? {};
+        swapHasPaces.value = data.has_paces;
+        swapCategory.value = Object.keys(swapGroups.value)[0] ?? null;
+    } finally {
+        swapLoading.value = false;
+    }
+}
+
+function applyWorkout(workout) {
+    const session = props.todayPlanSession;
+    if (!session || swapBusy.value) return;
+
+    swapBusy.value = workout.id;
+    router.post(route('workouts.apply-to-session', [session.id, workout.id]), {}, {
+        preserveScroll: true,
+        onSuccess: () => { swapOpen.value = false; },
+        onFinish:  () => { swapBusy.value = null; },
+    });
+}
+
+/** „48 min · 9,4 km · 4:22 /km" — nur was gerechnet werden konnte. */
+function workoutSummary(w) {
+    return [
+        w.duration_min ? `${w.duration_min} min` : null,
+        w.distance_km ? `${w.distance_km} km` : null,
+        w.pace_target ? `${w.pace_target} /km` : null,
+    ].filter(Boolean).join(' · ');
+}
+
 const recommendationBusy = ref(false);
 
 function decideRecommendation(action) {
@@ -1508,6 +1567,11 @@ async function saveWeek() {
                 <section>
                     <SectionHeader title="Heutiges Training">
                         <template #action>
+                            <AppButton
+                                v-if="props.todayPlanSession && props.todayPlanSession.status === 'planned'"
+                                size="sm" variant="secondary" @click="openSwap">
+                                Einheit tauschen
+                            </AppButton>
                             <AppButton v-if="props.hasActivePlan" size="sm" variant="secondary"
                                 :href="props.todayPlanSession?.event_id ? `/events/${props.todayPlanSession.event_id}/plan` : '/events'">
                                 Zum Plan
@@ -2346,6 +2410,71 @@ async function saveWeek() {
             <template #footer>
                 <AppButton block :loading="weekSaving" @click="saveWeek">Woche übernehmen</AppButton>
             </template>
+        </AppSheet>
+
+
+        <!-- ══════════════════════════════════════════════════
+             EINHEIT TAUSCHEN
+             ═══════════════════════════════════════════════════
+             Von Athleten gebaut und freigegeben. Geteilt wird die
+             Struktur; die Paces stehen für DEINE Schwellenpace. -->
+        <AppSheet :show="swapOpen" title="Einheit tauschen" @close="swapOpen = false">
+            <div class="space-y-4">
+                <p class="text-[13px] text-ink-3">
+                    Workouts, die andere Athleten freigegeben haben. Die Paces sind für dich gerechnet.
+                </p>
+
+                <p v-if="!swapHasPaces" class="rounded-field bg-warn-soft px-3 py-2 text-[13px] text-warn-ink">
+                    Ohne Schwellenpace lassen sich keine Zielzeiten berechnen — die Struktur stimmt, die
+                    Paces fehlen.
+                </p>
+
+                <p v-if="swapLoading" class="text-[13px] text-ink-3">Wird geladen …</p>
+
+                <p v-else-if="!Object.keys(swapGroups).length" class="text-[13px] text-ink-3">
+                    Noch hat niemand ein Workout freigegeben. Unter „Workouts" kannst du eines bauen und
+                    für alle sichtbar machen.
+                </p>
+
+                <template v-else>
+                    <!-- Nach Lauftyp: die Frage lautet „ich habe Bock auf Intervalle", nicht
+                         „ich suche Workout 47". -->
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            v-for="(list, type) in swapGroups" :key="type"
+                            class="rounded-full px-3 py-1 text-xs font-medium transition-colors"
+                            :class="swapCategory === type
+                                ? 'bg-accent text-white'
+                                : 'bg-surface-2 text-ink-2 hover:bg-surface-3'"
+                            @click="swapCategory = type">
+                            {{ swapTypes[type] ?? type }} ({{ list.length }})
+                        </button>
+                    </div>
+
+                    <div class="space-y-2">
+                        <button
+                            v-for="w in (swapGroups[swapCategory] ?? [])" :key="w.id"
+                            class="w-full rounded-card border border-line bg-surface px-4 py-3 text-left transition-colors hover:bg-surface-2 disabled:opacity-50"
+                            :disabled="swapBusy !== null"
+                            @click="applyWorkout(w)">
+                            <div class="flex items-baseline justify-between gap-2">
+                                <span class="text-[15px] font-medium text-ink">{{ w.name }}</span>
+                                <span class="shrink-0 text-[12px] text-ink-3">von {{ w.author }}</span>
+                            </div>
+
+                            <p class="mt-0.5 text-[13px] text-ink-2">{{ workoutSummary(w) }}</p>
+                            <p v-if="w.description" class="mt-1 text-[12px] text-ink-3">{{ w.description }}</p>
+
+                            <p v-if="w.steps?.length" class="mt-2 text-[12px] text-ink-3">
+                                <span v-for="(st, i) in w.steps" :key="i">
+                                    <span v-if="st.repetitions">{{ st.repetitions }}× </span>{{ st.label }}
+                                    <span v-if="st.duration_min">, {{ st.duration_min }} min</span><span v-if="i < w.steps.length - 1"> · </span>
+                                </span>
+                            </p>
+                        </button>
+                    </div>
+                </template>
+            </div>
         </AppSheet>
 
     </AuthenticatedLayout>

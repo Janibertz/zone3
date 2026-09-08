@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\AdminSupportController;
 use App\Http\Controllers\Admin\AdminSystemController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminWikiController;
+use App\Http\Controllers\Admin\AdminWorkoutController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/admin/dashboard');
@@ -33,6 +34,11 @@ Route::post('/users/{user}/impersonate',           [AdminImpersonationController
 
 // Aktivitaeten ueber alle Athleten — inklusive Loeschen, das es im
 // Admin-Bereich bis hierher nicht gab.
+// Geteilte Workouts — wer hat was freigegeben. Ein Admin kann eine
+// Freigabe zuruecknehmen, aber kein fremdes Workout aendern.
+Route::get('/workouts',                            [AdminWorkoutController::class, 'index'])     ->name('workouts.index');
+Route::post('/workouts/{workout}/unpublish',       [AdminWorkoutController::class, 'unpublish']) ->name('workouts.unpublish');
+
 Route::get('/activities',                          [AdminActivityController::class, 'index'])           ->name('activities.index');
 Route::delete('/activities/{activity}',            [AdminActivityController::class, 'destroy'])         ->name('activities.destroy');
 

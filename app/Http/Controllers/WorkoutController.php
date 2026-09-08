@@ -127,6 +127,126 @@ class WorkoutController extends Controller
 
     // ── Garmin ────────────────────────────────────────────────────────────────
 
+
+    /**
+     * Ein eigenes Workout freigeben oder die Freigabe zuruecknehmen.
+     *
+     * Nur der Ersteller. Ein Admin kann eine Freigabe zwar beenden, aber
+     * ueber einen anderen Weg — und niemand kann ein fremdes Workout
+     * aendern.
+     */
+    public function togglePublic(Request $request, Workout $workout)
+    {
+        abort_unless($workout->user_id === Auth::id(), 403);
+
+        $makePublic = ! $workout->is_public;
+
+        $workout->update([
+            'is_public'    => $makePublic,
+            'published_at' => $makePublic ? now() : null,
+            // Eine erneute Freigabe loescht den Vermerk des Admins — sonst
+            // stuende dort dauerhaft ein Grund, der nicht mehr gilt.
+            'unpublished_reason' => null,
+        ]);
+
+        return response()->json(['workout' => $this->formatWorkout($workout->fresh())]);
+    }
+
+    /**
+     * Die freigegebenen Workouts aller Athleten, gerechnet fuer DIESEN.
+     *
+     * Nach Lauftyp gruppiert — das ist die Frage, mit der ein Athlet hier
+     * ankommt: „ich habe Bock auf Intervalle", nicht „ich suche Workout 47".
+     */
+    public function shared(Request $request, \App\Services\WorkoutPaceResolver $resolver)
+    {
+        $profile = $request->user()->runnerProfile;
+
+        $shared = Workout::shared()
+            ->with('user:id,name')
+            ->orderByDesc('times_used')
+            ->orderBy('name')
+            ->get()
+            ->map(function (Workout $w) use ($resolver, $profile, $request) {
+                $resolved = $resolver->resolve($w, $profile);
+
+                return [
+                    'id'           => $w->id,
+                    'name'         => $w->name,
+                    'description'  => $w->description,
+                    'type'         => $w->type,
+                    'tags'         => $w->tags ?? [],
+                    'author'       => $w->user?->name ?? 'Zone3',
+                    'is_mine'      => $w->user_id === $request->user()->id,
+                    'times_used'   => $w->times_used,
+                    'duration_min' => $resolved['duration_min'],
+                    'distance_km'  => $resolved['distance_km'],
+                    'pace_target'  => $resolved['pace_target'],
+                    'steps'        => $resolved['steps'],
+                ];
+            })
+            ->groupBy('type');
+
+        return response()->json([
+            'workouts' => $shared,
+            'types'    => \App\Models\TrainingSession::TYPE_LABELS,
+            // Ohne Schwellenpace bleiben die Paces leer. Das gehoert gesagt,
+            // statt „—" zu zeigen und den Athleten raten zu lassen.
+            'has_paces' => (bool) ($profile?->threshold_speed),
+        ]);
+    }
+
+    /**
+     * Ein freigegebenes Workout auf eine geplante Einheit anwenden.
+     *
+     * Sie ersetzt die Einheit und bekommt `pinned_at` — der Athlet hat sie
+     * ausgesucht, die naechste Neuberechnung darf sie nicht wegwerfen.
+     */
+    public function applyToSession(
+        Request $request,
+        \App\Models\TrainingSession $session,
+        Workout $workout,
+        \App\Services\WorkoutPaceResolver $resolver,
+    ) {
+        abort_unless($session->user_id === Auth::id(), 403);
+
+        // Fremde Workouts nur, wenn sie freigegeben sind. Eigene immer.
+        abort_unless($workout->is_public || $workout->user_id === Auth::id(), 403);
+
+        if ($session->status !== 'planned') {
+            return back()->with('error', 'Diese Einheit ist schon abgeschlossen.');
+        }
+
+        $resolved = $resolver->resolve($workout, $request->user()->runnerProfile);
+
+        $session->update([
+            'type'         => $workout->type,
+            'title'        => $workout->name,
+            'description'  => $workout->description ?? '',
+            'duration_min' => $resolved['duration_min'] ?: $session->duration_min,
+            'distance_km'  => $resolved['distance_km'],
+            'pace_target'  => $resolved['pace_target'],
+            'zone'         => $resolved['zone'],
+            // Die Struktur kommt aus dem Workout — sie muss nicht erst von
+            // einem Modell erfunden werden.
+            'steps'          => $resolved['steps'],
+            'nutrition_tips' => null,
+            'pinned_at'      => now(),
+        ]);
+
+        $workout->increment('times_used');
+        $workout->forceFill(['last_used_at' => now()])->save();
+
+        Log::info('Workout auf Einheit angewendet', [
+            'user_id'    => Auth::id(),
+            'session_id' => $session->id,
+            'workout_id' => $workout->id,
+            'author_id'  => $workout->user_id,
+        ]);
+
+        return back()->with('success', "„{$workout->name}\u{201C} steht jetzt f\u{00FC}r diesen Tag.");
+    }
+
     public function sendToGarmin(Request $request, Workout $workout)
     {
         abort_if($workout->user_id !== Auth::id(), 403);
@@ -230,6 +350,10 @@ class WorkoutController extends Controller
             'times_used'             => $w->times_used,
             'last_used_at'           => $w->last_used_at?->format('d.m.Y'),
             'updated_at'             => $w->updated_at->format('d.m.Y'),
+            'is_public'              => (bool) $w->is_public,
+            // Warum ein Admin die Freigabe zurueckgenommen hat. Ohne Grund
+            // stuende der Ersteller vor einem stillen Verschwinden.
+            'unpublished_reason'     => $w->unpublished_reason,
         ];
     }
 
