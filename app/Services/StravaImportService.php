@@ -74,6 +74,57 @@ class StravaImportService
         );
     }
 
+
+    /**
+     * Die verknuepften Einheiten den geaenderten Aktivitaetsdaten angleichen.
+     *
+     * Fuer den Fall, dass sich bei Strava etwas geaendert hat, ABER nicht die
+     * Sportart: ein korrigierter Titel, eine nachgemessene Distanz. Dann
+     * bleibt die Zuordnung richtig, und nur die Zahlen wandern mit.
+     *
+     * Der Titel folgt nur bei einer UNGEPLANTEN Einheit — dort ist er der
+     * Aktivitaetsname. Bei einer geplanten steht dort, was der Coach
+     * vorgesehen hat („Schwelle mit Kontrolle"); den durch „Morning Run" zu
+     * ersetzen waere ein Verlust, kein Abgleich.
+     *
+     * Der Schnappschuss wird nicht angefasst: er beschreibt, was GEPLANT war,
+     * und daran aendert eine Korrektur bei Strava nichts.
+     */
+    public function syncSessionsWithActivity(Activity $activity): int
+    {
+        $isRunLike = in_array($activity->type, TrainingSession::RUN_SPORTS, true);
+
+        $distKm = $activity->distance > 0 ? round($activity->distance / 1000, 2) : null;
+        $durMin = $activity->moving_time > 0 ? (int) round($activity->moving_time / 60) : null;
+        $pace   = $this->paceFromSpeed($activity->average_speed);
+
+        $touched = 0;
+
+        foreach (TrainingSession::where('activity_id', $activity->id)->get() as $session) {
+            $update = [
+                // Nur Laufkilometer zaehlen in den Wochenumfang — dieselbe
+                // Regel wie bei der Zuordnung.
+                'distance_km'  => $isRunLike ? ($distKm ?? $session->distance_km) : null,
+                'duration_min' => $durMin ?? $session->duration_min,
+                // NULL heisst Laufen; alles andere traegt seine Sportart.
+                'sport_type'   => $activity->type === 'Run' ? null : $activity->type,
+            ];
+
+            if ($isRunLike) {
+                $update['pace_target'] = $pace ?? $session->pace_target;
+            }
+
+            if ($session->was_unplanned) {
+                $update['title'] = $activity->name;
+            }
+
+            $session->update($update);
+            $touched++;
+        }
+
+        return $touched;
+    }
+
     /**
      * Match a Strava activity to a planned training session (Runs only),
      * or create an unplanned completed entry for any activity type.

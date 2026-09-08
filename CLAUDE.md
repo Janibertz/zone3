@@ -325,7 +325,16 @@ What is new and deliberate: `Log::info('Strava-Webhook empfangen', …)` fires *
 
 The route carries **no throttle and no token check**. Both arrived with the rework, and both can reject a genuine Strava call; while the import is not reliably working, nothing stands in its way. `callbackTokenMatches()` is gone.
 
-**Deleting on Strava deletes here.** `aspect_type = delete` runs `ActivityDeletionService` for the matching activity — a planned session goes back to `planned` from its snapshot, an unplanned one disappears with it. Before that the handler knew only `create`, so an activity the athlete removed on Strava kept counting towards weekly volume, load and threshold pace for a run that no longer existed. `update` stays ignored: a title someone edits afterwards is no reason to touch the training plan.
+**Strava leads; Zone3 follows.** All three aspect types are handled, because an athlete who edits something over there does it on purpose.
+
+- **`delete`** runs `ActivityDeletionService` — a planned session goes back to `planned` from its snapshot, an unplanned one disappears with it. Otherwise a run removed on Strava kept counting towards weekly volume, load and threshold pace.
+- **`update`** re-fetches the activity (the `updates` payload carries only what changed; the importer wants the whole record) and then splits on one question: **did the sport change?**
+  - *Yes* → the match is no longer valid. `ActivityDeletionService::unlink()` undoes it and `matchActivityToSession()` runs again, so a "run" that turns out to be a ride releases the planned run session and lands as cross-training instead. A fresh review is dispatched, because the old one described something else.
+  - *No* → the match stands and only the numbers follow. The title of an **unplanned** session tracks the activity name; a **planned** session keeps the coach's title ("Schwelle mit Kontrolle" must not become "Morning Run"), and `planned_snapshot` is never touched — it records what was *planned*, which a Strava edit does not change.
+
+No push on an update: the athlete made the change themselves. Best efforts are re-synced for runs but without `flagPendingPr` — a correction is not a reason to celebrate.
+
+An `update` for an activity that was never imported does nothing; importing it is `create`'s job.
 
 **Strava does not sign its webhooks** — there is no signature to verify, unlike GitHub. The protection is that only `owner_id` and `object_id` are taken from the body, and the activity is then fetched from the API with the account's token, so a forged call cannot inject invented data.
 

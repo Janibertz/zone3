@@ -182,6 +182,124 @@ class StravaController extends Controller
     }
 
 
+
+    /**
+     * Eine bei Strava geaenderte Aktivitaet hier nachziehen.
+     *
+     * Geholt wird die Aktivitaet frisch ueber die API, statt dem
+     * `updates`-Objekt aus dem Rumpf zu vertrauen — das traegt nur, WAS sich
+     * geaendert hat, und der Import kennt ohnehin nur den vollen Datensatz.
+     *
+     * Zwei Faelle, und der Unterschied ist wichtig:
+     *
+     *  · **Die Sportart hat sich geaendert.** Dann stimmt die Zuordnung nicht
+     *    mehr: ein Lauf, der sich als Radfahrt herausstellt, darf die
+     *    geplante Laufeinheit nicht laenger als erledigt ausweisen. Die
+     *    Einheiten werden geloest und neu zugeordnet — derselbe Weg wie beim
+     *    Loeschen, nur ohne die Aktivitaet zu entfernen.
+     *
+     *  · **Alles andere** — Titel, Beschreibung, korrigierte Distanz. Dann
+     *    bleibt die Zuordnung, und nur die Zahlen wandern mit. Der Titel
+     *    einer UNGEPLANTEN Einheit ist der Aktivitaetsname und folgt; der
+     *    einer geplanten kommt aus dem Trainingsplan und bleibt stehen.
+     *
+     * Keine Push-Nachricht: der Athlet hat die Aenderung selbst gemacht und
+     * muss darueber nicht benachrichtigt werden.
+     */
+    private function webhookUpdate(
+        StravaWebhookEvent $event,
+        ?StravaAccount $account,
+        int $stravaId,
+        StravaService $strava,
+        BestEffortService $bestEfforts,
+    ): Response {
+        if (! $account || ! $stravaId) {
+            $event->update(['outcome' => StravaWebhookEvent::OUTCOME_UNKNOWN_OWNER]);
+
+            return response('OK');
+        }
+
+        $userId   = $account->user_id;
+        $existing = Activity::where('user_id', $userId)->where('strava_id', $stravaId)->first();
+
+        // Nie importiert — dann gibt es auch nichts nachzuziehen. Das
+        // nachzuholen waere ein Import, und dafuer ist `create` zustaendig.
+        if (! $existing) {
+            $event->update([
+                'user_id' => $userId,
+                'outcome' => StravaWebhookEvent::OUTCOME_DELETE_UNKNOWN,
+            ]);
+
+            return response('OK');
+        }
+
+        $typeBefore = $existing->type;
+
+        $detail = $strava->fetchActivity($account, $stravaId);
+
+        if (! $detail) {
+            $event->update([
+                'user_id' => $userId,
+                'outcome' => StravaWebhookEvent::OUTCOME_NOT_FETCHABLE,
+            ]);
+
+            return response('OK');
+        }
+
+        $activity = $this->importer->importFromDetail($userId, $detail);
+
+        if (! $activity) {
+            $event->update([
+                'user_id' => $userId,
+                'outcome' => StravaWebhookEvent::OUTCOME_TOMBSTONED,
+            ]);
+
+            return response('OK');
+        }
+
+        $reclassified = $activity->type !== $typeBefore;
+
+        if ($reclassified) {
+            app(ActivityDeletionService::class)->unlink($activity);
+            $this->importer->matchActivityToSession($userId, $activity);
+
+            // Die Zuordnung ist neu, also auch das Urteil darueber. Ein
+            // Review, das einen Lauf beschrieb, wurde beim Loesen entfernt.
+            TrainingSession::where('user_id', $userId)
+                ->where('activity_id', $activity->id)
+                ->where('status', 'completed')
+                ->whereNull('reviewed_at')
+                ->pluck('id')
+                ->each(fn ($id) => GenerateSessionReviewJob::dispatch($id)->delay(now()->addSeconds(20)));
+        } else {
+            $this->importer->syncSessionsWithActivity($activity);
+        }
+
+        if ($activity->type === 'Run') {
+            // Ohne flagPendingPr: eine Korrektur ist kein Anlass zum Feiern.
+            $bestEfforts->syncFromActivityData($activity, $detail);
+        }
+
+        Log::info('Strava-Aktivitaet aktualisiert', [
+            'user_id'      => $userId,
+            'strava_id'    => $stravaId,
+            'name'         => $activity->name,
+            'type_before'  => $typeBefore,
+            'type_after'   => $activity->type,
+            'reclassified' => $reclassified,
+        ]);
+
+        $event->update([
+            'user_id' => $userId,
+            'outcome' => $reclassified
+                ? StravaWebhookEvent::OUTCOME_RECLASSIFIED
+                : StravaWebhookEvent::OUTCOME_UPDATED,
+            'note'    => $activity->name,
+        ]);
+
+        return response('OK');
+    }
+
     /**
      * Eine bei Strava geloeschte Aktivitaet auch hier entfernen.
      *
@@ -312,6 +430,12 @@ class StravaController extends Controller
         // Schwellenpace — fuer einen Lauf, den es nicht mehr gibt.
         if (($data['aspect_type'] ?? '') === 'delete') {
             return $this->webhookDelete($event, $account, (int) ($data['object_id'] ?? 0));
+        }
+
+        // Strava fuehrt. Wer dort den Titel korrigiert oder die Sportart
+        // richtigstellt, tut das mit Absicht — und Zone3 hat zu folgen.
+        if (($data['aspect_type'] ?? '') === 'update') {
+            return $this->webhookUpdate($event, $account, (int) ($data['object_id'] ?? 0), $strava, $bestEfforts);
         }
 
         if (($data['aspect_type'] ?? '') !== 'create') {

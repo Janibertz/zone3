@@ -338,27 +338,122 @@ class StravaWebhookTest extends TestCase
         Http::assertNothingSent();
     }
 
+    // ── Aendern bei Strava schlaegt hierher durch ────────────────────────
+
+    /** Eine Aktivitaet, die schon importiert ist. */
+    private function existing(string $type = 'Run', string $name = 'Alter Titel'): Activity
+    {
+        return Activity::create([
+            'user_id' => $this->user->id, 'strava_id' => 998877, 'name' => $name,
+            'type' => $type, 'start_date' => now(), 'distance' => 12000,
+            'moving_time' => 3300, 'elapsed_time' => 3300, 'average_speed' => 12000 / 3300,
+        ]);
+    }
+
     /**
-     * `update` bleibt unbeachtet: einen Titel, den jemand bei Strava
-     * nachtraeglich aendert, muss der Trainingsplan nicht mitbekommen.
+     * Strava fuehrt. Wer dort den Titel korrigiert, tut das mit Absicht.
      */
-    public function test_an_update_event_still_changes_nothing(): void
+    public function test_a_renamed_activity_is_renamed_here(): void
+    {
+        $this->existing();
+        $this->stravaReturns(['name' => 'Neuer Titel']);
+
+        $this->postJson('/strava/webhook', $this->event(['aspect_type' => 'update']))->assertOk();
+
+        $this->assertSame('Neuer Titel', Activity::where('strava_id', 998877)->first()->name);
+        $this->assertSame(1, Activity::count(), 'Kein zweiter Datensatz');
+    }
+
+    /**
+     * Der Titel einer UNGEPLANTEN Einheit ist der Aktivitaetsname und folgt.
+     * Der einer geplanten kommt aus dem Trainingsplan und bleibt stehen —
+     * „Schwelle mit Kontrolle" durch „Morning Run" zu ersetzen waere ein
+     * Verlust, kein Abgleich.
+     */
+    public function test_only_an_unplanned_session_takes_the_new_title(): void
+    {
+        $activity = $this->existing();
+
+        $unplanned = TrainingSession::create([
+            'user_id' => $this->user->id, 'training_plan_id' => $this->plan->id,
+            'event_id' => $this->plan->event_id, 'activity_id' => $activity->id,
+            'planned_date' => now()->toDateString(), 'type' => 'easy_run',
+            'title' => 'Alter Titel', 'intensity' => 'medium',
+            'status' => 'completed', 'was_unplanned' => true,
+        ]);
+
+        $planned = TrainingSession::create([
+            'user_id' => $this->user->id, 'training_plan_id' => $this->plan->id,
+            'event_id' => $this->plan->event_id, 'activity_id' => $activity->id,
+            'planned_date' => now()->toDateString(), 'type' => 'tempo_run',
+            'title' => 'Schwelle mit Kontrolle', 'intensity' => 'high',
+            'status' => 'completed', 'was_unplanned' => false,
+        ]);
+
+        $this->stravaReturns(['name' => 'Neuer Titel']);
+        $this->postJson('/strava/webhook', $this->event(['aspect_type' => 'update']))->assertOk();
+
+        $this->assertSame('Neuer Titel', $unplanned->fresh()->title);
+        $this->assertSame('Schwelle mit Kontrolle', $planned->fresh()->title);
+    }
+
+    /**
+     * Der wichtige Fall: die Sportart aendert sich.
+     *
+     * Ein Lauf, der sich als Radfahrt herausstellt, darf die geplante
+     * Laufeinheit nicht laenger als erledigt ausweisen — sonst zaehlt eine
+     * Radfahrt in Wochenumfang, Belastung und Schwellenpace.
+     */
+    public function test_a_changed_sport_undoes_the_match(): void
+    {
+        $activity = $this->existing('Run');
+
+        $session = TrainingSession::create([
+            'user_id' => $this->user->id, 'training_plan_id' => $this->plan->id,
+            'event_id' => $this->plan->event_id, 'activity_id' => $activity->id,
+            'planned_date' => now()->toDateString(), 'type' => 'easy_run',
+            'title' => 'Lockerer Lauf', 'distance_km' => 12, 'duration_min' => 55,
+            'intensity' => 'low', 'status' => 'completed',
+            'planned_snapshot' => [
+                'type' => 'easy_run', 'title' => 'Lockerer Lauf',
+                'distance_km' => 10, 'duration_min' => 55,
+                'pace_target' => '5:30', 'zone' => 2, 'intensity' => 'low',
+            ],
+        ]);
+
+        // Strava sagt jetzt: das war eine Radfahrt.
+        $this->stravaReturns(['type' => 'Ride']);
+        $this->postJson('/strava/webhook', $this->event(['aspect_type' => 'update']))->assertOk();
+
+        $session->refresh();
+
+        $this->assertSame('planned', $session->status, 'Die Laufeinheit ist nicht mehr erledigt');
+        $this->assertNull($session->activity_id);
+        $this->assertSame(10.0, (float) $session->distance_km, 'Die geplanten Zahlen kommen zurueck');
+
+        $this->assertSame(
+            1,
+            TrainingSession::where('user_id', $this->user->id)->where('type', 'cross_training')->count(),
+            'Die Radfahrt steht als Alternativtraining da',
+        );
+    }
+
+    /**
+     * Eine Aenderung an etwas, das hier nie importiert wurde, ist kein
+     * Anlass, es jetzt nachzuholen — dafuer ist `create` zustaendig.
+     */
+    public function test_an_update_for_something_unknown_imports_nothing(): void
     {
         Queue::fake();
         Http::preventStrayRequests();
 
-        Activity::create([
-            'user_id' => $this->user->id, 'strava_id' => 998877, 'name' => 'Bleibt',
-            'type' => 'Run', 'start_date' => now(), 'distance' => 12000,
-            'moving_time' => 3300, 'elapsed_time' => 3300, 'average_speed' => 12000 / 3300,
-        ]);
-
         $this->postJson('/strava/webhook', $this->event(['aspect_type' => 'update']))->assertOk();
 
-        $this->assertDatabaseHas('activities', ['strava_id' => 998877, 'name' => 'Bleibt']);
+        $this->assertSame(0, Activity::count());
+        Http::assertNothingSent();
     }
 
-    // ── Der Handshake ────────────────────────────────────────────────────
+    // ── Der Handshake ────────────────────────────────────────────────────    // ── Der Handshake ────────────────────────────────────────────────────
 
     public function test_the_handshake_answers_with_the_challenge(): void
     {

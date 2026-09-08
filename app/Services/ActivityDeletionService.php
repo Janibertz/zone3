@@ -38,17 +38,7 @@ class ActivityDeletionService
         $restored = 0;
 
         DB::transaction(function () use ($activity, $userId, $stravaId, &$deleted, &$restored) {
-            foreach (TrainingSession::where('activity_id', $activity->id)->get() as $session) {
-                // Die Einheit gab es nur, weil der Import sie angelegt hat.
-                if ($session->was_unplanned) {
-                    $session->delete();
-                    $deleted++;
-                    continue;
-                }
-
-                $this->restore($session);
-                $restored++;
-            }
+            ['sessions_deleted' => $deleted, 'sessions_restored' => $restored] = $this->unlink($activity);
 
             // Die Renn-Analyse verweist auf die Aktivität; ohne sie ist der
             // Text nicht mehr belegt.
@@ -68,6 +58,38 @@ class ActivityDeletionService
 
             $activity->delete();
         });
+
+        return ['sessions_deleted' => $deleted, 'sessions_restored' => $restored];
+    }
+
+
+    /**
+     * Die Einheiten von einer Aktivität lösen — ohne sie zu löschen.
+     *
+     * Dasselbe Zurückdrehen wie beim Löschen, nur ohne den letzten Schritt.
+     * Gebraucht wird es, wenn eine Aktivität bei Strava ihre SPORTART
+     * wechselt: dann stimmt die Zuordnung nicht mehr, und sie muss von vorn
+     * gemacht werden. Ein Lauf, der sich als Radfahrt herausstellt, darf die
+     * geplante Laufeinheit nicht länger als erledigt ausweisen.
+     *
+     * @return array{sessions_deleted: int, sessions_restored: int}
+     */
+    public function unlink(Activity $activity): array
+    {
+        $deleted  = 0;
+        $restored = 0;
+
+        foreach (TrainingSession::where('activity_id', $activity->id)->get() as $session) {
+            // Die Einheit gab es nur, weil der Import sie angelegt hat.
+            if ($session->was_unplanned) {
+                $session->delete();
+                $deleted++;
+                continue;
+            }
+
+            $this->restore($session);
+            $restored++;
+        }
 
         return ['sessions_deleted' => $deleted, 'sessions_restored' => $restored];
     }
