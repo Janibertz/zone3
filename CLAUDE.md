@@ -327,6 +327,14 @@ The route carries **no throttle and no token check**. Both arrived with the rewo
 
 **Strava does not sign its webhooks** — there is no signature to verify, unlike GitHub. The protection is that only `owner_id` and `object_id` are taken from the body, and the activity is then fetched from the API with the account's token, so a forged call cannot inject invented data.
 
+### The safety net: `strava:sync` every ten minutes
+
+The webhook used to be the **only** automatic path, which meant a core feature hung on something we do not control: Strava has to deliver, and when it stops, nobody notices. That is exactly what happened — six days without an import while the subscription was valid, the endpoint answered 200 in 0.35 s, and the athlete kept running.
+
+`Schedule::command('strava:sync')->everyTenMinutes()` now fetches for every connected account. The webhook stays the fast path (seconds); this turns "sometimes broken" into "sometimes ten minutes late".
+
+It only touches what is genuinely new: an activity the webhook already imported is skipped entirely — no second match, no second review, no second push. Accounts without a refresh token are skipped with a log line, and one failing account cannot stop the others. Cost is one list call plus one detail call per new activity; with four athletes that is 24 calls an hour against Strava's 200 per 15 minutes.
+
 **Checking the subscription** (read-only, answers "is Strava even calling us?"):
 
 ```bash

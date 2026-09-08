@@ -49,3 +49,13 @@ Schedule::command('garmin:sync-health --days=2')->dailyAt('09:00');
 // Jede Minute: laufende LiveTrack-Sitzungen abfragen. Der Command prueft
 // selbst, ob ueberhaupt eine Sitzung im Zeitfenster liegt.
 Schedule::command('livetrack:poll')->everyMinute()->withoutOverlapping();
+
+// Strava-Aktivitaeten abholen, unabhaengig vom Webhook.
+//
+// Der Webhook war der EINZIGE automatische Weg. Faellt Stravas Zustellung
+// aus, merkt es niemand — sechs Tage lang kam nichts an, waehrend die
+// Subscription gueltig war und der Endpunkt in 0,35 s mit 200 antwortete.
+// Der Webhook bleibt der schnelle Weg; das hier ist das Netz darunter.
+// Ein API-Aufruf je Konto und Durchlauf, Stravas Kontingent liegt bei 200
+// je 15 Minuten.
+Schedule::command('strava:sync')->everyTenMinutes()->withoutOverlapping();
