@@ -301,6 +301,11 @@ class SystemHealth
             'debug'        => (bool) config('app.debug'),
             'queue_driver' => config('queue.default'),
             'cache_driver' => config('cache.default'),
+            // Ob ueberhaupt in eine Datei geschrieben wird, entscheidet
+            // sich hier — und war der Grund, warum die Log-Ansicht in
+            // Produktion leer blieb.
+            'log_channel'  => config('logging.default'),
+            'log_stack'    => implode(',', config('logging.channels.stack.channels', [])),
             'db_driver'    => DB::connection()->getDriverName(),
             'db_size_mb'   => $dbSize,
             'model'        => config('services.openai.model'),

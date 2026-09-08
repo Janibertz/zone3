@@ -23,6 +23,8 @@ class StravaWebhookEvent extends Model
     public const OUTCOME_UNKNOWN_OWNER = 'unknown_owner';
     public const OUTCOME_NOT_FETCHABLE = 'not_fetchable';
     public const OUTCOME_TOMBSTONED    = 'tombstoned';
+    public const OUTCOME_DELETED       = 'deleted';
+    public const OUTCOME_DELETE_UNKNOWN = 'delete_unknown';
 
     public const OUTCOME_LABELS = [
         self::OUTCOME_IMPORTED      => 'importiert',
@@ -30,6 +32,8 @@ class StravaWebhookEvent extends Model
         self::OUTCOME_UNKNOWN_OWNER => 'kein Konto dazu',
         self::OUTCOME_NOT_FETCHABLE => 'nicht abrufbar',
         self::OUTCOME_TOMBSTONED    => 'gelöscht, bleibt draussen',
+        self::OUTCOME_DELETED       => 'bei Strava gelöscht → hier entfernt',
+        self::OUTCOME_DELETE_UNKNOWN => 'Löschung, war hier nicht vorhanden',
     ];
 
     public function user()

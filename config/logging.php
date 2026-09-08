@@ -54,7 +54,11 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', (string) env('LOG_STACK', 'single')),
+            // Zwei Ziele, mit Absicht: `stderr` landet im Container-Stream und
+            // damit in Coolify, `daily` in einer Datei, die /admin/system/logs
+            // lesen kann. Bis hierher gab es nur eines davon, und welches, sah
+            // man nirgends — die Log-Ansicht blieb deshalb leer.
+            'channels' => explode(',', (string) env('LOG_STACK', 'stderr,daily')),
             'ignore_exceptions' => false,
         ],
 

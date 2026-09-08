@@ -235,6 +235,129 @@ class StravaWebhookTest extends TestCase
         $this->assertSame(0, Activity::count());
     }
 
+    // ── Loeschen bei Strava schlaegt hierher durch ───────────────────────
+
+    /**
+     * Bis hierher kannte der Handler nur `create`. Loeschte der Athlet einen
+     * Lauf bei Strava, blieb er in Zone3 stehen — und zaehlte weiter in
+     * Wochenumfang, Belastung und Schwellenpace, fuer einen Lauf, den es
+     * nicht mehr gibt.
+     */
+    public function test_a_delete_event_removes_the_activity(): void
+    {
+        Queue::fake();
+        Http::preventStrayRequests();
+
+        Activity::create([
+            'user_id' => $this->user->id, 'strava_id' => 998877, 'name' => 'Morning Walk',
+            'type' => 'Walk', 'start_date' => now(), 'distance' => 2000,
+            'moving_time' => 1200, 'elapsed_time' => 1200, 'average_speed' => 2000 / 1200,
+        ]);
+
+        $this->postJson('/strava/webhook', $this->event(['aspect_type' => 'delete']))->assertOk();
+
+        $this->assertDatabaseMissing('activities', ['strava_id' => 998877]);
+    }
+
+    /**
+     * Loeschen laeuft ueber den Loeschdienst, nicht ueber ein blosses
+     * `delete()`: eine geplante Einheit, die der Import abgehakt hat, muss
+     * auf ihren Stand davor zurueck — sonst stuende sie auf „abgeschlossen"
+     * mit Zahlen, fuer die es keinen Beleg mehr gibt.
+     */
+    public function test_the_planned_session_goes_back_to_planned(): void
+    {
+        Queue::fake();
+        Http::preventStrayRequests();
+
+        $activity = Activity::create([
+            'user_id' => $this->user->id, 'strava_id' => 998877, 'name' => 'Abendlauf',
+            'type' => 'Run', 'start_date' => now(), 'distance' => 12000,
+            'moving_time' => 3300, 'elapsed_time' => 3300, 'average_speed' => 12000 / 3300,
+        ]);
+
+        $session = TrainingSession::create([
+            'user_id'          => $this->user->id,
+            'training_plan_id' => $this->plan->id,
+            'event_id'         => $this->plan->event_id,
+            'activity_id'      => $activity->id,
+            'planned_date'     => now()->toDateString(),
+            'type'             => 'easy_run',
+            'title'            => 'Lockerer Lauf',
+            'distance_km'      => 12,
+            'duration_min'     => 55,
+            'intensity'        => 'low',
+            'status'           => 'completed',
+            'planned_snapshot' => [
+                'type' => 'easy_run', 'title' => 'Lockerer Lauf',
+                'distance_km' => 10, 'duration_min' => 55,
+                'pace_target' => '5:30', 'zone' => 2, 'intensity' => 'low',
+            ],
+        ]);
+
+        $this->postJson('/strava/webhook', $this->event(['aspect_type' => 'delete']))->assertOk();
+
+        $session->refresh();
+
+        $this->assertSame('planned', $session->status);
+        $this->assertNull($session->activity_id);
+        $this->assertSame(10.0, (float) $session->distance_km, 'Die geplanten Zahlen kommen zurueck');
+    }
+
+    /**
+     * Eine Löschung, zu der es hier nichts gibt, ist kein Fehler — das
+     * passiert bei jeder Aktivität, die nie importiert wurde.
+     */
+    public function test_a_delete_for_something_unknown_is_harmless(): void
+    {
+        Queue::fake();
+        Http::preventStrayRequests();
+
+        $this->postJson('/strava/webhook', $this->event(['aspect_type' => 'delete']))->assertOk();
+
+        $this->assertSame(0, Activity::count());
+    }
+
+    /**
+     * Und eine Löschung holt nichts bei Strava ab — die Aktivität ist dort
+     * ja gerade verschwunden.
+     */
+    public function test_a_delete_does_not_call_strava(): void
+    {
+        Queue::fake();
+        Http::preventStrayRequests();
+
+        Activity::create([
+            'user_id' => $this->user->id, 'strava_id' => 998877, 'name' => 'Weg damit',
+            'type' => 'Run', 'start_date' => now(), 'distance' => 12000,
+            'moving_time' => 3300, 'elapsed_time' => 3300, 'average_speed' => 12000 / 3300,
+        ]);
+
+        $this->postJson('/strava/webhook', $this->event(['aspect_type' => 'delete']))->assertOk();
+
+        Http::assertNothingSent();
+    }
+
+    /**
+     * `update` bleibt unbeachtet: einen Titel, den jemand bei Strava
+     * nachtraeglich aendert, muss der Trainingsplan nicht mitbekommen.
+     */
+    public function test_an_update_event_still_changes_nothing(): void
+    {
+        Queue::fake();
+        Http::preventStrayRequests();
+
+        Activity::create([
+            'user_id' => $this->user->id, 'strava_id' => 998877, 'name' => 'Bleibt',
+            'type' => 'Run', 'start_date' => now(), 'distance' => 12000,
+            'moving_time' => 3300, 'elapsed_time' => 3300, 'average_speed' => 12000 / 3300,
+        ]);
+
+        $this->postJson('/strava/webhook', $this->event(['aspect_type' => 'update']))->assertOk();
+
+        $this->assertDatabaseHas('activities', ['strava_id' => 998877, 'name' => 'Bleibt']);
+    }
+
     // ── Der Handshake ────────────────────────────────────────────────────
 
     public function test_the_handshake_answers_with_the_challenge(): void

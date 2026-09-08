@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use App\Models\Activity;
 use App\Models\StravaAccount;
 use App\Models\StravaWebhookEvent;
+use App\Services\ActivityDeletionService;
 use App\Services\BestEffortService;
 use App\Services\StravaImportService;
 use App\Services\StravaService;
@@ -180,6 +181,62 @@ class StravaController extends Controller
         return redirect()->route('dashboard')->with('sync_result', $message);
     }
 
+
+    /**
+     * Eine bei Strava geloeschte Aktivitaet auch hier entfernen.
+     *
+     * Ueber `ActivityDeletionService`, nie mit einem blossen `delete()`:
+     * eine abgehakte Einheit haengt daran und stuende sonst weiter auf
+     * „abgeschlossen" — mit den gelaufenen Zahlen, aber ohne Beleg. Eine
+     * geplante wird aus dem Schnappschuss wiederhergestellt, eine
+     * ungeplante verschwindet mit.
+     *
+     * Der Grabstein ist hier streng genommen ueberfluessig — was bei Strava
+     * geloescht ist, liefert auch der Abgleich nicht mehr. Er kostet nichts
+     * und macht den Weg identisch zu dem, den der Athlet selbst ausloest.
+     */
+    private function webhookDelete(
+        StravaWebhookEvent $event,
+        ?StravaAccount $account,
+        int $stravaId,
+    ): Response {
+        if (! $account || ! $stravaId) {
+            $event->update(['outcome' => StravaWebhookEvent::OUTCOME_UNKNOWN_OWNER]);
+
+            return response('OK');
+        }
+
+        $activity = Activity::where('user_id', $account->user_id)
+            ->where('strava_id', $stravaId)
+            ->first();
+
+        if (! $activity) {
+            $event->update([
+                'user_id' => $account->user_id,
+                'outcome' => StravaWebhookEvent::OUTCOME_DELETE_UNKNOWN,
+            ]);
+
+            return response('OK');
+        }
+
+        $name   = $activity->name;
+        $result = app(ActivityDeletionService::class)->delete($activity);
+
+        Log::info('Strava-Aktivitaet bei Strava geloescht, hier entfernt', [
+            'user_id'   => $account->user_id,
+            'strava_id' => $stravaId,
+            'name'      => $name,
+        ] + $result);
+
+        $event->update([
+            'user_id' => $account->user_id,
+            'outcome' => StravaWebhookEvent::OUTCOME_DELETED,
+            'note'    => $name,
+        ]);
+
+        return response('OK');
+    }
+
     /**
      * Strava webhook verification (GET).
      */
@@ -241,16 +298,27 @@ class StravaController extends Controller
             'object_type', 'aspect_type', 'owner_id', 'object_id',
         ));
 
-        if (
-            ($data['object_type'] ?? '') !== 'activity' ||
-            ($data['aspect_type'] ?? '') !== 'create'
-        ) {
+        if (($data['object_type'] ?? '') !== 'activity') {
             $event->update(['outcome' => StravaWebhookEvent::OUTCOME_WRONG_TYPE]);
 
             return response('OK');
         }
 
         $account = StravaAccount::where('strava_id', $data['owner_id'] ?? null)->first();
+
+        // Was der Athlet bei Strava loescht, soll auch hier verschwinden.
+        // Vorher blieb es stehen: der Handler kannte nur `create`, und die
+        // Aktivitaet zaehlte weiter in Wochenumfang, Belastung und
+        // Schwellenpace — fuer einen Lauf, den es nicht mehr gibt.
+        if (($data['aspect_type'] ?? '') === 'delete') {
+            return $this->webhookDelete($event, $account, (int) ($data['object_id'] ?? 0));
+        }
+
+        if (($data['aspect_type'] ?? '') !== 'create') {
+            $event->update(['outcome' => StravaWebhookEvent::OUTCOME_WRONG_TYPE]);
+
+            return response('OK');
+        }
 
         if (! $account) {
             Log::warning('Strava-Webhook: kein Konto zu dieser owner_id', [

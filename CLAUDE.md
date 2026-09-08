@@ -325,15 +325,17 @@ What is new and deliberate: `Log::info('Strava-Webhook empfangen', …)` fires *
 
 The route carries **no throttle and no token check**. Both arrived with the rework, and both can reject a genuine Strava call; while the import is not reliably working, nothing stands in its way. `callbackTokenMatches()` is gone.
 
+**Deleting on Strava deletes here.** `aspect_type = delete` runs `ActivityDeletionService` for the matching activity — a planned session goes back to `planned` from its snapshot, an unplanned one disappears with it. Before that the handler knew only `create`, so an activity the athlete removed on Strava kept counting towards weekly volume, load and threshold pace for a run that no longer existed. `update` stays ignored: a title someone edits afterwards is no reason to touch the training plan.
+
 **Strava does not sign its webhooks** — there is no signature to verify, unlike GitHub. The protection is that only `owner_id` and `object_id` are taken from the body, and the activity is then fetched from the API with the account's token, so a forged call cannot inject invented data.
 
-### The safety net: `strava:sync` every ten minutes
+### The safety net: `strava:sync` every five minutes
 
 The webhook used to be the **only** automatic path, which meant a core feature hung on something we do not control: Strava has to deliver, and when it stops, nobody notices. That is exactly what happened — six days without an import while the subscription was valid, the endpoint answered 200 in 0.35 s, and the athlete kept running.
 
-`Schedule::command('strava:sync')->everyTenMinutes()` now fetches for every connected account. The webhook stays the fast path (seconds); this turns "sometimes broken" into "sometimes ten minutes late".
+`Schedule::command('strava:sync')->everyFiveMinutes()` fetches for every connected account. The webhook stays the fast path (seconds); this turns "sometimes broken" into "sometimes five minutes late". Do not go below five: one list call per account per run means 1152 a day for four athletes, and Strava's daily ceiling is 2000.
 
-It only touches what is genuinely new: an activity the webhook already imported is skipped entirely — no second match, no second review, no second push. Accounts without a refresh token are skipped with a log line, and one failing account cannot stop the others. Cost is one list call plus one detail call per new activity; with four athletes that is 24 calls an hour against Strava's 200 per 15 minutes.
+It only touches what is genuinely new: an activity the webhook already imported is skipped entirely — no second match, no second review, no second push. Accounts without a refresh token are skipped with a log line, and one failing account cannot stop the others. Cost is one list call plus one detail call per new activity; with four athletes that is 12 per 15 minutes against Strava's limit of 200.
 
 ### Cloudflare sits in front of zone3.run — and it broke the webhook
 
@@ -399,6 +401,8 @@ From a report: "ich habe keine Möglichkeit eine Aktivität zu löschen … noch
 ### `/admin/system/logs` — the application log, without a container
 
 Three debugging sessions in one week stalled because the answer was in the log and nobody could reach it. "Is Strava even calling us?" cost two long sessions and was one line away the whole time.
+
+**Production must actually write a file for this to show anything.** It did not: the container logged to its output stream, so the view was empty and the finding cost another round. `config/logging.php` now defaults `LOG_STACK` to `stderr,daily` — the stream keeps feeding Coolify, the file feeds this page. If `LOG_CHANNEL` is set to something other than `stack` in Coolify, neither applies; `/admin/system` shows the active channel in the environment block so the answer is visible instead of guessed.
 
 `LogReader` tails the newest `storage/logs/laravel*.log`. Two things matter when reading a log file, and both are encoded:
 
