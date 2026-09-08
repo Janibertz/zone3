@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use App\Services\PaceFormat;
+use App\Services\WorkoutPaceResolver;
 
 class TrainingSessionController extends Controller
 {
@@ -462,8 +463,15 @@ class TrainingSessionController extends Controller
 
     /**
      * Replace a planned session's content with a workout from the user's library.
+     *
+     * Denselben Weg gibt es vom Dashboard aus („Einheit tauschen"), und beide
+     * muessen dasselbe tun. Hier stand frueher `steps => null`: die Struktur
+     * des Workouts wurde verworfen und beim naechsten Aufruf vom Modell neu
+     * erfunden — aus „5× 500 m" wurde, was das Modell fuer richtig hielt.
+     * `WorkoutPaceResolver` uebersetzt die Bloecke stattdessen direkt, mit den
+     * Paces dieses Athleten und mit den Strecken, die drinstehen.
      */
-    public function applyWorkout(Request $request, TrainingSession $session)
+    public function applyWorkout(Request $request, TrainingSession $session, WorkoutPaceResolver $resolver)
     {
         abort_if($session->user_id !== Auth::id(), 403);
         abort_if($session->status !== 'planned', 422);
@@ -475,13 +483,22 @@ class TrainingSessionController extends Controller
         $workout = \App\Models\Workout::findOrFail($request->workout_id);
         abort_if($workout->user_id !== Auth::id(), 403);
 
+        $resolved = $resolver->resolve($workout, Auth::user()->runnerProfile);
+
         $session->update([
             'title'        => $workout->name,
             'description'  => $workout->description,
             'type'         => $workout->type,
-            'distance_km'  => $workout->estimated_distance_km,
-            'duration_min' => $workout->estimated_duration_min,
-            'steps'        => null,
+            'distance_km'  => $resolved['distance_km'] ?? $workout->estimated_distance_km,
+            'duration_min' => $resolved['duration_min'] ?: $workout->estimated_duration_min,
+            'pace_target'  => $resolved['pace_target'],
+            'zone'         => $resolved['zone'],
+            'steps'        => $resolved['steps'],
+            // Die Verpflegungstipps beschrieben die alte Einheit.
+            'nutrition_tips' => null,
+            // Der Athlet hat sich das ausgesucht — eine Neuberechnung des
+            // Plans darf es nicht stillschweigend wieder wegnehmen.
+            'pinned_at'      => now(),
         ]);
 
         $workout->increment('times_used');
@@ -501,13 +518,20 @@ class TrainingSessionController extends Controller
 
     /**
      * Convert AI-generated session steps to Garmin payload format.
-     * AI format: {type, label, duration_min, pace_target, zone, repetitions}
-     * Garmin format: {name, step_type, duration_sec, speedMps, repetitions}
+     * AI format: {type, label, distance_m, duration_min, pace_target, zone, repetitions}
+     * Garmin format: {name, step_type, meters, duration_sec, speedMps, repetitions}
+     *
+     * Gibt ein Abschnitt eine Strecke vor, bekommt die Uhr die Strecke — die
+     * Runde endet dann nach 500 m und nicht nach den 2 Minuten, die 500 m in
+     * der Zielpace ungefaehr dauern. Genau eines von beidem wird gesetzt,
+     * wie in convertComputedStepsForGarmin.
      */
     private function convertAiStepsForGarmin(array $aiSteps): array
     {
         return array_map(function (array $step) {
-            $durationSec = isset($step['duration_min'])
+            $meters = (int) ($step['distance_m'] ?? 0);
+
+            $durationSec = ($meters <= 0 && isset($step['duration_min']))
                 ? (int) round((float) $step['duration_min'] * 60)
                 : null;
 
@@ -526,7 +550,7 @@ class TrainingSessionController extends Controller
                 'name'         => $step['label'] ?? ucfirst($step['type'] ?? 'Step'),
                 'step_type'    => $step['type'] ?? 'active',
                 'duration_sec' => $durationSec,
-                'meters'       => null,
+                'meters'       => $meters > 0 ? $meters : null,
                 'speedMps'     => $speedMps,
                 'repetitions'  => $step['repetitions'] ?? null,
             ];

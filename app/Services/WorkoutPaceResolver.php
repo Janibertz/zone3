@@ -42,6 +42,10 @@ class WorkoutPaceResolver
     /**
      * Das Workout in konkrete Werte übersetzen.
      *
+     * Ein Abschnitt traegt `distance_m`, wenn das Workout ihn nach Strecke
+     * vorgibt — dann ist die Strecke die Ansage und `duration_min` nur die
+     * daraus geschaetzte Dauer.
+     *
      * @return array{steps: list<array<string, mixed>>, duration_min: int, distance_km: float|null, pace_target: string|null, zone: int|null}
      */
     public function resolve(Workout $workout, ?RunnerProfile $profile): array
@@ -98,8 +102,17 @@ class WorkoutPaceResolver
         $mode    = $raw['duration_mode'] ?? 'time';
         $meters  = (int) ($raw['distance_m'] ?? 0);
 
-        if ($mode === 'distance' && $meters > 0 && $paceSec) {
-            $minutes = max(1, (int) round(($meters / 1000) * $paceSec / 60));
+        // Nach Strecke oder nach Zeit — das entscheidet der Ersteller, und
+        // die Entscheidung bleibt erhalten. Frueher wurden die Meter hier in
+        // Minuten umgerechnet und danach verworfen; aus „500 m schnell"
+        // wurde „2 min", und die Ansage war weg.
+        $byDistance = $mode === 'distance' && $meters > 0;
+
+        if ($byDistance) {
+            // Die Minuten sind ab hier nur noch eine Schaetzung: sie tragen
+            // Balkenbreite und Gesamtdauer. Ohne Pace laesst sich nichts
+            // schaetzen — dann steht dort nichts statt einer erfundenen Zahl.
+            $minutes = $paceSec ? max(1, (int) round(($meters / 1000) * $paceSec / 60)) : null;
         } else {
             $minutes = max(1, (int) round(((int) ($raw['duration_sec'] ?? 600)) / 60));
         }
@@ -107,15 +120,20 @@ class WorkoutPaceResolver
         $stepType = $this->stepType($raw['type'] ?? $parent['type'] ?? 'active');
         $isRest   = $stepType === 'rest';
 
-        $totalMin += $minutes * $reps;
+        $totalMin += ($minutes ?? 0) * $reps;
 
-        if ($paceSec) {
+        // Steht die Strecke fest, ist sie die Quelle — nicht der Umweg ueber
+        // die schon gerundeten Minuten.
+        if ($byDistance) {
+            $totalKm += ($meters / 1000) * $reps;
+        } elseif ($paceSec && $minutes) {
             $totalKm += ($minutes * $reps * 60) / $paceSec;
         }
 
         return [
             'type'         => $stepType,
             'label'        => $raw['label'] ?? $this->labelFor($stepType, $meters),
+            'distance_m'   => $byDistance ? $meters : null,
             'duration_min' => $minutes,
             // Pausen bekommen kein Tempo vorgeschrieben — traben heisst traben.
             'pace_target'  => $isRest ? null : PaceFormat::fromSeconds($paceSec ?: null),

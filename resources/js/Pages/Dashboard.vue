@@ -20,7 +20,7 @@ import EmptyState from '@/Components/UI/EmptyState.vue';
 import StatChip from '@/Components/UI/StatChip.vue';
 import MetricTile from '@/Components/UI/MetricTile.vue';
 import SectionHeader from '@/Components/UI/SectionHeader.vue';
-import { sessionType } from '@/Composables/useSessionTypes';
+import { sessionType, stepAmount } from '@/Composables/useSessionTypes';
 
 
 const props = defineProps({
@@ -215,10 +215,19 @@ function applyWorkout(workout) {
     });
 }
 
-/** Ein Abschnitt in einer Zeile: „5× 1000 m · 4 min · 4:10 /km". */
+/**
+ * Ein Abschnitt in einer Zeile: „1000 m · 4:10 /km · Zone 5".
+ *
+ * Die Ansage zuerst — Strecke, wenn das Workout eine vorgibt, sonst Zeit.
+ * Bei einem Streckenabschnitt steht die geschaetzte Dauer dahinter in
+ * Klammern, damit man die Einheit trotzdem einordnen kann.
+ */
 function stepLine(step) {
+    const byDistance = Number(step.distance_m ?? 0) > 0;
+
     return [
-        step.duration_min ? `${step.duration_min} min` : null,
+        stepAmount(step),
+        byDistance && step.duration_min ? `ca. ${step.duration_min} min` : null,
         step.pace_target ? `${step.pace_target} /km` : null,
         step.zone ? `Zone ${step.zone}` : null,
     ].filter(Boolean).join(' · ');
@@ -1000,6 +1009,19 @@ const recTotalStepDuration = computed(() =>
     recStepsWithReps.value.reduce((sum, s) => sum + (s.duration_min || 0), 0)
 );
 
+/**
+ * Balkenbreite in Prozent. Ein Workout, das nur nach Strecke vorgibt, hat
+ * ohne Schwellenpace keine geschaetzte Dauer — die Summe waere 0 und jede
+ * Breite NaN. Dann teilen sich die Abschnitte die Leiste gleichmaessig.
+ */
+function recStepWidthPct(step) {
+    if (!recTotalStepDuration.value) {
+        return (100 / recStepsWithReps.value.length).toFixed(1);
+    }
+
+    return ((step.duration_min || 0) / recTotalStepDuration.value * 100).toFixed(1);
+}
+
 const recGroupedSteps = computed(() => {
     if (!recSteps.value) return [];
     const result = [];
@@ -1646,11 +1668,11 @@ async function saveWeek() {
                                             v-for="(s, i) in recStepsWithReps"
                                             :key="i"
                                             :style="{
-                                                width:  ((s.duration_min || 0) / recTotalStepDuration * 100).toFixed(1) + '%',
+                                                width:  recStepWidthPct(s) + '%',
                                                 height: (stepHeightPct[s.type] ?? 60) + '%',
                                             }"
                                             :class="[stepBarColor[s.type] ?? 'bg-accent', 'rounded-md']"
-                                            :title="`${s.label}: ${s.duration_min} min`"
+                                            :title="`${s.label}: ${stepAmount(s) ?? ''}`"
                                         />
                                     </div>
                                     <div class="space-y-1">
@@ -1669,10 +1691,10 @@ async function saveWeek() {
                                                     <template v-if="step.isGroup">{{ step.repetitions }}× </template>{{ step.label }}
                                                 </p>
                                                 <p v-if="step.isGroup && step.pairedRest" class="text-[13px] text-ink-3">
-                                                    dazwischen {{ step.pairedRest.label }} · {{ step.pairedRest.duration_min }} min
+                                                    dazwischen {{ step.pairedRest.label }} · {{ stepAmount(step.pairedRest) }}
                                                 </p>
                                             </div>
-                                            <span class="shrink-0 text-[13px] tabular-nums text-ink-3">{{ step.duration_min }} min</span>
+                                            <span class="shrink-0 text-[13px] tabular-nums text-ink-3">{{ stepAmount(step) }}</span>
                                             <span v-if="step.pace_target" class="shrink-0 text-[13px] font-semibold tabular-nums text-ink">{{ step.pace_target }}</span>
                                         </div>
                                     </div>
@@ -2564,8 +2586,8 @@ async function saveWeek() {
 
                             <p v-if="w.steps?.length" class="mt-2 text-[12px] text-ink-3">
                                 <span v-for="(st, i) in w.steps" :key="i">
-                                    <span v-if="st.repetitions">{{ st.repetitions }}× </span>{{ st.label }}
-                                    <span v-if="st.duration_min">, {{ st.duration_min }} min</span><span v-if="i < w.steps.length - 1"> · </span>
+                                    <span v-if="st.repetitions">{{ st.repetitions }}× </span><span>{{ st.label }}</span><span
+                                        v-if="stepAmount(st)">, {{ stepAmount(st) }}</span><span v-if="i < w.steps.length - 1"> · </span>
                                 </span>
                             </p>
                         </button>

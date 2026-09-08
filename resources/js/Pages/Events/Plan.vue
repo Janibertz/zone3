@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
-import { paceValue, paceWithUnit, sessionType } from '@/Composables/useSessionTypes';
+import { paceValue, paceWithUnit, sessionType, stepAmount } from '@/Composables/useSessionTypes';
 import AppButton from '@/Components/UI/AppButton.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
@@ -739,11 +739,30 @@ const totalStepDuration = computed(() =>
     stepsWithReps.value.reduce((sum, s) => sum + (s.duration_min || 0), 0)
 );
 
-// Total distance estimated from step duration × pace (skips steps without pace)
+/**
+ * Balkenbreite in Prozent. Ohne Schwellenpace tragen Streckenabschnitte
+ * keine geschaetzte Dauer — dann waere die Summe 0 und jede Breite NaN.
+ * In dem Fall bekommt jeder Abschnitt denselben Anteil.
+ */
+function stepWidthPct(step) {
+    if (!totalStepDuration.value) {
+        return (100 / stepsWithReps.value.length).toFixed(1);
+    }
+
+    return ((step.duration_min || 0) / totalStepDuration.value * 100).toFixed(1);
+}
+
+/**
+ * Gesamtstrecke. Ein Abschnitt mit vorgegebener Strecke zaehlt mit genau
+ * dieser — nur wo keine steht, wird aus Dauer und Pace geschaetzt. Sonst
+ * liefe die Rechnung ueber die schon gerundeten Minuten zurueck und ein
+ * 5×1000 m ergaebe 4,8 km.
+ */
 const totalStepDistanceKm = computed(() => {
     if (!stepsWithReps.value.length) return null;
     let km = 0;
     for (const s of stepsWithReps.value) {
+        if (s.distance_m > 0) { km += s.distance_m / 1000; continue; }
         if (!s.pace_target || !s.duration_min) continue;
         const paceStr = String(s.pace_target);
         // Handle range like "5:30-6:00" → take midpoint
@@ -1623,11 +1642,11 @@ const lapHeightPct = computed(() => {
                                     v-for="(s, i) in stepsWithReps"
                                     :key="i"
                                     :style="{
-                                        width:  ((s.duration_min || 0) / totalStepDuration * 100).toFixed(1) + '%',
+                                        width:  stepWidthPct(s) + '%',
                                         height: (stepHeightPct[s.type] ?? 60) + '%',
                                     }"
                                     :class="[stepBarColor[s.type] ?? 'bg-accent', 'rounded-t']"
-                                    :title="`${s.label}: ${s.duration_min} min`"
+                                    :title="`${s.label}: ${stepAmount(s) ?? ''}`"
                                 />
                             </div>
 
@@ -1644,7 +1663,7 @@ const lapHeightPct = computed(() => {
                                             <div class="flex items-center gap-2.5">
                                                 <span class="h-2 w-2 shrink-0 rounded-full bg-danger" />
                                                 <span class="text-[13px] font-medium text-ink-2">{{ step.label }}</span>
-                                                <span class="ml-auto text-[13px] tabular-nums text-ink-3">{{ step.duration_min }} min</span>
+                                                <span class="ml-auto text-[13px] tabular-nums text-ink-3">{{ stepAmount(step) }}</span>
                                                 <span v-if="step.pace_target" class="w-16 text-right text-[13px] font-semibold tabular-nums text-ink">
                                                     {{ step.pace_target }}
                                                 </span>
@@ -1652,7 +1671,7 @@ const lapHeightPct = computed(() => {
                                             <div v-if="step.pairedRest" class="flex items-center gap-2.5">
                                                 <span class="h-2 w-2 shrink-0 rounded-full bg-surface-3" />
                                                 <span class="text-[13px] text-ink-3">{{ step.pairedRest.label }}</span>
-                                                <span class="ml-auto text-[13px] tabular-nums text-ink-3">{{ step.pairedRest.duration_min }} min</span>
+                                                <span class="ml-auto text-[13px] tabular-nums text-ink-3">{{ stepAmount(step.pairedRest) }}</span>
                                                 <span class="w-16" />
                                             </div>
                                         </div>
@@ -1667,7 +1686,7 @@ const lapHeightPct = computed(() => {
                                                 </p>
                                                 <p class="text-[13px] font-medium text-ink">{{ step.label }}</p>
                                             </div>
-                                            <span class="shrink-0 text-[13px] tabular-nums text-ink-3">{{ step.duration_min }} min</span>
+                                            <span class="shrink-0 text-[13px] tabular-nums text-ink-3">{{ stepAmount(step) }}</span>
                                             <span v-if="step.pace_target" class="w-16 shrink-0 text-right text-[13px] font-semibold tabular-nums text-ink">
                                                 {{ step.pace_target }}
                                             </span>

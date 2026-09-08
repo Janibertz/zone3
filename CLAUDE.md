@@ -130,6 +130,23 @@ Reported: *"Ich hatte 30 Min Zone2 auf dem Plan, ich habe aber Bock auf Interval
 
 This deliberately reuses the existing workout builder instead of adding a curated template table beside it. The reason it works at all is a decision already made in the builder: **its blocks carry `pace_zone`, not fixed paces.** A shared workout is therefore athlete-independent by construction — `WorkoutPaceResolver` turns zones into seconds from *this* runner's `pace_zones` (midpoint of the band), falling back to offsets from `threshold_speed` when the table is missing. Those offsets are copied from `AthleteProfileService::calculatePaceZonesWithAI()`; inventing a second set would be exactly the duplicate-truth mistake this project keeps paying for. A test asserts two athletes get different paces from the same workout.
 
+**Eine Strecke bleibt eine Strecke.** `WorkoutPaceResolver` rechnete
+distanzbasierte Abschnitte in Minuten um und verwarf die Meter danach — der
+Schritt-Vertrag hatte kein Streckenfeld. Aus „500 m schnell" wurde „2 min",
+also aus einer Ansage eine Schätzung. Die Schritte tragen jetzt `distance_m`,
+und überall, wo ein Abschnitt angezeigt wird, steht die Strecke vorn und die
+geschätzte Dauer daneben (`stepAmount()` in `useSessionTypes.js` ist die
+einzige Stelle, die das formatiert). Auch die Uhr bekommt bei einer
+Streckenvorgabe `meters` statt `duration_sec`, sonst endet die Runde nach der
+geschätzten Zeit statt nach 500 m. Die Gesamtstrecke kommt aus den Metern
+selbst und nicht mehr über die schon gerundeten Minuten zurück — 5×1000 m
+ergaben so 5,2 km.
+
+Denselben Tausch gibt es zweimal: auf dem Dashboard („Einheit tauschen") und
+auf der Planseite („Eigenes Workout"). Die Planseite setzte `steps => null`
+und liess die Struktur vom Modell neu erfinden. Beide Wege benutzen jetzt den
+Resolver, pinnen die Einheit und löschen die Verpflegungstipps der alten.
+
 The rules around sharing:
 
 - **Only the creator publishes** (`workouts.toggle-public`), and only the creator can edit. Nobody edits someone else's workout.

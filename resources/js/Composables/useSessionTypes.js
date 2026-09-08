@@ -86,6 +86,35 @@ export function paceWithUnit(paceTarget) {
     return clean ? `${clean} /km` : null;
 }
 
+/**
+ * Was in diesem Abschnitt zu tun ist: Strecke, wenn das Workout eine nennt,
+ * sonst Zeit.
+ *
+ * Gemeldet: „Ich habe ein Workout erstellt mit 500 m schnell und 500 m
+ * langsam … Nun werden aber nicht die 500 M Intervalle angezeigt sondern
+ * die 500 M werden in Minuten anhand der Pace berechnet." Die Minuten sind
+ * eine Schaetzung aus der Pace — die 500 m sind die Ansage. Wer nach
+ * Strecke laeuft, schaut auf die Runde und nicht auf die Uhr, und eine
+ * Schaetzung an der Stelle der Ansage macht aus einem exakten Intervall ein
+ * ungefaehres.
+ *
+ * duration_min bleibt am Abschnitt stehen: Balkenbreite und Gesamtdauer
+ * brauchen eine Zahl. Angezeigt wird sie nur, wenn es keine Strecke gibt.
+ */
+export function stepAmount(step) {
+    const meters = Number(step?.distance_m ?? 0);
+
+    if (meters > 0) {
+        if (meters < 1000) return `${meters} m`;
+
+        const km = meters / 1000;
+
+        return `${km.toFixed(Number.isInteger(km) ? 0 : 1).replace('.', ',')} km`;
+    }
+
+    return step?.duration_min ? `${step.duration_min} min` : null;
+}
+
 export function useSessionTypes() {
-    return { sessionType, SESSION_TYPES, paceWithUnit, paceValue };
+    return { sessionType, SESSION_TYPES, paceWithUnit, paceValue, stepAmount };
 }

@@ -210,6 +210,88 @@ class SharedWorkoutTest extends TestCase
         $this->assertSame('easy_run', $session->fresh()->type);
     }
 
+    // ── Strecke bleibt Strecke ───────────────────────────────────────────
+
+    /**
+     * Gemeldet: „Ich habe ein Workout erstellt mit 500 m schnell und 500
+     * langsam Intervallen … Nun werden aber nicht die 500 M Intervalle
+     * angezeigt sondern die 500 M werden in Minuten anhand der Pace
+     * berechnet. Ich möchte aber das die Workouts aus der Bibliothek 1zu1
+     * übernommen werden."
+     *
+     * Der Resolver rechnete die Meter in Minuten um und verwarf sie danach —
+     * im Schritt-Vertrag gab es gar kein Streckenfeld. Aus einer Ansage wurde
+     * eine Schätzung. Die Minuten bleiben stehen, aber nur als Schätzung
+     * daneben.
+     */
+    public function test_a_distance_interval_stays_a_distance(): void
+    {
+        $athlete = $this->athlete(5.0);
+        $workout = $this->workout($athlete, public: true);
+        $session = $this->plannedSession($athlete);
+
+        $this->actingAs($athlete)
+            ->post(route('workouts.apply-to-session', [$session->id, $workout->id]));
+
+        $steps = collect($session->fresh()->steps);
+
+        $work = $steps->firstWhere('type', 'work');
+        $this->assertSame(1000, $work['distance_m'], 'Die Ansage sind 1000 m, nicht die Minuten daraus');
+        $this->assertSame(5, $work['repetitions']);
+        $this->assertNotNull($work['pace_target'], 'Die Pace kommt weiterhin aus der Zone dieses Athleten');
+        $this->assertNotNull($work['duration_min'], 'Die geschätzte Dauer bleibt für Balken und Summe stehen');
+
+        $rest = $steps->firstWhere('type', 'rest');
+        $this->assertSame(400, $rest['distance_m'], 'Auch die Trabpause ist eine Strecke');
+
+        // Zeitblöcke tragen keine Strecke — sonst stünde dort eine Zahl,
+        // die niemand vorgegeben hat.
+        $this->assertNull($steps->firstWhere('type', 'warmup')['distance_m']);
+    }
+
+    /**
+     * Und die Gesamtstrecke kommt aus den Metern selbst.
+     *
+     * Vorher lief sie über die bereits auf ganze Minuten gerundete Dauer
+     * zurück: 5×1000 m ergaben 5,2 km. Zweimal runden, einmal in jede
+     * Richtung — die Einheit wusste am Ende nicht mehr, wie weit sie ist.
+     */
+    public function test_the_total_distance_comes_from_the_metres(): void
+    {
+        $athlete = $this->athlete(5.0);
+        $workout = $this->workout($athlete, public: true);
+        $session = $this->plannedSession($athlete);
+
+        $this->actingAs($athlete)
+            ->post(route('workouts.apply-to-session', [$session->id, $workout->id]));
+
+        // 5×1000 m + 5×400 m = 7,0 km, dazu Ein- und Auslaufen nach Zeit.
+        $this->assertSame(10.0, (float) $session->fresh()->distance_km);
+    }
+
+    /**
+     * Denselben Tausch gibt es auch auf der Planseite, über eine eigene
+     * Route. Dort stand `steps => null`: die Struktur wurde verworfen und
+     * beim nächsten Öffnen vom Modell neu erfunden. Zwei Wege zum selben
+     * Ziel dürfen nicht zwei Ergebnisse haben.
+     */
+    public function test_the_plan_page_applies_the_same_structure(): void
+    {
+        $athlete = $this->athlete(5.0);
+        $workout = $this->workout($athlete);
+        $session = $this->plannedSession($athlete);
+
+        $this->actingAs($athlete)
+            ->patchJson(route('training-sessions.apply-workout', $session->id), ['workout_id' => $workout->id])
+            ->assertOk();
+
+        $session->refresh();
+
+        $this->assertNotNull($session->steps, 'Die Struktur kommt aus dem Workout, nicht vom Modell');
+        $this->assertSame(1000, collect($session->steps)->firstWhere('type', 'work')['distance_m']);
+        $this->assertNotNull($session->pinned_at, 'Der Athlet hat sich das ausgesucht');
+    }
+
     // ── Der Admin nimmt zurück ───────────────────────────────────────────
 
     /**
