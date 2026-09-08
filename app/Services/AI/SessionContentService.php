@@ -580,6 +580,7 @@ Du bist ein Lauf-Coach. Passe die folgende Trainingseinheit an den aktuellen Ges
 
 Antworte ausschließlich mit JSON (kein anderer Text):
 {
+  "reason": "...",
   "type": "...",
   "title": "...",
   "description": "...",
@@ -589,6 +590,12 @@ Antworte ausschließlich mit JSON (kein anderer Text):
   "zone": 1,
   "intensity": "..."
 }
+
+`reason` ist der Satz, mit dem du dem Athleten den Vorschlag begründest —
+er entscheidet selbst, ob er ihn annimmt. HÖCHSTENS 140 Zeichen, ein Satz,
+und er nennt den Grund, nicht die Massnahme: „Ruhepuls 8 % über deiner
+Grundlinie und Schlaf 4/10" statt „Ich habe die Einheit gekürzt". Was du
+änderst, sieht er daneben.
 PROMPT;
 
         $text = $this->ai->chat('adjust_session', [

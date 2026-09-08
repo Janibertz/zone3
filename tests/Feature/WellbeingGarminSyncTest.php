@@ -54,7 +54,16 @@ class WellbeingGarminSyncTest extends TestCase
     }
 
     /** Sind die Werte schon da, waere ein Abruf reine Last. */
-    public function test_no_sync_when_todays_metrics_already_exist(): void
+    /**
+     * Auch wenn für heute schon Werte da sind, wird geholt.
+     *
+     * Vorher war das die Abbruchbedingung — und sie traf den häufigsten Fall
+     * nicht: wer morgens eincheckt und DANACH die Uhr synchronisiert, hatte
+     * bereits einen (unvollständigen) Datensatz für heute und bekam die
+     * Nachtwerte nie nachgereicht. Der Coach schlug dann auf halber Grundlage
+     * vor. Gegen das Hämmern schützt jetzt nur noch die kurze Sperre.
+     */
+    public function test_it_syncs_even_when_todays_metrics_already_exist(): void
     {
         Queue::fake();
         $user = $this->connectedUser();
@@ -68,9 +77,9 @@ class WellbeingGarminSyncTest extends TestCase
         $this->actingAs($user)
             ->postJson('/api/wellbeing', $this->payload)
             ->assertOk()
-            ->assertJsonPath('garmin_queued', false);
+            ->assertJsonPath('garmin_queued', true);
 
-        Queue::assertNotPushed(SyncGarminHealthJob::class);
+        Queue::assertPushed(SyncGarminHealthJob::class);
     }
 
     /** Ohne Garmin-Verbindung gibt es nichts abzurufen. */

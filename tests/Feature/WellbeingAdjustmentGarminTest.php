@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\AdjustPlanForWellbeingJob;
+use App\Jobs\RecommendForWellbeingJob;
 use App\Models\GarminDailyMetric;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
@@ -117,7 +117,7 @@ class WellbeingAdjustmentGarminTest extends TestCase
             ])], 'finish_reason' => 'stop']],
         ])]);
 
-        (new AdjustPlanForWellbeingJob($user->id, $wellbeing->id))
+        (new RecommendForWellbeingJob($user->id, $wellbeing->id))
             ->handle(app(\App\Services\AI\SessionContentService::class), app(GarminHealthSummary::class));
 
         $prompt = $this->promptSent();
@@ -127,10 +127,21 @@ class WellbeingAdjustmentGarminTest extends TestCase
         $this->assertStringContainsString('Auffällig', $prompt, 'Die Warnsignale müssen benannt sein');
         $this->assertStringContainsString('Training Readiness: 28/100', $prompt);
 
-        // Und die Antwort landet in der Einheit.
+        // Und die Antwort landet in einer EMPFEHLUNG, nicht in der Einheit.
+        //
+        // Das ist der Unterschied, um den es geht: der Coach schlägt vor,
+        // der Athlet entscheidet. Vorher stand hier eine Einheit, die
+        // niemand bestellt hatte.
         $session = TrainingSession::find($sessionId);
-        $this->assertSame('easy_run', $session->type);
-        $this->assertSame('low', $session->intensity);
+        $this->assertSame('interval', $session->type, 'Der Plan bleibt unangetastet');
+
+        $recommendation = \App\Models\SessionRecommendation::where('training_session_id', $sessionId)->first();
+
+        $this->assertNotNull($recommendation, 'Es muss ein Vorschlag entstehen');
+        $this->assertSame('pending', $recommendation->status);
+        $this->assertSame('easy_run', $recommendation->after['type']);
+        $this->assertSame('interval', $recommendation->before['type'], 'Das Vorher gehoert dazu');
+        $this->assertSame('low', $recommendation->after['intensity']);
     }
 
     /** Ohne Uhr steht das ausdrücklich da — sonst liest das Modell Schweigen als „alles gut". */
@@ -143,7 +154,7 @@ class WellbeingAdjustmentGarminTest extends TestCase
             'choices' => [['message' => ['content' => '{"type":"interval","title":"x","description":"y","distance_km":12,"duration_min":60,"pace_target":null,"zone":4,"intensity":"high"}'], 'finish_reason' => 'stop']],
         ])]);
 
-        (new AdjustPlanForWellbeingJob($user->id, $wellbeing->id))
+        (new RecommendForWellbeingJob($user->id, $wellbeing->id))
             ->handle(app(\App\Services\AI\SessionContentService::class), app(GarminHealthSummary::class));
 
         $this->assertStringContainsString('keine vorhanden', $this->promptSent());

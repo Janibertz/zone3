@@ -58,7 +58,7 @@ Strava delivers **all** activity types. Counting and display are multi-sport (fi
 1. User creates an **Event** (race date + distance + target time)
 2. `GenerateEventTrainingPlanJob` builds a **TrainingPlan** → list of **TrainingSessions**
 3. Strava activities are auto-imported via webhook → matched to planned sessions
-4. Daily **Wellbeing** check-ins trigger `AdjustPlanForWellbeingJob` for today's session
+4. Daily **Wellbeing** check-ins trigger `RecommendForWellbeingJob` — the coach *proposes* a change to today's session; the athlete accepts or declines
 5. **Dashboard** shows today's session, race prediction, weekly AI review
 
 ### Models & Relationships
@@ -108,6 +108,19 @@ PlanRevisionRecorder           stores diff + corrections → visible in the plan
 **A local copy of production makes this measurable.** Laragon's MySQL is already installed; import a Coolify dump into `zone3` and point `.env` at it. Null the live tokens right after import (`strava_accounts.access_token/refresh_token`, `users.garmin_session`, `push_subscriptions.*`) so nothing can hit the real accounts. Then `plan_revisions.corrections` and `ai_logs.full_prompt/full_response` answer what no amount of reading the prompt can: what the model actually does. Two bugs were found that way in minutes — the revision diff reporting untouched days as deleted, and the ladder prescribing a long run longer than the day it lands on.
 
 **Where corrections show up:** `plan_revisions.corrections`, rendered in the plan page's "Verlauf" — the fastest way to judge whether prompt changes landed. `Log::info('Plan validator corrected the AI output')` carries the same list.
+
+### The coach proposes, the athlete decides
+
+`AdjustPlanForWellbeingJob` used to rewrite today's session outright — type, title, description, distance, duration, pace, zone, intensity. Reported: *"Der Coach passt die Trainingseinheit automatisch an das Wellbeing an … der Athlet darf selber entscheiden ob die Empfehlung des Coaches angenommen oder abgelehnt werden soll."* Someone who had geared up for a threshold session and found twenty easy minutes instead experienced their plan as something that happened *to* them.
+
+`RecommendForWellbeingJob` now writes a `SessionRecommendation` instead: `before`, `after`, a one-sentence `reason`, status `pending`. The dashboard shows it with both sides and two buttons. Nothing touches the plan until the athlete says so.
+
+- **Accepting** applies `after` and sets `pinned_at` — the same mechanism the coach chat uses, so a regeneration cannot quietly discard the athlete's decision. `steps` and `nutrition_tips` are cleared; they described the old session.
+- **Declining** leaves the plan untouched and closes the recommendation.
+- **No card when nothing really changes.** The model rewrites the description almost every time; comparing only type, intensity, zone and the numbers (5 % tolerance) keeps a daily "nothing to see here" card off the dashboard. A warning that always shows is one nobody reads.
+- A second check-in the same day **expires** the open recommendation — two open decisions cannot both be answered.
+
+**The Garmin sync on save now always runs** when Garmin is connected, guarded only by a three-minute lock. It used to skip whenever *any* metric existed for today, which missed the common case: check in at breakfast, sync the watch afterwards, and the night's values never arrived — so the coach proposed on half the data.
 
 ### When the plan may change (and when it may not)
 

@@ -162,6 +162,32 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         }
     }
 
+    // Ein offener Vorschlag des Coaches zur heutigen Einheit.
+    //
+    // Er ersetzt die frühere Automatik: bis hierher hat der Wellbeing-Job die
+    // Einheit direkt umgeschrieben, und der Athlet fand seinen Schwellenlauf
+    // als zwanzig lockere Minuten wieder, ohne gefragt worden zu sein.
+    $coachRecommendation = null;
+
+    $open = \App\Models\SessionRecommendation::with('session')
+        ->where('user_id', $user->id)
+        ->where('status', \App\Models\SessionRecommendation::STATUS_PENDING)
+        ->latest('id')
+        ->first();
+
+    // Nur für HEUTE. Ein Vorschlag von gestern ist überholt — er beschreibt
+    // eine Tagesform, die es nicht mehr gibt.
+    if ($open && $open->session?->planned_date?->toDateString() === $todayStr) {
+        $coachRecommendation = [
+            'id'         => $open->id,
+            'reason'     => $open->reason,
+            'source'     => $open->source,
+            'session_id' => $open->training_session_id,
+            'before'     => $open->before,
+            'after'      => $open->after,
+        ];
+    }
+
     // Standalone recommendation session (accepted by user, no active plan)
     $todayRecommendationSession = null;
     if (! $activePlan) {
@@ -208,6 +234,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         'syncResult' => session('sync_result'),
         'todayPlanSession' => $todayPlanSession,
         'todayRecommendationSession' => $todayRecommendationSession,
+        'coachRecommendation'        => $coachRecommendation,
         'hasActivePlan' => (bool) $activePlan,
         'returnToRun' => $returnToRunService->statusFor($user),
         // whereDate statt where: die Spalte ist ein DATE, kommt je nach
@@ -555,6 +582,10 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/api/coach/messages', [CoachChatController::class, 'messages'])->name('coach.messages');
     Route::post('/api/coach/chat', [CoachChatController::class, 'send'])->name('coach.send');
     // Verlauf und Gemerktes sind zwei verschiedene Dinge und werden einzeln geloescht.
+    // Ueber einen Vorschlag des Coaches entscheiden. Der Athlet, nicht der Job.
+    Route::post('/recommendations/{recommendation}/accept', [\App\Http\Controllers\SessionRecommendationController::class, 'accept'])->name('recommendations.accept');
+    Route::post('/recommendations/{recommendation}/reject', [\App\Http\Controllers\SessionRecommendationController::class, 'reject'])->name('recommendations.reject');
+
     Route::delete('/api/coach/messages', [CoachChatController::class, 'destroyMessages'])->name('coach.messages.destroy');
     Route::delete('/api/coach/notes',    [CoachChatController::class, 'destroyNotes'])->name('coach.notes.destroy');
     Route::post('/api/coach/pr-dismiss', [AIController::class, 'dismissPr'])->name('coach.pr.dismiss');

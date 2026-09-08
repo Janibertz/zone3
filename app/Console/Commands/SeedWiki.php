@@ -490,7 +490,7 @@ KI-Motivation die täglich generiert wird:
 | ATL (Ermüdung) | 7-Tage EMA | Kurzzeit-Trainingsbelastung |
 | TSB (Form) | CTL − ATL | Positiv = frisch, Negativ = müde |
 
-## AdjustPlanForWellbeingJob
+## RecommendForWellbeingJob
 
 Bei sehr schlechten Wellbeing-Werten (Krank/Verletzt oder Score < Schwellenwert):
 - Aktiver Plan wird auf `needs_plan_update=true` gesetzt
@@ -752,7 +752,7 @@ Aggregierte Statistiken: km/Woche, CTL/ATL/TSB-Verlauf, Pace-Entwicklung, Aktivi
 ## WellbeingController
 `app/Http/Controllers/WellbeingController.php`
 
-Tägliches Wellbeing-Tracking (index, store, destroy). Triggert `AdjustPlanForWellbeingJob` bei schlechten Werten.
+Tägliches Wellbeing-Tracking (index, store, destroy). Triggert `RecommendForWellbeingJob` — der Coach schlägt eine Anpassung vor, der Athlet entscheidet.
 
 ## WebhookController
 `app/Http/Controllers/WebhookController.php`
@@ -887,8 +887,8 @@ Regeneriert den Trainingsplan für einen Nutzer.
 
 **Nach Ausführung:** Coach-Cache geleert (`today_recommendation`, `daily_message` = null)
 
-## AdjustPlanForWellbeingJob
-`app/Jobs/AdjustPlanForWellbeingJob.php`
+## RecommendForWellbeingJob
+`app/Jobs/RecommendForWellbeingJob.php`
 
 Bei sehr schlechten Wellbeing-Werten (krank/verletzt oder Score < Schwelle):
 - Plan auf `needs_plan_update=true`

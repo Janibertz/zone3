@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\AdjustPlanForWellbeingJob;
+use App\Jobs\RecommendForWellbeingJob;
 use App\Jobs\SyncGarminHealthJob;
 use App\Models\GarminDailyMetric;
 use App\Models\TrainingSession;
@@ -74,19 +74,19 @@ class WellbeingController extends Controller
         // ist und sein Handy benutzt — und damit auch, dass die Uhr ihre
         // Nachtwerte inzwischen zu Garmin Connect übertragen hat. Der
         // nächtliche Lauf um 06:00 ist dafür meist zu früh.
-        $garminQueued = $this->refreshGarminIfStale($user);
+        $garminQueued = $this->refreshGarmin($user);
 
         // Auto-adjust today's planned session if an active plan exists
         $today = Carbon::today()->toDateString();
         $hasPlannedSession = TrainingSession::where('user_id', $user->id)
-            ->where('planned_date', $today)
+            ->whereDate('planned_date', $today)
             ->where('status', 'planned')
             ->where('type', '!=', 'rest')
             ->whereHas('trainingPlan', fn ($q) => $q->where('is_active', true))
             ->exists();
 
         if ($hasPlannedSession) {
-            AdjustPlanForWellbeingJob::dispatch($user->id, $entry->id);
+            RecommendForWellbeingJob::dispatch($user->id, $entry->id);
         }
 
         $message = $hasPlannedSession
@@ -166,17 +166,22 @@ class WellbeingController extends Controller
      * wenn fuer heute noch nichts da ist und der letzte Versuch mindestens
      * eine Viertelstunde zurueckliegt.
      */
-    private function refreshGarminIfStale($user): bool
+    /**
+     * Beim Speichern des Wellbeings die Uhr abfragen.
+     *
+     * Vorher geschah das nur, wenn fuer heute noch GAR KEINE Werte vorlagen.
+     * Das traf den haeufigsten Fall nicht: wer morgens eincheckt und danach
+     * die Uhr synchronisiert, hatte schon einen (unvollstaendigen) Datensatz
+     * fuer heute — und bekam die Nachtwerte nie nachgereicht. Die Empfehlung
+     * des Coaches entstand dann auf einer halben Grundlage.
+     *
+     * Jetzt wird immer geholt, solange Garmin verbunden ist. Die Sperre
+     * bleibt, aber kurz: sie verhindert ein Hammern bei mehrfachem
+     * Speichern, nicht das Nachreichen zehn Minuten spaeter.
+     */
+    private function refreshGarmin($user): bool
     {
         if (empty($user->garmin_session)) {
-            return false;
-        }
-
-        $hasToday = GarminDailyMetric::where('user_id', $user->id)
-            ->whereDate('date', Carbon::today())
-            ->exists();
-
-        if ($hasToday) {
             return false;
         }
 
@@ -184,7 +189,7 @@ class WellbeingController extends Controller
         if (Cache::has($lock)) {
             return false;
         }
-        Cache::put($lock, true, now()->addMinutes(15));
+        Cache::put($lock, true, now()->addMinutes(3));
 
         // Zwei Tage reichen fuer eine Morgen-Aktualisierung und sind
         // deutlich schneller als der naechtliche Sieben-Tage-Lauf.

@@ -68,6 +68,10 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    coachRecommendation: {
+        type: Object,
+        default: null,
+    },
     hasActivePlan: {
         type: Boolean,
         default: false,
@@ -142,6 +146,53 @@ async function dismissReturnToRun() {
 const page  = usePage();
 const coach = computed(() => page.props.coach ?? null);
 const flash = page.props?.flash || {};
+
+/**
+ * Der Vorschlag des Coaches zur heutigen Einheit.
+ *
+ * Vorher hat der Wellbeing-Job die Einheit direkt umgeschrieben. Wer sich
+ * auf ein Schwellentraining eingestellt hatte und zwanzig lockere Minuten
+ * vorfand, erlebte seinen Plan als etwas, das ihm zustösst. Jetzt steht
+ * hier ein Vorschlag, und die Entscheidung gehört dem Athleten.
+ */
+const recommendationBusy = ref(false);
+
+function decideRecommendation(action) {
+    if (!props.coachRecommendation || recommendationBusy.value) return;
+
+    recommendationBusy.value = true;
+    router.post(route(`recommendations.${action}`, props.coachRecommendation.id), {}, {
+        preserveScroll: true,
+        onFinish: () => { recommendationBusy.value = false; },
+    });
+}
+
+/** „12 km · 55 min · Zone 2" — nur was gesetzt ist. */
+function describeSession(s) {
+    if (!s) return '';
+    return [
+        s.title,
+        s.distance_km ? `${s.distance_km} km` : null,
+        s.duration_min ? `${s.duration_min} min` : null,
+        s.pace_target || null,
+        s.zone ? `Zone ${s.zone}` : null,
+    ].filter(Boolean).join(' · ');
+}
+
+/** Nur die Grössen zeigen, die sich wirklich unterscheiden. */
+const recommendationChanges = computed(() => {
+    const r = props.coachRecommendation;
+    if (!r) return [];
+
+    const labels = {
+        type: 'Art', title: 'Einheit', distance_km: 'Distanz',
+        duration_min: 'Dauer', pace_target: 'Pace', zone: 'Zone', intensity: 'Intensität',
+    };
+
+    return Object.keys(labels)
+        .filter((k) => String(r.before?.[k] ?? '') !== String(r.after?.[k] ?? ''))
+        .map((k) => ({ label: labels[k], from: r.before?.[k] ?? '—', to: r.after?.[k] ?? '—' }));
+});
 
 // Flash-Meldungen blenden sich nach ein paar Sekunden selbst aus.
 const showFlash = ref(true);
@@ -1403,6 +1454,52 @@ async function saveWeek() {
                 </AppCard>
                 <AppCard v-if="flash.error && showFlash">
                     <p class="text-[15px] font-medium text-danger-ink">{{ flash.error }}</p>
+                </AppCard>
+
+                <!-- ══════════════════════════════════════════════════
+                     VORSCHLAG DES COACHES
+                     ═══════════════════════════════════════════════════
+                     Kein Automatismus mehr: der Coach schlägt vor, der
+                     Athlet entscheidet. -->
+                <AppCard v-if="props.coachRecommendation" class="border border-warn/25 bg-warn-soft">
+                    <div class="space-y-3">
+                        <div class="flex items-start gap-2">
+                            <span class="text-lg leading-none">💡</span>
+                            <div class="min-w-0">
+                                <p class="text-[15px] font-semibold text-warn-ink">
+                                    Dein Coach schlägt eine Anpassung vor
+                                </p>
+                                <p v-if="props.coachRecommendation.reason" class="mt-0.5 text-[13px] text-warn-ink/90">
+                                    {{ props.coachRecommendation.reason }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="rounded-field bg-surface/70 px-3 py-2 text-[13px]">
+                            <p class="text-ink-3 line-through">{{ describeSession(props.coachRecommendation.before) }}</p>
+                            <p class="mt-1 font-medium text-ink">{{ describeSession(props.coachRecommendation.after) }}</p>
+
+                            <ul v-if="recommendationChanges.length" class="mt-2 space-y-0.5 text-[12px] text-ink-3">
+                                <li v-for="c in recommendationChanges" :key="c.label">
+                                    {{ c.label }}: {{ c.from }} → <span class="text-ink">{{ c.to }}</span>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <p v-if="props.coachRecommendation.after?.description" class="text-[13px] text-ink-2">
+                            {{ props.coachRecommendation.after.description }}
+                        </p>
+
+                        <div class="flex gap-2">
+                            <AppButton size="sm" :disabled="recommendationBusy" @click="decideRecommendation('accept')">
+                                Übernehmen
+                            </AppButton>
+                            <AppButton size="sm" variant="secondary" :disabled="recommendationBusy"
+                                @click="decideRecommendation('reject')">
+                                Beim Plan bleiben
+                            </AppButton>
+                        </div>
+                    </div>
                 </AppCard>
 
                 <!-- ══════════════════════════════════════════════════
