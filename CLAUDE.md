@@ -41,11 +41,9 @@ Develop and verify against the local copy, then push to `main`. Two things only 
 
 Deploy via **GitHub → Coolify** (push to `main` branch triggers deploy, ~2 minutes). No local dev server and no local database — `startup.sh` is the container entry point and handles migrations, seeding, cache, queue worker, scheduler, and PWA icon generation automatically.
 
-**Two queue workers, and the split matters.** `default` carries everything that talks to OpenAI — plan generation (30-70 s, sometimes minutes), reviews, threshold pace, predictions — on a single worker with `--timeout=1800`. `imports` carries `ImportStravaActivityJob` and has a worker of its own.
+**One queue worker**, consuming `default,imports`. Everything that talks to OpenAI runs there — plan generation (30-70 s, sometimes minutes), reviews, threshold pace, predictions — with `--timeout=1800`. `imports` is in the list only to drain anything left over from the reverted webhook rework; nothing writes to it any more.
 
-That second worker is not tidiness, it is a bug fix. Moving the Strava import out of the request put it in line behind the AI jobs, where it had never been: the run finished, and the activity appeared minutes later or not at all. An import waits only for other imports now, and those are short. A new job that must not wait behind plan generation belongs on `imports` too — `ImportStravaActivityJob::QUEUE`. Note that `Queueable` already declares `$queue`, so redeclaring the property is a composition error; call `$this->onQueue(...)` in the constructor.
-
-The queue workers and scheduler all run as background loops inside the same container process (not systemd/supervisor). The PHP dev server (`php artisan serve`) is the web process — **single-threaded by default**, so any slow synchronous request blocks the whole site. Heavy work (every OpenAI call) belongs in a queued job; the controller starts it and the frontend polls a status endpoint. `PHP_CLI_SERVER_WORKERS=8` in `startup.sh` is a safety net, not a substitute.
+The queue worker and scheduler both run as background loops inside the same container process (not systemd/supervisor). The PHP dev server (`php artisan serve`) is the web process — **single-threaded by default**, so any slow synchronous request blocks the whole site. Heavy work (every OpenAI call) belongs in a queued job; the controller starts it and the frontend polls a status endpoint. `PHP_CLI_SERVER_WORKERS=8` in `startup.sh` is a safety net, not a substitute.
 
 ## Architecture
 
@@ -317,19 +315,26 @@ Inertia.js — no API calls, all data passed as props from Laravel controllers.
 
 ## Strava Webhook
 
-`POST /strava/webhook` → `ImportStravaActivityJob`. The handler takes the event and hands it on; that is all it does in the request.
+`POST /strava/webhook` — **the import runs in the request.** Fetch the activity from the Strava API, store it, match it to the planned session, write best efforts, dispatch the review job, send the push.
 
-It used to do the whole import inline: fetch the activity from Strava (two HTTP calls when the token had expired), store it, match it to the planned session, write best efforts, dispatch reviews, send a push — HTTP again. The web process is single-threaded, so the site stood still for the duration. And Strava **redelivers an event when the response is slow**, so the slowness fed itself.
+It ran as a queued job for a while, and the reasoning was sound: the web process is single-threaded, and an import makes two outbound HTTP calls. But after that change activities stopped arriving, and a second attempt — a dedicated `imports` queue with its own worker — did not bring them back either. A core feature that does not work outweighs a request that takes a few seconds, so it went back to what worked. The job class and the second worker are gone.
 
-The job runs on the **`imports` queue**, which has its own worker — see Deployment. On the shared `default` queue it sat behind plan generation and arrived minutes late or never.
+What did **not** go back: the import and matching logic stays in `StravaImportService`, shared with the manual sync. That extraction changed no behaviour and was not the problem.
 
-The job does the work: `StravaImportService` (the import and matching logic, shared with the manual sync) → best efforts → `GenerateSessionReviewJob` per completed session → push. It retries three times — Strava sometimes sends the event before the activity is served by the API, and a silent `return` would lose the run — and `ShouldBeUnique` keeps a redelivery from sending a second push for the same activity. Everything in it is repeatable: `updateOrCreate` on (strava_id, user_id), the `activity_id` check, `reviewed_at`.
+What is new and deliberate: `Log::info('Strava-Webhook empfangen', …)` fires **before any filtering**, and a warning fires when the athlete is unknown or the activity is not retrievable. Diagnosing this cost two long sessions because nothing recorded whether Strava called at all.
 
-**Strava does not sign its webhooks.** There is no signature to verify, unlike GitHub — an earlier note in this file claiming the POST checks `STRAVA_WEBHOOK_VERIFY_TOKEN` was wrong; that token only ever guarded the GET handshake. The protection is elsewhere:
+The route carries **no throttle and no token check**. Both arrived with the rework, and both can reject a genuine Strava call; while the import is not reliably working, nothing stands in its way. `callbackTokenMatches()` is gone.
 
-- only `owner_id` and `object_id` are taken from the body, and the activity is then **fetched from the API** with the account's token — a forged call cannot inject invented data
-- `throttle:60,1` on the route: the endpoint triggers work, and Strava's own quota is 200 calls per 15 minutes, so an unthrottled flood would exhaust it and break the real import
-- optionally a secret in the URL. `callbackTokenMatches()` reads `token=…` out of `services.strava.webhook_callback_url` — Strava calls exactly the URL you registered, query string included. No token registered (today's state) means nothing is demanded; append `?token=…` to `STRAVA_WEBHOOK_CALLBACK_URL` and re-run `strava:subscribe-webhook`, and both POST and handshake start enforcing it. Both sides read the same URL, so this cannot lock you out.
+**Strava does not sign its webhooks** — there is no signature to verify, unlike GitHub. The protection is that only `owner_id` and `object_id` are taken from the body, and the activity is then fetched from the API with the account's token, so a forged call cannot inject invented data.
+
+**Checking the subscription** (read-only, answers "is Strava even calling us?"):
+
+```bash
+curl -sG https://www.strava.com/api/v3/push_subscriptions \
+  -d client_id=… -d client_secret=…
+```
+
+An empty array means no subscription exists and no event will ever arrive — re-register with `php artisan strava:subscribe-webhook`.
 
 ## Garmin
 

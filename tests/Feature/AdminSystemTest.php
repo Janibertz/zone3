@@ -117,7 +117,7 @@ class AdminSystemTest extends TestCase
     {
         DB::table('jobs')->insert([
             'queue'        => 'imports',
-            'payload'      => json_encode(['displayName' => 'App\\Jobs\\ImportStravaActivityJob']),
+            'payload'      => json_encode(['displayName' => 'App\\Jobs\\GenerateSessionReviewJob']),
             'attempts'     => 0,
             'reserved_at'  => null,
             'available_at' => now()->subMinutes(45)->timestamp,
@@ -135,7 +135,7 @@ class AdminSystemTest extends TestCase
 
     // ── Fehlgeschlagene Aufgaben ─────────────────────────────────────────
 
-    private function failedJob(string $uuid, string $class = 'App\\Jobs\\ImportStravaActivityJob'): void
+    private function failedJob(string $uuid, string $class = 'App\\Jobs\\GenerateSessionReviewJob'): void
     {
         DB::table('failed_jobs')->insert([
             'uuid'       => $uuid,
@@ -317,7 +317,7 @@ class AdminSystemTest extends TestCase
     {
         DB::table('jobs')->insert([
             'queue'        => 'imports',
-            'payload'      => json_encode(['displayName' => 'App\\Jobs\\ImportStravaActivityJob']),
+            'payload'      => json_encode(['displayName' => 'App\\Jobs\\GenerateSessionReviewJob']),
             'attempts'     => 0,
             'reserved_at'  => null,
             'available_at' => now()->subHour()->timestamp,

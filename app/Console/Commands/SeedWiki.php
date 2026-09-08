@@ -904,12 +904,6 @@ Speichert Ergebnis in `runner_profiles.threshold_pace` + aktualisiert alle 5 Pac
 
 **Trigger:** Nach jedem Strava-Aktivitäts-Import
 
-## ImportStravaActivityJob
-`app/Jobs/ImportStravaActivityJob.php`
-
-Importiert eine einzelne Strava-Aktivität per API-Call.
-Matched automatisch mit geplanten Training Sessions (gleicher Tag).
-
 ## SendPushNotificationJob
 `app/Jobs/SendPushNotificationJob.php`
 

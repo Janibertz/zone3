@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Jobs\GenerateSessionReviewJob;
-use App\Jobs\ImportStravaActivityJob;
 use App\Models\Activity;
 use App\Models\Event;
 use App\Models\IgnoredStravaActivity;
@@ -17,17 +16,18 @@ use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 /**
- * Der Strava-Webhook.
+ * Der Strava-Webhook — der Import läuft im Request.
  *
- * Er tat den gesamten Import im Request: die Aktivität bei Strava abholen,
- * bei abgelaufenem Token vorher noch den Token erneuern, speichern,
- * zuordnen, Bestzeiten schreiben, Review-Jobs anstossen, Push verschicken.
- * Der Webserver ist einthreadig — solange das lief, stand die Seite für
- * alle. Und Strava stellt dasselbe Ereignis erneut zu, wenn die Antwort auf
- * sich warten lässt: die Langsamkeit verstärkte sich selbst.
+ * Er lief eine Zeit lang in einem Job. Der Grund war gut: der Webserver ist
+ * einthreadig, und ein Import mit zwei ausgehenden HTTP-Aufrufen blockiert
+ * ihn. Nur kamen danach keine Aktivitäten mehr an, und auch eine eigene
+ * Queue mit eigenem Worker hat das nicht behoben. Ein Kernfeature, das
+ * nicht funktioniert, wiegt schwerer als ein langsamer Request — also
+ * zurück auf den Stand, der lief.
  *
- * Was hier geprüft wird, ist deshalb vor allem eine Abwesenheit — im
- * Request darf nichts mehr passieren ausser dem Weiterreichen.
+ * Was hier geprüft wird, ist deshalb das Gegenteil von vorher: der Request
+ * SOLL die Arbeit tun. Am Ende muss die Aktivität in der Datenbank stehen
+ * und der geplanten Einheit zugeordnet sein.
  */
 class StravaWebhookTest extends TestCase
 {
@@ -43,9 +43,9 @@ class StravaWebhookTest extends TestCase
 
         // `StravaService` liest seine Zugangsdaten im Konstruktor in
         // typisierte string-Eigenschaften. Fehlen sie — in CI wird
-        // .env.example kopiert, und dort standen sie nicht —, kommt null an
-        // und der Container wirft einen TypeError. Ein Test soll nicht davon
-        // abhaengen, was zufaellig in der Umgebung steht.
+        // .env.example kopiert —, kommt null an und der Container wirft
+        // einen TypeError. Ein Test soll nicht davon abhängen, was zufällig
+        // in der Umgebung steht.
         config([
             'services.strava.client_id'            => 'test-client',
             'services.strava.client_secret'        => 'test-secret',
@@ -86,141 +86,19 @@ class StravaWebhookTest extends TestCase
         ], $overrides);
     }
 
-    // ── Der Request tut nichts mehr selbst ───────────────────────────────
-
-    public function test_the_webhook_hands_the_import_to_a_job(): void
-    {
-        Queue::fake();
-
-        $this->postJson('/strava/webhook', $this->event())->assertOk();
-
-        Queue::assertPushed(
-            ImportStravaActivityJob::class,
-            fn ($job) => $job->accountId === $this->account->id && $job->stravaActivityId === 998877,
-        );
-    }
-
     /**
-     * Der Import gehoert auf seine eigene Queue.
+     * Strava antwortet mit der Detailansicht.
      *
-     * Zone3 faehrt einen Worker fuer alles, was mit OpenAI spricht — ein Plan
-     * braucht 30 bis 70 Sekunden, und der Worker laeuft mit --timeout=1800.
-     * Solange der Import im Request lief, ging ihn dieser Rueckstau nichts
-     * an. Ihn ohne eigene Queue in die Warteschlange zu setzen, hat genau das
-     * kaputtgemacht: der Lauf kam an, die Aktivitaet Minuten spaeter oder nie.
+     * `Queue::fake()` MUSS dabei sein: unter Test ist die Queue `sync`, und
+     * der Review-Job spricht mit OpenAI. `Http::preventStrayRequests()`
+     * ebenso — ein `Http::fake()` mit Muster laesst alles durch, was nicht
+     * darauf passt.
      *
-     * `startup.sh` startet fuer `imports` einen zweiten Worker. Faellt diese
-     * Zuordnung weg, steht der Import wieder hinter der Plangenerierung —
-     * ohne dass irgendetwas rot wuerde. Deshalb steht sie hier.
+     * @param array<string, mixed> $overrides
      */
-    public function test_the_import_does_not_queue_behind_the_ai_jobs(): void
-    {
-        Queue::fake();
-
-        $this->postJson('/strava/webhook', $this->event())->assertOk();
-
-        Queue::assertPushedOn('imports', ImportStravaActivityJob::class);
-    }
-
-    /**
-     * Der Kern der Sache: kein ausgehender HTTP-Aufruf im Request.
-     *
-     * `fetchActivity` hing hier drin, ohne eigenes Zeitlimit — der
-     * Laravel-Standard sind 30 Sekunden, und bei abgelaufenem Token kam der
-     * Refresh noch davor. So lange stand der Webserver.
-     */
-    public function test_the_webhook_talks_to_nobody(): void
-    {
-        Queue::fake();
-        Http::preventStrayRequests();
-
-        $this->postJson('/strava/webhook', $this->event())->assertOk();
-
-        Http::assertNothingSent();
-    }
-
-    public function test_an_unknown_athlete_is_ignored(): void
-    {
-        Queue::fake();
-
-        $this->postJson('/strava/webhook', $this->event(['owner_id' => 9999]))->assertOk();
-
-        Queue::assertNothingPushed();
-    }
-
-    /**
-     * Nur `create`. Ein Titel, den jemand nachträglich bei Strava ändert,
-     * ist kein Grund, den Trainingsplan anzufassen.
-     */
-    public function test_only_new_activities_start_an_import(): void
-    {
-        Queue::fake();
-
-        $this->postJson('/strava/webhook', $this->event(['aspect_type' => 'update']))->assertOk();
-        $this->postJson('/strava/webhook', $this->event(['object_type' => 'athlete']))->assertOk();
-
-        Queue::assertNothingPushed();
-    }
-
-    // ── Das Token aus der registrierten URL ──────────────────────────────
-
-    /**
-     * Solange in der Callback-URL kein Token steht — der heutige Stand —,
-     * gibt es nichts zu prüfen. Diese Prüfung darf niemanden aussperren,
-     * der sie nie eingeschaltet hat.
-     */
-    public function test_without_a_token_in_the_callback_url_nothing_is_demanded(): void
-    {
-        Queue::fake();
-        config(['services.strava.webhook_callback_url' => 'https://zone3.test/strava/webhook']);
-
-        $this->postJson('/strava/webhook', $this->event())->assertOk();
-
-        Queue::assertPushed(ImportStravaActivityJob::class);
-    }
-
-    public function test_a_token_in_the_callback_url_is_enforced(): void
-    {
-        Queue::fake();
-        config(['services.strava.webhook_callback_url' => 'https://zone3.test/strava/webhook?token=geheim']);
-
-        $this->postJson('/strava/webhook', $this->event())->assertStatus(401);
-        Queue::assertNothingPushed();
-
-        $this->postJson('/strava/webhook?token=falsch', $this->event())->assertStatus(401);
-        Queue::assertNothingPushed();
-
-        $this->postJson('/strava/webhook?token=geheim', $this->event())->assertOk();
-        Queue::assertPushed(ImportStravaActivityJob::class);
-    }
-
-    public function test_the_handshake_uses_the_same_token(): void
-    {
-        config(['services.strava.webhook_callback_url' => 'https://zone3.test/strava/webhook?token=geheim']);
-
-        $handshake = [
-            'hub_mode'         => 'subscribe',
-            'hub_verify_token' => 'test-verify-token',
-            'hub_challenge'    => 'abc123',
-        ];
-
-        $this->getJson('/strava/webhook?' . http_build_query($handshake))->assertStatus(401);
-
-        $this->getJson('/strava/webhook?' . http_build_query($handshake + ['token' => 'geheim']))
-            ->assertOk()
-            ->assertJson(['hub.challenge' => 'abc123']);
-    }
-
-    // ── Der Job ──────────────────────────────────────────────────────────
-
-    /** @param array<string, mixed> $overrides */
     private function stravaReturns(array $overrides = []): void
     {
-        // Die Queue zuerst: `sync` fuehrt jeden dispatch sofort aus, und der
-        // Review-Job spricht mit OpenAI. Ein Test darf kein Geld ausgeben.
         Queue::fake();
-
-        // Und was trotzdem hinaus wollte, soll auffliegen statt rauszugehen.
         Http::preventStrayRequests();
 
         Http::fake([
@@ -237,12 +115,13 @@ class StravaWebhookTest extends TestCase
         ]);
     }
 
-    public function test_the_job_imports_the_activity(): void
+    // ── Der Request tut die Arbeit ───────────────────────────────────────
+
+    public function test_the_webhook_imports_the_activity(): void
     {
         $this->stravaReturns();
 
-        (new ImportStravaActivityJob($this->account->id, 998877))
-            ->handle(...array_values($this->jobDependencies()));
+        $this->postJson('/strava/webhook', $this->event())->assertOk();
 
         $this->assertDatabaseHas('activities', [
             'user_id'   => $this->user->id,
@@ -254,68 +133,125 @@ class StravaWebhookTest extends TestCase
     }
 
     /**
-     * Strava stellt dasselbe Ereignis erneut zu, wenn die Antwort ausbleibt,
-     * und ein fehlgeschlagener Job wird wiederholt. Beides darf nichts
-     * doppelt anlegen.
+     * Der eigentliche Zweck: die geplante Einheit wird abgehakt.
      */
-    public function test_running_the_job_twice_changes_nothing(): void
+    public function test_it_completes_the_planned_session(): void
     {
+        $session = TrainingSession::create([
+            'user_id'          => $this->user->id,
+            'training_plan_id' => $this->plan->id,
+            'event_id'         => $this->plan->event_id,
+            'planned_date'     => now()->toDateString(),
+            'type'             => 'easy_run',
+            'title'            => 'Lockerer Lauf',
+            'distance_km'      => 10,
+            'duration_min'     => 55,
+            'intensity'        => 'low',
+            'status'           => 'planned',
+        ]);
+
         $this->stravaReturns();
+        $this->postJson('/strava/webhook', $this->event())->assertOk();
 
-        foreach (range(1, 2) as $ignored) {
-            (new ImportStravaActivityJob($this->account->id, 998877))
-                ->handle(...array_values($this->jobDependencies()));
-        }
+        $session->refresh();
 
-        $this->assertSame(1, Activity::where('strava_id', 998877)->count());
-        $this->assertSame(
-            1,
-            TrainingSession::where('user_id', $this->user->id)->where('was_unplanned', true)->count(),
-            'Der ungeplante Lauf darf nur einmal im Plan stehen',
-        );
+        $this->assertSame('completed', $session->status);
+        $this->assertNotNull($session->activity_id);
+        $this->assertNotNull($session->planned_snapshot, 'Was geplant war, muss nachlesbar bleiben');
     }
 
     /**
-     * Was der Athlet gelöscht hat, bleibt gelöscht — der Grabstein gilt auch
-     * für den Weg über den Webhook.
+     * Kein Throttle und keine Token-Pruefung mehr auf der Route — beides kam
+     * mit dem Umbau und beides kann einen echten Aufruf abweisen. Der Test
+     * haelt fest, dass ein blanker Aufruf durchkommt.
      */
-    public function test_a_deleted_activity_does_not_come_back(): void
+    public function test_a_plain_call_is_not_rejected(): void
     {
         $this->stravaReturns();
 
+        for ($i = 0; $i < 3; $i++) {
+            $this->postJson('/strava/webhook', $this->event())->assertOk();
+        }
+
+        $this->assertSame(1, Activity::where('strava_id', 998877)->count(),
+            'Mehrfache Zustellung darf nichts doppeln');
+    }
+
+    // ── Was der Webhook ignoriert ────────────────────────────────────────
+
+    public function test_an_unknown_athlete_is_ignored(): void
+    {
+        Queue::fake();
+        Http::preventStrayRequests();
+
+        $this->postJson('/strava/webhook', $this->event(['owner_id' => 9999]))->assertOk();
+
+        $this->assertSame(0, Activity::count());
+        Http::assertNothingSent();
+    }
+
+    /**
+     * Nur `create`. Ein Titel, den jemand nachträglich bei Strava ändert,
+     * ist kein Grund, den Trainingsplan anzufassen.
+     */
+    public function test_only_new_activities_are_imported(): void
+    {
+        Queue::fake();
+        Http::preventStrayRequests();
+
+        $this->postJson('/strava/webhook', $this->event(['aspect_type' => 'update']))->assertOk();
+        $this->postJson('/strava/webhook', $this->event(['object_type' => 'athlete']))->assertOk();
+
+        $this->assertSame(0, Activity::count());
+        Http::assertNothingSent();
+    }
+
+    /**
+     * Was der Athlet gelöscht hat, bleibt gelöscht.
+     */
+    public function test_a_deleted_activity_does_not_come_back(): void
+    {
         IgnoredStravaActivity::create(['user_id' => $this->user->id, 'strava_id' => 998877]);
 
-        (new ImportStravaActivityJob($this->account->id, 998877))
-            ->handle(...array_values($this->jobDependencies()));
+        $this->stravaReturns();
+        $this->postJson('/strava/webhook', $this->event())->assertOk();
 
         $this->assertDatabaseMissing('activities', ['strava_id' => 998877]);
     }
 
     /**
-     * Strava liefert das Ereignis manchmal, bevor die Aktivität über die API
-     * abrufbar ist. Ein stiller Abbruch verlöre den Lauf; werfen heisst,
-     * dass die Queue es noch einmal versucht.
+     * Liefert Strava die Aktivität nicht aus, endet der Request ruhig — mit
+     * einer Zeile im Log. Ein 500 wäre schlechter: Strava stellt dann
+     * erneut zu und die Störung verstärkt sich.
      */
-    public function test_an_activity_strava_does_not_serve_yet_is_retried(): void
+    public function test_an_unavailable_activity_ends_quietly(): void
     {
         Queue::fake();
         Http::preventStrayRequests();
         Http::fake(['www.strava.com/*' => Http::response('', 404)]);
 
-        $this->expectException(\RuntimeException::class);
+        $this->postJson('/strava/webhook', $this->event())->assertOk();
 
-        (new ImportStravaActivityJob($this->account->id, 998877))
-            ->handle(...array_values($this->jobDependencies()));
+        $this->assertSame(0, Activity::count());
     }
 
-    /** @return array<string, object> */
-    private function jobDependencies(): array
+    // ── Der Handshake ────────────────────────────────────────────────────
+
+    public function test_the_handshake_answers_with_the_challenge(): void
     {
-        return [
-            'strava'      => app(\App\Services\StravaService::class),
-            'importer'    => app(\App\Services\StravaImportService::class),
-            'bestEfforts' => app(\App\Services\BestEffortService::class),
-            'webPush'     => app(\App\Services\WebPushService::class),
-        ];
+        $this->getJson('/strava/webhook?' . http_build_query([
+            'hub_mode'         => 'subscribe',
+            'hub_verify_token' => 'test-verify-token',
+            'hub_challenge'    => 'abc123',
+        ]))->assertOk()->assertJson(['hub.challenge' => 'abc123']);
+    }
+
+    public function test_a_wrong_verify_token_is_refused(): void
+    {
+        $this->getJson('/strava/webhook?' . http_build_query([
+            'hub_mode'         => 'subscribe',
+            'hub_verify_token' => 'falsch',
+            'hub_challenge'    => 'abc123',
+        ]))->assertStatus(401);
     }
 }

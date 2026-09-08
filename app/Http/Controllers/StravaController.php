@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\ImportStravaActivityJob;
+use App\Jobs\GenerateSessionReviewJob;
+use App\Models\TrainingSession;
+use App\Models\User;
+use App\Services\WebPushService;
+use Illuminate\Support\Facades\Log;
 use App\Models\Activity;
 use App\Models\StravaAccount;
 use App\Services\BestEffortService;
@@ -180,10 +184,6 @@ class StravaController extends Controller
      */
     public function webhookVerify(Request $request): \Illuminate\Http\JsonResponse|Response
     {
-        if (! $this->callbackTokenMatches($request)) {
-            return response('Unauthorized', 401);
-        }
-
         $verifyToken = config('services.strava.webhook_verify_token', 'zone3_webhook');
 
         if (
@@ -199,28 +199,39 @@ class StravaController extends Controller
     /**
      * Strava-Webhook (POST) — ein neues Ereignis von Strava.
      *
-     * Der Handler nimmt es an und gibt es weiter. Der Import selbst lief
-     * frueher hier drin: Aktivitaet bei Strava abholen, zuordnen,
-     * Bestzeiten schreiben, Push verschicken — alles im Request, auf einem
-     * einthreadigen Webserver. Wer Zone3 in diesen Sekunden oeffnete,
-     * wartete mit. Und weil Strava dasselbe Ereignis erneut zustellt, wenn
-     * die Antwort ausbleibt, machte die Langsamkeit sich selbst schlimmer.
+     * Der Import laeuft wieder HIER, im Request, wie vor dem Umbau.
      *
-     * Strava signiert seine Webhooks nicht — es gibt hier keine Signatur zu
-     * pruefen, anders als bei GitHub. Der Schutz liegt woanders: aus dem
-     * Rumpf werden nur zwei Zahlen genommen, und die Aktivitaet wird
-     * anschliessend ueber die API mit dem Token des Kontos GEHOLT. Ein
-     * gefaelschter Aufruf kann damit keine erfundenen Daten einschleusen.
-     * Was er koennte, ist Arbeit ausloesen; dagegen steht das Throttle auf
-     * der Route.
+     * Der Umbau in einen Job war technisch gut begruendet — der Webserver
+     * ist einthreadig, und ein Import mit zwei HTTP-Aufrufen blockiert ihn.
+     * Nur: danach kamen keine Aktivitaeten mehr an, und nach zwei Anlaeufen
+     * (eigene Queue, eigener Worker) kamen sie immer noch nicht. Ein
+     * Kernfeature, das nicht funktioniert, wiegt schwerer als ein Request,
+     * der ein paar Sekunden dauert. Also zurueck auf den Stand, der lief.
+     *
+     * Was NICHT zurueckgebaut ist: die Import- und Zuordnungslogik liegt
+     * weiterhin in `StravaImportService`. Sie ist dieselbe wie vorher, nur
+     * an einer Stelle statt in zwei Kopien — daran lag nichts.
+     *
+     * Ebenfalls neu und bewusst geblieben: die Logzeile ganz oben. Sie ist
+     * die einzige Moeglichkeit, die Frage "ruft Strava ueberhaupt an?" ohne
+     * Raten zu beantworten. Genau die hat bei der Suche gefehlt.
      */
-    public function webhook(Request $request): Response
-    {
-        if (! $this->callbackTokenMatches($request)) {
-            return response('Unauthorized', 401);
-        }
-
+    public function webhook(
+        Request $request,
+        StravaService $strava,
+        WebPushService $webPush,
+        BestEffortService $bestEfforts,
+    ): Response {
         $data = $request->all();
+
+        // Vor jeder Filterung: dass ueberhaupt jemand angeklopft hat, ist
+        // die erste Information, die man bei einer Stoerung braucht.
+        Log::info('Strava-Webhook empfangen', [
+            'object_type' => $data['object_type'] ?? null,
+            'aspect_type' => $data['aspect_type'] ?? null,
+            'owner_id'    => $data['owner_id'] ?? null,
+            'object_id'   => $data['object_id'] ?? null,
+        ]);
 
         if (
             ($data['object_type'] ?? '') !== 'activity' ||
@@ -230,41 +241,73 @@ class StravaController extends Controller
         }
 
         $account = StravaAccount::where('strava_id', $data['owner_id'] ?? null)->first();
+
         if (! $account) {
+            Log::warning('Strava-Webhook: kein Konto zu dieser owner_id', [
+                'owner_id' => $data['owner_id'] ?? null,
+            ]);
+
             return response('OK');
         }
 
-        ImportStravaActivityJob::dispatch($account->id, (int) $data['object_id']);
+        $activityData = $strava->fetchActivity($account, (int) $data['object_id']);
+
+        if (! $activityData) {
+            Log::warning('Strava-Webhook: Aktivitaet nicht abrufbar', [
+                'user_id'   => $account->user_id,
+                'object_id' => $data['object_id'] ?? null,
+            ]);
+
+            return response('OK');
+        }
+
+        $userId   = $account->user_id;
+        $activity = $this->importer->importFromDetail($userId, $activityData);
+
+        // Der Athlet hat sie in Zone3 geloescht — der Grabstein haelt sie
+        // draussen.
+        if (! $activity) {
+            return response('OK');
+        }
+
+        $isRun = $activity->type === 'Run';
+
+        $this->importer->dispatchCalculationIfDue($userId, $isRun ? 1 : 0);
+        $this->importer->matchActivityToSession($userId, $activity);
+        $this->importer->dispatchPlanRegenerationIfNeeded($userId);
+
+        // Ein Review fuer jede Einheit, die diese Aktivitaet abgeschlossen hat.
+        TrainingSession::where('user_id', $userId)
+            ->where('activity_id', $activity->id)
+            ->where('status', 'completed')
+            ->whereNull('reviewed_at')
+            ->pluck('id')
+            ->each(fn ($id) => GenerateSessionReviewJob::dispatch($id)->delay(now()->addSeconds(20)));
+
+        if ($isRun) {
+            // Die Detailantwort traegt `best_efforts` — die Aktivitaetsliste nicht.
+            $newRecords = $bestEfforts->syncFromActivityData($activity, $activityData);
+            if (! empty($newRecords)) {
+                $this->importer->flagPendingPr($userId, $activity->id);
+            }
+        }
+
+        $user = User::find($userId);
+        if ($user && $user->push_notifications_enabled) {
+            $distKm = $activity->distance > 0 ? round($activity->distance / 1000, 1) . ' km' : '';
+            $body   = trim($activity->name . ($distKm ? " · {$distKm}" : ''));
+
+            $webPush->sendToUser($user, 'Neue Aktivität importiert 🏃', $body, '/activities');
+        }
+
+        Log::info('Strava-Aktivitaet importiert', [
+            'user_id'   => $userId,
+            'strava_id' => $activity->strava_id,
+            'type'      => $activity->type,
+            'name'      => $activity->name,
+        ]);
 
         return response('OK');
     }
 
-    /**
-     * Traegt der Aufruf das Token aus der registrierten Callback-URL?
-     *
-     * Strava signiert seine Webhooks nicht. Das einzige Geheimnis, das sich
-     * mitgeben laesst, steht in der URL, die man bei der Anmeldung
-     * hinterlegt — Strava ruft genau diese auf, Query-String eingeschlossen.
-     *
-     * Deshalb wird hier nichts konfiguriert und nichts zusaetzlich gesetzt:
-     * die Pruefung liest das Token aus `webhook_callback_url`. Steht dort
-     * keins — der heutige Stand —, gibt es nichts zu pruefen und die Methode
-     * sagt ja. Wer sie scharf stellen will, haengt `?token=…` an
-     * `STRAVA_WEBHOOK_CALLBACK_URL` und meldet den Webhook neu an; ab dann
-     * greift sie von selbst, auch im Handshake. Man kann sich damit nicht
-     * aussperren, denn beide Seiten lesen dieselbe URL.
-     */
-    private function callbackTokenMatches(Request $request): bool
-    {
-        $callbackUrl = (string) config('services.strava.webhook_callback_url');
-
-        parse_str((string) parse_url($callbackUrl, PHP_URL_QUERY), $params);
-        $expected = $params['token'] ?? null;
-
-        if (! $expected) {
-            return true;
-        }
-
-        return hash_equals((string) $expected, (string) $request->query('token', ''));
-    }
 }
