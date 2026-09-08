@@ -402,7 +402,11 @@ From a report: "ich habe keine Möglichkeit eine Aktivität zu löschen … noch
 
 Three debugging sessions in one week stalled because the answer was in the log and nobody could reach it. "Is Strava even calling us?" cost two long sessions and was one line away the whole time.
 
-**Production must actually write a file for this to show anything.** It did not: the container logged to its output stream, so the view was empty and the finding cost another round. `config/logging.php` now defaults `LOG_STACK` to `stderr,daily` — the stream keeps feeding Coolify, the file feeds this page. If `LOG_CHANNEL` is set to something other than `stack` in Coolify, neither applies; `/admin/system` shows the active channel in the environment block so the answer is visible instead of guessed.
+**Production must actually write a file, and at a level that lets the lines through.** The view stayed empty even though `LOG_CHANNEL=stack` / `LOG_STACK=single` were set correctly — because `LOG_LEVEL` was `error`. Every `Log::info` and `Log::warning` was discarded before it reached a file, so no file was ever created. Note the failure shape: had the path been unwritable, Laravel would have thrown and the request would have 500'd. It returned 200, which means the lines were *filtered*, not *rejected* — that distinction is what identified it.
+
+For the log view to be useful, Coolify needs `LOG_LEVEL=info` and ideally `LOG_STACK=daily` (rotating, `LOG_DAILY_DAYS=14`); `single` grows without bound. `/admin/system` shows channel, stack **and level** in the environment block, and colours the level when it is above `info` — the setting is now visible instead of guessed.
+
+`storage/` is ephemeral in the container: every deploy starts with an empty log. For history that survives deploys, mount a volume on `storage/logs`.
 
 `LogReader` tails the newest `storage/logs/laravel*.log`. Two things matter when reading a log file, and both are encoded:
 

@@ -413,6 +413,13 @@ function daysAgo(value) {
                         <dd class="text-sm text-ink font-medium">{{ environment.cache_driver }}</dd>
                     </div>
                     <div class="bg-surface px-6 py-3">
+                        <dt class="text-xs text-ink-3">Logging</dt>
+                        <dd class="text-sm font-medium"
+                            :class="['debug','info'].includes(environment.log_level) ? 'text-ink' : 'text-warn-ink'">
+                            {{ environment.log_channel }} · {{ environment.log_stack || '—' }} · {{ environment.log_level }}
+                        </dd>
+                    </div>
+                    <div class="bg-surface px-6 py-3">
                         <dt class="text-xs text-ink-3">Hauptmodell</dt>
                         <dd class="text-sm text-ink font-medium">{{ environment.model }}</dd>
                     </div>

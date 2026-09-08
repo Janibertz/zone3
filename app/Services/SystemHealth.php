@@ -306,6 +306,11 @@ class SystemHealth
             // Produktion leer blieb.
             'log_channel'  => config('logging.default'),
             'log_stack'    => implode(',', config('logging.channels.stack.channels', [])),
+            // Die Stufe entscheidet, ob ueberhaupt etwas geschrieben wird.
+            // Steht sie auf `error`, verschwinden Info- und Warnzeilen, bevor
+            // sie eine Datei erreichen — und die Log-Ansicht bleibt leer,
+            // obwohl alles richtig konfiguriert aussieht.
+            'log_level'    => env('LOG_LEVEL', 'debug'),
             'db_driver'    => DB::connection()->getDriverName(),
             'db_size_mb'   => $dbSize,
             'model'        => config('services.openai.model'),
