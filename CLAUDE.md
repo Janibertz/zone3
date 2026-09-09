@@ -354,6 +354,18 @@ Vorher liefen `gpt-5.5-2026-04-23` und `gpt-5.4-mini`. Listenpreise je 1M Token 
 
 Calls go through `$this->ai->chat(string $callType, array $messages, float $temperature, int $maxTokens, int $timeout = 30, ?string $model = null)`, or `chatWithTools()` for the coach chat. `systemPrompt()` prepends the coaching philosophy and the selected coach's personality.
 
+**Function-Tools und Reasoning gehen in Chat Completions nicht zusammen.** Nach dem Wechsel auf gpt-5.6 antwortete der Coach-Chat mit HTTP 400:
+
+```
+Function tools with reasoning_effort are not supported for gpt-5.6-sol in
+/v1/chat/completions. To use function tools, use /v1/responses or set
+reasoning_effort to 'none'.
+```
+
+Das Modell bringt ein Standard-Reasoning mit, und der Tool-Pfad vertraegt das nicht. `OpenAIClient::chatWithTools()` sendet deshalb `reasoning_effort => 'none'`; `chat()` ohne Tools bleibt unveraendert und darf denken. Der saubere Weg waere `/v1/responses`, wo beides zusammen geht — anderes Request- und Antwortformat, also ein eigener Umbau.
+
+Aufgefallen ist das **nur, weil der Modellwechsel von Hand nachgeprueft wurde**. Der Fehler betrifft ausschliesslich den einen Pfad mit Tools: ein einfacher Testaufruf lief durch, und ohne den Klick in den Coach-Chat waere es nachts um 05:00 im Plan-Job passiert. `OpenAIClientRequestTest` haelt die Zeile jetzt fest.
+
 ### Coach chat tools
 
 The coach can really change the plan — `create_training_session`, `modify_training_session` (any day, not just today), `move_training_session`, `delete_training_session`, plus `skip_training_sessions`, `update_event_target`, `remember_user_fact`. Everything it writes gets `pinned_at`.

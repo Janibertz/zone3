@@ -231,6 +231,24 @@ class OpenAIClient
             'max_completion_tokens' => $maxTokens,
             'tools'                 => $tools,
             'tool_choice'           => 'auto',
+
+            // Ohne diese Zeile antwortet gpt-5.6 mit HTTP 400:
+            //
+            //   "Function tools with reasoning_effort are not supported for
+            //    gpt-5.6-sol in /v1/chat/completions. To use function tools,
+            //    use /v1/responses or set reasoning_effort to 'none'."
+            //
+            // Das Modell bringt ein Standard-Reasoning mit, und das vertraegt
+            // sich in Chat Completions nicht mit Function-Tools. Betroffen ist
+            // nur dieser Pfad — der Coach-Chat ist die einzige Stelle mit
+            // Tools; `chat()` ohne Tools laeuft unveraendert.
+            //
+            // Der saubere Weg waere /v1/responses, wo Tools UND Reasoning
+            // zusammen gehen. Das ist ein anderes Request- und Antwortformat
+            // und damit ein eigener Umbau; bis dahin gilt hier, was vorher
+            // ohnehin galt: keine interne Denkzeit, dafuer funktionierende
+            // Werkzeuge.
+            'reasoning_effort'      => 'none',
         ]);
 
         $durationMs = (int) round(microtime(true) * 1000) - $startMs;
