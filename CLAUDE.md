@@ -338,8 +338,14 @@ Total times (`3:26:21`, `1:35 Std`) stay out of this class — different quantit
 | `TalksToOpenAI` | trait that injects the client |
 
 **Two-model setup:**
-- `OPENAI_MODEL` (default `gpt-5.5-2026-04-23`) — `$ai->main()`: event_plan, threshold_pace, profile_estimation, coach_chat
-- `OPENAI_MODEL_MINI` (default `gpt-5.4-mini`) — `$ai->mini()`: everything short
+- `OPENAI_MODEL` (default `gpt-5.6-sol`) — `$ai->main()`: event_plan, threshold_pace, profile_estimation, coach_chat
+- `OPENAI_MODEL_MINI` (default `gpt-5.6-luna`) — `$ai->mini()`: everything short
+
+Vorher liefen `gpt-5.5-2026-04-23` und `gpt-5.4-mini`. Listenpreise je 1M Token (Stand 09/2026): Astra 10/50 $, **Sol 4/20 $**, Terra 2/12 $, **Luna 0,20/1,20 $**. Bei unserem Verbrauch — 762 Requests und 1,275 Mio. Token in 30 Tagen — waeren das rund 10–12 $ im Monat auf Sol. Kosten sind damit **nicht** das Auswahlkriterium; der Plan-Prompt ist die schwerste Aufgabe der App, und jede Modellschwaeche landet als Validator-Korrektur.
+
+**Die Rechnung ist trotzdem fast null — und der Grund gehoert gewusst.** Das Konto ist im Programm *complimentary daily tokens*: unter Data controls ist „Share inputs and outputs with OpenAI" fuer alle Projekte aktiv, Zone3 bezahlt also mit Daten statt mit Geld (0,05 $ Verbrauch seit Maerz 2026). In den Prompts stehen Schwellenpace, Umfaenge, Wellbeing, Coach-Notizen und die **Garmin-Gesundheitsdaten** (HRV, Schlaf, Ruhepuls, Body Battery, Stress) — und zwar aller Athleten, nicht nur des Betreibers. Nach DSGVO ist das besondere Kategorie (Art. 9). Wer das Sharing abschaltet, zahlt ab dann echtes Geld: der Credit Grant steht bei 4,95 $ und Auto-Reload ist AUS, und bei 0 $ hoert die API auf zu antworten — dann steht jede KI-Funktion still.
+
+**`AiLog::calculateCost()` kannte lange nur GPT-4o-Preise** und fiel fuer alles andere still darauf zurueck. Gelaufen ist seit Monaten gpt-5.5 — jede Euro-Zahl im AI-Log war mit den Preisen eines Modells gerechnet, das gar nicht im Einsatz war. Ausloeser war der exakte Schluesselvergleich: konfiguriert war `gpt-5.5-2026-04-23`, in der Tabelle stand nicht einmal `gpt-5.5`. Die Suche streift jetzt einen Datumsanhang ab, und ein wirklich unbekanntes Modell kostet 0 **und schreibt eine Warnung** — eine sichtbare Luecke statt einer erfundenen Zahl.
 
 **Critical quirks for gpt-5.5 (reasoning model):**
 - `temperature` is NOT supported — do not pass it
@@ -547,8 +553,8 @@ VAPID-based Web Push (no Firebase). Subscriptions in `push_subscriptions`. Sched
 
 ```
 OPENAI_API_KEY=
-OPENAI_MODEL=gpt-5.5-2026-04-23
-OPENAI_MODEL_MINI=gpt-5.4-mini
+OPENAI_MODEL=gpt-5.6-sol
+OPENAI_MODEL_MINI=gpt-5.6-luna
 
 STRAVA_CLIENT_ID=
 STRAVA_CLIENT_SECRET=

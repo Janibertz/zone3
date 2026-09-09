@@ -42,11 +42,29 @@ function broadcastPush() {
 }
 
 const modelLabels = {
-    'gpt-5.5-2026-04-23': { label: 'GPT-5.5',      sub: 'Event-Plan, Schwellenpace, Coach-Chat' },
-    'gpt-5.4-mini':        { label: 'GPT-5.4 mini', sub: 'Profil-Schätzung, Empfehlung, Review, Messages, Ernährung u.a.' },
+    'gpt-6-astra':         { label: 'GPT-6 Astra',   sub: 'Für die härtesten Aufgaben — 10 $ / 50 $ je 1M Token' },
+    'gpt-5.6-sol':         { label: 'GPT-5.6 Sol',   sub: 'Event-Plan, Schwellenpace, Coach-Chat — 4 $ / 20 $ je 1M Token' },
+    'gpt-5.6-terra':       { label: 'GPT-5.6 Terra', sub: 'Sparsame Variante — 2 $ / 12 $ je 1M Token' },
+    'gpt-5.6-luna':        { label: 'GPT-5.6 Luna',  sub: 'Profil-Schätzung, Empfehlung, Review, Messages, Ernährung u.a. — 0,20 $ / 1,20 $ je 1M Token' },
+    'gpt-5.5':             { label: 'GPT-5.5',       sub: 'Vorgänger des Hauptmodells' },
+    'gpt-5.4-mini':        { label: 'GPT-5.4 mini',  sub: 'Vorgänger des kleinen Modells' },
     'gpt-4o':              { label: 'GPT-4o',        sub: 'Leistungsstärkstes GPT-4 Modell' },
     'gpt-4o-mini':         { label: 'GPT-4o mini',   sub: 'Schnell & günstig' },
 };
+
+/**
+ * Die Beschriftung zu einer Modell-ID, auch mit Datumsanhang.
+ *
+ * `gpt-5.5-2026-04-23` stand hier einmal als eigener Schlüssel — und beim
+ * nächsten Stichtag von OpenAI wäre er ins Leere gelaufen. Denselben Fehler
+ * hatte die Preistabelle in `AiLog`, dort mit teureren Folgen: sie rechnete
+ * still mit GPT-4o-Preisen weiter.
+ */
+function modelInfo(id) {
+    if (!id) return null;
+
+    return modelLabels[id] ?? modelLabels[String(id).replace(/-\d{4}-\d{2}-\d{2}$/, '')] ?? null;
+}
 </script>
 
 <template>
@@ -81,11 +99,11 @@ const modelLabels = {
                     <div>
                         <p class="text-sm font-medium text-ink">Hauptmodell</p>
                         <p class="text-xs text-ink-3 mt-0.5">
-                            {{ modelLabels[config.openai_model]?.sub ?? 'OPENAI_MODEL' }}
+                            {{ modelInfo(config.openai_model)?.sub ?? 'OPENAI_MODEL' }}
                         </p>
                     </div>
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-accent-soft text-accent-ink">
-                        {{ modelLabels[config.openai_model]?.label ?? config.openai_model }}
+                        {{ modelInfo(config.openai_model)?.label ?? config.openai_model }}
                     </span>
                 </div>
 
@@ -94,11 +112,11 @@ const modelLabels = {
                     <div>
                         <p class="text-sm font-medium text-ink">Mini-Modell</p>
                         <p class="text-xs text-ink-3 mt-0.5">
-                            {{ modelLabels[config.openai_model_mini]?.sub ?? 'OPENAI_MODEL_MINI' }}
+                            {{ modelInfo(config.openai_model_mini)?.sub ?? 'OPENAI_MODEL_MINI' }}
                         </p>
                     </div>
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-info-soft text-info-ink">
-                        {{ modelLabels[config.openai_model_mini]?.label ?? config.openai_model_mini }}
+                        {{ modelInfo(config.openai_model_mini)?.label ?? config.openai_model_mini }}
                     </span>
                 </div>
 
