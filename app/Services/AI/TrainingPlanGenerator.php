@@ -312,7 +312,14 @@ class TrainingPlanGenerator
             foreach ($otherEvents as $e) {
                 $lines[] = "- {$e['date']}: {$e['name']} ({$e['distance']}, Priorität {$e['priority']})";
             }
-            $otherEventsText = "\n\n**Weitere Rennevents im Planungszeitraum (an diesen Tagen KEIN Training — type=\"rest\"):**\n" . implode("\n", $lines);
+            // Frueher stand hier "an diesen Tagen KEIN Training — type=rest".
+            // Das Modell hielt sich dran, und der Validator ersetzte den
+            // Ruhetag durch die Einheit aus dem Geruest — am 5-km-Renntag
+            // stand ein Tempolauf. Jetzt gilt fuer diese Rennen dieselbe
+            // Konvention wie fuer das Zielrennen: der Tag IST das Rennen.
+            $otherEventsText = "\n\n**Weitere Wettkaempfe im Planungszeitraum — diese Tage SIND das Rennen"
+                . " (type=\"race_prep\", title = der Rennname, description = die Renn-Strategie)."
+                . " KEIN Training, aber auch KEIN blosser Ruhetag:**\n" . implode("\n", $lines);
         }
 
         // Follow-up goal: the next A/B race AFTER this event. Used to shape how much speed

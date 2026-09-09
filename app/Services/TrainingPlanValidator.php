@@ -535,6 +535,26 @@ class TrainingPlanValidator
         $cap     = (int) $slot['max_min'];
         $minutes = $cap > 0 ? max(20, min($cap, $typical)) : $typical;
 
+        // Ein Renntag bekommt das Rennen, keine Ersatzeinheit. Genau hier
+        // wurde bisher aus dem Ruhetag des Modells ein Tempolauf: das
+        // Geruest verlangte eine Einheit, und der Notnagel erfand sie.
+        if (! empty($slot['race'])) {
+            $km = (float) ($slot['race']['km'] ?? 0);
+
+            return [
+                'date'         => $date,
+                'type'         => 'race_prep',
+                'title'        => $slot['race']['name'],
+                'description'  => 'Wettkampftag — heute wird gelaufen, nicht trainiert.',
+                'distance_km'  => $km > 0 ? round($km, 1) : null,
+                'duration_min' => (int) ($slot['target_min'] ?? $minutes),
+                'pace_target'  => null,
+                'zone'         => null,
+                'intensity'    => 'high',
+                '_hard'        => true,
+            ];
+        }
+
         // Feste Termine sind auswaertige Einheiten — ihr Inhalt steht nicht
         // fest. Hier wird deshalb kein Workout erfunden, sondern nur der
         // Termin gesetzt.

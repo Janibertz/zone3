@@ -120,6 +120,12 @@ class PlanContextBuilder
                 // Verfuegbarkeit und der Deckel daneben ist unerfuellbar.
                 $volume,
                 $paces['long_sec'] ?? null,
+                // Andere Rennen im Fenster gehören INS Gerüst, nicht nur in
+                // den Prompt. Standen sie nur dort, lieferte das Modell den
+                // verlangten Ruhetag — und der Validator ersetzte ihn durch
+                // die Einheit, die im Gerüst stand. Am Renntag stand dann ein
+                // Tempolauf.
+                collect($context->otherEvents)->keyBy('date')->all(),
             ),
             garminText: empty($user->garmin_session)
                 ? null
@@ -281,6 +287,9 @@ class PlanContextBuilder
                 'date'     => $e->event_date->format('Y-m-d'),
                 'name'     => $e->name,
                 'distance' => $e->distance_label,
+                // Die Zahl, nicht das Etikett: das Gerüst zieht die Kilometer
+                // des Rennens vom Wochenumfang ab.
+                'km'       => $e->race_km,
                 'priority' => $e->priority,
             ])
             ->toArray();

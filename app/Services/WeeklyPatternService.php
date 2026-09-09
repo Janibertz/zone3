@@ -74,6 +74,15 @@ class WeeklyPatternService
      */
     private const MAX_HARD_PER_WEEK = ['backyard_ultra' => 1];
 
+    /**
+     * Ab dieser Distanz ersetzt ein Rennen den langen Lauf der Woche.
+     *
+     * Ohne diese Zuordnung plante das Geruest neben einem 24-km-Rennen noch
+     * einen Longrun — zwei lange Belastungen in derselben Woche, acht Tage
+     * vor dem Zielrennen.
+     */
+    private const RACE_COUNTS_AS_LONG_RUN_KM = 15.0;
+
     private const ISO_TO_KEY = [
         1 => 'monday', 2 => 'tuesday', 3 => 'wednesday', 4 => 'thursday',
         5 => 'friday', 6 => 'saturday', 7 => 'sunday',
@@ -99,8 +108,9 @@ class WeeklyPatternService
         ?array $longRuns = null,
         ?array $volume = null,
         ?int $planningPaceSec = null,
+        array $races = [],
     ): array {
-        $days     = $this->availabilityPerDate($from, $to, $weeklyAvailability, $overrides, $finalizedDates);
+        $days     = $this->availabilityPerDate($from, $to, $weeklyAvailability, $overrides, $finalizedDates, $races);
         $priority = self::PRIORITIES[$event->race_distance] ?? self::DEFAULT_PRIORITY;
         $maxHard  = self::MAX_HARD_PER_WEEK[$event->race_distance] ?? 2;
 
@@ -153,6 +163,7 @@ class WeeklyPatternService
         ?array $weekly,
         array $overrides,
         array $finalizedDates,
+        array $races = [],
     ): array {
         $finalized = array_flip($finalizedDates);
         $days      = [];
@@ -188,6 +199,31 @@ class WeeklyPatternService
                 ];
             } else {
                 $fixed = null;
+            }
+
+            // Ein Rennen ist der festeste aller Termine.
+            //
+            // Bisher kannte nur der Prompt die anderen Rennen im Fenster
+            // ("an diesen Tagen KEIN Training"). Das Modell hielt sich dran
+            // und lieferte einen Ruhetag — und der Validator ersetzte ihn
+            // durch die Einheit, die im Geruest stand. Am 5-km-Renntag stand
+            // dann ein Tempolauf, am Tag des 24-km-Wattlaufs ein langer Lauf.
+            // Zwei Wahrheiten ueber denselben Tag, und das Geruest gewann.
+            //
+            // Deshalb steht das Rennen jetzt IM Geruest. Es schlaegt das
+            // Wochenraster (wer laeuft, hat an dem Tag Zeit) und einen
+            // Vereinstermin (der faellt an dem Tag aus).
+            if (isset($races[$key])) {
+                $race      = $races[$key];
+                $available = true;
+                $raceKm    = (float) ($race['km'] ?? 0);
+
+                $fixed = [
+                    'type'        => 'race_prep',
+                    'label'       => $race['name'],
+                    'race'        => $race,
+                    'substitutes' => $raceKm >= self::RACE_COUNTS_AS_LONG_RUN_KM ? 'long_run' : null,
+                ];
             }
 
             $days[$key] = [
@@ -325,7 +361,13 @@ class WeeklyPatternService
 
         foreach ($dates as $date) {
             foreach ($days[$date]['slots'] ?? [] as $i => $slot) {
-                if (! in_array($slot['type'], self::RUN_SLOT_TYPES, true)) {
+                // Ein Rennen ist kein Trainingstyp, verbraucht aber
+                // Wochenumfang wie kaum etwas sonst. Ohne diese Ausnahme
+                // faenden 24,6 km in der Wochenbilanz nicht statt, und das
+                // Geruest verteilte den vollen Deckel auf die uebrigen Tage.
+                $isRace = ! empty($slot['race']);
+
+                if (! $isRace && ! in_array($slot['type'], self::RUN_SLOT_TYPES, true)) {
                     continue;
                 }
 
@@ -339,8 +381,19 @@ class WeeklyPatternService
                 // hin, ob er im Budget steht oder nicht. Er verbraucht die
                 // Zeit, die er dauert.
                 if (! empty($slot['fixed'])) {
-                    $minutes = (int) ($slot['max_min'] ?: $days[$date]['budget_min']);
-                    $km      = $minutes * 60 / $paceSec;
+                    // Bei einem Rennen steht die Distanz fest — sie wird
+                    // nicht aus dem Zeitbudget geschaetzt. Andernfalls zaehlte
+                    // ein 24,6-km-Rennen mit den 60 Minuten in die Woche, die
+                    // zufaellig im Wochenraster stehen.
+                    $raceKm = (float) ($slot['race']['km'] ?? 0);
+
+                    if ($raceKm > 0) {
+                        $minutes = (int) round($raceKm * $paceSec / 60);
+                        $km      = $raceKm;
+                    } else {
+                        $minutes = (int) ($slot['max_min'] ?: $days[$date]['budget_min']);
+                        $km      = $minutes * 60 / $paceSec;
+                    }
 
                     $days[$date]['slots'][$i]['target_km']  = round($km, 1);
                     $days[$date]['slots'][$i]['target_min'] = $minutes;
@@ -526,9 +579,12 @@ class WeeklyPatternService
             // Der Tag ist schon versorgt — der Termin steht bereits darin.
             if ($days[$date]['slots']) continue;
 
-            $isHard = in_array($fixed['type'], self::HARD_TYPES, true);
+            // Ein Rennen ist immer eine harte Einheit — auch ein langes.
+            // Ohne das legte die Woche neben zwei Rennen noch eine
+            // Qualitaetseinheit.
+            $isHard = ! empty($fixed['race']) || in_array($fixed['type'], self::HARD_TYPES, true);
 
-            $days[$date]['slots'][] = [
+            $slot = [
                 'type'    => $fixed['type'],
                 'hard'    => $isHard,
                 'max_min' => $days[$date]['budget_min'],
@@ -536,7 +592,19 @@ class WeeklyPatternService
                 'label'   => $fixed['label'],
             ];
 
+            if (! empty($fixed['race'])) {
+                $slot['race'] = $fixed['race'];
+            }
+
+            $days[$date]['slots'][] = $slot;
+
             $planned[] = $fixed['type'];
+
+            // Ein langes Rennen IST der lange Lauf der Woche.
+            if (! empty($fixed['substitutes'])) {
+                $planned[] = $fixed['substitutes'];
+            }
+
             if ($isHard) $hard++;
         }
 
@@ -626,10 +694,15 @@ class WeeklyPatternService
             // Ein fester Termin (Laufclub) bleibt stehen — der Athlet geht
             // ohnehin hin. Sein Inhalt wird nur entschärft, solange die
             // Leiter noch keine harte Einheit erlaubt.
+            // Ein Rennen behaelt seinen Typ auch im Wiedereinstieg. Die
+            // Leiter kann eine Einheit entschaerfen, aber kein Rennen — der
+            // Athlet startet oder er startet nicht, und das entscheidet er.
             $type = $fixed
-                ? (in_array($fixed['type'], self::HARD_TYPES, true) && $step < ReturnToRunService::TOTAL_STEPS
-                    ? ($ladder['type'] ?? 'easy_run')
-                    : $fixed['type'])
+                ? (empty($fixed['race'])
+                    && in_array($fixed['type'], self::HARD_TYPES, true)
+                    && $step < ReturnToRunService::TOTAL_STEPS
+                        ? ($ladder['type'] ?? 'easy_run')
+                        : $fixed['type'])
                 : ($ladder['type'] ?? 'easy_run');
 
             $cap = $ladder['max_min'] ?? null;
@@ -644,11 +717,20 @@ class WeeklyPatternService
             if ($fixed) {
                 $slot['fixed'] = true;
                 $slot['label'] = $fixed['label'];
+
+                if (! empty($fixed['race'])) {
+                    $slot['race'] = $fixed['race'];
+                    $slot['hard'] = true;
+                }
             }
 
             $days[$date]['slots'][] = $slot;
 
             $planned[] = $type;
+
+            if (! empty($fixed['substitutes'])) {
+                $planned[] = $fixed['substitutes'];
+            }
             $lastRun   = $date;
             $step++;
 
@@ -950,6 +1032,19 @@ class WeeklyPatternService
                 $slotCap = $slotMax > 0 && ($day['budget_min'] === 0 || $slotMax < $day['budget_min'])
                     ? ", max. {$slotMax} min"
                     : '';
+
+                // Ein Rennen wird benannt, nicht als fester Termin getarnt.
+                if (! empty($slot['race'])) {
+                    $rk   = $slot['race']['km'] ?? null;
+                    $dist = $rk ? ", {$rk} km" : '';
+                    $prio = ! empty($slot['race']['priority']) ? " (Prio {$slot['race']['priority']})" : '';
+                    $est  = isset($slot['target_min']) ? " — rechne mit rund {$slot['target_min']} min" : '';
+
+                    $parts[] = "type=\"race_prep\" — WETTKAMPF: {$slot['race']['name']}{$dist}{$prio}{$est}."
+                        . " Das ist das Rennen selbst, KEIN Training. title = der Rennname,"
+                        . " description = die Renn-Strategie fuer diesen Wettkampf.";
+                    continue;
+                }
 
                 if (! empty($slot['fixed'])) {
                     // Der Inhalt steht dort nicht fest, der Umfang zaehlt

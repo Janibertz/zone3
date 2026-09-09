@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Services\RacePredictionService;
 
 class Event extends Model
 {
@@ -111,6 +112,33 @@ class Event extends Model
     public function latestPlan()
     {
         return $this->hasOne(TrainingPlan::class)->latestOfMany();
+    }
+
+    /**
+     * Die Distanz als Zahl, fuer jede Rennart.
+     *
+     * `distance_label` gibt „24,6 km" oder „Marathon" — gut zum Lesen, nicht
+     * zum Rechnen. Sobald ein Rennen im Trainingsplan Platz belegt, muss der
+     * Umfang bekannt sein: das Geruest zieht seine Kilometer vom
+     * Wochenbudget ab.
+     *
+     * Die Standarddistanzen kommen aus {@see RacePredictionService::ANCHORS}
+     * und werden hier nicht ein zweites Mal hingeschrieben — genau daran ist
+     * die Rennprognose schon einmal auseinandergelaufen.
+     */
+    public function getRaceKmAttribute(): ?float
+    {
+        if ($this->isBackyard()) {
+            return $this->target_distance_km;
+        }
+
+        $anchor = RacePredictionService::ANCHORS[$this->race_distance] ?? null;
+
+        if ($anchor) {
+            return (float) $anchor['km'];
+        }
+
+        return $this->distance_km ? (float) $this->distance_km : null;
     }
 
     public function getDistanceLabelAttribute(): string

@@ -153,6 +153,28 @@ The rules around sharing:
 - **An admin can only withdraw a sharing** (`/admin/workouts`), never change or delete it. The workout disappears from everyone else's picker and stays with its creator, with the reason shown next to it — a silent disappearance would be worse than a "no".
 - **Re-publishing clears the admin's note**, or it would stand there permanently after it stopped applying.
 
+### Am Renntag wird gelaufen, nicht trainiert
+
+Gemeldet: *"Ich habe nächste Woche am Freitag ein 5k Rennen und am Sonntag ein 24km Wattlauf … ich soll aber an beiden Tagen Trainings laufen … es wird an dem jeweiligen Tag gar nicht berücksichtigt."* Im Plan stand am 5-km-Renntag ein **Tempolauf 8,2 km**, am Tag des 24,6-km-Wattlaufs ein **Langer Lauf 24 km**. Der Donnerstag davor war korrekt ein Ruhetag mit der Begründung "Ruhe vor Rennwochenende" — das Modell wusste also Bescheid.
+
+**Wieder eine doppelte Wahrheit über denselben Tag.** `PlanContextBuilder::otherEvents()` gab die anderen Rennen **nur in den Prompt** ("an diesen Tagen KEIN Training — type=rest"); `WeeklyPatternService::build()` bekam sie nie. Das Modell hielt sich an den Prompt und lieferte einen Ruhetag — und `TrainingPlanValidator::restoreMissingSlots()` sah, dass die Einheit aus dem Gerüst fehlt, und **ersetzte den Ruhetag durch sie** ("Ein Ruhetag an einem belegten Tag wird ersetzt"). Das Gerüst ist bindend, und es kannte das Rennen nicht.
+
+Nachweisbar ohne einen einzigen Modellaufruf: Gerüst bauen, eine Modellantwort mit `rest` an den Renntagen durch den echten Validator schicken, Korrekturen lesen — `2026-09-18: tempo_run fehlte (stand als Ruhetag) → eingesetzt`.
+
+**Ein Rennen ist jetzt ein fester Termin im Gerüst.** Das ist kein neuer Mechanismus, sondern der vorhandene: `fixed` gab es schon für den Laufclub — zuerst gelegt, verbraucht die Zeit die er dauert, nichts wird danebengeplant.
+
+- Der Renntag bekommt `type = race_prep` mit dem **Rennnamen** als Label — dieselbe Konvention, die der Renntag des Zielrennens schon hatte.
+- Er **schlägt das Wochenraster** (wer läuft, hat an dem Tag Zeit) und einen **Vereinstermin** (der fällt aus).
+- Er zählt **immer als hart**, auch ein langes Rennen.
+- Ab `RACE_COUNTS_AS_LONG_RUN_KM` (15 km) **ersetzt er den langen Lauf der Woche** — sonst plante das Gerüst neben dem 24-km-Rennen noch einen Longrun.
+- Seine **echten Kilometer** gehen ins Wochenbudget, nicht die Minuten aus dem Wochenraster: 24,6 km, nicht "die 60 Minuten, die zufällig im Profil stehen".
+- Der Validator setzt an einem Renntag als Notnagel **das Rennen** ein, keine Ersatzeinheit.
+- Im Wiedereinstieg wird ein Rennen **nicht entschärft** — die Leiter kann eine Einheit abschwächen, aber kein Rennen.
+
+`Event::race_km` liefert die Distanz als Zahl (`distance_label` liest sich gut, rechnet aber nicht) und holt die Standarddistanzen aus `RacePredictionService::ANCHORS` — dort stehen sie schon, und genau an dieser Sorte Zweitkopie ist die Rennprognose einmal auseinandergelaufen.
+
+Sechs der acht Tests in `RaceDayInPlanTest` fallen mit dem alten Code um; zwei sind Wächter ("ohne Rennen ändert sich nichts") und bestehen erwartungsgemäß beidseitig.
+
 ### When the plan may change (and when it may not)
 
 A regeneration deletes every `planned` session and has the model invent them again. The model is not deterministic, so **every regeneration is a fresh roll of the dice** — rest days vanished, a threshold run became twenty easy minutes. Two of the seven triggers were "the athlete did what the plan said", the worst possible reason to redraw a plan.
