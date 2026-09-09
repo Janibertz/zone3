@@ -25,6 +25,13 @@ return Application::configure(basePath: dirname(__DIR__))
             'webhook/github',
         ]);
 
+        // Ganz vorn: die Messung setzt beim Eintritt zurueck und zaehlt
+        // dadurch auch die Queries von Session und Auth mit. Geschrieben
+        // wird trotzdem erst in terminate(), also nach der Antwort.
+        $middleware->web(prepend: [
+            \App\Http\Middleware\RecordPerformance::class,
+        ]);
+
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,

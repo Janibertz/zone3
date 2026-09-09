@@ -484,6 +484,39 @@ The rest of the admin answers "how is the product doing": users, activities, AI 
 
 `information_schema` is queried only when the driver is MySQL; under SQLite the tests would otherwise error rather than return nothing.
 
+### `/admin/performance` — warum ist es langsam, und lief die Hintergrundarbeit
+
+`/admin/system` beantwortet „läuft die Maschine". Zwei Fragen blieben offen und haben beide Tage gekostet: **warum ist eine Seite langsam** und **lief `strava:sync` überhaupt** (sechs Tage Import-Ausfall, bemerkt vom Athleten selbst).
+
+Aufgezeichnet wird nach dem Prinzip **Zusammenfassung + Ausreißer**:
+
+- **eine Zeile pro Anfrage** — Dauer, Query-Anzahl, Query-Zeit, Speicher, Status, Athlet
+- **einzelne Queries erst ab `slow_query_ms`** (100 ms). Alles zu speichern wären ~40 Zeilen pro Seitenaufruf
+- **Kommandos werden fortgeschrieben, nicht angehängt** — `push:wellbeing-reminders` läuft jede Minute; als Ereignisstrom wären das 43.000 Zeilen im Monat für eine Frage, die eine Zeile beantwortet
+- **Langsames und Kaputtes wird immer aufgezeichnet**, unabhängig von `sample_rate` — ausgerechnet das wegzuwerfen, wonach man sucht, wäre die teuerste Art zu sparen
+
+**Der Webprozess ist single-threaded, und das bestimmt das ganze Design.** `Collector` sammelt im Speicher, `RecordPerformance::terminate()` schreibt **einmal**, nachdem die Antwort erzeugt ist — netto ein zusätzliches INSERT pro Anfrage. Eine Messung, die während der Anfrage schreibt, verlangsamt genau das, was sie beobachten soll; das ist dieselbe Klasse Fehler wie der synchrone Webhook und das `file_get_contents` auf der Logdatei. Die Middleware steht **vorn** in der `web`-Gruppe (`prepend`), damit `reset()` beim Eintritt die Queries von Session und Auth noch mitzählt.
+
+Drei Zusicherungen, die man einer Messung nicht ansieht und die deshalb Tests haben:
+
+- **Keine Werte in der Messtabelle.** Laravel liefert das SQL mit `?`; die Bindings bleiben draußen. Durch Zone3 laufen HRV, Schlaf und Ruhepuls.
+- **Kein Query-String bei ausgehenden Aufrufen.** In Stravas Subscription-Endpunkt steht das `client_secret` in der URL.
+- **Die Messung misst sich nicht selbst.** Queries auf `perf_*` zählen nicht mit, sonst wäre der eigene Insert Teil der Statistik.
+
+Gruppiert wird über das **Route-Muster** (`GET /events/{event}/plan`), nicht die URL — sonst wäre jeder Event eine eigene Zeile. Die aussagekräftigste Spalte ist `max. Qry`: eine Route mit Ø 40 und max. 213 Queries hat kein Performance-, sondern ein N+1-Problem, und das sieht man nur am Ausreißer. Keine Perzentile — `avg`/`max` bedeuten unter MySQL und SQLite dasselbe, ein p95 nicht, und die Tests laufen auf SQLite.
+
+`perf:prune` läuft nachts (04:00) und löscht über IDs in Häppchen; `DELETE ... LIMIT` gibt es unter SQLite nur mit einer selten gesetzten Compile-Option.
+
+### `perf:watch` — das System meldet sich selbst
+
+Eine Ansicht hilft nur dem, der sie öffnet, und genau das war das Problem. `Schedule::command('perf:watch')->everyFifteenMinutes()` prüft und schickt den Admins eine Web-Push-Nachricht: fehlgeschlagene Jobs, eine stauende Queue, ein 5xx-Ausbruch, überfällige Kommandos, und — vorsichtig formuliert, als Frage — 48 h ohne Strava-Webhook.
+
+`perf_alerts` ist das Gedächtnis: **Abklingzeit 6 h**, sonst käme derselbe Satz viermal pro Stunde und würde nach einem Tag ignoriert. Löst sich ein Befund auf, wird die Sperre zurückgesetzt — ein echter Rückfall ist eine neue Nachricht wert.
+
+**Der Wächter kann seinen eigenen Ausfall nicht melden**, denn er läuft selbst im Scheduler. Stirbt der Scheduler, stirbt er mit. Deshalb steht `schedule:run` in `expected_every_minutes` und wird beim **Seitenaufruf** ausgewertet, wo die Antwort ankommt — nicht in einer Push-Nachricht, die nie abgeschickt würde. Dieselbe Grenze gilt für Cloudflare: was den Edge nicht passiert, sieht Laravel nicht, und keine Messung im Container ändert daran etwas.
+
+Alles steht in `config/observability.php` — Schwellen, Aufbewahrung, Abklingzeit, erwartete Taktung je Kommando, und `OBSERVABILITY_ENABLED` als Schalter, der die Aufzeichnung ohne Deploy stilllegt.
+
 ## Push Notifications
 
 VAPID-based Web Push (no Firebase). Subscriptions in `push_subscriptions`. Scheduler command `SendWellbeingReminders` runs every minute via polling loop. Expired subscriptions (HTTP 410) are auto-deleted.
@@ -508,4 +541,11 @@ FIT_SERVICE_TOKEN=
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
 VAPID_SUBJECT=mailto:...
+
+# Selbstbeobachtung (/admin/performance). Alle optional — die Vorgaben in
+# config/observability.php passen fuer vier Athleten.
+OBSERVABILITY_ENABLED=true
+OBSERVABILITY_SLOW_QUERY_MS=100
+OBSERVABILITY_SLOW_REQUEST_MS=1000
+OBSERVABILITY_RETENTION_DAYS=14
 ```

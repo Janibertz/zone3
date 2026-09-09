@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\AdminImpersonationController;
 use App\Http\Controllers\Admin\AdminNewsletterController;
 use App\Http\Controllers\Admin\AdminSettingsController;
 use App\Http\Controllers\Admin\AdminSupportController;
+use App\Http\Controllers\Admin\AdminPerformanceController;
 use App\Http\Controllers\Admin\AdminSystemController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminWikiController;
@@ -50,6 +51,11 @@ Route::delete('/system/failed',               [AdminSystemController::class, 'fl
 Route::post('/system/failed/{uuid}/retry',    [AdminSystemController::class, 'retryFailed'])   ->name('system.failed.retry');
 Route::delete('/system/failed/{uuid}',        [AdminSystemController::class, 'forgetFailed'])  ->name('system.failed.forget');
 Route::post('/system/plan-gaps/{user}',       [AdminSystemController::class, 'fillPlanGaps'])  ->name('system.plan-gaps.fill');
+
+// Performance und Fehlersuche — Anfragen, Queries, Jobs, Kommandos.
+Route::get('/performance',        [AdminPerformanceController::class, 'index']) ->name('performance.index');
+Route::post('/performance/check', [AdminPerformanceController::class, 'check']) ->name('performance.check');
+Route::delete('/performance',     [AdminPerformanceController::class, 'flush']) ->name('performance.flush');
 
 Route::get('/ai-logs',           [AdminAiLogController::class, 'index']) ->name('ai-logs.index');
 Route::get('/ai-logs/{aiLog}',   [AdminAiLogController::class, 'show'])  ->name('ai-logs.show');

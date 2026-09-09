@@ -64,3 +64,22 @@ Schedule::command('livetrack:poll')->everyMinute()->withoutOverlapping();
 // Die Rechnung: ein Listenaufruf je Konto und Durchlauf. Bei vier Konten
 // sind das 4 je 15 Minuten (Limit 200) und 384 am Tag (Limit 2000).
 Schedule::command('strava:sync')->everyFifteenMinutes()->withoutOverlapping();
+
+/*
+ * Beobachtung des eigenen Betriebs.
+ *
+ * `perf:watch` im selben Takt wie der Strava-Sync — es prueft Queues,
+ * Serverfehler und ob die Hintergrundarbeit ueberhaupt gelaufen ist, und
+ * schickt den Admins eine Push-Nachricht, wenn etwas kippt. Die Abklingzeit
+ * steckt in `perf_alerts`, damit derselbe Befund nicht viermal pro Stunde
+ * auf dem Telefon landet.
+ *
+ * Es kann seinen EIGENEN Ausfall nicht melden — laeuft der Scheduler nicht,
+ * laeuft auch der Waechter nicht. Diese Frage beantwortet die Systemseite
+ * beim Aufruf.
+ *
+ * `perf:prune` haelt die Messtabelle klein. Ohne das schreibt sie dieselbe
+ * Geschichte wie die Logdatei, die niemand rotiert hat.
+ */
+Schedule::command('perf:watch')->everyFifteenMinutes()->withoutOverlapping();
+Schedule::command('perf:prune')->dailyAt('04:00');
