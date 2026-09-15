@@ -141,6 +141,43 @@ class Event extends Model
         return $this->distance_km ? (float) $this->distance_km : null;
     }
 
+    /**
+     * Die angepeilte Zeit in Minuten — oder null, wenn keine gesetzt ist.
+     *
+     * `target_time_formatted` liest sich gut, rechnet aber nicht. Sobald ein
+     * Rennen im Plan steht, muss die Zielzeit rechenbar sein: sie ist die
+     * Dauer des Renntages und ergibt zusammen mit der Distanz das Zieltempo.
+     *
+     * Ohne sie stand am 5-km-Renntag „27 min" — die Schaetzung aus der
+     * Zonentabelle — statt der eingetragenen 20 Minuten, und das Modell
+     * pacte den 5er im Marathontempo.
+     */
+    public function getTargetMinutesAttribute(): ?int
+    {
+        $minutes = ((int) $this->target_time_hours) * 60 + (int) $this->target_time_minutes;
+
+        return $minutes > 0 ? $minutes : null;
+    }
+
+    /**
+     * Das Zieltempo in Sekunden je Kilometer, aus Zielzeit und Distanz.
+     *
+     * Bewusst nicht gerundet zurueckgegeben — die Formatierung macht
+     * {@see PaceFormat::target()}, und die rundet ABWAERTS. Eine Zielpace
+     * weist an, sie beschreibt nicht: aufgerundet verfehlt man das Ziel.
+     */
+    public function getTargetPaceSecondsAttribute(): ?float
+    {
+        $minutes = $this->target_minutes;
+        $km      = $this->race_km;
+
+        if (! $minutes || ! $km || $km <= 0) {
+            return null;
+        }
+
+        return $minutes * 60 / $km;
+    }
+
     public function getDistanceLabelAttribute(): string
     {
         return match ($this->race_distance) {

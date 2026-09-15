@@ -175,6 +175,14 @@ Nachweisbar ohne einen einzigen Modellaufruf: Gerüst bauen, eine Modellantwort 
 
 Sechs der acht Tests in `RaceDayInPlanTest` fallen mit dem alten Code um; zwei sind Wächter ("ohne Rennen ändert sich nichts") und bestehen erwartungsgemäß beidseitig.
 
+**Nachtrag — das Zielrennen war ausgenommen, und die Zielzeit fehlte.** Gemeldet: *"Ich habe den Sportcheck lauf mit ziel 20 min angeben im plan steht aber 27 min … Jetzt steht für den Berlin Marathon ein Langer lauf von 9km an obwohl dort mein Rennen stattfindet."* Drei Fehler an derselben Stelle:
+
+1. **Das Zielrennen des Plans fehlte im Gerüst.** Die Rennen kamen aus `otherEvents()`, und die Methode schliesst per `id != $event->id` genau das eine Rennen aus, um das der Plan gebaut wird. Am Marathon-Renntag stand deshalb weiter „Langer Lauf, 9 km" — während der ganze Taper davor darauf zulief. Es gibt jetzt `PlanContextBuilder::races()`, das **alle** Rennen im Fenster liefert; `otherEvents()` bleibt daneben stehen, weil es einen Prompt-Abschnitt über die *anderen* Rennen füttert.
+2. **Die eingetragene Zielzeit wurde von einer Schätzung übersteuert.** Am 5-km-Renntag stand „27 min" — 5 km in der Zonenpace. Schlimmer als die Zahl war die Folge: das Modell pacte den 5er im Marathon-Renntempo (5:19 statt 4:00). `Event::target_minutes` und `target_pace_seconds` liefern die Vorgabe als Zahl; das Gerüst nimmt sie vor jeder Schätzung, und ohne Eintrag (Wattlauf) bleibt es bei der Schätzung.
+3. **Der Validator kürzte den Marathon auf das Tagesbudget.** Sonntags stehen 180 Minuten im Wochenraster, also machte `enforceSlotCaps()` aus 42,195 km brav „33,8 km in 180 min". Ein Zeitbudget ist eine Aussage über *Trainings*tage — ein Rennen dauert, was es dauert. `enforceSlotCaps()` und `enforceDailyBudget()` überspringen Renntage.
+
+Merkhilfe für den nächsten Fix an dieser Stelle: **wer „Rennen" sagt, muss auch das eigene meinen.**
+
 ### When the plan may change (and when it may not)
 
 A regeneration deletes every `planned` session and has the model invent them again. The model is not deterministic, so **every regeneration is a fresh roll of the dice** — rest days vanished, a threshold run became twenty easy minutes. Two of the seven triggers were "the athlete did what the plan said", the worst possible reason to redraw a plan.

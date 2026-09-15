@@ -320,6 +320,16 @@ class TrainingPlanValidator
     {
         foreach ($days as $date => $day) {
             foreach ($day['slots'] ?? [] as $slot) {
+                // Ein Rennen hat die Laenge, die es hat. Das Zeitbudget im
+                // Wochenraster ist eine Aussage ueber Trainingstage — am
+                // Renntag laeuft der Athlet die Distanz, die ausgeschrieben
+                // ist. Ohne diese Ausnahme wurde aus dem Berlin Marathon
+                // „33,8 km in 180 min", weil sonntags 180 Minuten im Profil
+                // stehen.
+                if (! empty($slot['race'])) {
+                    continue;
+                }
+
                 $cap = (int) ($slot['max_min'] ?? 0);
                 if ($cap <= 0) {
                     continue;
@@ -362,6 +372,14 @@ class TrainingPlanValidator
         foreach ($byDate as $date => $indexes) {
             $budget = (int) ($days[$date]['budget_min'] ?? 0);
             if ($budget <= 0) continue;
+
+            // An einem Renntag gilt das Tagesbudget nicht — siehe
+            // enforceSlotCaps(). Sonst kuerzt diese Schleife den Marathon
+            // anteilig mit, sobald noch eine Mobility-Einheit danebensteht.
+            $isRaceDay = collect($indexes)->contains(
+                fn ($i) => ($sessions[$i]['type'] ?? '') === 'race_prep'
+            );
+            if ($isRaceDay) continue;
 
             $total = array_sum(array_map(fn ($i) => (int) ($sessions[$i]['duration_min'] ?? 0), $indexes));
             if ($total <= $budget) continue;
@@ -539,16 +557,21 @@ class TrainingPlanValidator
         // wurde bisher aus dem Ruhetag des Modells ein Tempolauf: das
         // Geruest verlangte eine Einheit, und der Notnagel erfand sie.
         if (! empty($slot['race'])) {
-            $km = (float) ($slot['race']['km'] ?? 0);
+            $race = $slot['race'];
+            $km   = (float) ($race['km'] ?? 0);
+
+            // Zielzeit vor Slot-Schaetzung vor Standarddauer.
+            $duration = (int) ($race['target_min'] ?? 0)
+                ?: (int) ($slot['target_min'] ?? $minutes);
 
             return [
                 'date'         => $date,
                 'type'         => 'race_prep',
-                'title'        => $slot['race']['name'],
+                'title'        => $race['name'],
                 'description'  => 'Wettkampftag — heute wird gelaufen, nicht trainiert.',
                 'distance_km'  => $km > 0 ? round($km, 1) : null,
-                'duration_min' => (int) ($slot['target_min'] ?? $minutes),
-                'pace_target'  => null,
+                'duration_min' => $duration,
+                'pace_target'  => $race['target_pace'] ?? null,
                 'zone'         => null,
                 'intensity'    => 'high',
                 '_hard'        => true,

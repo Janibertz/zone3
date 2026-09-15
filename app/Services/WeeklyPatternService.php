@@ -388,7 +388,13 @@ class WeeklyPatternService
                     $raceKm = (float) ($slot['race']['km'] ?? 0);
 
                     if ($raceKm > 0) {
-                        $minutes = (int) round($raceKm * $paceSec / 60);
+                        // Die eingetragene Zielzeit schlaegt jede Schaetzung.
+                        // Ohne sie stand am 5-km-Renntag „27 min" — 5 km in
+                        // der Zonenpace —, obwohl unter Events 20 Minuten
+                        // stehen. Das Modell pacte den 5er daraufhin im
+                        // Marathontempo.
+                        $target  = (int) ($slot['race']['target_min'] ?? 0);
+                        $minutes = $target > 0 ? $target : (int) round($raceKm * $paceSec / 60);
                         $km      = $raceKm;
                     } else {
                         $minutes = (int) ($slot['max_min'] ?: $days[$date]['budget_min']);
@@ -1035,14 +1041,35 @@ class WeeklyPatternService
 
                 // Ein Rennen wird benannt, nicht als fester Termin getarnt.
                 if (! empty($slot['race'])) {
-                    $rk   = $slot['race']['km'] ?? null;
+                    $race = $slot['race'];
+                    $rk   = $race['km'] ?? null;
                     $dist = $rk ? ", {$rk} km" : '';
-                    $prio = ! empty($slot['race']['priority']) ? " (Prio {$slot['race']['priority']})" : '';
-                    $est  = isset($slot['target_min']) ? " — rechne mit rund {$slot['target_min']} min" : '';
+                    $prio = ! empty($race['priority']) ? " (Prio {$race['priority']})" : '';
 
-                    $parts[] = "type=\"race_prep\" — WETTKAMPF: {$slot['race']['name']}{$dist}{$prio}{$est}."
+                    // Die Zielzeit des Athleten, nicht unsere Schaetzung —
+                    // und daraus das Zieltempo. Genau daran hing, dass das
+                    // Modell einen 20-Minuten-5er im Marathontempo plante.
+                    // Der Zusatz gilt nur fuer Nebenrennen: bei einem
+                    // 20-Minuten-5er ist das Marathon-Renntempo die falsche
+                    // Vorgabe. Beim Zielrennen selbst waere derselbe Satz
+                    // Unsinn — dort IST es das Renntempo.
+                    $notMarathonPace = empty($race['is_goal'])
+                        ? ' — daran richtet sich die Renn-Strategie aus, NICHT am Renntempo des Zielrennens.'
+                        : '.';
+
+                    $goal = ! empty($race['target_min'])
+                        ? " ZIELZEIT: {$race['target_min']} min"
+                            . (! empty($race['target_pace']) ? " ({$race['target_pace']} min/km)" : '')
+                            . $notMarathonPace
+                        : '';
+
+                    $goalRace = ! empty($race['is_goal'])
+                        ? ' Das ist das ZIELRENNEN dieses Plans.'
+                        : '';
+
+                    $parts[] = "type=\"race_prep\" — WETTKAMPF: {$race['name']}{$dist}{$prio}.{$goalRace}"
                         . " Das ist das Rennen selbst, KEIN Training. title = der Rennname,"
-                        . " description = die Renn-Strategie fuer diesen Wettkampf.";
+                        . " description = die Renn-Strategie fuer diesen Wettkampf.{$goal}";
                     continue;
                 }
 

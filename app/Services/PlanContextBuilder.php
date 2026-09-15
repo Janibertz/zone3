@@ -120,12 +120,16 @@ class PlanContextBuilder
                 // Verfuegbarkeit und der Deckel daneben ist unerfuellbar.
                 $volume,
                 $paces['long_sec'] ?? null,
-                // Andere Rennen im Fenster gehören INS Gerüst, nicht nur in
-                // den Prompt. Standen sie nur dort, lieferte das Modell den
+                // Rennen im Fenster gehören INS Gerüst, nicht nur in den
+                // Prompt. Standen sie nur dort, lieferte das Modell den
                 // verlangten Ruhetag — und der Validator ersetzte ihn durch
                 // die Einheit, die im Gerüst stand. Am Renntag stand dann ein
                 // Tempolauf.
-                collect($context->otherEvents)->keyBy('date')->all(),
+                //
+                // `races()` und nicht `otherEvents`: letzteres lässt das
+                // Zielrennen dieses Plans aus, und genau dort stand zuletzt
+                // ein „Langer Lauf" am Marathon-Renntag.
+                $this->races($user, $event, $windowTo),
             ),
             garminText: empty($user->garmin_session)
                 ? null
@@ -293,6 +297,45 @@ class PlanContextBuilder
                 'priority' => $e->priority,
             ])
             ->toArray();
+    }
+
+    /**
+     * ALLE Rennen im Planungsfenster — auch das Zielrennen dieses Plans.
+     *
+     * `otherEvents()` daneben liefert bewusst nur die anderen: es fuettert
+     * einen Prompt-Abschnitt, der die Nebenrennen benennt. Das Geruest
+     * braucht dagegen jeden Renntag, und genau hier fehlte einer.
+     *
+     * `otherEvents()` schliesst das Zielevent per `id != $event->id` aus.
+     * Als die Nebenrennen ins Geruest wanderten, erbte es diesen Ausschluss —
+     * und am Renntag des Berlin Marathons stand weiterhin „Langer Lauf,
+     * 9 km, Tempo bewusst zurueckhalten". Der ganze Taper davor lief auf ein
+     * Rennen zu, das im Plan nicht vorkam.
+     *
+     * @return array<string, array<string, mixed>>  Datum => Renndaten
+     */
+    private function races(User $user, Event $event, CarbonImmutable $windowTo): array
+    {
+        return Event::where('user_id', $user->id)
+            ->whereDate('event_date', '>=', now()->toDateString())
+            ->whereDate('event_date', '<=', $windowTo->toDateString())
+            ->orderBy('event_date')
+            ->get()
+            ->mapWithKeys(fn (Event $e) => [$e->event_date->format('Y-m-d') => [
+                'date'       => $e->event_date->format('Y-m-d'),
+                'name'       => $e->name,
+                'km'         => $e->race_km,
+                'priority'   => $e->priority,
+                // Die eingetragene Zielzeit schlaegt jede Schaetzung aus der
+                // Zonentabelle. Ist keine gesetzt (z. B. beim Wattlauf),
+                // bleibt es bei der Schaetzung.
+                'target_min' => $e->target_minutes,
+                'target_pace' => $e->target_pace_seconds
+                    ? PaceFormat::target($e->target_pace_seconds)
+                    : null,
+                'is_goal'    => $e->id === $event->id,
+            ]])
+            ->all();
     }
 
     /**
