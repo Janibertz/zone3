@@ -40,6 +40,7 @@ readonly class PlanContext
         public ?array $volume = null,
         public ?array $longRuns = null,
         public ?array $skeleton = null,
+        public ?array $interview = null,
         public ?string $garminText = null,
     ) {}
 
@@ -80,6 +81,7 @@ readonly class PlanContext
             trainingLoad:          $this->trainingLoad,
             pastPlanResults:       $this->pastPlanResults,
             otherEvents:           $this->otherEvents,
+            interview:             $this->interview,
             finalizedSessions:     $this->finalizedSessions,
             followUpGoal:          $this->followUpGoal,
             coachNotes:            $this->coachNotes,

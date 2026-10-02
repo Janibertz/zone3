@@ -19,6 +19,8 @@ php artisan test --filter TestName   # single test
 php artisan pwa:icons
 ```
 
+**Ein Test mit festen Daten braucht eine feste Gegenwart.** `LongRunLadderTest` rechnete mit `RACE_DAY = 2026-09-27` und reichte `TODAY` an den Dienst durch — die Prüfung „liegt das Rennen in der Zukunft" fragte aber weiter die echte Uhr. Am 02.10.2026 war der Renntag vorbei, `LongRunPlanService::forEvent()` lieferte `null`, und **elf Tests fielen auf einmal um, ohne dass jemand Code angefasst hatte**. `Carbon::setTestNow()` in `setUp()`, zurückgesetzt in `tearDown()`. Wer feste Daten verwendet und die Uhr laufen lässt, schreibt eine Zeitbombe mit Datumsstempel.
+
 **Tests never talk to the network.** `Tests\TestCase::setUp()` calls `Http::preventStrayRequests()`, and it is there for a reason: `QUEUE_CONNECTION` is `sync` under test, so every `dispatch` runs immediately — a test that imported an activity ran `GenerateSessionReviewJob`, which calls OpenAI with the live key. `Http::fake()` with a URL pattern does **not** catch that; anything not matching the pattern goes out for real. The only visible sign was two tests taking four seconds instead of twenty milliseconds. A test that needs a call fakes it explicitly.
 
 ## Local development
@@ -182,6 +184,33 @@ Sechs der acht Tests in `RaceDayInPlanTest` fallen mit dem alten Code um; zwei s
 3. **Der Validator kürzte den Marathon auf das Tagesbudget.** Sonntags stehen 180 Minuten im Wochenraster, also machte `enforceSlotCaps()` aus 42,195 km brav „33,8 km in 180 min". Ein Zeitbudget ist eine Aussage über *Trainings*tage — ein Rennen dauert, was es dauert. `enforceSlotCaps()` und `enforceDailyBudget()` überspringen Renntage.
 
 Merkhilfe für den nächsten Fix an dieser Stelle: **wer „Rennen" sagt, muss auch das eigene meinen.**
+
+### `/plan-interview` — das Gespräch vor dem nächsten Block
+
+Gewünscht: *"Vielleicht wäre ein kurzes Interview nicht schlecht damit sich der Plan perfekt einstellen kann."*
+
+**Der Entwurf entscheidet sich daran, was NICHT gefragt wird.** Zone3 kennt 132 Aktivitäten, 150 Wellbeing-Einträge, 95 Garmin-Tage, 128 bewertete Einheiten, Schwellenpace und Zonen. Eine Frage nach dem Wochenumfang wäre nicht nur überflüssig — sie baut eine zweite Wahrheit neben die Daten, und genau daran hat dieses Projekt mehrfach Tage verloren. Gefragt wird nur, was die Datenbank nicht hergibt:
+
+| Schritt | Warum die Daten es nicht beantworten |
+|---|---|
+| **Rückblick** auf das letzte Rennen | Von acht vergangenen Rennen hatte **keines** ein Ergebnis |
+| **Warum Einheiten ausfielen** | Die App sieht `skipped`, nie den Grund — bei 34 % Quote |
+| **Zeit ab jetzt** | Das Wochenraster steht seit dem Onboarding |
+| **Ausrichtung** | Rennen, Grundlage, Wiedereinstieg oder Form halten |
+| **Freitext** | Alles, wofür es kein Feld gibt |
+
+Jeder Schritt zeigt zuerst die Antwort der Datenbank, der Athlet korrigiert nur. Beim Rückblick schlägt die Strava-Aktivität vom Renntag die Zeit vor — bestätigen muss er sie trotzdem, denn eine Trainingsrunde am selben Tag sähe genauso aus.
+
+**Die Antworten sind keine Prompt-Dekoration.** `PlanInterviewService::apply()` schreibt sie dorthin, wo sie wirken:
+
+- **Wochenraster** ← Tage und Minuten. Der stärkste Hebel aufs Gerüst; `rebuildGrid()` streicht den kürzesten Tag zuerst und lässt längere Tage (den Sonntag) in Ruhe.
+- **Rennbilanz** ← Zeit und Bewertung landen auf dem `TrainingPlan`. Damit läuft `pastPlanResults()` zum ersten Mal nicht leer: die Methode filtert auf `overall_rating`, und das wurde nie gesetzt. Der Mechanismus war immer da, nur ungefüttert.
+- **Umfangsdeckel** ← `volumeFactor()` (Körper 0,80 · Zeit 0,85 · Motivation 0,90). `WeeklyVolumeService` schreibt die letzten Wochen fort — richtig, solange sie gelaufen *wurden*. Wer sagt „ich hatte keine Zeit", bekommt sonst denselben Umfang noch einmal, der schon beim letzten Mal nicht in die Woche passte.
+- **Coach-Notizen** ← nur, was sich nicht strukturieren lässt.
+
+Die Umfangskorrektur sitzt in `PlanContextBuilder::applyInterviewToVolume()` und nicht im Gerüst, weil derselbe `$volume` danach an **zwei** Stellen geht: ins Gerüst (bindend) und in den Prompt-Abschnitt (erklärend). Zwei getrennte Korrekturen wären wieder die doppelte Wahrheit.
+
+**Ein Interview altert.** Nach acht Wochen liefert `forPlan()` nichts mehr — es beschreibt dann einen anderen Athleten, und ab da zählen die Daten allein. Jedes Feld ist optional: ein halb beantwortetes Interview ist mehr wert als eines, das an einem Pflichtfeld abgebrochen wurde.
 
 ### When the plan may change (and when it may not)
 

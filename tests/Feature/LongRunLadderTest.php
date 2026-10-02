@@ -30,6 +30,32 @@ class LongRunLadderTest extends TestCase
     private const RACE_DAY = '2026-09-27';
     private const TODAY    = '2026-08-20';
 
+    /**
+     * Die Uhr anhalten.
+     *
+     * Dieser Test rechnet mit zwei festen Daten, reichte aber nur `TODAY` an
+     * den Dienst durch — die Pruefung „liegt das Rennen in der Zukunft"
+     * fragte weiter die echte Uhr. Am 02.10.2026 war der 27.09. vorbei, der
+     * Dienst lieferte `null`, und elf Tests fielen auf einmal um, ohne dass
+     * jemand Code angefasst hatte.
+     *
+     * Ein Test mit festen Daten muss auch eine feste Gegenwart haben, sonst
+     * ist er eine Zeitbombe mit Datumsstempel.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        CarbonImmutable::setTestNow(CarbonImmutable::parse(self::TODAY));
+    }
+
+    protected function tearDown(): void
+    {
+        CarbonImmutable::setTestNow();
+
+        parent::tearDown();
+    }
+
     private function event(string $distance = 'marathon'): Event
     {
         $user = User::factory()->create();

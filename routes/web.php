@@ -22,6 +22,7 @@ use App\Http\Controllers\WellbeingController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\NewsletterController;
+use App\Http\Controllers\PlanInterviewController;
 use App\Models\WeeklyReview;
 use App\Services\ProgressService;
 use App\Services\ReturnToRunService;
@@ -534,6 +535,11 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/training-sessions/{session}/steps', [TrainingSessionController::class, 'sessionSteps'])->name('training-sessions.steps');
     Route::patch('/training-sessions/{session}/rate', [TrainingSessionController::class, 'rate'])->name('training-sessions.rate');
     Route::patch('/training-sessions/{session}/review-feedback', [TrainingSessionController::class, 'reviewFeedback'])->name('training-sessions.review-feedback');
+    // Das kurze Gespraech vor dem naechsten Block. Fragt nur, was die Daten
+    // nicht hergeben — alles andere steht schon in den Aktivitaeten.
+    Route::get('/plan-interview',  [PlanInterviewController::class, 'show']) ->name('plan-interview.show');
+    Route::post('/plan-interview', [PlanInterviewController::class, 'store'])->name('plan-interview.store');
+
     Route::patch('/training-sessions/{session}/apply-workout', [TrainingSessionController::class, 'applyWorkout'])->name('training-sessions.apply-workout');
     Route::post('/training-sessions/{session}/reset-cache', [TrainingSessionController::class, 'resetCache'])->name('training-sessions.reset-cache');
     Route::post('/newsletter/preference', [NewsletterController::class, 'updatePreference'])->name('newsletter.preference');

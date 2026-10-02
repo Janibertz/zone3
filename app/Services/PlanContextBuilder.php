@@ -24,6 +24,7 @@ class PlanContextBuilder
     public function __construct(
         private readonly TrainingLoadService $trainingLoad,
         private readonly WeeklyPatternService $pattern,
+        private readonly PlanInterviewService $interviews,
         private readonly GarminHealthSummary $garmin,
         private readonly ReturnToRunService $returnToRun,
         private readonly TrainingPaceService $paces,
@@ -67,7 +68,11 @@ class PlanContextBuilder
 
         $availability = $user->runnerProfile?->weekly_availability;
         $paces        = $this->paces->forEvent($event, $user->runnerProfile?->threshold_speed);
-        $volume       = $this->volume->forUser($user->id, $windowFrom);
+        $interview    = $this->interviews->forPlan($user);
+        $volume       = $this->applyInterviewToVolume(
+            $this->volume->forUser($user->id, $windowFrom),
+            $interview,
+        );
 
         // Die langen Läufe stehen vor dem Wochengerüst fest — sie sind der
         // Grund, warum der Plan überhaupt so aussieht, wie er aussieht, und
@@ -93,6 +98,11 @@ class PlanContextBuilder
             trainingLoad:          $this->trainingLoad->calculate($user->id),
             pastPlanResults:       $this->pastPlanResults($user),
             otherEvents:           $this->otherEvents($user, $event, $windowTo),
+            // Das Gespraech vor dem Block. Die strukturierten Folgen
+            // (Wochenraster, Rennbilanz) hat `PlanInterviewService::apply()`
+            // schon geschrieben — hier kommt nur noch, womit das Geruest und
+            // der Prompt rechnen: Ausrichtung und Umfangsfaktor.
+            interview:             $interview,
             finalizedSessions:     $finalized,
             followUpGoal:          $this->followUpGoal($user, $event),
             coachNotes:            $user->runnerProfile?->coach_notes,
@@ -297,6 +307,40 @@ class PlanContextBuilder
                 'priority' => $e->priority,
             ])
             ->toArray();
+    }
+
+    /**
+     * Den Umfangsdeckel um das korrigieren, was der Athlet erzaehlt hat.
+     *
+     * `WeeklyVolumeService` schreibt die letzten Wochen fort: Durchschnitt
+     * plus 10 %. Das ist richtig, solange die vergangenen Wochen gelaufen
+     * WURDEN. Wer sagt „ich hatte keine Zeit" oder „die Beine machten nicht
+     * mit", bekommt sonst denselben Umfang noch einmal vorgelegt, der schon
+     * beim letzten Mal nicht in die Woche passte — und die Ausfallquote
+     * bleibt, wo sie war.
+     *
+     * Korrigiert wird HIER und nicht im Geruest, weil derselbe `$volume`
+     * danach an zwei Stellen geht: ins Geruest (bindend) und in den
+     * Prompt-Abschnitt (erklaerend). Zwei getrennte Korrekturen waeren die
+     * doppelte Wahrheit, die dieses Projekt schon mehrfach bezahlt hat.
+     *
+     * @param  array<string, mixed>       $volume
+     * @param  array<string, mixed>|null  $interview
+     * @return array<string, mixed>
+     */
+    private function applyInterviewToVolume(array $volume, ?array $interview): array
+    {
+        $factor = (float) ($interview['volume_factor'] ?? 1.0);
+
+        if ($factor >= 1.0 || empty($volume['next_week_max'])) {
+            return $volume;
+        }
+
+        $volume['next_week_max']    = round($volume['next_week_max'] * $factor, 1);
+        $volume['reduced_by']       = $interview['skip_label'] ?? null;
+        $volume['reduced_factor']   = $factor;
+
+        return $volume;
     }
 
     /**
