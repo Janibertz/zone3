@@ -17,6 +17,7 @@ import axios from 'axios';
 
 const coach   = computed(() => usePage().props.coach ?? null);
 const isAdmin = computed(() => usePage().props.auth?.isAdmin ?? false);
+const flash   = computed(() => usePage().props.flash ?? {});
 const coachName = computed(() => coach.value?.name ?? 'Dein Coach');
 
 const coachAccentColors = {
@@ -841,6 +842,20 @@ const lapHeightPct = computed(() => {
     <AuthenticatedLayout>
         <div class="min-h-screen bg-canvas">
             <div class="space-y-5 px-4 py-4 lg:px-6 lg:py-6">
+
+                <!--
+                    Die Quittung. Wer gerade fünf Fragen beantwortet hat, soll
+                    sehen, was davon übernommen wurde — sonst war das Gespräch
+                    aus seiner Sicht folgenlos.
+                -->
+                <div v-if="flash.success"
+                    class="rounded-field bg-success-soft px-4 py-3 text-[14px] text-success-ink">
+                    {{ flash.success }}
+                </div>
+                <div v-if="flash.error"
+                    class="rounded-field bg-danger-soft px-4 py-3 text-[14px] text-danger-ink">
+                    {{ flash.error }}
+                </div>
 
                 <!-- ══ KOPF ══════════════════════════════════════════ -->
                 <header class="px-1">

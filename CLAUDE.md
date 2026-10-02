@@ -210,6 +210,10 @@ Jeder Schritt zeigt zuerst die Antwort der Datenbank, der Athlet korrigiert nur.
 
 Die Umfangskorrektur sitzt in `PlanContextBuilder::applyInterviewToVolume()` und nicht im Gerüst, weil derselbe `$volume` danach an **zwei** Stellen geht: ins Gerüst (bindend) und in den Prompt-Abschnitt (erklärend). Zwei getrennte Korrekturen wären wieder die doppelte Wahrheit.
 
+**Der Einstieg ist „Plan erstellen" unter Events.** Der Knopf führt für ein Event ohne Plan auf `/plan-interview?event=X`; danach geht es zur Planseite, wo der Plan gebaut wird. Zwei Abkürzungen sind eingebaut, weil ein Interview eine Einladung sein soll und kein Schlagbaum: wer **kürzlich schon geantwortet hat** (dieselbe Acht-Wochen-Grenze) wird serverseitig durchgewunken, und steht das **Rennen bereits fest**, entfällt die Frage nach dem Ziel — aus fünf Schritten werden vier.
+
+**`flash` wurde nie geteilt.** Beim Prüfen der Quittung fiel auf, dass `HandleInertiaRequests::share()` kein `flash` enthält — während **20 Controller** `->with('success', …)` setzen und **14 Vue-Seiten** `props.flash` lesen. Jede Bestätigung der ganzen Anwendung ist seit jeher still verschluckt worden: „Freigabe zurückgenommen", „Plan-Lücken geschlossen", „Messwerte verworfen". Gemeldet hat es niemand, weil eine fehlende Meldung wie eine Aktion ohne Nachricht aussieht und nicht wie ein Fehler. Jetzt als Closure geteilt, damit die Session erst beim Rendern gelesen wird.
+
 **Ein Interview altert.** Nach acht Wochen liefert `forPlan()` nichts mehr — es beschreibt dann einen anderen Athleten, und ab da zählen die Daten allein. Jedes Feld ist optional: ein halb beantwortetes Interview ist mehr wert als eines, das an einem Pflichtfeld abgebrochen wurde.
 
 ### When the plan may change (and when it may not)

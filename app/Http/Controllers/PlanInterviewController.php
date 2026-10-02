@@ -25,11 +25,38 @@ class PlanInterviewController extends Controller
 {
     public function __construct(private readonly PlanInterviewService $interviews) {}
 
-    public function show(PlanInterviewService $service): Response
+    /**
+     * Das Interview, optional fuer ein bestimmtes Event.
+     *
+     * Der Einstieg ist „Plan erstellen" unter Events. Wer das Gespraech
+     * ueberspringt oder es kuerzlich schon gefuehrt hat, landet trotzdem auf
+     * der Planseite — ein Interview ist eine Einladung, kein Schlagbaum.
+     */
+    public function show(Request $request, PlanInterviewService $service): Response|RedirectResponse
     {
+        $event = null;
+
+        if ($request->filled('event')) {
+            $event = Auth::user()->events()->find($request->integer('event'));
+        }
+
+        // Schon gefuehrt und noch frisch? Dann nicht ein zweites Mal fragen —
+        // dieselbe Acht-Wochen-Grenze, ab der `forPlan()` das Interview
+        // ohnehin nicht mehr beruecksichtigt.
+        if ($event && $service->forPlan(Auth::user()) !== null) {
+            return redirect()->route('events.plan.show', $event->id);
+        }
+
         return Inertia::render('Plan/Interview', [
             'prefill' => $service->prefill(Auth::user()),
             'latest'  => $this->latest(),
+            'event'   => $event ? [
+                'id'         => $event->id,
+                'name'       => $event->name,
+                'date_label' => $event->event_date->format('d.m.Y'),
+                'distance'   => $event->distance_label,
+                'days_until' => $event->days_until,
+            ] : null,
         ]);
     }
 
@@ -78,11 +105,19 @@ class PlanInterviewController extends Controller
 
         $changes = $this->interviews->apply($interview);
 
-        return redirect()
-            ->route('plan-interview.show')
-            ->with('success', $changes === []
-                ? 'Antworten gespeichert.'
-                : 'Übernommen: ' . implode(' · ', $changes));
+        $message = $changes === []
+            ? 'Antworten gespeichert.'
+            : 'Übernommen: ' . implode(' · ', $changes);
+
+        // Wer ueber „Plan erstellen" kam, will zum Plan — nicht zurueck ins
+        // Formular.
+        if (! empty($data['event_id'])) {
+            return redirect()
+                ->route('events.plan.show', $data['event_id'])
+                ->with('success', $message . ' — jetzt kann der Plan gebaut werden.');
+        }
+
+        return redirect()->route('plan-interview.show')->with('success', $message);
     }
 
     /** @return array<string, mixed>|null */

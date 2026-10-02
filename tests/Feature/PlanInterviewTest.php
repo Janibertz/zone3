@@ -292,6 +292,60 @@ class PlanInterviewTest extends TestCase
         $this->assertSame($after, $user->runnerProfile->fresh()->coach_notes);
     }
 
+    /**
+     * Der Einstieg ist „Plan erstellen" unter Events — das Interview laeuft
+     * fuer ein bestimmtes Event, und danach geht es zum Plan.
+     */
+    public function test_coming_from_an_event_leads_back_to_its_plan(): void
+    {
+        $user  = $this->athlete();
+        $event = Event::create([
+            'user_id' => $user->id, 'name' => 'Naechstes Rennen',
+            'event_date' => now()->addDays(90), 'race_distance' => 'half_marathon',
+            'priority' => 'A', 'target_time_hours' => 1, 'target_time_minutes' => 35,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('plan-interview.show', ['event' => $event->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('event.id', $event->id));
+
+        $this->actingAs($user)
+            ->post(route('plan-interview.store'), ['event_id' => $event->id, 'focus' => 'race'])
+            ->assertRedirect(route('events.plan.show', $event->id));
+    }
+
+    /**
+     * Ein frisches Interview wird nicht zweimal verlangt — wer vor drei Tagen
+     * geantwortet hat, soll beim naechsten Event nicht wieder durch die
+     * Fragen. Dieselbe Acht-Wochen-Grenze wie in `forPlan()`.
+     */
+    public function test_a_recent_interview_waves_you_through(): void
+    {
+        $user  = $this->athlete();
+        $event = Event::create([
+            'user_id' => $user->id, 'name' => 'Noch ein Rennen',
+            'event_date' => now()->addDays(60), 'race_distance' => '10km',
+            'priority' => 'B', 'target_time_hours' => 0, 'target_time_minutes' => 45,
+        ]);
+
+        PlanInterview::create(['user_id' => $user->id, 'completed_at' => now()->subDays(3)]);
+
+        $this->actingAs($user)
+            ->get(route('plan-interview.show', ['event' => $event->id]))
+            ->assertRedirect(route('events.plan.show', $event->id));
+    }
+
+    /** Ohne Event bleibt das Interview offen — auch mit frischer Antwort. */
+    public function test_without_an_event_the_interview_stays_open(): void
+    {
+        $user = $this->athlete();
+
+        PlanInterview::create(['user_id' => $user->id, 'completed_at' => now()->subDays(3)]);
+
+        $this->actingAs($user)->get(route('plan-interview.show'))->assertOk();
+    }
+
     public function test_guests_cannot_see_the_interview(): void
     {
         $this->get(route('plan-interview.show'))->assertRedirect(route('login'));

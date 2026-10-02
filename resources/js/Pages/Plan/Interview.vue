@@ -7,10 +7,13 @@ import { computed, ref } from 'vue';
 const props = defineProps({
     prefill: Object,
     latest:  Object,
+    // Gesetzt, wenn der Weg über „Plan erstellen" unter Events kam.
+    event:   Object,
 });
 
 const page  = usePage();
 const flash = computed(() => page.props.flash ?? {});
+const coachName = computed(() => page.props.coach?.name ?? 'dein Coach');
 
 /*
  * Fünf Schritte, jeder mit einer Frage.
@@ -22,7 +25,8 @@ const steps = computed(() => [
     ...(props.prefill.lastBlock ? [{ key: 'review', label: 'Rückblick' }] : []),
     { key: 'skips',  label: 'Ausfälle' },
     { key: 'time',   label: 'Zeit' },
-    { key: 'goal',   label: 'Ziel' },
+    // Steht das Rennen schon fest, ist die Frage nach dem Ziel beantwortet.
+    ...(props.event ? [] : [{ key: 'goal', label: 'Ziel' }]),
     { key: 'free',   label: 'Sonst noch' },
 ]);
 
@@ -45,8 +49,10 @@ const form = ref({
     minutes_per_day:   props.prefill.availability?.minutes ?? null,
     changes_note:      '',
 
-    focus:             null,
-    event_id:          null,
+    // Wer über „Plan erstellen" kommt, hat sein Ziel bereits gewählt — die
+    // Frage danach wäre eine, die er gerade beantwortet hat.
+    focus:             props.event ? 'race' : null,
+    event_id:          props.event?.id ?? null,
     free_note:         '',
 });
 
@@ -108,9 +114,17 @@ const ratings = [
             <div>
                 <h1 class="text-[22px] font-bold text-ink">Vor dem nächsten Block</h1>
                 <p class="mt-1 text-[14px] text-ink-3">
-                    Fünf kurze Fragen. Zone3 kennt deine Läufe, deine Werte und deine Pace —
-                    gefragt wird nur, was in keiner Zahl steht.
+                    {{ steps.length }} kurze Fragen. Zone3 kennt deine Läufe, deine Werte und deine
+                    Pace — gefragt wird nur, was in keiner Zahl steht.
                 </p>
+
+                <div v-if="event" class="mt-3 rounded-field bg-accent-soft px-3 py-2.5">
+                    <p class="text-[13px] text-accent-ink">
+                        Danach baut {{ coachName }} deinen Plan für
+                        <span class="font-semibold">{{ event.name }}</span>
+                        — {{ event.date_label }} · {{ event.distance }} · in {{ event.days_until }} Tagen.
+                    </p>
+                </div>
             </div>
 
             <!-- Fortschritt -->
@@ -389,7 +403,7 @@ const ratings = [
                         Überspringen
                     </button>
                     <AppButton :disabled="busy" @click="next">
-                        {{ isLast ? 'Fertig' : 'Weiter' }}
+                        {{ isLast ? (event ? 'Fertig — zum Plan' : 'Fertig') : 'Weiter' }}
                     </AppButton>
                 </div>
             </div>

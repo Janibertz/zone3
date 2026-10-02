@@ -314,11 +314,20 @@ watch(() => form.race_distance, (val) => {
                                     </template>
 
                                     <template v-else>
+                                        <!--
+                                            Ein neuer Plan beginnt mit dem kurzen Gespräch: fünf
+                                            Fragen zu dem, was in keiner Zahl steht. Wer es
+                                            kürzlich geführt hat, wird serverseitig
+                                            durchgewunken und landet direkt auf der Planseite.
+                                            Ein bestehender Plan geht ohnehin direkt dorthin.
+                                        -->
                                         <AppButton
                                             v-if="!anotherEventHasPlan(event)"
                                             :variant="event.plan_generated_at ? 'secondary' : 'primary'"
                                             size="sm"
-                                            :href="route('events.plan.show', event.id)"
+                                            :href="event.plan_generated_at
+                                                ? route('events.plan.show', event.id)
+                                                : route('plan-interview.show', { event: event.id })"
                                         >
                                             {{ event.plan_generated_at ? 'Plan ansehen' : 'Plan erstellen' }}
                                         </AppButton>

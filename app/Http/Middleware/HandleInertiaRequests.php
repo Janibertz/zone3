@@ -56,6 +56,25 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
+
+            /*
+             * Die Rueckmeldung nach einer Aktion.
+             *
+             * Zwanzig Controller setzen `->with('success', …)` und vierzehn
+             * Vue-Seiten lesen `props.flash` — geteilt wurde es nie. Jede
+             * Bestaetigung der ganzen Anwendung ist seit jeher still
+             * verschluckt worden: „Freigabe zurueckgenommen", „Plan-Luecken
+             * geschlossen", „Messwerte verworfen". Niemand hat es gemeldet,
+             * weil eine fehlende Meldung wie eine Aktion ohne Nachricht
+             * aussieht und nicht wie ein Fehler.
+             *
+             * Als Closure, damit die Session erst beim Rendern gelesen wird.
+             */
+            'flash' => fn () => [
+                'success' => $request->session()->get('success'),
+                'error'   => $request->session()->get('error'),
+            ],
+
             'auth' => [
                 'user'           => $this->userProps($request->user()),
                 'isAdmin'        => (bool) $request->user()?->is_admin,
