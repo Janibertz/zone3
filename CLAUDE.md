@@ -55,6 +55,23 @@ Strava delivers **all** activity types. Counting and display are multi-sport (fi
 
 **Mobile first.** Zone3 is used as a PWA from the iPhone home screen; desktop is explicitly secondary. Anything pinned to a screen edge needs the safe-area utilities in `resources/css/app.css` (`pt-safe-banner`, `pt-mobile-header`, `pb-safe-tabbar`, `pb-safe-sheet`). In standalone mode there is no browser chrome — `top-0` really does sit under the Dynamic Island.
 
+### Die Plattformschicht — was eine Webseite von einer App unterscheidet
+
+Am 09.10.2026 gegen Emil Kowalskis `mobile-native`-Regeln geprüft (`.agents/skills/`). Safe areas, `-webkit-tap-highlight-color`, `touch-action: manipulation` und 16px-Felder waren schon richtig. Fünf Lücken waren es nicht:
+
+- **`future.hoverOnlyWhenSupported: true`** in `tailwind.config.js`. Berührung kennt kein Hover, also fälscht der Browser eines: der erste Tipp setzt `:hover` und **lässt es stehen**, bis woanders getippt wird — ein Knopf mit `hover:scale-105` bleibt nach dem Antippen vergrößert. Zone3 hatte **44 Hover-Utilities** (346 Verwendungen in 60 Dateien), alle ungegatet. Eine Zeile legt sie hinter `@media (hover:hover) and (pointer:fine)`. Tailwind setzt beide Bedingungen; `(pointer: fine)` schließt Stylus-Geräte aus, die Hover behaupten. Druckfeedback läuft unabhängig über `:active`.
+- **Zoom ist wieder erlaubt.** Hier stand `maximum-scale=1, user-scalable=no` mit der Begründung „Zone3 ist eine App" plus dem Zusatz, iOS ignoriere es ohnehin. Der Zusatz stimmt — iOS Safari missachtet beides seit iOS 10 absichtlich, damit Pinch-Zoom als Bedienhilfe bleibt. Android Chrome hält sich daran. Die Zeile hatte also auf der Hauptplattform keine Wirkung und auf der anderen nur die, jemandem das Vergrößern zu verbieten. Die Ursache des Zoom-Sprungs ist unabhängig behoben (16px unter 640px).
+- **`theme-color` war die Markenfarbe.** `#6366f1` Indigo, während die Seite `#f9fafb`/`#09090e` ist. `useDarkMode.js::apply()` korrigierte es — aber erst wenn Vue läuft, und beim Start vom Homescreen ist genau der erste Frame der, in dem man die Statusleiste ansieht. Das Theme-Skript steht jetzt **hinter** dem Meta-Tag und setzt es synchron mit der `dark`-Klasse. Drei Stellen müssen dieselben Farben benutzen: Blade, Skript, `useDarkMode.js`.
+- **`user-select: none` + `-webkit-touch-callout: none` auf Bedienelementen.** Langdruck markierte die Beschriftung eines Knopfs; bei Links kam das Teilen-Menü. Nur auf Bedienelemente — Paces, Fehlermeldungen und Adressen muss man kopieren können, `user-select: none` auf `body` wäre ein Defekt.
+- **`-webkit-text-size-adjust: 100%`** gegen Schriftvergrößerung im Querformat, und **`overscroll-behavior-y` auch auf `html`** (auf iOS kommt der Überzug vom Wurzelelement, nicht von `body`).
+
+**Zwei Dinge bewusst NICHT angefasst:**
+
+- **`overscroll-behavior` bleibt auf der y-Achse.** Die Regel legt `overscroll-behavior: none` nahe; auf x genommen verschwindet unter Android Chrome die Zurück-Wischgeste. Das Symptom betrifft Pull-to-Refresh und den senkrechten Überzug — dort gehört die Sperre hin, nicht weiter.
+- **Die 19 × `min-h-screen` (= `100vh`) bleiben.** Die Regel sagt `100dvh` für eine App-Hülle, und das gilt, wenn unten etwas angeheftet ist. Zone3s Tabbar ist `fixed inset-x-0 bottom-0` mit `pb-safe-tabbar` — sie sitzt am Viewport, nicht an der Hülle, also kostet `100vh` hier höchstens etwas Scrollhöhe. 19 Stellen ohne Gerät zu ändern wäre Churn ohne nachweisbaren Gewinn.
+
+**Was ein Gerät braucht:** Keine dieser Korrekturen lässt sich in Chromes Geräteemulation nachweisen — klebendes Hover, der Tap-Highlight, der Zoom-Sprung, Overscroll und die Statusleiste sind Verhalten echter Hardware. Verifiziert ist, dass die Deklarationen im Build und im gerenderten `<head>` ankommen. Ob das klebende Hover weg ist, sagt dir erst das iPhone.
+
 ### Key Data Flow
 
 1. User creates an **Event** (race date + distance + target time)

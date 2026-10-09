@@ -183,10 +183,32 @@
 /* ── Mobile base improvements ───────────────────────────── */
 @layer base {
   /* Smoother scrolling everywhere */
-  html { -webkit-tap-highlight-color: transparent; scroll-behavior: smooth; }
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+    /*
+     * Keine Schriftvergroesserung beim Drehen ins Querformat. iOS blaeht
+     * sonst Textbloecke auf, und die Typo-Abstufung der ganzen App
+     * verschiebt sich gegen das Layout.
+     */
+    -webkit-text-size-adjust: 100%;
+  }
 
   /* Better touch targets */
-  button, a, [role="button"] { touch-action: manipulation; }
+  button, a, [role="button"] {
+    touch-action: manipulation;
+    /*
+     * Langdruck auf einem Knopf markierte bisher seine Beschriftung, bei
+     * Links kam das Teilen-Menue. Native Bedienelemente tun das nie.
+     *
+     * Bewusst nur auf Bedienelemente: Text, der INHALT ist, muss markierbar
+     * bleiben — Fehlermeldungen, Paces, Adressen kopiert man. `user-select:
+     * none` auf `body` waere ein Defekt, nicht eine Verbesserung.
+     */
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
 
   /* Prevent layout jump from scrollbar on desktop */
   body { scrollbar-gutter: stable; }
@@ -243,8 +265,20 @@
 @layer base {
   /* Momentum scrolling on iOS */
   main { -webkit-overflow-scrolling: touch; }
-  /* Prevent overscroll bounce on the root — bounce should only happen in scrollable content */
-  body { overscroll-behavior-y: none; }
+  /*
+   * Kein Gummiband auf der Wurzel — das Federn gehoert in die Scroll-Container.
+   * `html` muss mit dazu: auf iOS Safari kommt der Ueberzug vom
+   * Wurzelelement, nicht von `body`, und mit `body` allein zieht die Seite
+   * beim Nach-unten-Wischen trotzdem mit. Innen steht `overscroll-contain`
+   * (AppSheet, CoachSlideOver), damit das Sheet sein eigenes Federn behaelt,
+   * ohne die Seite dahinter zu bewegen.
+   *
+   * Nur die y-Achse, obwohl die Regel allgemein `overscroll-behavior: none`
+   * nahelegt: auf x genommen verschwindet unter Android Chrome die
+   * Zurueck-Wischgeste. Das Symptom betrifft Pull-to-Refresh und den
+   * senkrechten Ueberzug — dort gehoert die Sperre hin, nicht weiter.
+   */
+  html, body { overscroll-behavior-y: none; }
   /* Disable text selection on UI elements (feels native) */
   nav, header { user-select: none; -webkit-user-select: none; }
 }

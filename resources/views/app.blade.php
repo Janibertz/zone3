@@ -2,15 +2,43 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta charset="utf-8">
-        {{-- Kein Zoom: Zone3 ist eine App, keine Webseite. Der Sprung beim
-             Antippen eines Eingabefelds ist unabhaengig davon an der Ursache
-             behoben (16px in .z-input) — iOS ignoriert maximum-scale ohnehin
-             und zoomt bei kleiner Schrift trotzdem. --}}
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+        {{-- Zoom bleibt erlaubt. Hier stand `maximum-scale=1, user-scalable=no`
+             mit der Begruendung „Zone3 ist eine App, keine Webseite" — und mit
+             dem Zusatz, iOS ignoriere es ohnehin. Der Zusatz stimmt: iOS Safari
+             missachtet beides seit iOS 10 absichtlich, damit Pinch-Zoom als
+             Bedienhilfe erhalten bleibt. Android Chrome haelt sich daran.
+             Unterm Strich hatte die Zeile auf der Hauptplattform keine Wirkung
+             und auf der anderen nur die, jemandem das Vergroessern zu verbieten.
+
+             Die Ursache des Zoom-Sprungs ist unabhaengig davon behoben: Felder
+             haben unter 640px 16px (.z-input und die Regel in app.css).
+
+             `interactive-widget=resizes-content` laesst die Android-Tastatur den
+             Layout-Viewport verkleinern, so wie iOS es ohnehin tut — sonst
+             liegt ein unten angeheftetes Eingabefeld hinter der Tastatur. --}}
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        {{-- Theme before first paint — must run in <head>, otherwise the wrong
-             theme flashes. Mirrors Composables/useDarkMode.js; keep in sync. --}}
+        <!-- PWA -->
+        {{-- Die Statusleiste nimmt ihre Farbe von hier, und sie muss die Farbe
+             GANZ OBEN auf der Seite treffen — nicht die Markenfarbe. Hier
+             stand das Indigo #6366f1, waehrend die Seite #f9fafb bzw. #09090e
+             ist. `useDarkMode.js::apply()` korrigierte das, aber erst wenn Vue
+             laeuft: beim Start vom Homescreen ist genau der erste Frame der,
+             in dem man die Statusleiste ansieht, und der war indigo.
+
+             Eine Angabe, nicht zwei nach `prefers-color-scheme`: Zone3 schaltet
+             per Klasse auf <html>, eine Media-Angabe wuerde also die manuelle
+             Wahl ignorieren. Den richtigen Wert setzt das Theme-Skript unten
+             noch vor dem ersten Paint; `useDarkMode.js` haelt ihn danach
+             synchron. Die drei Stellen muessen dieselben Farben benutzen. --}}
+        <meta name="theme-color" content="#f9fafb">
+
+        {{-- Theme vor dem ersten Paint — muss im <head> laufen, sonst blitzt
+             das falsche Thema auf. Steht bewusst HINTER dem theme-color-Tag:
+             das Skript setzt es synchron mit, und ein Tag, das noch nicht
+             geparst ist, findet `querySelector` nicht.
+             Spiegelt Composables/useDarkMode.js — synchron halten. --}}
         <script>
             (function () {
                 var theme = localStorage.getItem('zone3-theme');
@@ -23,11 +51,11 @@
                     : theme === 'dark';
                 document.documentElement.classList.toggle('dark', dark);
                 document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+
+                var tag = document.querySelector('meta[name="theme-color"]');
+                if (tag) tag.setAttribute('content', dark ? '#09090e' : '#f9fafb');
             })();
         </script>
-
-        <!-- PWA -->
-        <meta name="theme-color" content="#6366f1">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
         <meta name="apple-mobile-web-app-title" content="Zone3">

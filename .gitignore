@@ -26,3 +26,7 @@ Thumbs.db
 # Python bytecode (fit-service)
 __pycache__/
 *.py[cod]
+
+# Skills: der Inhalt liegt in .agents/skills (versioniert), .claude/skills sind
+# nur maschinenlokale Symlinks mit absoluten Pfaden — und core.symlinks ist false.
+/.claude/skills

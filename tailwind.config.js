@@ -21,6 +21,24 @@ const family = (name) => ({
 /** @type {import('tailwindcss').Config} */
 export default {
     darkMode: 'class',
+
+    /*
+     * Jede `hover:`-Klasse wird hinter `@media (hover: hover)` gelegt.
+     *
+     * Beruehrung kennt kein Hover, also faelscht der Browser eines: der erste
+     * Tipp auf ein Element setzt `:hover` und LAESST ES STEHEN, bis woanders
+     * getippt wird. Ein Knopf mit `hover:scale-105` bleibt nach dem Antippen
+     * vergroessert. Zone3 hat 346 solcher Klassen in 60 Dateien, und Zone3
+     * wird als PWA vom iPhone-Homescreen benutzt — das ist der haeufigste
+     * „fuehlt sich wie eine Webseite an"-Verraeter der ganzen App.
+     *
+     * In Tailwind 4 ist das die Vorgabe; in 3.x braucht es dieses Flag.
+     * Druckfeedback kommt unabhaengig davon ueber `:active`, das auf jeder
+     * Eingabeart funktioniert.
+     */
+    future: {
+        hoverOnlyWhenSupported: true,
+    },
     content: [
         './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
         './storage/framework/views/*.php',
