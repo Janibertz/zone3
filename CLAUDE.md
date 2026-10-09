@@ -452,7 +452,23 @@ Mit den Aufrufern fielen die Methoden, die nur sie benutzten: `CoachingTextServi
 - **`ProgressService`** sah in der Analyse tot aus (2 Referenzen, 0 Tests), ist es aber nicht: `routes/web.php` ruft `generateTrainingSuggestions()` in der Dashboard-Closure, und `AIController::recommendToday()` ruft `calculateProgress()`. Die Analyse war hier zu grob — beim Löschen prüfen, nicht beim Zählen.
 - **`runner.profile.show`** ist eine einzeilige Weiterleitung auf `profile.edit`. Technisch unerreichbar, aber ein alter Lesezeichen-Link kostet sonst einen 404 statt nichts.
 - **Wrapped** und **Impersonation** bleiben: klein, harmlos, im Betrieb kostenlos.
-- Die **68 verwaisten `training_sessions`** (kein `training_plan_id`, nicht `was_unplanned`) sind unangetastet. Sie verfälschen Statistiken, aber es sind echte Trainings aus der Historie — das ist eine Entscheidung des Athleten, keine Aufräumarbeit.
+- **Das Plan-Interview bleibt** (Entscheidung vom 09.10.2026). Es hat noch 0 Datensätze; Jan will es behalten und beim nächsten Block einmal führen.
+
+### Die 68 verwaisten Einheiten — angehängt statt weggeworfen
+
+Die Anweisung lautete „hau die verwaisten Einheiten weg". Beim Nachsehen war die Menge aber **nicht Müll, sondern Trainingshistorie**: 51 erledigt, 49 an echten Strava-Aktivitäten, und **45 mit der eigenen Bewertung des Athleten** — von 128 bewerteten Einheiten überhaupt. Diese Bewertungen füttern den Prompt-Abschnitt „Bisherige Einheitsbewertungen"; ein Löschen hätte ein Drittel des Feedbacks gekostet, aus dem der Plan lernt.
+
+63 der 68 trugen eine `event_id`, und zu jedem dieser Events gibt es den Plan noch. **Der Defekt war nie „diese Zeilen sind überflüssig", sondern „die Verknüpfung ist verloren gegangen"** — wohl beim Beenden oder Neuberechnen eines Plans.
+
+`2026_10_09_140000_adopt_or_remove_orphaned_sessions` räumt deshalb nach **Regel, nicht nach Anzahl** (die lokale Kopie war vom 08.09., Produktion hat mehr Zeilen — eine Migration, die „die 68" löscht, löscht dort etwas anderes):
+
+1. Mit `event_id` → an den neuesten Plan dieses Events anhängen.
+2. Ohne Plan **und ohne jeden Inhalt** (keine Aktivität, keine Bewertung, keine Notiz, keine Rezension, nicht erledigt, Termin vorbei) → weg.
+3. Alles andere bleibt stehen und wird als Warnung geloggt. Was Inhalt hat und sich nicht zuordnen lässt, entscheidet ein Mensch.
+
+Ergebnis lokal: `{"vorher":68,"angehaengt":63,"geloescht":5,"bleibt_offen":0}` — Bewertungen 128 → 128, Einheiten 380 → 375.
+
+`OrphanedSessionCleanupTest` hält die Grenze fest, an der das Aufräumen aufhört. Der wichtigste Test ist `test_a_rated_orphan_is_never_deleted`: **was Inhalt hat, wird nicht gelöscht, sondern sichtbar stehengelassen.** Die Tests bauen die Regeln nach statt die Migration aufzurufen — unter `RefreshDatabase` läuft sie schon beim Aufbau der Datenbank und ist danach nicht wiederholbar.
 
 ## Frontend (`resources/js/Pages/`)
 
