@@ -156,7 +156,7 @@ onUnmounted(() => {
         <Transition
             enter-active-class="transition-opacity duration-300 ease-sheet"
             enter-from-class="opacity-0"
-            leave-active-class="transition-opacity duration-200 ease-in"
+            leave-active-class="transition-opacity duration-200 ease-out-strong"
             leave-to-class="opacity-0"
         >
             <div
@@ -170,7 +170,7 @@ onUnmounted(() => {
         <Transition
             enter-active-class="transition-transform duration-300 ease-sheet"
             enter-from-class="translate-y-full lg:translate-y-0 lg:translate-x-full"
-            leave-active-class="transition-transform duration-200 ease-in"
+            leave-active-class="transition-transform duration-200 ease-out-strong"
             leave-to-class="translate-y-full lg:translate-y-0 lg:translate-x-full"
         >
             <div

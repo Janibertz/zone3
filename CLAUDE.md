@@ -72,6 +72,33 @@ Am 09.10.2026 gegen Emil Kowalskis `mobile-native`-Regeln geprüft (`.agents/ski
 
 **Was ein Gerät braucht:** Keine dieser Korrekturen lässt sich in Chromes Geräteemulation nachweisen — klebendes Hover, der Tap-Highlight, der Zoom-Sprung, Overscroll und die Statusleiste sind Verhalten echter Hardware. Verifiziert ist, dass die Deklarationen im Build und im gerenderten `<head>` ankommen. Ob das klebende Hover weg ist, sagt dir erst das iPhone.
 
+### Bewegung — drei Kurven, und wann welche gilt
+
+Am 09.10.2026 gegen `emil-design-eng` geprüft. Das **visuelle** System (enduco-Richtung, Tokens, Sheets) bleibt unberührt; hier geht es um die Schicht darüber.
+
+Die eingebauten CSS-Kurven sind zu weich — ihnen fehlt der Anschub, der eine Bewegung absichtlich wirken lässt. In `tailwind.config.js` stehen jetzt drei, und die Wahl ist eine Entscheidungsfrage, keine Geschmacksfrage:
+
+| Kurve | Klasse | Wann |
+|---|---|---|
+| `cubic-bezier(0.32, 0.72, 0, 1)` | `ease-sheet` | Sheets und Panels, die aus dem Bildrand kommen (iOS-Drawer-Kurve) |
+| `cubic-bezier(0.23, 1, 0.32, 1)` | `ease-out-strong` | Alles, was **auftritt oder verschwindet** — und alles, womit das System auf eine Eingabe **antwortet** (Zurückschnappen nach einem Wischer) |
+| `cubic-bezier(0.77, 0, 0.175, 1)` | `ease-in-out-strong` | Elemente, die sich **auf** dem Schirm bewegen oder umformen (aufklappende Chevrons) |
+
+**`ease-in` gehört nie in eine UI-Animation**, und das war der häufigste Fehler: 8 Austritts-Übergänge (AppSheet, Dropdown, CoachSlideOver, beide Layouts, Live/Show) liefen darauf. `ease-in` verzögert den Anfang — genau den Augenblick, auf den gesehen wird — und lässt dieselben 200 ms langsamer wirken. Austritte sind jetzt `ease-out-strong`, Eintritte ebenfalls (die eingebauten `ease-out` waren zu weich).
+
+**47 × `transition-all` ersetzt**, und zwar in zwei Sorten:
+
+- **9 Balken und Säulen**, bei denen die Größe *der Zweck* ist, bekommen genau ihre Eigenschaft: `transition-[width]`, `transition-[height,opacity]`, `transition-[transform,opacity]`. Hier ist das Animieren von `width`/`height` richtig, nicht versehentlich.
+- **38 Knöpfe, Navigationseinträge und Vue-Transitions** bekommen das blanke `transition`. Tailwinds blankes `transition` deckt genau die Menge ab, die gebraucht wird — Farbe, Hintergrund, Rahmen, `opacity`, `box-shadow`, `transform`, `filter` — und lässt Layout-Eigenschaften **außen**. Das ist der lesbare Weg zu „keine Layout-Animation" ohne eine Klammerliste pro Knopf.
+
+**`prefers-reduced-motion` war gar nicht behandelt.** Jetzt ja, und zwar nach der Regel „weniger und sanfter, nicht keine": `transition-property` wird auf Deckkraft, Farbe und Schatten zurückgeschnitten, Keyframes werden **einzeln** entschieden (`animate-spin` 36× bleibt — ein Ladeanzeiger muss sich drehen, sonst sieht die App eingefroren aus; `animate-pulse` arbeitet über Deckkraft; `animate-bounce` ist Dekoration und geht).
+
+**Der naheliegende Fehler, den du hier nicht machen darfst:** `transform: none !important` im Reduced-Motion-Block. `AppSheet` versteckt sich mit `translate-y-full`, Zentrierungen laufen über `-translate-x-1/2` — das Sheet wäre dauerhaft sichtbar und mittige Elemente verrutschen. Richtig ist, `transform` nur aus der *Transition* zu nehmen: dann springt das Element auf seinen Endwert, kein Weg, keine Bewegung, aber der Zustand stimmt.
+
+**Druckfeedback**, zwei Lücken geschlossen: der Zurück-Link in `PageHeader` und „Trennen" in `GarminSendSheet` hatten nur `hover:` — und Hover liegt seit demselben Tag hinter `@media (hover: hover)`, auf dem iPhone blieb dort also **gar nichts** übrig. Wer keine Rückmeldung bekommt, tippt ein zweites Mal.
+
+**Nicht gemacht und warum:** kein Stagger auf den Dashboard-Listen. Die Regel knüpft Animation an die Häufigkeit — was man zehnmal am Tag sieht, wird reduziert, nicht verziert. Das Dashboard ist der Einstieg und wird am häufigsten geöffnet; eine Kaskade würde es langsamer *fühlen* lassen. Dauern über 300 ms sind ebenfalls geblieben, wo sie berechtigt sind: Ring-Füllung (`duration-500` auf `stroke-dasharray`), Live-Fortschrittsbalken (`duration-1000 ease-linear` — konstante Bewegung gehört auf `linear`).
+
 ### Key Data Flow
 
 1. User creates an **Event** (race date + distance + target time)

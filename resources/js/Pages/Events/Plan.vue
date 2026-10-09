@@ -939,7 +939,7 @@ const lapHeightPct = computed(() => {
                 </header>
 
                 <!-- ══ HINWEISE ══════════════════════════════════════ -->
-                <Transition enter-active-class="transition-all duration-300" enter-from-class="opacity-0 -translate-y-2" leave-to-class="opacity-0">
+                <Transition enter-active-class="transition duration-300" enter-from-class="opacity-0 -translate-y-2" leave-to-class="opacity-0">
                     <!--
                         flex-wrap statt starrer Zeile: die Schaltflaeche rutscht
                         auf dem Telefon unter den Text und nimmt dort die volle
@@ -1381,7 +1381,7 @@ const lapHeightPct = computed(() => {
                                     <span class="truncate">{{ resultSource.time }} aus Strava übernommen — „{{ resultSource.activity }}“</span>
                                 </p>
 
-                                <Transition enter-active-class="transition-all duration-300 ease-out" enter-from-class="opacity-0 scale-95">
+                                <Transition enter-active-class="transition duration-300 ease-out-strong" enter-from-class="opacity-0 scale-95">
                                     <div v-if="goalAchieved !== null"
                                         class="mt-3 flex items-center gap-2.5 rounded-field px-3.5 py-2.5"
                                         :class="goalAchieved ? 'bg-success-soft' : 'bg-danger-soft'">
@@ -1399,7 +1399,7 @@ const lapHeightPct = computed(() => {
                                 <p class="z-label mt-4">Wie gut hat der Plan funktioniert?</p>
                                 <div class="flex items-center gap-2">
                                     <button v-for="n in 5" :key="n" @click="resultRating = n"
-                                        class="flex h-9 w-9 items-center justify-center rounded-field text-lg transition-all"
+                                        class="flex h-9 w-9 items-center justify-center rounded-field text-lg transition"
                                         :class="n <= resultRating ? 'scale-110 bg-warn-soft' : 'bg-surface-2 opacity-40 hover:opacity-70'">⭐</button>
                                     <button v-if="resultRating" class="ml-1 text-[12px] text-ink-3 hover:text-ink-2"
                                         @click="resultRating = 0">zurücksetzen</button>
@@ -1841,7 +1841,7 @@ const lapHeightPct = computed(() => {
                     <p class="z-label">Wie gut ist die Einheit gelaufen?</p>
                     <div class="flex gap-2">
                         <button v-for="n in 5" :key="n" @click="ratingValue = ratingValue === n ? 0 : n"
-                            class="flex h-10 w-10 items-center justify-center rounded-field text-xl transition-all"
+                            class="flex h-10 w-10 items-center justify-center rounded-field text-xl transition"
                             :class="n <= ratingValue ? 'scale-110 bg-warn-soft' : 'bg-surface-2 opacity-40 hover:opacity-70'">
                             ⭐
                         </button>

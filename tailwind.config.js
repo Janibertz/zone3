@@ -90,9 +90,26 @@ export default {
                 bar:   'var(--z-shadow-bar)',
             },
 
+            /*
+             * Die eingebauten CSS-Kurven sind zu weich — ihnen fehlt der
+             * Anschub, der eine Bewegung absichtlich wirken laesst. Drei
+             * Kurven decken alles ab, was Zone3 braucht.
+             */
             transitionTimingFunction: {
-                // iOS-like easing — quick start, gentle settle
+                // iOS-like easing — quick start, gentle settle. Fuer Sheets
+                // und Panels, die aus dem Bildrand kommen.
                 sheet: 'cubic-bezier(0.32, 0.72, 0, 1)',
+
+                // Alles, was auftritt oder verschwindet: startet schnell,
+                // also sieht der Nutzer die Bewegung im selben Moment, in dem
+                // er sie ausgeloest hat. `ease-in` gehoert hier NIE hin — es
+                // verzoegert den Anfang, genau den Augenblick, auf den
+                // gesehen wird, und laesst dieselben 200 ms langsamer wirken.
+                'out-strong': 'cubic-bezier(0.23, 1, 0.32, 1)',
+
+                // Fuer Elemente, die sich AUF dem Schirm bewegen oder
+                // umformen — natuerliches Anfahren und Abbremsen.
+                'in-out-strong': 'cubic-bezier(0.77, 0, 0.175, 1)',
             },
         },
     },

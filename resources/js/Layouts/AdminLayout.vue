@@ -98,7 +98,7 @@ const allNavItems = [...navItems, ...moreNavItems];
                     v-for="item in allNavItems"
                     :key="item.routeName"
                     :href="route(item.routeName)"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-field text-sm font-medium transition-all duration-150"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-field text-sm font-medium transition duration-150"
                     :class="route().current(item.routeName)
                         ? 'bg-danger-soft text-danger-ink'
                         : 'text-ink-2 hover:bg-surface-2 hover:text-ink'"
@@ -261,10 +261,10 @@ const allNavItems = [...navItems, ...moreNavItems];
              MOBILE "MEHR" SHEET
              ══════════════════════════════════════ -->
         <Transition
-            enter-active-class="transition duration-200 ease-out"
+            enter-active-class="transition duration-200 ease-out-strong"
             enter-from-class="opacity-0"
             enter-to-class="opacity-100"
-            leave-active-class="transition duration-150 ease-in"
+            leave-active-class="transition duration-150 ease-out-strong"
             leave-from-class="opacity-100"
             leave-to-class="opacity-0"
         >
@@ -272,10 +272,10 @@ const allNavItems = [...navItems, ...moreNavItems];
         </Transition>
 
         <Transition
-            enter-active-class="transition duration-200 ease-out"
+            enter-active-class="transition duration-200 ease-out-strong"
             enter-from-class="translate-y-full"
             enter-to-class="translate-y-0"
-            leave-active-class="transition duration-150 ease-in"
+            leave-active-class="transition duration-150 ease-out-strong"
             leave-from-class="translate-y-0"
             leave-to-class="translate-y-full"
         >

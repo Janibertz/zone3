@@ -104,7 +104,7 @@ function guessType(message) {
                                 </div>
                                 <button @click="toggle(entry.id)"
                                     class="shrink-0 text-ink-3 hover:text-accent transition-colors p-1">
-                                    <svg class="h-4 w-4 transition-transform" :class="expanded.has(entry.id) ? 'rotate-180' : ''"
+                                    <svg class="h-4 w-4 transition-transform duration-200 ease-in-out-strong" :class="expanded.has(entry.id) ? 'rotate-180' : ''"
                                         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
                                     </svg>

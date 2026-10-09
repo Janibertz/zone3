@@ -1866,7 +1866,7 @@ async function saveWeek() {
                                     <div class="mb-4 flex items-center gap-1.5">
                                         <button v-for="star in 5" :key="star"
                                             @click="ratingStars = ratingStars === star ? 0 : star"
-                                            class="flex h-10 w-10 items-center justify-center rounded-full text-lg transition-all"
+                                            class="flex h-10 w-10 items-center justify-center rounded-full text-lg transition"
                                             :class="star <= ratingStars ? 'scale-110 bg-warn-soft' : 'bg-surface-2 opacity-40 hover:opacity-70'"
                                         >⭐</button>
                                         <span class="ml-2 text-[13px] text-ink-3">{{ ['','Sehr schwer','Schwer','Okay','Gut','Top'][ratingStars] }}</span>
@@ -1883,7 +1883,7 @@ async function saveWeek() {
                                     <div class="mb-4 grid grid-cols-5 gap-1.5 sm:grid-cols-10">
                                         <button v-for="n in 10" :key="n"
                                             @click="ratingEffort = ratingEffort === n ? 0 : n"
-                                            class="h-11 rounded-full text-[13px] font-bold transition-all active:scale-90 sm:h-9"
+                                            class="h-11 rounded-full text-[13px] font-bold transition active:scale-90 sm:h-9"
                                             :class="n === ratingEffort
                                                 ? (n <= 3 ? 'bg-success text-white' : n <= 6 ? 'bg-warn text-white' : 'bg-danger text-white')
                                                 : 'bg-surface-2 text-ink-3 hover:bg-surface-3'"
@@ -2071,7 +2071,7 @@ async function saveWeek() {
 
                             <button @click="showPaceDetails = !showPaceDetails"
                                 class="mt-4 flex items-center gap-1.5 text-[13px] font-semibold text-ink-2 transition-colors hover:text-ink">
-                                <svg class="h-4 w-4 transition-transform duration-200" :class="showPaceDetails ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <svg class="h-4 w-4 transition-transform duration-200 ease-in-out-strong" :class="showPaceDetails ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
                                 </svg>
                                 {{ showPaceDetails ? 'Weniger' : 'Prognosen & Verlauf' }}
@@ -2325,7 +2325,7 @@ async function saveWeek() {
                                     <div class="grid grid-cols-2 gap-2">
                                         <button v-for="opt in raceOptions" :key="opt.value"
                                             @click="quickEventForm.race_distance = opt.value"
-                                            class="rounded-full px-3 py-2.5 text-[13px] font-semibold transition-all active:scale-[0.97]"
+                                            class="rounded-full px-3 py-2.5 text-[13px] font-semibold transition active:scale-[0.97]"
                                             :class="quickEventForm.race_distance === opt.value
                                                 ? 'bg-ink text-canvas'
                                                 : 'bg-surface-2 text-ink-2 hover:bg-surface-3'">
@@ -2358,7 +2358,7 @@ async function saveWeek() {
                                     <div class="flex gap-2">
                                         <button v-for="p in ['A','B','C']" :key="p"
                                             @click="quickEventForm.priority = p"
-                                            class="flex-1 rounded-full py-2.5 text-[13px] font-bold transition-all active:scale-[0.97]"
+                                            class="flex-1 rounded-full py-2.5 text-[13px] font-bold transition active:scale-[0.97]"
                                             :class="quickEventForm.priority === p
                                                 ? p === 'A' ? 'bg-danger text-white'
                                                   : p === 'B' ? 'bg-warn text-canvas'
@@ -2387,7 +2387,7 @@ async function saveWeek() {
 
         <!-- Wellbeing Modal -->
         <!-- Wellbeing / plan-adjust toast -->
-        <Transition enter-active-class="transition-all duration-300" enter-from-class="opacity-0 translate-y-4" leave-active-class="transition-all duration-200" leave-to-class="opacity-0 translate-y-4">
+        <Transition enter-active-class="transition duration-300" enter-from-class="opacity-0 translate-y-4" leave-active-class="transition duration-200" leave-to-class="opacity-0 translate-y-4">
             <div v-if="wellbeingToast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-card shadow-xl text-sm font-medium"
                 :class="wellbeingToast.type === 'ai'
                     ? 'bg-accent text-white'

@@ -31,7 +31,7 @@ const sizes = {
 };
 
 const classes = computed(() => [
-    'inline-flex items-center justify-center rounded-full font-semibold transition-all duration-150',
+    'inline-flex items-center justify-center rounded-full font-semibold transition duration-150',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
     'active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40',
     variants[props.variant] ?? variants.primary,

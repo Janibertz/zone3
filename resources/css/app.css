@@ -282,3 +282,50 @@
   /* Disable text selection on UI elements (feels native) */
   nav, header { user-select: none; -webkit-user-select: none; }
 }
+
+/* ── Wer weniger Bewegung will, bekommt weniger — nicht keine ───── */
+@layer base {
+  /*
+   * Bewegung kann Uebelkeit ausloesen; iOS hat dafuer einen Schalter in den
+   * Bedienungshilfen. Zone3 hat ihn bisher ignoriert.
+   *
+   * „Reduced motion" heisst NICHT „keine Animation". Was erklaert, bleibt:
+   * Deckkraft und Farbe sagen weiter, dass etwas erscheint oder sich
+   * aendert. Was wegfaellt, ist die Ortsveraenderung — Verschieben,
+   * Skalieren, Drehen, das Hochfahren eines Sheets.
+   *
+   * Darum nicht die ueblichen `animation: none !important`-Zeilen, die alles
+   * platt machen: hier wird gezielt `transform` eingefroren und `transition`
+   * auf die Eigenschaften zurueckgeschnitten, die ohne Bewegung auskommen.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      /*
+       * NUR die Uebergangs-Eigenschaften einschraenken, nicht `transform`
+       * selbst abschalten.
+       *
+       * `transform: none !important` waere der naheliegende Fehler und ein
+       * schwerer: `AppSheet` versteckt sich mit `translate-y-full`, und
+       * Zentrierungen laufen ueber `-translate-x-1/2`. Das Sheet waere
+       * dauerhaft sichtbar, mittig gesetzte Elemente verrutschen.
+       *
+       * Wird `transform` dagegen nur aus der Transition genommen, springt
+       * das Element sofort auf seinen Endwert: kein Weg, keine Bewegung,
+       * aber der Zustand stimmt. Genau das ist gemeint.
+       */
+      transition-property: opacity, color, background-color, border-color, fill, stroke, box-shadow !important;
+      scroll-behavior: auto !important;
+    }
+
+    /*
+     * Keyframes einzeln, nicht pauschal. In Zone3 laufen drei:
+     * `animate-spin` (36×) ist ein Ladeanzeiger und MUSS sich drehen, sonst
+     * sieht die App eingefroren aus — eine Drehung an derselben Stelle
+     * verschiebt nichts. `animate-pulse` arbeitet ueber Deckkraft und darf
+     * bleiben. `animate-bounce` ist reine Dekoration und verschiebt: weg.
+     */
+    .animate-bounce {
+      animation: none !important;
+    }
+  }
+}

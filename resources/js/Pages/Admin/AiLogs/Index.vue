@@ -127,7 +127,7 @@ const maxTypeCalls = computed(() => Math.max(...(props.byType?.map(t => t.count)
                             class="flex-1 flex flex-col items-center gap-0.5 group"
                         >
                             <div
-                                class="w-full rounded-t bg-info transition-all group-hover:opacity-90 relative"
+                                class="w-full rounded-t bg-info transition-[height,opacity] group-hover:opacity-90 relative"
                                 :style="{ height: Math.max(4, Math.round((day.calls / maxDayCalls) * 96)) + 'px' }"
                             >
                                 <div class="absolute -top-7 left-1/2 -translate-x-1/2 hidden group-hover:block bg-ink text-canvas text-[10px] rounded px-1.5 py-0.5 whitespace-nowrap z-10">

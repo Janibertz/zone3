@@ -451,7 +451,7 @@ const zoneColors = [
                             <span class="text-xs text-ink-2 font-medium w-36 shrink-0 truncate">{{ callTypeLabel(t.call_type) }}</span>
                             <div class="flex-1 bg-surface-2 rounded-full h-2 overflow-hidden">
                                 <div
-                                    class="h-2 rounded-full bg-info transition-all"
+                                    class="h-2 rounded-full bg-info transition-[width]"
                                     :style="{ width: Math.round((t.count / maxAiTypeCalls) * 100) + '%' }"
                                 />
                             </div>
@@ -523,7 +523,7 @@ const zoneColors = [
                             class="flex-1 flex flex-col items-center gap-0.5 group"
                         >
                             <div
-                                class="w-full rounded-t transition-all relative"
+                                class="w-full rounded-t transition-[height,opacity] relative"
                                 :class="entry.score >= 7 ? 'bg-success group-hover:opacity-90' :
                                         entry.score >= 5 ? 'bg-warn group-hover:opacity-90' :
                                                           'bg-danger group-hover:opacity-90'"

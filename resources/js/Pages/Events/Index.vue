@@ -378,7 +378,7 @@ watch(() => form.race_distance, (val) => {
                     <div class="grid grid-cols-3 gap-2">
                         <button v-for="p in ['A','B','C']" :key="p" type="button"
                             @click="form.priority = p"
-                            class="rounded-field border-2 px-3 py-2.5 text-sm font-semibold transition-all active:scale-[0.98]"
+                            class="rounded-field border-2 px-3 py-2.5 text-sm font-semibold transition active:scale-[0.98]"
                             :class="form.priority === p
                                 ? (p === 'A' ? 'border-danger bg-danger-soft text-danger-ink' : p === 'B' ? 'border-warn bg-warn-soft text-warn-ink' : 'border-line-strong bg-surface-2 text-ink')
                                 : 'border-line text-ink-3 hover:border-line-strong'"

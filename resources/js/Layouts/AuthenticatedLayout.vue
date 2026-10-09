@@ -211,10 +211,10 @@ const moreNavItems = computed(() => {
              PWA INSTALL BANNER (mobile, dismissable)
              ══════════════════════════════════════ -->
         <Transition
-            enter-active-class="transition duration-300 ease-out"
+            enter-active-class="transition duration-300 ease-out-strong"
             enter-from-class="-translate-y-full opacity-0"
             enter-to-class="translate-y-0 opacity-100"
-            leave-active-class="transition duration-200 ease-in"
+            leave-active-class="transition duration-200 ease-out-strong"
             leave-from-class="translate-y-0 opacity-100"
             leave-to-class="-translate-y-full opacity-0"
         >
@@ -290,7 +290,7 @@ const moreNavItems = computed(() => {
                     v-for="item in navItems"
                     :key="item.routeName"
                     :href="route(item.routeName)"
-                    class="flex items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium transition-all duration-150"
+                    class="flex items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium transition duration-150"
                     :class="route().current(item.routeName)
                         ? 'bg-accent-soft text-accent-ink'
                         : 'text-ink-2 hover:bg-surface-2 hover:text-ink'"
@@ -305,7 +305,7 @@ const moreNavItems = computed(() => {
                     <p class="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-ink-3">Aktiver Plan</p>
                     <Link
                         :href="route('events.plan.show', activePlan.event_id)"
-                        class="flex items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium transition-all duration-150"
+                        class="flex items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium transition duration-150"
                         :class="route().current('events.plan.show')
                             ? 'bg-accent-soft text-accent-ink'
                             : 'text-ink-2 hover:bg-surface-2 hover:text-ink'"
@@ -321,7 +321,7 @@ const moreNavItems = computed(() => {
                     <p class="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-ink-3">System</p>
                     <Link
                         :href="route('admin.dashboard')"
-                        class="flex items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium text-danger transition-all duration-150 hover:bg-danger-soft"
+                        class="flex items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium text-danger transition duration-150 hover:bg-danger-soft"
                     >
                         <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
@@ -335,7 +335,7 @@ const moreNavItems = computed(() => {
             <div v-if="coach" class="shrink-0 px-3 pb-3">
                 <button
                     @click="openChat"
-                    class="flex w-full items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium text-accent transition-all duration-150 hover:bg-accent-soft"
+                    class="flex w-full items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium text-accent transition duration-150 hover:bg-accent-soft"
                 >
                     <div
                         class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white"
@@ -444,7 +444,7 @@ const moreNavItems = computed(() => {
             abwaerts geht, und kommt beim Hochwischen zurueck.
         -->
         <Link :href="route('support.tickets.index')"
-            class="fixed bottom-24 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-accent text-white shadow-card transition-all duration-200 hover:scale-105 lg:bottom-6 lg:right-6"
+            class="fixed bottom-24 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-accent text-white shadow-card transition duration-200 hover:scale-105 lg:bottom-6 lg:right-6"
             :class="helpVisible
                 ? 'pointer-events-auto translate-y-0 opacity-100'
                 : 'pointer-events-none translate-y-4 opacity-0'"

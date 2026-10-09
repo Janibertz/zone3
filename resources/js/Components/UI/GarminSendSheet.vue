@@ -84,7 +84,7 @@ function submit() {
                 <button
                     v-if="withDisconnect"
                     type="button"
-                    class="shrink-0 text-xs text-success-ink hover:underline"
+                    class="shrink-0 text-xs text-success-ink transition-opacity duration-150 ease-out-strong hover:underline active:opacity-60"
                     @click="$emit('disconnect')"
                 >
                     Trennen

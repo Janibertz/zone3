@@ -16,10 +16,17 @@ defineProps({
 
 <template>
     <header class="px-4 pt-4 pb-2 lg:px-8 lg:pt-8">
+        <!--
+            `active:scale` ist hier kein Zierrat: der Hover-Zustand liegt seit
+            dem 09.10. hinter `@media (hover: hover)`, auf dem iPhone bleibt
+            also nichts uebrig, was auf die Beruehrung antwortet. Ein
+            Zurueck-Link wird oft getippt — ohne Rueckmeldung tippt man ein
+            zweites Mal.
+        -->
         <Link
             v-if="back"
             :href="back"
-            class="-ml-2 mb-1 inline-flex items-center gap-1 rounded-field px-2 py-1 text-sm font-medium text-ink-3 transition-colors hover:text-ink"
+            class="-ml-2 mb-1 inline-flex items-center gap-1 rounded-field px-2 py-1 text-sm font-medium text-ink-3 transition-[color,transform] duration-150 ease-out-strong hover:text-ink active:scale-[0.97]"
         >
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />

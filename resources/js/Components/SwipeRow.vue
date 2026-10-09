@@ -70,7 +70,7 @@ defineExpose({ close });
         <!-- Sliding content -->
         <div
             class="relative will-change-transform"
-            :class="[contentClass, dragging ? '' : 'transition-transform duration-200']"
+            :class="[contentClass, dragging ? '' : 'transition-transform duration-200 ease-out-strong']"
             :style="{ transform: `translateX(${offset}px)` }"
             @touchstart.passive="onStart"
             @touchmove.passive="onMove"

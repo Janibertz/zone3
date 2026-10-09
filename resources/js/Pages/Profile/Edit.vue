@@ -624,7 +624,7 @@ const inputClass = 'z-input';
                         <div class="relative shrink-0">
                             <button
                                 @click="triggerAvatarUpload"
-                                class="group relative h-20 w-20 sm:h-24 sm:w-24 rounded-full overflow-hidden bg-accent flex items-center justify-center transition-all hover:ring-2 hover:ring-accent hover:ring-offset-2 hover:ring-offset-surface"
+                                class="group relative h-20 w-20 sm:h-24 sm:w-24 rounded-full overflow-hidden bg-accent flex items-center justify-center transition hover:ring-2 hover:ring-accent hover:ring-offset-2 hover:ring-offset-surface"
                             >
                                 <img v-if="avatarUrl" :src="avatarUrl" alt="Profilbild" class="absolute inset-0 h-full w-full object-cover" @error="avatarImgError = true" />
                                 <span v-else class="text-2xl sm:text-3xl font-bold text-white select-none">{{ initials }}</span>
@@ -789,7 +789,7 @@ const inputClass = 'z-input';
                     role="tab"
                     :aria-selected="activeTab === tab.key"
                     @click="activeTab = tab.key"
-                    class="shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all duration-150 active:scale-[0.98]"
+                    class="shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition duration-150 active:scale-[0.98]"
                     :class="activeTab === tab.key
                         ? 'bg-surface text-ink shadow-card'
                         : 'text-ink-3 hover:text-ink-2'"
@@ -906,7 +906,7 @@ const inputClass = 'z-input';
                                 v-for="coach in coaches" :key="coach.id"
                                 type="button"
                                 @click="selectedCoachId = coach.id"
-                                class="w-full flex items-start gap-4 p-5 rounded-card border-2 text-left transition-all duration-200"
+                                class="w-full flex items-start gap-4 p-5 rounded-card border-2 text-left transition duration-200"
                                 :class="selectedCoachId === coach.id
                                     ? [coachColors[coach.avatar_color]?.light, coachColors[coach.avatar_color]?.border, 'shadow-card']
                                     : 'bg-surface/50 border-line hover:border-line-strong'"
@@ -937,7 +937,7 @@ const inputClass = 'z-input';
                                 class="px-5 py-2.5 bg-accent hover:opacity-90 disabled:opacity-50 text-white text-sm font-semibold rounded-field transition-colors">
                                 {{ coachSaving ? 'Speichern…' : 'Coach speichern' }}
                             </button>
-                            <Transition enter-active-class="transition-all duration-300 ease-out" enter-from-class="opacity-0 translate-y-1" leave-active-class="transition-all duration-200" leave-to-class="opacity-0">
+                            <Transition enter-active-class="transition duration-300 ease-out-strong" enter-from-class="opacity-0 translate-y-1" leave-active-class="transition duration-200" leave-to-class="opacity-0">
                                 <div v-if="coachSaved && savedCoachName" class="flex items-center gap-2 rounded-field px-3 py-2 border"
                                     :class="coachColors[savedCoachColor]?.light + ' ' + coachColors[savedCoachColor]?.border">
                                     <div class="h-6 w-6 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0" :class="coachColors[savedCoachColor]?.bg">{{ savedCoachInitials }}</div>
@@ -1128,7 +1128,7 @@ const inputClass = 'z-input';
                                 <label class="block text-xs font-medium text-ink-3 mb-1.5">Equipment <span class="text-ink-3 font-normal">(Mehrfachauswahl)</span></label>
                                 <div class="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
                                     <button v-for="opt in equipmentOptions" :key="opt.value" type="button" @click="toggleStrengthEquipment(opt.value)"
-                                        class="py-2.5 px-2 rounded-field border-2 transition-all text-center"
+                                        class="py-2.5 px-2 rounded-field border-2 transition text-center"
                                         :class="strength.strength_equipment.includes(opt.value)
                                             ? 'bg-accent-soft border-danger text-danger-ink'
                                             : 'border-line text-ink-2 hover:border-danger'">

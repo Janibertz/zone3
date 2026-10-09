@@ -300,7 +300,7 @@ const sideValues = computed(() => [
                 <p class="text-[13px] text-ink-3">{{ dateSpan }} · {{ daysWithData }} Tage mit Werten</p>
                 <div class="flex gap-1 rounded-full bg-surface-2 p-1">
                     <button v-for="r in RANGES" :key="r" @click="rangeDays = r"
-                        class="rounded-full px-3 py-1.5 text-[13px] font-semibold transition-all"
+                        class="rounded-full px-3 py-1.5 text-[13px] font-semibold transition"
                         :class="rangeDays === r ? 'bg-surface text-ink shadow-card' : 'text-ink-3 hover:text-ink-2'">
                         {{ r }} Tage
                     </button>
@@ -444,7 +444,7 @@ const sideValues = computed(() => [
             <AppCard>
                 <button class="flex items-center gap-1.5 text-[13px] font-semibold text-ink-2 transition-colors hover:text-ink"
                     @click="rawOpen = !rawOpen">
-                    <svg class="h-4 w-4 transition-transform duration-200" :class="rawOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <svg class="h-4 w-4 transition-transform duration-200 ease-in-out-strong" :class="rawOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
                     </svg>
                     Rohdaten

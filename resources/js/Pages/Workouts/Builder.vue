@@ -318,7 +318,7 @@ async function save() {
                             <template v-if="barSegments.length">
                                 <div v-for="(seg, i) in barSegments" :key="i"
                                     :style="{ width: seg.pct + '%', backgroundColor: seg.color }"
-                                    class="transition-all duration-300" />
+                                    class="transition-[width,background-color] duration-300" />
                             </template>
                             <div v-else class="w-full flex items-center justify-center">
                                 <span class="text-[11px] text-ink-3">Noch keine Segmente</span>
@@ -372,7 +372,7 @@ async function save() {
                     <!-- Block list -->
                     <div class="space-y-2">
                         <div v-for="(block, idx) in blocks" :key="block._id ?? idx"
-                            class="bg-surface rounded-card border overflow-hidden transition-all"
+                            class="bg-surface rounded-card border overflow-hidden transition"
                             :class="ZONE_COLORS[block.pace_zone ?? defFor(block.type).zone]?.border ?? 'border-line'">
 
                             <!-- Block header (click to expand) -->

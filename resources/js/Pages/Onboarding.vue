@@ -307,14 +307,14 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
 
         <!-- Progress bar -->
         <div class="w-full h-1 bg-surface-3">
-            <div class="h-1 bg-accent transition-all duration-500"
+            <div class="h-1 bg-accent transition-[width] duration-500"
                 :style="{ width: ((currentStep - 1) / (totalSteps - 1) * 100) + '%' }"></div>
         </div>
 
         <!-- Step indicators -->
         <div class="flex justify-center gap-2 pt-6 px-4">
             <div v-for="step in steps" :key="step.number" class="flex items-center gap-1.5">
-                <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300"
+                <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition duration-300"
                     :class="currentStep > step.number
                         ? 'bg-accent text-white'
                         : currentStep === step.number
@@ -393,7 +393,7 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                             v-for="coach in coaches" :key="coach.id"
                             type="button"
                             @click="selectedCoachId = coach.id"
-                            class="w-full flex items-start gap-4 p-5 rounded-card border-2 text-left transition-all duration-200"
+                            class="w-full flex items-start gap-4 p-5 rounded-card border-2 text-left transition duration-200"
                             :class="selectedCoachId === coach.id
                                 ? [coachColors[coach.avatar_color]?.light, coachColors[coach.avatar_color]?.border, 'shadow-card']
                                 : 'bg-surface/50 border-line hover:border-line-strong'"
@@ -417,7 +417,7 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                             </div>
 
                             <!-- Check -->
-                            <div class="shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all mt-0.5"
+                            <div class="shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition mt-0.5"
                                 :class="selectedCoachId === coach.id
                                     ? [coachColors[coach.avatar_color]?.bg, 'border-transparent']
                                     : 'border-line-strong'">
@@ -671,7 +671,7 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                             <button
                                 type="button"
                                 @click="toggleDay(day.key)"
-                                class="w-full aspect-square rounded-card flex flex-col items-center justify-center text-sm font-bold transition-all duration-150 border-2"
+                                class="w-full aspect-square rounded-card flex flex-col items-center justify-center text-sm font-bold transition duration-150 border-2"
                                 :class="availability[day.key].available
                                     ? 'bg-accent border-accent text-white shadow-md scale-105'
                                     : 'bg-surface border-line text-ink-3 hover:border-line-strong'"
@@ -758,7 +758,7 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                             <label class="block text-sm font-semibold text-ink-2">Welches Equipment hast du?</label>
                             <div class="grid grid-cols-3 gap-2">
                                 <button v-for="opt in equipmentOptions" :key="opt.value" type="button" @click="toggleEquipment(opt.value)"
-                                    class="py-3 px-2 rounded-field border-2 transition-all text-center"
+                                    class="py-3 px-2 rounded-field border-2 transition text-center"
                                     :class="strengthForm.strength_equipment.includes(opt.value)
                                         ? 'bg-accent-soft border-danger text-danger-ink'
                                         : 'border-line text-ink-2 hover:border-danger'">
@@ -818,7 +818,7 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                             <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                 <button v-for="opt in raceOptions" :key="opt.value"
                                     type="button" @click="selectRace(opt)"
-                                    class="py-3 px-3 rounded-field border-2 transition-all text-center"
+                                    class="py-3 px-3 rounded-field border-2 transition text-center"
                                     :class="goalForm.race_distance === opt.value
                                         ? 'bg-accent-soft border-accent text-accent-ink'
                                         : 'border-line text-ink-2 hover:border-accent'">

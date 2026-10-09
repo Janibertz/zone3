@@ -49,7 +49,7 @@ const beispielWoche = [
     <div class="dark min-h-screen overflow-x-hidden bg-canvas text-ink">
 
         <!-- ══ KOPFZEILE ══════════════════════════════════════════ -->
-        <nav :class="['fixed inset-x-0 top-0 z-50 transition-all duration-300',
+        <nav :class="['fixed inset-x-0 top-0 z-50 transition duration-300',
                       scrolled ? 'border-b border-line bg-canvas/95 backdrop-blur' : '']">
             <div class="mx-auto flex h-16 max-w-5xl items-center justify-between px-5">
                 <div class="flex items-center gap-2">

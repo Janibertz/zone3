@@ -292,10 +292,10 @@ watch(isOpen, async (val) => {
         </Transition>
 
         <Transition
-            enter-active-class="transition-transform duration-300 ease-out"
+            enter-active-class="transition-transform duration-300 ease-out-strong"
             enter-from-class="translate-x-full"
             enter-to-class="translate-x-0"
-            leave-active-class="transition-transform duration-200 ease-in"
+            leave-active-class="transition-transform duration-200 ease-out-strong"
             leave-from-class="translate-x-0"
             leave-to-class="translate-x-full"
         >
@@ -471,7 +471,7 @@ watch(isOpen, async (val) => {
                     <button
                         :disabled="!inputText.trim() || isLoading"
                         aria-label="Senden"
-                        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink text-canvas transition-all hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+                        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink text-canvas transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
                         @click="sendMessage()"
                     >
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

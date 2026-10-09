@@ -497,7 +497,7 @@ onUnmounted(() => {
                                 <div
                                     v-for="key in ['z1','z2','z3','z4','z5']"
                                     :key="key"
-                                    class="h-2 flex-1 rounded-full transition-all"
+                                    class="h-2 flex-1 rounded-full transition-[transform,opacity]"
                                     :class="[zoneColors[key]?.bg, paceZoneInfo.key === key ? 'scale-y-150 opacity-100' : 'opacity-25']"
                                 />
                             </div>
@@ -547,7 +547,7 @@ onUnmounted(() => {
                                     lapColor(lap, i),
                                     activeLap === i ? 'opacity-100 ring-2 ring-ink' : (activeLap !== null ? 'opacity-25' : 'opacity-80'),
                                 ]"
-                                class="cursor-pointer rounded-t-sm transition-all"
+                                class="cursor-pointer rounded-t-sm transition-[opacity,box-shadow]"
                                 @mouseenter="setActiveLap(i)"
                                 @mouseleave="clearActiveLap"
                                 @click="toggleActiveLap(i)"
@@ -621,7 +621,7 @@ onUnmounted(() => {
                                 v-for="star in 5"
                                 :key="star"
                                 type="button"
-                                class="flex h-10 w-10 items-center justify-center rounded-full text-xl transition-all"
+                                class="flex h-10 w-10 items-center justify-center rounded-full text-xl transition"
                                 :class="star <= ratingValue ? 'scale-110 bg-warn-soft' : 'bg-surface-2 opacity-40 hover:opacity-70'"
                                 @click="ratingValue = ratingValue === star ? 0 : star"
                             >⭐</button>
@@ -636,7 +636,7 @@ onUnmounted(() => {
                                 v-for="rpe in 10"
                                 :key="rpe"
                                 type="button"
-                                class="h-9 w-9 rounded-full text-[13px] font-bold transition-all active:scale-90"
+                                class="h-9 w-9 rounded-full text-[13px] font-bold transition active:scale-90"
                                 :class="rpe === effortValue
                                     ? (rpe <= 3 ? 'bg-success text-white' : rpe <= 6 ? 'bg-warn text-white' : 'bg-danger text-white')
                                     : 'bg-surface-2 text-ink-3 hover:bg-surface-3'"

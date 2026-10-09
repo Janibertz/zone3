@@ -223,7 +223,7 @@ const maxCoach  = computed(() => Math.max(...(props.coachDistribution?.map(c => 
                                         <span class="shrink-0 text-xs tabular-nums text-ink-3">{{ coach.users_count }}</span>
                                     </div>
                                     <div class="h-2 w-full overflow-hidden rounded-full bg-surface-2">
-                                        <div class="h-full rounded-full transition-all"
+                                        <div class="h-full rounded-full transition-[width]"
                                             :class="coachBg[coach.avatar_color] ?? 'bg-ink-3'"
                                             :style="{ width: share(coach.users_count, maxCoach) + '%' }" />
                                     </div>

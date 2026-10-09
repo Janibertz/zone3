@@ -292,7 +292,7 @@ const avgDistance = computed(() => {
                                         @mouseenter="picked = i"
                                     >
                                         <span
-                                            class="w-full rounded-t-lg transition-all duration-300"
+                                            class="w-full rounded-t-lg transition-[height,background-color] duration-300"
                                             :class="bucket.km === 0
                                                 ? 'bg-surface-2'
                                                 : i === activeIndex
@@ -380,7 +380,7 @@ const avgDistance = computed(() => {
                                     <!-- Marker liegt darüber, damit er rund bleibt -->
                                     <span
                                         v-if="activeRun"
-                                        class="pointer-events-none absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface bg-success transition-all duration-200"
+                                        class="pointer-events-none absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface bg-success transition duration-200"
                                         :style="{
                                             left: `calc(1.25rem + (100% - 2.5rem) * ${pointX(activeRunIndex) / 100})`,
                                             top:  `${100 - paceY(activeRun.pace_sec)}%`,
