@@ -413,6 +413,30 @@ The coach can really change the plan — `create_training_session`, `modify_trai
 
 Two rules learned the hard way and encoded in the system prompt: **never claim a change without calling the tool** (with only a today-tool available, the model would describe the change instead of making it), and **one running session per day** also applies here. `applySessionFields()` reconciles distance/duration/pace so the numbers can't contradict the title — a model that changes the type without supplying new numbers would otherwise leave the old ones standing.
 
+## Was am 09.10.2026 abgerissen wurde
+
+Eine vollständige Messung ergab 70.400 Zeilen für **zwei aktive Athleten** (Jan: 153 von 177 Coach-Nachrichten, 150 von 157 Wellbeing-Einträgen; Christopher der einzige zweite). Nicht der Kern war überengineert — der ist schwierig — sondern der Rand. Phase 1 nahm die Leichen, Phase 2 meinen eigenen Anbau.
+
+**Gelöscht, weil scharf und unerreichbar.** Jede dieser Routen war aus dem Frontend nicht aufrufbar, geprüft gegen Routennamen *und* literale URL-Pfade:
+
+| Weg | Warum er weg musste |
+|---|---|
+| `POST /plans/generate` → `PlanController` + `TrainingPlanService` | Ein Fossil aus der ersten Version: erzeugte `"Workout #1"` / `"Easy training run"` auf Englisch, ohne Tests, am Gerüst und Validator vorbei — und rief dabei die echte Strava-API. |
+| `GET /ai/analyze/{goal}` · `/ai/plan/{goal}` · `/ai/suggestions` | Drei **GET**-Routen, die OpenAI aufrufen. Eine GET-Route, die Geld kostet, ist ein Konstruktionsfehler: ein Prefetch genügt. `/ai/plan` war zusätzlich **kaputt** — es rief `TrainingPlanGenerator::generateTrainingPlan()`, und die Methode liegt in `SessionContentService`; die Klassen erben nicht voneinander. Der Aufruftyp `goal_analysis` kommt in 1.994 `ai_logs`-Zeilen nicht ein einziges Mal vor. |
+| `POST /api/profile/zones` · `GET /api/profile/runner` | `previewZones()` rief für eine Vorschau OpenAI auf. `runner.profile.store` **bleibt** — `Profile/Edit.vue:331` benutzt es. |
+| `PATCH /events/{event}/plan/availability` | Doppelt zu `WeekAvailabilityController@store`. Dessen eigener Docblock sagt, warum er existiert: „Es gab zwar `availability_overrides` je Datum, aber keine Oberfläche." Der alte Pfad blieb danach stehen. |
+
+Mit den Aufrufern fielen die Methoden, die nur sie benutzten: `CoachingTextService::analyzeTraining()` + `buildAnalysisPrompt()` + drei Formatierer (−120 Zeilen) und `SessionContentService::generateTrainingPlan()` (−30).
+
+**Merkhilfe:** eine Route, die Geld ausgibt, gehört nie hinter `GET`, und ein zweiter Schreibpfad auf dasselbe Feld ist immer einer zu viel.
+
+### Was ausdrücklich NICHT abgerissen wurde
+
+- **`ProgressService`** sah in der Analyse tot aus (2 Referenzen, 0 Tests), ist es aber nicht: `routes/web.php` ruft `generateTrainingSuggestions()` in der Dashboard-Closure, und `AIController::recommendToday()` ruft `calculateProgress()`. Die Analyse war hier zu grob — beim Löschen prüfen, nicht beim Zählen.
+- **`runner.profile.show`** ist eine einzeilige Weiterleitung auf `profile.edit`. Technisch unerreichbar, aber ein alter Lesezeichen-Link kostet sonst einen 404 statt nichts.
+- **Wrapped** und **Impersonation** bleiben: klein, harmlos, im Betrieb kostenlos.
+- Die **68 verwaisten `training_sessions`** (kein `training_plan_id`, nicht `was_unplanned`) sind unangetastet. Sie verfälschen Statistiken, aber es sind echte Trainings aus der Historie — das ist eine Entscheidung des Athleten, keine Aufräumarbeit.
+
 ## Frontend (`resources/js/Pages/`)
 
 Inertia.js — no API calls, all data passed as props from Laravel controllers.
@@ -565,38 +589,33 @@ The rest of the admin answers "how is the product doing": users, activities, AI 
 
 `information_schema` is queried only when the driver is MySQL; under SQLite the tests would otherwise error rather than return nothing.
 
-### `/admin/performance` — warum ist es langsam, und lief die Hintergrundarbeit
-
-`/admin/system` beantwortet „läuft die Maschine". Zwei Fragen blieben offen und haben beide Tage gekostet: **warum ist eine Seite langsam** und **lief `strava:sync` überhaupt** (sechs Tage Import-Ausfall, bemerkt vom Athleten selbst).
-
-Aufgezeichnet wird nach dem Prinzip **Zusammenfassung + Ausreißer**:
-
-- **eine Zeile pro Anfrage** — Dauer, Query-Anzahl, Query-Zeit, Speicher, Status, Athlet
-- **einzelne Queries erst ab `slow_query_ms`** (100 ms). Alles zu speichern wären ~40 Zeilen pro Seitenaufruf
-- **Kommandos werden fortgeschrieben, nicht angehängt** — `push:wellbeing-reminders` läuft jede Minute; als Ereignisstrom wären das 43.000 Zeilen im Monat für eine Frage, die eine Zeile beantwortet
-- **Langsames und Kaputtes wird immer aufgezeichnet**, unabhängig von `sample_rate` — ausgerechnet das wegzuwerfen, wonach man sucht, wäre die teuerste Art zu sparen
-
-**Der Webprozess ist single-threaded, und das bestimmt das ganze Design.** `Collector` sammelt im Speicher, `RecordPerformance::terminate()` schreibt **einmal**, nachdem die Antwort erzeugt ist — netto ein zusätzliches INSERT pro Anfrage. Eine Messung, die während der Anfrage schreibt, verlangsamt genau das, was sie beobachten soll; das ist dieselbe Klasse Fehler wie der synchrone Webhook und das `file_get_contents` auf der Logdatei. Die Middleware steht **vorn** in der `web`-Gruppe (`prepend`), damit `reset()` beim Eintritt die Queries von Session und Auth noch mitzählt.
-
-Drei Zusicherungen, die man einer Messung nicht ansieht und die deshalb Tests haben:
-
-- **Keine Werte in der Messtabelle.** Laravel liefert das SQL mit `?`; die Bindings bleiben draußen. Durch Zone3 laufen HRV, Schlaf und Ruhepuls.
-- **Kein Query-String bei ausgehenden Aufrufen.** In Stravas Subscription-Endpunkt steht das `client_secret` in der URL.
-- **Die Messung misst sich nicht selbst.** Queries auf `perf_*` zählen nicht mit, sonst wäre der eigene Insert Teil der Statistik.
-
-Gruppiert wird über das **Route-Muster** (`GET /events/{event}/plan`), nicht die URL — sonst wäre jeder Event eine eigene Zeile. Die aussagekräftigste Spalte ist `max. Qry`: eine Route mit Ø 40 und max. 213 Queries hat kein Performance-, sondern ein N+1-Problem, und das sieht man nur am Ausreißer. Keine Perzentile — `avg`/`max` bedeuten unter MySQL und SQLite dasselbe, ein p95 nicht, und die Tests laufen auf SQLite.
-
-`perf:prune` läuft nachts (04:00) und löscht über IDs in Häppchen; `DELETE ... LIMIT` gibt es unter SQLite nur mit einer selten gesetzten Compile-Option.
-
 ### `perf:watch` — das System meldet sich selbst
 
-Eine Ansicht hilft nur dem, der sie öffnet, und genau das war das Problem. `Schedule::command('perf:watch')->everyFifteenMinutes()` prüft und schickt den Admins eine Web-Push-Nachricht: fehlgeschlagene Jobs, eine stauende Queue, ein 5xx-Ausbruch, überfällige Kommandos, und — vorsichtig formuliert, als Frage — 48 h ohne Strava-Webhook.
+**Hier stand einmal `/admin/performance`**: eine Anfrage-Messung mit drei Tabellen, einer Middleware, vier Diensten, eigener Konfiguration und eigener Admin-Seite — 2.310 Zeilen. In einem Monat Betrieb kamen **51 Messpunkte** zusammen. Bei zwei aktiven Athleten gibt es keine Lastprobleme zu messen; die Seite hat nie eine Frage beantwortet, die nicht auch im Log stand, und einmal habe ich mich an ihrer `migrate`-Zeile sogar über den Zustand eines Deploys getäuscht. Sie ist am 09.10.2026 abgebaut worden.
 
-`perf_alerts` ist das Gedächtnis: **Abklingzeit 6 h**, sonst käme derselbe Satz viermal pro Stunde und würde nach einem Tag ignoriert. Löst sich ein Befund auf, wird die Sperre zurückgesetzt — ein echter Rückfall ist eine neue Nachricht wert.
+Geblieben ist die Achse, auf der Zone3 **wirklich** kaputtging: sechs Tage ohne Strava-Import, bemerkt vom Athleten selbst. Dafür braucht es keine Messung, sondern jemanden, der sich meldet.
+
+```
+ObservabilityServiceProvider   hört nur noch CommandStarting/CommandFinished
+  → Recorder::command()        schreibt EINE Zeile pro Kommando fort
+      → perf_command_runs      letzter Lauf, Dauer, Exit-Code, Zähler
+  → Watchdog::findings()       vier Fragen, ohne Nebenwirkung
+      → perf_alerts            Gedächtnis für die Abklingzeit
+```
+
+`Schedule::command('perf:watch')->dailyAt('07:30')` prüft und schickt den Admins eine Web-Push-Nachricht. **Vier Prüfungen**, nicht mehr fünf: fehlgeschlagene Jobs, eine stauende Queue, überfällige Kommandos, und — vorsichtig formuliert, als Frage — 48 h ohne Strava-Webhook. Die 5xx-Prüfung fiel mit `perf_events`; wer Serverfehler sucht, findet sie in `/admin/system/logs`.
+
+**Täglich statt alle 15 Minuten.** Die Befunde ändern sich nicht im Viertelstundentakt: eine stauende Queue und ein ausgefallener Import sind Zustände von Stunden. 96 Läufe am Tag erzeugten Last und beantworteten dieselbe Frage.
+
+**Kommandos werden fortgeschrieben, nicht angehängt.** `push:wellbeing-reminders` läuft jede Minute; als Ereignisstrom wären das 43.000 Zeilen im Monat für eine Frage, die eine Zeile beantwortet. `last_query_count` ist weggefallen — der Zähler dahinter war ein `DB::listen` auf **jeder** Query, und `isOverdue()` hat ihn nie gelesen.
+
+`perf_alerts` ist das Gedächtnis: **Abklingzeit 6 h**, sonst käme derselbe Satz bei jedem Lauf erneut. Löst sich ein Befund auf, wird die Sperre zurückgesetzt — ein echter Rückfall ist eine neue Nachricht wert.
+
+**Die Befunde stehen auf `/admin/system`**, wohin auch die Push-Nachricht zeigt. Eine zweite Admin-Seite neben der Systemseite war genau die Sorte Doppelung, die dieses Projekt teuer bezahlt hat. `findings()` ist ohne Nebenwirkung — Ansehen verbraucht keine Nachricht, `run()` schreibt die Abklingzeit fort.
 
 **Der Wächter kann seinen eigenen Ausfall nicht melden**, denn er läuft selbst im Scheduler. Stirbt der Scheduler, stirbt er mit. Deshalb steht `schedule:run` in `expected_every_minutes` und wird beim **Seitenaufruf** ausgewertet, wo die Antwort ankommt — nicht in einer Push-Nachricht, die nie abgeschickt würde. Dieselbe Grenze gilt für Cloudflare: was den Edge nicht passiert, sieht Laravel nicht, und keine Messung im Container ändert daran etwas.
 
-Alles steht in `config/observability.php` — Schwellen, Aufbewahrung, Abklingzeit, erwartete Taktung je Kommando, und `OBSERVABILITY_ENABLED` als Schalter, der die Aufzeichnung ohne Deploy stilllegt.
+`config/observability.php` hält noch drei Dinge: `OBSERVABILITY_ENABLED` als Schalter, die Alarmschwellen, und die erwartete Taktung je Kommando.
 
 ## Push Notifications
 
@@ -623,10 +642,12 @@ VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
 VAPID_SUBJECT=mailto:...
 
-# Selbstbeobachtung (/admin/performance). Alle optional — die Vorgaben in
-# config/observability.php passen fuer vier Athleten.
+# Waechter (perf:watch, Befunde auf /admin/system). Alle optional — die
+# Vorgaben in config/observability.php passen fuer zwei Athleten.
 OBSERVABILITY_ENABLED=true
-OBSERVABILITY_SLOW_QUERY_MS=100
-OBSERVABILITY_SLOW_REQUEST_MS=1000
-OBSERVABILITY_RETENTION_DAYS=14
+OBSERVABILITY_ALERT_COOLDOWN_HOURS=6
+OBSERVABILITY_QUEUE_STALLED_MINUTES=15
+OBSERVABILITY_WEBHOOK_SILENCE_HOURS=48
 ```
+
+Die Variablen `OBSERVABILITY_SLOW_QUERY_MS`, `_SLOW_REQUEST_MS`, `_MANY_QUERIES`, `_SAMPLE_RATE`, `_RETENTION_DAYS` und `_SERVER_ERROR_BURST` sind mit der Anfrage-Messung weggefallen und können in Coolify gelöscht werden — sie werden nirgends mehr gelesen.

@@ -11,6 +11,7 @@ const props = defineProps({
     environment:  Object,
     summary:      Object,
     webhookHits:  Object,
+    watchdog:     { type: Array, default: () => [] },
 });
 
 const page  = usePage();
@@ -96,6 +97,30 @@ function daysAgo(value) {
                 :class="toneClass[headline.tone]">
                 <span>{{ headline.text }}</span>
                 <Link :href="route('admin.system.logs')" class="ml-auto text-xs underline">Log ansehen</Link>
+            </div>
+
+            <!-- ── Was der Wächter meldet ────────────────────────────── -->
+            <div class="bg-surface rounded-card shadow-card">
+                <div class="px-6 py-4 border-b border-line">
+                    <h2 class="text-sm font-semibold text-ink-2">Wächter</h2>
+                    <p class="text-xs text-ink-3 mt-0.5">
+                        Dieselben Befunde, die <span class="font-mono">perf:watch</span> täglich per Push schickt.
+                        Hier nur angesehen — das verbraucht keine Nachricht.
+                    </p>
+                </div>
+
+                <div v-if="watchdog.length === 0" class="px-6 py-5 text-sm text-ink-3">
+                    Keine Auffälligkeiten.
+                </div>
+                <div v-else class="divide-y divide-line">
+                    <div v-for="f in watchdog" :key="f.key" class="px-6 py-3 flex items-start gap-3">
+                        <span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-warn shrink-0"></span>
+                        <div class="min-w-0">
+                            <p class="text-sm text-ink">{{ f.message }}</p>
+                            <p class="text-xs text-ink-3 font-mono mt-0.5">{{ f.key }}</p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- ── Queues ────────────────────────────────────────────── -->

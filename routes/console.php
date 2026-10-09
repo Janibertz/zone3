@@ -68,18 +68,19 @@ Schedule::command('strava:sync')->everyFifteenMinutes()->withoutOverlapping();
 /*
  * Beobachtung des eigenen Betriebs.
  *
- * `perf:watch` im selben Takt wie der Strava-Sync — es prueft Queues,
- * Serverfehler und ob die Hintergrundarbeit ueberhaupt gelaufen ist, und
- * schickt den Admins eine Push-Nachricht, wenn etwas kippt. Die Abklingzeit
- * steckt in `perf_alerts`, damit derselbe Befund nicht viermal pro Stunde
- * auf dem Telefon landet.
+ * `perf:watch` prueft Queues, fehlgeschlagene Jobs und ob die
+ * Hintergrundarbeit ueberhaupt gelaufen ist, und schickt den Admins eine
+ * Push-Nachricht, wenn etwas kippt. Die Abklingzeit steckt in
+ * `perf_alerts`, damit derselbe Befund nicht mehrfach auf dem Telefon
+ * landet.
+ *
+ * Einmal taeglich, nicht alle 15 Minuten. Die Befunde, die der Waechter
+ * findet, aendern sich nicht im Viertelstundentakt: eine stauende Queue
+ * und ein ausgefallener Import sind Zustaende von Stunden. 96 Laeufe am
+ * Tag erzeugten nur Last und beantworteten dieselbe Frage.
  *
  * Es kann seinen EIGENEN Ausfall nicht melden — laeuft der Scheduler nicht,
  * laeuft auch der Waechter nicht. Diese Frage beantwortet die Systemseite
  * beim Aufruf.
- *
- * `perf:prune` haelt die Messtabelle klein. Ohne das schreibt sie dieselbe
- * Geschichte wie die Logdatei, die niemand rotiert hat.
  */
-Schedule::command('perf:watch')->everyFifteenMinutes()->withoutOverlapping();
-Schedule::command('perf:prune')->dailyAt('04:00');
+Schedule::command('perf:watch')->dailyAt('07:30')->withoutOverlapping();

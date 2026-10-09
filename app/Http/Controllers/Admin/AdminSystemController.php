@@ -12,6 +12,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use App\Services\LogReader;
+use App\Services\Observability\Watchdog;
 use App\Services\SystemHealth;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -32,7 +33,7 @@ class AdminSystemController extends Controller
 {
     public function __construct(private readonly SystemHealth $health) {}
 
-    public function index(): Response
+    public function index(Watchdog $watchdog): Response
     {
         return Inertia::render('Admin/System/Index', [
             'queues'       => $this->health->queues(),
@@ -43,6 +44,11 @@ class AdminSystemController extends Controller
             // Dasselbe Urteil wie auf der Uebersicht — nicht ein zweites.
             'summary'      => $this->health->summary(),
             'webhookHits'  => $this->health->webhookHits(),
+            // Dieselben Befunde, die `perf:watch` nachts per Push schickt.
+            // `findings()` ist ohne Nebenwirkung: es schreibt keine
+            // Abklingzeit fort, ein Seitenaufruf verbraucht also keine
+            // Nachricht.
+            'watchdog'     => $watchdog->findings(),
         ]);
     }
 

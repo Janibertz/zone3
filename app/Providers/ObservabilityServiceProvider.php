@@ -2,23 +2,20 @@
 
 namespace App\Providers;
 
-use App\Services\Observability\Collector;
 use App\Services\Observability\Recorder;
 use Illuminate\Console\Events\CommandFinished;
 use Illuminate\Console\Events\CommandStarting;
-use Illuminate\Database\Events\QueryExecuted;
-use Illuminate\Http\Client\Events\ConnectionFailed;
-use Illuminate\Http\Client\Events\RequestSending;
-use Illuminate\Http\Client\Events\ResponseReceived;
-use Illuminate\Queue\Events\JobFailed;
-use Illuminate\Queue\Events\JobProcessed;
-use Illuminate\Queue\Events\JobProcessing;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
 /**
- * Haengt die Messung an die vier Achsen, auf denen Zone3 kaputtgeht.
+ * Haengt die Messung an die eine Achse, auf der Zone3 wirklich kaputtgeht.
+ *
+ * Hier hingen einmal vier: Queries, Jobs, ausgehende Aufrufe und Kommandos.
+ * Die ersten drei wurden abgebaut — `DB::listen` auf jeder Query ist bei
+ * zwei Athleten ein Preis ohne Gegenwert, und die Antworten standen
+ * ohnehin im Log. Was blieb, ist die Achse, auf der sechs Tage
+ * Import-Ausfall unbemerkt blieben.
  *
  * Die Listener werden IMMER registriert, auch wenn die Aufzeichnung
  * abgeschaltet ist — geprueft wird erst im `Recorder`, kurz vor dem
@@ -33,62 +30,9 @@ use Illuminate\Support\ServiceProvider;
  */
 class ObservabilityServiceProvider extends ServiceProvider
 {
-    public function register(): void
-    {
-        // Singletons, weil die Middleware fuer `terminate()` erneut aus dem
-        // Container aufgeloest wird — mit zwei Instanzen waere der Zaehler
-        // dort leer.
-        $this->app->singleton(Collector::class);
-        $this->app->singleton(Recorder::class);
-    }
-
     public function boot(): void
     {
-        $this->watchQueries();
-        $this->watchJobs();
         $this->watchCommands();
-        $this->watchOutgoingCalls();
-    }
-
-    /** Jede Query zaehlt mit; gespeichert werden nur die langsamen. */
-    private function watchQueries(): void
-    {
-        DB::listen(function (QueryExecuted $query): void {
-            $this->app->make(Collector::class)->query($query->sql, $query->time);
-        });
-    }
-
-    /**
-     * Queue-Jobs mit Dauer, Ausgang und ihrer eigenen Query-Zahl.
-     *
-     * Ein Job, der dreissig Sekunden braucht, tut das oft nicht wegen
-     * OpenAI — das sieht man erst, wenn die Queries danebenstehen.
-     */
-    private function watchJobs(): void
-    {
-        $started = [];
-
-        Event::listen(function (JobProcessing $event) use (&$started): void {
-            $started[] = microtime(true);
-            $this->app->make(Collector::class)->reset();
-        });
-
-        Event::listen(function (JobProcessed $event) use (&$started): void {
-            $this->app->make(Recorder::class)->job(
-                $event->job->resolveName(),
-                $event->job->getQueue() ?: 'default',
-                $this->elapsed($started),
-            );
-        });
-
-        Event::listen(function (JobFailed $event) use (&$started): void {
-            $this->app->make(Recorder::class)->job(
-                $event->job->resolveName(),
-                $event->job->getQueue() ?: 'default',
-                $this->elapsed($started),
-                $event->exception->getMessage(),
-            );
-        });
     }
 
     /**
@@ -107,7 +51,6 @@ class ObservabilityServiceProvider extends ServiceProvider
             }
 
             $started[] = microtime(true);
-            $this->app->make(Collector::class)->reset();
         });
 
         Event::listen(function (CommandFinished $event) use (&$started): void {
@@ -124,46 +67,10 @@ class ObservabilityServiceProvider extends ServiceProvider
     }
 
     /**
-     * Strava, OpenAI, fit-service, Wetter.
-     *
-     * Beantwortet die Frage, die beim Webhook-Ausfall offen blieb: liegt es
-     * an uns oder am fremden Dienst. Ein Stapel reicht zum Messen, weil
-     * Zone3 nirgends `Http::pool` benutzt und die Aufrufe damit
-     * nacheinander laufen.
-     */
-    private function watchOutgoingCalls(): void
-    {
-        Event::listen(function (RequestSending $event): void {
-            $this->app->make(Collector::class)->outgoingStarted();
-        });
-
-        Event::listen(function (ResponseReceived $event): void {
-            $collector = $this->app->make(Collector::class);
-
-            $this->app->make(Recorder::class)->outgoing(
-                $event->request->url(),
-                $event->response->status(),
-                $collector->outgoingFinished(),
-            );
-        });
-
-        Event::listen(function (ConnectionFailed $event): void {
-            $collector = $this->app->make(Collector::class);
-
-            $this->app->make(Recorder::class)->outgoing(
-                $event->request->url(),
-                null,
-                $collector->outgoingFinished(),
-                failed: true,
-            );
-        });
-    }
-
-    /**
      * Dauer seit dem zuletzt begonnenen Vorgang.
      *
-     * Ein Stapel statt einer Zuordnung ueber Job-IDs: unter `sync` hat ein
-     * Job gar keine ID, und geschachtelte Dispatches kommen in umgekehrter
+     * Ein Stapel statt einer Zuordnung ueber Namen: geschachtelte Aufrufe
+     * (`Artisan::call()` innerhalb eines Kommandos) kommen in umgekehrter
      * Reihenfolge zurueck — genau das, was ein Stapel abbildet.
      *
      * @param  list<float>  $started

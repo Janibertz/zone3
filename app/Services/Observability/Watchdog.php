@@ -4,7 +4,6 @@ namespace App\Services\Observability;
 
 use App\Models\PerfAlert;
 use App\Models\PerfCommandRun;
-use App\Models\PerfEvent;
 use App\Models\User;
 use App\Services\SystemHealth;
 use App\Services\WebPushService;
@@ -21,9 +20,9 @@ use Illuminate\Support\Facades\Schema;
  *
  * Zwei Entscheidungen tragen das hier:
  *
- * **Abklingzeit.** Der Watchdog laeuft alle 15 Minuten. Ohne `perf_alerts`
- * als Gedaechtnis schickte er denselben Satz viermal pro Stunde, und nach
- * einem Tag liest ihn niemand mehr. Loest sich ein Befund auf, wird die
+ * **Abklingzeit.** Der Watchdog laeuft taeglich. Ohne `perf_alerts` als
+ * Gedaechtnis schickte er denselben Satz bei jedem Lauf erneut, und nach
+ * einer Woche liest ihn niemand mehr. Loest sich ein Befund auf, wird die
  * Sperre zurueckgesetzt: kommt er wieder, ist das eine neue Nachricht wert.
  *
  * **Was hier NICHT geprueft wird.** Ob der Scheduler laeuft. Dieses
@@ -90,7 +89,6 @@ class Watchdog
         return array_values(array_filter([
             $this->failedJobs(),
             $this->stalledQueue(),
-            $this->serverErrors(),
             $this->silentWebhook(),
             ...$this->overdueCommands(),
         ]));
@@ -129,25 +127,6 @@ class Watchdog
         }
 
         return null;
-    }
-
-    private function serverErrors(): ?array
-    {
-        $burst = (int) config('observability.alerts.server_error_burst', 5);
-
-        $count = PerfEvent::where('type', PerfEvent::TYPE_REQUEST)
-            ->where('created_at', '>=', now()->subHour())
-            ->where('status', 'like', '5%')
-            ->count();
-
-        if ($count < $burst) {
-            return null;
-        }
-
-        return [
-            'key'     => 'server_errors',
-            'message' => "{$count} Serverfehler in der letzten Stunde.",
-        ];
     }
 
     /**
@@ -217,7 +196,7 @@ class Watchdog
 
         foreach ($admins as $admin) {
             try {
-                $this->push->sendToUser($admin, 'Zone3 System', $message, '/admin/performance');
+                $this->push->sendToUser($admin, 'Zone3 System', $message, '/admin/system');
             } catch (\Throwable $e) {
                 Log::warning('Watchdog konnte nicht benachrichtigen', [
                     'user_id' => $admin->id,

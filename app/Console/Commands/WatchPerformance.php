@@ -9,9 +9,13 @@ use Illuminate\Support\Facades\Log;
 /**
  * Sieht nach, ob etwas kippt — und sagt Bescheid.
  *
- * Laeuft alle 15 Minuten, im selben Takt wie `strava:sync`. `--dry` prueft
- * ohne zu benachrichtigen; damit laesst sich der Zustand ansehen, ohne dass
- * die Abklingzeit verbraucht wird.
+ * Laeuft taeglich. Die Befunde, die hier gefunden werden, aendern sich
+ * nicht im Viertelstundentakt: eine stauende Queue und ein ausgefallener
+ * Import sind Zustaende von Stunden.
+ *
+ * `--dry` prueft ohne zu benachrichtigen; damit laesst sich der Zustand
+ * ansehen, ohne dass die Abklingzeit verbraucht wird. Denselben Blick gibt
+ * es auf `/admin/system`.
  */
 class WatchPerformance extends Command
 {
