@@ -7,7 +7,6 @@ use App\Http\Controllers\EventController;
 use App\Http\Controllers\GoalController;
 use App\Http\Controllers\LiveTrackController;
 use App\Http\Controllers\OnboardingController;
-use App\Http\Controllers\PlanController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TrainingPlanController;
 use App\Http\Controllers\TrainingSessionController;
@@ -521,7 +520,6 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::post('/events/{event}/plan/generate', [TrainingPlanController::class, 'generate'])->name('events.plan.generate');
     Route::get('/events/{event}/plan/generate-status', [TrainingPlanController::class, 'generateStatus'])->name('events.plan.generate-status');
     Route::post('/events/{event}/plan/cancel', [TrainingPlanController::class, 'cancel'])->name('events.plan.cancel');
-    Route::patch('/events/{event}/plan/availability', [TrainingPlanController::class, 'updateAvailabilityOverride'])->name('events.plan.availability');
     Route::patch('/events/{event}/plan/result', [TrainingPlanController::class, 'saveResult'])->name('events.plan.result');
 
     // Training Sessions
@@ -559,13 +557,9 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::post('/workouts/{workout}/duplicate',   [\App\Http\Controllers\WorkoutController::class, 'duplicate'])->name('workouts.duplicate');
     Route::post('/workouts/{workout}/send-to-garmin', [\App\Http\Controllers\WorkoutController::class, 'sendToGarmin'])->name('workouts.send-to-garmin');
 
-    Route::post('/plans/generate', [PlanController::class, 'generate'])->name('plans.generate');
-
     // Runner Profile Routes (GET redirects to merged profile page)
     Route::get('/profile/runner', fn() => redirect()->route('profile.edit'))->name('runner.profile.show');
     Route::post('/profile/runner', [RunnerProfileController::class, 'store'])->name('runner.profile.store');
-    Route::post('/api/profile/zones', [RunnerProfileController::class, 'previewZones'])->name('runner.profile.preview-zones');
-    Route::get('/api/profile/runner', [RunnerProfileController::class, 'profile'])->name('runner.profile.api');
 
     // Wellbeing Routes
     Route::get('/api/wellbeing/today', [WellbeingController::class, 'today'])->name('wellbeing.today');
@@ -582,11 +576,6 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::post('/api/wellbeing', [WellbeingController::class, 'store'])->name('wellbeing.store');
     Route::get('/api/wellbeing/status', [WellbeingController::class, 'status'])->name('wellbeing.status');
     Route::get('/api/wellbeing/latest/{count?}', [WellbeingController::class, 'latest'])->name('wellbeing.latest');
-
-    // AI Routes
-    Route::get('/ai/analyze/{goal}', [AIController::class, 'analyzeGoal'])->name('ai.analyze');
-    Route::get('/ai/plan/{goal}', [AIController::class, 'generatePlan'])->name('ai.plan');
-    Route::get('/ai/suggestions', [AIController::class, 'suggestionsForAll'])->name('ai.suggestions');
 
     // Coach Chat
     Route::get('/api/coach/messages', [CoachChatController::class, 'messages'])->name('coach.messages');

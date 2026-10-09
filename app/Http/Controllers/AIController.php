@@ -2,11 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Goal;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Services\AI\CoachingTextService;
-use App\Services\AI\TrainingPlanGenerator;
 use App\Services\ProgressService;
 use App\Services\ReturnToRunService;
 use App\Services\WeatherService;
@@ -19,121 +17,10 @@ class AIController extends Controller
 {
     public function __construct(
         protected CoachingTextService $text,
-        protected TrainingPlanGenerator $planner,
         protected ProgressService $progress,
         protected WeatherService $weather,
         protected ReturnToRunService $returnToRun
     ) {}
-
-    /**
-     * Get AI-powered analysis for a specific goal
-     */
-    public function analyzeGoal(Request $request, Goal $goal)
-    {
-        // Check authorization
-        if ($goal->user_id !== $request->user()->id) {
-            abort(403, 'Unauthorized');
-        }
-
-        // Get goal data
-        $goalData = [
-            'name' => $goal->name,
-            'target_value' => $goal->target_value,
-            'start_date' => $goal->start_date->toDateString(),
-            'end_date' => $goal->end_date->toDateString(),
-        ];
-
-        // Get progress data
-        $progressData = $this->progress->calculateProgress($goal);
-
-        // Get recent activities
-        $recentActivities = $goal->user->activities()
-            ->orderByDesc('start_date')
-            ->limit(5)
-            ->get()
-            ->toArray();
-
-        // Get today's wellbeing entry
-        $wellbeingData = $goal->user->wellbeingEntries()
-            ->orderByDesc('date')
-            ->first();
-
-        // Generate AI analysis
-        $this->text->withCoach($goal->user->coach?->personality_prompt)->forUser($goal->user_id);
-        $analysis = $this->text->analyzeTraining($goalData, $progressData, $recentActivities, $wellbeingData);
-
-        return response()->json([
-            'analysis' => $analysis,
-            'progress' => $progressData,
-        ]);
-    }
-
-    /**
-     * Generate AI training plan for a goal
-     */
-    public function generatePlan(Request $request, Goal $goal)
-    {
-        // Check authorization
-        if ($goal->user_id !== $request->user()->id) {
-            abort(403, 'Unauthorized');
-        }
-
-        // Get goal data
-        $goalData = [
-            'name' => $goal->name,
-            'target_value' => $goal->target_value,
-            'start_date' => $goal->start_date->toDateString(),
-            'end_date' => $goal->end_date->toDateString(),
-        ];
-
-        // Get progress data
-        $progressData = $this->progress->calculateProgress($goal);
-
-        // Generate plan
-        $this->planner->withCoach($goal->user->coach?->personality_prompt)->forUser($goal->user_id);
-        $plan = $this->planner->generateTrainingPlan($goalData, $progressData);
-
-        return response()->json([
-            'plan' => $plan,
-        ]);
-    }
-
-    /**
-     * Get all AI suggestions for user's goals
-     */
-    public function suggestionsForAll(Request $request)
-    {
-        $user = $request->user();
-        $goals = $user->goals()->where('active', true)->get();
-
-        $suggestions = [];
-        foreach ($goals as $goal) {
-            $progressData = $this->progress->calculateProgress($goal);
-            $goalData = [
-                'name' => $goal->name,
-                'target_value' => $goal->target_value,
-            ];
-
-            $recentActivities = $user->activities()
-                ->orderByDesc('start_date')
-                ->limit(3)
-                ->get()
-                ->toArray();
-
-            $this->text->withCoach($user->coach?->personality_prompt)->forUser($user->id);
-            $analysis = $this->text->analyzeTraining($goalData, $progressData, $recentActivities);
-
-            $suggestions[] = [
-                'goal_id' => $goal->id,
-                'goal_name' => $goal->name,
-                'analysis' => $analysis,
-            ];
-        }
-
-        return response()->json([
-            'suggestions' => $suggestions,
-        ]);
-    }
 
     public function recommendToday(Request $request)
     {

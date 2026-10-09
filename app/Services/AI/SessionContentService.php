@@ -487,36 +487,6 @@ PROMPT;
     }
 
     /**
-     * Generate training plan using AI
-     */
-    public function generateTrainingPlan(array $goalData, array $progressData): string
-    {
-        $prompt = <<<PROMPT
-Erstelle einen einfachen Trainingsplan für folgendes Ziel:
-
-**Ziel:** {$goalData['name']} - {$goalData['target_value']} km
-- Start: {$goalData['start_date']}
-- Ende: {$goalData['end_date']}
-- Aktueller Stand: {$progressData['completed_distance_km']} / {$goalData['target_value']} km
-
-Gib einen kurzen, praktischen Wochenplan (3-4 Trainingstage) mit:
-- Empfohlene Distanzen pro Tag
-- Intensität (leicht/mittel/intensiv)
-- Ruhetage
-- Motivierende Tipps
-
-Sei präzise und kurz!
-PROMPT;
-
-        $content = $this->ai->chat('plan', [
-            ['role' => 'system', 'content' => 'Du bist ein erfahrener Lauf-Coach. Erstelle praktische, machbare Trainingspläne auf Deutsch.'],
-            ['role' => 'user',   'content' => $prompt],
-        ], 0.7, 1200, 30, $this->ai->mini());
-
-        return $content ?? 'Trainingsplan konnte nicht erstellt werden.';
-    }
-
-    /**
      * Adjust a single training session based on today's wellbeing data.
      * Returns updated session fields or null on failure.
      */

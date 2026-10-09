@@ -3,9 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\RunnerProfile;
-use App\Services\AI\AthleteProfileService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class RunnerProfileController extends Controller
 {
@@ -77,49 +75,4 @@ class RunnerProfileController extends Controller
         }
     }
 
-    /**
-     * Preview pace zones based on input (for real-time preview)
-     */
-    public function previewZones(Request $request, AthleteProfileService $profiles)
-    {
-        $validated = $request->validate([
-            'threshold_speed' => 'required|string|regex:/^[0-9]{1,2}:[0-9]{2}$/',
-        ], [
-            'threshold_speed.regex' => 'Bitte verwende das Format MM:SS (z.B. 5:30)',
-        ]);
-
-        // Prefer ChatGPT-based zone calculation
-        $zones = $profiles->calculatePaceZonesWithAI($validated['threshold_speed']);
-
-        // Fallback to local calculation if AI failed
-        if (empty($zones)) {
-            $paceParts = explode(':', $validated['threshold_speed']);
-            $minutes = (int)$paceParts[0];
-            $seconds = (int)$paceParts[1];
-            $paceInMinutes = (float)($minutes + ($seconds / 60));
-
-            $tempProfile = new RunnerProfile();
-            $tempProfile->threshold_speed = $paceInMinutes;
-            $zones = $tempProfile->calculatePaceZones();
-        }
-
-        return response()->json([
-            'pace_zones' => $zones,
-        ]);
-    }
-
-    /**
-     * Get profile data as JSON (for API/Vue)
-     */
-    public function profile()
-    {
-        $user = Auth::user();
-        $profile = $user->runnerProfile;
-
-        if (!$profile) {
-            return response()->json(['message' => 'Profil nicht gefunden'], 404);
-        }
-
-        return response()->json($profile);
-    }
 }
