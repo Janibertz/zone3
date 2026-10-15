@@ -407,7 +407,7 @@ onUnmounted(() => {
                                 {{ paceZoneInfo.name }}
                             </span>
                         </div>
-                        <h1 class="text-2xl font-bold leading-tight tracking-tight text-ink lg:text-3xl">{{ activity.name }}</h1>
+                        <h1 class="text-[28px] font-bold leading-[34px] text-ink">{{ activity.name }}</h1>
                         <p class="mt-1 text-[15px] text-ink-3">
                             {{ formatDate(activity.start_date) }} · {{ formatTime(activity.start_date) }} Uhr
                             <template v-if="activity.location_city">
@@ -420,54 +420,54 @@ onUnmounted(() => {
                 <!-- ── Kennzahlen ─────────────────────────────────── -->
                 <section class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
                     <div class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Distanz</p>
+                        <p class="text-[13px] font-medium text-ink-3">Distanz</p>
                         <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ (activity.distance / 1000).toFixed(2) }}</p>
                         <p class="mt-1 text-[11px] text-ink-3">km</p>
                     </div>
                     <div class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Bewegungszeit</p>
+                        <p class="text-[13px] font-medium text-ink-3">Bewegungszeit</p>
                         <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ formatDuration(activity.moving_time) }}</p>
                         <p class="mt-1 text-[11px] text-ink-3">ohne Pausen</p>
                     </div>
                     <div v-if="activity.type === 'Run'" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Pace</p>
+                        <p class="text-[13px] font-medium text-ink-3">Pace</p>
                         <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ formatPace(activity.average_speed) }}</p>
                         <p class="mt-1 text-[11px] text-ink-3">min/km</p>
                     </div>
                     <div v-if="activity.type === 'Swim'" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Pace</p>
+                        <p class="text-[13px] font-medium text-ink-3">Pace</p>
                         <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ formatSwimPace(activity.average_speed) }}</p>
                         <p class="mt-1 text-[11px] text-ink-3">min/100m</p>
                     </div>
                     <div v-if="isCycling && activity.average_speed" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Tempo</p>
+                        <p class="text-[13px] font-medium text-ink-3">Tempo</p>
                         <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ (activity.average_speed * 3.6).toFixed(1) }}</p>
                         <p class="mt-1 text-[11px] text-ink-3">km/h</p>
                     </div>
                     <div v-if="isCycling && activity.average_watts" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Leistung</p>
+                        <p class="text-[13px] font-medium text-ink-3">Leistung</p>
                         <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ Math.round(activity.average_watts) }}</p>
                         <p class="mt-1 text-[11px] text-ink-3">Watt</p>
                     </div>
                     <div v-if="activity.total_elevation_gain > 0" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Höhenmeter</p>
+                        <p class="text-[13px] font-medium text-ink-3">Höhenmeter</p>
                         <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ Math.round(activity.total_elevation_gain) }}</p>
                         <p class="mt-1 text-[11px] text-ink-3">m aufwärts</p>
                     </div>
                     <div v-if="activity.average_heartrate" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Puls</p>
+                        <p class="text-[13px] font-medium text-ink-3">Puls</p>
                         <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-danger">{{ Math.round(activity.average_heartrate) }}</p>
                         <p class="mt-1 text-[11px] text-ink-3">
                             Ø bpm<template v-if="activity.max_heartrate"> · max {{ Math.round(activity.max_heartrate) }}</template>
                         </p>
                     </div>
                     <div class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Gesamtzeit</p>
+                        <p class="text-[13px] font-medium text-ink-3">Gesamtzeit</p>
                         <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ formatDuration(activity.elapsed_time) }}</p>
                         <p class="mt-1 text-[11px] text-ink-3">inkl. Pausen</p>
                     </div>
                     <div v-if="!isCycling && activity.max_speed" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Schnellste Pace</p>
+                        <p class="text-[13px] font-medium text-ink-3">Schnellste Pace</p>
                         <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ formatPace(activity.max_speed) }}</p>
                         <p class="mt-1 text-[11px] text-ink-3">min/km</p>
                     </div>

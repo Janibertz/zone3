@@ -47,7 +47,7 @@ function apply() {
     // Keep the browser chrome (iOS status bar, Android address bar) in sync.
     document
         .querySelector('meta[name="theme-color"]')
-        ?.setAttribute('content', isDark.value ? '#09090e' : '#f9fafb');
+        ?.setAttribute('content', isDark.value ? '#000000' : '#f2f2f7');
 }
 
 if (media) {

@@ -1,34 +1,41 @@
 <script setup>
 /**
- * The number-first tile the dashboard is built from: big value, small unit,
- * quiet label. Keeps every metric in the app typographically identical.
+ * Kennzahl-Kachel wie in Health: farbiges Label oben, darunter die Zahl
+ * groß in SF Rounded, die Einheit klein und grau daneben. Die Farbe sitzt
+ * auf dem Label und sagt, WELCHE Kennzahl es ist; die Zahl bleibt in der
+ * Schriftfarbe.
  */
 defineProps({
     label: { type: String, default: null },
     value: { type: [String, Number], default: '–' },
     unit:  { type: String, default: null },
     hint:  { type: String, default: null },
-    /** neutral | success | warn | danger | accent — tints the value only. */
+    /** neutral | success | warn | danger | accent | info | form | fitness — färbt das Label. */
     tone:  { type: String, default: 'neutral' },
 });
 
 const tones = {
-    neutral: 'text-ink',
+    neutral: 'text-ink-3',
     accent:  'text-accent',
     success: 'text-success',
     warn:    'text-warn',
     danger:  'text-danger',
+    info:    'text-info',
+    form:    'text-form',
+    fitness: 'text-fitness',
 };
 </script>
 
 <template>
-    <div class="rounded-card bg-surface p-4 shadow-card">
-        <p v-if="label" class="text-xs font-medium uppercase tracking-wide text-ink-3">{{ label }}</p>
-        <p class="mt-1.5 flex items-baseline gap-1">
-            <span class="text-2xl font-bold tabular-nums tracking-tight" :class="tones[tone] ?? tones.neutral">{{ value }}</span>
-            <span v-if="unit" class="text-sm font-medium text-ink-3">{{ unit }}</span>
+    <div class="flex min-w-0 flex-col rounded-card bg-surface p-4">
+        <p v-if="label" class="flex items-center gap-1.5 text-[15px] font-semibold" :class="tones[tone] ?? tones.neutral">
+            <slot name="icon" />{{ label }}
         </p>
-        <p v-if="hint" class="mt-1 text-xs text-ink-3">{{ hint }}</p>
+        <p class="mt-1.5 flex items-baseline gap-1">
+            <span class="font-rounded text-[32px] font-bold leading-9 tabular-nums tracking-tight text-ink">{{ value }}</span>
+            <span v-if="unit" class="text-[15px] font-semibold text-ink-3">{{ unit }}</span>
+        </p>
+        <p v-if="hint" class="mt-0.5 text-[13px] text-ink-3">{{ hint }}</p>
         <slot />
     </div>
 </template>

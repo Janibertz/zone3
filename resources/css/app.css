@@ -16,125 +16,101 @@
    ═══════════════════════════════════════════════════════════ */
 @layer base {
 
+  /*
+   * Apple-nativ (15.10.2026). Die Werte sind die iOS-Systemfarben, wo sie
+   * Kontrast halten, und deren dunklere „accessible"-Varianten, wo nicht:
+   * #007AFF traegt weisse Schrift nur mit 4,0:1, darum steht das Blau auf
+   * #0071E3. Die enduco-Richtung davor (Indigo, Ambient-Wash, Schatten)
+   * ist nach zwei Monaten Benutzung durchgefallen.
+   */
   :root {
-    /* ── Neutrals (light) ─────────────────────────────────
-       Karten sind reinweiß und tragen KEINEN Rahmen — sie
-       heben sich allein durch den grauen Canvas ab.        */
-    --z-bg:            242 242 245;
+    /* ── Neutrals (light) — systemGroupedBackground & Co. ── */
+    --z-bg:            242 242 247;
     --z-surface:       255 255 255;
-    --z-surface-2:     239 239 242;   /* Chips, Sekundär-Buttons */
-    --z-surface-3:     228 228 233;   /* Hover, gedrückt */
-    --z-border:        233 233 237;   /* nur für Trennlinien */
-    --z-border-strong: 209 209 215;
-    --z-ink:            10  10  12;
-    --z-ink-2:          88  88  95;
-    --z-ink-3:         142 142 147;
+    --z-surface-2:     233 233 238;   /* Fuellungen: Chips, Sekundaer-Buttons */
+    --z-surface-3:     220 220 226;   /* gedrueckt */
+    --z-border:        226 226 230;   /* Trennlinien in Listen */
+    --z-border-strong: 198 198 200;
+    --z-ink:             0   0   0;
+    --z-ink-2:          60  60  67;
+    --z-ink-3:         108 108 112;
 
     /* ── Accents (light) ──────────────────────────────── */
-    --z-accent:         79  70 229;
-    --z-accent-soft:   239 238 254;
-    --z-accent-ink:     67  56 202;
+    --z-accent:          0 113 227;
+    --z-accent-soft:   230 241 253;
+    --z-accent-ink:      0  88 184;
 
-    --z-success:        34 197  94;
-    --z-success-soft:  221 247 231;
-    --z-success-ink:    21 128  61;
+    --z-success:        36 138  61;
+    --z-success-soft:  227 245 232;
+    --z-success-ink:    25 110  46;
 
-    --z-warn:          245 158  11;
-    --z-warn-soft:     254 246 227;
-    --z-warn-ink:      180  83   9;
+    --z-warn:          196  92   0;
+    --z-warn-soft:     255 240 224;
+    --z-warn-ink:      160  70   0;
 
-    --z-danger:        239  68  68;
-    --z-danger-soft:   254 238 238;
-    --z-danger-ink:    185  28  28;
+    --z-danger:        215   0  21;
+    --z-danger-soft:   253 233 235;
+    --z-danger-ink:    175   0  18;
 
-    --z-info:           59 130 246;
-    --z-info-soft:     231 240 255;
-    --z-info-ink:       29  78 216;
+    --z-info:           88  86 214;
+    --z-info-soft:     238 238 252;
+    --z-info-ink:       64  62 180;
 
-    /* ── Ambient-Wash hinter dem Seitenkopf ───────────── */
-    --z-wash-good-a:   214 244 224;   /* Minze  – alles im grünen Bereich */
-    --z-wash-good-b:   226 247 233;
-    --z-wash-calm-a:   225 224 246;   /* Lavendel → Pfirsich */
-    --z-wash-calm-b:   250 233 221;
+    /* ── Kennzahl-Farben — je Kennzahl eine, wie in Health ── */
+    --z-form:          211  32  79;   /* Form (TSB) */
+    --z-fitness:       138  63 209;   /* Fitness (CTL) */
 
-    /* ── Elevation (light) — bewusst fast unsichtbar ──── */
-    --z-shadow-card:  0 1px 2px rgb(10 10 12 / 0.04);
-    --z-shadow-sheet: 0 -8px 40px rgb(10 10 12 / 0.18);
-    --z-shadow-bar:   0 -1px 0 rgb(10 10 12 / 0.06);
+    /* ── Elevation (light) — Karten tragen keinen Schatten ── */
+    --z-shadow-card:  0 0 #0000;
+    --z-shadow-sheet: 0 -8px 40px rgb(0 0 0 / 0.16);
+    --z-shadow-bar:   0 -0.5px 0 rgb(0 0 0 / 0.16);
   }
 
   .dark {
     /* ── Neutrals (dark) ──────────────────────────────── */
-    --z-bg:             10  10  12;
-    --z-surface:        24  24  27;
-    --z-surface-2:      35  35  39;
-    --z-surface-3:      48  48  54;
-    --z-border:         38  38  43;
-    --z-border-strong:  63  63  70;
-    --z-ink:           250 250 250;
-    --z-ink-2:         163 163 170;
-    --z-ink-3:         113 113 122;
+    --z-bg:              0   0   0;
+    --z-surface:        28  28  30;
+    --z-surface-2:      44  44  46;
+    --z-surface-3:      58  58  60;
+    --z-border:         56  56  58;
+    --z-border-strong:  84  84  88;
+    --z-ink:           255 255 255;
+    --z-ink-2:         174 174 178;
+    --z-ink-3:         142 142 147;
 
-    /* ── Accents (dark) — angehoben für Kontrast ─────── */
-    --z-accent:        129 140 248;
-    --z-accent-soft:    34  33  64;
-    --z-accent-ink:    165 180 252;
+    /* ── Accents (dark) — die hellen iOS-Varianten ────── */
+    --z-accent:         10 132 255;
+    --z-accent-soft:    10  38  74;
+    --z-accent-ink:    100 170 255;
 
-    --z-success:        74 222 128;
-    --z-success-soft:   17  46  30;
-    --z-success-ink:   134 239 172;
+    --z-success:        48 209  88;
+    --z-success-soft:   14  46  24;
+    --z-success-ink:   110 225 140;
 
-    --z-warn:          251 191  36;
-    --z-warn-soft:      51  39  14;
-    --z-warn-ink:      253 215 116;
+    --z-warn:          255 159  10;
+    --z-warn-soft:      58  38   8;
+    --z-warn-ink:      255 190  90;
 
-    --z-danger:        248 113 113;
-    --z-danger-soft:    55  25  26;
-    --z-danger-ink:    252 165 165;
+    --z-danger:        255  69  58;
+    --z-danger-soft:    64  18  16;
+    --z-danger-ink:    255 130 120;
 
-    --z-info:           96 165 250;
-    --z-info-soft:      21  35  60;
-    --z-info-ink:      147 197 253;
+    --z-info:           94  92 230;
+    --z-info-soft:      30  30  66;
+    --z-info-ink:      160 158 255;
 
-    /* ── Ambient-Wash (dark) — nur ein Hauch Farbe ───── */
-    --z-wash-good-a:    17  40  28;
-    --z-wash-good-b:    14  30  22;
-    --z-wash-calm-a:    28  27  48;
-    --z-wash-calm-b:    45  32  26;
+    --z-form:          255  55  95;
+    --z-fitness:       191  90 242;
 
     /* ── Elevation (dark) ─────────────────────────────── */
-    --z-shadow-card:  0 1px 2px rgb(0 0 0 / 0.5);
+    --z-shadow-card:  0 0 #0000;
     --z-shadow-sheet: 0 -8px 40px rgb(0 0 0 / 0.7);
-    --z-shadow-bar:   0 -1px 0 rgb(255 255 255 / 0.06);
+    --z-shadow-bar:   0 -0.5px 0 rgb(255 255 255 / 0.14);
   }
 
   /* Keep the browser UI (form controls, scrollbars) in sync. */
   :root       { color-scheme: light; }
   .dark:root  { color-scheme: dark; }
-}
-
-/* ── Ambient-Wash ───────────────────────────────────────────
-   Weicher Farbschleier hinter dem Seitenkopf, der nach unten
-   in den Canvas ausblendet. `good` signalisiert „alles im
-   grünen Bereich", `calm` ist der neutrale Standard.        */
-@layer components {
-  .z-wash {
-    background-repeat: no-repeat;
-    background-size: 100% 22rem;
-    background-position: top;
-  }
-
-  .z-wash-good {
-    background-image:
-      linear-gradient(180deg, transparent 45%, rgb(var(--z-bg)) 100%),
-      linear-gradient(105deg, rgb(var(--z-wash-good-a)) 0%, rgb(var(--z-wash-good-b)) 100%);
-  }
-
-  .z-wash-calm {
-    background-image:
-      linear-gradient(180deg, transparent 45%, rgb(var(--z-bg)) 100%),
-      linear-gradient(105deg, rgb(var(--z-wash-calm-a)) 0%, rgb(var(--z-wash-calm-b)) 100%);
-  }
 }
 
 /* ── Form primitives ────────────────────────────────────── */

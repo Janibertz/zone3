@@ -377,7 +377,7 @@ watch(isOpen, async (val) => {
                         <!-- Tagestrenner -->
                         <div v-if="daySeparator(msg, i)" class="flex items-center gap-3 pt-2">
                             <span class="h-px flex-1 bg-line" />
-                            <span class="text-[11px] font-medium uppercase tracking-wide text-ink-3">
+                            <span class="text-[13px] text-ink-3">
                                 {{ daySeparator(msg, i) }}
                             </span>
                             <span class="h-px flex-1 bg-line" />
@@ -396,7 +396,7 @@ watch(isOpen, async (val) => {
                                 <div
                                     class="rounded-card px-3.5 py-2.5 text-sm leading-relaxed"
                                     :class="msg.role === 'user'
-                                        ? 'whitespace-pre-wrap rounded-br-sm bg-ink text-canvas'
+                                        ? 'whitespace-pre-wrap rounded-br-sm bg-accent text-white'
                                         : msg.isError
                                             ? 'whitespace-pre-wrap rounded-bl-sm bg-danger-soft text-danger-ink'
                                             : 'rounded-bl-sm bg-surface text-ink shadow-card'"
@@ -471,7 +471,7 @@ watch(isOpen, async (val) => {
                     <button
                         :disabled="!inputText.trim() || isLoading"
                         aria-label="Senden"
-                        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink text-canvas transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+                        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-white transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
                         @click="sendMessage()"
                     >
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

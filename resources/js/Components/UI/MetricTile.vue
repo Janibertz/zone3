@@ -39,16 +39,16 @@ const toneClass = computed(() => TONES[props.tone] ?? TONES.none);
 </script>
 
 <template>
-    <div class="flex min-w-0 flex-col items-center rounded-card bg-surface px-2 py-4 shadow-card">
+    <div class="flex min-w-0 flex-col items-center rounded-card bg-surface px-2 py-4">
         <div class="relative h-16 w-16 shrink-0">
             <svg viewBox="0 0 64 64" class="h-16 w-16 -rotate-90">
-                <circle cx="32" cy="32" :r="R" fill="none" stroke="rgb(var(--z-surface-3))" stroke-width="5" />
+                <circle cx="32" cy="32" :r="R" fill="none" stroke="rgb(var(--z-surface-2))" stroke-width="6" />
                 <circle
                     v-if="pct !== null"
                     cx="32" cy="32" :r="R"
                     fill="none"
                     stroke="currentColor"
-                    stroke-width="5"
+                    stroke-width="6"
                     stroke-linecap="round"
                     :stroke-dasharray="dash"
                     :class="toneClass"
@@ -56,12 +56,12 @@ const toneClass = computed(() => TONES[props.tone] ?? TONES.none);
                 />
             </svg>
             <div class="absolute inset-0 flex flex-col items-center justify-center">
-                <span class="text-[15px] font-bold leading-none tabular-nums text-ink">{{ value }}</span>
-                <span v-if="unit" class="mt-0.5 text-[9px] font-medium leading-none text-ink-3">{{ unit }}</span>
+                <span class="font-rounded text-[17px] font-bold leading-none tabular-nums text-ink">{{ value }}</span>
+                <span v-if="unit" class="mt-0.5 text-[10px] font-semibold leading-none text-ink-3">{{ unit }}</span>
             </div>
         </div>
 
-        <p class="mt-2.5 w-full truncate text-center text-[11px] font-bold uppercase tracking-wide text-ink">{{ label }}</p>
-        <p v-if="hint" class="mt-0.5 w-full truncate text-center text-[11px] text-ink-3">{{ hint }}</p>
+        <p class="mt-2.5 w-full truncate text-center text-[13px] font-semibold text-ink">{{ label }}</p>
+        <p v-if="hint" class="mt-0.5 w-full truncate text-center text-[12px] text-ink-3">{{ hint }}</p>
     </div>
 </template>

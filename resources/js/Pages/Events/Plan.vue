@@ -891,7 +891,7 @@ const lapHeightPct = computed(() => {
                                 </span>
                             </div>
 
-                            <h1 class="mt-2 text-2xl font-bold tracking-tight text-ink lg:text-3xl">{{ event.name }}</h1>
+                            <h1 class="mt-2 text-[28px] font-bold leading-[34px] text-ink">{{ event.name }}</h1>
 
                             <!--
                                 Vier Angaben in einer Kette aus Mittelpunkten
@@ -1273,11 +1273,11 @@ const lapHeightPct = computed(() => {
 
                                     <div class="mt-4 grid grid-cols-2 gap-4 border-t border-line pt-3.5">
                                         <div>
-                                            <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Längster Lauf</p>
+                                            <p class="text-[13px] text-ink-3">Längster Lauf</p>
                                             <p class="mt-0.5 text-[15px] font-semibold tabular-nums text-ink">{{ backyard.readiness.longest_run_km }} km</p>
                                         </div>
                                         <div>
-                                            <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Peak-Woche</p>
+                                            <p class="text-[13px] text-ink-3">Peak-Woche</p>
                                             <p class="mt-0.5 text-[15px] font-semibold tabular-nums text-ink">{{ backyard.readiness.peak_weekly_km }} km</p>
                                         </div>
                                     </div>
@@ -1291,7 +1291,7 @@ const lapHeightPct = computed(() => {
                                 <div class="overflow-x-auto px-5 pb-5">
                                     <table class="w-full text-[13px]">
                                         <thead>
-                                            <tr class="text-left text-[11px] font-medium uppercase tracking-wide text-ink-3">
+                                            <tr class="text-left text-[13px] text-ink-3">
                                                 <th class="pb-2 pr-3 font-medium">Pace</th>
                                                 <th class="pb-2 pr-3 font-medium">Rundenzeit</th>
                                                 <th class="pb-2 font-medium">Pause</th>
@@ -1352,7 +1352,7 @@ const lapHeightPct = computed(() => {
 
                                 <div class="grid grid-cols-2 gap-3">
                                     <div class="rounded-field bg-surface-2 p-3.5">
-                                        <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Zielzeit</p>
+                                        <p class="text-[13px] text-ink-3">Zielzeit</p>
                                         <p class="mt-1 text-xl font-bold tabular-nums text-ink-2">{{ event.target_time_formatted || '—' }}</p>
                                     </div>
                                     <div class="rounded-field p-3.5 transition-colors"
@@ -1478,7 +1478,7 @@ const lapHeightPct = computed(() => {
                     <!-- Was der Prüfer an der Antwort des Modells korrigieren musste.
                          Stand bisher nur im Log. -->
                     <div v-if="rev.corrections.length" class="mt-3.5 border-t border-line pt-3">
-                        <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-3">Automatisch korrigiert</p>
+                        <p class="mb-1.5 text-[13px] font-semibold text-ink-3">Automatisch korrigiert</p>
                         <ul class="space-y-1">
                             <li v-for="(corr, i) in rev.corrections" :key="i" class="text-[12px] leading-relaxed text-ink-3">
                                 {{ corr }}
@@ -1497,7 +1497,7 @@ const lapHeightPct = computed(() => {
             <div class="flex flex-wrap gap-2">
                 <button v-for="r in skipReasons" :key="r" @click="skipReason = r"
                     class="rounded-full px-3.5 py-2 text-[13px] font-medium transition-colors active:scale-95"
-                    :class="skipReason === r ? 'bg-ink text-canvas' : 'bg-surface-2 text-ink-2 hover:bg-surface-3'">
+                    :class="skipReason === r ? 'bg-accent text-white' : 'bg-surface-2 text-ink-2 hover:bg-surface-3'">
                     {{ r }}
                 </button>
             </div>
@@ -1696,7 +1696,7 @@ const lapHeightPct = computed(() => {
                                         <div class="flex items-center gap-2.5">
                                             <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="stepBarColor[step.type]" />
                                             <div class="min-w-0 flex-1">
-                                                <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">
+                                                <p class="text-[13px] text-ink-3">
                                                     {{ stepLabel[step.type] ?? step.type }}
                                                 </p>
                                                 <p class="text-[13px] font-medium text-ink">{{ step.label }}</p>
@@ -1734,7 +1734,7 @@ const lapHeightPct = computed(() => {
                             ]" :key="block.key" class="rounded-card bg-surface-2 p-4">
                                 <div class="mb-2.5 flex items-center gap-2">
                                     <span class="text-base leading-none">{{ block.icon }}</span>
-                                    <span class="text-[11px] font-bold uppercase tracking-wide text-ink-3">{{ block.label }}</span>
+                                    <span class="text-[13px] font-semibold text-ink-3">{{ block.label }}</span>
                                 </div>
                                 <ul class="space-y-2">
                                     <li v-for="tip in block.tips" :key="tip.text" class="flex items-start gap-2.5">
@@ -1810,7 +1810,7 @@ const lapHeightPct = computed(() => {
                         <div class="overflow-x-auto">
                             <table class="w-full text-[13px]">
                                 <thead>
-                                    <tr class="text-left text-[11px] font-medium uppercase tracking-wide text-ink-3">
+                                    <tr class="text-left text-[13px] text-ink-3">
                                         <th class="pb-2 pr-3 font-medium">#</th>
                                         <th class="pb-2 pr-3 font-medium">Zeit</th>
                                         <th class="pb-2 pr-3 font-medium">Distanz</th>

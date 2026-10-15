@@ -310,7 +310,7 @@ const sideValues = computed(() => [
             <!-- Readiness + aktuelle Werte -->
             <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <AppCard class="lg:col-span-2">
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Training Readiness</p>
+                    <p class="text-[13px] font-medium text-ink-3">Training Readiness</p>
                     <template v-if="readiness != null">
                         <p class="mt-1 flex items-baseline gap-2">
                             <span class="text-5xl font-bold tabular-nums tracking-tight" :style="{ color: readinessColor }">{{ readiness }}</span>
@@ -349,7 +349,7 @@ const sideValues = computed(() => [
             <!-- Vier Kacheln -->
             <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
                 <AppCard v-for="t in tiles" :key="t.label">
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">{{ t.label }}</p>
+                    <p class="text-[13px] font-medium text-ink-3">{{ t.label }}</p>
                     <p class="mt-1 flex items-baseline gap-1">
                         <span class="text-2xl font-bold tabular-nums tracking-tight" :style="{ color: t.color }">
                             {{ t.value == null ? '–' : Number(t.value).toFixed(t.digits) }}

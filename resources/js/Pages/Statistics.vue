@@ -223,7 +223,7 @@ const avgDistance = computed(() => {
 
                 <header class="flex items-end justify-between gap-3 px-1">
                     <div class="min-w-0">
-                        <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Statistiken</h1>
+                        <h1 class="text-[34px] font-bold leading-[41px] text-ink">Statistiken</h1>
                         <p class="mt-1 text-[15px] text-ink-3">Deine Trainingsanalyse auf einen Blick</p>
                     </div>
                     <AppButton :href="route('wrapped.index')" variant="secondary" size="sm" class="shrink-0">
@@ -314,17 +314,17 @@ const avgDistance = computed(() => {
 
                                 <div v-if="seriesSummary" class="mt-5 grid grid-cols-3 divide-x divide-line border-t border-line">
                                     <div class="px-5 py-3.5">
-                                        <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Gesamt</p>
+                                        <p class="text-[13px] text-ink-3">Gesamt</p>
                                         <p class="mt-1 text-[15px] font-semibold tabular-nums text-ink">{{ km(seriesSummary.total) }} km</p>
                                     </div>
                                     <div class="px-5 py-3.5">
-                                        <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">
+                                        <p class="text-[13px] text-ink-3">
                                             Ø {{ range === 'weeks' ? 'Woche' : 'Monat' }}
                                         </p>
                                         <p class="mt-1 text-[15px] font-semibold tabular-nums text-ink">{{ km(seriesSummary.avg) }} km</p>
                                     </div>
                                     <div class="px-5 py-3.5">
-                                        <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Trend</p>
+                                        <p class="text-[13px] text-ink-3">Trend</p>
                                         <p v-if="momentum"
                                             class="mt-1 text-[15px] font-semibold tabular-nums"
                                             :class="momentum.up ? 'text-success' : 'text-ink-2'">
@@ -406,15 +406,15 @@ const avgDistance = computed(() => {
 
                                 <div v-if="paceStats" class="mt-5 grid grid-cols-3 divide-x divide-line border-t border-line">
                                     <div class="px-4 py-3.5">
-                                        <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Schnellste</p>
+                                        <p class="text-[13px] text-ink-3">Schnellste</p>
                                         <p class="mt-1 text-[15px] font-semibold tabular-nums text-success">{{ fmtPace(paceStats.fastest) }}</p>
                                     </div>
                                     <div class="px-4 py-3.5">
-                                        <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Ø</p>
+                                        <p class="text-[13px] text-ink-3">Ø</p>
                                         <p class="mt-1 text-[15px] font-semibold tabular-nums text-ink">{{ fmtPace(paceStats.avg) }}</p>
                                     </div>
                                     <div class="px-4 py-3.5">
-                                        <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Langsamste</p>
+                                        <p class="text-[13px] text-ink-3">Langsamste</p>
                                         <p class="mt-1 text-[15px] font-semibold tabular-nums text-ink-2">{{ fmtPace(paceStats.slowest) }}</p>
                                     </div>
                                 </div>

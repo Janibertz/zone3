@@ -186,7 +186,7 @@ watch(() => form.race_distance, (val) => {
                 -->
                 <header class="flex flex-col gap-4 px-1 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
                     <div class="min-w-0">
-                        <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Events &amp; Rennen</h1>
+                        <h1 class="text-[34px] font-bold leading-[41px] text-ink">Events &amp; Rennen</h1>
                         <p class="mt-1 text-[15px] text-ink-3">
                             Plane deine Wettkämpfe — {{ coachName }} baut den Plan dazu.
                         </p>

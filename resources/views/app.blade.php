@@ -32,7 +32,7 @@
              Wahl ignorieren. Den richtigen Wert setzt das Theme-Skript unten
              noch vor dem ersten Paint; `useDarkMode.js` haelt ihn danach
              synchron. Die drei Stellen muessen dieselben Farben benutzen. --}}
-        <meta name="theme-color" content="#f9fafb">
+        <meta name="theme-color" content="#f2f2f7">
 
         {{-- Theme vor dem ersten Paint — muss im <head> laufen, sonst blitzt
              das falsche Thema auf. Steht bewusst HINTER dem theme-color-Tag:
@@ -53,7 +53,7 @@
                 document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
 
                 var tag = document.querySelector('meta[name="theme-color"]');
-                if (tag) tag.setAttribute('content', dark ? '#09090e' : '#f9fafb');
+                if (tag) tag.setAttribute('content', dark ? '#000000' : '#f2f2f7');
             })();
         </script>
         <meta name="apple-mobile-web-app-capable" content="yes">
@@ -65,8 +65,6 @@
         <title inertia>{{ config('app.name', 'Zone3') }}</title>
 
         <!-- Fonts -->
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
         <!-- Scripts -->
         @routes

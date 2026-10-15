@@ -19,9 +19,9 @@ const tones = {
 </script>
 
 <template>
-    <div class="min-w-0 rounded-card bg-surface px-3.5 py-3 shadow-card">
-        <p class="truncate text-[10px] font-bold uppercase tracking-wider text-ink">{{ label }}</p>
-        <p class="mt-1.5 flex min-w-0 items-center gap-1.5 text-[17px] font-bold leading-none tabular-nums"
+    <div class="min-w-0 rounded-card bg-surface px-3.5 py-3">
+        <p class="truncate text-[13px] font-medium text-ink-3">{{ label }}</p>
+        <p class="mt-1 flex min-w-0 items-center gap-1.5 font-rounded text-[17px] font-bold leading-6 tabular-nums"
             :class="tones[tone] ?? tones.neutral">
             <slot name="icon" />
             <span class="truncate"><slot>{{ value }}</slot></span>

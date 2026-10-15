@@ -528,7 +528,7 @@ onUnmounted(() => {
                  ══════════════════════════════════════════════════ -->
             <section class="rounded-card bg-surface p-6 text-center shadow-card">
                 <template v-if="isOver">
-                    <p class="text-[11px] font-bold uppercase tracking-widest text-ink-3">Endstand</p>
+                    <p class="text-[13px] font-semibold text-ink-3">Endstand</p>
                     <p class="mt-2 text-6xl font-bold tabular-nums tracking-tight text-ink">{{ completedYards }}</p>
                     <p class="mt-1 text-[15px] text-ink-3">
                         {{ completedYards === 1 ? 'Runde' : 'Runden' }} · {{ distanceKm }} km
@@ -536,12 +536,12 @@ onUnmounted(() => {
                 </template>
 
                 <template v-else-if="!hasStarted">
-                    <p class="text-[11px] font-bold uppercase tracking-widest text-ink-3">Start in</p>
+                    <p class="text-[13px] font-semibold text-ink-3">Start in</p>
                     <p class="mt-2 text-5xl font-bold tabular-nums tracking-tight text-ink">{{ clock(secondsToBell) }}</p>
                 </template>
 
                 <template v-else>
-                    <p class="text-[11px] font-bold uppercase tracking-widest text-ink-3">Yard {{ currentYard }}</p>
+                    <p class="text-[13px] font-semibold text-ink-3">Yard {{ currentYard }}</p>
                     <p class="mt-2 text-6xl font-bold tabular-nums tracking-tight"
                         :class="bellUrgent ? 'text-danger' : 'text-ink'">
                         {{ clock(secondsToBell) }}
@@ -561,13 +561,13 @@ onUnmounted(() => {
                  ══════════════════════════════════════════════════ -->
             <section class="grid grid-cols-2 gap-3">
                 <div class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Runden</p>
+                    <p class="text-[13px] font-medium text-ink-3">Runden</p>
                     <p class="mt-1 text-2xl font-bold tabular-nums text-ink">
                         {{ completedYards }}<span v-if="data.targetYards" class="text-[15px] font-medium text-ink-3"> / {{ data.targetYards }}</span>
                     </p>
                 </div>
                 <div class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Distanz</p>
+                    <p class="text-[13px] font-medium text-ink-3">Distanz</p>
                     <p class="mt-1 text-2xl font-bold tabular-nums text-ink">
                         {{ distanceKm }}<span class="text-[15px] font-medium text-ink-3"> km</span>
                     </p>

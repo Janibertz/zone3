@@ -142,15 +142,15 @@ const beispielWoche = [
 
                         <div class="mt-5 grid grid-cols-3 gap-4 border-t border-line pt-4">
                             <div>
-                                <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Einheiten</p>
+                                <p class="text-[13px] font-medium text-ink-3">Einheiten</p>
                                 <p class="mt-1 text-xl font-bold tabular-nums text-ink">2</p>
                             </div>
                             <div>
-                                <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Kilometer</p>
+                                <p class="text-[13px] font-medium text-ink-3">Kilometer</p>
                                 <p class="mt-1 text-xl font-bold tabular-nums text-ink">20,6</p>
                             </div>
                             <div>
-                                <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Ø Pace</p>
+                                <p class="text-[13px] font-medium text-ink-3">Ø Pace</p>
                                 <p class="mt-1 text-xl font-bold tabular-nums text-ink">5:14</p>
                             </div>
                         </div>
@@ -252,11 +252,11 @@ const beispielWoche = [
 
                         <div class="mt-3 flex gap-2">
                             <div class="flex-1 rounded-field bg-surface-2 px-3 py-2">
-                                <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Dein Ziel</p>
+                                <p class="text-[13px] text-ink-3">Dein Ziel</p>
                                 <p class="mt-0.5 text-lg font-bold tabular-nums text-ink">3:30</p>
                             </div>
                             <div class="flex-1 rounded-field bg-surface-2 px-3 py-2">
-                                <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Deine Form</p>
+                                <p class="text-[13px] text-ink-3">Deine Form</p>
                                 <p class="mt-0.5 text-lg font-bold tabular-nums text-ink">3:26</p>
                             </div>
                         </div>

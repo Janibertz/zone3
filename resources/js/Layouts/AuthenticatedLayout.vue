@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { useDarkMode } from '@/Composables/useDarkMode';
 import { useCoachChat } from '@/Composables/useCoachChat';
@@ -14,33 +14,12 @@ import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 const { updateReady, startVersionPolling, reload } = useVersionCheck();
 onMounted(() => startVersionPolling());
 
-/**
- * Der schwebende Hilfe-Knopf blendet sich beim Abwärtsscrollen aus.
- *
- * Er liegt ueber dem Inhalt und verdeckte deshalb in jeder Scrollposition
- * Text. Beim Lesen geht es abwaerts — dann ist er weg; beim Hochwischen und
- * ganz oben ist er wieder da. Bewusst nicht "waehrend des Scrollens
- * ausblenden und danach zurueck": genau beim Stehenbleiben will man lesen,
- * und genau dann laege er wieder im Weg.
+/*
+ * Hier stand ein schwebender Hilfe-Knopf. Er lag in jeder Scrollposition
+ * auf Text, und iOS kennt das Muster nicht — eine schwebende Aktion ist
+ * Android. „Hilfe & Feedback" steht jetzt im Mehr-Sheet und in der
+ * Seitenleiste, wie eine Zeile in den Einstellungen.
  */
-const helpVisible = ref(true);
-
-onMounted(() => {
-    let last = window.scrollY;
-
-    const onScroll = () => {
-        const y = window.scrollY;
-
-        // Kleine Ausschlaege ignorieren, sonst flackert er bei jedem Wackeln.
-        if (Math.abs(y - last) < 8) return;
-
-        helpVisible.value = y < last || y < 40;
-        last = y;
-    };
-
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onUnmounted(() => window.removeEventListener('scroll', onScroll));
-});
 
 // Pull-to-refresh (touch devices only)
 const { pullDistance, refreshing, threshold: ptrThreshold } = usePullToRefresh();
@@ -65,7 +44,7 @@ const themeOptions = [
 
 const navItems = [
     {
-        label: 'Dashboard',
+        label: 'Heute',
         routeName: 'dashboard',
         icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />`,
     },
@@ -106,9 +85,10 @@ const navItems = [
     },
 ];
 
-// Mobile bottom bar: Dashboard · Events/Plan · Kalender · Profil + "Mehr" sheet.
-// When a plan is active, the second tab links directly to that plan; otherwise
-// it points to the Events overview.
+// Tab-Leiste: Heute · Plan (bzw. Events) · Kalender · Aktivitäten · Mehr.
+// Das Profil sitzt als Avatar oben rechts, wie in den Apple-Apps — es ist
+// eine Einstellung, kein Ort, an den man täglich geht. Mit aktivem Plan
+// fuehrt der zweite Tab direkt dorthin, sonst zur Event-Uebersicht.
 const planTabIcon = `<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />`;
 
 /** Nach Routennamen statt nach Index — sonst verschiebt jeder neue
@@ -123,22 +103,26 @@ const mobileNavItems = computed(() => {
         nav('dashboard'),
         eventsOrPlan,
         nav('calendar'),
-        nav('profile.edit'),
+        nav('activities.index'),
     ];
 });
 
 // Items shown in the "Mehr" sheet — everything not on the bottom bar.
+// `tint` ist die Farbe des Icon-Quadrats, wie in den iOS-Einstellungen:
+// weisses Symbol auf farbiger Flaeche, damit man die Zeile am Icon findet.
 const moreNavItems = computed(() => {
     const items = [
-        nav('activities.index'),
-        nav('statistics.index'),
-        nav('workouts.index'),
-        nav('live.manage'),
+        { ...nav('statistics.index'), tint: 'bg-fitness' },
+        { ...nav('workouts.index'),   tint: 'bg-warn' },
+        { ...nav('live.manage'),      tint: 'bg-success' },
+        { ...nav('profile.edit'),     tint: 'bg-ink-3' },
     ];
     // With an active plan the bottom bar shows "Plan", so surface Events here too.
-    if (activePlan.value) items.splice(1, 0, nav('events.index'));
+    if (activePlan.value) items.splice(0, 0, { ...nav('events.index'), tint: 'bg-danger' });
     return items;
 });
+
+const helpIcon = `<path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />`;
 </script>
 
 <template>
@@ -274,54 +258,67 @@ const moreNavItems = computed(() => {
         <!-- ══════════════════════════════════════
              DESKTOP SIDEBAR (hidden on mobile)
              ══════════════════════════════════════ -->
-        <aside class="hidden flex-col border-r border-line bg-surface lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-64">
+        <!--
+            Seitenleiste wie auf dem iPad: grauer Grund, die aktive Zeile in
+            der Akzentfarbe gefuellt, Abschnittsnamen klein und grau statt
+            gesperrter Versalien.
+        -->
+        <aside class="hidden flex-col border-r border-line bg-canvas lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-64">
             <!-- Logo -->
-            <div class="flex h-16 shrink-0 items-center gap-3 border-b border-line px-6">
-                <div class="flex h-8 w-8 items-center justify-center rounded-field bg-accent shadow-card">
+            <div class="flex h-16 shrink-0 items-center gap-3 px-5">
+                <div class="flex h-8 w-8 items-center justify-center rounded-[9px] bg-accent">
                     <span class="text-sm font-bold text-white">Z3</span>
                 </div>
-                <span class="text-lg font-bold tracking-tight text-ink">Zone3</span>
+                <span class="text-[20px] font-bold text-ink">Zone3</span>
             </div>
 
             <!-- Navigation -->
-            <nav class="flex-1 space-y-0.5 overflow-y-auto px-3 py-5">
-                <p class="mb-3 px-3 text-[10px] font-semibold uppercase tracking-widest text-ink-3">Navigation</p>
+            <nav class="flex-1 space-y-0.5 overflow-y-auto px-3 pb-5 pt-2">
                 <Link
                     v-for="item in navItems"
                     :key="item.routeName"
                     :href="route(item.routeName)"
-                    class="flex items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium transition duration-150"
+                    class="flex items-center gap-3 rounded-[10px] px-3 py-2 text-[15px] transition duration-150 ease-out-strong"
                     :class="route().current(item.routeName)
-                        ? 'bg-accent-soft text-accent-ink'
-                        : 'text-ink-2 hover:bg-surface-2 hover:text-ink'"
+                        ? 'bg-accent font-semibold text-white'
+                        : 'text-ink hover:bg-surface-2'"
                 >
-                    <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
+                    <svg class="h-5 w-5 shrink-0" :class="route().current(item.routeName) ? '' : 'text-accent'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
                     {{ item.label }}
-                    <span v-if="route().current(item.routeName)" class="ml-auto h-1.5 w-1.5 rounded-full bg-accent" />
                 </Link>
 
                 <!-- Active plan link -->
-                <div v-if="activePlan" class="mt-4 border-t border-line pt-4">
-                    <p class="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-ink-3">Aktiver Plan</p>
+                <div v-if="activePlan" class="pt-5">
+                    <p class="mb-1 px-3 text-[13px] font-semibold text-ink-3">Aktiver Plan</p>
                     <Link
                         :href="route('events.plan.show', activePlan.event_id)"
-                        class="flex items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium transition duration-150"
+                        class="flex items-center gap-3 rounded-[10px] px-3 py-2 text-[15px] transition duration-150 ease-out-strong"
                         :class="route().current('events.plan.show')
-                            ? 'bg-accent-soft text-accent-ink'
-                            : 'text-ink-2 hover:bg-surface-2 hover:text-ink'"
+                            ? 'bg-accent font-semibold text-white'
+                            : 'text-ink hover:bg-surface-2'"
                     >
-                        <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="planTabIcon" />
+                        <svg class="h-5 w-5 shrink-0" :class="route().current('events.plan.show') ? '' : 'text-accent'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="planTabIcon" />
                         <span class="truncate">{{ activePlan.event_name }}</span>
-                        <span v-if="route().current('events.plan.show')" class="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+                    </Link>
+                </div>
+
+                <div class="pt-5">
+                    <p class="mb-1 px-3 text-[13px] font-semibold text-ink-3">Hilfe</p>
+                    <Link
+                        :href="route('support.tickets.index')"
+                        class="flex items-center gap-3 rounded-[10px] px-3 py-2 text-[15px] text-ink transition duration-150 ease-out-strong hover:bg-surface-2"
+                    >
+                        <svg class="h-5 w-5 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="helpIcon" />
+                        Hilfe &amp; Feedback
                     </Link>
                 </div>
 
                 <!-- Admin link -->
-                <div v-if="isAdmin" class="mt-4 border-t border-line pt-4">
-                    <p class="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-ink-3">System</p>
+                <div v-if="isAdmin" class="pt-5">
+                    <p class="mb-1 px-3 text-[13px] font-semibold text-ink-3">System</p>
                     <Link
                         :href="route('admin.dashboard')"
-                        class="flex items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium text-danger transition duration-150 hover:bg-danger-soft"
+                        class="flex items-center gap-3 rounded-[10px] px-3 py-2 text-[15px] text-danger transition duration-150 ease-out-strong hover:bg-danger-soft"
                     >
                         <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
@@ -335,7 +332,7 @@ const moreNavItems = computed(() => {
             <div v-if="coach" class="shrink-0 px-3 pb-3">
                 <button
                     @click="openChat"
-                    class="flex w-full items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium text-accent transition duration-150 hover:bg-accent-soft"
+                    class="flex w-full items-center gap-3 rounded-[10px] px-3 py-2 text-[15px] font-medium text-accent transition duration-150 ease-out-strong hover:bg-accent-soft active:scale-[0.98]"
                 >
                     <div
                         class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white"
@@ -351,16 +348,16 @@ const moreNavItems = computed(() => {
             <!-- Theme + user -->
             <div class="shrink-0 space-y-3 border-t border-line p-4">
                 <div>
-                    <p class="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-ink-3">Darstellung</p>
+                    <p class="mb-1.5 text-[13px] font-semibold text-ink-3">Darstellung</p>
                     <SegmentedControl :model-value="theme" :options="themeOptions" @update:model-value="setTheme" />
                 </div>
-                <div class="flex items-center gap-3 px-2 py-1">
+                <Link :href="route('profile.edit')" class="flex items-center gap-3 rounded-[10px] px-2 py-1.5 transition-colors hover:bg-surface-2">
                     <UserAvatar :user="user" size="md" />
                     <div class="min-w-0 flex-1">
                         <p class="truncate text-sm font-semibold text-ink">{{ user.name }}</p>
                         <p class="truncate text-xs text-ink-3">{{ user.email }}</p>
                     </div>
-                </div>
+                </Link>
                 <Link
                     :href="route('logout')"
                     method="post"
@@ -378,39 +375,39 @@ const moreNavItems = computed(() => {
         <!-- ══════════════════════════════════════
              MOBILE TOP BAR
              ══════════════════════════════════════ -->
-        <header class="fixed inset-x-0 top-0 z-20 flex h-mobile-header items-end justify-between border-b border-line bg-surface px-4 pb-2 pt-safe lg:hidden">
-            <div class="flex items-center gap-2.5">
-                <div class="flex h-7 w-7 items-center justify-center rounded-field bg-accent shadow-card">
-                    <span class="text-xs font-bold text-white">Z3</span>
-                </div>
-                <span class="text-base font-bold tracking-tight text-ink">Zone3</span>
-            </div>
-            <div class="flex items-center gap-1">
+        <!--
+            Kopfleiste als iOS-Material: durchscheinend und unscharf, der
+            Inhalt scrollt sichtbar darunter weg. Kein Logo-Kachel-Branding —
+            der grosse Seitentitel darunter sagt, wo man ist. Rechts Coach
+            und Profil; Abmelden ist ins Mehr-Sheet gewandert, wo es nicht
+            aus Versehen getroffen wird.
+        -->
+        <header class="fixed inset-x-0 top-0 z-20 flex h-mobile-header items-end justify-between border-b border-line/70 bg-canvas/80 px-4 pb-2 pt-safe backdrop-blur-xl backdrop-saturate-150 lg:hidden">
+            <span class="pb-1.5 text-[17px] font-semibold text-ink">Zone3</span>
+            <div class="flex items-center gap-2">
                 <!-- Coach chat button (mobile) -->
                 <button
                     v-if="coach"
                     @click="openChat"
-                    class="relative flex h-9 w-9 items-center justify-center rounded-field text-accent transition-colors hover:bg-accent-soft"
+                    :aria-label="`Chat mit ${coach.name}`"
+                    class="relative flex h-10 w-10 items-center justify-center rounded-full transition-transform duration-150 ease-out-strong active:scale-[0.94]"
                 >
                     <div
-                        class="flex h-6 w-6 items-center justify-center rounded-full text-[8px] font-bold text-white"
+                        class="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold text-white"
                         :style="`background-color: ${coach.avatar_color}`"
                     >
                         {{ coach.avatar_initials }}
                     </div>
-                    <span class="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-success" />
+                    <span class="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full border-2 border-canvas bg-success" />
                 </button>
 
-                <!-- Abmelden -->
+                <!-- Profil -->
                 <Link
-                    :href="route('logout')"
-                    method="post"
-                    as="button"
-                    class="flex h-9 w-9 items-center justify-center rounded-field text-ink-3 transition-colors hover:bg-danger-soft hover:text-danger"
+                    :href="route('profile.edit')"
+                    aria-label="Profil"
+                    class="flex h-10 w-10 items-center justify-center rounded-full transition-transform duration-150 ease-out-strong active:scale-[0.94]"
                 >
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-                    </svg>
+                    <UserAvatar :user="user" size="md" />
                 </Link>
             </div>
         </header>
@@ -437,54 +434,39 @@ const moreNavItems = computed(() => {
         <!-- Coach Chat Slide-Over -->
         <CoachSlideOver />
 
-        <!--
-            Der Hilfe-Knopf schwebt ueber dem Inhalt und lag damit in jeder
-            Scrollposition auf irgendeinem Text — auf 390 Pixeln faellt das
-            deutlich mehr auf als am Desktop. Er verschwindet jetzt, sobald es
-            abwaerts geht, und kommt beim Hochwischen zurueck.
-        -->
-        <Link :href="route('support.tickets.index')"
-            class="fixed bottom-24 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-accent text-white shadow-card transition duration-200 hover:scale-105 lg:bottom-6 lg:right-6"
-            :class="helpVisible
-                ? 'pointer-events-auto translate-y-0 opacity-100'
-                : 'pointer-events-none translate-y-4 opacity-0'"
-            title="Support & Feedback"
-        >
-            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
-            </svg>
-        </Link>
-
         <!-- ══════════════════════════════════════
              MOBILE BOTTOM TAB BAR
              ══════════════════════════════════════ -->
-        <nav class="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface pb-safe-tabbar shadow-bar lg:hidden">
-            <div class="flex h-16 items-center">
+        <!--
+            Tab-Leiste wie in iOS: Material statt Flaeche, Haarlinie oben,
+            Symbol 24 Punkt ueber 10-Punkt-Beschriftung, der aktive Tab nur
+            ueber die Akzentfarbe — kein zusaetzlicher Strich.
+        -->
+        <nav class="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface/85 pb-safe-tabbar backdrop-blur-xl backdrop-saturate-150 lg:hidden" aria-label="Hauptnavigation">
+            <div class="flex h-[52px] items-center">
                 <Link
                     v-for="item in mobileNavItems"
                     :key="item.routeName"
                     :href="item.planId ? route(item.routeName, item.planId) : route(item.routeName)"
-                    class="relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1 transition-colors"
+                    :aria-current="route().current(item.routeName) ? 'page' : undefined"
+                    class="flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-0.5 transition-colors"
                     :class="route().current(item.routeName) ? 'text-accent' : 'text-ink-3'"
                 >
-                    <span
-                        v-if="route().current(item.routeName)"
-                        class="absolute left-1/2 top-0 h-0.5 w-8 -translate-x-1/2 rounded-b-full bg-accent"
-                    />
-                    <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
-                    <span class="max-w-full truncate px-0.5 text-[10px] font-medium leading-none">{{ item.label }}</span>
+                    <svg class="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="route().current(item.routeName) ? 2.1 : 1.7" v-html="item.icon" />
+                    <span class="max-w-full truncate px-0.5 text-[10px] font-semibold leading-none">{{ item.label }}</span>
                 </Link>
 
                 <!-- Mehr button -->
                 <button
                     @click="moreOpen = true"
-                    class="relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1 transition-colors"
+                    class="flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-0.5 transition-colors"
                     :class="moreOpen ? 'text-accent' : 'text-ink-3'"
                 >
-                    <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                    <svg class="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                     </svg>
-                    <span class="text-[10px] font-medium leading-none">Mehr</span>
+                    <span class="text-[10px] font-semibold leading-none">Mehr</span>
                 </button>
             </div>
         </nav>
@@ -493,28 +475,45 @@ const moreNavItems = computed(() => {
              MOBILE "MEHR" SHEET
              ══════════════════════════════════════ -->
         <AppSheet :show="moreOpen" title="Menü" @close="moreOpen = false">
-            <!-- Nav links -->
-            <nav class="-mx-2 space-y-0.5">
+            <!--
+                Eine gruppierte Liste wie in den iOS-Einstellungen: farbiges
+                Icon-Quadrat, Titel, Pfeil, Haarlinien eingerueckt bis zum Text.
+            -->
+            <nav class="overflow-hidden rounded-card bg-surface-2/60 dark:bg-surface-2">
                 <Link
-                    v-for="item in moreNavItems"
+                    v-for="(item, i) in moreNavItems"
                     :key="item.routeName"
                     :href="item.planId ? route(item.routeName, item.planId) : route(item.routeName)"
                     @click="moreOpen = false"
-                    class="flex items-center gap-3 rounded-field px-2 py-3 text-sm font-medium transition-colors"
-                    :class="route().current(item.routeName)
-                        ? 'bg-accent-soft text-accent-ink'
-                        : 'text-ink hover:bg-surface-2'"
+                    class="flex min-h-[48px] items-center gap-3 pl-3 transition-colors active:bg-surface-3"
                 >
-                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-field"
-                        :class="route().current(item.routeName)
-                            ? 'bg-accent text-white'
-                            : 'bg-surface-2 text-ink-3'">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
+                    <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] text-white" :class="item.tint">
+                        <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" v-html="item.icon" />
                     </span>
-                    <span class="truncate">{{ item.label }}</span>
-                    <svg v-if="route().current(item.routeName)" class="ml-auto h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                    </svg>
+                    <span class="flex min-h-[48px] min-w-0 flex-1 items-center gap-2 pr-3" :class="i > 0 ? 'border-t border-line' : ''">
+                        <span class="flex-1 truncate text-[17px] text-ink">{{ item.label }}</span>
+                        <svg class="h-4 w-4 shrink-0 text-ink-3/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                        </svg>
+                    </span>
+                </Link>
+            </nav>
+
+            <nav class="mt-5 overflow-hidden rounded-card bg-surface-2/60 dark:bg-surface-2">
+                <Link
+                    :href="route('support.tickets.index')"
+                    @click="moreOpen = false"
+                    class="flex min-h-[48px] items-center gap-3 pl-3 transition-colors active:bg-surface-3"
+                >
+                    <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-accent text-white">
+                        <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" v-html="helpIcon" />
+                    </span>
+                    <span class="flex min-h-[48px] min-w-0 flex-1 items-center gap-2 pr-3">
+                        <span class="flex-1 truncate text-[17px] text-ink">Hilfe &amp; Feedback</span>
+                        <svg class="h-4 w-4 shrink-0 text-ink-3/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                        </svg>
+                    </span>
                 </Link>
 
                 <!-- Admin link -->
@@ -522,20 +521,25 @@ const moreNavItems = computed(() => {
                     v-if="isAdmin"
                     :href="route('admin.dashboard')"
                     @click="moreOpen = false"
-                    class="flex items-center gap-3 rounded-field px-2 py-3 text-sm font-medium text-danger transition-colors hover:bg-danger-soft"
+                    class="flex min-h-[48px] items-center gap-3 pl-3 transition-colors active:bg-surface-3"
                 >
-                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-field bg-danger-soft text-danger">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-danger text-white">
+                        <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
                         </svg>
                     </span>
-                    Admin-Bereich
+                    <span class="flex min-h-[48px] min-w-0 flex-1 items-center gap-2 border-t border-line pr-3">
+                        <span class="flex-1 truncate text-[17px] text-ink">Admin-Bereich</span>
+                        <svg class="h-4 w-4 shrink-0 text-ink-3/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                        </svg>
+                    </span>
                 </Link>
             </nav>
 
             <!-- Darstellung -->
             <div class="mt-5">
-                <p class="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-ink-3">Darstellung</p>
+                <p class="mb-1.5 px-1 text-[13px] font-semibold text-ink-3">Darstellung</p>
                 <SegmentedControl :model-value="theme" :options="themeOptions" @update:model-value="setTheme" />
             </div>
 
@@ -588,12 +592,22 @@ const moreNavItems = computed(() => {
             </div>
 
             <!-- User -->
-            <div class="mt-5 flex items-center gap-3 rounded-card bg-surface-2 px-3 py-2.5">
-                <UserAvatar :user="user" size="sm" />
-                <div class="min-w-0 flex-1">
-                    <p class="truncate text-sm font-semibold text-ink">{{ user.name }}</p>
-                    <p class="truncate text-xs text-ink-3">{{ user.email }}</p>
+            <div class="mt-5 overflow-hidden rounded-card bg-surface-2/60 dark:bg-surface-2">
+                <div class="flex items-center gap-3 px-3 py-2.5">
+                    <UserAvatar :user="user" size="sm" />
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate text-[15px] font-semibold text-ink">{{ user.name }}</p>
+                        <p class="truncate text-[13px] text-ink-3">{{ user.email }}</p>
+                    </div>
                 </div>
+                <Link
+                    :href="route('logout')"
+                    method="post"
+                    as="button"
+                    class="flex min-h-[48px] w-full items-center justify-center border-t border-line text-[17px] text-danger transition-colors active:bg-surface-3"
+                >
+                    Abmelden
+                </Link>
             </div>
         </AppSheet>
 

@@ -72,9 +72,20 @@ Am 09.10.2026 gegen Emil Kowalskis `mobile-native`-Regeln geprüft (`.agents/ski
 
 **Was ein Gerät braucht:** Keine dieser Korrekturen lässt sich in Chromes Geräteemulation nachweisen — klebendes Hover, der Tap-Highlight, der Zoom-Sprung, Overscroll und die Statusleiste sind Verhalten echter Hardware. Verifiziert ist, dass die Deklarationen im Build und im gerenderten `<head>` ankommen. Ob das klebende Hover weg ist, sagt dir erst das iPhone.
 
+### Optik — Apple-nativ (seit 15.10.2026)
+
+Die enduco-Richtung (weiße Karten, Indigo, Ambient-Wash) ist nach zwei Monaten Benutzung durchgefallen: *wirkt nicht wie eine App, zu blass, die Zahlen gehen unter, jede Seite sieht anders aus*. Neue Richtung, vorher als Mockup abgenommen: **iOS Health/Fitness**.
+
+- **Farben sind die iOS-Systemfarben** in `resources/css/app.css` (`--z-*`), wo sie Kontrast halten, sonst deren dunklere Varianten (Blau `#0071E3` statt `#007AFF`, weil Weiß auf `#007AFF` nur 4,0:1 hat). Grund `#F2F2F7` / `#000000`, Karten `#FFF` / `#1C1C1E`, **kein Schatten, kein Rahmen**. `form` (pink) und `fitness` (lila) sind Kennzahl-Farben wie in Health: die Farbe sitzt auf dem **Label**, die Zahl bleibt schwarz.
+- **Systemschrift**, Figtree ist raus. Kennzahlen in `font-rounded` (SF Pro Rounded), groß, Einheit klein und grau daneben.
+- **Typo-Skala nach iOS:** Large Title 34/41 für Hauptseiten (`PageHeader`, Datum als `eyebrow` darüber), Title 1 28 für Detailseiten, Abschnitte 22 fett (`SectionHeader`), Fließtext 17/15, Fußnoten 13. Keine gesperrten 10px-Versalien als Labels.
+- **Aktionen neben Überschriften** sind `AppButton variant="plain"` — Akzent-Text, keine graue Pille. `primary` ist Akzent gefüllt, nicht mehr schwarz.
+- **Leisten** oben und unten sind Material (`bg-*/80 backdrop-blur-xl`). Tabs: Heute · Plan · Kalender · Aktivitäten · Mehr. Profil ist der Avatar oben rechts, Abmelden und „Hilfe & Feedback" stehen im Mehr-Sheet — der schwebende Hilfe-Knopf ist weg (Android-Muster, lag auf Text).
+- `theme-color` steht weiterhin an drei Stellen (Blade-Meta, Blade-Skript, `useDarkMode.js`) plus `public/manifest.json` — alle vier auf `#f2f2f7` / `#000000`.
+
 ### Bewegung — drei Kurven, und wann welche gilt
 
-Am 09.10.2026 gegen `emil-design-eng` geprüft. Das **visuelle** System (enduco-Richtung, Tokens, Sheets) bleibt unberührt; hier geht es um die Schicht darüber.
+Am 09.10.2026 gegen `emil-design-eng` geprüft. Hier geht es um die Schicht über dem visuellen System.
 
 Die eingebauten CSS-Kurven sind zu weich — ihnen fehlt der Anschub, der eine Bewegung absichtlich wirken lässt. In `tailwind.config.js` stehen jetzt drei, und die Wahl ist eine Entscheidungsfrage, keine Geschmacksfrage:
 

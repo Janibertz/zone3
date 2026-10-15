@@ -217,7 +217,7 @@ const sessionDotColors = {
             <!-- Header -->
             <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 class="text-2xl font-black text-ink">Kalender</h1>
+                    <h1 class="text-[34px] font-bold leading-[41px] text-ink">Kalender</h1>
                     <p class="text-sm text-ink-3 mt-0.5">Trainingsübersicht & Events</p>
                 </div>
                 <div class="flex items-center gap-2">

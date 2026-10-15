@@ -249,7 +249,7 @@ async function save() {
                 <Link :href="route('workouts.index')" class="text-ink-3 hover:text-ink-2 transition-colors">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
                 </Link>
-                <h1 class="text-xl font-bold text-ink flex-1">{{ isEdit ? 'Workout bearbeiten' : 'Neues Workout' }}</h1>
+                <h1 class="flex-1 text-[28px] font-bold leading-[34px] text-ink">{{ isEdit ? 'Workout bearbeiten' : 'Neues Workout' }}</h1>
                 <button @click="save" :disabled="saving"
                     class="inline-flex items-center gap-2 rounded-field bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-card">
                     <svg v-if="saving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>

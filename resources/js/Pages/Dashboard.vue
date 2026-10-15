@@ -20,6 +20,7 @@ import EmptyState from '@/Components/UI/EmptyState.vue';
 import StatChip from '@/Components/UI/StatChip.vue';
 import MetricTile from '@/Components/UI/MetricTile.vue';
 import SectionHeader from '@/Components/UI/SectionHeader.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import { sessionType, stepAmount } from '@/Composables/useSessionTypes';
 
 
@@ -652,14 +653,6 @@ const statusChip = computed(() => {
 
     return { label: load.form_label, tone };
 });
-
-/**
- * Der Farbschleier hinter dem Seitenkopf: grün, solange nichts im Weg steht,
- * sonst der neutrale Lavendel-Verlauf.
- */
-const washTone = computed(() =>
-    checkinDone.value && statusChip.value.tone !== 'danger' ? 'z-wash-good' : 'z-wash-calm'
-);
 
 // ── Wochenstreifen ───────────────────────────────────────────────────────────
 /** Sieben Tage ab Montag mit Kilometern und Trainings-Flag. */
@@ -1375,10 +1368,15 @@ async function saveWeek() {
 
     <AuthenticatedLayout>
 
-        <!-- Ambient-Wash hinter dem Seitenkopf, blendet nach unten aus.
-             Inhalt laeuft ueber die volle Breite. -->
-        <div class="z-wash min-h-screen" :class="washTone">
-            <div class="space-y-5 px-4 py-4 lg:px-6 lg:py-6">
+        <!--
+            Grosser Titel mit dem Datum darueber, wie „Übersicht" in Health.
+            Der Farbschleier der enduco-Richtung ist weg: Farbe steht nur
+            noch dort, wo sie etwas bedeutet.
+        -->
+        <div class="min-h-screen">
+            <PageHeader :eyebrow="todayLabel" title="Heute" />
+
+            <div class="space-y-7 px-4 pb-8 pt-2 lg:px-8">
 
                 <!-- ══════════════════════════════════════════════════
                      ZIELPRÜFUNG — wöchentlich, nur bei echter Abweichung
@@ -1389,19 +1387,19 @@ async function saveWeek() {
                             {{ goalCheck.kind === 'too_conservative' ? '🚀' : '🎯' }}
                         </span>
                         <div class="min-w-0 flex-1">
-                            <h2 class="text-[15px] font-semibold text-ink">{{ goalCheck.headline }}</h2>
+                            <h2 class="text-[17px] font-semibold text-ink">{{ goalCheck.headline }}</h2>
                             <p class="mt-1 text-[13px] leading-relaxed text-ink-3">{{ goalCheck.detail }}</p>
 
                             <!-- Die beiden Zahlen nebeneinander: worauf der Plan
                                  zielt, und was die Form derzeit trägt. -->
                             <div class="mt-3 flex gap-2">
                                 <div class="flex-1 rounded-field bg-surface-2 px-3 py-2">
-                                    <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Dein Ziel</p>
-                                    <p class="mt-0.5 text-lg font-bold tabular-nums text-ink">{{ goalCheck.target }}</p>
+                                    <p class="text-[13px] text-ink-3">Dein Ziel</p>
+                                    <p class="mt-0.5 font-rounded text-[22px] font-bold tabular-nums text-ink">{{ goalCheck.target }}</p>
                                 </div>
                                 <div class="flex-1 rounded-field bg-surface-2 px-3 py-2">
-                                    <p class="text-[11px] font-medium uppercase tracking-wide text-ink-3">Deine Form</p>
-                                    <p class="mt-0.5 text-lg font-bold tabular-nums text-ink">{{ goalCheck.predicted }}</p>
+                                    <p class="text-[13px] text-ink-3">Deine Form</p>
+                                    <p class="mt-0.5 font-rounded text-[22px] font-bold tabular-nums text-ink">{{ goalCheck.predicted }}</p>
                                 </div>
                             </div>
                         </div>
@@ -1450,7 +1448,7 @@ async function saveWeek() {
                 <AppCard v-if="weekCheck">
                     <div class="flex flex-wrap items-start justify-between gap-4">
                         <div class="min-w-0 flex-1">
-                            <h2 class="text-[15px] font-semibold text-ink">Passt deine kommende Woche?</h2>
+                            <h2 class="text-[17px] font-semibold text-ink">Passt deine kommende Woche?</h2>
                             <p class="mt-1 text-[13px] leading-relaxed text-ink-3">
                                 Der Plan geht von deinem üblichen Wochenraster aus. Urlaub, Schichten oder
                                 eine volle Woche kannst du hier einmalig eintragen.
@@ -1469,63 +1467,16 @@ async function saveWeek() {
                 </AppCard>
 
                 <!-- ══════════════════════════════════════════════════
-                     KÖRPERWERTE — Garmin, sonst der Check-in
-                     ══════════════════════════════════════════════════ -->
-                <section v-if="metricTiles.length">
-                    <div class="mb-3 flex items-center justify-between gap-3 px-1">
-                        <h2 class="text-[17px] font-medium text-ink-2">Deine Werte</h2>
-                        <span class="rounded-full bg-surface-2 px-3 py-1 text-[12px] font-semibold text-ink-3">{{ metricSource }}</span>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                        <MetricTile v-for="t in metricTiles" :key="t.label" v-bind="t" />
-                    </div>
-                </section>
-
-                <!-- Ohne Garmin und ohne Check-in bleibt nur die Aufforderung -->
-                <button v-else type="button" class="w-full text-left" @click="showWellbeingModal = true">
-                    <AppCard>
-                        <div class="flex items-center gap-4">
-                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xl">💪</div>
-                            <div class="min-w-0 flex-1">
-                                <p class="text-[15px] font-bold text-ink">Wie fühlst du dich heute?</p>
-                                <p class="mt-0.5 text-[13px] text-ink-3">Ein kurzer Check-in füllt deine Werte — 30 Sekunden.</p>
-                            </div>
-                            <svg class="h-5 w-5 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                            </svg>
-                        </div>
-                    </AppCard>
-                </button>
-
-                <!-- Streak · Form · Check-in als schmale Zeile darunter -->
-                <div class="grid grid-cols-3 gap-2.5">
-                    <StatChip label="Streak">
-                        <template #icon><span class="text-base leading-none">🔥</span></template>
-                        {{ streakDays }}
-                    </StatChip>
-
-                    <StatChip label="Form" :tone="statusChip.tone">
-                        <span class="truncate text-[15px]">{{ statusChip.label }}</span>
-                    </StatChip>
-
-                    <button type="button" class="min-w-0 text-left" @click="showWellbeingModal = true">
-                        <StatChip label="Check-in" :tone="checkinDone ? 'success' : 'warn'">
-                            <span class="text-[15px]">{{ checkinDone ? 'Erledigt' : 'Offen' }}</span>
-                        </StatChip>
-                    </button>
-                </div>
-
-                <!-- ══════════════════════════════════════════════════
                      BEGRÜSSUNG
                      ══════════════════════════════════════════════════ -->
                 <AppCard>
-                    <p class="text-[15px] text-ink">{{ greeting }},</p>
-                    <h1 class="mt-1 text-2xl font-bold leading-tight tracking-tight text-ink">
+                    <p class="text-[15px] text-ink-3">{{ greeting }},</p>
+                    <h2 class="mt-0.5 text-[22px] font-bold leading-7 text-ink">
                         <template v-if="coachPrMessage && !prDismissed">Stark gelaufen, {{ firstName }}! 🏆</template>
                         <template v-else-if="!checkinDone">Wie fühlst du dich heute?</template>
                         <template v-else-if="props.todayPlanSession || props.todayRecommendationSession">Viel Spaß bei deinem Training</template>
                         <template v-else>Schön, dass du da bist, {{ firstName }}</template>
-                    </h1>
+                    </h2>
 
                     <p class="mt-2.5 text-[15px] leading-relaxed text-ink-3">
                         <span v-if="coachPrMessage && !prDismissed">{{ coachPrMessage }}</span>
@@ -1615,16 +1566,16 @@ async function saveWeek() {
                      HEUTIGES TRAINING
                      ══════════════════════════════════════════════════ -->
                 <section>
-                    <SectionHeader title="Heutiges Training">
+                    <SectionHeader title="Training heute">
                         <template #action>
                             <AppButton
                                 v-if="props.todayPlanSession && props.todayPlanSession.status === 'planned'"
-                                size="sm" variant="secondary" @click="openSwap">
-                                Einheit tauschen
+                                variant="plain" @click="openSwap">
+                                Tauschen
                             </AppButton>
-                            <AppButton v-if="props.hasActivePlan" size="sm" variant="secondary"
+                            <AppButton v-if="props.hasActivePlan" variant="plain"
                                 :href="props.todayPlanSession?.event_id ? `/events/${props.todayPlanSession.event_id}/plan` : '/events'">
-                                Zum Plan
+                                Plan
                             </AppButton>
                             <span v-else class="text-[13px] text-ink-3">{{ props.aiUsage.used }}/{{ props.aiUsage.limit }} KI</span>
                         </template>
@@ -1761,21 +1712,21 @@ async function saveWeek() {
                                 <div class="grid grid-cols-3 gap-2">
                                     <button @click="adjustRecommendation('softer')"
                                         :disabled="adjustingDirection !== null || acceptingRecommendation"
-                                        class="flex flex-col items-center justify-center gap-1 rounded-card bg-surface py-3.5 text-[13px] font-semibold text-ink-2 shadow-card transition-transform active:scale-95 disabled:opacity-40">
+                                        class="flex flex-col items-center justify-center gap-1 rounded-card bg-surface py-3.5 text-[13px] font-semibold text-ink-2 transition-transform duration-150 ease-out-strong active:scale-[0.97] disabled:opacity-40">
                                         <span v-if="adjustingDirection === 'softer'" class="h-5 w-5 animate-spin rounded-full border-2 border-ink-3 border-t-transparent" />
                                         <span v-else class="text-xl leading-none">🧘</span>
                                         Lockerer
                                     </button>
                                     <button @click="acceptRecommendation()"
                                         :disabled="acceptingRecommendation || adjustingDirection !== null"
-                                        class="flex flex-col items-center justify-center gap-1 rounded-card bg-ink py-3.5 text-[13px] font-semibold text-canvas transition-transform active:scale-95 disabled:opacity-40">
+                                        class="flex flex-col items-center justify-center gap-1 rounded-card bg-accent py-3.5 text-[13px] font-semibold text-white transition-transform duration-150 ease-out-strong active:scale-[0.97] disabled:opacity-40">
                                         <span v-if="acceptingRecommendation" class="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
                                         <span v-else class="text-xl leading-none">✓</span>
                                         Einplanen
                                     </button>
                                     <button @click="adjustRecommendation('harder')"
                                         :disabled="adjustingDirection !== null || acceptingRecommendation"
-                                        class="flex flex-col items-center justify-center gap-1 rounded-card bg-surface py-3.5 text-[13px] font-semibold text-ink-2 shadow-card transition-transform active:scale-95 disabled:opacity-40">
+                                        class="flex flex-col items-center justify-center gap-1 rounded-card bg-surface py-3.5 text-[13px] font-semibold text-ink-2 transition-transform duration-150 ease-out-strong active:scale-[0.97] disabled:opacity-40">
                                         <span v-if="adjustingDirection === 'harder'" class="h-5 w-5 animate-spin rounded-full border-2 border-warn border-t-transparent" />
                                         <span v-else class="text-xl leading-none">🔥</span>
                                         Intensiver
@@ -1911,7 +1862,7 @@ async function saveWeek() {
                 <section>
                     <SectionHeader title="Deine Woche">
                         <template #action>
-                            <AppButton size="sm" variant="secondary" href="/statistics">Statistiken</AppButton>
+                            <AppButton variant="plain" href="/statistics">Statistik</AppButton>
                         </template>
                     </SectionHeader>
 
@@ -1934,27 +1885,26 @@ async function saveWeek() {
                         <div class="grid grid-cols-7 gap-1.5">
                             <div v-for="d in weekStrip" :key="d.key" class="flex flex-col items-center gap-2">
                                 <span class="flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-bold"
-                                    :class="d.isToday ? 'bg-warn text-white' : 'text-ink-3'">{{ d.label }}</span>
-                                <span class="flex h-8 w-full items-center justify-center rounded-full text-[12px] font-semibold tabular-nums"
-                                    :class="d.km > 0 ? 'bg-surface-2 text-ink' : 'text-ink-3'">
+                                    :class="d.isToday ? 'bg-accent text-white' : 'text-ink-3'">{{ d.label }}</span>
+                                <span class="flex h-8 w-full items-center justify-center rounded-full font-rounded text-[13px] font-bold tabular-nums"
+                                    :class="d.km > 0 ? 'bg-success text-white' : 'text-ink-3'">
                                     <template v-if="d.km > 0">{{ d.km }}</template>
                                     <template v-else>·</template>
                                 </span>
-                                <span class="h-1.5 w-full rounded-full"
-                                    :class="d.km > 0 ? 'bg-success' : d.isPast ? 'bg-surface-3' : 'bg-surface-2'" />
+
                             </div>
                         </div>
 
                         <!-- Fusszeile -->
-                        <div class="mt-5 grid grid-cols-3 gap-4 border-t border-line pt-4">
+                        <div class="mt-4 grid grid-cols-3 gap-4 border-t border-line pt-4">
                             <div>
-                                <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Einheiten</p>
-                                <p class="mt-1 text-xl font-bold tabular-nums text-ink">{{ weekSessionCount }}</p>
+                                <p class="text-[13px] text-ink-3">Einheiten</p>
+                                <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ weekSessionCount }}</p>
                             </div>
                             <div>
-                                <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Kilometer</p>
-                                <p class="mt-1 text-xl font-bold tabular-nums text-ink">{{ weekStats.km }}</p>
-                                <p v-if="weekTrend !== null" class="text-[12px] font-semibold"
+                                <p class="text-[13px] text-ink-3">Kilometer</p>
+                                <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ weekStats.km }}</p>
+                                <p v-if="weekTrend !== null" class="text-[13px] font-semibold"
                                     :class="weekTrend >= 0 ? 'text-success' : 'text-ink-3'">
                                     {{ weekTrend >= 0 ? '↗' : '↘' }} {{ Math.abs(weekTrend) }} % zur Vorwoche
                                 </p>
@@ -1966,8 +1916,8 @@ async function saveWeek() {
                                     nicht: sie ergibt nur ueber Laeufe einen Sinn.
                                     Also steht jetzt dran, worauf sie sich bezieht.
                                 -->
-                                <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Ø Pace · Läufe</p>
-                                <p class="mt-1 text-xl font-bold tabular-nums text-ink">{{ weekStats.avgPace }}</p>
+                                <p class="text-[13px] text-ink-3">Ø Pace · Läufe</p>
+                                <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ weekStats.avgPace }}</p>
                             </div>
                         </div>
 
@@ -1977,6 +1927,60 @@ async function saveWeek() {
                         </p>
                     </AppCard>
                 </section>
+
+                <!-- ══════════════════════════════════════════════════
+                     KÖRPERWERTE — Garmin, sonst der Check-in
+                     ══════════════════════════════════════════════════ -->
+                <!--
+                    Stand frueher ganz oben, vor dem Training. Was heute
+                    ansteht, ist die erste Frage beim Oeffnen; die Koerperwerte
+                    sind die zweite — sie erklaeren das Training, sie ersetzen
+                    es nicht.
+                -->
+                <section v-if="metricTiles.length">
+                    <SectionHeader title="Deine Werte">
+                        <template #action>
+                            <span class="text-[15px] text-ink-3">{{ metricSource }}</span>
+                        </template>
+                    </SectionHeader>
+                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <MetricTile v-for="t in metricTiles" :key="t.label" v-bind="t" />
+                    </div>
+                </section>
+
+                <!-- Ohne Garmin und ohne Check-in bleibt nur die Aufforderung -->
+                <button v-else type="button" class="w-full text-left" @click="showWellbeingModal = true">
+                    <AppCard>
+                        <div class="flex items-center gap-4">
+                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xl">💪</div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-[15px] font-bold text-ink">Wie fühlst du dich heute?</p>
+                                <p class="mt-0.5 text-[13px] text-ink-3">Ein kurzer Check-in füllt deine Werte — 30 Sekunden.</p>
+                            </div>
+                            <svg class="h-5 w-5 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                            </svg>
+                        </div>
+                    </AppCard>
+                </button>
+
+                <!-- Streak · Form · Check-in als schmale Zeile darunter -->
+                <div class="grid grid-cols-3 gap-3">
+                    <StatChip label="Streak">
+                        <template #icon><span class="text-base leading-none">🔥</span></template>
+                        {{ streakDays }}
+                    </StatChip>
+
+                    <StatChip label="Form" :tone="statusChip.tone">
+                        <span class="truncate text-[15px]">{{ statusChip.label }}</span>
+                    </StatChip>
+
+                    <button type="button" class="min-w-0 text-left" @click="showWellbeingModal = true">
+                        <StatChip label="Check-in" :tone="checkinDone ? 'success' : 'warn'">
+                            <span class="text-[15px]">{{ checkinDone ? 'Erledigt' : 'Offen' }}</span>
+                        </StatChip>
+                    </button>
+                </div>
 
                 <!-- ══════════════════════════════════════════════════
                      FORM · TEMPO  (nebeneinander ab lg)
@@ -1999,29 +2003,31 @@ async function saveWeek() {
                         </SectionHeader>
 
                         <AppCard>
+                            <!-- Je Kennzahl eine Farbe, wie in Health — dieselbe
+                                 Farbe traegt die Linie im Verlauf darunter. -->
                             <div class="grid grid-cols-3 gap-4">
                                 <div>
-                                    <p class="text-2xl font-bold tabular-nums text-ink">{{ props.trainingLoad.ctl }}</p>
-                                    <p class="mt-0.5 text-[13px] text-ink-3">Fitness</p>
+                                    <p class="text-[15px] font-semibold text-fitness">Fitness</p>
+                                    <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ props.trainingLoad.ctl }}</p>
                                 </div>
                                 <div>
-                                    <p class="text-2xl font-bold tabular-nums text-ink">{{ props.trainingLoad.atl }}</p>
-                                    <p class="mt-0.5 text-[13px] text-ink-3">Ermüdung</p>
+                                    <p class="text-[15px] font-semibold text-warn">Ermüdung</p>
+                                    <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ props.trainingLoad.atl }}</p>
                                 </div>
                                 <div>
-                                    <p class="text-2xl font-bold tabular-nums text-ink">{{ props.trainingLoad.tsb > 0 ? '+' : '' }}{{ props.trainingLoad.tsb }}</p>
-                                    <p class="mt-0.5 text-[13px] text-ink-3">Form</p>
+                                    <p class="text-[15px] font-semibold text-form">Form</p>
+                                    <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ props.trainingLoad.tsb > 0 ? '+' : '' }}{{ props.trainingLoad.tsb }}</p>
                                 </div>
                             </div>
 
-                            <div v-if="loadChartData" class="mt-4 overflow-hidden rounded-field bg-surface-2 px-2 pt-2">
+                            <div v-if="loadChartData" class="mt-4 overflow-hidden">
                                 <svg :viewBox="`0 0 ${loadChartData.W} ${loadChartData.H}`" class="w-full" preserveAspectRatio="none">
                                     <path :d="loadChartData.atlPath" fill="none" stroke="rgb(var(--z-warn))" stroke-width="1.5" stroke-linecap="round" opacity="0.85" />
-                                    <path :d="loadChartData.ctlPath" fill="none" stroke="rgb(var(--z-accent))" stroke-width="2" stroke-linecap="round" />
+                                    <path :d="loadChartData.ctlPath" fill="none" stroke="rgb(var(--z-fitness))" stroke-width="2" stroke-linecap="round" />
                                 </svg>
                                 <div class="flex items-center gap-3 px-1 pb-2 pt-1.5">
                                     <span class="flex items-center gap-1.5 text-[12px] text-ink-3">
-                                        <span class="inline-block h-0.5 w-4 rounded bg-accent" /> Fitness
+                                        <span class="inline-block h-0.5 w-4 rounded bg-fitness" /> Fitness
                                     </span>
                                     <span class="flex items-center gap-1.5 text-[12px] text-ink-3">
                                         <span class="inline-block h-0.5 w-4 rounded bg-warn" /> Ermüdung
@@ -2040,7 +2046,7 @@ async function saveWeek() {
                     <section class="min-w-0">
                         <SectionHeader title="Dein Tempo">
                             <template #action>
-                                <AppButton v-if="props.stravaConnected" size="sm" variant="secondary"
+                                <AppButton v-if="props.stravaConnected" variant="plain"
                                     :loading="syncing" :disabled="props.thresholdPaceCalculating" @click="syncStrava">
                                     {{ syncing ? 'Sync…' : 'Sync' }}
                                 </AppButton>
@@ -2048,10 +2054,10 @@ async function saveWeek() {
                         </SectionHeader>
 
                         <AppCard>
-                            <p class="text-[10px] font-bold uppercase tracking-wider text-ink-3">Schwellenpace</p>
-                            <p v-if="props.thresholdPace" class="mt-1 flex items-baseline gap-2">
-                                <span class="text-4xl font-bold tabular-nums tracking-tight text-ink">{{ props.thresholdPace }}</span>
-                                <span class="text-[15px] text-ink-3">min/km</span>
+                            <p class="text-[15px] font-semibold text-accent">Schwellenpace</p>
+                            <p v-if="props.thresholdPace" class="mt-0.5 flex items-baseline gap-1.5">
+                                <span class="font-rounded text-[40px] font-bold leading-[44px] tabular-nums tracking-tight text-ink">{{ props.thresholdPace }}</span>
+                                <span class="text-[17px] font-semibold text-ink-3">/km</span>
                             </p>
                             <p v-else class="mt-1 text-xl font-bold text-ink-3">Noch nicht berechnet</p>
                             <p class="mt-1 text-[13px] text-ink-3">
@@ -2081,7 +2087,7 @@ async function saveWeek() {
                                 <div v-if="props.racePredictions" class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
                                     <div v-for="(pred, key) in props.racePredictions" :key="key" class="rounded-field bg-surface-2 px-3 py-2.5">
                                         <p class="text-[12px] text-ink-3">{{ pred.label }}</p>
-                                        <p class="mt-0.5 text-lg font-bold tabular-nums text-ink">{{ pred.total_time }}</p>
+                                        <p class="mt-0.5 font-rounded text-[20px] font-bold tabular-nums text-ink">{{ pred.total_time }}</p>
                                         <p class="font-mono text-[11px] text-ink-3">{{ pred.pace }} /km</p>
                                     </div>
                                 </div>
@@ -2141,7 +2147,7 @@ async function saveWeek() {
                 <section>
                     <SectionHeader title="Letzte Aktivitäten">
                         <template #action>
-                            <AppButton size="sm" variant="secondary" href="/activities">Alle</AppButton>
+                            <AppButton variant="plain" href="/activities">Alle</AppButton>
                         </template>
                     </SectionHeader>
 
@@ -2159,7 +2165,7 @@ async function saveWeek() {
                             v-for="activity in props.recentActivities.slice(0, 8)"
                             :key="activity.id"
                             @click="openActivityDetail(activity)"
-                            class="min-w-0 rounded-card bg-surface p-4 text-left shadow-card transition-transform active:scale-[0.99]"
+                            class="min-w-0 rounded-card bg-surface p-4 text-left transition-transform duration-150 ease-out-strong active:scale-[0.98]"
                         >
                             <div class="mb-2.5 flex items-start justify-between gap-2">
                                 <div class="flex min-w-0 items-center gap-2">
@@ -2170,7 +2176,7 @@ async function saveWeek() {
                             </div>
 
                             <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[15px] text-ink-3">
-                                <span v-if="activity.distance > 0" class="font-bold tabular-nums text-ink">
+                                <span v-if="activity.distance > 0" class="font-rounded text-[20px] font-bold tabular-nums text-ink">
                                     {{ round2(formatDistance(activity.distance)) }} km
                                 </span>
                                 <span v-else-if="['WeightTraining','Workout'].includes(activity.type)" class="font-bold text-ink">Kraft</span>
@@ -2199,7 +2205,7 @@ async function saveWeek() {
                     <section class="min-w-0">
                         <SectionHeader title="Monat">
                             <template #action>
-                                <AppButton size="sm" variant="secondary" href="/calendar">Vollansicht</AppButton>
+                                <AppButton variant="plain" href="/calendar">Kalender</AppButton>
                             </template>
                         </SectionHeader>
 
@@ -2217,7 +2223,7 @@ async function saveWeek() {
                                 <div v-for="(d, i) in calendarDays" :key="i"
                                     class="relative mx-auto flex h-9 w-9 items-center justify-center rounded-full text-[13px] transition-colors"
                                     :class="{
-                                        'bg-ink font-bold text-canvas': d.isToday && !d.hasEvent,
+                                        'bg-accent font-bold text-white': d.isToday && !d.hasEvent,
                                         'bg-warn font-bold text-canvas': d.hasEvent,
                                         'text-ink-3 opacity-40':        !d.currentMonth,
                                         'text-ink hover:bg-surface-2':  d.currentMonth && !d.isToday && !d.hasEvent,
@@ -2228,9 +2234,9 @@ async function saveWeek() {
                                     {{ d.day }}
                                     <span v-if="d.hasActivity && !d.isToday && !d.hasEvent" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-success" />
                                     <!-- Auf gefuellten Zellen muss der Punkt gegen die Fuellung kontrastieren:
-                                         Heute ist bg-ink (im Dark Mode hell), das Event bg-warn (immer dunkel genug). -->
+                                         Heute ist bg-accent, das Event bg-warn — beide dunkel genug fuer einen hellen Punkt. -->
                                     <span v-if="d.hasActivity && d.hasEvent" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-surface/80" />
-                                    <span v-else-if="d.hasActivity && d.isToday" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-canvas/80" />
+                                    <span v-else-if="d.hasActivity && d.isToday" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-white/80" />
                                 </div>
                             </div>
 
@@ -2240,7 +2246,7 @@ async function saveWeek() {
                             <div v-if="calendarPickerDay && activeDaysInMonth.get(calendarPickerDay)?.length"
                                 class="mt-4 rounded-field bg-surface-2 p-1.5">
                                 <div class="flex items-center justify-between px-3 py-1.5">
-                                    <p class="text-[11px] font-bold uppercase tracking-wider text-ink-3">
+                                    <p class="text-[13px] font-semibold text-ink-3">
                                         {{ calendarPickerDay }}. {{ currentMonthLabel.split(' ')[0] }} · {{ activeDaysInMonth.get(calendarPickerDay).length }} Aktivitäten
                                     </p>
                                     <button class="text-lg leading-none text-ink-3 hover:text-ink" @click="calendarPickerDay = null">✕</button>
@@ -2258,7 +2264,7 @@ async function saveWeek() {
                     <section class="min-w-0">
                         <SectionHeader title="Nächste Events">
                             <template #action>
-                                <AppButton size="sm" variant="secondary" href="/events">Alle</AppButton>
+                                <AppButton variant="plain" href="/events">Alle</AppButton>
                             </template>
                         </SectionHeader>
 
@@ -2303,7 +2309,7 @@ async function saveWeek() {
                                         </div>
                                     </div>
                                     <div class="shrink-0 text-right">
-                                        <p class="text-lg font-bold tabular-nums leading-none text-ink">{{ event.days_until }}</p>
+                                        <p class="font-rounded text-[22px] font-bold tabular-nums leading-none text-ink">{{ event.days_until }}</p>
                                         <p class="text-[12px] text-ink-3">Tage</p>
                                     </div>
                                 </a>
@@ -2327,7 +2333,7 @@ async function saveWeek() {
                                             @click="quickEventForm.race_distance = opt.value"
                                             class="rounded-full px-3 py-2.5 text-[13px] font-semibold transition active:scale-[0.97]"
                                             :class="quickEventForm.race_distance === opt.value
-                                                ? 'bg-ink text-canvas'
+                                                ? 'bg-accent text-white'
                                                 : 'bg-surface-2 text-ink-2 hover:bg-surface-3'">
                                             {{ opt.label }}
                                         </button>
@@ -2361,8 +2367,8 @@ async function saveWeek() {
                                             class="flex-1 rounded-full py-2.5 text-[13px] font-bold transition active:scale-[0.97]"
                                             :class="quickEventForm.priority === p
                                                 ? p === 'A' ? 'bg-danger text-white'
-                                                  : p === 'B' ? 'bg-warn text-canvas'
-                                                  : 'bg-ink text-canvas'
+                                                  : p === 'B' ? 'bg-warn text-white'
+                                                  : 'bg-accent text-white'
                                                 : 'bg-surface-2 text-ink-3 hover:bg-surface-3'">
                                             {{ p }}
                                         </button>
@@ -2447,7 +2453,7 @@ async function saveWeek() {
                     <div v-if="day.available" class="mt-2.5 flex flex-wrap gap-1.5 pl-14">
                         <button v-for="dur in [30, 45, 60, 90, 120, 180]" :key="dur" type="button"
                             class="rounded-full px-2.5 py-1 text-[12px] font-medium transition-colors"
-                            :class="day.duration_min === dur ? 'bg-ink text-canvas' : 'bg-surface text-ink-3 hover:text-ink-2'"
+                            :class="day.duration_min === dur ? 'bg-accent text-white' : 'bg-surface text-ink-3 hover:text-ink-2'"
                             @click="day.duration_min = dur">
                             {{ dur }} min
                         </button>

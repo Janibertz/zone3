@@ -10,8 +10,8 @@ defineProps({
         <div v-if="$slots.icon" class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-surface-2 text-ink-3">
             <slot name="icon" />
         </div>
-        <h3 class="text-base font-semibold text-ink">{{ title }}</h3>
-        <p v-if="description" class="mt-1.5 max-w-xs text-sm text-ink-3">{{ description }}</p>
+        <h3 class="text-[20px] font-semibold text-ink">{{ title }}</h3>
+        <p v-if="description" class="mt-1.5 max-w-xs text-[15px] text-ink-3">{{ description }}</p>
         <div v-if="$slots.default" class="mt-5">
             <slot />
         </div>

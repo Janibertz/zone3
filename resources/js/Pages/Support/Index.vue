@@ -42,7 +42,7 @@ function submit() {
         <div class="px-4 py-6 space-y-5">
 
             <div class="flex items-center justify-between">
-                <h1 class="text-xl font-bold text-ink">Support & Feedback</h1>
+                <h1 class="text-[34px] font-bold leading-[41px] text-ink">Support & Feedback</h1>
                 <button v-if="!showForm" @click="showForm = true"
                     class="px-4 py-2 rounded-field bg-accent hover:opacity-90 text-sm font-semibold text-white transition-colors">
                     + Neues Ticket

@@ -48,8 +48,16 @@ export default {
 
     theme: {
         extend: {
+            /*
+             * Die Systemschrift — auf dem iPhone SF Pro, ohne Download.
+             * `rounded` ist SF Pro Rounded fuer Kennzahlen, wie in Health
+             * und Fitness: grosse Zahlen sollen weich und kraeftig wirken.
+             * Ausserhalb von Apple-Geraeten faellt sie auf die Systemschrift
+             * zurueck.
+             */
             fontFamily: {
-                sans: ['Figtree', ...defaultTheme.fontFamily.sans],
+                sans:    ['-apple-system', 'BlinkMacSystemFont', ...defaultTheme.fontFamily.sans],
+                rounded: ['ui-rounded', '"SF Pro Rounded"', '-apple-system', 'BlinkMacSystemFont', ...defaultTheme.fontFamily.sans],
             },
 
             colors: {
@@ -76,12 +84,16 @@ export default {
                 warn:    family('warn'),
                 danger:  family('danger'),
                 info:    family('info'),
+
+                // ── Kennzahlen ───────────────────────────────────────────
+                form:    token('form'),
+                fitness: token('fitness'),
             },
 
             borderRadius: {
-                card:  '1.25rem',   // 20px — die grosszuegigen Kartenecken
-                sheet: '1.75rem',
-                field: '0.875rem',
+                card:  '1rem',      // 16px — Health/Fitness-Karten
+                sheet: '1.5rem',
+                field: '0.75rem',
             },
 
             boxShadow: {

@@ -112,7 +112,7 @@ function metricsOf(a) {
             <div class="space-y-5 px-4 py-4 lg:px-6 lg:py-6">
 
                 <header class="px-1">
-                    <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Aktivitäten</h1>
+                    <h1 class="text-[34px] font-bold leading-[41px] text-ink">Aktivitäten</h1>
                     <p class="mt-1 text-[15px] text-ink-3">
                         {{ activities.total }} {{ activities.total === 1 ? 'Einheit' : 'Einheiten' }} insgesamt
                     </p>
@@ -215,7 +215,7 @@ function metricsOf(a) {
                         :disabled="!link.url"
                         class="min-w-[2.5rem] rounded-full px-3 py-2 text-[13px] font-semibold transition-colors"
                         :class="link.active
-                            ? 'bg-ink text-canvas'
+                            ? 'bg-accent text-white'
                             : link.url
                                 ? 'bg-surface text-ink-2 hover:bg-surface-2'
                                 : 'text-ink-3 cursor-default opacity-50'"

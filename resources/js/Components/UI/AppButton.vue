@@ -3,11 +3,12 @@ import { computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
 
 /**
- * Pill-Button. `secondary` ist der Alltagsfall — hellgrau gefüllt,
- * dunkler Text, kein Rahmen.
+ * Pill-Button nach iOS: `primary` ist mit der Akzentfarbe gefüllt,
+ * `secondary` grau getönt mit Akzent-Schrift, `plain` reine Akzent-Schrift
+ * ohne Fläche — für Aktionen neben Überschriften („Alle", „Zum Plan").
  */
 const props = defineProps({
-    variant: { type: String,  default: 'primary' }, // primary | secondary | ghost | danger
+    variant: { type: String,  default: 'primary' }, // primary | secondary | ghost | plain | danger
     size:    { type: String,  default: 'md' },      // sm | md | lg
     block:   { type: Boolean, default: false },
     loading: { type: Boolean, default: false },
@@ -18,20 +19,21 @@ const props = defineProps({
 });
 
 const variants = {
-    primary:   'bg-ink text-canvas hover:opacity-90',
-    secondary: 'bg-surface-2 text-ink hover:bg-surface-3',
+    primary:   'bg-accent text-white hover:opacity-90',
+    secondary: 'bg-surface-2 text-accent hover:bg-surface-3',
     ghost:     'text-ink-2 hover:bg-surface-2 hover:text-ink',
+    plain:     '!h-auto !px-0 !text-[17px] !font-normal text-accent hover:opacity-70',
     danger:    'bg-danger text-white hover:opacity-90',
 };
 
 const sizes = {
-    sm: 'h-9  px-4   text-[13px] gap-1.5',
-    md: 'h-11 px-5   text-sm     gap-2',
-    lg: 'h-14 px-6   text-base   gap-2',
+    sm: 'h-9  px-4   text-[15px] gap-1.5',
+    md: 'h-11 px-5   text-[17px] gap-2',
+    lg: 'h-[50px] px-6 text-[17px] gap-2',
 };
 
 const classes = computed(() => [
-    'inline-flex items-center justify-center rounded-full font-semibold transition duration-150',
+    'inline-flex items-center justify-center rounded-full font-semibold transition duration-150 ease-out-strong',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
     'active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40',
     variants[props.variant] ?? variants.primary,

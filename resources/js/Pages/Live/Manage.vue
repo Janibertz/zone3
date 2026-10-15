@@ -67,7 +67,7 @@ async function copyLink(which) {
             <div class="space-y-5 px-4 py-5 lg:px-6">
 
                 <header class="px-1">
-                    <h1 class="text-2xl font-bold tracking-tight text-ink">Live-Verfolgung</h1>
+                    <h1 class="text-[34px] font-bold leading-[41px] text-ink">Live-Verfolgung</h1>
                     <p class="mt-1 text-[15px] text-ink-3">
                         Eine öffentliche Seite, auf der Freunde deinen Lauf mitverfolgen können.
                     </p>

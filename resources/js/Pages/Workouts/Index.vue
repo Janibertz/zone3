@@ -202,7 +202,7 @@ async function sendToGarmin({ email, password, date } = {}) {
             <!-- Header -->
             <div class="flex items-center justify-between mb-6 gap-4 flex-wrap">
                 <div>
-                    <h1 class="text-xl font-bold text-ink">Workout-Bibliothek</h1>
+                    <h1 class="text-[34px] font-bold leading-[41px] text-ink">Workout-Bibliothek</h1>
                     <p class="text-sm text-ink-3 mt-0.5">Deine gespeicherten Lauf-Workouts</p>
                 </div>
                 <Link :href="route('workouts.create')"

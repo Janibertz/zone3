@@ -21,17 +21,17 @@ defineEmits(['update:modelValue']);
         schiebt sich die Leiste seitlich, statt die Beschriftung umbrechen zu
         lassen.
     -->
-    <div class="no-scrollbar flex gap-1 overflow-x-auto rounded-full bg-surface-2 p-1" role="tablist">
+    <div class="no-scrollbar flex overflow-x-auto rounded-[9px] bg-surface-2 p-0.5" role="tablist">
         <button
             v-for="opt in options"
             :key="opt.value"
             type="button"
             role="tab"
             :aria-selected="modelValue === opt.value"
-            class="flex-1 whitespace-nowrap rounded-full px-2.5 py-3 text-[13px] font-medium transition duration-150 active:scale-[0.98] sm:px-3 sm:py-2 sm:text-sm"
+            class="min-h-[32px] flex-1 whitespace-nowrap rounded-[7px] px-3 py-1.5 text-[13px] font-semibold transition duration-200 ease-out-strong"
             :class="modelValue === opt.value
-                ? 'bg-surface text-ink shadow-card'
-                : 'text-ink-3 hover:text-ink-2'"
+                ? 'bg-surface text-ink shadow-[0_1px_3px_rgb(0_0_0/0.12),0_1px_1px_rgb(0_0_0/0.04)] dark:bg-surface-3'
+                : 'text-ink-2 hover:text-ink'"
             @click="$emit('update:modelValue', opt.value)"
         >
             {{ opt.label }}
