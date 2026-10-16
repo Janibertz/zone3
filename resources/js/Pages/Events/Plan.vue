@@ -117,7 +117,7 @@ const wellbeingBanner = computed(() => {
     if (w.is_sick || w.is_injured) {
         return {
             level: 'danger',
-            icon: '🤕',
+            icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008ZM11.03 3.3a1.12 1.12 0 0 1 1.94 0l8.26 14.3a1.12 1.12 0 0 1-.97 1.69H3.74a1.12 1.12 0 0 1-.97-1.69Z" />`,
             text: w.is_sick ? 'Du bist krank. Kein Training heute!' : 'Du bist verletzt. Kein Training heute!',
             tip: 'Überspringen und erholen ist jetzt das Wichtigste.',
             canAdjust: false,
@@ -130,7 +130,7 @@ const wellbeingBanner = computed(() => {
     if (energy <= 3 || soreness >= 8) {
         return {
             level: 'warning',
-            icon: '😴',
+            icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008ZM11.03 3.3a1.12 1.12 0 0 1 1.94 0l8.26 14.3a1.12 1.12 0 0 1-.97 1.69H3.74a1.12 1.12 0 0 1-.97-1.69Z" />`,
             text: energy <= 3 ? 'Sehr wenig Energie heute.' : 'Starker Muskelkater.',
             tip: `${coachName.value} kann die Einheit an deinen Zustand anpassen.`,
             canAdjust: true,
@@ -139,7 +139,7 @@ const wellbeingBanner = computed(() => {
     if (stress >= 8) {
         return {
             level: 'warning',
-            icon: '😤',
+            icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008ZM11.03 3.3a1.12 1.12 0 0 1 1.94 0l8.26 14.3a1.12 1.12 0 0 1-.97 1.69H3.74a1.12 1.12 0 0 1-.97-1.69Z" />`,
             text: 'Hoher Stress heute.',
             tip: 'Eine kürzere, ruhigere Einheit könnte helfen.',
             canAdjust: true,
@@ -148,7 +148,7 @@ const wellbeingBanner = computed(() => {
     if (energy >= 8 && soreness <= 2) {
         return {
             level: 'good',
-            icon: '🚀',
+            icon: `<path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />`,
             text: 'Top-Zustand! Perfekt für heute.',
             tip: null,
             canAdjust: false,
@@ -953,7 +953,7 @@ const lapHeightPct = computed(() => {
                             'bg-success-soft': wellbeingBanner.level === 'good',
                         }"
                     >
-                        <span class="mt-0.5 shrink-0 text-xl leading-none">{{ wellbeingBanner.icon }}</span>
+                        <svg class="mt-0.5 h-5 w-5 shrink-0 text-warn" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992V4.356m-4.993 4.992-3.181-3.183a8.25 8.25 0 0 0-13.803 3.7M4.031 9.865H.038v4.992m3.993-4.992 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7" /></svg>
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-semibold"
                                 :class="{
@@ -1334,7 +1334,10 @@ const lapHeightPct = computed(() => {
                                         <div v-for="(s, i) in raceStrategy.splits" :key="i"
                                             class="flex items-center justify-between py-2 text-[13px]"
                                             :class="s.is_finish ? 'font-bold text-ink' : 'text-ink-2'">
-                                            <span>{{ s.is_finish ? '🏁 ' : '' }}{{ s.label }}</span>
+                                            <span class="flex items-center gap-1.5">
+                                                <svg v-if="s.is_finish" class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18M3 4.5h13.5l-2.25 4.5 2.25 4.5H3" /></svg>
+                                                {{ s.label }}
+                                            </span>
                                             <span class="tabular-nums">{{ s.cumulative_time }}</span>
                                         </div>
                                     </div>
@@ -1385,7 +1388,7 @@ const lapHeightPct = computed(() => {
                                     <div v-if="goalAchieved !== null"
                                         class="mt-3 flex items-center gap-2.5 rounded-field px-3.5 py-2.5"
                                         :class="goalAchieved ? 'bg-success-soft' : 'bg-danger-soft'">
-                                        <span class="text-lg">{{ goalAchieved ? '🎯' : '📉' }}</span>
+                                        <svg class="h-5 w-5 shrink-0" :class="goalAchieved ? 'text-success' : 'text-danger'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path v-if="goalAchieved" stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /><path v-else stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008ZM11.03 3.3a1.12 1.12 0 0 1 1.94 0l8.26 14.3a1.12 1.12 0 0 1-.97 1.69H3.74a1.12 1.12 0 0 1-.97-1.69Z" /></svg>
                                         <div class="min-w-0">
                                             <p class="text-[13px] font-semibold"
                                                 :class="goalAchieved ? 'text-success-ink' : 'text-danger-ink'">
@@ -1728,12 +1731,12 @@ const lapHeightPct = computed(() => {
 
                         <div v-else-if="aiNutritionTips" class="space-y-3">
                             <div v-for="block in [
-                                { key: 'before', icon: '🕐', label: isRaceSession ? 'Vor dem Rennen'      : 'Vorher', tips: aiNutritionTips.before },
-                                { key: 'during', icon: detailIsStrength ? '💪' : '🏃', label: isRaceSession ? 'Während des Rennens' : 'Unterwegs', tips: aiNutritionTips.during },
-                                { key: 'after',  icon: '✅', label: isRaceSession ? 'Nach dem Rennen'     : 'Danach',  tips: aiNutritionTips.after },
+                                { key: 'before', icon: `<path stroke-linecap='round' stroke-linejoin='round' d='M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7.5V12l3 1.5' />`, label: isRaceSession ? 'Vor dem Rennen'      : 'Vorher', tips: aiNutritionTips.before },
+                                { key: 'during', icon: `<path stroke-linecap='round' stroke-linejoin='round' d='M9 3.75v16.5M15 3.75v16.5M6 8.25h3M15 8.25h3' />`, label: isRaceSession ? 'Während des Rennens' : 'Unterwegs', tips: aiNutritionTips.during },
+                                { key: 'after',  icon: `<path stroke-linecap='round' stroke-linejoin='round' d='m4.5 12.75 6 6 9-13.5' />`, label: isRaceSession ? 'Nach dem Rennen'     : 'Danach',  tips: aiNutritionTips.after },
                             ]" :key="block.key" class="rounded-card bg-surface-2 p-4">
                                 <div class="mb-2.5 flex items-center gap-2">
-                                    <span class="text-base leading-none">{{ block.icon }}</span>
+                                    <svg class="h-4 w-4 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true" v-html="block.icon" />
                                     <span class="text-[13px] font-semibold text-ink-3">{{ block.label }}</span>
                                 </div>
                                 <ul class="space-y-2">
