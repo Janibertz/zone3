@@ -753,6 +753,29 @@ const weekStrip = computed(() => {
 
 const weekSessionCount = computed(() => weekStrip.value.filter(d => d.km > 0).length);
 
+/**
+ * Balkenhoehe in Pixeln, proportional zum laengsten Lauf der Woche.
+ *
+ * Vorher waren alle Tage gleich hohe gruene Pillen — 0,7 km und 19,8 km sahen
+ * identisch aus. Das liest sich wie ein Diagramm und trug keine einzige
+ * Information. Jetzt traegt die Hoehe die Kilometer.
+ *
+ * Die 4px Mindesthoehe sind kein Rundungsfehler: ein Tag mit 0,7 km waere
+ * sonst 2px hoch und von einem Ruhetag nicht zu unterscheiden. Ruhetage
+ * bekommen denselben Stummel in Grau — die Woche behaelt ihre Grundlinie,
+ * ohne einen Lauf vorzutaeuschen.
+ */
+const WEEK_BAR_MAX_PX = 56;
+const weekBarHeight = (km) => {
+    const peak = Math.max(...weekStrip.value.map(d => d.km), 0);
+
+    if (!(km > 0) || peak <= 0) {
+        return 4;
+    }
+
+    return Math.max(4, Math.round((km / peak) * WEEK_BAR_MAX_PX));
+};
+
 // ── Vergleich zur Vorwoche ───────────────────────────────────────────────────
 /**
  * Bis zum selben Wochentag gerechnet.
@@ -1566,7 +1589,7 @@ async function saveWeek() {
                      HEUTIGES TRAINING
                      ══════════════════════════════════════════════════ -->
                 <section>
-                    <SectionHeader title="Training heute">
+                    <SectionHeader title="Training">
                         <template #action>
                             <AppButton
                                 v-if="props.todayPlanSession && props.todayPlanSession.status === 'planned'"
@@ -1698,7 +1721,7 @@ async function saveWeek() {
 
                             <AppCard v-else-if="recommendationAccepted">
                                 <div class="flex items-center gap-3">
-                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-success text-white">✓</div>
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-success text-white" aria-hidden="true"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg></div>
                                     <div>
                                         <p class="text-[15px] font-bold text-ink">Eingeplant</p>
                                         <p class="mt-0.5 text-[13px] text-ink-3">{{ trainingRecommendation?.title }} steht in deinem Kalender.</p>
@@ -1709,28 +1732,44 @@ async function saveWeek() {
                             <div v-else-if="showRecommendation && trainingRecommendation" class="space-y-3">
                                 <SessionCard :session="trainingRecommendation" :badge="coach ? coach.name : 'Coach'" badge-tone="accent" />
 
-                                <div class="grid grid-cols-3 gap-2">
-                                    <button @click="adjustRecommendation('softer')"
-                                        :disabled="adjustingDirection !== null || acceptingRecommendation"
-                                        class="flex flex-col items-center justify-center gap-1 rounded-card bg-surface py-3.5 text-[13px] font-semibold text-ink-2 transition-transform duration-150 ease-out-strong active:scale-[0.97] disabled:opacity-40">
-                                        <span v-if="adjustingDirection === 'softer'" class="h-5 w-5 animate-spin rounded-full border-2 border-ink-3 border-t-transparent" />
-                                        <span v-else class="text-xl leading-none">🧘</span>
-                                        Lockerer
-                                    </button>
+                                <!--
+                                    Drei Alternativen sind keine drei gleichen
+                                    Knoepfe. Hier standen „🧘 Lockerer / ✓
+                                    Einplanen / 🔥 Intensiver" nebeneinander im
+                                    Drittelraster — gleich gross, gleich
+                                    wichtig, mit Emoji als Ikonografie. Das
+                                    liest sich wie eine Umfrage, nicht wie eine
+                                    Entscheidung.
+
+                                    „Einplanen" IST die Entscheidung und
+                                    bekommt den gefuellten Knopf ueber die
+                                    volle Breite. Leichter und schwerer sind
+                                    Nebenwege und stehen als Textaktionen
+                                    darunter.
+                                -->
+                                <div class="space-y-1">
                                     <button @click="acceptRecommendation()"
                                         :disabled="acceptingRecommendation || adjustingDirection !== null"
-                                        class="flex flex-col items-center justify-center gap-1 rounded-card bg-accent py-3.5 text-[13px] font-semibold text-white transition-transform duration-150 ease-out-strong active:scale-[0.97] disabled:opacity-40">
+                                        class="flex h-[50px] w-full items-center justify-center gap-2 rounded-field bg-accent text-[17px] font-semibold tracking-[-0.2px] text-white transition-transform duration-150 ease-out-strong active:scale-[0.97] disabled:opacity-40">
                                         <span v-if="acceptingRecommendation" class="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                        <span v-else class="text-xl leading-none">✓</span>
                                         Einplanen
                                     </button>
-                                    <button @click="adjustRecommendation('harder')"
-                                        :disabled="adjustingDirection !== null || acceptingRecommendation"
-                                        class="flex flex-col items-center justify-center gap-1 rounded-card bg-surface py-3.5 text-[13px] font-semibold text-ink-2 transition-transform duration-150 ease-out-strong active:scale-[0.97] disabled:opacity-40">
-                                        <span v-if="adjustingDirection === 'harder'" class="h-5 w-5 animate-spin rounded-full border-2 border-warn border-t-transparent" />
-                                        <span v-else class="text-xl leading-none">🔥</span>
-                                        Intensiver
-                                    </button>
+
+                                    <div class="flex items-center justify-center gap-2.5 pt-0.5">
+                                        <button @click="adjustRecommendation('softer')"
+                                            :disabled="adjustingDirection !== null || acceptingRecommendation"
+                                            class="inline-flex items-center gap-1.5 px-1 py-1.5 text-[15px] font-medium text-accent transition-transform duration-150 ease-out-strong active:scale-[0.97] disabled:opacity-40">
+                                            <span v-if="adjustingDirection === 'softer'" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                            Leichter
+                                        </button>
+                                        <span aria-hidden="true" class="text-ink-3">·</span>
+                                        <button @click="adjustRecommendation('harder')"
+                                            :disabled="adjustingDirection !== null || acceptingRecommendation"
+                                            class="inline-flex items-center gap-1.5 px-1 py-1.5 text-[15px] font-medium text-accent transition-transform duration-150 ease-out-strong active:scale-[0.97] disabled:opacity-40">
+                                            <span v-if="adjustingDirection === 'harder'" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                            Schwerer
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1860,7 +1899,7 @@ async function saveWeek() {
                      DEINE WOCHE
                      ══════════════════════════════════════════════════ -->
                 <section>
-                    <SectionHeader title="Deine Woche">
+                    <SectionHeader title="Woche">
                         <template #action>
                             <AppButton variant="plain" href="/statistics">Statistik</AppButton>
                         </template>
@@ -1881,17 +1920,27 @@ async function saveWeek() {
                             class="mb-4"
                         />
 
-                        <!-- Wochenstreifen -->
-                        <div class="grid grid-cols-7 gap-1.5">
-                            <div v-for="d in weekStrip" :key="d.key" class="flex flex-col items-center gap-2">
-                                <span class="flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-bold"
-                                    :class="d.isToday ? 'bg-accent text-white' : 'text-ink-3'">{{ d.label }}</span>
-                                <span class="flex h-8 w-full items-center justify-center rounded-full font-rounded text-[13px] font-bold tabular-nums"
-                                    :class="d.km > 0 ? 'bg-success text-white' : 'text-ink-3'">
-                                    <template v-if="d.km > 0">{{ d.km }}</template>
-                                    <template v-else>·</template>
-                                </span>
+                        <!--
+                            Wochenstreifen als echtes Balkendiagramm.
 
+                            Heute wird ueber das LABEL markiert, nicht ueber
+                            eine zweite Balkenfarbe: eine Information, eine
+                            Codierung. Vorher trug der Balken die Farbe
+                            „gelaufen" und der Tageskreis die Farbe „heute" —
+                            zwei Signale, die sich im Blick ueberlagerten.
+                        -->
+                        <div class="grid grid-cols-7 gap-1.5" role="img"
+                            :aria-label="`Woche: ${weekStrip.map(d => `${d.label} ${d.km} Kilometer`).join(', ')}`">
+                            <div v-for="d in weekStrip" :key="d.key" class="flex flex-col items-center gap-2.5">
+                                <div class="flex h-14 w-full items-end justify-center" :title="d.km > 0 ? `${d.km} km` : 'kein Lauf'">
+                                    <span
+                                        class="block w-[11px] rounded-full transition-[height] duration-300 ease-out-strong"
+                                        :class="d.km > 0 ? 'bg-accent' : 'bg-surface-2'"
+                                        :style="{ height: weekBarHeight(d.km) + 'px' }"
+                                    />
+                                </div>
+                                <span class="text-[12px] leading-none"
+                                    :class="d.isToday ? 'font-bold text-ink' : 'text-ink-3'">{{ d.label }}</span>
                             </div>
                         </div>
 
@@ -1938,7 +1987,7 @@ async function saveWeek() {
                     es nicht.
                 -->
                 <section v-if="metricTiles.length">
-                    <SectionHeader title="Deine Werte">
+                    <SectionHeader title="Körper">
                         <template #action>
                             <span class="text-[15px] text-ink-3">{{ metricSource }}</span>
                         </template>
@@ -2044,7 +2093,7 @@ async function saveWeek() {
 
                     <!-- Tempo -->
                     <section class="min-w-0">
-                        <SectionHeader title="Dein Tempo">
+                        <SectionHeader title="Tempo">
                             <template #action>
                                 <AppButton v-if="props.stravaConnected" variant="plain"
                                     :loading="syncing" :disabled="props.thresholdPaceCalculating" @click="syncStrava">
@@ -2145,7 +2194,7 @@ async function saveWeek() {
                      ZULETZT GELAUFEN
                      ══════════════════════════════════════════════════ -->
                 <section>
-                    <SectionHeader title="Letzte Aktivitäten">
+                    <SectionHeader title="Aktivitäten">
                         <template #action>
                             <AppButton variant="plain" href="/activities">Alle</AppButton>
                         </template>
@@ -2262,7 +2311,7 @@ async function saveWeek() {
                     </section>
 
                     <section class="min-w-0">
-                        <SectionHeader title="Nächste Events">
+                        <SectionHeader title="Events">
                             <template #action>
                                 <AppButton variant="plain" href="/events">Alle</AppButton>
                             </template>
