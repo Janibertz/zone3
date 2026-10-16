@@ -180,13 +180,13 @@ function renderMarkdown(text) {
 }
 
 const actionIcons = {
-    memory:           '🧠',
-    session_modified: '✏️',
-    session_created:  '➕',
-    session_moved:    '📅',
-    session_deleted:  '🗑️',
-    sessions_skipped: '⏸️',
-    event_updated:    '🎯',
+    memory:            'M12 6.04A5.25 5.25 0 1 1 6.75 12 5.25 5.25 0 0 1 12 6.04Zm0 0V3m0 18v-3.04M3 12h3.04M17.96 12H21',
+    session_modified:  'm16.86 4.49 2.65 2.65m-1.4-3.9a1.87 1.87 0 1 1 2.65 2.65L7.5 19.15l-3.75.75.75-3.75Z',
+    session_created:   'M12 4.5v15m7.5-7.5h-15',
+    session_moved:     'M8.25 6.75 4.5 10.5l3.75 3.75M4.5 10.5h12M15.75 17.25l3.75-3.75-3.75-3.75M19.5 13.5h-12',
+    session_deleted:   'm14.74 9-.35 9m-4.78 0L9.26 9m9.97-3.23-.84 12.6a2.25 2.25 0 0 1-2.24 2.1H7.85a2.25 2.25 0 0 1-2.24-2.1l-.84-12.6M4.5 5.77h15',
+    sessions_skipped:  'M5.25 5.65v12.7c0 .86.95 1.38 1.68.91l9.98-6.35a1.08 1.08 0 0 0 0-1.82L6.93 4.74A1.08 1.08 0 0 0 5.25 5.65ZM18.75 4.5v15',
+    event_updated:     'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0V11.25A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5',
 };
 
 /**
@@ -411,7 +411,7 @@ watch(isOpen, async (val) => {
                                         class="flex items-center gap-2 rounded-field px-3 py-2 text-[13px] font-medium"
                                         :class="actionClass(action.type)"
                                     >
-                                        <span>{{ actionIcons[action.type] ?? '✓' }}</span>
+                                        <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" :d="actionIcons[action.type] ?? 'm4.5 12.75 6 6 9-13.5'" /></svg>
                                         <span class="min-w-0">{{ action.label }}</span>
                                     </div>
                                 </div>

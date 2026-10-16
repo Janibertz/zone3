@@ -30,11 +30,11 @@ const saveError  = ref('');
 
 /** The five sliders, so the markup stays a single loop. */
 const scales = [
-    { key: 'energy_level',    label: '⚡ Energielevel',    tone: 'warn' },
-    { key: 'mood',            label: '😊 Stimmung',        tone: 'info' },
-    { key: 'sleep_quality',   label: '😴 Schlafqualität',  tone: 'accent' },
-    { key: 'muscle_soreness', label: '🦵 Muskelkater',     tone: 'danger' },
-    { key: 'stress_level',    label: '😰 Stress-Level',    tone: 'warn' },
+    { key: 'energy_level',    label: 'Energielevel',    tone: 'warn' },
+    { key: 'mood',            label: 'Stimmung',        tone: 'info' },
+    { key: 'sleep_quality',   label: 'Schlafqualität',  tone: 'accent' },
+    { key: 'muscle_soreness', label: 'Muskelkater',     tone: 'danger' },
+    { key: 'stress_level',    label: 'Stress-Level',    tone: 'warn' },
 ];
 
 const toneClasses = {
@@ -55,11 +55,11 @@ const wellbeingScore = computed(() => {
 const wellbeingStatus = computed(() => {
     const score = parseFloat(wellbeingScore.value);
 
-    if (form.value.is_sick || form.value.is_injured) return '🤕 Nicht trainieren';
-    if (score >= 8) return '🚀 Perfekt für hartes Training';
-    if (score >= 6) return '💪 Moderates Training möglich';
-    if (score >= 4) return '😴 Nur leichtes Training';
-    return '⚠️ Ruhetag empfohlen';
+    if (form.value.is_sick || form.value.is_injured) return 'Nicht trainieren';
+    if (score >= 8) return 'Perfekt für hartes Training';
+    if (score >= 6) return 'Moderates Training möglich';
+    if (score >= 4) return 'Nur leichtes Training';
+    return 'Ruhetag empfohlen';
 });
 
 const formatDate = (date) => date.toLocaleDateString('de-DE', {
@@ -114,7 +114,7 @@ watch(() => props.show, async (open) => {
 <template>
     <AppSheet
         :show="show"
-        title="💪 Tägliches Wellbeing"
+        title="Tägliches Wellbeing"
         :subtitle="formatDate(today)"
         max-width="lg"
         @close="$emit('close')"
@@ -145,18 +145,18 @@ watch(() => props.show, async (open) => {
                 <div class="space-y-3">
                     <label class="flex cursor-pointer items-center gap-3">
                         <input v-model="form.is_sick" type="checkbox" class="h-4 w-4 rounded border-line-strong text-danger focus:ring-danger" />
-                        <span class="text-sm text-ink">🦠 Ich bin krank</span>
+                        <span class="text-sm text-ink">Ich bin krank</span>
                     </label>
                     <label class="flex cursor-pointer items-center gap-3">
                         <input v-model="form.is_injured" type="checkbox" class="h-4 w-4 rounded border-line-strong text-danger focus:ring-danger" />
-                        <span class="text-sm text-ink">🤕 Ich bin verletzt</span>
+                        <span class="text-sm text-ink">Ich bin verletzt</span>
                     </label>
                 </div>
             </div>
 
             <!-- Notes -->
             <div>
-                <label for="wellbeing-notes" class="z-label">📝 Notizen (optional)</label>
+                <label for="wellbeing-notes" class="z-label">Notizen (optional)</label>
                 <textarea
                     id="wellbeing-notes"
                     v-model="form.notes"
