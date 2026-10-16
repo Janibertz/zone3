@@ -87,13 +87,13 @@ const allNavItems = [...navItems, ...moreNavItems];
                 </div>
                 <div class="flex flex-col">
                     <span class="text-base font-bold text-ink tracking-tight leading-tight">Zone3</span>
-                    <span class="text-[10px] font-semibold text-danger uppercase tracking-widest leading-tight">Admin</span>
+                    <span class="text-[13px] font-semibold text-danger leading-tight">Admin</span>
                 </div>
             </div>
 
             <!-- Navigation -->
             <nav class="flex-1 overflow-y-auto px-3 py-5 space-y-0.5">
-                <p class="px-3 mb-3 text-[10px] font-semibold uppercase tracking-widest text-ink-3">Verwaltung</p>
+                <p class="px-3 mb-3 text-[13px] font-semibold text-ink-3">Verwaltung</p>
                 <Link
                     v-for="item in allNavItems"
                     :key="item.routeName"

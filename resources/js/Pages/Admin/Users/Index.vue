@@ -101,12 +101,12 @@ const filterOptions = [
                     <table class="w-full text-sm">
                         <thead class="border-b border-line">
                             <tr class="text-left">
-                                <th class="px-6 py-3 text-xs font-semibold text-ink-3 uppercase tracking-wider">Nutzer</th>
-                                <th class="px-4 py-3 text-xs font-semibold text-ink-3 uppercase tracking-wider">Status</th>
-                                <th class="px-4 py-3 text-xs font-semibold text-ink-3 uppercase tracking-wider text-right">Aktivitäten</th>
-                                <th class="px-4 py-3 text-xs font-semibold text-ink-3 uppercase tracking-wider text-right">Ziele</th>
-                                <th class="px-4 py-3 text-xs font-semibold text-ink-3 uppercase tracking-wider text-right">Registriert</th>
-                                <th class="px-4 py-3 text-xs font-semibold text-ink-3 uppercase tracking-wider text-right">Aktionen</th>
+                                <th class="px-6 py-3 text-[13px] font-semibold text-ink-3">Nutzer</th>
+                                <th class="px-4 py-3 text-[13px] font-semibold text-ink-3">Status</th>
+                                <th class="px-4 py-3 text-[13px] font-semibold text-ink-3 text-right">Aktivitäten</th>
+                                <th class="px-4 py-3 text-[13px] font-semibold text-ink-3 text-right">Ziele</th>
+                                <th class="px-4 py-3 text-[13px] font-semibold text-ink-3 text-right">Registriert</th>
+                                <th class="px-4 py-3 text-[13px] font-semibold text-ink-3 text-right">Aktionen</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-line">

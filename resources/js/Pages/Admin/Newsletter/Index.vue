@@ -177,21 +177,21 @@ function formatDate(d) {
                 <div class="p-4 sm:p-6 space-y-4">
                     <!-- Subject -->
                     <div>
-                        <label class="text-xs font-semibold text-ink-3 uppercase tracking-wide">Betreff *</label>
+                        <label class="text-[13px] font-semibold text-ink-3">Betreff *</label>
                         <input v-model="subject" type="text" placeholder="z.B. Zone3 – Dein Monats-Update Mai 2026"
                             class="mt-1.5 w-full rounded-field bg-surface px-3 py-2.5 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/40" />
                     </div>
 
                     <!-- Preview text -->
                     <div>
-                        <label class="text-xs font-semibold text-ink-3 uppercase tracking-wide">Vorschautext <span class="font-normal">(optional, erscheint in der Inbox-Vorschau)</span></label>
+                        <label class="text-[13px] font-semibold text-ink-3">Vorschautext <span class="font-normal">(optional, erscheint in der Inbox-Vorschau)</span></label>
                         <input v-model="previewText" type="text" maxlength="255" placeholder="Kurze Zusammenfassung für die E-Mail-Vorschau…"
                             class="mt-1.5 w-full rounded-field bg-surface px-3 py-2.5 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/40" />
                     </div>
 
                     <!-- Rich text editor -->
                     <div>
-                        <label class="text-xs font-semibold text-ink-3 uppercase tracking-wide">Inhalt *</label>
+                        <label class="text-[13px] font-semibold text-ink-3">Inhalt *</label>
 
                         <!-- Toolbar -->
                         <div class="mt-1.5 flex flex-wrap items-center gap-1 px-2 py-1.5 bg-surface-2 border border-line rounded-t-xl border-b-0">

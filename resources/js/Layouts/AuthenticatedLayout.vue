@@ -426,7 +426,14 @@ const helpIcon = `<path stroke-linecap="round" stroke-linejoin="round" d="M9.879
             <!-- Page content — top padding for mobile header (safe area aware), bottom for tab bar.
                  overflow-x-clip faengt ein einzelnes zu breites Element ab, statt die ganze
                  Seite seitlich scrollen zu lassen (clip statt hidden, damit sticky weiter geht). -->
-            <main class="min-w-0 flex-1 overflow-x-clip pb-mobile-tabbar pt-mobile-header lg:pb-0 lg:pt-0">
+            <!--
+                Lesebreite. Ohne Deckel verteilten sich Distanz, Dauer und Tempo
+                auf breiten Schirmen ueber 1300px, und der Wochenrueckblick brach
+                rechts mitten im Satz ab. 1280px ist weit genug fuer die
+                dreispaltigen Bloecke und schmal genug, dass eine Zeile noch
+                lesbar bleibt. Auf dem Telefon aendert sich dadurch nichts.
+            -->
+            <main class="mx-auto w-full min-w-0 max-w-[1280px] flex-1 overflow-x-clip pb-mobile-tabbar pt-mobile-header lg:pb-0 lg:pt-0">
                 <slot />
             </main>
         </div>

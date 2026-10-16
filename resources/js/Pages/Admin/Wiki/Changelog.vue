@@ -118,7 +118,7 @@ function guessType(message) {
                                         <svg class="h-3.5 w-3.5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
                                         </svg>
-                                        <span class="text-[10px] font-semibold text-accent-ink uppercase tracking-wide">KI-Zusammenfassung</span>
+                                        <span class="text-[13px] font-semibold text-accent-ink">KI-Zusammenfassung</span>
                                     </div>
                                     <p class="text-sm text-accent-ink leading-relaxed">{{ entry.ai_summary }}</p>
                                 </div>
@@ -128,7 +128,7 @@ function guessType(message) {
                             <div v-if="expanded.has(entry.id)" class="border-t border-line p-4 space-y-4">
                                 <!-- All commits -->
                                 <div>
-                                    <p class="text-xs font-semibold text-ink-3 uppercase tracking-wide mb-2">Commits ({{ entry.commits.length }})</p>
+                                    <p class="text-[13px] font-semibold text-ink-3 mb-2">Commits ({{ entry.commits.length }})</p>
                                     <div class="space-y-1.5">
                                         <div v-for="c in entry.commits" :key="c.id" class="flex items-start gap-2">
                                             <code class="text-[10px] font-mono text-ink-3 bg-surface-2 px-1.5 py-0.5 rounded shrink-0 mt-0.5">{{ c.id }}</code>
@@ -138,7 +138,7 @@ function guessType(message) {
                                 </div>
                                 <!-- Changed files -->
                                 <div>
-                                    <p class="text-xs font-semibold text-ink-3 uppercase tracking-wide mb-2">Geänderte Dateien</p>
+                                    <p class="text-[13px] font-semibold text-ink-3 mb-2">Geänderte Dateien</p>
                                     <div class="flex flex-wrap gap-1.5">
                                         <code v-for="f in entry.files_changed" :key="f"
                                             class="text-[10px] font-mono text-ink-2 bg-surface-2 px-2 py-0.5 rounded">{{ f }}</code>

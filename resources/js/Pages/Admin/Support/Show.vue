@@ -120,7 +120,7 @@ function formatDate(dt) {
 
             <!-- Admin-Antwort -->
             <div class="bg-surface rounded-card p-4 space-y-3 shadow-card">
-                <p class="text-xs font-semibold text-ink-3 uppercase tracking-wider">Admin-Antwort</p>
+                <p class="text-[13px] font-semibold text-ink-3">Admin-Antwort</p>
                 <textarea v-model="reply" rows="4" placeholder="Antwort an den Nutzer…"
                     class="w-full rounded-field bg-surface px-3 py-2.5 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/40 resize-none" />
                 <button @click="sendReply" :disabled="sending || !reply.trim()"

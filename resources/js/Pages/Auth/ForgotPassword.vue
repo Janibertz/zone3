@@ -23,7 +23,7 @@ const submit = () => { form.post(route('password.email')); };
                     </div>
                     <span class="text-xl font-bold text-ink tracking-tight">Zone3</span>
                 </Link>
-                <h1 class="mt-5 text-2xl font-bold text-ink">Passwort vergessen?</h1>
+                <h1 class="mt-5 text-[28px] font-bold leading-[34px] tracking-[-0.4px] text-ink">Passwort vergessen?</h1>
                 <p class="mt-1 text-sm text-ink-3">Wir senden dir einen Reset-Link per E-Mail</p>
             </div>
 

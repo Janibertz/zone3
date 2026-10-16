@@ -60,7 +60,7 @@ function renderMarkdown(src) {
         // Tables
         .replace(/^\|(.+)\|\n\|[-| :]+\|\n((?:\|.+\|\n?)+)/gm, (_, header, body) => {
             const th = header.split('|').map(c => c.trim()).filter(Boolean)
-                .map(c => `<th class="px-3 py-2 text-left text-xs font-semibold text-ink-3 uppercase">${c}</th>`).join('');
+                .map(c => `<th class="px-3 py-2 text-left text-[13px] font-semibold text-ink-3">${c}</th>`).join('');
             const rows = body.trim().split('\n').map(row => {
                 const tds = row.split('|').map(c => c.trim()).filter(Boolean)
                     .map(c => `<td class="px-3 py-2 text-sm text-ink-2 border-t border-line">${c}</td>`).join('');

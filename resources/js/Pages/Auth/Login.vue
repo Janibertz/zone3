@@ -34,7 +34,7 @@ const submit = () => {
                     </div>
                     <span class="text-xl font-bold text-ink tracking-tight">Zone3</span>
                 </Link>
-                <h1 class="mt-5 text-2xl font-bold text-ink">Willkommen zurück</h1>
+                <h1 class="mt-5 text-[28px] font-bold leading-[34px] tracking-[-0.4px] text-ink">Willkommen zurück</h1>
                 <p class="mt-1 text-sm text-ink-3">Meld dich an und weiter trainieren</p>
             </div>
 

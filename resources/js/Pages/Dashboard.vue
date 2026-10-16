@@ -1591,7 +1591,16 @@ async function saveWeek() {
                                 :href="props.todayPlanSession?.event_id ? `/events/${props.todayPlanSession.event_id}/plan` : '/events'">
                                 Plan
                             </AppButton>
-                            <span v-else class="text-[13px] text-ink-3">{{ props.aiUsage.used }}/{{ props.aiUsage.limit }} KI</span>
+                            <!--
+                                Hier stand „2/200 KI" — eine Zahl ohne Satz.
+                                Was gemeint ist: so viele Coach-Anfragen sind
+                                heute noch frei. Der Rest-Wert ist die Zahl, die
+                                interessiert, nicht der Verbrauch.
+                            -->
+                            <span v-else class="text-[13px] text-ink-3"
+                                :title="`${props.aiUsage.used} von ${props.aiUsage.limit} Coach-Anfragen heute verbraucht`">
+                                noch {{ Math.max(0, props.aiUsage.limit - props.aiUsage.used) }} Coach-Anfragen
+                            </span>
                         </template>
                     </SectionHeader>
 
@@ -1957,7 +1966,14 @@ async function saveWeek() {
                                     Also steht jetzt dran, worauf sie sich bezieht.
                                 -->
                                 <p class="text-[13px] text-ink-3">Ø Pace · Läufe</p>
-                                <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ weekStats.avgPace }}</p>
+                                <!--
+                                    Ohne Lauf stand hier ein Gedankenstrich mitten in
+                                    einer Kennzahlenreihe — das sieht nach Fehler aus,
+                                    nicht nach „noch nichts da". Jetzt sagt die Zeile,
+                                    was fehlt, und nimmt sich dabei zurueck.
+                                -->
+                                <p v-if="weekStats.avgPace !== '—'" class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ weekStats.avgPace }}</p>
+                                <p v-else class="mt-1.5 text-[15px] text-ink-3">noch kein Lauf</p>
                             </div>
                         </div>
 
@@ -2007,7 +2023,7 @@ async function saveWeek() {
                 <!-- Streak · Form · Check-in als schmale Zeile darunter -->
                 <div class="grid grid-cols-3 gap-3">
                     <StatChip label="Streak">
-                        <template #icon><span class="text-base leading-none">🔥</span></template>
+                        <template #icon><svg class="h-4 w-4 text-warn" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.36 5.21c.38 1.56-.3 3.2-1.5 4.06 0-1.63-.52-3.2-1.5-4.5-.96-1.27-2.3-2.2-3.86-2.52.4 1.9-.26 3.86-1.6 5.2C5.6 8.74 4.5 10.6 4.5 13.5a7.5 7.5 0 0 0 15 0c0-3.6-1.7-6.8-4.14-8.29Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 19.5a3 3 0 0 1-3-3c0-1.3.9-2.4 1.8-3.3.5.9 1.2 1.5 2.2 1.8a3 3 0 0 1-1 4.5Z" /></svg></template>
                         {{ streakDays }}
                     </StatChip>
 

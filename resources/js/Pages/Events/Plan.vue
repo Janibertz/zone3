@@ -891,7 +891,7 @@ const lapHeightPct = computed(() => {
                                 </span>
                             </div>
 
-                            <h1 class="mt-2 text-[28px] font-bold leading-[34px] text-ink">{{ event.name }}</h1>
+                            <h1 class="mt-2 text-[28px] font-bold leading-[34px] tracking-[-0.4px] text-ink">{{ event.name }}</h1>
 
                             <!--
                                 Vier Angaben in einer Kette aus Mittelpunkten

@@ -218,13 +218,13 @@ const maxTypeCalls = computed(() => Math.max(...(props.byType?.map(t => t.count)
                     <table class="w-full text-sm">
                         <thead class="border-b border-line">
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wide">Zeit</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wide">Nutzer</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wide">Typ</th>
-                                <th class="px-4 py-3 text-right text-xs font-semibold text-ink-3 uppercase tracking-wide">Tokens</th>
-                                <th class="px-4 py-3 text-right text-xs font-semibold text-ink-3 uppercase tracking-wide">Kosten</th>
-                                <th class="px-4 py-3 text-right text-xs font-semibold text-ink-3 uppercase tracking-wide">Dauer</th>
-                                <th class="px-4 py-3 text-center text-xs font-semibold text-ink-3 uppercase tracking-wide">Status</th>
+                                <th class="px-4 py-3 text-left text-[13px] font-semibold text-ink-3">Zeit</th>
+                                <th class="px-4 py-3 text-left text-[13px] font-semibold text-ink-3">Nutzer</th>
+                                <th class="px-4 py-3 text-left text-[13px] font-semibold text-ink-3">Typ</th>
+                                <th class="px-4 py-3 text-right text-[13px] font-semibold text-ink-3">Tokens</th>
+                                <th class="px-4 py-3 text-right text-[13px] font-semibold text-ink-3">Kosten</th>
+                                <th class="px-4 py-3 text-right text-[13px] font-semibold text-ink-3">Dauer</th>
+                                <th class="px-4 py-3 text-center text-[13px] font-semibold text-ink-3">Status</th>
                                 <th class="px-4 py-3"></th>
                             </tr>
                         </thead>
