@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { router, Link, Head } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { activityType } from '@/Composables/useActivityTypes';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import AppCard from '@/Components/UI/AppCard.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
@@ -53,21 +54,13 @@ function formatDateShort(dateStr) {
     return new Date(dateStr).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' });
 }
 
-const TYPES = {
-    Run:            { label: 'Laufen',       emoji: '🏃', pill: 'bg-accent-soft text-accent-ink'   },
-    VirtualRun:     { label: 'Laufen',       emoji: '🏃', pill: 'bg-accent-soft text-accent-ink'   },
-    TrailRun:       { label: 'Trail',        emoji: '⛰️', pill: 'bg-accent-soft text-accent-ink'   },
-    Ride:           { label: 'Rad',          emoji: '🚴', pill: 'bg-success-soft text-success-ink' },
-    VirtualRide:    { label: 'Rad virtuell', emoji: '🚴', pill: 'bg-success-soft text-success-ink' },
-    EBikeRide:      { label: 'E-Bike',       emoji: '🚴', pill: 'bg-success-soft text-success-ink' },
-    Swim:           { label: 'Schwimmen',    emoji: '🏊', pill: 'bg-info-soft text-info-ink'       },
-    Walk:           { label: 'Gehen',        emoji: '🚶', pill: 'bg-warn-soft text-warn-ink'       },
-    Hike:           { label: 'Wandern',      emoji: '🥾', pill: 'bg-warn-soft text-warn-ink'       },
-    Workout:        { label: 'Workout',      emoji: '💪', pill: 'bg-warn-soft text-warn-ink'       },
-    WeightTraining: { label: 'Kraft',        emoji: '💪', pill: 'bg-warn-soft text-warn-ink'       },
-    Yoga:           { label: 'Yoga',         emoji: '🧘', pill: 'bg-success-soft text-success-ink' },
-};
-const typeOf = (t) => TYPES[t] ?? { label: t, emoji: '🏅', pill: 'bg-surface-2 text-ink-2' };
+/*
+ * Die Sportarten-Tabelle stand hier ein zweites Mal — mit Emoji und
+ * eigenen Pill-Farben, neben der im Composable. Genau davor warnt der
+ * Docblock von `useActivityTypes.js`, und sie war trotzdem wieder da.
+ * Jetzt nur noch eine Quelle; das Icon kommt als Strich-Pfad mit.
+ */
+const typeOf = (t) => activityType(t);
 
 const monthOptions = computed(() => {
     const opts = [];
@@ -180,7 +173,7 @@ function metricsOf(a) {
                     >
                         <div class="mb-2.5 flex items-start justify-between gap-2">
                             <div class="flex min-w-0 items-center gap-2">
-                                <span class="shrink-0 text-lg leading-none">{{ typeOf(activity.type).emoji }}</span>
+                                <svg class="h-5 w-5 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true" v-html="typeOf(activity.type).icon" />
                                 <p class="truncate text-[15px] font-semibold leading-tight text-ink">{{ activity.name }}</p>
                             </div>
                             <span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="typeOf(activity.type).pill">

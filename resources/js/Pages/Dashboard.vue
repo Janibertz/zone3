@@ -7,7 +7,7 @@ import AppButton from '@/Components/UI/AppButton.vue';
 import GarminSendSheet from '@/Components/UI/GarminSendSheet.vue';
 import GarminRecovery from '@/Components/GarminRecovery.vue';
 import { Head, usePage } from '@inertiajs/vue3';
-import { matchesSport, sportOptions } from '@/Composables/useActivityTypes';
+import { activityType, matchesSport, sportOptions } from '@/Composables/useActivityTypes';
 import { useCoachChat } from '@/Composables/useCoachChat';
 import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 import { Inertia } from '@inertiajs/inertia';
@@ -1082,20 +1082,11 @@ onMounted(() => {
     }
 });
 
-function activityTypeIcon(type) {
-    const icons = {
-        Run: '🏃', VirtualRun: '🏃',
-        Ride: '🚴', VirtualRide: '🚴', EBikeRide: '🚴',
-        Swim: '🏊',
-        Walk: '🚶', Hike: '🥾',
-        Workout: '💪', WeightTraining: '💪',
-        Yoga: '🧘',
-        Ski: '⛷️', AlpineSki: '⛷️', NordicSki: '🎿',
-        Rowing: '🚣', Kayaking: '🚣',
-        Soccer: '⚽', Tennis: '🎾',
-    };
-    return icons[type] ?? '🏃';
-}
+/*
+ * Dritte Kopie derselben Tabelle, hier als Emoji-Map. Ersetzt durch den
+ * gemeinsamen Zugriff; das Icon ist jetzt ein Strich-Pfad.
+ */
+const activityIcon = (type) => activityType(type).icon;
 
 function eventRingProps(daysUntil) {
     const progress = Math.min(1, Math.max(0, (180 - daysUntil) / 180));
@@ -1831,7 +1822,7 @@ async function saveWeek() {
                                 <button v-if="ratingOpenId !== session.id" @click="openRating(session)"
                                     class="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-surface-2">
                                     <div class="flex min-w-0 items-center gap-3">
-                                        <span class="shrink-0 text-lg">{{ sessionType(session.type).emoji }}</span>
+                                        <svg class="h-5 w-5 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true" v-html="sessionType(session.type).icon" />
                                         <div class="min-w-0">
                                             <p class="truncate text-[15px] font-semibold text-ink">{{ session.activity_name || session.title || 'Einheit' }}</p>
                                             <p class="text-[13px] text-ink-3">
@@ -1846,7 +1837,7 @@ async function saveWeek() {
                                 <div v-else class="px-5 py-4">
                                     <div class="mb-4 flex items-center justify-between">
                                         <div class="flex min-w-0 items-center gap-2">
-                                            <span class="shrink-0 text-lg">{{ sessionType(session.type).emoji }}</span>
+                                            <svg class="h-5 w-5 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true" v-html="sessionType(session.type).icon" />
                                             <p class="truncate text-[15px] font-bold text-ink">{{ session.activity_name || session.title || 'Einheit' }}</p>
                                         </div>
                                         <button @click="ratingOpenId = null" class="ml-2 shrink-0 text-lg leading-none text-ink-3 hover:text-ink">✕</button>
@@ -2218,7 +2209,7 @@ async function saveWeek() {
                         >
                             <div class="mb-2.5 flex items-start justify-between gap-2">
                                 <div class="flex min-w-0 items-center gap-2">
-                                    <span class="shrink-0 text-lg leading-none">{{ activityTypeIcon(activity.type) }}</span>
+                                    <svg class="h-5 w-5 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true" v-html="activityIcon(activity.type)" />
                                     <p class="truncate text-[15px] font-semibold leading-tight text-ink">{{ activity.name }}</p>
                                 </div>
                                 <span class="shrink-0 text-[12px] text-ink-3">{{ relativeDate(activity.start_date) }}</span>
