@@ -317,13 +317,13 @@ const sessionDotColors = {
                                 <div v-if="d.event"
                                     class="mb-1 px-1.5 py-1 rounded-lg text-xs font-semibold text-white truncate"
                                     :class="phaseColor(d.event.training_phase?.key)">
-                                    🏁 {{ d.event.name }}
+                                    <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18M3 4.5h13.5l-2.25 4.5 2.25 4.5H3" /></svg> {{ d.event.name }}
                                 </div>
 
                                 <!-- Aktivitäten -->
                                 <div v-for="act in d.activities.slice(0, 2)" :key="act.id"
                                     class="px-1.5 py-1 rounded-lg bg-accent-soft mb-0.5 truncate">
-                                    <p class="text-xs font-semibold text-accent-ink truncate">🏃 {{ formatDistance(act.distance) }} km</p>
+                                    <p class="text-xs font-semibold text-accent-ink truncate">{{ formatDistance(act.distance) }} km</p>
                                     <p class="text-xs text-accent">{{ formatTime(act.moving_time) }} · {{ formatPace(act.average_speed) }}/km</p>
                                 </div>
                                 <div v-if="d.activities.length > 2"
@@ -357,7 +357,7 @@ const sessionDotColors = {
                 -->
                 <div class="w-full lg:w-72 lg:flex-shrink-0">
                     <div v-if="!selected" class="rounded-card border border-line bg-surface p-5 text-center shadow-card">
-                        <div class="mb-3 text-3xl">📅</div>
+                        <svg class="mx-auto mb-3 h-8 w-8 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0V11.25A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>
                         <p class="text-sm font-semibold text-ink-2">Tag auswählen</p>
                         <p class="mt-1 text-xs text-ink-3">Tippe auf einen Tag im Raster</p>
                     </div>
@@ -390,7 +390,7 @@ const sessionDotColors = {
                                     {{ selected.event.training_phase?.label }}
                                 </span>
                             </div>
-                            <h3 class="font-bold text-ink">🏁 {{ selected.event.name }}</h3>
+                            <h3 class="font-bold text-ink"><svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18M3 4.5h13.5l-2.25 4.5 2.25 4.5H3" /></svg> {{ selected.event.name }}</h3>
                             <p class="text-sm text-ink-3 mt-1">{{ selected.event.distance_label }}</p>
                             <p v-if="selected.event.target_time_formatted" class="text-sm text-accent-ink font-semibold mt-1">
                                 Ziel: {{ selected.event.target_time_formatted }}
@@ -417,13 +417,13 @@ const sessionDotColors = {
                                             <span v-if="s.duration_min" class="text-xs text-ink-3">{{ s.duration_min }} min</span>
                                             <span v-if="paceWithUnit(s.pace_target)" class="text-xs text-ink-3">{{ paceWithUnit(s.pace_target) }}</span>
                                         </div>
-                                        <span v-if="s.status === 'completed'" class="text-xs text-success-ink font-medium">✓ Erledigt</span>
+                                        <span v-if="s.status === 'completed'" class="text-xs text-success-ink font-medium"><svg class="mr-1 inline-block h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Erledigt</span>
                                         <span v-else-if="s.status === 'skipped'" class="text-xs text-ink-3">Übersprungen<span v-if="s.skip_reason"> — {{ s.skip_reason }}</span></span>
                                         <!-- Description -->
                                         <p v-if="s.description && s.type !== 'rest'" class="mt-1.5 text-xs text-ink-3 leading-relaxed line-clamp-3">{{ s.description }}</p>
                                         <!-- Rating badge -->
                                         <div v-if="s.rating" class="mt-1 flex items-center gap-1">
-                                            <span v-for="i in s.rating" :key="i" class="text-warn text-xs">★</span>
+                                            <span v-for="i in s.rating" :key="i" class="text-warn text-xs"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.6 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.5 6.1 20.6l1.2-6.5L2.5 9.5l6.6-.9Z" /></svg></span>
                                         </div>
                                         <!-- Link to plan -->
                                         <a v-if="s.event_id && s.type !== 'rest'"
@@ -499,7 +499,7 @@ const sessionDotColors = {
             <!-- Mobile: selected day detail -->
             <div v-if="selected" class="mt-4 lg:hidden bg-surface rounded-card border border-line p-4 shadow-card">
                 <div v-if="selected.event" class="mb-3 pb-3 border-b border-line">
-                    <p class="font-bold text-ink">🏁 {{ selected.event.name }}</p>
+                    <p class="font-bold text-ink"><svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18M3 4.5h13.5l-2.25 4.5 2.25 4.5H3" /></svg> {{ selected.event.name }}</p>
                     <p class="text-sm text-ink-3">{{ selected.event.distance_label }} · Noch {{ selected.event.days_until }} Tage</p>
                 </div>
                 <div v-if="selected.sessions?.length > 0" class="mb-3 pb-3 border-b border-line">
@@ -512,7 +512,7 @@ const sessionDotColors = {
                         </div>
                         <p v-if="s.description && s.type !== 'rest'" class="mt-1 ml-5 text-xs text-ink-3 line-clamp-2">{{ s.description }}</p>
                         <div v-if="s.rating" class="mt-1 ml-5 flex items-center gap-0.5">
-                            <span v-for="i in s.rating" :key="i" class="text-warn text-xs">★</span>
+                            <span v-for="i in s.rating" :key="i" class="text-warn text-xs"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.6 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.5 6.1 20.6l1.2-6.5L2.5 9.5l6.6-.9Z" /></svg></span>
                         </div>
                         <a v-if="s.event_id && s.type !== 'rest'" :href="`/events/${s.event_id}/plan`"
                             class="mt-1 ml-5 inline-flex items-center gap-1 text-xs font-semibold text-accent-ink">

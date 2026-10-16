@@ -403,7 +403,7 @@ function onWellbeingSaved(data) {
     } else {
         wellbeingToast.value = {
             type: 'success',
-            message: data?.message ?? 'Wellbeing gespeichert! 💪',
+            message: data?.message ?? 'Wellbeing gespeichert!',
         };
     }
     clearTimeout(wellbeingToastTimer);
@@ -1397,9 +1397,7 @@ async function saveWeek() {
                      ══════════════════════════════════════════════════ -->
                 <AppCard v-if="goalCheck && !goalAnswered">
                     <div class="flex items-start gap-3">
-                        <span class="mt-0.5 shrink-0 text-xl leading-none">
-                            {{ goalCheck.kind === 'too_conservative' ? '🚀' : '🎯' }}
-                        </span>
+                        <svg class="mt-0.5 h-5 w-5 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path v-if="goalCheck.kind === 'too_conservative'" stroke-linecap="round" stroke-linejoin="round" d="M12 19.5V4.5m0 0L6.75 9.75M12 4.5l5.25 5.25" /><path v-else stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m0 0 5.25-5.25M12 19.5 6.75 14.25" /></svg>
                         <div class="min-w-0 flex-1">
                             <h2 class="text-[17px] font-semibold text-ink">{{ goalCheck.headline }}</h2>
                             <p class="mt-1 text-[13px] leading-relaxed text-ink-3">{{ goalCheck.detail }}</p>
@@ -1486,7 +1484,7 @@ async function saveWeek() {
                 <AppCard>
                     <p class="text-[15px] text-ink-3">{{ greeting }},</p>
                     <h2 class="mt-0.5 text-[22px] font-bold leading-7 text-ink">
-                        <template v-if="coachPrMessage && !prDismissed">Stark gelaufen, {{ firstName }}! 🏆</template>
+                        <template v-if="coachPrMessage && !prDismissed">Stark gelaufen, {{ firstName }}!</template>
                         <template v-else-if="!checkinDone">Wie fühlst du dich heute?</template>
                         <template v-else-if="props.todayPlanSession || props.todayRecommendationSession">Viel Spaß bei deinem Training</template>
                         <template v-else>Schön, dass du da bist, {{ firstName }}</template>
@@ -1608,7 +1606,7 @@ async function saveWeek() {
                     <template v-if="props.hasActivePlan">
                         <SessionCard v-if="props.todayPlanSession"
                             :session="props.todayPlanSession"
-                            :badge="props.todayPlanSession.status === 'completed' ? '✓ Erledigt'
+                            :badge="props.todayPlanSession.status === 'completed' ? 'Erledigt'
                                 : props.todayPlanSession.is_today ? 'Heute'
                                 : new Date(props.todayPlanSession.session_date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' })"
                             :badge-tone="props.todayPlanSession.status === 'completed' ? 'success' : props.todayPlanSession.is_today ? 'accent' : 'neutral'"
@@ -1624,7 +1622,7 @@ async function saveWeek() {
                     <!-- ── Ohne Plan: Empfehlung ────────────────────── -->
                     <template v-else>
                         <div v-if="props.todayRecommendationSession" class="space-y-3">
-                            <SessionCard :session="props.todayRecommendationSession" badge="✓ Geplant" badge-tone="success" />
+                            <SessionCard :session="props.todayRecommendationSession" badge="Geplant" badge-tone="success" />
 
                             <!-- Trainingsstruktur als Zonenbalken -->
                             <AppCard
@@ -1684,13 +1682,13 @@ async function saveWeek() {
                                 <p v-else-if="recNutritionError" class="text-[13px] text-danger">{{ recNutritionError }}</p>
                                 <div v-else-if="recNutritionTips" class="grid grid-cols-1 gap-2 sm:grid-cols-3">
                                     <div v-for="block in [
-                                            { key: 'before', icon: '🕐', title: 'Vorher' },
-                                            { key: 'during', icon: '🏃', title: 'Währenddessen' },
-                                            { key: 'after',  icon: '✅', title: 'Danach' },
+                                            { key: 'before', icon: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7.5V12l3 1.5', title: 'Vorher' },
+                                            { key: 'during', icon: 'M9 3.75v16.5M15 3.75v16.5M6 8.25h3M15 8.25h3', title: 'Währenddessen' },
+                                            { key: 'after',  icon: 'm4.5 12.75 6 6 9-13.5', title: 'Danach' },
                                         ]" :key="block.key"
                                         class="rounded-field bg-surface-2 p-3.5">
                                         <p class="mb-2 flex items-center gap-1.5 text-[13px] font-bold text-ink">
-                                            <span>{{ block.icon }}</span>{{ block.title }}
+                                            <svg class="h-4 w-4 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" :d="block.icon" /></svg>{{ block.title }}
                                         </p>
                                         <ul class="space-y-1.5">
                                             <li v-for="tip in recNutritionTips[block.key]" :key="tip.text" class="flex items-start gap-2 text-[13px] leading-relaxed text-ink-3">
@@ -1807,7 +1805,7 @@ async function saveWeek() {
                 <!-- Kein Plan -->
                 <AppCard v-if="!props.hasActivePlan" tappable href="/events">
                     <div class="flex items-center gap-4">
-                        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xl">🎯</div>
+                        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-3"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m3.75-9.75H6.75A2.25 2.25 0 0 0 4.5 6v13.5A2.25 2.25 0 0 0 6.75 21h10.5A2.25 2.25 0 0 0 19.5 19.5V6a2.25 2.25 0 0 0-2.25-2.25H12.75Z" /></svg></div>
                         <div class="min-w-0 flex-1">
                             <p class="text-[15px] font-bold text-ink">Noch kein Trainingsplan</p>
                             <p class="mt-0.5 text-[13px] text-ink-3">
@@ -1849,7 +1847,7 @@ async function saveWeek() {
                                             <svg class="h-5 w-5 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true" v-html="sessionType(session.type).icon" />
                                             <p class="truncate text-[15px] font-bold text-ink">{{ session.activity_name || session.title || 'Einheit' }}</p>
                                         </div>
-                                        <button @click="ratingOpenId = null" class="ml-2 shrink-0 text-lg leading-none text-ink-3 hover:text-ink">✕</button>
+                                        <button @click="ratingOpenId = null" class="ml-2 shrink-0 text-lg leading-none text-ink-3 hover:text-ink"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg></button>
                                     </div>
 
                                     <p class="mb-2 text-[13px] font-semibold text-ink-2">Wie war die Einheit?</p>
@@ -2008,7 +2006,7 @@ async function saveWeek() {
                 <button v-else type="button" class="w-full text-left" @click="showWellbeingModal = true">
                     <AppCard>
                         <div class="flex items-center gap-4">
-                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xl">💪</div>
+                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-3"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m3.75-9.75H6.75A2.25 2.25 0 0 0 4.5 6v13.5A2.25 2.25 0 0 0 6.75 21h10.5A2.25 2.25 0 0 0 19.5 19.5V6a2.25 2.25 0 0 0-2.25-2.25H12.75Z" /></svg></div>
                             <div class="min-w-0 flex-1">
                                 <p class="text-[15px] font-bold text-ink">Wie fühlst du dich heute?</p>
                                 <p class="mt-0.5 text-[13px] text-ink-3">Ein kurzer Check-in füllt deine Werte — 30 Sekunden.</p>
@@ -2177,7 +2175,7 @@ async function saveWeek() {
                             <div class="mb-3 flex items-center gap-3">
                                 <div v-if="coach" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-white"
                                     :style="`background-color: ${coach.avatar_color}`">{{ coach.avatar_initials }}</div>
-                                <div v-else class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-base">🧠</div>
+                                <div v-else class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-3"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.1a7.5 7.5 0 0 1 15 0v.15a24 24 0 0 1-15 0v-.15Z" /></svg></div>
                                 <div>
                                     <p class="text-[15px] font-bold text-ink">{{ coach ? coach.name : 'Dein Coach' }}</p>
                                     <p class="text-[13px] text-ink-3">ab {{ new Date(props.weeklyReview.week_start).toLocaleDateString('de-DE', {day:'2-digit', month:'short'}) }}</p>
@@ -2246,7 +2244,7 @@ async function saveWeek() {
                                             : paceColor(activity.average_speed)">
                                     {{ activityPaceLabel(activity) }}
                                 </span>
-                                <span v-if="activity.average_heartrate" class="text-[13px]">❤️ {{ Math.round(activity.average_heartrate) }}</span>
+                                <span v-if="activity.average_heartrate" class="text-[13px]"><span class="text-ink-3">Puls</span> {{ Math.round(activity.average_heartrate) }}</span>
                                 <span v-if="activity.total_elevation_gain > 0" class="text-[13px]">↑ {{ Math.round(activity.total_elevation_gain) }} m</span>
                             </div>
                         </button>
@@ -2305,7 +2303,7 @@ async function saveWeek() {
                                     <p class="text-[13px] font-semibold text-ink-3">
                                         {{ calendarPickerDay }}. {{ currentMonthLabel.split(' ')[0] }} · {{ activeDaysInMonth.get(calendarPickerDay).length }} Aktivitäten
                                     </p>
-                                    <button class="text-lg leading-none text-ink-3 hover:text-ink" @click="calendarPickerDay = null">✕</button>
+                                    <button class="text-lg leading-none text-ink-3 hover:text-ink" @click="calendarPickerDay = null"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg></button>
                                 </div>
                                 <button v-for="act in activeDaysInMonth.get(calendarPickerDay)" :key="act.id"
                                     @click="pickCalendarActivity(act)"
