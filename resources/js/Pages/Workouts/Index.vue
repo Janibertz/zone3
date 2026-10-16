@@ -1,5 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import axios from 'axios';
@@ -197,20 +198,20 @@ async function sendToGarmin({ email, password, date } = {}) {
 <template>
     <Head title="Workout-Bibliothek" />
     <AuthenticatedLayout>
-        <div class="px-4 sm:px-6 py-6">
+        <div class="min-h-screen bg-canvas">
+            <PageHeader title="Workout-Bibliothek" subtitle="Deine gespeicherten Lauf-Workouts">
+                <template #action>
+                    <Link
+                        :href="route('workouts.create')"
+                        aria-label="Neues Workout"
+                        class="-mr-2 inline-flex h-10 w-10 items-center justify-center rounded-field text-accent transition-[opacity,transform] duration-150 ease-out-strong hover:opacity-70 active:scale-[0.97]"
+                    >
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                    </Link>
+                </template>
+            </PageHeader>
 
-            <!-- Header -->
-            <div class="flex items-center justify-between mb-6 gap-4 flex-wrap">
-                <div>
-                    <h1 class="text-[34px] font-bold leading-[41px] text-ink">Workout-Bibliothek</h1>
-                    <p class="text-sm text-ink-3 mt-0.5">Deine gespeicherten Lauf-Workouts</p>
-                </div>
-                <Link :href="route('workouts.create')"
-                    class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-colors shadow-card">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                    Neues Workout
-                </Link>
-            </div>
+            <div class="px-4 pb-8 pt-2 lg:px-8">
 
             <!-- Filters -->
             <div class="flex gap-2 mb-5 flex-wrap">
@@ -333,6 +334,7 @@ async function sendToGarmin({ email, password, date } = {}) {
                         </div>
                     </div>
                 </div>
+            </div>
             </div>
         </div>
 

@@ -267,12 +267,12 @@ async function save() {
                     <!-- Metadata -->
                     <div class="bg-surface rounded-card border border-line p-4 space-y-3">
                         <div>
-                            <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">Name</label>
+                            <label class="block text-[13px] font-semibold text-ink-3 mb-1">Name</label>
                             <input v-model="name" type="text" placeholder="z.B. 5×1km Intervall"
                                 class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
                         </div>
                         <div>
-                            <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">Typ</label>
+                            <label class="block text-[13px] font-semibold text-ink-3 mb-1">Typ</label>
                             <select v-model="type"
                                 class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
                                 <option value="easy_run">Lockerer Lauf</option>
@@ -282,12 +282,12 @@ async function save() {
                             </select>
                         </div>
                         <div>
-                            <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">Notiz</label>
+                            <label class="block text-[13px] font-semibold text-ink-3 mb-1">Notiz</label>
                             <textarea v-model="description" rows="2" placeholder="Optional…"
                                 class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 resize-none" />
                         </div>
                         <div>
-                            <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">Tags <span class="font-normal normal-case">(mit Leerzeichen trennen)</span></label>
+                            <label class="block text-[13px] font-semibold text-ink-3 mb-1">Tags <span class="font-normal normal-case">(mit Leerzeichen trennen)</span></label>
                             <input v-model="tags" type="text" placeholder="#intervall #tempo"
                                 class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
                         </div>
@@ -295,7 +295,7 @@ async function save() {
 
                     <!-- Palette (2-col) -->
                     <div class="bg-surface rounded-card border border-line p-4">
-                        <p class="text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-3">Segment hinzufügen</p>
+                        <p class="text-[13px] font-semibold text-ink-3 mb-3">Segment hinzufügen</p>
                         <div class="grid grid-cols-2 gap-2">
                             <button v-for="def in BLOCK_DEFS" :key="def.type"
                                 @click="addBlock(def)"
@@ -334,7 +334,7 @@ async function save() {
                                 <div v-for="step in previewSteps" :key="step.key" class="flex items-center gap-3">
                                     <span class="h-2.5 w-2.5 rounded-full shrink-0" :class="step.dot" />
                                     <div class="flex-1 min-w-0">
-                                        <span class="text-xs font-semibold text-ink uppercase tracking-wide">{{ step.label }}</span>
+                                        <span class="text-[13px] font-semibold text-ink">{{ step.label }}</span>
                                         <span v-if="step.sublabel" class="text-xs text-ink-3 ml-2">{{ step.sublabel }}</span>
                                     </div>
                                     <span v-if="step.isRepeat"
@@ -431,7 +431,7 @@ async function save() {
 
                                 <!-- Label -->
                                 <div>
-                                    <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">Bezeichnung</label>
+                                    <label class="block text-[13px] font-semibold text-ink-3 mb-1">Bezeichnung</label>
                                     <input v-model="block.label" type="text"
                                         class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
                                 </div>
@@ -440,7 +440,7 @@ async function save() {
                                 <template v-if="!block.steps">
                                     <div class="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">Modus</label>
+                                            <label class="block text-[13px] font-semibold text-ink-3 mb-1">Modus</label>
                                             <select v-model="block.duration_mode"
                                                 class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
                                                 <option value="time">Zeit</option>
@@ -448,7 +448,7 @@ async function save() {
                                             </select>
                                         </div>
                                         <div>
-                                            <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">
+                                            <label class="block text-[13px] font-semibold text-ink-3 mb-1">
                                                 {{ block.duration_mode === 'distance' ? 'Distanz (m)' : 'Dauer (MM:SS)' }}
                                             </label>
                                             <input v-if="block.duration_mode === 'distance'"
@@ -463,7 +463,7 @@ async function save() {
                                     </div>
                                     <div v-if="block.type !== 'rest'" class="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">Zone</label>
+                                            <label class="block text-[13px] font-semibold text-ink-3 mb-1">Zone</label>
                                             <select v-model.number="block.pace_zone"
                                                 class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
                                                 <option :value="0">— keine —</option>
@@ -471,7 +471,7 @@ async function save() {
                                             </select>
                                         </div>
                                         <div>
-                                            <label class="block text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1">Pace-Ziel (MM:SS)</label>
+                                            <label class="block text-[13px] font-semibold text-ink-3 mb-1">Pace-Ziel (MM:SS)</label>
                                             <input v-model="block.pace" type="text" placeholder="z.B. 5:30"
                                                 class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
                                         </div>
@@ -538,7 +538,7 @@ async function save() {
                                 <!-- ── Intervalle (Repeat) blocks ── -->
                                 <template v-else-if="block.type === 'repeat'">
                                     <div class="flex items-center gap-3">
-                                        <label class="text-[11px] font-semibold text-ink-3 uppercase tracking-wide">Wiederholungen</label>
+                                        <label class="text-[13px] font-semibold text-ink-3">Wiederholungen</label>
                                         <div class="flex items-center gap-1">
                                             <button @click="block.repetitions = Math.max(1, (block.repetitions ?? 1) - 1)"
                                                 class="h-7 w-7 rounded-lg border border-line bg-surface-2 text-sm font-bold text-ink-2 hover:bg-surface-2 transition-colors flex items-center justify-center">−</button>
@@ -557,7 +557,7 @@ async function save() {
                                             <div class="px-3 py-1.5 flex items-center gap-2"
                                                 :class="step.type === 'work' ? 'bg-danger-soft' : step.type === 'rest' ? 'bg-success-soft' : 'bg-info-soft'">
                                                 <select v-model="step.type"
-                                                    class="rounded-lg border-0 bg-transparent text-xs font-bold uppercase tracking-wide focus:outline-none cursor-pointer"
+                                                    class="rounded-lg border-0 bg-transparent text-[13px] font-bold focus:outline-none cursor-pointer"
                                                     :class="step.type === 'work' ? 'text-danger-ink' : step.type === 'rest' ? 'text-success-ink' : 'text-info-ink'">
                                                     <option value="work">ARBEIT</option>
                                                     <option value="rest">PAUSE</option>

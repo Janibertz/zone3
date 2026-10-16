@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import AppCard from '@/Components/UI/AppCard.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import StatTile from '@/Components/UI/StatTile.vue';
@@ -219,17 +220,14 @@ const avgDistance = computed(() => {
 
     <AuthenticatedLayout>
         <div class="min-h-screen bg-canvas">
-            <div class="space-y-6 px-4 py-4 lg:px-6 lg:py-6">
+            <PageHeader title="Statistiken" subtitle="Deine Trainingsanalyse auf einen Blick">
+                <template #action>
+                    <!-- Aktion neben einer Ueberschrift ist Akzent-Text, keine Pille. -->
+                    <AppButton :href="route('wrapped.index')" variant="plain" size="sm">Rückblick</AppButton>
+                </template>
+            </PageHeader>
 
-                <header class="flex items-end justify-between gap-3 px-1">
-                    <div class="min-w-0">
-                        <h1 class="text-[34px] font-bold leading-[41px] text-ink">Statistiken</h1>
-                        <p class="mt-1 text-[15px] text-ink-3">Deine Trainingsanalyse auf einen Blick</p>
-                    </div>
-                    <AppButton :href="route('wrapped.index')" variant="secondary" size="sm" class="shrink-0">
-                        <span aria-hidden="true">🎁</span> Rückblick
-                    </AppButton>
-                </header>
+            <div class="space-y-6 px-4 pb-8 pt-2 lg:px-8">
 
                 <SegmentedControl v-if="sportOptions.length" v-model="sportFilter" :options="sportOptions" />
 

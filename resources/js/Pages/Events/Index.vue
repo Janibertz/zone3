@@ -1,5 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
@@ -176,28 +177,26 @@ watch(() => form.race_distance, (val) => {
 
     <AuthenticatedLayout>
         <div class="min-h-screen bg-canvas">
-            <div class="space-y-5 px-4 py-4 lg:px-6 lg:py-6">
-
-                <!-- ══ KOPF ══════════════════════════════════════════ -->
-                <!--
-                    Auf dem Telefon untereinander, die Schaltflaeche ueber die
-                    volle Breite: nebeneinander brach sie ohnehin um und stand
-                    dann schmal am linken Rand.
-                -->
-                <header class="flex flex-col gap-4 px-1 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-                    <div class="min-w-0">
-                        <h1 class="text-[34px] font-bold leading-[41px] text-ink">Events &amp; Rennen</h1>
-                        <p class="mt-1 text-[15px] text-ink-3">
-                            Plane deine Wettkämpfe — {{ coachName }} baut den Plan dazu.
-                        </p>
-                    </div>
-                    <AppButton class="w-full sm:w-auto sm:shrink-0" @click="openCreate">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <!--
+                Das Plus steht als Glyphe in der Titelzeile, wie in iOS. Eine
+                beschriftete Schaltflaeche daneben draengte den Titel bei
+                390px ab; darunter ueber die volle Breite nahm sie dem Large
+                Title den Platz, der ihn erst gross macht.
+            -->
+            <PageHeader
+                title="Events &amp; Rennen"
+                :subtitle="`Plane deine Wettkämpfe — ${coachName} baut den Plan dazu.`"
+            >
+                <template #action>
+                    <AppButton variant="plain" size="sm" aria-label="Event hinzufügen" @click="openCreate">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                         </svg>
-                        Event hinzufügen
                     </AppButton>
-                </header>
+                </template>
+            </PageHeader>
+
+            <div class="space-y-5 px-4 pb-8 pt-2 lg:px-8">
 
                 <div v-if="status === 'event-created' || status === 'event-updated'"
                     class="rounded-card bg-success-soft px-4 py-3 text-sm text-success-ink shadow-card">

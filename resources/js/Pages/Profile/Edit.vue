@@ -685,7 +685,7 @@ const inputClass = 'z-input';
                         <p class="text-2xl font-bold tabular-nums tracking-tight text-ink">
                             {{ stat.value }}<span v-if="stat.unit" class="ml-0.5 text-sm font-medium text-ink-3">{{ stat.unit }}</span>
                         </p>
-                        <p class="mt-0.5 truncate text-xs font-medium uppercase tracking-wide text-ink-3">{{ stat.label }}</p>
+                        <p class="mt-0.5 truncate text-[13px] font-medium text-ink-3">{{ stat.label }}</p>
                     </div>
                 </div>
             </div>

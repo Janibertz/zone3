@@ -1,5 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
 import { paceWithUnit } from '@/Composables/useSessionTypes';
@@ -212,14 +213,19 @@ const sessionDotColors = {
 <template>
     <Head title="Kalender – Zone3" />
     <AuthenticatedLayout>
-        <div class="min-h-screen bg-surface-2 px-4 py-6 lg:px-8">
+        <!--
+            Der Seitengrund war `bg-surface-2` — als einzige Seite der App.
+            Auf `bg-canvas` gezogen, sonst sieht der Kalender aus wie aus
+            einer anderen Anwendung.
+        -->
+        <div class="min-h-screen bg-canvas">
 
-            <!-- Header -->
-            <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 class="text-[34px] font-bold leading-[41px] text-ink">Kalender</h1>
-                    <p class="text-sm text-ink-3 mt-0.5">Trainingsübersicht & Events</p>
-                </div>
+            <PageHeader title="Kalender" subtitle="Trainingsübersicht & Events" />
+
+            <div class="px-4 pb-8 pt-2 lg:px-8">
+
+            <!-- Monatsnavigation -->
+            <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4">
                 <div class="flex items-center gap-2">
                     <button @click="prevMonth"
                         class="flex h-11 w-11 items-center justify-center rounded-field bg-surface text-ink-3 transition hover:border-line-strong hover:text-ink sm:h-9 sm:w-9">
@@ -394,7 +400,7 @@ const sessionDotColors = {
 
                         <!-- Training Sessions -->
                         <div v-if="selected.sessions?.length > 0" class="p-4 border-b border-line">
-                            <h5 class="text-xs font-semibold text-ink-3 uppercase tracking-wider mb-3">Trainingsplan</h5>
+                            <h5 class="text-[13px] font-semibold text-ink-3 mb-3">Trainingsplan</h5>
                             <div v-for="s in selected.sessions" :key="s.id" class="mb-4 last:mb-0">
                                 <div class="flex items-start gap-2">
                                     <span class="shrink-0 mt-0.5 h-4 w-4 rounded-full flex items-center justify-center text-xs"
@@ -435,27 +441,36 @@ const sessionDotColors = {
                         <!-- Aktivitäten -->
                         <div v-if="selected.activities.length" class="p-4">
                             <div v-for="act in selected.activities" :key="act.id" class="mb-4 last:mb-0">
-                                <h4 class="font-semibold text-ink text-sm mb-2">🏃 {{ act.name }}</h4>
-                                <div class="grid grid-cols-2 gap-2">
-                                    <div class="bg-info-soft rounded-field p-2.5 text-center">
-                                        <p class="text-lg font-black text-info-ink">{{ formatDistance(act.distance) }}</p>
-                                        <p class="text-xs text-info">km</p>
+                                <!--
+                                    Hier standen fuenf Kacheln in fuenf
+                                    Saettigungsfarben, jede mit farbigem Grund
+                                    UND farbiger Zahl. Distanz, Zeit, Tempo,
+                                    Puls und Hoehe sind aber keine Zustaende —
+                                    nichts davon ist gut oder schlecht, also
+                                    traegt nichts davon eine Farbe. Label grau,
+                                    Zahl neutral, Einheit klein daneben.
+                                -->
+                                <h4 class="mb-3 text-[15px] font-semibold text-ink">{{ act.name }}</h4>
+                                <div class="grid grid-cols-2 gap-x-4 gap-y-3">
+                                    <div>
+                                        <p class="text-[13px] leading-4 text-ink-3">Distanz</p>
+                                        <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ formatDistance(act.distance) }}<span class="text-[13px] font-medium text-ink-3"> km</span></p>
                                     </div>
-                                    <div class="bg-success-soft rounded-field p-2.5 text-center">
-                                        <p class="text-lg font-black text-success-ink">{{ formatTime(act.moving_time) }}</p>
-                                        <p class="text-xs text-success">Zeit</p>
+                                    <div>
+                                        <p class="text-[13px] leading-4 text-ink-3">Zeit</p>
+                                        <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ formatTime(act.moving_time) }}</p>
                                     </div>
-                                    <div class="bg-accent-soft rounded-field p-2.5 text-center">
-                                        <p class="text-lg font-black text-accent-ink">{{ formatPace(act.average_speed) }}</p>
-                                        <p class="text-xs text-accent">min/km</p>
+                                    <div>
+                                        <p class="text-[13px] leading-4 text-ink-3">Tempo</p>
+                                        <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ formatPace(act.average_speed) }}<span class="text-[13px] font-medium text-ink-3"> /km</span></p>
                                     </div>
-                                    <div v-if="act.average_heartrate" class="bg-danger-soft rounded-field p-2.5 text-center">
-                                        <p class="text-lg font-black text-danger-ink">{{ Math.round(act.average_heartrate) }}</p>
-                                        <p class="text-xs text-danger">bpm</p>
+                                    <div v-if="act.average_heartrate">
+                                        <p class="text-[13px] leading-4 text-ink-3">Puls</p>
+                                        <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ Math.round(act.average_heartrate) }}<span class="text-[13px] font-medium text-ink-3"> bpm</span></p>
                                     </div>
-                                    <div v-if="act.total_elevation_gain" class="bg-warn-soft rounded-field p-2.5 text-center">
-                                        <p class="text-lg font-black text-warn-ink">{{ Math.round(act.total_elevation_gain) }}</p>
-                                        <p class="text-xs text-warn">m Höhe</p>
+                                    <div v-if="act.total_elevation_gain">
+                                        <p class="text-[13px] leading-4 text-ink-3">Höhe</p>
+                                        <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ Math.round(act.total_elevation_gain) }}<span class="text-[13px] font-medium text-ink-3"> m</span></p>
                                     </div>
                                 </div>
                             </div>
@@ -464,7 +479,7 @@ const sessionDotColors = {
 
                     <!-- Legende -->
                     <div class="mt-4 bg-surface rounded-card border border-line p-4 shadow-card">
-                        <h5 class="text-xs font-semibold text-ink-3 uppercase tracking-wider mb-3">Trainingsphasen</h5>
+                        <h5 class="text-[13px] font-semibold text-ink-3 mb-3">Trainingsphasen</h5>
                         <div class="space-y-1.5">
                             <div v-for="phase in [
                                 { key: 'base', label: 'Base (>16 Wo.)', color: 'bg-success' },
@@ -488,7 +503,7 @@ const sessionDotColors = {
                     <p class="text-sm text-ink-3">{{ selected.event.distance_label }} · Noch {{ selected.event.days_until }} Tage</p>
                 </div>
                 <div v-if="selected.sessions?.length > 0" class="mb-3 pb-3 border-b border-line">
-                    <p class="text-xs font-semibold text-ink-3 uppercase tracking-wider mb-2">Trainingsplan</p>
+                    <p class="text-[13px] font-semibold text-ink-3 mb-2">Trainingsplan</p>
                     <div v-for="s in selected.sessions" :key="s.id" class="mb-2 last:mb-0">
                         <div class="flex items-center gap-2">
                             <div class="h-3 w-3 rounded-full shrink-0" :class="s.status === 'completed' ? 'bg-success' : s.status === 'skipped' ? 'bg-ink-3' : (sessionDotColors[s.type] || 'bg-accent')"></div>
@@ -507,28 +522,29 @@ const sessionDotColors = {
                     </div>
                 </div>
                 <div v-for="act in selected.activities" :key="act.id" class="mb-4 last:mb-0">
-                    <p class="font-semibold text-ink text-sm mb-2">🏃 {{ act.name }}</p>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div class="bg-info-soft rounded-field p-2.5 text-center">
-                            <p class="text-lg font-black text-info-ink">{{ formatDistance(act.distance) }}</p>
-                            <p class="text-xs text-info">km</p>
+                    <p class="mb-3 text-[15px] font-semibold text-ink">{{ act.name }}</p>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-3">
+                        <div>
+                            <p class="text-[13px] leading-4 text-ink-3">Distanz</p>
+                            <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ formatDistance(act.distance) }}<span class="text-[13px] font-medium text-ink-3"> km</span></p>
                         </div>
-                        <div class="bg-success-soft rounded-field p-2.5 text-center">
-                            <p class="text-lg font-black text-success-ink">{{ formatTime(act.moving_time) }}</p>
-                            <p class="text-xs text-success">Zeit</p>
+                        <div>
+                            <p class="text-[13px] leading-4 text-ink-3">Zeit</p>
+                            <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ formatTime(act.moving_time) }}</p>
                         </div>
-                        <div class="bg-accent-soft rounded-field p-2.5 text-center">
-                            <p class="text-lg font-black text-accent-ink">{{ formatPace(act.average_speed) }}</p>
-                            <p class="text-xs text-accent">min/km</p>
+                        <div>
+                            <p class="text-[13px] leading-4 text-ink-3">Tempo</p>
+                            <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ formatPace(act.average_speed) }}<span class="text-[13px] font-medium text-ink-3"> /km</span></p>
                         </div>
-                        <div v-if="act.average_heartrate" class="bg-danger-soft rounded-field p-2.5 text-center">
-                            <p class="text-lg font-black text-danger-ink">{{ Math.round(act.average_heartrate) }}</p>
-                            <p class="text-xs text-danger">bpm</p>
+                        <div v-if="act.average_heartrate">
+                            <p class="text-[13px] leading-4 text-ink-3">Puls</p>
+                            <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ Math.round(act.average_heartrate) }}<span class="text-[13px] font-medium text-ink-3"> bpm</span></p>
                         </div>
                     </div>
                 </div>
             </div>
 
+            </div>
         </div>
     </AuthenticatedLayout>
 </template>

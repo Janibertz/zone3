@@ -38,8 +38,19 @@ defineProps({
 
         <div class="flex items-end gap-3">
             <div class="min-w-0 flex-1">
-                <p v-if="eyebrow" class="text-[13px] font-semibold uppercase tracking-wide text-ink-3">{{ eyebrow }}</p>
-                <h1 class="truncate text-[34px] font-bold leading-[41px] text-ink">{{ title }}</h1>
+                <!--
+                    Die Datumszeile ist normal gesetzt, nicht in gesperrten
+                    Versalien: Health schreibt „Freitag, 16. Oktober", nicht
+                    „FREITAG, 16. OKTOBER". Gesperrte Versalien sind ausserdem
+                    genau das Label-Muster, das CLAUDE.md verbietet.
+                -->
+                <p v-if="eyebrow" class="text-[15px] leading-5 text-ink-3">{{ eyebrow }}</p>
+                <!--
+                    Negatives Tracking gehoert ab Grad 28 dazu — Apple setzt
+                    den Large Title auf -0.4pt. Ohne das wirkt die Zeile
+                    auseinandergefallen.
+                -->
+                <h1 class="truncate text-[34px] font-bold leading-[41px] tracking-[-0.8px] text-ink">{{ title }}</h1>
                 <p v-if="subtitle" class="mt-0.5 text-[15px] text-ink-3">{{ subtitle }}</p>
             </div>
             <div v-if="$slots.action" class="shrink-0 pb-1">

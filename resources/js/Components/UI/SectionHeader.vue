@@ -11,7 +11,7 @@ defineProps({
 
 <template>
     <div class="mb-2.5 flex items-center justify-between gap-3">
-        <h2 class="text-[22px] font-bold leading-7 text-ink">{{ title }}</h2>
+        <h2 class="text-[22px] font-bold leading-7 tracking-[-0.4px] text-ink">{{ title }}</h2>
         <div v-if="$slots.action" class="flex shrink-0 items-center gap-4">
             <slot name="action" />
         </div>

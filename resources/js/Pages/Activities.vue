@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { router, Link, Head } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import AppCard from '@/Components/UI/AppCard.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
@@ -109,14 +110,12 @@ function metricsOf(a) {
 
     <AuthenticatedLayout>
         <div class="min-h-screen bg-canvas">
-            <div class="space-y-5 px-4 py-4 lg:px-6 lg:py-6">
+            <PageHeader
+                title="Aktivitäten"
+                :subtitle="`${activities.total} ${activities.total === 1 ? 'Einheit' : 'Einheiten'} insgesamt`"
+            />
 
-                <header class="px-1">
-                    <h1 class="text-[34px] font-bold leading-[41px] text-ink">Aktivitäten</h1>
-                    <p class="mt-1 text-[15px] text-ink-3">
-                        {{ activities.total }} {{ activities.total === 1 ? 'Einheit' : 'Einheiten' }} insgesamt
-                    </p>
-                </header>
+            <div class="space-y-5 px-4 pb-8 pt-2 lg:px-8">
 
                 <!-- ── Filter ─────────────────────────────────────── -->
                 <AppCard>

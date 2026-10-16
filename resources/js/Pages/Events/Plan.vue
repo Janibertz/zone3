@@ -1359,7 +1359,7 @@ const lapHeightPct = computed(() => {
                                         :class="goalAchieved === true ? 'bg-success-soft'
                                               : goalAchieved === false ? 'bg-danger-soft'
                                               : 'bg-surface-2'">
-                                        <p class="text-[11px] font-medium uppercase tracking-wide"
+                                        <p class="text-[13px] font-medium"
                                             :class="goalAchieved === true ? 'text-success-ink' : goalAchieved === false ? 'text-danger-ink' : 'text-ink-3'">
                                             Dein Ergebnis
                                         </p>
@@ -1593,15 +1593,15 @@ const lapHeightPct = computed(() => {
                 <div class="grid grid-cols-3 gap-3">
                     <div v-if="totalStepDistanceKm || detailSession.distance_km" class="rounded-card bg-surface-2 p-4">
                         <p class="text-xl font-bold tabular-nums text-ink">{{ totalStepDistanceKm ?? detailSession.distance_km }}</p>
-                        <p class="mt-0.5 text-[12px] font-medium uppercase tracking-wide text-ink-3">km</p>
+                        <p class="mt-0.5 text-[13px] font-medium text-ink-3">km</p>
                     </div>
                     <div v-if="totalStepDuration || detailSession.duration_min" class="rounded-card bg-surface-2 p-4">
                         <p class="text-xl font-bold tabular-nums text-ink">{{ totalStepDuration || detailSession.duration_min }}</p>
-                        <p class="mt-0.5 text-[12px] font-medium uppercase tracking-wide text-ink-3">min</p>
+                        <p class="mt-0.5 text-[13px] font-medium text-ink-3">min</p>
                     </div>
                     <div v-if="paceValue(detailSession.pace_target)" class="rounded-card bg-surface-2 p-4">
                         <p class="text-xl font-bold tabular-nums text-ink">{{ paceValue(detailSession.pace_target) }}</p>
-                        <p class="mt-0.5 text-[12px] font-medium uppercase tracking-wide text-ink-3">min/km</p>
+                        <p class="mt-0.5 text-[13px] font-medium text-ink-3">min/km</p>
                     </div>
                 </div>
 
