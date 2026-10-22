@@ -7,6 +7,11 @@
     "license": "MIT",
     "require": {
         "php": "^8.4",
+        "ext-openssl": "*",
+        "ext-mbstring": "*",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
+        "ext-mysqlnd": "*",
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^13.0",
         "laravel/sanctum": "^4.0",
