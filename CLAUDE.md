@@ -671,7 +671,7 @@ The identical GET from a laptop returned `{"hub.challenge":"…"}` and 200. Same
 If webhook deliveries ever stop again, check the edge before the code:
 
 - `curl -sD- https://zone3.run/strava/webhook` — a `Server: cloudflare` / `CF-RAY` header means the edge can reject before Laravel ever runs
-- Bot Fight Mode ignores WAF skip rules; it has to be **off** (Security → Bots)
+- Bot Fight Mode ignores WAF skip rules; it has to be **off** (Security → Bots). **Stand 25.10.2026: aus** (Jan hat es abgeschaltet). Wer es wieder einschaltet, legt Strava-, Telegram- und Kalender-Abrufe lahm, ohne dass innen etwas auffällt.
 - A WAF custom rule with action **Skip** on `URI Path equals /strava/webhook` covers the managed rules, Browser Integrity Check and Security Level
 
 **Never delete the subscription before confirming a new one can be created** — Strava allows exactly one, and a failed re-create leaves none at all. Test with a create against the same callback URL first, or accept that the scheduled sync is the only path until it works.
@@ -840,7 +840,7 @@ Profil → Verbindungen → Kalender erzeugt eine geheime Abo-URL `/calendar/{to
 - Zeilen werden nach RFC 5545 auf 75 Oktette gefaltet, mit `mb_strcut`, damit kein Umlaut zerbricht.
 - `webcal://` öffnet auf dem iPhone direkt den Abo-Dialog. Google Kalender ruft in eigenem Takt ab (mehrere Stunden); `REFRESH-INTERVAL` ignoriert es.
 
-**Cloudflare:** dieselbe Falle wie bei Strava und Telegram. Apples und Googles Abrufer sind Bots ohne Browser; Bot Fight Mode kann sie abweisen, und von innen sieht alles gesund aus. `/calendar/*` braucht eine WAF-Skip-Regel (`URI Path starts with /calendar/` **und** endet auf `.ics` — die Kalenderseite `/calendar` selbst soll geschützt bleiben).
+**Cloudflare:** Apples und Googles Abrufer sind Bots ohne Browser. Bot Fight Mode ist seit 25.10.2026 aus und kann sie deshalb nicht mehr abweisen. Eine WAF-Skip-Regel ist Absicherung gegen das, was dann noch bleibt (Security Level, Browser Integrity Check, Managed Rules): `URI Path starts with /calendar/` **und** endet auf `.ics` — die Kalenderseite `/calendar` selbst soll geschützt bleiben. Kommt im Kalender nichts an, zuerst mit `curl -sD- https://zone3.run/calendar/<token>.ics` prüfen, ob Cloudflare eine Challenge statt `BEGIN:VCALENDAR` liefert.
 
 ## Push Notifications
 
