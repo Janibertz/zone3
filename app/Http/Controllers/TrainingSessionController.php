@@ -270,6 +270,27 @@ class TrainingSessionController extends Controller
         ]);
     }
 
+    /**
+     * Die Laufeinheit als .workout-Datei für die Apple Watch.
+     *
+     * Antippen auf dem iPhone öffnet die Fitness-App mit „Hinzufügen" — danach
+     * steht das Training mit Abschnitten und Pace-Alarm in der Training-App.
+     */
+    public function appleWorkout(TrainingSession $session, \App\Services\Watch\AppleWorkoutWriter $writer)
+    {
+        abort_if($session->user_id !== Auth::id(), 403);
+
+        abort_unless($writer::supports($session), 404);
+
+        $bytes = $writer->write((string) $session->title, $writer->stepsFor($session));
+        $name  = \Illuminate\Support\Str::slug('zone3-' . $session->planned_date->format('Y-m-d') . '-' . str_replace('×', 'x', $session->title)) . '.workout';
+
+        return response($bytes, 200, [
+            'Content-Type'        => 'application/octet-stream',
+            'Content-Disposition' => 'attachment; filename="' . $name . '"',
+        ]);
+    }
+
     public function sessionSteps(TrainingSession $session, SessionContentService $sessions)
     {
         abort_if($session->user_id !== Auth::id(), 403);

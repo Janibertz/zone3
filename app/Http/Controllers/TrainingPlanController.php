@@ -564,6 +564,8 @@ class TrainingPlanController extends Controller
             'sport_label'  => $s->isRun() ? null : $s->sportLabel(),
             // Radeinheit in % FTP → als Zwift-Workout herunterladbar.
             'zwo_url'      => $s->hasBikeSteps() ? route('training-sessions.zwo', $s) : null,
+            // Lauf mit Abschnitten → als Training auf die Apple Watch.
+            'watch_url'    => \App\Services\Watch\AppleWorkoutWriter::supports($s) ? route('training-sessions.apple-workout', $s) : null,
             'title'        => $s->title,
             'description'  => $s->description,
             'distance_km'  => $s->distance_km,
