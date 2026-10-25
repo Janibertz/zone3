@@ -23,5 +23,8 @@ class AppServiceProvider extends ServiceProvider
         // Jede Nachricht des Coaches loest eine Benachrichtigung aus —
         // zentral, damit keine Quelle es vergisst.
         \App\Models\CoachMessage::observe(\App\Observers\CoachMessageObserver::class);
+
+        // Vorschlaege des Coaches gehen mit Knoepfen nach Telegram.
+        \App\Models\SessionRecommendation::observe(\App\Observers\SessionRecommendationObserver::class);
     }
 }

@@ -62,6 +62,11 @@ class ProfileController extends Controller
                 'notify_monthly_review'   => (bool) ($user->notify_monthly_review ?? true),
             ],
             'vapidPublicKey' => config('services.webpush.public_key'),
+            'telegram' => [
+                'available' => app(\App\Services\TelegramClient::class)->configured(),
+                'linked'    => $user->hasTelegram(),
+                'linked_at' => $user->telegram_linked_at?->toIso8601String(),
+            ],
             'coaches'   => Coach::all(['id', 'name', 'slug', 'specialty', 'tagline', 'description', 'avatar_color', 'avatar_initials']),
             'activeCoach' => $user->coach ? [
                 'id'              => $user->coach->id,

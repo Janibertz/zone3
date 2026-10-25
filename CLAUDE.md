@@ -700,6 +700,32 @@ ObservabilityServiceProvider   hört nur noch CommandStarting/CommandFinished
 
 `config/observability.php` hält noch drei Dinge: `OBSERVABILITY_ENABLED` als Schalter, die Alarmschwellen, und die erwartete Taktung je Kommando.
 
+## Telegram — der Coach im Messenger
+
+Gewünscht: *"Der Coach Chat ist zu wenig interaktiv. Es sollte WhatsApp, Telegram oder ähnliches dabei sein."* Entscheidung vom 25.10.2026: erst nur Telegram, als Webhook in derselben Laravel-App.
+
+**Der Coach antwortet nicht mehr im Request.** `CoachChatController::send` rief OpenAI samt Werkzeugen synchron auf — bei einem Einzelprozess-Webserver stand währenddessen die ganze Seite. Jetzt legt `send` nur die Frage an und startet `CoachReplyJob`; der Web-Chat fragt `coach.reply` ab, bis die Antwort da ist. Telegram braucht es ohnehin so: der Webhook muss sofort 200 liefern, sonst stellt Telegram das Update erneut zu.
+
+**Ein Zustellweg, nicht zwei.** Jede Antwort ist eine `CoachMessage` mit `channel` (`web` / `telegram` / `NULL` = vom System, z. B. ein Review) und `reply_to_id`. `CoachMessageObserver` entscheidet: hat der Athlet Telegram verbunden und kam die Nachricht nicht aus dem Web-Chat → Telegram, sonst Web-Push. Wer Telegram hat, bekommt dieselbe Nachricht nicht zusätzlich als Push, und die Wellbeing-Erinnerung entfällt für ihn — das Morgen-Briefing ersetzt sie.
+
+**Ein Entscheidungsweg, nicht zwei.** `SessionRecommendation::accept()` / `reject()` enthalten, was vorher im Controller stand. Dashboard und Telegram-Knöpfe (`rec:accept:{id}`) rufen dieselben Methoden. `SessionRecommendationObserver::created()` schickt den Vorschlag mit den Knöpfen — und brauchte dafür `$attributes['status']`: der Datenbank-Standard `pending` steht nach `create()` nicht im Modell, `isOpen()` war false und der Vorschlag ging nie raus.
+
+Was der Bot schickt:
+
+- **Morgen-Briefing** (`telegram:briefing`, jede Minute, feuert zur `wellbeing_reminder_time`, einmal pro Tag per Cache-Sperre) — die Einheit des Tages **ohne KI-Aufruf** aus `TelegramBriefing`. `/heute` zeigt dasselbe.
+- **Reviews** nach jedem Lauf — über den Observer, ohne eigenen Code.
+- **Wellbeing-Vorschläge** mit Annehmen/Ablehnen.
+- Jede andere Nachricht geht an den Coach, mit denselben Werkzeugen und demselben Tageskontingent wie im Web.
+
+Regeln, alle getestet in `TelegramCoachTest`:
+
+- **Telegram signiert**, anders als Strava: jedes Update trägt `X-Telegram-Bot-Api-Secret-Token`. Ohne passendes Geheimnis gibt es 403. Ist `TELEGRAM_WEBHOOK_SECRET` nicht gesetzt, wird es aus `APP_KEY` abgeleitet.
+- **Verknüpfung nur über einen Einmal-Code**: Profil → Verbindungen → Telegram öffnet `t.me/<bot>?start=<code>`. Ein fremder Chat bekommt nur die Anleitung, nie Daten, und erreicht keinen Coach.
+- **Nur Einzelchats.** In einer Gruppe läsen andere mit, was der Coach über Ruhepuls und Schlaf schreibt.
+- `update_id` wird einen Tag gemerkt — dasselbe Update wirkt nur einmal.
+
+`startup.sh` registriert den Webhook bei jedem Deploy (`telegram:set-webhook`). **Cloudflare:** dieselbe Falle wie beim Strava-Webhook — `/telegram/webhook` braucht eine WAF-Skip-Regel, sonst blockt Bot Fight Mode Telegrams Server, und von innen sieht alles gesund aus. Prüfen mit `getWebhookInfo` (`last_error_message`).
+
 ## Push Notifications
 
 VAPID-based Web Push (no Firebase). Subscriptions in `push_subscriptions`. Scheduler command `SendWellbeingReminders` runs every minute via polling loop. Expired subscriptions (HTTP 410) are auto-deleted.
@@ -720,6 +746,10 @@ STRAVA_WEBHOOK_VERIFY_TOKEN=
 # antwortet mit 503, solange er selbst keinen konfiguriert hat.
 FIT_SERVICE_URL=
 FIT_SERVICE_TOKEN=
+
+# Telegram-Bot (@BotFather). Das Geheimnis ist optional — ohne wird es aus APP_KEY abgeleitet.
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_WEBHOOK_SECRET=
 
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=

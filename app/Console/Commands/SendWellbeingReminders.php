@@ -24,6 +24,9 @@ class SendWellbeingReminders extends Command
             ->whereNotNull('wellbeing_reminder_time')
             ->whereRaw("TIME_FORMAT(wellbeing_reminder_time, '%H:%i') = ?", [$now])
             ->whereDoesntHave('wellbeingEntries', fn ($q) => $q->where('date', $today))
+            // Wer Telegram verbunden hat, bekommt stattdessen das Briefing
+            // (telegram:briefing) — zur selben Minute.
+            ->whereNull('telegram_chat_id')
             ->with(['pushSubscriptions', 'coach'])
             ->get();
 

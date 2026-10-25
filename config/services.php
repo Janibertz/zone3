@@ -49,6 +49,14 @@ return [
         'model_mini' => env('OPENAI_MODEL_MINI', 'gpt-5.6-luna'),
     ],
 
+    // Telegram-Bot fuer den Coach. Das Webhook-Geheimnis wird aus APP_KEY
+    // abgeleitet, wenn es nicht gesetzt ist — eine Variable weniger, die in
+    // Coolify fehlen kann.
+    'telegram' => [
+        'bot_token'      => env('TELEGRAM_BOT_TOKEN'),
+        'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
+    ],
+
     'fit' => [
         'service_url' => env('FIT_SERVICE_URL'),
         // Gemeinsames Geheimnis. Muss in BEIDEN Diensten identisch gesetzt

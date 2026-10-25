@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Models\CoachMessage;
+use App\Services\TelegramClient;
 use App\Services\WebPushService;
 use Illuminate\Support\Facades\Log;
 
@@ -26,7 +27,21 @@ class CoachMessageObserver
         }
 
         $user = $message->user;
-        if (! $user || ! $user->push_notifications_enabled) {
+        if (! $user) {
+            return;
+        }
+
+        // Wer Telegram verbunden hat, bekommt den Coach dort — und dann
+        // keinen Web-Push obendrauf, sonst klingelt das Telefon zweimal.
+        // Antworten auf eine Frage aus dem Web-Chat bleiben im Web: dort
+        // wartet der Athlet gerade auf sie.
+        if ($user->hasTelegram() && $message->channel !== CoachMessage::CHANNEL_WEB) {
+            app(TelegramClient::class)->sendMessage((int) $user->telegram_chat_id, $message->content);
+
+            return;
+        }
+
+        if (! $user->push_notifications_enabled) {
             return;
         }
 
