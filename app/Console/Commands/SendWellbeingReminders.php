@@ -34,7 +34,7 @@ class SendWellbeingReminders extends Command
             if ($user->pushSubscriptions->isEmpty()) continue;
 
             [$title, $body] = match ($user->coach?->specialty) {
-                'motivator'  => ["Bereit für heute? 💪", $user->coach->name . " wartet auf dein Check-in — lass uns den Tag rocken!"],
+                'motivator'  => ["Bereit für heute? 💪", $user->coach->name . " wartet auf deine Tagesform — lass uns den Tag rocken!"],
                 'strategist' => ["Tagesform eintragen 📊", $user->coach->name . ": Deine Daten fehlen noch — Plan-Optimierung ausstehend."],
                 'companion'  => ["Wie geht's dir heute? 🌿", $user->coach->name . " möchte wissen wie du dich fühlst. Kurz eintragen!"],
                 default      => ["Wie geht es dir heute? 💪", "Trage jetzt deine Tagesform ein — dein Plan passt sich automatisch an."],

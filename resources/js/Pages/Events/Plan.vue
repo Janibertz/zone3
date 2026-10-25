@@ -1023,7 +1023,7 @@ const lapHeightPct = computed(() => {
                         </svg>
                         <p class="text-base font-semibold text-ink">{{ coachName }} analysiert deine Daten</p>
                         <p class="mt-1.5 max-w-sm text-sm text-ink-3">
-                            Aktivitäten, Wellbeing, Erholungswerte und Athletenprofil fließen in den Plan ein.
+                            Aktivitäten, Tagesform, Erholungswerte und Athletenprofil fließen in den Plan ein.
                         </p>
                     </div>
                 </AppCard>
@@ -1034,7 +1034,7 @@ const lapHeightPct = computed(() => {
                         :title="isPastEvent ? 'Kein Trainingsplan vorhanden' : 'Noch kein Trainingsplan'"
                         :description="isPastEvent
                             ? 'Für dieses Event wurde kein Plan erstellt.'
-                            : `${coachName} baut aus Aktivitäten, Wellbeing und Athletenprofil einen Plan bis zum Renntag.`"
+                            : `${coachName} baut aus Aktivitäten, Tagesform und Athletenprofil einen Plan bis zum Renntag.`"
                     >
                         <template #icon>
                             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">

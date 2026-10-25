@@ -191,7 +191,7 @@ class CoachChatService
         }
 
         if ($todayWellbeing) {
-            $ctx[] = "WELLBEING HEUTE: Energie {$todayWellbeing->energy_level}/10, Schlaf {$todayWellbeing->sleep_quality}/10, Stimmung {$todayWellbeing->mood}/10";
+            $ctx[] = "TAGESFORM HEUTE (Selbsteinschätzung): Energie {$todayWellbeing->energy_level}/10, Schlaf {$todayWellbeing->sleep_quality}/10, Stimmung {$todayWellbeing->mood}/10";
         }
 
         $contextBlock = "\n\n=== ATHLETEN-DATEN (Stand: {$today}) ===\n" . implode("\n\n", $ctx) . "\n=== ENDE ===";
@@ -338,7 +338,7 @@ class CoachChatService
                 return "- [ID:{$e->id}] {$e->name} ({$e->distance_label}) {$e->event_date->format('d.m.Y')} (in {$days}d) [".match($e->priority){'A'=>'★A','B'=>'B',default=>'C'}."{$target}]";
             })->implode("\n");
         }
-        if ($wellbeing) $ctx[] = "WELLBEING: Energie {$wellbeing->energy_level}/10, Schlaf {$wellbeing->sleep_quality}/10, Stimmung {$wellbeing->mood}/10";
+        if ($wellbeing) $ctx[] = "TAGESFORM (Selbsteinschätzung): Energie {$wellbeing->energy_level}/10, Schlaf {$wellbeing->sleep_quality}/10, Stimmung {$wellbeing->mood}/10";
 
         $contextBlock = "\n\n=== ATHLETEN-DATEN ({$today}) ===\n".implode("\n\n",$ctx)."\n=== ENDE ===";
         $coachName = $user->coach?->name ?? 'Coach';

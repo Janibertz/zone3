@@ -223,7 +223,7 @@ class GarminHealthSummary
     {
         if (! $summary['has_data']) {
             return "Garmin-Gesundheitswerte: keine Daten vorhanden (Uhr nicht verbunden oder noch nicht synchronisiert). "
-                 . "Stütze dich auf das Wellbeing des Athleten.";
+                 . "Stütze dich auf die Tagesform, die der Athlet einträgt.";
         }
 
         $text = "Garmin-Gesundheitswerte (gemessen, {$summary['days']} Tage Historie):\n- "

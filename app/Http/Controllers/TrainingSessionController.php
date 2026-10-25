@@ -410,7 +410,7 @@ class TrainingSessionController extends Controller
 
         if (! $wellbeing) {
             return response()->json([
-                'error' => 'Kein Wellbeing-Eintrag für heute. Füge zuerst einen Eintrag hinzu.',
+                'error' => 'Keine Tagesform für heute eingetragen. Füge zuerst einen Eintrag hinzu.',
             ], 422);
         }
 

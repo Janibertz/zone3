@@ -1365,7 +1365,7 @@ const inputClass = 'z-input';
                     <div class="p-4 sm:p-6 space-y-5">
                         <div class="flex items-start justify-between gap-4">
                             <div class="flex-1">
-                                <p class="text-sm font-medium text-ink">Wellbeing-Erinnerung</p>
+                                <p class="text-sm font-medium text-ink">Tagesform-Erinnerung</p>
                                 <p class="text-xs text-ink-3 mt-0.5">Uhrzeit für die tägliche Erinnerung</p>
                             </div>
                             <input v-model="notifSettings.wellbeing_reminder_time" type="time" class="shrink-0 rounded-field bg-surface px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />

@@ -261,7 +261,7 @@ class GenerateSessionReviewJob implements ShouldQueue
             ];
             if ($wb->is_sick)    $wbBits[] = 'krank';
             if ($wb->is_injured) $wbBits[] = 'verletzt';
-            $lines[] = 'Wellbeing an dem Tag: ' . implode(', ', $wbBits);
+            $lines[] = 'Tagesform an dem Tag: ' . implode(', ', $wbBits);
         }
 
         // Training load / form.

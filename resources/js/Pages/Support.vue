@@ -68,7 +68,7 @@ import { Head, Link } from '@inertiajs/vue3';
 
                     <div>
                         <h3 class="text-base font-semibold text-white mb-2">Erhobene Daten</h3>
-                        <p>Wir speichern: E-Mail-Adresse, Name, Aktivitätsdaten von Strava, Wellbeing-Einträge (freiwillig), Trainingsprofile (Herzfrequenz-/Pace-Zonen).</p>
+                        <p>Wir speichern: E-Mail-Adresse, Name, Aktivitätsdaten von Strava, Tagesform-Einträge (freiwillig), Trainingsprofile (Herzfrequenz-/Pace-Zonen).</p>
                     </div>
 
                     <div>

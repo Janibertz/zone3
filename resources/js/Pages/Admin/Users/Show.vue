@@ -28,7 +28,7 @@ const tabs = [
     { key: 'overview',  label: 'Übersicht' },
     { key: 'plan',      label: 'Plan' },
     { key: 'ai',        label: 'AI-Aktivität' },
-    { key: 'wellbeing', label: 'Wellbeing' },
+    { key: 'wellbeing', label: 'Tagesform' },
 ];
 
 const diag = computed(() => props.planDiagnostics ?? {});
@@ -516,7 +516,7 @@ const zoneColors = [
 
                 <!-- 30-day chart -->
                 <div class="bg-surface rounded-card p-5 shadow-card">
-                    <h2 class="text-sm font-semibold text-ink-2 mb-4">Wellbeing-Score letzte 30 Einträge</h2>
+                    <h2 class="text-sm font-semibold text-ink-2 mb-4">Tagesform-Score letzte 30 Einträge</h2>
                     <div v-if="wellbeingChart?.length" class="flex items-end gap-1 h-28">
                         <div
                             v-for="entry in wellbeingChart" :key="entry.date"
@@ -535,7 +535,7 @@ const zoneColors = [
                             </div>
                         </div>
                     </div>
-                    <p v-else class="text-sm text-ink-3 text-center py-8">Noch keine Wellbeing-Daten.</p>
+                    <p v-else class="text-sm text-ink-3 text-center py-8">Noch keine Tagesform-Daten.</p>
                     <div class="flex gap-4 mt-3 text-xs text-ink-3">
                         <span class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-success inline-block"></span>≥ 7 gut</span>
                         <span class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-warn inline-block"></span>5–7 mittel</span>
@@ -576,7 +576,7 @@ const zoneColors = [
                             </tbody>
                         </table>
                     </div>
-                    <p v-else class="text-sm text-ink-3">Keine Wellbeing-Einträge vorhanden.</p>
+                    <p v-else class="text-sm text-ink-3">Keine Tagesform-Einträge vorhanden.</p>
                 </div>
             </template>
 

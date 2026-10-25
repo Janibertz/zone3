@@ -183,7 +183,7 @@ const maxCoach  = computed(() => Math.max(...(props.coachDistribution?.map(c => 
                         <template #header>
                             <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
                                 <div>
-                                    <h3 class="text-[15px] font-semibold text-ink">Wellbeing-Trend</h3>
+                                    <h3 class="text-[15px] font-semibold text-ink">Tagesform-Trend</h3>
                                     <p class="mt-0.5 text-[13px] text-ink-3">letzte 14 Tage, Plattform-Ø</p>
                                 </div>
                                 <div class="flex items-center gap-3 text-[11px] text-ink-3">
@@ -207,7 +207,7 @@ const maxCoach  = computed(() => Math.max(...(props.coachDistribution?.map(c => 
                                 <span class="truncate text-center text-[10px] text-ink-3">{{ formatShortDate(item.date) }}</span>
                             </div>
                         </div>
-                        <p v-else class="py-10 text-center text-sm text-ink-3">Keine Wellbeing-Einträge in den letzten 14 Tagen</p>
+                        <p v-else class="py-10 text-center text-sm text-ink-3">Keine Tagesform-Einträge in den letzten 14 Tagen</p>
                     </AppCard>
 
                     <AppCard title="Coach-Verteilung">
@@ -244,7 +244,7 @@ const maxCoach  = computed(() => Math.max(...(props.coachDistribution?.map(c => 
                     <StatTile label="Admins"    :value="stats.admin_users" />
                     <StatTile label="Strava"    :value="stats.strava_users" hint="verbunden" />
                     <StatTile label="Events"    :value="stats.total_events" />
-                    <StatTile label="Wellbeing" :value="stats.total_wellbeing" hint="Einträge"
+                    <StatTile label="Tagesform" :value="stats.total_wellbeing" hint="Einträge"
                         class="col-span-2 lg:col-span-1" />
                 </div>
             </section>
