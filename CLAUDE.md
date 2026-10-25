@@ -712,6 +712,16 @@ Nie aufs Rad: Rennen, feste Termine, Wiedereinstiegs-Läufe. Saison `winter` = N
 
 Oberfläche: `zwo_url` an jeder Einheit mit Schritten in % FTP (`TrainingSession::hasBikeSteps()`), Knopf „Für Zwift herunterladen" auf dem Dashboard und in der Einheit auf der Planseite statt „Zu Garmin senden". `AppButton` hat dafür `external` (ein echtes `<a>`, kein Inertia-Link — ein Download über XHR kommt nie an).
 
+## Apple Watch
+
+Gewünscht am 25.10.2026: Einheiten als strukturiertes Training auf die Watch. Strukturierte Trainings nimmt die Watch nur über WorkoutKit an, eine eigene iOS-App (Mac, Xcode, 99 €/Jahr) braucht es trotzdem nicht: die Fitness-App importiert die `.workout`-Datei, die sie beim Teilen selbst erzeugt. Antippen auf dem iPhone → „Hinzufügen" → das Training steht in der Training-App.
+
+- **`GET /training-sessions/{session}/apple.workout`** (`AppleWorkoutWriter`), Knopf „Auf die Apple Watch" auf dem Dashboard und in der Einheit auf der Planseite (`watch_url`). Nur Läufe, keine Rennen, keine Radeinheiten. **Wer Garmin verbunden hat, sieht den Knopf nicht** (`AppleWorkoutWriter::offered()`, Entscheidung von Jan) — dort geht die Einheit an die Garmin-Uhr; die Route selbst bleibt offen.
+- **Das Format ist von Apple nicht dokumentiert** — Protobuf, nachgebaut nach github.com/matjic/ios-workout-generator und an Jans iPhone geprüft. Der Autor lag bei Strecken falsch (Typ 2 in Metern); richtig ist Typ 3, Messwert in Feld 4, Einheit 1 = Meter — abgelesen aus einem echten Export. Für den Pace-Bereich gab es keine Vorlage; von drei Varianten importierte genau eine. `AppleWorkoutTest` hält die zwei importierten Dateien byte-genau fest. **Wer am Writer etwas ändert, prüft am Gerät**, nicht nur im Test; ein iOS-Update kann das Format jederzeit brechen.
+- Eine Strecke bleibt eine Strecke (`distance_m` → Meter), sonst Zeit. Pace-Alarm nur auf Belastungsabschnitten; eine einzelne Zielpace wird ±5 % Geschwindigkeit (`PACE_TOLERANCE`), dieselbe Breite wie im fit-service für Garmin.
+- Ohne gespeicherte Schritte wird die Einheit ein Abschnitt aus Strecke/Dauer/Pace — **kein Modellaufruf beim Herunterladen**, das wäre ein GET, der Geld kostet.
+- Offen: ob die Watch beim Laufen wirklich warnt, zeigt nur ein Lauf; die Vorschau beweist nur, dass die Datei gelesen wird.
+
 ## Garmin
 
 Two separate connection paths — do not confuse them:

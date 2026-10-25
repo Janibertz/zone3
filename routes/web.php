@@ -169,6 +169,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 'session_date' => $s->planned_date->format('Y-m-d'),
                 'is_today'     => $s->planned_date->toDateString() === $todayStr,
                 'zwo_url'      => $s->hasBikeSteps() ? route('training-sessions.zwo', $s) : null,
+                'watch_url'    => \App\Services\Watch\AppleWorkoutWriter::offered($s, ! empty($user->garmin_session)) ? route('training-sessions.apple-workout', $s) : null,
             ];
         }
     }
@@ -549,6 +550,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/training-sessions/{session}/nutrition-tips', [TrainingSessionController::class, 'nutritionTips'])->name('training-sessions.nutrition-tips');
     Route::get('/training-sessions/{session}/steps', [TrainingSessionController::class, 'sessionSteps'])->name('training-sessions.steps');
     Route::get('/training-sessions/{session}/zwift.zwo', [TrainingSessionController::class, 'zwo'])->name('training-sessions.zwo');
+    Route::get('/training-sessions/{session}/apple.workout', [TrainingSessionController::class, 'appleWorkout'])->name('training-sessions.apple-workout');
     Route::patch('/training-sessions/{session}/rate', [TrainingSessionController::class, 'rate'])->name('training-sessions.rate');
     Route::patch('/training-sessions/{session}/review-feedback', [TrainingSessionController::class, 'reviewFeedback'])->name('training-sessions.review-feedback');
     // Das kurze Gespraech vor dem naechsten Block. Fragt nur, was die Daten
