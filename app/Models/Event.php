@@ -61,6 +61,7 @@ class Event extends Model
         'user_id',
         'name',
         'event_date',
+        'plan_start_date',
         'race_distance',
         'distance_km',
         'goal_check_week',
@@ -77,6 +78,7 @@ class Event extends Model
 
     protected $casts = [
         'event_date'          => 'date',
+        'plan_start_date'     => 'date',
         'distance_km'         => 'float',
         'goal_confirmed_at'   => 'datetime',
         'target_time_hours'   => 'integer',
@@ -207,6 +209,34 @@ class Event extends Model
     public function getDaysUntilAttribute(): int
     {
         return (int) now()->startOfDay()->diffInDays($this->event_date->copy()->startOfDay(), false);
+    }
+
+    /**
+     * Der erste Tag, den ein Plan belegen darf: heute, oder das Startdatum,
+     * wenn der Athlet den Plan später beginnen lässt.
+     *
+     * Die eine Stelle, an der das entschieden wird. Gerüst, Prompt und
+     * `plan:auto-update` rechnen ihr Fenster von hier aus — rechnete eines
+     * davon weiter ab heute, sähe es vor dem Start eine Lücke und baute
+     * Einheiten hinein.
+     */
+    public function planStartsOn(): \Carbon\CarbonImmutable
+    {
+        $today = \Carbon\CarbonImmutable::today();
+
+        if (! $this->plan_start_date) {
+            return $today;
+        }
+
+        $start = \Carbon\CarbonImmutable::parse($this->plan_start_date->toDateString());
+
+        return $start->gt($today) ? $start : $today;
+    }
+
+    /** Tage vom Planstart bis zum Rennen — `days_until`, nur ab dem Start gezählt. */
+    public function daysFromPlanStart(): int
+    {
+        return (int) $this->planStartsOn()->diffInDays(\Carbon\CarbonImmutable::parse($this->event_date->toDateString()), false);
     }
 
     /**

@@ -40,14 +40,18 @@ class AutoUpdatePlans extends Command
                 $daysUntil = (int) $today->diffInDays($eventDate, false);
                 if ($daysUntil < 0) continue;
 
-                // Window the plan should currently cover: today … min(race, today+horizon-1)
-                $windowDays = min($horizon, $daysUntil + 1);
-                $windowEnd  = $today->copy()->addDays($windowDays - 1);
+                // Window the plan should currently cover: start … min(race, start+horizon-1).
+                // Der Start ist heute oder das spätere Startdatum — ab heute
+                // gerechnet sähe ein Plan, der erst nächste Woche beginnt,
+                // nur Lücken.
+                $start      = \Illuminate\Support\Carbon::parse($plan->event->planStartsOn()->toDateString());
+                $windowDays = min($horizon, $plan->event->daysFromPlanStart() + 1);
+                $windowEnd  = $start->copy()->addDays($windowDays - 1);
                 $expected   = $windowDays; // one entry per day (incl. rest days)
 
                 // Distinct days actually covered within the window (any status)
                 $coveredInWindow = TrainingSession::where('training_plan_id', $plan->id)
-                    ->whereDate('planned_date', '>=', $todayStr)
+                    ->whereDate('planned_date', '>=', $start->toDateString())
                     ->whereDate('planned_date', '<=', $windowEnd->toDateString())
                     ->distinct()
                     ->count('planned_date');
@@ -56,7 +60,7 @@ class AutoUpdatePlans extends Command
                 $lastCovered  = TrainingSession::where('training_plan_id', $plan->id)->max('planned_date');
                 $reachesRace  = $lastCovered !== null && $lastCovered >= $eventDate->toDateString();
                 $coverageAhead = $lastCovered !== null
-                    ? (int) $today->diffInDays(\Illuminate\Support\Carbon::parse($lastCovered)->startOfDay(), false)
+                    ? (int) $start->diffInDays(\Illuminate\Support\Carbon::parse($lastCovered)->startOfDay(), false)
                     : -1;
 
                 $hasGap        = $coveredInWindow < $expected;          // missing day(s) inside the window

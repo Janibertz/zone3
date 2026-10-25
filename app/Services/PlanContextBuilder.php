@@ -54,8 +54,12 @@ class PlanContextBuilder
 
     public function build(User $user, Event $event, array $availabilityOverrides = []): PlanContext
     {
-        $windowFrom = CarbonImmutable::today();
-        $windowTo   = $windowFrom->addDays(min(Event::PLAN_HORIZON_DAYS, $event->days_until + 1) - 1);
+        // Vor dem Planstart steht nichts im Plan. Was gelaufen WURDE (Umfang,
+        // Intensität, Wiedereinstieg), misst weiter bis heute — die Wochen
+        // bis zum Start sind noch nicht gelaufen und wären sonst null.
+        $today      = CarbonImmutable::today();
+        $windowFrom = $event->planStartsOn();
+        $windowTo   = $windowFrom->addDays(min(Event::PLAN_HORIZON_DAYS, $event->daysFromPlanStart() + 1) - 1);
 
         // Eine Trainingspause sperrt ihre Tage wie eine Absage in der
         // Wochenabfrage. Sonst schrieb die nächste Neuberechnung (spätestens
@@ -83,7 +87,7 @@ class PlanContextBuilder
         $paces        = $this->paces->forEvent($event, $vdot['value'] ?? null, $vdot['label'] ?? null);
         $interview    = $this->interviews->forPlan($user);
         $volume       = $this->applyInterviewToVolume(
-            $this->volume->forUser($user->id, $windowFrom),
+            $this->volume->forUser($user->id, $today),
             $interview,
         );
 
@@ -125,7 +129,7 @@ class PlanContextBuilder
             paces:                 $paces,
             volume:                $volume,
             longRuns:              $longRuns,
-            intensity:             $this->intensity->forUser($user->id, $vdot['value'] ?? null, $windowFrom, $user->runnerProfile?->trainingModelOn($windowFrom) ?? 'polarized'),
+            intensity:             $this->intensity->forUser($user->id, $vdot['value'] ?? null, $today, $user->runnerProfile?->trainingModelOn($windowFrom) ?? 'polarized'),
         );
 
         // Gerüst und Garmin-Zusammenfassung bauen auf dem Rest auf.

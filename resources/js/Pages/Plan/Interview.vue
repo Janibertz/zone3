@@ -54,6 +54,18 @@ const form = ref({
     focus:             props.event ? 'race' : null,
     event_id:          props.event?.id ?? null,
     free_note:         '',
+
+    // Ab wann der Plan beginnt. Davor steht nichts im Plan.
+    plan_start_date:   props.event?.start_date ?? null,
+});
+
+const errors = computed(() => page.props.errors ?? {});
+
+/** „Mo, 3. November" — oder „heute". */
+const startLabel = computed(() => {
+    const d = form.value.plan_start_date;
+    if (!d || d === props.event?.start_min) return 'heute';
+    return new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long' });
 });
 
 function next() {
@@ -64,6 +76,11 @@ function next() {
 function submit() {
     busy.value = true;
     router.post(route('plan-interview.store'), form.value, {
+        preserveState: true,
+        // Ein ungültiges Startdatum steht im Schritt „Zeit" — dorthin zurück.
+        onError: (e) => {
+            if (e.plan_start_date) at.value = Math.max(0, steps.value.findIndex(s => s.key === 'time'));
+        },
         onFinish: () => { busy.value = false; },
     });
 }
@@ -304,6 +321,19 @@ const ratings = [
                         <p class="mt-1 text-[12px] text-ink-3">
                             Längere Tage, die schon im Raster stehen (etwa der Sonntag), bleiben länger.
                         </p>
+                    </div>
+
+                    <div v-if="event">
+                        <label for="plan_start_date" class="mb-1 block text-[13px] font-medium text-ink-2">
+                            Ab wann soll der Plan starten?
+                        </label>
+                        <input id="plan_start_date" v-model="form.plan_start_date" type="date"
+                            :min="event.start_min" :max="event.start_max"
+                            class="rounded-field border-line bg-canvas text-[15px] text-ink" />
+                        <p class="mt-1 text-[12px] text-ink-3">
+                            Der Plan beginnt {{ startLabel === 'heute' ? 'heute' : 'am ' + startLabel }}. Davor bleibt er leer.
+                        </p>
+                        <p v-if="errors.plan_start_date" class="mt-1 text-[13px] text-danger">{{ errors.plan_start_date }}</p>
                     </div>
 
                     <div>
