@@ -482,11 +482,11 @@ const sessionDotColors = {
                         <h5 class="text-[13px] font-semibold text-ink-3 mb-3">Trainingsphasen</h5>
                         <div class="space-y-1.5">
                             <div v-for="phase in [
-                                { key: 'base', label: 'Base (>16 Wo.)', color: 'bg-success' },
-                                { key: 'build', label: 'Build (12–16 Wo.)', color: 'bg-info' },
-                                { key: 'peak', label: 'Peak (8–10 Wo.)', color: 'bg-warn' },
-                                { key: 'taper', label: 'Taper (2–4 Wo.)', color: 'bg-warn' },
-                                { key: 'race_week', label: 'Race Week (<2 Wo.)', color: 'bg-danger' },
+                                { key: 'base', label: 'Base', color: 'bg-success' },
+                                { key: 'build', label: 'Build (6 Wo.)', color: 'bg-info' },
+                                { key: 'peak', label: 'Peak (6 Wo.)', color: 'bg-warn' },
+                                { key: 'taper', label: 'Taper (1–3 Wo., je nach Distanz)', color: 'bg-warn' },
+                                { key: 'race_week', label: 'Race Week (letzte 7 Tage)', color: 'bg-danger' },
                             ]" :key="phase.key" class="flex items-center gap-2">
                                 <div class="h-2.5 w-2.5 rounded-full flex-shrink-0" :class="phase.color"></div>
                                 <span class="text-xs text-ink-2">{{ phase.label }}</span>

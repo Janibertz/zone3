@@ -209,24 +209,43 @@ class Event extends Model
         return (int) now()->startOfDay()->diffInDays($this->event_date->copy()->startOfDay(), false);
     }
 
+    /**
+     * Die Phase hängt an der Distanz, nicht nur an den Tagen bis zum Rennen.
+     *
+     * Vorher galt für jedes Rennen: ≤ 14 Tage „Race Week", ≤ 28 „Taper".
+     * Beim Halbmarathon setzt die Leiter den längsten Lauf aber genau
+     * 14 Tage vorher — der Prompt bekam für denselben Tag „längster Lauf"
+     * und „kein Umfang mehr". Jetzt beginnt der Taper dort, wo die Leiter
+     * ihn beginnen lässt, und die Rennwoche ist die letzte Woche.
+     */
     public function getTrainingPhaseAttribute(): array
     {
-        $days = $this->days_until;
+        $days  = $this->days_until;
+        $taper = \App\Services\LongRunPlanService::taperDays($this->race_distance);
 
         if ($days < 0) {
             return ['key' => 'past',      'label' => 'Vergangenheit', 'color' => 'gray'];
-        } elseif ($days <= 14) {
+        } elseif ($days <= self::RACE_WEEK_DAYS) {
             return ['key' => 'race_week', 'label' => 'Race Week',     'color' => 'red'];
-        } elseif ($days <= 28) {
+        } elseif ($days <= $taper) {
             return ['key' => 'taper',     'label' => 'Taper',         'color' => 'yellow'];
-        } elseif ($days <= 70) {
+        } elseif ($days <= $taper + self::PEAK_PHASE_DAYS) {
             return ['key' => 'peak',      'label' => 'Peak',           'color' => 'orange'];
-        } elseif ($days <= 112) {
+        } elseif ($days <= $taper + self::PEAK_PHASE_DAYS + self::BUILD_PHASE_DAYS) {
             return ['key' => 'build',     'label' => 'Build',          'color' => 'blue'];
         } else {
             return ['key' => 'base',      'label' => 'Base',           'color' => 'green'];
         }
     }
+
+    /** Die letzte Woche vor dem Rennen. */
+    private const RACE_WEEK_DAYS = 7;
+
+    /** Spezifische Phase vor dem Taper: sechs Wochen Renntempo-Arbeit. */
+    private const PEAK_PHASE_DAYS = 42;
+
+    /** Aufbau davor: sechs Wochen. */
+    private const BUILD_PHASE_DAYS = 42;
 
     public function getWeeksUntilAttribute(): int
     {
