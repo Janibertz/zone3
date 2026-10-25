@@ -2106,10 +2106,12 @@ async function saveWeek() {
                         <SectionHeader title="Locker / Hart">
                             <template #action>
                                 <span class="rounded-full px-3 py-1.5 text-[13px] font-semibold"
-                                    :class="props.intensityDistribution.hard_pct > 25
+                                    :class="props.intensityDistribution.hard_pct > (props.intensityDistribution.limit_pct ?? 25)
                                         ? 'bg-warn-soft text-warn-ink'
                                         : 'bg-success-soft text-success-ink'">
-                                    {{ props.intensityDistribution.hard_pct > 25 ? 'Zu viel hart' : 'Passt zu 80/20' }}
+                                    {{ props.intensityDistribution.hard_pct > (props.intensityDistribution.limit_pct ?? 25)
+                                        ? 'Zu viel hart'
+                                        : (props.intensityDistribution.model === 'norwegian' ? 'Passt zum Modell' : 'Passt zu 80/20') }}
                                 </span>
                             </template>
                         </SectionHeader>

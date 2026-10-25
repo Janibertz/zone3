@@ -492,19 +492,28 @@ async function saveAvailability() {
 // Dieselben Felder wie im Onboarding, derselbe Endpunkt. Gilt ab dem
 // naechsten Wochenplan — eine laufende Woche wird nicht umgeworfen.
 const modelForm = ref({
-    training_model:           props.runnerProfile?.training_model ?? 'polarized',
+    // Ein offener Wechsel zeigt das gewählte Modell, nicht das noch gültige.
+    training_model:           props.runnerProfile?.training_model_next ?? props.runnerProfile?.training_model ?? 'polarized',
     running_experience_years: props.runnerProfile?.running_experience_years ?? null,
     has_lactate_meter:        props.runnerProfile?.has_lactate_meter ?? false,
 });
 const modelSaving = ref(false);
 const modelSaved  = ref(false);
 const modelError  = ref('');
+const modelNextFrom = ref(props.runnerProfile?.training_model_next ? props.runnerProfile?.training_model_next_from : null);
+
+const modelNextLabel = computed(() => {
+    if (!modelNextFrom.value) return null;
+    const d = new Date(String(modelNextFrom.value).slice(0, 10) + 'T00:00:00');
+    return d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+});
 
 async function saveModel() {
     modelSaving.value = true;
     modelError.value  = '';
     try {
-        await axios.post(route('onboarding.training-model'), { ...modelForm.value });
+        const { data } = await axios.post(route('onboarding.training-model'), { ...modelForm.value });
+        modelNextFrom.value = data?.next ? data.next_from : null;
         modelSaved.value = true;
         setTimeout(() => { modelSaved.value = false; }, 2500);
     } catch (e) {
@@ -1090,6 +1099,9 @@ const inputClass = 'z-input';
                                 <p class="text-xs text-ink-3 mt-0.5">Gilt ab dem nächsten Wochenplan (Sonntagabend).</p>
                             </div>
                             <TrainingModelFields v-model="modelForm" :readiness="props.norwegianReadiness" />
+                            <p v-if="modelNextLabel" class="rounded-field bg-accent-soft px-4 py-3 text-[13px] leading-relaxed text-accent-ink">
+                                Der Wechsel gilt ab {{ modelNextLabel }}. Bis dahin plant Zone3 die laufende Woche mit dem bisherigen Modell weiter.
+                            </p>
                             <p v-if="modelError" class="z-error">{{ modelError }}</p>
                             <div class="flex items-center justify-end gap-3">
                                 <span v-if="modelSaved" class="inline-flex items-center gap-1 text-[13px] text-success-ink"><svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>Gespeichert</span>

@@ -145,14 +145,25 @@ class PlanDeltaService
      */
     private function targetsStillFit(array $slots, Collection $sessions): bool
     {
+        // An einem Doppel-Tag (norwegisches Modell) stehen zwei Einheiten
+        // desselben Typs. Sie werden in ihrer Reihenfolge verglichen —
+        // morgens mit morgens, abends mit abends —, sonst galt der Tag mit
+        // dem Abendziel gegen die Morgeneinheit gemessen ewig als veraltet.
+        $ordered = $sessions->sortBy('sort_order')->values();
+        $used    = [];
+
         foreach ($slots as $slot) {
+            $type = $slot['type'];
+            $nth  = $used[$type] ?? 0;
+            $used[$type] = $nth + 1;
+
             $target = $slot['target_km'] ?? null;
 
             if (! $target || ! empty($slot['fixed'])) {
                 continue;
             }
 
-            $session = $sessions->firstWhere('type', $slot['type']);
+            $session = $ordered->where('type', $type)->values()->get($nth);
             if (! $session) {
                 return false;
             }

@@ -108,6 +108,43 @@ class WeeklyPatternService
     /** Einlaufen und Auslaufen zusammen. */
     public const WARMUP_COOLDOWN_MINUTES = 20;
 
+    /**
+     * Norwegisches Modell (Entscheidung vom 25.10.2026): statt 80/20 höchstens
+     * 25 % der Laufzeit knapp unter der Schwelle und höchstens 5 % schneller
+     * als die Schwelle. Der Rest ist locker.
+     */
+    public const SUB_THRESHOLD_SHARE = 0.25;
+
+    public const FAST_SHARE = 0.05;
+
+    /** Hauptteil je Sub-Schwellen-Einheit, wenn die Woche Platz hat. */
+    public const SUB_MAIN_MINUTES = ['am' => 30, 'pm' => 30, 'single' => 35];
+
+    /** Darunter lohnt eine Sub-Schwellen-Einheit nicht — sie entfällt bzw. wird locker. */
+    public const MIN_SUB_MAIN_MINUTES = 15;
+
+    /** Die kurze schnelle Einheit am Wochenende: Richtwert und Untergrenze. */
+    public const FAST_MAIN_MINUTES = 10;
+
+    public const MIN_FAST_MAIN_MINUTES = 5;
+
+    /**
+     * Ein- und Auslaufen bei Sub-Schwelle. Kürzer als bei einer harten
+     * Einheit — der Hauptteil ist kontrolliert, und abends bleibt oft nur
+     * ein Fenster von 30 bis 45 Minuten.
+     */
+    public const SUB_WARMUP_MINUTES = 15;
+
+    /** Ein Abendfenster unter dieser Länge trägt keine zweite Einheit. */
+    public const MIN_SECOND_WINDOW_MINUTES = 30;
+
+    /**
+     * Was im norwegischen Modell bei einer knappen Woche wegfällt: zuerst
+     * die schnelle Einheit, dann (unter Schutz des letzten lockeren Laufs)
+     * die lockeren — die Schwelle trägt das Modell.
+     */
+    private const NORWEGIAN_PRIORITY = ['long_run', 'tempo_run', 'interval', 'easy_run'];
+
     public function __construct(private readonly PeriodizationService $periodization) {}
 
     private const ISO_TO_KEY = [
@@ -136,8 +173,10 @@ class WeeklyPatternService
         ?array $volume = null,
         ?int $planningPaceSec = null,
         array $races = [],
+        ?array $model = null,
     ): array {
-        $days     = $this->availabilityPerDate($from, $to, $weeklyAvailability, $overrides, $finalizedDates, $races);
+        $days      = $this->availabilityPerDate($from, $to, $weeklyAvailability, $overrides, $finalizedDates, $races);
+        $norwegian = ($model['name'] ?? 'polarized') === 'norwegian';
         $priority = self::PRIORITIES[$event->race_distance] ?? self::DEFAULT_PRIORITY;
         $maxHard  = self::MAX_HARD_PER_WEEK[$event->race_distance] ?? 2;
         $periods  = $this->periodization->forWindow($event, $from, $to);
@@ -167,9 +206,12 @@ class WeeklyPatternService
                 : $priority;
             $weekMaxHard  = $period ? min($maxHard, $period['max_hard']) : $maxHard;
 
-            $weeks[$weekKey] = $step !== null && $step < ReturnToRunService::TOTAL_STEPS
-                ? $this->planComebackWeek($days, $dates, $step, $lastRun, $priority, $maxHard)
-                : $this->planWeek($days, $dates, $weekPriority, $weekMaxHard);
+            $weeks[$weekKey] = match (true) {
+                $step !== null && $step < ReturnToRunService::TOTAL_STEPS
+                            => $this->planComebackWeek($days, $dates, $step, $lastRun, $priority, $maxHard),
+                $norwegian  => $this->planNorwegianWeek($days, $dates, $period),
+                default     => $this->planWeek($days, $dates, $weekPriority, $weekMaxHard),
+            };
 
             // Was danach noch frei ist, wird HIER entschieden — nicht vom
             // Modell. Siehe assignFreeDays().
@@ -179,19 +221,28 @@ class WeeklyPatternService
         // Der lange Lauf bekommt seine Zieldistanz aus der Leiter — sie ist
         // rückwärts vom Renntag gerechnet und nicht Sache des Modells.
         if ($longRuns) {
-            $this->applyLongRuns($days, $longRuns);
+            $this->applyLongRuns($days, $longRuns, easyOnly: $norwegian);
         }
 
         // Und danach bekommt jede übrige Laufeinheit ihren Anteil am
         // Wochenumfang. Muss NACH der Leiter laufen: der lange Lauf geht vor,
         // der Rest teilt sich, was übrig bleibt.
         if ($volume && ! empty($volume['has_data']) && $planningPaceSec > 0) {
-            $this->applyVolumeBudget($days, $volume, $planningPaceSec, $priority, $periods);
+            $this->applyVolumeBudget($days, $volume, $planningPaceSec, $norwegian ? self::NORWEGIAN_PRIORITY : $priority, $periods);
         }
 
-        // 80/20 nach Zeit — erst jetzt, weil es die Minuten aller Einheiten
-        // der Woche braucht.
-        $this->applyEightyTwenty($days, $priority);
+        if ($norwegian) {
+            // Hat das Budget eine Hälfte eines Doppel-Tags gestrichen, ist
+            // die andere eine gewöhnliche Einzel-Schwelle.
+            $this->normalizeDoubles($days);
+
+            // Statt 80/20: Sub-Schwelle und schnelle Minuten getrennt deckeln.
+            $this->applyNorwegianShares($days);
+        } else {
+            // 80/20 nach Zeit — erst jetzt, weil es die Minuten aller
+            // Einheiten der Woche braucht.
+            $this->applyEightyTwenty($days, $priority);
+        }
 
         return [
             'days'      => $days,
@@ -200,6 +251,7 @@ class WeeklyPatternService
             'comeback'  => $comeback,
             'long_runs' => $longRuns,
             'periods'   => $periods,
+            'model'     => $norwegian ? ['name' => 'norwegian'] + ($model ?? []) : ['name' => 'polarized'],
         ];
     }
 
@@ -227,6 +279,11 @@ class WeeklyPatternService
             // gibt. Andernfalls wuerde ein Profil ohne gepflegtes Wochenraster
             // ein leeres Geruest ergeben — und der Validator machte daraus
             // vierzehn Ruhetage.
+            // Das Abendfenster kommt aus dem Wochenraster. Eine Tagesausnahme
+            // kennt keins: wer für einen Tag eigens Zeit einträgt, hat damit
+            // gesagt, wie viel er an dem Tag hat.
+            $second = 0;
+
             if (isset($overrides[$key])) {
                 $available = (bool) ($overrides[$key]['available'] ?? true);
                 $budget    = (int) ($overrides[$key]['duration_min'] ?? 0);
@@ -234,6 +291,7 @@ class WeeklyPatternService
                 $day       = $weekly[self::ISO_TO_KEY[$date->isoWeekday()]] ?? null;
                 $available = (bool) ($day['available'] ?? false);
                 $budget    = (int) ($day['duration_min'] ?? 0);
+                $second    = (int) ($day['second_min'] ?? 0);
             } else {
                 $available = true;
                 $budget    = 0;
@@ -282,6 +340,7 @@ class WeeklyPatternService
                 'weekday'     => $date->isoWeekday(),
                 'available'   => $available,
                 'budget_min'  => $available ? $budget : 0,
+                'second_min'  => $available && $second >= self::MIN_SECOND_WINDOW_MINUTES ? $second : 0,
                 'finalized'   => isset($finalized[$key]),
                 'week'        => $date->format('o-\WW'),
                 'fixed'       => $available ? $fixed : null,
@@ -297,7 +356,7 @@ class WeeklyPatternService
      * hängen. Steht in einer Woche kein langer Lauf, gibt es auch nichts zu
      * setzen — die Leiter erzwingt keinen Slot, sie füllt einen.
      */
-    private function applyLongRuns(array &$days, array $longRuns): void
+    private function applyLongRuns(array &$days, array $longRuns, bool $easyOnly = false): void
     {
         foreach ($days as $date => $day) {
             foreach ($day['slots'] as $i => $slot) {
@@ -312,7 +371,11 @@ class WeeklyPatternService
 
                 $km   = (float) $target['km'];
                 $min   = (int) $target['min'];
-                $mpKm  = (float) $target['mp_km'];
+
+                // Im norwegischen Modell bleibt der lange Lauf locker — die
+                // Qualität steckt in der Sub-Schwelle, nicht im Renntempo am
+                // Ende des Longruns.
+                $mpKm  = $easyOnly ? 0.0 : (float) $target['mp_km'];
 
                 // Die Leiter rechnet mit dem laengsten Tag der WOCHE. Das
                 // Geruest legt den langen Lauf aber auf den laengsten FREIEN
@@ -584,6 +647,7 @@ class WeeklyPatternService
                     'index' => $i,
                     'type'  => $slot['type'],
                     'cap'   => (int) ($slot['max_min'] ?: $days[$date]['budget_min']),
+                    'pm'    => ($slot['double'] ?? null) === 'pm',
                 ];
             }
         }
@@ -715,8 +779,10 @@ class WeeklyPatternService
                 continue;
             }
 
+            // Bei Gleichstand geht die Abend-Hälfte einer Doppel-Schwelle
+            // zuerst — der Morgen bleibt als Einzel-Schwelle stehen.
             $r = $rank[$slot['type']] ?? count($priority);
-            if ($r > $worstRank) {
+            if ($r > $worstRank || ($r === $worstRank && ! empty($slot['pm']))) {
                 $worstRank = $r;
                 $worst = $i;
             }
@@ -759,14 +825,62 @@ class WeeklyPatternService
         // Fenster liegt — sonst plant das Gerüst den Athleten zu.
         $capacity = count($dates) >= 7 ? max(1, count($usable) - 1) : count($usable);
 
-        $planned = [];
         $dropped = [];
-        $hard    = 0;
 
         // 80/20 zaehlt in Einheiten. Bei bis zu vier Laeufen sind zwei harte
         // schon die Haelfte der Woche — dann bleibt es bei einer, und der
         // freie Platz geht an einen lockeren Lauf statt ans Intervall.
         $maxHard = min($maxHard, $this->hardSessionsFor($capacity));
+
+        [$planned, $hard] = $this->placeFixed($days, $usable);
+
+        foreach ($priority as $type) {
+            // Schon durch einen festen Termin abgedeckt.
+            if (in_array($type, $planned, true)) {
+                continue;
+            }
+
+            if (count($planned) >= $capacity) {
+                $dropped[] = $type;
+                continue;
+            }
+
+            $isHard = in_array($type, self::HARD_TYPES, true);
+            if ($isHard && $hard >= $maxHard) {
+                $dropped[] = $type;
+                continue;
+            }
+
+            $date = $this->pickDay($days, $usable, $type, $isHard);
+            if ($date === null) {
+                $dropped[] = $type;
+                continue;
+            }
+
+            $days[$date]['slots'][] = [
+                'type'    => $type,
+                'hard'    => $isHard,
+                'max_min' => $days[$date]['budget_min'],
+            ];
+
+            $planned[] = $type;
+            if ($isHard) $hard++;
+        }
+
+        $this->fillSecondSlots($days, $usable);
+
+        return ['planned' => $planned, 'dropped' => $dropped, 'usable_days' => count($usable)];
+    }
+
+    /**
+     * Was schon steht, zählen — und die festen Termine legen.
+     *
+     * @return array{0: list<string>, 1: int}  geplante Typen, harte Einheiten
+     */
+    private function placeFixed(array &$days, array $usable): array
+    {
+        $planned = [];
+        $hard    = 0;
 
         // Was an diesem Tag schon steht, zaehlt mit. Nach einem Wiedereinstieg
         // uebernimmt diese Methode eine angefangene Woche — ohne die Zaehlung
@@ -819,42 +933,302 @@ class WeeklyPatternService
             if ($isHard) $hard++;
         }
 
-        foreach ($priority as $type) {
-            // Schon durch einen festen Termin abgedeckt.
-            if (in_array($type, $planned, true)) {
-                continue;
-            }
+        return [$planned, $hard];
+    }
 
+    /**
+     * Eine Woche im norwegischen Modell (Entscheidung vom 25.10.2026).
+     *
+     *   · zwei Tage Doppel-Schwelle: morgens und abends je eine Einheit
+     *     knapp unter der Schwelle (z. B. 5×6 min und 10×1000 m)
+     *   · eine kurze schnelle Einheit, bevorzugt am Wochenende
+     *   · ein lockerer langer Lauf, alles andere locker
+     *
+     * Doppelt wird nur an einem Tag mit Abendfenster
+     * (`weekly_availability.*.second_min`). Fehlt es, bleibt eine
+     * Einzel-Schwelle im Tagesfenster — besser als zwei Einheiten in eine
+     * Mittagspause gepresst.
+     *
+     * Die Phase gilt auch hier: in der Grundlage und in einer
+     * Entlastungswoche ein Schwellentag und keine schnelle Einheit, in der
+     * Rennwoche nur eine kurze Einzel-Schwelle.
+     *
+     * Die Sub-Schwellen-Einheiten tragen `controlled`: sie zählen für den
+     * Abstand wie harte Einheiten (nie zwei Schwellentage hintereinander),
+     * verlangen aber keinen Ruhetag danach — der Tag nach einer
+     * Doppel-Schwelle ist ein lockerer Lauf, so wie das Modell gedacht ist.
+     *
+     * @return array{planned: list<string>, dropped: list<string>, usable_days: int}
+     */
+    private function planNorwegianWeek(array &$days, array $dates, ?array $period): array
+    {
+        $usable = array_values(array_filter(
+            $dates,
+            fn ($d) => $days[$d]['available']
+                && ! $days[$d]['finalized']
+                && $this->canFitUsefulRun($days[$d])
+        ));
+
+        if (! $usable) {
+            return ['planned' => [], 'dropped' => [], 'usable_days' => 0];
+        }
+
+        $capacity = count($dates) >= 7 ? max(1, count($usable) - 1) : count($usable);
+        $dropped  = [];
+
+        [$planned, $hard] = $this->placeFixed($days, $usable);
+
+        $phase    = $period['phase'] ?? 'build';
+        $recovery = (bool) ($period['recovery'] ?? false);
+
+        $thresholdDays = match (true) {
+            $phase === 'race_week'           => 0,
+            $recovery || $phase === 'base'   => 1,
+            default                          => 2,
+        };
+
+        // Ein fester harter Termin (Laufclub-Intervalle, ein Rennen) ist der
+        // schnelle Reiz der Woche — eine zweite schnelle Einheit kommt nicht
+        // dazu.
+        $fast = in_array($phase, ['build', 'peak', 'taper'], true) && ! $recovery && $hard === 0;
+
+        // Der lange Lauf zuerst: er braucht den längsten Tag.
+        if (! in_array('long_run', $planned, true) && count($planned) < $capacity) {
+            $date = $this->pickDay($days, $usable, 'long_run', false);
+            if ($date !== null) {
+                $days[$date]['slots'][] = ['type' => 'long_run', 'hard' => false, 'max_min' => $days[$date]['budget_min']];
+                $planned[] = 'long_run';
+            } else {
+                $dropped[] = 'long_run';
+            }
+        }
+
+        for ($n = 0; $n < $thresholdDays; $n++) {
             if (count($planned) >= $capacity) {
-                $dropped[] = $type;
+                $dropped[] = 'tempo_run';
                 continue;
             }
 
-            $isHard = in_array($type, self::HARD_TYPES, true);
-            if ($isHard && $hard >= $maxHard) {
-                $dropped[] = $type;
-                continue;
-            }
-
-            $date = $this->pickDay($days, $usable, $type, $isHard);
+            $date = $this->pickThresholdDay($days, $usable);
             if ($date === null) {
-                $dropped[] = $type;
+                $dropped[] = 'tempo_run';
                 continue;
             }
 
-            $days[$date]['slots'][] = [
-                'type'    => $type,
-                'hard'    => $isHard,
-                'max_min' => $days[$date]['budget_min'],
-            ];
+            $second = (int) $days[$date]['second_min'];
+            $am     = ['type' => 'tempo_run', 'hard' => true, 'controlled' => true, 'max_min' => $days[$date]['budget_min']];
 
-            $planned[] = $type;
-            if ($isHard) $hard++;
+            if ($second > 0) {
+                $days[$date]['slots'][] = $am + ['double' => 'am'];
+                $days[$date]['slots'][] = ['type' => 'tempo_run', 'hard' => true, 'controlled' => true, 'max_min' => $second, 'double' => 'pm'];
+            } else {
+                $days[$date]['slots'][] = $am;
+            }
+
+            $planned[] = 'tempo_run';
+        }
+
+        // Rennwoche: ein kurzer kontrollierter Reiz, keine Doppel-Schwelle.
+        if ($phase === 'race_week' && count($planned) < $capacity && ! in_array('tempo_run', $planned, true)) {
+            $date = $this->pickDay($days, $usable, 'tempo_run', true);
+            if ($date !== null) {
+                $days[$date]['slots'][] = ['type' => 'tempo_run', 'hard' => true, 'controlled' => true, 'max_min' => $days[$date]['budget_min']];
+                $planned[] = 'tempo_run';
+            }
+        }
+
+        if ($fast) {
+            $date = count($planned) < $capacity ? $this->pickFastDay($days, $usable) : null;
+            if ($date !== null) {
+                $days[$date]['slots'][] = ['type' => 'interval', 'hard' => true, 'fast' => true, 'max_min' => $days[$date]['budget_min']];
+                $planned[] = 'interval';
+            } else {
+                $dropped[] = 'interval';
+            }
         }
 
         $this->fillSecondSlots($days, $usable);
 
         return ['planned' => $planned, 'dropped' => $dropped, 'usable_days' => count($usable)];
+    }
+
+    /**
+     * Ein Tag für die Schwelle: mit Abstand zur nächsten harten Einheit,
+     * bevorzugt mit Abendfenster, dann der längste.
+     */
+    private function pickThresholdDay(array $days, array $usable): ?string
+    {
+        $free = array_values(array_filter(
+            $usable,
+            fn ($d) => empty($days[$d]['slots']) && $this->hasQualityGap($days, $usable, $d),
+        ));
+
+        if (! $free) {
+            return null;
+        }
+
+        usort($free, fn ($a, $b) => [$days[$b]['second_min'] > 0, $days[$b]['budget_min']]
+            <=> [$days[$a]['second_min'] > 0, $days[$a]['budget_min']]);
+
+        return $free[0];
+    }
+
+    /** Die schnelle Einheit: bevorzugt Samstag oder Sonntag, sonst irgendein Tag mit Abstand. */
+    private function pickFastDay(array $days, array $usable): ?string
+    {
+        $free = array_values(array_filter(
+            $usable,
+            fn ($d) => empty($days[$d]['slots']) && $this->hasQualityGap($days, $usable, $d),
+        ));
+
+        if (! $free) {
+            return null;
+        }
+
+        usort($free, fn ($a, $b) => [$days[$b]['weekday'] >= 6, $days[$b]['budget_min']]
+            <=> [$days[$a]['weekday'] >= 6, $days[$a]['budget_min']]);
+
+        return $free[0];
+    }
+
+    /** Ein Doppel-Tag mit nur noch einer Hälfte ist eine Einzel-Schwelle. */
+    private function normalizeDoubles(array &$days): void
+    {
+        foreach ($days as $date => $day) {
+            $halves = array_keys(array_filter($day['slots'] ?? [], fn ($s) => ! empty($s['double'])));
+
+            if (count($halves) === 1) {
+                unset($days[$date]['slots'][$halves[0]]['double']);
+            }
+        }
+    }
+
+    /**
+     * Die Anteile des norwegischen Modells: höchstens 25 % der Laufzeit
+     * Sub-Schwelle, höchstens 5 % schneller als die Schwelle.
+     *
+     * Wie bei 80/20 bekommt jede Einheit ihren Hauptteil als `hard_min`.
+     * Reicht der Anteil nicht, entfällt zuerst die Abend-Hälfte eines
+     * Doppel-Tags (der Morgen bleibt als Einzel-Schwelle), danach wird die
+     * letzte Schwelleneinheit locker. Die schnelle Einheit wird locker, wenn
+     * ihre 5 % keine fünf Minuten tragen.
+     *
+     * Der lange Lauf ist hier locker und zählt nicht; Rennen zählen nie.
+     */
+    private function applyNorwegianShares(array &$days): void
+    {
+        foreach ($this->groupByWeek($days) as $dates) {
+            $total      = 0.0;
+            $takenSub   = 0.0;
+            $takenFast  = 0.0;
+            $sub        = [];
+            $fast       = [];
+            $incomplete = false;
+
+            foreach ($dates as $date) {
+                foreach ($days[$date]['slots'] ?? [] as $i => $slot) {
+                    if (! empty($slot['race']) || ! in_array($slot['type'], self::RUN_SLOT_TYPES, true)) {
+                        continue;
+                    }
+
+                    $min    = (int) ($slot['target_min'] ?? 0);
+                    $total += $min;
+
+                    if (! in_array($slot['type'], self::HARD_TYPES, true)) {
+                        continue;
+                    }
+
+                    if (! empty($slot['fixed'])) {
+                        // Ein auswärtiger Termin ist meist schnell (Bahn,
+                        // Intervalle), eine Schwelle nur, wenn er so heisst.
+                        if ($slot['type'] === 'tempo_run') {
+                            $takenSub += self::SUB_MAIN_MINUTES['single'];
+                        } else {
+                            $takenFast += self::HARD_MAIN_MINUTES[$slot['type']] ?? 20;
+                        }
+                        continue;
+                    }
+
+                    if ($min <= 0) {
+                        $incomplete = true;
+                    }
+
+                    if (! empty($slot['fast'])) {
+                        $want   = $min > 0 ? min(self::FAST_MAIN_MINUTES, max(0, $min - self::WARMUP_COOLDOWN_MINUTES)) : self::FAST_MAIN_MINUTES;
+                        $fast[] = ['date' => $date, 'index' => $i, 'want' => $want];
+                        continue;
+                    }
+
+                    $part  = $slot['double'] ?? 'single';
+                    $want  = self::SUB_MAIN_MINUTES[$part];
+                    if ($min > 0) {
+                        $want = min($want, max(0, $min - self::SUB_WARMUP_MINUTES));
+                    }
+                    $sub[] = ['date' => $date, 'index' => $i, 'part' => $part, 'want' => $want];
+                }
+            }
+
+            // ── Sub-Schwelle ────────────────────────────────────────────
+            $cap    = $incomplete ? INF : self::SUB_THRESHOLD_SHARE * $total - $takenSub;
+            $remove = [];
+
+            while ($sub && array_sum(array_column($sub, 'want')) > $cap
+                && $cap / count($sub) < self::MIN_SUB_MAIN_MINUTES) {
+                $pm = array_key_last(array_filter($sub, fn ($o) => $o['part'] === 'pm'));
+
+                if ($pm !== null) {
+                    // Der Abend fällt weg, der Morgen bleibt als Einzel-Schwelle.
+                    $o        = $sub[$pm];
+                    $remove[] = $o;
+                    foreach ($sub as $k => $other) {
+                        if ($other['date'] === $o['date'] && $other['part'] === 'am') {
+                            $sub[$k]['part'] = 'single';
+                            unset($days[$o['date']]['slots'][$other['index']]['double']);
+                        }
+                    }
+                    array_splice($sub, $pm, 1);
+                    continue;
+                }
+
+                $o = array_pop($sub);
+                $days[$o['date']]['slots'][$o['index']]['type']      = 'easy_run';
+                $days[$o['date']]['slots'][$o['index']]['hard']      = false;
+                $days[$o['date']]['slots'][$o['index']]['norwegian'] = 'tempo_run';
+                unset($days[$o['date']]['slots'][$o['index']]['controlled'], $days[$o['date']]['slots'][$o['index']]['double']);
+            }
+
+            $wanted = array_sum(array_column($sub, 'want'));
+            $scale  = $wanted > $cap && $wanted > 0 ? $cap / $wanted : 1.0;
+
+            foreach ($sub as $o) {
+                $days[$o['date']]['slots'][$o['index']]['hard_min'] = (int) max(
+                    min(self::MIN_SUB_MAIN_MINUTES, $o['want']),
+                    floor($o['want'] * $scale),
+                );
+            }
+
+            foreach ($remove as $o) {
+                unset($days[$o['date']]['slots'][$o['index']]);
+                $days[$o['date']]['slots'] = array_values($days[$o['date']]['slots']);
+            }
+
+            // ── Schnell ─────────────────────────────────────────────────
+            $fastCap = $incomplete ? INF : self::FAST_SHARE * $total - $takenFast;
+
+            foreach ($fast as $o) {
+                if ($fastCap < self::MIN_FAST_MAIN_MINUTES) {
+                    $days[$o['date']]['slots'][$o['index']]['type']      = 'easy_run';
+                    $days[$o['date']]['slots'][$o['index']]['hard']      = false;
+                    $days[$o['date']]['slots'][$o['index']]['norwegian'] = 'interval';
+                    unset($days[$o['date']]['slots'][$o['index']]['fast']);
+                    continue;
+                }
+
+                $minutes = (int) min($o['want'], floor($fastCap));
+                $days[$o['date']]['slots'][$o['index']]['hard_min'] = $minutes;
+                $fastCap -= $minutes;
+            }
+        }
     }
 
     /**
@@ -1092,8 +1466,10 @@ class WeeklyPatternService
 
             // Der Vortag kann außerhalb des Fensters liegen — dann ist über
             // ihn nichts bekannt und der Tag bleibt ein lockerer Lauf.
+            // Kontrollierte Sub-Schwelle (norwegisches Modell) verlangt keinen
+            // Ruhetag danach — dort folgt ein lockerer Lauf.
             $afterHard = isset($days[$previous]) && collect($days[$previous]['slots'] ?? [])
-                ->contains(fn ($slot) => (bool) ($slot['hard'] ?? false));
+                ->contains(fn ($slot) => ($slot['hard'] ?? false) && empty($slot['controlled']));
 
             if ($afterHard) {
                 $restDates[$date] = true;
@@ -1186,12 +1562,33 @@ class WeeklyPatternService
         return $budget === 0 || $budget >= self::MIN_USEFUL_RUN_MINUTES;
     }
 
+    /** Die Regeln des norwegischen Modells — ersetzen 80/20 und „ein Lauf pro Tag". */
+    private function norwegianRules(array $model): string
+    {
+        $pace = ! empty($model['sub_pace'])
+            ? "{$model['sub_pace']} min/km (Schwelle T = {$model['threshold']}, Sub-Schwelle = T + 5–15 s)"
+            : 'T + 5–15 s/km';
+        $hr   = ! empty($model['hr_max'])
+            ? " und Puls hoechstens {$model['hr_max']} bpm (knapp unter der Schwellen-HF)"
+            : '';
+
+        return "- NORWEGISCHES MODELL (vom Athleten gewaehlt): Statt 80/20 gilt — hoechstens 25 % der Laufminuten Sub-Schwelle, hoechstens 5 % schneller als die Schwelle, alles andere locker (Zone 1–2). Einlaufen, Trabpausen und Auslaufen zaehlen als locker.\n"
+            . "- SUB-SCHWELLE heisst kontrolliert knapp UNTER der Schwelle: Pace {$pace}{$hr}. Der Athlet hat kein Laktatmessgeraet — nenne in jeder Sub-Schwellen-Einheit Pace UND Pulsdeckel und sage, dass er langsamer wird, wenn der Puls darueber steigt. Die Einheit soll sich am Ende so anfuehlen, als ginge noch mehr; nie bis zur Erschoepfung.\n"
+            . "- Gib bei jeder Qualitaetseinheit \"hard_min\" an (Minuten des Hauptteils) und halte die Obergrenze aus dem Geruest ein. Bei allen anderen hard_min=0.\n"
+            . "- DOPPEL-SCHWELLE: An Tagen mit \"part=am\" und \"part=pm\" stehen ZWEI Laufeinheiten — morgens und abends, beide type=\"tempo_run\". Gib jeder das Feld \"part\" mit (\"am\" bzw. \"pm\") und beginne den title mit \"Morgens:\" bzw. \"Abends:\". Morgens laengere Abschnitte (z. B. 5×6 min), abends kuerzere (z. B. 10×1000 m), jeweils 1 min Trabpause.\n"
+            . "- Außer an Doppel-Schwellen-Tagen HÖCHSTENS EINE LAUFEINHEIT PRO TAG. Ein Tag bekommt genau so viele Einträge, wie oben Slots stehen — nie mehr. Ein weiterer Eintrag darf nur strength, core oder mobility sein.\n"
+            . "- Der lange Lauf bleibt komplett locker — kein Renntempo-Abschnitt.\n";
+    }
+
     /**
      * Das Gerüst als Prompt-Abschnitt. Bewusst als Belegung formuliert und
      * nicht als Wunsch — die KI füllt aus, sie entscheidet nicht mehr.
      */
     public function toPromptSection(array $skeleton): string
     {
+        $model     = $skeleton['model'] ?? ['name' => 'polarized'];
+        $norwegian = ($model['name'] ?? null) === 'norwegian';
+
         $labels = [
             'easy_run'   => 'Lockerer Lauf (Zone 2)',
             'tempo_run'  => 'Tempolauf (Schwelle)',
@@ -1309,6 +1706,27 @@ class WeeklyPatternService
                     $optional .= " — statt {$slot['eighty_twenty']}: die Woche laege sonst ueber 20 % harter Laufzeit. Rein locker, keine Tempoabschnitte";
                 }
 
+                // Norwegisches Modell: die Schwelle heisst hier Sub-Schwelle
+                // und hat andere Grenzen als ein harter Tempolauf.
+                if (! empty($slot['controlled'])) {
+                    $label = match ($slot['double'] ?? null) {
+                        'am'    => 'DOPPEL-SCHWELLE MORGENS, part="am" — z. B. 5×6 min',
+                        'pm'    => 'DOPPEL-SCHWELLE ABENDS, part="pm" — z. B. 10×1000 m',
+                        default => 'EINZEL-SCHWELLE — z. B. 5×6 min',
+                    } . ', knapp UNTER der Schwelle';
+                    $hard = isset($slot['hard_min'])
+                        ? " — Hauptteil Sub-Schwelle hoechstens {$slot['hard_min']} min, hard_min={$slot['hard_min']}"
+                        : '';
+                } elseif (! empty($slot['fast'])) {
+                    $label = 'KURZ UND SCHNELL — z. B. 10×200 m oder kurze Bergsprints, schneller als die Schwelle';
+                    $hard  = isset($slot['hard_min'])
+                        ? " — schnelle Abschnitte zusammen hoechstens {$slot['hard_min']} min, hard_min={$slot['hard_min']}"
+                        : '';
+                }
+                if (! empty($slot['norwegian'])) {
+                    $optional .= " — statt {$slot['norwegian']}: der Anteil der Woche traegt keinen Hauptteil. Rein locker";
+                }
+
                 // Der Zielumfang kommt aus dem Wochenbudget. Ohne ihn stand
                 // dort nur die Verfuegbarkeit — und das Modell las eine
                 // Obergrenze von 120 Minuten als Auftrag, 120 Minuten zu
@@ -1353,9 +1771,13 @@ class WeeklyPatternService
                 ? implode(', ', $byWeek[$weekKey])
                 : 'keine Laufeinheit';
 
-            $share = ($minutes[$weekKey] ?? 0) > 0
-                ? " — rund {$minutes[$weekKey]} min Laufzeit, davon hoechstens " . (int) floor($minutes[$weekKey] * self::HARD_SHARE) . ' min hart'
-                : '';
+            $share = match (true) {
+                ($minutes[$weekKey] ?? 0) <= 0 => '',
+                $norwegian => " — rund {$minutes[$weekKey]} min Laufzeit, davon hoechstens "
+                    . (int) floor($minutes[$weekKey] * self::SUB_THRESHOLD_SHARE) . ' min Sub-Schwelle und '
+                    . (int) floor($minutes[$weekKey] * self::FAST_SHARE) . ' min schneller als die Schwelle',
+                default => " — rund {$minutes[$weekKey]} min Laufzeit, davon hoechstens " . (int) floor($minutes[$weekKey] * self::HARD_SHARE) . ' min hart',
+            };
 
             $planned[] = "- {$weekKey}: {$list}{$share}";
         }
@@ -1374,8 +1796,8 @@ class WeeklyPatternService
             . $comeback
             . "\n\nRegeln zum Gerüst:\n"
             . "- Der vorgegebene \"type\" jedes Tages ist BINDEND. Du füllst nur title, description, distance_km, duration_min, pace_target, zone und intensity aus.\n"
-            . "- 80/20 NACH ZEIT: Hoechstens 20 % der Laufminuten einer Woche sind hart (Zone 4–5 und Renntempo-Abschnitte). Einlaufen, Trabpausen und Auslaufen zaehlen als locker. Gib bei jeder harten Einheit \"hard_min\" an — die Minuten ihres Hauptteils — und halte die Obergrenze aus dem Geruest ein. Bei allen anderen Einheiten hard_min=0.\n"
-            . "- HÖCHSTENS EINE LAUFEINHEIT PRO TAG. Ein Tag bekommt genau so viele Einträge, wie oben Slots stehen — nie mehr. Ein zweiter Eintrag am selben Tag darf ausschließlich strength, core oder mobility sein, niemals ein weiterer Lauf.\n"
+            . ($norwegian ? $this->norwegianRules($model) : "- 80/20 NACH ZEIT: Hoechstens 20 % der Laufminuten einer Woche sind hart (Zone 4–5 und Renntempo-Abschnitte). Einlaufen, Trabpausen und Auslaufen zaehlen als locker. Gib bei jeder harten Einheit \"hard_min\" an — die Minuten ihres Hauptteils — und halte die Obergrenze aus dem Geruest ein. Bei allen anderen Einheiten hard_min=0.\n"
+            . "- HÖCHSTENS EINE LAUFEINHEIT PRO TAG. Ein Tag bekommt genau so viele Einträge, wie oben Slots stehen — nie mehr. Ein zweiter Eintrag am selben Tag darf ausschließlich strength, core oder mobility sein, niemals ein weiterer Lauf.\n")
             . "- Tage mit zwei Einträgen bekommen ZWEI Objekte mit demselben \"date\"; die Summe beider duration_min darf das Tages-Maximum nicht überschreiten.\n"
             . "- Steht bei einer Einheit \"max. N min\", ist das ihre Obergrenze — nicht die des Tages. Sie zu überschreiten oder die fehlende Zeit mit einer zweiten Einheit aufzufüllen, ist beides falsch.\n"
             . "- Als [optional] markierte Zweiteinheiten darfst du weglassen, wenn sie an dem Tag nicht sinnvoll sind — aber niemals durch eine harte Einheit ersetzen.\n"

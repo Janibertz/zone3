@@ -234,6 +234,19 @@ class TrainingPlanGenerator
                 }
             }
         }
+        // Ein Lauf pro Tag — außer an den Doppel-Schwellen-Tagen des
+        // norwegischen Modells. Die Ausnahme steht hier und im Gerüst, sonst
+        // widerspräche die allgemeine Regel dem Gerüst im selben Prompt.
+        $doubleDays = ($skeleton['model']['name'] ?? null) === 'norwegian';
+
+        $oneRunRule = $doubleDays
+            ? '- EIN LAUFTRAINING PRO TAG — einzige Ausnahme sind die DOPPEL-SCHWELLEN-Tage im Wochengerüst (part="am" und part="pm"): dort stehen genau ZWEI tempo_run-Einträge, morgens und abends. An allen anderen Tagen hoechstens EINE Laufeinheit; eine weitere lockere Einheit danebenzustellen ist immer falsch.'
+            : '- EIN LAUFTRAINING PRO TAG: An einem Tag steht hoechstens EINE Laufeinheit (easy_run, tempo_run, interval, long_run, progressive_run, test_run, race_prep). Zwei Laeufe am selben Tag sind immer falsch — auch dann, wenn der zweite locker waere, und auch dann, wenn eine andere Regel eine zusaetzliche lockere Einheit nahezulegen scheint. Passt eine Vorgabe nicht zur Einheit des Tages, aendere die Einheit, statt eine zweite danebenzustellen.';
+
+        $secondEntryRule = $doubleDays
+            ? 'Ein zweiter Eintrag mit demselben "date" ist nur erlaubt, wenn das Wochengerüst dort eine Doppel-Schwelle (part="pm") oder eine strength-, core- oder mobility-Einheit vorsieht.'
+            : 'Ein zweiter Eintrag mit demselben "date" ist nur erlaubt, wenn das Wochengerüst dort eine strength-, core- oder mobility-Einheit vorsieht — niemals ein zweiter Lauf.';
+
         // Liegt ein Wochengerüst vor, ersetzt es die reine Verfügbarkeitsliste:
         // es enthält dieselbe Information und zusätzlich die feste Belegung.
         if ($skeleton) {
@@ -552,11 +565,11 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 - Berücksichtige Wellbeing & Trainingsbelastung: schlechter Schlaf/hoher Stress oder TSB < −30 → leichtere Einheiten / mehr Ruhe.
 - Mindestens ein Ruhetag pro Woche.
 - VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die GESAMTE Trainingsdauer eines Tages (bei zwei Einheiten die Summe) darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
-- EIN LAUFTRAINING PRO TAG: An einem Tag steht hoechstens EINE Laufeinheit (easy_run, tempo_run, interval, long_run, progressive_run, test_run, race_prep). Zwei Laeufe am selben Tag sind immer falsch — auch dann, wenn der zweite locker waere, und auch dann, wenn eine andere Regel eine zusaetzliche lockere Einheit nahezulegen scheint. Passt eine Vorgabe nicht zur Einheit des Tages, aendere die Einheit, statt eine zweite danebenzustellen.
+{$oneRunRule}
 - ZWEITE EINHEIT: Nur strength, core oder mobility duerfen als zweiter Eintrag zu einem Tag dazukommen, und nur wenn das Wochengeruest sie dort vorsieht. Bei zwei Eintraegen am selben "date": Tageszeit im title kennzeichnen ("Morgens: ...", "Abends: ..."), Laufeinheit zuerst, Summe beider duration_min <= Tages-Maximum.
 - ANDERE RENNEVENTS: An Tagen mit anderen Rennevents im Planungszeitraum IMMER type="rest".
 
-**Antworte ausschließlich mit einem JSON-Array — EIN Eintrag {$openList}. Kein Eintrag für einen anderen Tag; alles andere steht bereits und wurde oben genannt. Ein zweiter Eintrag mit demselben "date" ist nur erlaubt, wenn das Wochengerüst dort eine strength-, core- oder mobility-Einheit vorsieht — niemals ein zweiter Lauf. Ist einer dieser Tage ein Ruhetag, gehört er als Eintrag mit type="rest" dazu.**
+**Antworte ausschließlich mit einem JSON-Array — EIN Eintrag {$openList}. Kein Eintrag für einen anderen Tag; alles andere steht bereits und wurde oben genannt. {$secondEntryRule} Ist einer dieser Tage ein Ruhetag, gehört er als Eintrag mit type="rest" dazu.**
 [
   {
     "date": "YYYY-MM-DD",
@@ -569,6 +582,7 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
     "zone": 2,
     "intensity": "rest|low|medium|high",
     "hard_min": 0,
+    "part": null,
     "exercises": [{ "name": "Kettlebell Swing", "sets": 4, "reps": "15", "load": "16 kg", "note": "explosiv" }]
   }
 ]
@@ -625,10 +639,10 @@ Reduziere im Zweifel die Intensität einer Einheit, nicht ihre Existenz — ein 
 - ANDERE RENNEVENTS: An Tagen mit anderen Rennevents im Planungszeitraum IMMER type="rest" — der Athlet läuft ein Rennen, kein zusätzliches Training.
 - VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die GESAMTE Trainingsdauer eines Tages (bei zwei Einheiten die Summe) darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
 - ZIELORIENTIERUNG: Der Plan führt auf {$targetTime} hin. Das Renntempo aus der Tabelle oben gehört regelmäßig ins Training — es ist die spezifischste Vorbereitung, die es gibt. Sei nicht unnötig konservativ, solange Gesundheit, Erholung und Belastung es zulassen. Was die Einordnung oben zum Verhältnis von Ziel und heutiger Form sagt, gehört in die description der Schlüsseleinheiten.
-- EIN LAUFTRAINING PRO TAG: An einem Tag steht hoechstens EINE Laufeinheit (easy_run, tempo_run, interval, long_run, progressive_run, test_run, race_prep). Zwei Laeufe am selben Tag sind immer falsch — auch dann, wenn der zweite locker waere, und auch dann, wenn eine andere Regel eine zusaetzliche lockere Einheit nahezulegen scheint. Passt eine Vorgabe nicht zur Einheit des Tages, aendere die Einheit, statt eine zweite danebenzustellen.
+{$oneRunRule}
 - ZWEITE EINHEIT: Nur strength, core oder mobility duerfen als zweiter Eintrag zu einem Tag dazukommen, und nur wenn das Wochengeruest sie dort vorsieht. Bei zwei Eintraegen am selben "date": Tageszeit im title kennzeichnen ("Morgens: ...", "Abends: ..."), Laufeinheit zuerst, Summe beider duration_min <= Tages-Maximum.
 
-**Antworte ausschließlich mit einem JSON-Array — EIN Eintrag {$openList}. Kein Eintrag für einen anderen Tag; alles andere steht bereits und wurde oben genannt. Ein zweiter Eintrag mit demselben "date" ist nur erlaubt, wenn das Wochengerüst dort eine strength-, core- oder mobility-Einheit vorsieht — niemals ein zweiter Lauf. Ist einer dieser Tage ein Ruhetag, gehört er als Eintrag mit type="rest" dazu.**
+**Antworte ausschließlich mit einem JSON-Array — EIN Eintrag {$openList}. Kein Eintrag für einen anderen Tag; alles andere steht bereits und wurde oben genannt. {$secondEntryRule} Ist einer dieser Tage ein Ruhetag, gehört er als Eintrag mit type="rest" dazu.**
 [
   {
     "date": "YYYY-MM-DD",
@@ -641,6 +655,7 @@ Reduziere im Zweifel die Intensität einer Einheit, nicht ihre Existenz — ein 
     "zone": 2,
     "intensity": "rest|low|medium|high",
     "hard_min": 0,
+    "part": null,
     "exercises": [{ "name": "Goblet Squat", "sets": 3, "reps": "10", "load": "20 kg", "note": "" }]
   }
 ]

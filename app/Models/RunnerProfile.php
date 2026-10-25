@@ -42,6 +42,8 @@ class RunnerProfile extends Model
         'training_pause_reason',
         'ftp',
         'training_model',
+        'training_model_next',
+        'training_model_next_from',
         'running_experience_years',
         'has_lactate_meter',
         'bike_enabled',
@@ -73,6 +75,7 @@ class RunnerProfile extends Model
         'strength_equipment'         => 'array',
         'return_to_run_dismissed_at' => 'datetime',
         'training_paused_until'      => 'date',
+        'training_model_next_from'   => 'date',
         'has_lactate_meter'          => 'boolean',
         'bike_enabled'               => 'boolean',
         'bike_max_per_week'          => 'integer',
@@ -197,6 +200,67 @@ class RunnerProfile extends Model
         $day = $day ? \Carbon\Carbon::parse($day) : now();
 
         return $day->startOfDay()->lte($this->training_paused_until->copy()->startOfDay());
+    }
+
+    /**
+     * Das Trainingsmodell, das an einem Tag gilt.
+     *
+     * Ein Wechsel wartet bis zum nächsten Wochenplan (Montag nach dem
+     * Speichern) — bis dahin plant jede Neuberechnung mit dem alten Modell
+     * weiter. Ab dem Montag gilt das neue, auch wenn niemand es „umgelegt"
+     * hat: das Datum entscheidet, nicht ein Kommando.
+     */
+    public function trainingModelOn(\Carbon\CarbonInterface|string|null $day = null): string
+    {
+        $day = $day ? \Carbon\Carbon::parse($day) : now();
+
+        if ($this->training_model_next && $this->training_model_next_from
+            && $day->startOfDay()->gte($this->training_model_next_from->copy()->startOfDay())) {
+            return $this->training_model_next;
+        }
+
+        return $this->training_model ?: 'polarized';
+    }
+
+    /**
+     * Einen fälligen Wechsel festschreiben. Nur fürs Aufräumen — wer das
+     * gültige Modell wissen will, fragt {@see trainingModelOn()}, und das
+     * stimmt auch ohne diesen Aufruf.
+     */
+    public function settlePendingTrainingModel(): void
+    {
+        if ($this->training_model_next && $this->training_model_next_from
+            && now()->startOfDay()->gte($this->training_model_next_from->copy()->startOfDay())) {
+            $this->forceFill([
+                'training_model'           => $this->training_model_next,
+                'training_model_next'      => null,
+                'training_model_next_from' => null,
+            ])->save();
+        }
+    }
+
+    /**
+     * Ein neues Modell wählen. Ohne laufenden Plan gilt es sofort (im
+     * Onboarding gibt es keine Woche, die umgeworfen werden könnte), sonst
+     * ab dem nächsten Montag. Wer zurück zum gerade gültigen Modell wechselt,
+     * nimmt den offenen Wechsel zurück.
+     */
+    public function chooseTrainingModel(string $model, bool $immediately): void
+    {
+        $current = $this->trainingModelOn();
+
+        if ($immediately) {
+            $this->training_model           = $model;
+            $this->training_model_next      = null;
+            $this->training_model_next_from = null;
+            return;
+        }
+
+        // Ein fälliger Wechsel wird jetzt festgeschrieben, damit das alte
+        // Modell nicht wieder auftaucht.
+        $this->training_model           = $current;
+        $this->training_model_next      = $model === $current ? null : $model;
+        $this->training_model_next_from = $model === $current ? null : now()->startOfWeek()->addWeek();
     }
 
     /**

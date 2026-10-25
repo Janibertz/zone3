@@ -205,9 +205,22 @@ class OnboardingController extends Controller
         $user    = Auth::user();
         $profile = $user->runnerProfile ?? new RunnerProfile(['user_id' => $user->id]);
         $profile->user_id = $user->id;
-        $profile->fill($validated)->save();
+        $profile->fill(collect($validated)->except('training_model')->all());
 
-        return response()->json(['success' => true]);
+        // Mit laufendem Plan wirkt der Wechsel ab dem nächsten Wochenplan
+        // (Montag), sonst sofort — im Onboarding gibt es keine Woche, die
+        // man umwerfen könnte.
+        $profile->chooseTrainingModel(
+            $validated['training_model'],
+            immediately: ! $user->activeTrainingPlan()->exists(),
+        );
+        $profile->save();
+
+        return response()->json([
+            'success'   => true,
+            'next'      => $profile->training_model_next,
+            'next_from' => $profile->training_model_next_from?->toDateString(),
+        ]);
     }
 
     /**

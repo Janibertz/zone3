@@ -22,6 +22,9 @@ use App\Services\Vdot;
  */
 class TrainingPaceService
 {
+    /** Sub-Schwelle: so viele Sekunden je km langsamer als T. */
+    public const SUB_THRESHOLD_SEC = [5, 15];
+
     public function __construct(private readonly RacePredictionService $prediction) {}
 
     /**
@@ -31,7 +34,7 @@ class TrainingPaceService
      * @return array{
      *     vdot: float, vdot_label: string|null,
      *     threshold: string, easy: string, long: string, marathon: string,
-     *     interval: string, repetition: string,
+     *     interval: string, repetition: string, sub_threshold: string,
      *     race_km: float|null, target_pace: string|null, target_time: string|null,
      *     predicted_pace: string|null, predicted_time: string|null,
      *     delta_sec: int|null, verdict: string|null
@@ -56,6 +59,13 @@ class TrainingPaceService
             'marathon'   => $this->pace(Vdot::raceSeconds($vdot, 42195) / 42.195),
             'interval'   => $this->range(Vdot::paceAt($vdot, Vdot::INTERVAL[0]), Vdot::paceAt($vdot, Vdot::INTERVAL[1])),
             'repetition' => $this->pace(Vdot::paceAt($vdot, Vdot::REPETITION)),
+            // Norwegisches Modell: knapp unter der Schwelle, T + 5 bis 15 s
+            // je km. Ohne Laktatmessung ist die Pace (mit Pulsdeckel) die
+            // Kontrolle — Entscheidung vom 25.10.2026.
+            'sub_threshold' => $this->range(
+                Vdot::paceAt($vdot, Vdot::THRESHOLD) + self::SUB_THRESHOLD_SEC[0],
+                Vdot::paceAt($vdot, Vdot::THRESHOLD) + self::SUB_THRESHOLD_SEC[1],
+            ),
             // Der numerische Wert für alles, was mit Distanzen rechnet —
             // die Leiter der langen Läufe zum Beispiel.
             'long_sec'   => (int) round(($long[0] + $long[1]) / 2),
