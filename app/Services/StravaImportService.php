@@ -57,6 +57,8 @@ class StravaImportService
                 'total_elevation_gain' => $activityData['total_elevation_gain'] ?? 0,
                 'average_speed'        => $activityData['average_speed'] ?? 0,
                 'average_watts'        => $activityData['average_watts'] ?? null,
+                'weighted_average_watts' => $activityData['weighted_average_watts'] ?? null,
+                'device_watts'         => isset($activityData['device_watts']) ? (bool) $activityData['device_watts'] : null,
                 'max_speed'            => $activityData['max_speed'] ?? 0,
                 'average_heartrate'    => $activityData['average_heartrate'] ?? null,
                 'max_heartrate'        => $activityData['max_heartrate'] ?? null,

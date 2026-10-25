@@ -21,6 +21,8 @@ class Activity extends Model
         'total_elevation_gain',
         'average_speed',
         'average_watts',
+        'weighted_average_watts',
+        'device_watts',
         'laps',
         'max_speed',
         'average_heartrate',
@@ -44,6 +46,7 @@ class Activity extends Model
         'best_efforts_synced_at' => 'datetime',
         'start_lat'              => 'float',
         'start_lng'              => 'float',
+        'device_watts'           => 'boolean',
     ];
 
     /**
@@ -54,7 +57,7 @@ class Activity extends Model
     public const SUMMARY_COLUMNS = [
         'id', 'user_id', 'strava_id', 'name', 'description', 'type',
         'distance', 'moving_time', 'elapsed_time', 'total_elevation_gain',
-        'average_speed', 'average_watts', 'max_speed', 'average_heartrate',
+        'average_speed', 'average_watts', 'weighted_average_watts', 'device_watts', 'max_speed', 'average_heartrate',
         'start_date', 'location_city', 'location_state', 'location_country',
         'created_at', 'updated_at',
     ];

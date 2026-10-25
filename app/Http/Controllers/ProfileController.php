@@ -55,6 +55,7 @@ class ProfileController extends Controller
             'runnerProfile'    => $user->runnerProfile,
             // Woher Zonen und Prognosen kommen — siehe VdotService.
             'vdot'             => $user->runnerProfile?->vdotInfo(),
+            'ftpSuggestion'    => app(\App\Services\Bike\FtpCheck::class)->suggestionFor($user),
             'norwegianReadiness' => app(\App\Services\TrainingModelService::class)->norwegianReadiness($user->runnerProfile, $user->id),
             'stravaConnected'  => (bool) $user->stravaAccount,
             'stravaAccount'    => $user->stravaAccount ? [

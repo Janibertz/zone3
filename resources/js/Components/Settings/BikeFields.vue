@@ -2,9 +2,9 @@
 /**
  * Rad / Zwift — im Onboarding und im Profil dieselben Felder.
  *
- * Die FTP trägt der Athlet selbst ein: von Strava speichert Zone3 pro Fahrt
- * nur die Durchschnittswatt, und daraus lässt sich keine FTP ehrlich
- * schätzen.
+ * Die FTP trägt der Athlet selbst ein: Strava liefert pro Fahrt nur
+ * Durchschnitt und Normalized Power, keinen Leistungsverlauf. Liegt eine
+ * Fahrt darüber, schlägt das Profil einen höheren Wert vor (`FtpCheck`).
  */
 import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 

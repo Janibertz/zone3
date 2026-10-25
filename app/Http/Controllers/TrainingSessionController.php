@@ -249,6 +249,28 @@ class TrainingSessionController extends Controller
      * Return structured workout steps for a session — served from DB cache, generated on first request.
      * Only for non-rest, non-race sessions.
      */
+    /**
+     * Die Radeinheit als .zwo-Datei für Zwift.
+     *
+     * Nur für Einheiten, deren Schritte in % FTP stehen — eine Laufstruktur
+     * in eine Zwift-Datei zu schreiben, ergäbe eine Fahrt ohne Leistungsziel.
+     */
+    public function zwo(TrainingSession $session, \App\Services\Bike\ZwoWriter $writer)
+    {
+        abort_if($session->user_id !== Auth::id(), 403);
+
+        $steps = collect($session->steps ?? []);
+        abort_unless($steps->isNotEmpty() && $steps->every(fn ($s) => isset($s['power_low'])), 404);
+
+        $xml  = $writer->write($session->title, (string) $session->description, $steps->all());
+        $name = \Illuminate\Support\Str::slug('zone3-' . $session->planned_date->format('Y-m-d') . '-' . str_replace('×', 'x', $session->title)) . '.zwo';
+
+        return response($xml, 200, [
+            'Content-Type'        => 'application/xml; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $name . '"',
+        ]);
+    }
+
     public function sessionSteps(TrainingSession $session, SessionContentService $sessions)
     {
         abort_if($session->user_id !== Auth::id(), 403);

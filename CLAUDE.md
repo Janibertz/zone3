@@ -687,6 +687,15 @@ And `strava_webhook_events` answers it from the other side: every call from Stra
 
 An empty array means no subscription exists and no event will ever arrive — re-register with `php artisan strava:subscribe-webhook`.
 
+## Rad / Zwift
+
+Zwift-Fahrten kommen über Strava als `VirtualRide`. Zwift nimmt Einheiten nur auf zwei Wegen an: über die Training API (vergibt Zwift nur an ausgewählte Partner) oder als **.zwo-Datei**, die einmal auf PC oder Mac in `Dokumente/Zwift/Workouts/<ID>/` liegt und dann auf allen Geräten da ist. Zone3 geht den zweiten Weg.
+
+- **Radeinheiten sind fest, nicht vom Modell** (`App\Services\Bike\BikeWorkouts`): locker 60–75 % FTP, VO2max 4–6×4 min bei 110–120 %, Schwelle 2–4×10 min bei 95–100 %. Die Schritte haben die Form der Laufschritte plus `power_low`/`power_high` (Anteil der FTP) und `watts`. Ein Modell würde hier nur Zahlen erfinden, die schon feststehen.
+- **`GET /training-sessions/{session}/zwift.zwo`** (`ZwoWriter`) — nur für Einheiten, deren Schritte in % FTP stehen. Arbeit + Pause mit gleicher Wiederholung wird ein `IntervalsT`. Die Leistung steht als Anteil der FTP in der Datei; Zwift rechnet mit der FTP, die dort hinterlegt ist.
+- **FTP-Hinweis** (`FtpCheck`): Zone3 schätzt keine FTP, aber eine Fahrt kann belegen, dass die eingetragene zu niedrig ist. Gemessen an der Normalized Power (`activities.weighted_average_watts`, sonst Durchschnitt), ab 20 min mit 95 %, ab 60 min mit 100 %, 3 % Luft. Geschätzte Watt (`device_watts = false`) zählen nicht; ältere Fahrten ohne Herkunft nur auf Zwift. Hinweis auf der Aktivitätsseite, Vorschlag mit „Übernehmen" im Profil (stärkste Fahrt der letzten 6 Wochen).
+- **Die Planlogik fehlt noch** — wann ein Radtag einen Lauf ersetzt, wartet auf Jans Entscheidung.
+
 ## Garmin
 
 Two separate connection paths — do not confuse them:
