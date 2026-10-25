@@ -671,7 +671,7 @@ The identical GET from a laptop returned `{"hub.challenge":"…"}` and 200. Same
 If webhook deliveries ever stop again, check the edge before the code:
 
 - `curl -sD- https://zone3.run/strava/webhook` — a `Server: cloudflare` / `CF-RAY` header means the edge can reject before Laravel ever runs
-- Bot Fight Mode ignores WAF skip rules; it has to be **off** (Security → Bots)
+- Bot Fight Mode ignores WAF skip rules; it has to be **off** (Security → Bots). **Stand 25.10.2026: aus** (Jan hat es abgeschaltet). Wer es wieder einschaltet, legt Strava-, Telegram- und Kalender-Abrufe lahm, ohne dass innen etwas auffällt.
 - A WAF custom rule with action **Skip** on `URI Path equals /strava/webhook` covers the managed rules, Browser Integrity Check and Security Level
 
 **Never delete the subscription before confirming a new one can be created** — Strava allows exactly one, and a failed re-create leaves none at all. Test with a create against the same callback URL first, or accept that the scheduled sync is the only path until it works.
@@ -828,6 +828,19 @@ Regeln, alle getestet in `TelegramCoachTest`:
 - `update_id` wird einen Tag gemerkt — dasselbe Update wirkt nur einmal.
 
 `startup.sh` registriert den Webhook bei jedem Deploy (`telegram:set-webhook`). **Cloudflare:** dieselbe Falle wie beim Strava-Webhook — `/telegram/webhook` braucht eine WAF-Skip-Regel, sonst blockt Bot Fight Mode Telegrams Server, und von innen sieht alles gesund aus. Prüfen mit `getWebhookInfo` (`last_error_message`).
+
+## Kalender-Abo (iCal)
+
+Profil → Verbindungen → Kalender erzeugt eine geheime Abo-URL `/calendar/{token}.ics` (`CalendarFeedController`, `CalendarFeed`). Entscheidung von Jan, 25.10.2026: **geplante Einheiten und Rennen, ganztägig, Token statt Login** — Kalender-Apps können sich beim Abonnieren nicht anmelden.
+
+- **Ganztägig**, weil das Wochenraster nur Minuten pro Tag kennt. Eine erfundene Uhrzeit wäre schlechter als keine. `TRANSP:TRANSPARENT`: ein Training blockiert keine Besprechung.
+- **Nur der aktive Plan**, ohne Ruhetage (Rauschen) und ohne ausgelassene Einheiten. Erledigte bleiben mit ✓ stehen, sonst bekäme der Kalender rückwirkend Löcher. Echte Werte aus Strava stehen bewusst nicht drin.
+- **UID = Datenbank-ID** (`session-{id}@zone3`, `race-{id}@zone3`): verschiebt der Coach eine Einheit, wandert der Termin. Eine Neuberechnung legt neue Einheiten an, die alten fallen beim nächsten Abruf weg.
+- **Neu erzeugen macht die alte URL tot**, Abschalten setzt `users.calendar_token` auf NULL. Der Token ist `Hidden` — er darf nicht mit `auth.user` ans Frontend.
+- Zeilen werden nach RFC 5545 auf 75 Oktette gefaltet, mit `mb_strcut`, damit kein Umlaut zerbricht.
+- `webcal://` öffnet auf dem iPhone direkt den Abo-Dialog. Google Kalender ruft in eigenem Takt ab (mehrere Stunden); `REFRESH-INTERVAL` ignoriert es.
+
+**Cloudflare:** Apples und Googles Abrufer sind Bots ohne Browser. Bot Fight Mode ist seit 25.10.2026 aus und kann sie deshalb nicht mehr abweisen. Eine WAF-Skip-Regel ist Absicherung gegen das, was dann noch bleibt (Security Level, Browser Integrity Check, Managed Rules): `URI Path starts with /calendar/` **und** endet auf `.ics` — die Kalenderseite `/calendar` selbst soll geschützt bleiben. Kommt im Kalender nichts an, zuerst mit `curl -sD- https://zone3.run/calendar/<token>.ics` prüfen, ob Cloudflare eine Challenge statt `BEGIN:VCALENDAR` liefert.
 
 ## Push Notifications
 

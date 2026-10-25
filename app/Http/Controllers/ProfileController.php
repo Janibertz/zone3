@@ -75,6 +75,11 @@ class ProfileController extends Controller
                 'linked'    => $user->hasTelegram(),
                 'linked_at' => $user->telegram_linked_at?->toIso8601String(),
             ],
+            // Kalender-Abo: webcal:// öffnet auf dem iPhone direkt den Abo-Dialog.
+            'calendarFeed' => $user->calendar_token ? [
+                'url'    => $url = route('calendar-feed.show', $user->calendar_token),
+                'webcal' => preg_replace('#^https?://#', 'webcal://', $url),
+            ] : null,
             'coaches'   => Coach::all(['id', 'name', 'slug', 'specialty', 'tagline', 'description', 'avatar_color', 'avatar_initials']),
             'activeCoach' => $user->coach ? [
                 'id'              => $user->coach->id,
