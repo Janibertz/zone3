@@ -291,7 +291,7 @@ class ReturnToRunService
             'injured'        => 'Verletzung',
             'sick'           => 'Krankheit',
             'exhausted'      => 'starker Erschöpfung',
-            'poor_wellbeing' => 'anhaltend schlechtem Wellbeing',
+            'poor_wellbeing' => 'anhaltend schlechter Tagesform',
             default          => 'Trainingspause',
         };
     }

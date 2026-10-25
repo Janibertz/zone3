@@ -166,6 +166,10 @@ PlanRevisionRecorder           stores diff + corrections → visible in the plan
 
 **Where corrections show up:** `plan_revisions.corrections`, rendered in the plan page's "Verlauf" — the fastest way to judge whether prompt changes landed. `Log::info('Plan validator corrected the AI output')` carries the same list.
 
+### „Tagesform", nicht „Wellbeing"
+
+Seit 25.10.2026 heißt der tägliche Check-in in allem, was ein Mensch liest, **Tagesform** — Oberfläche, Push, Admin und die Prompts (sonst schreibt der Coach das alte Wort zurück). „Health" war im Gespräch und wurde verworfen: auf dem iPhone heißt so Apple Health, und dort erwartet man Messwerte, keine Selbsteinschätzung. **Code, Tabelle, Routen und Klassen bleiben `wellbeing`** — ein Umbenennen dort kostet Migrationen und bringt dem Athleten nichts. Bewusst keine Messwertfelder (Ruhepuls, HRV): der Check-in soll in 30 Sekunden gehen und niemanden abschrecken.
+
 ### The coach proposes, the athlete decides
 
 `AdjustPlanForWellbeingJob` used to rewrite today's session outright — type, title, description, distance, duration, pace, zone, intensity. Reported: *"Der Coach passt die Trainingseinheit automatisch an das Wellbeing an … der Athlet darf selber entscheiden ob die Empfehlung des Coaches angenommen oder abgelehnt werden soll."* Someone who had geared up for a threshold session and found twenty easy minutes instead experienced their plan as something that happened *to* them.

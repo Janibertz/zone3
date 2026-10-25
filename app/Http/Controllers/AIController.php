@@ -84,7 +84,7 @@ class AIController extends Controller
         $todayAvailability  = $weeklyAvailability[$todayDayName] ?? null;
 
         $recommendation = null;
-        $recommendationMessage = 'Bitte trage zunächst dein Wellbeing für heute ein, um eine Trainingsempfehlung zu erhalten.';
+        $recommendationMessage = 'Bitte trage zunächst deine Tagesform für heute ein, um eine Trainingsempfehlung zu erhalten.';
 
         // Krank, verletzt oder in einer Pause: es gibt nichts zu empfehlen,
         // und das entscheidet keine KI. Das Modell bekam „krank" gar nicht zu

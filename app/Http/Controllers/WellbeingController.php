@@ -90,8 +90,8 @@ class WellbeingController extends Controller
         }
 
         $message = $hasPlannedSession
-            ? 'Wellbeing gespeichert! KI passt deine heutige Trainingseinheit an. 🤖'
-            : 'Wellbeing Eintrag gespeichert! 💪';
+            ? 'Tagesform gespeichert! Der Coach prüft deine heutige Einheit. 🤖'
+            : 'Tagesform gespeichert! 💪';
 
         return response()->json([
             'success'       => true,
@@ -145,7 +145,7 @@ class WellbeingController extends Controller
         if (!$entry) {
             return response()->json([
                 'exists' => false,
-                'status' => '📝 Bitte Wellbeing eintragen',
+                'status' => '📝 Bitte Tagesform eintragen',
                 'score' => null,
             ]);
         }

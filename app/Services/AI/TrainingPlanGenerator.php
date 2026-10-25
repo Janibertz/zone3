@@ -168,11 +168,11 @@ class TrainingPlanGenerator
             $avgStress   = round(array_sum(array_column($wellbeingData, 'stress')) / count($wellbeingData), 1);
             $sickCount   = count(array_filter($wellbeingData, fn ($w) => $w['is_sick']));
             $injuredCount= count(array_filter($wellbeingData, fn ($w) => $w['is_injured']));
-            $wellbeingText = "Wellbeing (Ø letzte 14 Tage):\n- Energie: {$avgEnergy}/10 | Schlaf: {$avgSleep}/10 | Muskelkater: {$avgSoreness}/10 | Stress: {$avgStress}/10";
+            $wellbeingText = "Tagesform (Selbsteinschätzung, Ø letzte 14 Tage):\n- Energie: {$avgEnergy}/10 | Schlaf: {$avgSleep}/10 | Muskelkater: {$avgSoreness}/10 | Stress: {$avgStress}/10";
             if ($sickCount > 0) $wellbeingText .= "\n- ⚠️ Krank an {$sickCount} Tagen";
             if ($injuredCount > 0) $wellbeingText .= "\n- ⚠️ Verletzt an {$injuredCount} Tagen";
         } else {
-            $wellbeingText = 'Wellbeing: keine Daten vorhanden.';
+            $wellbeingText = 'Tagesform: keine Daten vorhanden.';
         }
 
         // Session ratings summary for AI learning
@@ -551,7 +551,7 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 **Wenn sich Signale widersprechen, gilt diese Rangfolge — von oben nach unten:**
 1. Gesundheit: Krankheit, Verletzung, Wiedereinstieg. Schlägt alles andere, auch das Renndatum.
 2. Gemessene Erholung (Garmin: HRV, Ruhepuls, Schlaf). Objektiv und wichtiger als die Selbsteinschätzung.
-3. Trainingsbelastung (TSB) und Selbsteinschätzung (Wellbeing).
+3. Trainingsbelastung (TSB) und Selbsteinschätzung (Tagesform).
 4. Der Zielehrgeiz. Er bestimmt, WAS trainiert wird, aber nie gegen die drei Punkte darüber, WIE VIEL.
 
 **Planungsregeln (Backyard-spezifisch):**
@@ -559,7 +559,7 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 - Plane GENAU jeden Tag von {$today} bis {$planEndDate} — das sind {$totalDays} Tage. KEIN Tag nach {$planEndDate}.
 - {$endRuleBackyard}
 - HAUPTFOKUS: hohes, lockeres aerobes Volumen (Zone 1–2) ist die Basis und macht den Großteil des Umfangs aus (ca. 80 %).
-- TEMPOERHALT (wichtig): Plane GENAU EINE Qualitätseinheit pro Woche zum Erhalt der Schwellenpace/Schnelligkeit — entweder tempo_run (Schwelle, z.B. 3×10 min) ODER interval (z.B. 6×1000 m bzw. längere Marathon-Intervalle). NIEMALS zwei harte Einheiten in derselben Woche. Die Qualitätseinheit NICHT direkt vor/nach einer yard_simulation oder einem back_to_back_long legen (Ermüdung). Bei schlechtem Wellbeing oder hoher Trainingsbelastung entfällt sie zugunsten von Ruhe.
+- TEMPOERHALT (wichtig): Plane GENAU EINE Qualitätseinheit pro Woche zum Erhalt der Schwellenpace/Schnelligkeit — entweder tempo_run (Schwelle, z.B. 3×10 min) ODER interval (z.B. 6×1000 m bzw. längere Marathon-Intervalle). NIEMALS zwei harte Einheiten in derselben Woche. Die Qualitätseinheit NICHT direkt vor/nach einer yard_simulation oder einem back_to_back_long legen (Ermüdung). Bei schlechter Tagesform oder hoher Trainingsbelastung entfällt sie zugunsten von Ruhe.
 - LONGRUNS: wöchentlich mind. ein langer, lockerer Lauf, schrittweise verlängert (time_on_feet zählt mehr als Tempo).
 - BACK-TO-BACK (back_to_back_long): an aufeinanderfolgenden Tagen (z.B. Sa+So) zwei längere Läufe — trainiert das Laufen auf müden Beinen, zentral fürs Format. Mind. alle 1–2 Wochen in Build/Peak.
 - TIME ON FEET (time_on_feet): lange, sehr lockere Einheiten mit bewusst niedrigem Tempo, ggf. Geh-Pausen — Dauer wichtiger als Distanz.
@@ -567,7 +567,7 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 - NACHTLAUF (night_run): mind. ein Lauf in Dunkelheit/Abend zur Vorbereitung auf Schlafentzug und Nachtstunden — in der Build/Peak-Phase.
 - VERPFLEGUNG: weise bei langen Einheiten ausdrücklich auf Ess-/Trink-Training (Magen-Training) hin.
 - TAPER: in den letzten 10–14 Tagen Volumen deutlich reduzieren, aber etwas Time-on-Feet halten — ausgeruht und ohne Müdigkeit an den Start. Die Qualitätseinheit in dieser Phase auf kurze, lockere Schärfe-Reize (z.B. ein paar Steigerungen) reduzieren — keine harten Intervalle mehr.
-- Berücksichtige Wellbeing & Trainingsbelastung: schlechter Schlaf/hoher Stress oder TSB < −30 → leichtere Einheiten / mehr Ruhe.
+- Berücksichtige Tagesform & Trainingsbelastung: schlechter Schlaf/hoher Stress oder TSB < −30 → leichtere Einheiten / mehr Ruhe.
 - Mindestens ein Ruhetag pro Woche.
 - VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die GESAMTE Trainingsdauer eines Tages (bei zwei Einheiten die Summe) darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
 {$oneRunRule}
@@ -624,7 +624,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 **Wenn sich Signale widersprechen, gilt diese Rangfolge — von oben nach unten:**
 1. Gesundheit: Krankheit, Verletzung, Wiedereinstieg. Schlägt alles andere, auch das Renndatum.
 2. Gemessene Erholung (Garmin: HRV, Ruhepuls, Schlaf). Objektiv und wichtiger als die Selbsteinschätzung. Warnt sie, wird gekürzt — die Struktur der Woche bleibt.
-3. Trainingsbelastung (TSB) und Selbsteinschätzung (Wellbeing).
+3. Trainingsbelastung (TSB) und Selbsteinschätzung (Tagesform).
 4. Der Zielehrgeiz. Er bestimmt, WAS trainiert wird, aber nie gegen die drei Punkte darüber, WIE VIEL.
 Reduziere im Zweifel die Intensität einer Einheit, nicht ihre Existenz — ein gekürzter Tempolauf ist besser als ein gestrichener.
 

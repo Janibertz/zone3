@@ -28,45 +28,59 @@ const submitting = ref(false);
 const loadError  = ref('');
 const saveError  = ref('');
 
-/** The five sliders, so the markup stays a single loop. */
+/**
+ * The five sliders, so the markup stays a single loop. `low`/`high` name the
+ * ends in words: a bare 1–10 says nothing about which end is good, and for
+ * soreness and stress the good end is the low one.
+ */
 const scales = [
-    { key: 'energy_level',    label: 'Energielevel',    tone: 'warn' },
-    { key: 'mood',            label: 'Stimmung',        tone: 'info' },
-    { key: 'sleep_quality',   label: 'Schlafqualität',  tone: 'accent' },
-    { key: 'muscle_soreness', label: 'Muskelkater',     tone: 'danger' },
-    { key: 'stress_level',    label: 'Stress-Level',    tone: 'warn' },
+    { key: 'energy_level',    label: 'Energie',     low: 'leer',      high: 'voller Energie' },
+    { key: 'mood',            label: 'Stimmung',    low: 'mies',      high: 'super' },
+    { key: 'sleep_quality',   label: 'Schlaf',      low: 'schlecht',  high: 'erholsam' },
+    { key: 'muscle_soreness', label: 'Muskelkater', low: 'keiner',    high: 'stark' },
+    { key: 'stress_level',    label: 'Stress',      low: 'entspannt', high: 'sehr hoch' },
 ];
 
-const toneClasses = {
-    warn:   'bg-warn-soft text-warn-ink',
-    info:   'bg-info-soft text-info-ink',
-    accent: 'bg-accent-soft text-accent-ink',
-    danger: 'bg-danger-soft text-danger-ink',
-};
+const flags = [
+    { key: 'is_sick',    label: 'Ich bin krank' },
+    { key: 'is_injured', label: 'Ich bin verletzt' },
+];
 
 // Soreness and stress are inverted — high values are bad.
-const wellbeingScore = computed(() => {
+const score = computed(() => {
     const f = form.value;
     const total = f.energy_level + f.mood + f.sleep_quality
         + (10 - f.muscle_soreness) + (10 - f.stress_level);
-    return (total / 5).toFixed(1);
+    return total / 5;
 });
 
-const wellbeingStatus = computed(() => {
-    const score = parseFloat(wellbeingScore.value);
-
-    if (form.value.is_sick || form.value.is_injured) return 'Nicht trainieren';
-    if (score >= 8) return 'Perfekt für hartes Training';
-    if (score >= 6) return 'Moderates Training möglich';
-    if (score >= 4) return 'Nur leichtes Training';
-    return 'Ruhetag empfohlen';
+const verdict = computed(() => {
+    if (form.value.is_sick || form.value.is_injured) {
+        return { text: 'Heute nicht trainieren', tone: 'text-danger' };
+    }
+    if (score.value >= 8) return { text: 'Bereit für hartes Training', tone: 'text-success' };
+    if (score.value >= 6) return { text: 'Moderates Training möglich', tone: 'text-accent' };
+    if (score.value >= 4) return { text: 'Nur leichtes Training',      tone: 'text-warn' };
+    return { text: 'Ruhetag empfohlen', tone: 'text-danger' };
 });
+
+const scoreLabel = computed(() => score.value.toLocaleString('de-DE', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+}));
+
+/** Filled part of the track — the native range has no fill on WebKit. */
+const trackStyle = (value) => {
+    const pct = ((value - 1) / 9) * 100;
+    return {
+        background: `linear-gradient(to right, rgb(var(--z-accent)) ${pct}%, rgb(var(--z-surface-3)) ${pct}%)`,
+    };
+};
 
 const formatDate = (date) => date.toLocaleDateString('de-DE', {
     weekday: 'long',
-    year:    'numeric',
-    month:   'long',
     day:     'numeric',
+    month:   'long',
 });
 
 async function submitWellbeing() {
@@ -114,76 +128,88 @@ watch(() => props.show, async (open) => {
 <template>
     <AppSheet
         :show="show"
-        title="Tägliches Wellbeing"
+        title="Tagesform"
         :subtitle="formatDate(today)"
         max-width="lg"
         @close="$emit('close')"
     >
-        <p v-if="loadError" class="mb-4 rounded-card bg-warn-soft p-3 text-sm text-warn-ink">{{ loadError }}</p>
+        <p v-if="loadError" class="mb-4 rounded-card bg-warn-soft p-3 text-[13px] text-warn-ink">{{ loadError }}</p>
 
-        <div class="space-y-5 pt-1">
-            <!-- Scales -->
-            <div v-for="s in scales" :key="s.key">
-                <label class="z-label">{{ s.label }}</label>
-                <div class="flex items-center gap-3">
-                    <input
-                        v-model.number="form[s.key]"
-                        type="range"
-                        min="1"
-                        max="10"
-                        class="z-range flex-1"
-                    />
-                    <span class="w-11 shrink-0 rounded-field py-1 text-center text-lg font-bold tabular-nums" :class="toneClasses[s.tone]">
-                        {{ form[s.key] }}
-                    </span>
-                </div>
+        <div class="space-y-6 pt-1">
+            <!-- Ergebnis zuerst: es antwortet live auf jeden Regler -->
+            <div class="rounded-card bg-surface-2 px-4 py-4" aria-live="polite">
+                <p class="text-[13px] font-semibold" :class="verdict.tone">{{ verdict.text }}</p>
+                <p class="mt-1 font-rounded text-[34px] font-bold leading-none tabular-nums text-ink">
+                    {{ scoreLabel }}<span class="ml-1 text-[17px] font-semibold text-ink-3">/ 10</span>
+                </p>
             </div>
 
-            <!-- Status flags -->
-            <div class="rounded-card border border-line bg-surface-2 p-4">
-                <p class="mb-3 text-sm font-medium text-ink-2">Status</p>
-                <div class="space-y-3">
-                    <label class="flex cursor-pointer items-center gap-3">
-                        <input v-model="form.is_sick" type="checkbox" class="h-4 w-4 rounded border-line-strong text-danger focus:ring-danger" />
-                        <span class="text-sm text-ink">Ich bin krank</span>
-                    </label>
-                    <label class="flex cursor-pointer items-center gap-3">
-                        <input v-model="form.is_injured" type="checkbox" class="h-4 w-4 rounded border-line-strong text-danger focus:ring-danger" />
-                        <span class="text-sm text-ink">Ich bin verletzt</span>
-                    </label>
-                </div>
-            </div>
-
-            <!-- Notes -->
+            <!-- Regler als gruppierte Liste -->
             <div>
-                <label for="wellbeing-notes" class="z-label">Notizen (optional)</label>
+                <p class="mb-2 px-1 text-[13px] text-ink-3">Wie geht es dir heute?</p>
+                <div class="divide-y divide-line rounded-card bg-surface-2">
+                    <div v-for="s in scales" :key="s.key" class="px-4 py-3.5">
+                        <div class="flex items-baseline justify-between">
+                            <label :for="`tf-${s.key}`" class="text-[17px] text-ink">{{ s.label }}</label>
+                            <span class="font-rounded text-[20px] font-semibold tabular-nums text-ink">{{ form[s.key] }}</span>
+                        </div>
+                        <input
+                            :id="`tf-${s.key}`"
+                            v-model.number="form[s.key]"
+                            type="range"
+                            min="1"
+                            max="10"
+                            class="z-range mt-3 w-full"
+                            :style="trackStyle(form[s.key])"
+                        />
+                        <div class="mt-1.5 flex justify-between text-[13px] text-ink-3">
+                            <span>{{ s.low }}</span>
+                            <span>{{ s.high }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Krank / verletzt als Schalter -->
+            <div class="divide-y divide-line rounded-card bg-surface-2">
+                <div v-for="f in flags" :key="f.key" class="flex min-h-[52px] items-center justify-between gap-4 px-4">
+                    <span class="text-[17px] text-ink">{{ f.label }}</span>
+                    <button
+                        type="button"
+                        role="switch"
+                        :aria-checked="form[f.key]"
+                        :aria-label="f.label"
+                        class="relative inline-flex h-[31px] w-[51px] shrink-0 rounded-full p-0.5 transition-colors duration-200 ease-out-strong"
+                        :class="form[f.key] ? 'bg-danger' : 'bg-surface-3'"
+                        @click="form[f.key] = !form[f.key]"
+                    >
+                        <span
+                            class="h-[27px] w-[27px] rounded-full bg-white shadow-[0_2px_4px_rgb(0_0_0/0.2)] transition-transform duration-200 ease-out-strong"
+                            :class="form[f.key] ? 'translate-x-5' : 'translate-x-0'"
+                        />
+                    </button>
+                </div>
+            </div>
+
+            <!-- Notiz -->
+            <div>
+                <label for="wellbeing-notes" class="mb-2 block px-1 text-[13px] text-ink-3">Notiz für den Coach (optional)</label>
                 <textarea
                     id="wellbeing-notes"
                     v-model="form.notes"
                     rows="3"
                     class="z-input resize-none"
-                    placeholder="z.B. Gutes Training heute, leichte Verletzung am linken Fuß…"
+                    placeholder="z. B. Knie zwickt, wenig geschlafen, Zahn-OP …"
                 />
-            </div>
-
-            <!-- Result -->
-            <div class="rounded-card border border-accent/30 bg-accent-soft p-4">
-                <p class="text-sm font-medium text-ink-2">Dein Wellbeing-Status</p>
-                <p class="mt-1 text-xl font-bold text-ink">
-                    {{ wellbeingStatus }}
-                    <span class="text-base font-semibold text-ink-3">({{ wellbeingScore }}/10)</span>
-                </p>
+                <p class="mt-1.5 px-1 text-[13px] text-ink-3">Der Coach liest sie mit und richtet die Empfehlung danach.</p>
             </div>
         </div>
 
         <template #footer>
-            <p v-if="saveError" class="mb-3 text-sm text-danger">{{ saveError }}</p>
-            <div class="flex gap-3">
-                <AppButton variant="secondary" block @click="$emit('close')">Abbrechen</AppButton>
-                <AppButton block :loading="submitting" @click="submitWellbeing">
-                    {{ submitting ? 'Speichert…' : 'Speichern' }}
-                </AppButton>
-            </div>
+            <p v-if="saveError" class="mb-3 text-[13px] text-danger">{{ saveError }}</p>
+            <AppButton block :loading="submitting" @click="submitWellbeing">
+                {{ submitting ? 'Speichert…' : 'Speichern' }}
+            </AppButton>
         </template>
     </AppSheet>
 </template>

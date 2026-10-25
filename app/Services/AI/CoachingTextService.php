@@ -46,7 +46,7 @@ class CoachingTextService
     {
         $profileText = $runnerProfile ? "Runner Profile:\n- LTHR: {$runnerProfile['threshold_heart_rate']} bpm\n- Max HR: {$runnerProfile['max_heart_rate']} bpm\n- Schwellenpace: {$runnerProfile['threshold_speed']} min/km\n" : "Kein Runner Profile vorhanden.\n";
         $activityText = $yesterdayActivity ? "Letzte Aktivität (gestern):\n- " . round($yesterdayActivity['distance']/1000,2) . " km in " . PaceFormat::hms($yesterdayActivity['moving_time']) . " · Pace: " . ($yesterdayActivity['average_speed'] ? PaceFormat::fromSpeed($yesterdayActivity['average_speed']) : '—') . "\n" : "Keine Aktivität von gestern.\n";
-        $wellbeingText = $wellbeingEntry ? "Wellbeing heute: Energie {$wellbeingEntry['energy_level']}/10, Schlaf {$wellbeingEntry['sleep_quality']}/10, Muskelkater {$wellbeingEntry['muscle_soreness']}/10, Stress {$wellbeingEntry['stress_level']}/10\n" : "Kein Wellbeing.\n";
+        $wellbeingText = $wellbeingEntry ? "Tagesform heute: Energie {$wellbeingEntry['energy_level']}/10, Schlaf {$wellbeingEntry['sleep_quality']}/10, Muskelkater {$wellbeingEntry['muscle_soreness']}/10, Stress {$wellbeingEntry['stress_level']}/10\n" : "Keine Tagesform eingetragen.\n";
         // Die Notiz stand nie im Prompt. Was der Athlet dort schreibt
         // („Weisheitszahn-OP"), ist oft das Wichtigste des Tages.
         if (! empty($wellbeingEntry['notes'])) {
@@ -157,7 +157,7 @@ PROMPT;
             ? 'Mache die Einheit HÄRTER: mehr Distanz (+15-25%), schnellere Pace, höhere Zone, oder Wechsel zu einem intensiveren Typ (z.B. easy_run → tempo_run).'
             : 'Mache die Einheit SOFTER: weniger Distanz (-15-25%), langsamere Pace, niedrigere Zone, oder Wechsel zu einem ruhigeren Typ (z.B. tempo_run → easy_run).';
 
-        $wellbeingText = $wellbeingEntry ? "Wellbeing: Energie {$wellbeingEntry['energy_level']}/10, Muskelkater {$wellbeingEntry['muscle_soreness']}/10\n" : '';
+        $wellbeingText = $wellbeingEntry ? "Tagesform: Energie {$wellbeingEntry['energy_level']}/10, Muskelkater {$wellbeingEntry['muscle_soreness']}/10\n" : '';
         $profileText = $runnerProfile ? "Schwellenpace: {$runnerProfile['threshold_speed']} min/km\n" : '';
 
         $currentJson = json_encode($current, JSON_UNESCAPED_UNICODE);
@@ -274,7 +274,7 @@ PROMPT;
             $avgS = round($wellbeing->avg('sleep_quality'), 1);
             $avgM = round($wellbeing->avg('muscle_soreness'), 1);
             $sick = $wellbeing->where('is_sick', true)->count();
-            $wellbeingLines = "Wellbeing Ø: Energie {$avgE}/10 | Schlaf {$avgS}/10 | Muskelkater {$avgM}/10" . ($sick > 0 ? " | {$sick} Krankheitstage" : '');
+            $wellbeingLines = "Tagesform Ø: Energie {$avgE}/10 | Schlaf {$avgS}/10 | Muskelkater {$avgM}/10" . ($sick > 0 ? " | {$sick} Krankheitstage" : '');
         }
 
         $totalKmFormatted = number_format($totalKm, 1);
@@ -291,7 +291,7 @@ Gesamt: {$totalKmFormatted} km / {$totalMin} min
 
 **Dein Review (max. 150 Wörter):**
 - Was lief gut diese Woche?
-- Was fiel auf (Belastung, Wellbeing, Konstanz)?
+- Was fiel auf (Belastung, Tagesform, Konstanz)?
 - Eine konkrete Empfehlung für die kommende Woche
 
 Schreibe fließend, kein JSON, kein Markdown mit #-Überschriften. Direkte Ansprache (du).

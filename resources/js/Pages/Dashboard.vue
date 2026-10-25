@@ -407,7 +407,7 @@ function onWellbeingSaved(data) {
     } else {
         wellbeingToast.value = {
             type: 'success',
-            message: data?.message ?? 'Wellbeing gespeichert!',
+            message: data?.message ?? 'Tagesform gespeichert!',
         };
     }
     clearTimeout(wellbeingToastTimer);
@@ -638,7 +638,7 @@ const metricTiles = computed(() => {
 /** Woher die Kacheln stammen — für die Beschriftung darüber. */
 const metricSource = computed(() => {
     if (garminLatest.value) return 'Garmin';
-    if (props.wellbeingToday) return 'Check-in';
+    if (props.wellbeingToday) return 'Tagesform';
     return null;
 });
 
@@ -1188,7 +1188,7 @@ async function getTodayRecommendation() {
             trainingRecommendation.value = data.recommendation;
         } else {
             showRecommendation.value = false;
-            recommendationHint.value = data.recommendation_message || 'Bitte Wellbeing für heute eintragen.';
+            recommendationHint.value = data.recommendation_message || 'Bitte trage deine Tagesform für heute ein.';
         }
     } catch (error) {
         recommendationError.value = 'Fehler: ' + (error.response?.data?.message || error.message);
@@ -1499,8 +1499,8 @@ async function saveWeek() {
                         <span v-else-if="dailyMessageLoading" class="animate-pulse">…</span>
                         <span v-else-if="dailyMessage">{{ dailyMessage }}</span>
                         <span v-else-if="!checkinDone">
-                            Ein kurzer Check-in — danach passt {{ coach ? coach.name : 'dein Coach' }} das
-                            heutige Training an deine Tagesform an.
+                            Trag kurz deine Tagesform ein — danach passt {{ coach ? coach.name : 'dein Coach' }} das
+                            heutige Training daran an.
                         </span>
                         <span v-else>{{ coach?.tagline ?? 'Heute ist ein guter Tag zum Laufen.' }}</span>
                     </p>
@@ -1795,11 +1795,11 @@ async function saveWeek() {
                             <AppCard v-else-if="recommendationHint">
                                 <p class="text-[15px] font-bold text-ink">Fast geschafft</p>
                                 <p class="mt-1 text-[15px] text-ink-3">{{ recommendationHint }}</p>
-                                <AppButton size="sm" class="mt-4" @click="showWellbeingModal = true">Check-in machen</AppButton>
+                                <AppButton size="sm" class="mt-4" @click="showWellbeingModal = true">Tagesform eintragen</AppButton>
                             </AppCard>
 
                             <AppCard v-else>
-                                <EmptyState title="Noch keine Empfehlung" description="Mach deinen Check-in, dann schlägt dir dein Coach eine passende Einheit vor.">
+                                <EmptyState title="Noch keine Empfehlung" description="Trag deine Tagesform ein, dann schlägt dir dein Coach eine passende Einheit vor.">
                                     <AppButton @click="getTodayRecommendation">Empfehlung holen</AppButton>
                                 </EmptyState>
                             </AppCard>
@@ -2030,7 +2030,7 @@ async function saveWeek() {
                             <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-3"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m3.75-9.75H6.75A2.25 2.25 0 0 0 4.5 6v13.5A2.25 2.25 0 0 0 6.75 21h10.5A2.25 2.25 0 0 0 19.5 19.5V6a2.25 2.25 0 0 0-2.25-2.25H12.75Z" /></svg></div>
                             <div class="min-w-0 flex-1">
                                 <p class="text-[15px] font-bold text-ink">Wie fühlst du dich heute?</p>
-                                <p class="mt-0.5 text-[13px] text-ink-3">Ein kurzer Check-in füllt deine Werte — 30 Sekunden.</p>
+                                <p class="mt-0.5 text-[13px] text-ink-3">Trag deine Tagesform ein — dauert 30 Sekunden.</p>
                             </div>
                             <svg class="h-5 w-5 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
@@ -2051,7 +2051,7 @@ async function saveWeek() {
                     </StatChip>
 
                     <button type="button" class="min-w-0 text-left" @click="showWellbeingModal = true">
-                        <StatChip label="Check-in" :tone="checkinDone ? 'success' : 'warn'">
+                        <StatChip label="Tagesform" :tone="checkinDone ? 'success' : 'warn'">
                             <span class="text-[15px]">{{ checkinDone ? 'Erledigt' : 'Offen' }}</span>
                         </StatChip>
                     </button>
