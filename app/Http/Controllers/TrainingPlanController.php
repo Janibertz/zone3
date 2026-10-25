@@ -64,12 +64,15 @@ class TrainingPlanController extends Controller
             $resultSource = $this->adoptRaceResult($event, $plan);
         }
 
+        // Einmal je Anfrage: das Feld ist verschluesselt, formatSession laeuft pro Einheit.
+        $garminConnected = ! empty(Auth::user()->garmin_session);
+
         $sessions = $plan
             ? TrainingSession::where('training_plan_id', $plan->id)
                 ->with('activity:id,laps')
                 ->orderBy('planned_date')
                 ->get()
-                ->map(fn ($s) => $this->formatSession($s))
+                ->map(fn ($s) => $this->formatSession($s, $garminConnected))
                 ->values()
                 ->toArray()
             : [];
@@ -553,7 +556,7 @@ class TrainingPlanController extends Controller
         return $str . ' km';
     }
 
-    private function formatSession(TrainingSession $s): array
+    private function formatSession(TrainingSession $s, bool $garminConnected = false): array
     {
         return [
             'id'          => $s->id,
@@ -564,8 +567,8 @@ class TrainingPlanController extends Controller
             'sport_label'  => $s->isRun() ? null : $s->sportLabel(),
             // Radeinheit in % FTP → als Zwift-Workout herunterladbar.
             'zwo_url'      => $s->hasBikeSteps() ? route('training-sessions.zwo', $s) : null,
-            // Lauf mit Abschnitten → als Training auf die Apple Watch.
-            'watch_url'    => \App\Services\Watch\AppleWorkoutWriter::supports($s) ? route('training-sessions.apple-workout', $s) : null,
+            // Lauf → als Training auf die Apple Watch, ausser Garmin ist verbunden.
+            'watch_url'    => \App\Services\Watch\AppleWorkoutWriter::offered($s, $garminConnected) ? route('training-sessions.apple-workout', $s) : null,
             'title'        => $s->title,
             'description'  => $s->description,
             'distance_km'  => $s->distance_km,

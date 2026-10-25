@@ -59,6 +59,17 @@ class AppleWorkoutWriter
     }
 
     /**
+     * Ob der Knopf erscheint. Wer Garmin verbunden hat, schickt seine
+     * Einheiten an die Garmin-Uhr — ein zweiter Weg zu einer zweiten Uhr
+     * wäre dort nur ein Knopf mehr (Entscheidung von Jan, 25.10.2026).
+     * Die Route selbst bleibt offen; sie hängt nicht an der Verbindung.
+     */
+    public static function offered(TrainingSession $session, bool $garminConnected): bool
+    {
+        return ! $garminConnected && self::supports($session);
+    }
+
+    /**
      * Die Schritte der Einheit — oder, solange keine erzeugt wurden, die
      * Einheit als ein Abschnitt. Ein Modellaufruf beim Herunterladen wäre
      * ein GET, der Geld kostet.

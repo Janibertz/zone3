@@ -146,6 +146,32 @@ class AppleWorkoutTest extends TestCase
         }
     }
 
+    public function test_with_garmin_connected_there_is_no_watch_button(): void
+    {
+        $session = $this->plannedRun(User::factory()->onboarded()->create());
+
+        $this->assertTrue(AppleWorkoutWriter::offered($session, garminConnected: false));
+        $this->assertFalse(AppleWorkoutWriter::offered($session, garminConnected: true));
+    }
+
+    public function test_the_plan_page_hides_the_button_once_garmin_is_connected(): void
+    {
+        $user    = User::factory()->onboarded()->create();
+        $session = $this->plannedRun($user);
+        $url     = route('events.plan.show', $session->event_id);
+
+        // Als Inertia-Anfrage: JSON statt Blade, die Props direkt.
+        $watchUrl = fn () => collect($this->actingAs($user->fresh())
+            ->get($url, ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) app(\App\Http\Middleware\HandleInertiaRequests::class)->version(request())])
+            ->json('props.sessions'))
+            ->firstWhere('id', $session->id)['watch_url'] ?? null;
+
+        $this->assertNotNull($watchUrl());
+
+        $user->update(['garmin_session' => 'token']);
+        $this->assertNull($watchUrl());
+    }
+
     public function test_someone_elses_session_is_refused(): void
     {
         $session = $this->plannedRun(User::factory()->onboarded()->create());

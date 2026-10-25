@@ -169,7 +169,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 'session_date' => $s->planned_date->format('Y-m-d'),
                 'is_today'     => $s->planned_date->toDateString() === $todayStr,
                 'zwo_url'      => $s->hasBikeSteps() ? route('training-sessions.zwo', $s) : null,
-                'watch_url'    => \App\Services\Watch\AppleWorkoutWriter::supports($s) ? route('training-sessions.apple-workout', $s) : null,
+                'watch_url'    => \App\Services\Watch\AppleWorkoutWriter::offered($s, ! empty($user->garmin_session)) ? route('training-sessions.apple-workout', $s) : null,
             ];
         }
     }
