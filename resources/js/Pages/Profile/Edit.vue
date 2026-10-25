@@ -15,6 +15,8 @@ const props = defineProps({
     status:                String,
     runnerProfile:         Object,
     vdot:                  Object,
+    // Eine Fahrt der letzten sechs Wochen lag über der FTP.
+    ftpSuggestion:         Object,
     stravaConnected:       Boolean,
     stravaAccount:         Object,
     notificationSettings:  Object,
@@ -556,6 +558,15 @@ async function saveBike() {
     } finally {
         bikeSaving.value = false;
     }
+}
+
+// Den Vorschlag übernehmen heißt: Feld setzen und gleich speichern — ein
+// Vorschlag, der erst noch einen zweiten Knopf braucht, bleibt liegen.
+const ftpTaken = ref(false);
+async function takeFtpSuggestion() {
+    bikeForm.value.ftp = props.ftpSuggestion.estimate;
+    await saveBike();
+    if (!bikeError.value) ftpTaken.value = true;
 }
 
 // ── Strength & core ──────────────────────────────────────────────────────────
@@ -1545,6 +1556,17 @@ const inputClass = 'z-input';
                                 <p class="text-xs text-ink-3 mt-0.5">Zwift-Fahrten kommen über Strava. Hier legst du fest, ob der Plan Radeinheiten vorsieht.</p>
                             </div>
                             <BikeFields v-model="bikeForm" />
+                            <div v-if="ftpSuggestion && !ftpTaken" class="rounded-card bg-warn-soft p-4">
+                                <p class="text-[15px] font-semibold text-warn-ink">FTP wirkt zu niedrig</p>
+                                <p class="mt-1 text-[13px] text-ink-2">
+                                    „{{ ftpSuggestion.activity_name }}“ am {{ ftpSuggestion.date }} spricht für mindestens
+                                    <span class="font-semibold tabular-nums">{{ ftpSuggestion.estimate }} W</span><template v-if="ftpSuggestion.current">, eingetragen sind {{ ftpSuggestion.current }} W</template>.
+                                </p>
+                                <button type="button" @click="takeFtpSuggestion" :disabled="bikeSaving"
+                                    class="mt-2 text-[13px] font-semibold text-accent active:opacity-60 disabled:opacity-50">
+                                    {{ ftpSuggestion.estimate }} W übernehmen
+                                </button>
+                            </div>
                             <p v-if="bikeError" class="z-error">{{ bikeError }}</p>
                             <div class="flex items-center justify-end gap-3">
                                 <span v-if="bikeSaved" class="inline-flex items-center gap-1 text-[13px] text-success-ink"><svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>Gespeichert</span>

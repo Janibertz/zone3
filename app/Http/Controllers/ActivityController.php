@@ -59,6 +59,7 @@ class ActivityController extends Controller
                 'total_elevation_gain' => $activity->total_elevation_gain,
                 'average_speed'        => $activity->average_speed,
                 'average_watts'        => $activity->average_watts,
+                'weighted_average_watts' => $activity->weighted_average_watts,
                 'max_speed'            => $activity->max_speed,
                 'average_heartrate'    => $activity->average_heartrate,
                 'max_heartrate'        => $activity->max_heartrate,
@@ -70,6 +71,8 @@ class ActivityController extends Controller
                 'laps'                 => $activity->laps ?? null,
             ],
             'paceZones'     => $paceZones,
+            'ftpHint'       => app(\App\Services\Bike\FtpCheck::class)
+                ->forActivity($activity, Auth::user()->runnerProfile?->ftp),
             'linkedSession' => $linkedSession ? [
                 'id'               => $linkedSession->id,
                 'title'            => $linkedSession->title,

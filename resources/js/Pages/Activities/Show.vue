@@ -12,6 +12,8 @@ const props = defineProps({
     activity:      Object,
     paceZones:     Object,
     linkedSession: Object,
+    // { estimate, current } — die Fahrt lag über der eingetragenen FTP.
+    ftpHint:       Object,
 });
 
 // ── Löschen ───────────────────────────────────────────────────────────────────
@@ -417,6 +419,22 @@ onUnmounted(() => {
                     </div>
                 </header>
 
+                <!--
+                    Zone3 schätzt keine FTP, aber eine Fahrt kann belegen, dass
+                    die eingetragene zu niedrig ist. Übernehmen geht im Profil,
+                    wo der Wert steht.
+                -->
+                <div v-if="ftpHint" class="rounded-card bg-warn-soft p-4 text-[15px] text-warn-ink">
+                    <p class="font-semibold">Diese Fahrt lag über deiner FTP</p>
+                    <p class="mt-1 text-[13px] text-ink-2">
+                        Sie spricht für mindestens <span class="font-semibold tabular-nums">{{ ftpHint.estimate }} W</span><template v-if="ftpHint.current">, eingetragen sind {{ ftpHint.current }} W</template>.
+                        Mit einer zu niedrigen FTP fallen die Radintervalle zu leicht aus.
+                    </p>
+                    <Link :href="route('profile.edit')" class="mt-2 inline-block text-[13px] font-semibold text-accent active:opacity-60">
+                        FTP im Profil anpassen
+                    </Link>
+                </div>
+
                 <!-- ── Kennzahlen ─────────────────────────────────── -->
                 <section class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
                     <div class="min-w-0 rounded-card bg-surface p-4 shadow-card">
@@ -447,6 +465,11 @@ onUnmounted(() => {
                     <div v-if="isCycling && activity.average_watts" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
                         <p class="text-[13px] font-medium text-ink-3">Leistung</p>
                         <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ Math.round(activity.average_watts) }}</p>
+                        <p class="mt-1 text-[11px] text-ink-3">Watt</p>
+                    </div>
+                    <div v-if="isCycling && activity.weighted_average_watts" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
+                        <p class="text-[13px] font-medium text-ink-3">Normalized Power</p>
+                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ activity.weighted_average_watts }}</p>
                         <p class="mt-1 text-[11px] text-ink-3">Watt</p>
                     </div>
                     <div v-if="activity.total_elevation_gain > 0" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
