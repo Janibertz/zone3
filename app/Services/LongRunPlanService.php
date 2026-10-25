@@ -36,6 +36,18 @@ class LongRunPlanService
         '5km'           => ['km' => 13.0, 'max_min' => 90,  'taper_days' => 7,  'race_pace' => false],
     ];
 
+    /** Taper-Länge ohne eigene Zieldistanz (Backyard, freie Distanz). */
+    private const DEFAULT_TAPER_DAYS = 14;
+
+    /**
+     * Wie viele Tage vor dem Rennen der Taper beginnt. Die einzige Quelle —
+     * auch {@see \App\Models\Event::getTrainingPhaseAttribute()} liest hier.
+     */
+    public static function taperDays(?string $raceDistance): int
+    {
+        return self::PEAK[$raceDistance]['taper_days'] ?? self::DEFAULT_TAPER_DAYS;
+    }
+
     /** Wie der lange Lauf nach dem Peak zurückgeht. */
     private const TAPER_FACTORS = [0.75, 0.5, 0.35];
 

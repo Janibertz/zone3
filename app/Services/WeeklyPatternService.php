@@ -483,6 +483,21 @@ class WeeklyPatternService
         }
     }
 
+    /**
+     * Ab wie vielen Einheiten eine Woche eine zweite harte vertraegt.
+     *
+     * Seiler: rund 80 % der Einheiten locker. Der lange Lauf zaehlt dabei
+     * nicht als hart, obwohl er beim Halbmarathon ein Renntempo-Finish hat —
+     * mit zwei Qualitaetseinheiten daneben waere eine Vier-Lauf-Woche zu drei
+     * Vierteln Belastung.
+     */
+    private const SECOND_HARD_FROM_SESSIONS = 5;
+
+    private function hardSessionsFor(int $sessions): int
+    {
+        return $sessions >= self::SECOND_HARD_FROM_SESSIONS ? 2 : 1;
+    }
+
     /** Wie viele Minuten die offenen Einheiten mindestens brauchen. */
     private function minutesNeeded(array $open): float
     {
@@ -502,9 +517,14 @@ class WeeklyPatternService
     /**
      * Welche der offenen Einheiten am ehesten entbehrlich ist.
      *
-     * Die Wunschreihenfolge des Zieltyps gilt rückwärts: beim Marathon
-     * fliegt der lockere Lauf vor dem Tempolauf. Feste Termine stehen hier
-     * gar nicht erst zur Wahl — sie sind vorher aus der Liste heraus.
+     * Die Wunschreihenfolge des Zieltyps gilt rückwärts. Feste Termine
+     * stehen hier gar nicht erst zur Wahl — sie sind vorher aus der Liste
+     * heraus.
+     *
+     * Eine Ausnahme: der letzte lockere Lauf geht nicht, solange noch eine
+     * harte Einheit offen ist. Beim Halbmarathon steht `easy_run` hinten in
+     * der Reihenfolge, und eine knappe Woche bestand dann aus langem Lauf,
+     * Tempolauf und Intervallen — das Gegenteil von 80/20.
      *
      * @param  list<array{date:string,index:int,type:string,cap:int}>  $open
      */
@@ -514,7 +534,15 @@ class WeeklyPatternService
         $worst = null;
         $worstRank = -1;
 
+        $types    = array_column($open, 'type');
+        $hasHard  = array_intersect($types, self::HARD_TYPES) !== [];
+        $lastEasy = count(array_keys($types, 'easy_run', true)) === 1;
+
         foreach ($open as $i => $slot) {
+            if ($slot['type'] === 'easy_run' && $lastEasy && $hasHard) {
+                continue;
+            }
+
             $r = $rank[$slot['type']] ?? count($priority);
             if ($r > $worstRank) {
                 $worstRank = $r;
@@ -562,6 +590,11 @@ class WeeklyPatternService
         $planned = [];
         $dropped = [];
         $hard    = 0;
+
+        // 80/20 zaehlt in Einheiten. Bei bis zu vier Laeufen sind zwei harte
+        // schon die Haelfte der Woche — dann bleibt es bei einer, und der
+        // freie Platz geht an einen lockeren Lauf statt ans Intervall.
+        $maxHard = min($maxHard, $this->hardSessionsFor($capacity));
 
         // Was an diesem Tag schon steht, zaehlt mit. Nach einem Wiedereinstieg
         // uebernimmt diese Methode eine angefangene Woche — ohne die Zaehlung

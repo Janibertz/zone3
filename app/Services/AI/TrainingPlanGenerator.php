@@ -126,7 +126,10 @@ class TrainingPlanGenerator
             'build'     => 'Aufbau: Umfang steigt, dazu Schwellenarbeit. Der lange Lauf wächst schrittweise.',
             'peak'      => 'Spezifische Phase: die Schlüsseleinheiten laufen jetzt im Renntempo. Höchster Umfang, längster Lauf, danach beginnt die Reduktion.',
             'taper'     => 'Tapering: Umfang deutlich zurück (je Woche rund 25 %), Intensität und Renntempo aber halten. Weniger, nicht langsamer.',
-            'race_week' => 'Rennwoche: kurze lockere Läufe mit wenigen Steigerungen, Beine frisch machen. Kein Umfang, keine harten Einheiten mehr — die Form ist gemacht.',
+            // Taper heisst Umfang runter, Intensität halten. „Keine harten
+            // Einheiten mehr" galt hier vorher für die letzten 14 Tage und
+            // nahm dem Athleten genau den Renntempo-Reiz, der die Spannung hält.
+            'race_week' => 'Rennwoche: Umfang stark zurück, Beine frisch machen. Drei bis vier Tage vor dem Rennen eine kurze Einheit mit wenigen Minuten im Zielrenntempo (z. B. 3×1 km), sonst kurze lockere Läufe mit ein paar Steigerungen. Keine langen oder ermüdenden Einheiten mehr — die Form ist gemacht.',
             default     => 'Trainingsblock fortsetzen.',
         };
         $phaseText = "\n\n**Trainingsphase: {$phase['label']}** — noch {$weeksLeft} Wochen bis zum Rennen.\n{$phaseRule}";

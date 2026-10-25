@@ -346,6 +346,18 @@ Each run slot then carries `target_km` / `target_min`, and the prompt says `— 
 
 The ceiling grows by `WeeklyVolumeService::MAX_PROGRESSION_PCT` per week across the window; flat would starve week two, whose long run is longer.
 
+### 80/20 gilt im Gerüst, nicht nur im Prompt
+
+Gemeldet im Sub-90-Check: in einer knappen Woche strich `budgetWeek()` beim Halbmarathon zuerst den **lockeren Lauf** — `easy_run` stand in `PRIORITIES` hinten. Übrig blieben langer Lauf, Tempolauf und Intervalle, während der Prompt 80/20 verlangte.
+
+- `planWeek()` erlaubt eine **zweite harte Einheit erst ab fünf Einheiten** (`SECOND_HARD_FROM_SESSIONS`). Bei vier Läufen wären zwei harte die Hälfte der Woche; der freie Platz geht an einen lockeren Lauf.
+- `leastImportant()` streicht den **letzten lockeren Lauf nie, solange eine harte Einheit offen ist**. Die Zielreihenfolge gilt sonst weiter.
+- Der lange Lauf zählt dabei nicht als hart, obwohl er beim HM ein Renntempo-Finish hat.
+
+**Die Phase hängt an der Distanz.** `Event::training_phase` sagte für jedes Rennen „≤ 14 Tage Race Week" — beim Halbmarathon setzt die Leiter genau dort den längsten Lauf. Jetzt: Race Week = letzte 7 Tage, Taper = `LongRunPlanService::taperDays()` (die einzige Quelle), davor je 6 Wochen Peak und Build. In der Rennwoche bleibt ein kurzer Renntempo-Reiz erlaubt — Taper heißt Umfang runter, Intensität halten.
+
+**Intervall-Pace** ist `T × 0,92–0,95`, Wiederholungen `T × 0,88` (Daniels-nah). Vorher reichte der Intervallbereich bis T + 4 s, also langsamer als die Schwelle. Eine echte VDOT-Quelle für alle Paces ist geplant.
+
 ### One verdict on the goal, not two
 
 `TrainingPaceService` judged the goal from threshold pace ("Das Ziel passt zur heutigen Form"); `LongRunPlanService` judged it from the ladder ("Mit dieser Vorbereitung ist die Zielzeit unwahrscheinlich"). Both landed in the same prompt as fact, with no precedence, and the model picked one at random for the description.

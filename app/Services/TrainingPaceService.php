@@ -49,8 +49,14 @@ class TrainingPaceService
             'easy'       => $this->range($t + 46, $t + 81),
             'long'       => $this->range($t + 46, $t + 95),
             'marathon'   => $this->pace($t * 1.12),
-            'interval'   => $this->range($t - 12, $t + 4),
-            'repetition' => $this->pace($t - 20),
+            // Intervalle laufen schneller als die Schwelle, nie langsamer.
+            // Hier stand „T − 12 bis T + 4 s" — das obere Ende war ein
+            // Schwellenlauf mit Pausen, kein VO2max-Reiz. Die Faktoren
+            // treffen Daniels' I- und R-Pace auf ein paar Sekunden, in
+            // Prozent statt Sekunden, weil ein fester Abstand für einen
+            // 5:30-Läufer etwas anderes bedeutet als für einen 3:30-Läufer.
+            'interval'   => $this->range($t * 0.92, $t * 0.95),
+            'repetition' => $this->pace($t * 0.88),
             // Der numerische Wert für alles, was mit Distanzen rechnet —
             // die Leiter der langen Läufe zum Beispiel.
             'long_sec'   => (int) round($t + 70),
