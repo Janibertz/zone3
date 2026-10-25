@@ -86,6 +86,18 @@ class AIController extends Controller
         $recommendation = null;
         $recommendationMessage = 'Bitte trage zunächst dein Wellbeing für heute ein, um eine Trainingsempfehlung zu erhalten.';
 
+        // Krank, verletzt oder in einer Pause: es gibt nichts zu empfehlen,
+        // und das entscheidet keine KI. Das Modell bekam „krank" gar nicht zu
+        // sehen und schrieb — vom Wiedereinstieg-Hinweis gedrängt — einen
+        // lockeren Lauf für jemanden, der am Morgen operiert worden war.
+        if ($rest = $this->restRecommendation($runnerProfile, $todayWellbeing)) {
+            return response()->json([
+                'recommendation'         => $rest,
+                'recommendation_message' => null,
+                'wellbeing_exists'       => $wellbeingExists,
+            ]);
+        }
+
         if ($wellbeingExists) {
             // Check cached recommendation (same day + same entry) — stored as JSON string
             if ($runnerProfile &&
@@ -133,6 +145,44 @@ class AIController extends Controller
             'recommendation_message' => $recommendationMessage,
             'wellbeing_exists' => $wellbeingExists,
         ]);
+    }
+
+    /**
+     * Der Ruhetag, wenn heute nicht gelaufen wird — oder null.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function restRecommendation(?\App\Models\RunnerProfile $profile, ?\App\Models\WellbeingEntry $wellbeing): ?array
+    {
+        if ($profile?->isPausedOn()) {
+            $until = $profile->training_paused_until->format('d.m.');
+            $why   = $profile->training_pause_reason ? " ({$profile->training_pause_reason})" : '';
+
+            return $this->rest("Trainingspause bis {$until}{$why}", 'Erhol dich in Ruhe. Danach steigen wir behutsam wieder ein.');
+        }
+
+        if ($wellbeing?->is_sick || $wellbeing?->is_injured) {
+            $what = $wellbeing->is_injured ? 'verletzt' : 'krank';
+
+            return $this->rest('Heute kein Training', "Du hast dich als {$what} eingetragen. Ruhe ist heute das Training. Wenn du länger aussetzt, sag es dem Coach, dann pausiert er deinen Plan.");
+        }
+
+        return null;
+    }
+
+    /** @return array<string, mixed> */
+    private function rest(string $title, string $description): array
+    {
+        return [
+            'type'         => 'rest',
+            'title'        => $title,
+            'description'  => $description,
+            'distance_km'  => 0,
+            'duration_min' => 0,
+            'pace_target'  => null,
+            'zone'         => null,
+            'intensity'    => 'low',
+        ];
     }
 
     /**

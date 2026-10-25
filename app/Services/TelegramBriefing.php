@@ -29,6 +29,13 @@ class TelegramBriefing
 
         $greeting = $morning ? 'Guten Morgen' . ($user->name ? ', ' . strtok($user->name, ' ') : '') . "!\n\n" : '';
 
+        $profile = $user->runnerProfile;
+        if ($profile?->isPausedOn()) {
+            $why = $profile->training_pause_reason ? " ({$profile->training_pause_reason})" : '';
+
+            return $greeting . '**Trainingspause bis ' . $profile->training_paused_until->format('d.m.') . "{$why}.** Erhol dich gut.";
+        }
+
         if ($sessions->isEmpty()) {
             return $greeting . ($plan ? 'Heute steht nichts im Plan.' : 'Du hast noch keinen aktiven Trainingsplan.');
         }

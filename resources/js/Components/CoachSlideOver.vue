@@ -207,6 +207,8 @@ const actionIcons = {
     session_moved:     'M8.25 6.75 4.5 10.5l3.75 3.75M4.5 10.5h12M15.75 17.25l3.75-3.75-3.75-3.75M19.5 13.5h-12',
     session_deleted:   'm14.74 9-.35 9m-4.78 0L9.26 9m9.97-3.23-.84 12.6a2.25 2.25 0 0 1-2.24 2.1H7.85a2.25 2.25 0 0 1-2.24-2.1l-.84-12.6M4.5 5.77h15',
     sessions_skipped:  'M5.25 5.65v12.7c0 .86.95 1.38 1.68.91l9.98-6.35a1.08 1.08 0 0 0 0-1.82L6.93 4.74A1.08 1.08 0 0 0 5.25 5.65ZM18.75 4.5v15',
+    training_paused:   'M14.25 9v6m-4.5 0V9M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+    training_resumed:  'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z M15.91 11.67a.38.38 0 0 1 0 .66l-5.6 3.11a.38.38 0 0 1-.56-.33V8.89c0-.29.31-.47.56-.33l5.6 3.11Z',
     event_updated:     'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0V11.25A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5',
 };
 
@@ -224,6 +226,8 @@ function actionClass(type) {
         session_moved:    'bg-warn-soft text-warn-ink',
         session_deleted:  'bg-danger-soft text-danger-ink',
         sessions_skipped: 'bg-warn-soft text-warn-ink',
+        training_paused:  'bg-warn-soft text-warn-ink',
+        training_resumed: 'bg-success-soft text-success-ink',
         event_updated:    'bg-success-soft text-success-ink',
     }[type] ?? 'bg-surface-2 text-ink-2';
 }

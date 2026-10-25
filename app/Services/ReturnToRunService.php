@@ -32,6 +32,19 @@ class ReturnToRunService
      */
     public function statusFor(User $user): ?array
     {
+        // Wer pausiert oder sich heute krank meldet, steigt nicht wieder ein.
+        // Vorher sah die Erkennung „krank am 25.10., seitdem kein Lauf" und
+        // meldete Stufe 1 — die Tagesempfehlung schrieb daraufhin am Tag der
+        // OP einen lockeren Lauf.
+        if ($user->runnerProfile?->isPausedOn()) {
+            return null;
+        }
+
+        $todayEntry = $user->wellbeingEntries()->whereDate('date', now()->toDateString())->first();
+        if ($todayEntry && ($todayEntry->is_sick || $todayEntry->is_injured)) {
+            return null;
+        }
+
         $runs = $user->activities()
             ->where('type', 'Run')
             ->where('distance', '>', 0)

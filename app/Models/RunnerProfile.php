@@ -36,6 +36,8 @@ class RunnerProfile extends Model
         'pending_pr_message',
         'coach_notes',
         'return_to_run_dismissed_at',
+        'training_paused_until',
+        'training_pause_reason',
     ];
 
     protected $casts = [
@@ -50,6 +52,7 @@ class RunnerProfile extends Model
         'strength_days_per_week'     => 'integer',
         'strength_equipment'         => 'array',
         'return_to_run_dismissed_at' => 'datetime',
+        'training_paused_until'      => 'date',
     ];
 
     public function user()
@@ -126,6 +129,26 @@ class RunnerProfile extends Model
                 'max_pace' => $this->minutesToPace(round($z5Max, 2)),
             ],
         ];
+    }
+
+    /**
+     * Läuft an diesem Tag eine Trainingspause?
+     *
+     * Gemeldet: krank eingetragen, im Coach-Chat „zwei Wochen Laufpause nach
+     * einer Weisheitszahn-OP" gesagt — und die Tagesempfehlung blieb beim
+     * lockeren Lauf. Der Coach hatte sich die Pause nur als Notiz gemerkt,
+     * und keine Notiz wirkt auf einen Plan. Die Pause steht deshalb als
+     * Datum im Profil, und Tagesempfehlung, Gerüst und Telegram fragen hier.
+     */
+    public function isPausedOn(\Carbon\CarbonInterface|string|null $day = null): bool
+    {
+        if (! $this->training_paused_until) {
+            return false;
+        }
+
+        $day = $day ? \Carbon\Carbon::parse($day) : now();
+
+        return $day->startOfDay()->lte($this->training_paused_until->copy()->startOfDay());
     }
 
     /**

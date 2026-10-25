@@ -56,6 +56,17 @@ class PlanContextBuilder
         $windowFrom = CarbonImmutable::today();
         $windowTo   = $windowFrom->addDays(min(Event::PLAN_HORIZON_DAYS, $event->days_until + 1) - 1);
 
+        // Eine Trainingspause sperrt ihre Tage wie eine Absage in der
+        // Wochenabfrage. Sonst schrieb die nächste Neuberechnung (spätestens
+        // sonntags) Einheiten in die Pause hinein, die der Coach gerade
+        // übersprungen hatte.
+        $pausedUntil = $user->runnerProfile?->training_paused_until;
+        if ($pausedUntil && $user->runnerProfile->isPausedOn($windowFrom)) {
+            for ($d = $windowFrom; $d->lte($pausedUntil) && $d->lte($windowTo); $d = $d->addDay()) {
+                $availabilityOverrides[$d->toDateString()] = ['available' => false, 'duration_min' => 0];
+            }
+        }
+
         $finalized = $this->finalizedSessions($user, $event);
         $pinned    = $this->pinnedSessions($user, $event);
         $wellbeing = $this->wellbeing($user);

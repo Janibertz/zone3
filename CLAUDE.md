@@ -179,6 +179,18 @@ PlanRevisionRecorder           stores diff + corrections → visible in the plan
 
 **The Garmin sync on save now always runs** when Garmin is connected, guarded only by a three-minute lock. It used to skip whenever *any* metric existed for today, which missed the common case: check in at breakfast, sync the watch afterwards, and the night's values never arrived — so the coach proposed on half the data.
 
+### Krank ist krank, Pause ist Pause
+
+Gemeldet am 25.10.2026: Wellbeing „krank", Notiz „Weisheitszahn-OP" — die Tagesempfehlung lautete „Sehr lockerer Wiedereinstieg, 3,5 km". Im Coach-Chat „zwei Wochen Laufpause" gesagt; der Coach verstand es, merkte es sich als Notiz, und die Empfehlung blieb.
+
+Drei Ursachen an drei Stellen: `generateTodayRecommendation()` bekam aus dem Wellbeing nur Energie, Schlaf, Muskelkater und Stress — **weder `is_sick` noch die Notiz**. `ReturnToRunService::statusFor()` sah „krank, seitdem kein Lauf" und meldete am Tag der OP **Wiedereinstieg Stufe 1**, und der Prompt sagte dazu „MUSS easy_run". Und eine Notiz (`remember_user_fact`) **wirkt auf nichts**: sie steht im Chat-Kontext, nicht im Plan.
+
+- **Krank/verletzt oder pausiert → Ruhetag ohne KI.** `AIController::restRecommendation()` greift vor dem Cache und vor dem Modell. Eine Entscheidung, die feststeht, gehört nicht in einen Prompt.
+- **Die Pause ist ein Datum, keine Notiz:** `runner_profiles.training_paused_until` + `training_pause_reason`, gesetzt über das Coach-Werkzeug `pause_training` (und `end_training_pause`). Es überspringt die geplanten Einheiten bis dahin und leert die Caches — auch wenn nichts übersprungen wurde, denn ohne Plan blieb die gespeicherte Laufempfehlung sonst stehen.
+- **Das Gerüst kennt die Pause:** `PlanContextBuilder::build()` trägt die Pausentage als `available = false` in die Overrides ein. Sonst schrieb spätestens `plan:write-week` am Sonntag Einheiten in die Pause.
+- **Kein Wiedereinstieg während der Pause oder am Kranktag** — `statusFor()` liefert dann null. Danach beginnt er von selbst über die Lauflücke.
+- Die **Wellbeing-Notiz** steht jetzt in beiden Prompts (Tagesempfehlung und Vorschlag zur Planeinheit).
+
 ### Shared workouts — the athlete swaps today's session
 
 Reported: *"Ich hatte 30 Min Zone2 auf dem Plan, ich habe aber Bock auf Intervalle."* The plan says what is sensible; the day's form sometimes says otherwise, and the only answer used to be "do it or don't".

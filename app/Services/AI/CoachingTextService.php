@@ -47,6 +47,11 @@ class CoachingTextService
         $profileText = $runnerProfile ? "Runner Profile:\n- LTHR: {$runnerProfile['threshold_heart_rate']} bpm\n- Max HR: {$runnerProfile['max_heart_rate']} bpm\n- Schwellenpace: {$runnerProfile['threshold_speed']} min/km\n" : "Kein Runner Profile vorhanden.\n";
         $activityText = $yesterdayActivity ? "Letzte Aktivität (gestern):\n- " . round($yesterdayActivity['distance']/1000,2) . " km in " . PaceFormat::hms($yesterdayActivity['moving_time']) . " · Pace: " . ($yesterdayActivity['average_speed'] ? PaceFormat::fromSpeed($yesterdayActivity['average_speed']) : '—') . "\n" : "Keine Aktivität von gestern.\n";
         $wellbeingText = $wellbeingEntry ? "Wellbeing heute: Energie {$wellbeingEntry['energy_level']}/10, Schlaf {$wellbeingEntry['sleep_quality']}/10, Muskelkater {$wellbeingEntry['muscle_soreness']}/10, Stress {$wellbeingEntry['stress_level']}/10\n" : "Kein Wellbeing.\n";
+        // Die Notiz stand nie im Prompt. Was der Athlet dort schreibt
+        // („Weisheitszahn-OP"), ist oft das Wichtigste des Tages.
+        if (! empty($wellbeingEntry['notes'])) {
+            $wellbeingText .= 'Notiz des Athleten: "' . mb_substr($wellbeingEntry['notes'], 0, 500) . "\" — nimm sie ernst, sie kann jede andere Regel überstimmen.\n";
+        }
         $goalText = $goal ? "Ziel: {$goal['name']} (bis {$goal['end_date']})\n" : "Kein aktives Ziel.\n";
 
         // Upcoming events / taper logic

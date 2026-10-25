@@ -497,6 +497,7 @@ PROMPT;
     {
         $sick    = $wellbeing->is_sick    ? 'Ja' : 'Nein';
         $injured = $wellbeing->is_injured ? 'Ja' : 'Nein';
+        $notes   = $wellbeing->notes ? "\n- Notiz des Athleten: \"" . mb_substr($wellbeing->notes, 0, 500) . '"' : '';
 
         // Die gemessenen Werte der Uhr. Sie liegen längst in der Datenbank und
         // fließen in die Planerstellung ein — nur die tägliche Anpassung sah
@@ -532,10 +533,11 @@ Du bist ein Lauf-Coach. Passe die folgende Trainingseinheit an den aktuellen Ges
 - Muskelkater: {$wellbeing->muscle_soreness}/10
 - Stress: {$wellbeing->stress_level}/10
 - Krank: {$sick}
-- Verletzt: {$injured}{$garminText}
+- Verletzt: {$injured}{$notes}{$garminText}
 
 **Anpassungsregeln:**
 - Krank oder verletzt → Typ "rest", Distanz 0, Dauer 0, Intensität "rest"
+- Spricht die Notiz von OP, Krankheit, Verletzung oder Schmerzen → ebenfalls "rest"
 - Energie ≤ 3 oder Schlaf ≤ 3 → Intensität auf "low" reduzieren, Distanz um 30-40% kürzen
 - Muskelkater ≥ 7 → Typ zu "easy_run", Intensität "low", Pace 30-45 Sek langsamer
 - Stress ≥ 8 → Dauer kürzen um 20%, Intensität reduzieren
