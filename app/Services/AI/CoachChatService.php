@@ -285,9 +285,10 @@ class CoachChatService
 
         // Today's session
         $todaySession = \App\Models\TrainingSession::where('user_id',$user->id)->whereDate('planned_date',$today)->where('status','!=','skipped')->orderBy('sort_order')->first();
+        $todayRuns    = $this->plannedRunsOn($user, $today, withCompleted: true);
 
         // Upcoming
-        $upcoming = \App\Models\TrainingSession::where('user_id',$user->id)->whereDate('planned_date','>',$today)->whereDate('planned_date','<=',now()->addDays(7)->toDateString())->where('type','!=','rest')->orderBy('planned_date')->limit(5)->get();
+        $upcoming = \App\Models\TrainingSession::where('user_id',$user->id)->whereDate('planned_date','>',$today)->whereDate('planned_date','<=',now()->addDays(7)->toDateString())->where('type','!=','rest')->orderBy('planned_date')->orderBy('sort_order')->limit(8)->get();
 
         // Events (include ID for tool use)
         $events = $user->events()->where('event_date','>=',$today)->orderBy('event_date')->limit(4)->get();
@@ -314,14 +315,21 @@ class CoachChatService
                 if ($todaySession->pace_target && $todaySession->pace_target!=='null') $d .= ", Pace:{$todaySession->pace_target}";
                 if ($todaySession->zone) $d .= ", Zone{$todaySession->zone}";
                 $s = $todaySession->status==='completed' ? ' (absolviert)' : '';
-                $ctx[] = "HEUTIGES TRAINING (ID:{$todaySession->id}){$s}:\n  {$d}".($todaySession->description ? "\n  Beschreibung: {$todaySession->description}" : '');
+                $ctx[] = "HEUTIGES TRAINING (ID:{$todaySession->id}){$s}".($todayRuns->count() > 1 ? ' — Doppel-Schwelle, morgens' : '').":\n  {$d}".($todaySession->description ? "\n  Beschreibung: {$todaySession->description}" : '');
+
+                // Am Doppel-Tag gehört der Abend dazu, sonst plant der Coach
+                // ihn im Gespräch einfach weg.
+                if ($todayRuns->count() > 1) {
+                    $pm = $todayRuns->last();
+                    $ctx[] = "HEUTE ABENDS (ID:{$pm->id})".($pm->status === 'completed' ? ' (absolviert)' : '').":\n  Typ:{$pm->type}, Titel:\"{$pm->title}\"".($pm->duration_min ? ", {$pm->duration_min}min" : '');
+                }
             }
         } else {
             $ctx[] = "HEUTIGES TRAINING: Kein Training geplant.";
         }
 
         if ($upcoming->isNotEmpty()) {
-            $ctx[] = "NÄCHSTE 7 TAGE:\n".$upcoming->map(fn($s)=>'- '.$s->planned_date->format('d.m.').' '.$s->title.' ('.$s->type.($s->distance_km?", {$s->distance_km}km":'').')')->implode("\n");
+            $ctx[] = "NÄCHSTE 7 TAGE:\n".$upcoming->map(fn($s)=>'- '.$s->planned_date->format('d.m.').$this->halfLabel($s, $upcoming).' '.$s->title.' ('.$s->type.($s->distance_km?", {$s->distance_km}km":'').')')->implode("\n");
         }
         if ($events->isNotEmpty()) {
             $ctx[] = "EVENTS:\n".$events->map(function($e){
@@ -348,6 +356,10 @@ class CoachChatService
             "WICHTIG: Behaupte NIE, du hättest etwas am Plan geändert, ohne das passende Werkzeug aufgerufen zu haben. Formulierungen wie „den ersetzen wir“ oder „ich habe eingeplant“ sind nur erlaubt, nachdem das Werkzeug gelaufen ist und Erfolg gemeldet hat. ".
             "Will der Athlet eine Einheit an einem bestimmten Tag, rufe das Werkzeug SOFORT auf und beschreibe die Einheit erst danach. Kannst du etwas nicht ändern, sage das klar, statt es zu beschreiben. ".
             "Pro Tag gibt es höchstens EIN Lauftraining. Soll an einem Tag etwas anderes laufen, ändere die bestehende Einheit — lege keine zweite daneben. ".
+            // Die eine Ausnahme ist dieselbe wie im Planer: die Doppel-Schwelle
+            // des norwegischen Modells. Ohne sie ersetzte der Coach an einem
+            // Doppel-Tag die Morgeneinheit, sobald er etwas anlegen sollte.
+            "Einzige Ausnahme: ein Tag mit Doppel-Schwelle (norwegisches Modell, im Kontext als „morgens“/„abends“ markiert) hat zwei Läufe. Dort gibst du bei jedem Werkzeug part=\"am\" oder part=\"pm\" an, damit die richtige Hälfte getroffen wird. Verschiebst du ohne part, wandern beide Hälften zusammen. ".
             "Antworte auf Deutsch, sprich mit 'du'. Passe Länge der Antwort der Frage an. Nutze Markdown für strukturierte Antworten. ".
             "Stütze dich IMMER auf echte Zahlen aus den Daten.".
             $contextBlock
@@ -419,11 +431,12 @@ class CoachChatService
                     'duration_min' => ['type' => 'integer', 'description' => 'Zieldauer in Minuten'],
                     'pace_target'  => ['type' => 'string', 'description' => 'Zielpace im Format M:SS'],
                     'zone'         => ['type' => 'integer', 'minimum' => 1, 'maximum' => 5, 'description' => 'Herzfrequenzzone'],
+                    'part'         => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit Doppel-Schwelle: morgens (am) oder abends (pm)'],
                 ]],
             ]],
             ['type' => 'function', 'function' => [
                 'name'        => 'create_training_session',
-                'description' => 'Lege eine zusätzliche Trainingseinheit im Plan an — z.B. eine Krafteinheit neben einem Lauf. Für einen Lauf an einem Tag, an dem schon ein Lauf steht, nimm modify_training_session: pro Tag gibt es nur EIN Lauftraining.',
+                'description' => 'Lege eine zusätzliche Trainingseinheit im Plan an — z.B. eine Krafteinheit neben einem Lauf. Für einen Lauf an einem Tag, an dem schon ein Lauf steht, nimm modify_training_session: pro Tag gibt es nur EIN Lauftraining. Ausnahme Doppel-Schwelle im norwegischen Modell: eine Schwelleneinheit (tempo_run) mit part=\"am\" oder \"pm\" neben einer anderen Schwelleneinheit.',
                 'parameters'  => ['type' => 'object', 'properties' => [
                     'date'         => ['type' => 'string', 'description' => 'Tag der Einheit als YYYY-MM-DD'],
                     'type'         => ['type' => 'string', 'enum' => ['easy_run','tempo_run','interval','long_run','progressive_run','test_run','race_prep','strength','core','mobility'], 'description' => 'Trainingstyp'],
@@ -433,6 +446,7 @@ class CoachChatService
                     'duration_min' => ['type' => 'integer', 'description' => 'Zieldauer in Minuten'],
                     'pace_target'  => ['type' => 'string', 'description' => 'Zielpace im Format M:SS'],
                     'zone'         => ['type' => 'integer', 'minimum' => 1, 'maximum' => 5, 'description' => 'Herzfrequenzzone'],
+                    'part'         => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit Doppel-Schwelle: morgens (am) oder abends (pm)'],
                 ], 'required' => ['date', 'type']],
             ]],
             ['type' => 'function', 'function' => [
@@ -442,6 +456,7 @@ class CoachChatService
                     'from_date' => ['type' => 'string', 'description' => 'Bisheriger Tag YYYY-MM-DD'],
                     'to_date'   => ['type' => 'string', 'description' => 'Neuer Tag YYYY-MM-DD'],
                     'type'      => ['type' => 'string', 'description' => 'Nur nötig, wenn am Ausgangstag mehrere Einheiten stehen'],
+                    'part'      => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur eine Hälfte einer Doppel-Schwelle verschieben. Ohne part wandern beide.'],
                 ], 'required' => ['from_date', 'to_date']],
             ]],
             ['type' => 'function', 'function' => [
@@ -450,6 +465,7 @@ class CoachChatService
                 'parameters'  => ['type' => 'object', 'properties' => [
                     'date' => ['type' => 'string', 'description' => 'Tag der Einheit YYYY-MM-DD'],
                     'type' => ['type' => 'string', 'description' => 'Nur nötig, wenn an dem Tag mehrere Einheiten stehen'],
+                    'part' => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur eine Hälfte einer Doppel-Schwelle löschen'],
                 ], 'required' => ['date']],
             ]],
             ['type' => 'function', 'function' => [
@@ -545,6 +561,66 @@ class CoachChatService
             ->whereIn('type', \App\Services\TrainingPlanValidator::RUN_TYPES)
             ->orderBy('sort_order')
             ->first();
+    }
+
+    /**
+     * Alle Läufe eines Tages, morgens vor abends.
+     *
+     * Die Pläne speichern die Reihenfolge des Validators als sort_order, und
+     * der stellt den Morgen vor den Abend — daran erkennt man die Hälften.
+     */
+    private function plannedRunsOn(\App\Models\User $user, string $date, bool $withCompleted = false): \Illuminate\Support\Collection
+    {
+        return \App\Models\TrainingSession::where('user_id', $user->id)
+            ->whereDate('planned_date', $date)
+            ->whereIn('status', $withCompleted ? ['planned', 'completed'] : ['planned'])
+            ->whereIn('type', \App\Services\TrainingPlanValidator::RUN_TYPES)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+    }
+
+    /**
+     * Darf an dem Tag doppelt gelaufen werden?
+     *
+     * Dieselben zwei Bedingungen, unter denen das Gerüst einen Doppel-Tag
+     * legt: norwegisches Modell an diesem Datum und ein Abendfenster im
+     * Wochenraster. Ohne Abendfenster wäre die zweite Einheit eine Zusage,
+     * die der Athlet nicht einlösen kann.
+     */
+    private function doubleAllowedOn(\App\Models\User $user, string $date): bool
+    {
+        $profile = $user->runnerProfile;
+        if (! $profile || $profile->trainingModelOn($date) !== 'norwegian') {
+            return false;
+        }
+
+        $key    = strtolower(\Carbon\Carbon::parse($date)->englishDayOfWeek);
+        $second = (int) ($profile->weekly_availability[$key]['second_min'] ?? 0);
+
+        return $second >= \App\Services\WeeklyPatternService::MIN_SECOND_WINDOW_MINUTES;
+    }
+
+    /** Die Hälfte eines Doppel-Tags, die `part` meint — null, wenn es keine gibt. */
+    private function runHalf(\Illuminate\Support\Collection $runs, ?string $part): ?\App\Models\TrainingSession
+    {
+        if ($runs->count() < 2 || ! in_array($part, ['am', 'pm'], true)) {
+            return null;
+        }
+
+        return $part === 'am' ? $runs->first() : $runs->last();
+    }
+
+    /** „ morgens"/„ abends" für die Übersicht, wenn ein Tag zwei Läufe trägt. */
+    private function halfLabel(\App\Models\TrainingSession $session, \Illuminate\Support\Collection $sessions): string
+    {
+        $runs = $sessions->filter(fn ($s) => $s->planned_date->isSameDay($session->planned_date) && $this->isRun($s->type))->values();
+
+        if ($runs->count() < 2 || ! $this->isRun($session->type)) {
+            return '';
+        }
+
+        return $runs->first()->id === $session->id ? ' morgens' : ' abends';
     }
 
     private function isRun(string $type): bool
@@ -767,7 +843,10 @@ class CoachChatService
                     return ['message' => 'Das Datum liegt in der Vergangenheit — vergangene Einheiten aendere ich nicht.', 'action' => null];
                 }
 
-                $session = $this->plannedSessionOn($user, $date, $args['type'] ?? null)
+                // Am Doppel-Tag tragen beide Hälften denselben Typ — nur
+                // `part` sagt, welche gemeint ist.
+                $session = $this->runHalf($this->plannedRunsOn($user, $date), $args['part'] ?? null)
+                    ?? $this->plannedSessionOn($user, $date, $args['type'] ?? null)
                     ?? $this->plannedSessionOn($user, $date);
 
                 if ($session && $session->status === 'completed') {
@@ -804,7 +883,42 @@ class CoachChatService
                 // ersetzt statt verdoppelt — dieselbe Regel, nach der auch der
                 // Planer arbeitet.
                 if ($this->isRun($type)) {
-                    $existing = $this->plannedRunOn($user, $date);
+                    $runs = $this->plannedRunsOn($user, $date);
+                    $part = $args['part'] ?? null;
+
+                    // Doppel-Tag: eine Hälfte wird ersetzt, eine dritte
+                    // Einheit gibt es nicht. Ohne part wäre es Raten.
+                    if ($runs->count() >= 2) {
+                        $existing = $this->runHalf($runs, $part);
+                        if (! $existing) {
+                            return ['message' => "Am {$date} steht eine Doppel-Schwelle (morgens und abends). Gib part=\"am\" oder part=\"pm\" an, um eine Hälfte zu ersetzen — eine dritte Laufeinheit lege ich nicht an.", 'action' => null];
+                        }
+                    } else {
+                        $existing = $runs->first();
+                    }
+
+                    // Aus einer Einzel-Schwelle wird eine Doppel-Schwelle —
+                    // nur wo das Gerüst es auch täte.
+                    if ($existing && $runs->count() === 1 && in_array($part, ['am', 'pm'], true)
+                        && $type === 'tempo_run' && $existing->type === 'tempo_run'
+                        && $this->doubleAllowedOn($user, $date)) {
+                        $session = $this->newSessionFor($user, $date, $type);
+                        $session->sort_order = $part === 'pm' ? $existing->sort_order + 1 : $existing->sort_order;
+                        if ($part === 'am') {
+                            $existing->sort_order += 1;
+                            $existing->save();
+                        }
+                        $this->applySessionFields($session, $args, $user);
+                        $session->save();
+                        $this->invalidateCoachCaches($user);
+
+                        $half = $part === 'am' ? 'morgens' : 'abends';
+                        return [
+                            'message' => "Doppel-Schwelle am {$date}: {$session->title} {$half} ergänzt.",
+                            'action'  => ['type' => 'session_created', 'label' => "Doppel-Schwelle ({$this->dayLabel($date)}, {$half}): {$session->title}", 'reload' => true],
+                        ];
+                    }
+
                     if ($existing) {
                         $this->applySessionFields($existing, $args, $user);
                         $existing->save();
@@ -839,27 +953,45 @@ class CoachChatService
                     return ['message' => 'Der Zieltag liegt in der Vergangenheit — dorthin verschiebe ich nichts.', 'action' => null];
                 }
 
-                $session = $this->plannedSessionOn($user, $from, $args['type'] ?? null)
+                $fromRuns = $this->plannedRunsOn($user, $from);
+                $part     = $args['part'] ?? null;
+
+                $session = $this->runHalf($fromRuns, $part)
+                    ?? $this->plannedSessionOn($user, $from, $args['type'] ?? null)
                     ?? $this->plannedSessionOn($user, $from);
 
                 if (! $session) {
                     return ['message' => "Am {$from} steht keine geplante Einheit, die ich verschieben koennte.", 'action' => null];
                 }
 
+                // „Die Doppel-Schwelle lieber Mittwoch": ohne part wandern
+                // beide Hälften. Einzeln verschoben bliebe am Ausgangstag
+                // der Abend allein zurück.
+                $moving = collect([$session]);
+                if ($fromRuns->count() >= 2 && ! in_array($part, ['am', 'pm'], true) && $fromRuns->contains('id', $session->id)) {
+                    $moving = $fromRuns;
+                }
+
                 $replaced = '';
                 if ($this->isRun($session->type)) {
-                    $clash = $this->plannedRunOn($user, $to);
-                    if ($clash && $clash->id !== $session->id) {
-                        $clash->delete();
-                        $replaced = " Der dort geplante Lauf ({$clash->title}) ist entfallen — pro Tag nur ein Lauftraining.";
+                    // Alle Läufe am Zieltag, nicht nur der erste — sonst
+                    // bliebe von einem Doppel-Tag eine Hälfte neben dem
+                    // verschobenen Lauf stehen.
+                    $clashes = $this->plannedRunsOn($user, $to)->reject(fn ($c) => $moving->contains('id', $c->id));
+                    if ($clashes->isNotEmpty()) {
+                        $titles = $clashes->pluck('title')->implode(', ');
+                        $clashes->each->delete();
+                        $replaced = " Der dort geplante Lauf ({$titles}) ist entfallen — pro Tag nur ein Lauftraining.";
                     }
                 }
 
-                $session->planned_date   = $to;
-                $session->steps          = null;
-                $session->nutrition_tips = null;
-                $session->pinned_at      = now();
-                $session->save();
+                foreach ($moving as $m) {
+                    $m->planned_date   = $to;
+                    $m->steps          = null;
+                    $m->nutrition_tips = null;
+                    $m->pinned_at      = now();
+                    $m->save();
+                }
 
                 // Der Herkunftstag ist jetzt womoeglich leer.
                 $this->sealVacatedDay($user, $from, 'verschoben');
@@ -867,7 +999,7 @@ class CoachChatService
                 $this->invalidateCoachCaches($user);
 
                 return [
-                    'message' => "{$session->title} von {$from} auf {$to} verschoben.{$replaced}",
+                    'message' => ($moving->count() > 1 ? 'Doppel-Schwelle (morgens und abends)' : $session->title) . " von {$from} auf {$to} verschoben.{$replaced}",
                     'action'  => ['type' => 'session_moved', 'label' => "Verschoben auf {$this->dayLabel($to)}: {$session->title}", 'reload' => true],
                 ];
             }
@@ -887,6 +1019,11 @@ class CoachChatService
                 }
 
                 $sessions = $query->get();
+
+                // Eine Hälfte der Doppel-Schwelle streichen, nicht beide.
+                if ($half = $this->runHalf($this->plannedRunsOn($user, $date), $args['part'] ?? null)) {
+                    $sessions = collect([$half]);
+                }
                 if ($sessions->isEmpty()) {
                     return ['message' => "Am {$date} steht keine geplante Einheit, die ich loeschen koennte.", 'action' => null];
                 }

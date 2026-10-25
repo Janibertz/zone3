@@ -414,7 +414,13 @@ Der Athlet wählt sein Trainingsmodell selbst (Onboarding, Profil → Athletenpr
 - **Tagesbudget** an einem Doppel-Tag = Tagesfenster + Abendfenster.
 - Die Dashboard-Karte zeigt nach erledigtem Morgen den Abend; „Locker / Hart" warnt im norwegischen Modell erst ab 35 % (`TOO_HARD_PCT_NORWEGIAN`), weil Sub-Schwelle nach Pace als hart zählt.
 
-**Noch offen:** Der Coach-Chat kennt die Ausnahme nicht — `create_training_session` ersetzt an einem Tag mit Lauf weiter den vorhandenen, auch an einem Doppel-Tag. Telegram-Briefing zeigt die erste Einheit des Tages.
+**Coach-Chat und Telegram kennen die Ausnahme** (`CoachDoubleDayTest`). Beide Hälften tragen `tempo_run`, also trifft eine Typ-Suche immer den Morgen; die Werkzeuge nehmen deshalb `part` (am/pm) und lösen die Hälfte über `sort_order` auf (`plannedRunsOn()`, `runHalf()`).
+
+- `create_training_session` an einem Doppel-Tag **ohne `part` ändert nichts** und sagt dem Modell, es solle eine Hälfte nennen — eine dritte Einheit gibt es nicht, und Raten hiesse, die falsche zu überschreiben. Mit `part` wird genau diese Hälfte ersetzt.
+- Aus einer Einzel-Schwelle macht `create` mit `part` eine Doppel-Schwelle nur unter denselben Bedingungen wie das Gerüst (`doubleAllowedOn()`: norwegisch an dem Datum **und** Abendfenster ≥ 30 min). Sonst gilt weiter „ersetzt statt verdoppelt".
+- `move` **ohne `part` nimmt beide Hälften mit** („die Doppel-Schwelle lieber Mittwoch"); am Zieltag fallen **alle** Läufe weg, nicht nur der erste.
+- Der Kontext markiert die Hälften („morgens"/„abends", `HEUTE ABENDS`), sonst plant der Coach den Abend im Gespräch weg.
+- Das Telegram-Briefing zeigte schon beide Läufe, aber zweimal als „Heute:" — jetzt „Morgens:" / „Abends:".
 
 ### One verdict on the goal, not two
 

@@ -44,9 +44,21 @@ class TelegramBriefing
             return $greeting . '**Heute: Ruhetag.** Erholung ist Teil des Trainings.';
         }
 
+        // Doppel-Schwelle: beide Läufe standen schon in der Nachricht, aber
+        // zweimal als „Heute:" — welcher morgens und welcher abends gelaufen
+        // wird, sagte sie nicht.
+        $runs  = $sessions->filter(fn ($s) => in_array($s->type, TrainingPlanValidator::RUN_TYPES, true))->values();
+        $label = function (TrainingSession $s) use ($runs): string {
+            if ($runs->count() < 2 || ! $runs->contains('id', $s->id)) {
+                return 'Heute';
+            }
+
+            return $runs->first()->id === $s->id ? 'Morgens' : 'Abends';
+        };
+
         $lines = [];
         foreach ($sessions->where('type', '!=', 'rest') as $s) {
-            $lines[] = '**Heute: ' . SessionRecommendationObserver::describe($s->only(['title', 'type', 'distance_km', 'duration_min', 'pace_target'])) . '**';
+            $lines[] = '**' . $label($s) . ': ' . SessionRecommendationObserver::describe($s->only(['title', 'type', 'distance_km', 'duration_min', 'pace_target'])) . '**';
 
             $description = trim(strtok((string) $s->description, "\n"));
             if ($description !== '') {
