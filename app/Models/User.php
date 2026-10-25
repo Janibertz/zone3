@@ -22,9 +22,9 @@ use Illuminate\Notifications\Notifiable;
     'avatar', 'bio', 'location', 'birth_year', 'favorite_distance', 'coach_id',
     'garmin_email', 'garmin_session', 'ai_daily_limit',
     'newsletter_opt_in', 'unsubscribe_token',
-    'telegram_chat_id', 'telegram_link_token', 'telegram_linked_at'])]
+    'telegram_chat_id', 'telegram_link_token', 'telegram_linked_at', 'calendar_token'])]
 #[Hidden(['password', 'remember_token', 'garmin_session', 'garmin_email', 'unsubscribe_token',
-    'telegram_chat_id', 'telegram_link_token'])]
+    'telegram_chat_id', 'telegram_link_token', 'calendar_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */

@@ -440,6 +440,8 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::patch('/profile/coach', [ProfileController::class, 'updateCoach'])->name('profile.coach');
     Route::post('/profile/telegram', [\App\Http\Controllers\TelegramLinkController::class, 'store'])->name('telegram.link');
     Route::delete('/profile/telegram', [\App\Http\Controllers\TelegramLinkController::class, 'destroy'])->name('telegram.unlink');
+    Route::post('/profile/calendar', [\App\Http\Controllers\CalendarFeedController::class, 'store'])->name('calendar-feed.store');
+    Route::delete('/profile/calendar', [\App\Http\Controllers\CalendarFeedController::class, 'destroy'])->name('calendar-feed.destroy');
     Route::post('/profile/garmin-connect', [ProfileController::class, 'garminConnect'])->name('profile.garmin-connect');
     Route::post('/profile/garmin-sync-health', [ProfileController::class, 'garminSyncHealth'])->name('profile.garmin-sync-health');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -629,6 +631,11 @@ Route::post('/webhook/github', [WebhookController::class, 'github'])->name('webh
 
 // Telegram-Bot des Coaches. Geschuetzt durch das Geheimnis im Header, nicht
 // durch eine Sitzung — siehe TelegramWebhookController.
+// Kalender-Abo: ohne Login, der Token ist der Schutz (siehe CalendarFeedController).
+Route::get('/calendar/{token}.ics', [\App\Http\Controllers\CalendarFeedController::class, 'show'])
+    ->where('token', '[A-Za-z0-9]{48}')
+    ->middleware('throttle:60,1')
+    ->name('calendar-feed.show');
 Route::post('/telegram/webhook', [\App\Http\Controllers\TelegramWebhookController::class, 'handle'])->name('telegram.webhook');
 
 // ── LiveTrack ────────────────────────────────────────────────────────────────

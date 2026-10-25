@@ -28,6 +28,7 @@ const props = defineProps({
     prHistory:             { type: Object, default: () => ({}) },
     telegram:              { type: Object, default: () => ({ available: false, linked: false }) },
     norwegianReadiness:    { type: Object, default: null },
+    calendarFeed:          { type: Object, default: null },
 });
 
 const page = usePage();
@@ -637,6 +638,26 @@ const disconnectStrava = () => { stravaDisconnectForm.delete(route('strava.disco
 const telegramForm = useForm({});
 const linkTelegram   = () => telegramForm.post(route('telegram.link'));
 const unlinkTelegram = () => telegramForm.delete(route('telegram.unlink'), { preserveScroll: true });
+
+// ── Kalender-Abo ─────────────────────────────────────────────────────────────
+// Die URL ist geheim: wer sie hat, sieht den Plan. Neu erzeugen macht die alte tot.
+const calendarForm   = useForm({});
+const calendarCopied = ref(false);
+const confirmCalendarRenew = ref(false);
+const createCalendarFeed = () => calendarForm.post(route('calendar-feed.store'), {
+    preserveScroll: true,
+    onSuccess: () => { confirmCalendarRenew.value = false; },
+});
+const removeCalendarFeed = () => calendarForm.delete(route('calendar-feed.destroy'), { preserveScroll: true });
+const copyCalendarUrl = async () => {
+    try {
+        await navigator.clipboard.writeText(props.calendarFeed.url);
+        calendarCopied.value = true;
+        setTimeout(() => { calendarCopied.value = false; }, 2000);
+    } catch {
+        window.prompt('Adresse kopieren:', props.calendarFeed.url);
+    }
+};
 
 // ── Garmin connection ─────────────────────────────────────────────────────────
 const garminConnected   = computed(() => !!page.props.auth.garminConnected);
@@ -1545,6 +1566,62 @@ const inputClass = 'z-input';
                                         class="rounded-field bg-info px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 active:opacity-80 transition-colors disabled:opacity-50">
                                         Verbinden
                                     </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Kalender-Abo: Plan und Rennen im iPhone-/Google-Kalender -->
+                        <div class="rounded-card bg-surface-2 overflow-hidden">
+                            <div class="flex items-center justify-between gap-4 px-4 py-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="h-10 w-10 rounded-field flex items-center justify-center shrink-0"
+                                        :class="props.calendarFeed ? 'bg-info-soft' : 'bg-surface-2'">
+                                        <svg class="h-6 w-6" :class="props.calendarFeed ? 'text-info' : 'text-ink-3'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-semibold text-ink">Kalender</p>
+                                        <p v-if="props.calendarFeed" class="text-xs text-success-ink mt-0.5">Abo aktiv · Einheiten und Rennen</p>
+                                        <p v-else class="text-xs text-ink-3 mt-0.5">Plan und Rennen im iPhone- oder Google-Kalender</p>
+                                    </div>
+                                </div>
+                                <div class="flex gap-2 shrink-0">
+                                    <button v-if="props.calendarFeed" @click="removeCalendarFeed" :disabled="calendarForm.processing"
+                                        class="rounded-field border border-danger/25 px-3 py-1.5 text-xs font-semibold text-danger-ink hover:bg-danger-soft active:bg-danger-soft transition-colors disabled:opacity-50">
+                                        Abschalten
+                                    </button>
+                                    <button v-else @click="createCalendarFeed" :disabled="calendarForm.processing"
+                                        class="rounded-field bg-info px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 active:opacity-80 transition-colors disabled:opacity-50">
+                                        Einrichten
+                                    </button>
+                                </div>
+                            </div>
+                            <div v-if="props.calendarFeed" class="border-t border-line px-4 py-3 space-y-3">
+                                <div class="flex flex-wrap gap-2">
+                                    <a :href="props.calendarFeed.webcal"
+                                        class="rounded-field bg-info px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 active:opacity-80 transition-colors">
+                                        Im Kalender abonnieren
+                                    </a>
+                                    <button type="button" @click="copyCalendarUrl"
+                                        class="rounded-field bg-surface px-3 py-1.5 text-xs font-semibold text-ink hover:opacity-90 active:opacity-70 transition-colors">
+                                        {{ calendarCopied ? 'Kopiert' : 'Adresse kopieren' }}
+                                    </button>
+                                </div>
+                                <p class="text-xs text-ink-3">
+                                    Ganztägige Termine, ohne Ruhetage. Google Kalender: „Andere Kalender → Per URL" und die Adresse einfügen; Google aktualisiert nur alle paar Stunden.
+                                    Wer die Adresse hat, sieht deinen Plan.
+                                </p>
+                                <div class="text-xs">
+                                    <button v-if="!confirmCalendarRenew" type="button" @click="confirmCalendarRenew = true"
+                                        class="font-semibold text-accent active:opacity-60">Neue Adresse erzeugen</button>
+                                    <span v-else class="inline-flex flex-wrap items-center gap-3">
+                                        <span class="text-ink-2">Die alte Adresse funktioniert danach nicht mehr.</span>
+                                        <button type="button" @click="createCalendarFeed" :disabled="calendarForm.processing"
+                                            class="font-semibold text-danger-ink active:opacity-60 disabled:opacity-50">Erzeugen</button>
+                                        <button type="button" @click="confirmCalendarRenew = false"
+                                            class="font-semibold text-ink-3 active:opacity-60">Abbrechen</button>
+                                    </span>
                                 </div>
                             </div>
                         </div>
