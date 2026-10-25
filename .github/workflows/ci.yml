@@ -27,9 +27,12 @@ jobs:
       - name: PHP einrichten
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          # Muss zu composer.json (php ^8.4) und zum Dockerfile passen —
+          # mit 8.3 brach composer install seit dem 22.10. jeden Lauf ab.
+          php-version: '8.4'
           # Die Suite läuft gegen SQLite im Arbeitsspeicher (siehe phpunit.xml).
-          extensions: mbstring, pdo_sqlite, sqlite3, intl, bcmath
+          # pdo_mysql, mysqlnd und openssl verlangt composer.json als ext-*.
+          extensions: mbstring, pdo_sqlite, sqlite3, intl, bcmath, pdo_mysql, mysqlnd, openssl
           coverage: none
 
       - name: Node einrichten
