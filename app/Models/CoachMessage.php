@@ -8,10 +8,14 @@ class CoachMessage extends Model
 {
     const UPDATED_AT = null;
 
-    protected $fillable = ['user_id', 'role', 'content'];
+    public const CHANNEL_WEB      = 'web';
+    public const CHANNEL_TELEGRAM = 'telegram';
+
+    protected $fillable = ['user_id', 'role', 'content', 'channel', 'reply_to_id', 'actions'];
 
     protected $casts = [
         'created_at' => 'datetime',
+        'actions'    => 'array',
     ];
 
     public function user()

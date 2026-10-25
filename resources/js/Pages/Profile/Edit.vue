@@ -21,6 +21,7 @@ const props = defineProps({
     activeCoach:           { type: Object, default: null },
     personalRecords:       { type: Array, default: () => [] },
     prHistory:             { type: Object, default: () => ({}) },
+    telegram:              { type: Object, default: () => ({ available: false, linked: false }) },
 });
 
 const page = usePage();
@@ -544,6 +545,12 @@ const closeDeleteModal = () => { confirmingDeletion.value = false; deleteForm.cl
 const confirmStravaDisconnect = ref(false);
 const stravaDisconnectForm = useForm({});
 const disconnectStrava = () => { stravaDisconnectForm.delete(route('strava.disconnect'), { onSuccess: () => { confirmStravaDisconnect.value = false; } }); };
+
+// ── Telegram ─────────────────────────────────────────────────────────────────
+// Verbinden öffnet den Bot mit einem Einmal-Code (Inertia::location auf t.me).
+const telegramForm = useForm({});
+const linkTelegram   = () => telegramForm.post(route('telegram.link'));
+const unlinkTelegram = () => telegramForm.delete(route('telegram.unlink'), { preserveScroll: true });
 
 // ── Garmin connection ─────────────────────────────────────────────────────────
 const garminConnected   = computed(() => !!page.props.auth.garminConnected);
@@ -1380,6 +1387,35 @@ const inputClass = 'z-input';
 
                             <div v-if="garminConnectOk && garminConnected" class="border-t border-line px-4 py-3">
                                 <p class="text-xs text-success-ink">Verbunden! Die letzten 60 Tage Erholungsdaten werden im Hintergrund geladen und erscheinen dann im Dashboard.</p>
+                            </div>
+                        </div>
+
+                        <!-- Telegram: der Coach meldet sich dort -->
+                        <div v-if="props.telegram.available" class="rounded-card bg-surface-2 overflow-hidden">
+                            <div class="flex items-center justify-between gap-4 px-4 py-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="h-10 w-10 rounded-field flex items-center justify-center shrink-0"
+                                        :class="props.telegram.linked ? 'bg-info-soft' : 'bg-surface-2'">
+                                        <svg class="h-6 w-6" :class="props.telegram.linked ? 'text-info' : 'text-ink-3'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 4L3 11l6 2.5M21 4l-3.5 16-8.5-6.5M21 4L9 13.5v5.5l3-3.5" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-semibold text-ink">Telegram</p>
+                                        <p v-if="props.telegram.linked" class="text-xs text-success-ink mt-0.5">Verbunden · dein Coach schreibt dir dort</p>
+                                        <p v-else class="text-xs text-ink-3 mt-0.5">Briefing, Reviews und Vorschläge direkt im Chat</p>
+                                    </div>
+                                </div>
+                                <div class="flex gap-2 shrink-0">
+                                    <button v-if="props.telegram.linked" @click="unlinkTelegram" :disabled="telegramForm.processing"
+                                        class="rounded-field border border-danger/25 px-3 py-1.5 text-xs font-semibold text-danger-ink hover:bg-danger-soft active:bg-danger-soft transition-colors disabled:opacity-50">
+                                        Trennen
+                                    </button>
+                                    <button v-else @click="linkTelegram" :disabled="telegramForm.processing"
+                                        class="rounded-field bg-info px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 active:opacity-80 transition-colors disabled:opacity-50">
+                                        Verbinden
+                                    </button>
+                                </div>
                             </div>
                         </div>
 

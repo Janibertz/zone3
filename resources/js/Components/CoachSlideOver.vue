@@ -89,6 +89,25 @@ async function fetchMessages() {
     }
 }
 
+/**
+ * Fragt nach, bis die Antwort des Coaches da ist. Ein Plan-Umbau mit
+ * Werkzeugen dauert auch mal eine Minute; nach drei Minuten gilt es als
+ * gescheitert — der Job schreibt dann ohnehin eine Fehlermeldung.
+ */
+async function waitForReply(messageId) {
+    const deadline = Date.now() + 180_000;
+    let delay = 1000;
+
+    while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, delay));
+        const res = await axios.get(route('coach.reply', messageId));
+        if (!res.data.pending) return res.data;
+        delay = Math.min(delay + 500, 3000);
+    }
+
+    throw new Error('timeout');
+}
+
 async function sendMessage(text) {
     const content = (text ?? inputText.value).trim();
     if (!content || isLoading.value) return;
@@ -101,7 +120,9 @@ async function sendMessage(text) {
     scrollToBottom();
 
     try {
-        const res = await axios.post(route('coach.send'), { message: content });
+        // Die Antwort entsteht in der Queue; hier wird nur nachgefragt.
+        const sent = await axios.post(route('coach.send'), { message: content });
+        const res  = { data: await waitForReply(sent.data.message_id) };
         if (res.data.response) {
             const actions = res.data.actions_taken ?? [];
 

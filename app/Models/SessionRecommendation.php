@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Ein Vorschlag des Coaches zur heutigen Einheit.
@@ -16,6 +17,15 @@ class SessionRecommendation extends Model
     protected $fillable = [
         'user_id', 'training_session_id', 'wellbeing_entry_id',
         'source', 'reason', 'before', 'after', 'status', 'responded_at',
+    ];
+
+    /**
+     * Der Datenbank-Standard allein reicht nicht: nach `create()` kennt das
+     * Modell ihn nicht, `isOpen()` war false — und der Observer schickte den
+     * Vorschlag nie nach Telegram.
+     */
+    protected $attributes = [
+        'status' => self::STATUS_PENDING,
     ];
 
     protected $casts = [
@@ -50,5 +60,63 @@ class SessionRecommendation extends Model
     public function isOpen(): bool
     {
         return $this->status === self::STATUS_PENDING;
+    }
+
+    /**
+     * Den Vorschlag annehmen. Die einzige Stelle, die das tut — das Dashboard
+     * und der Telegram-Knopf rufen beide hierher, sonst gaebe es zwei
+     * Schreibwege auf dieselbe Einheit.
+     *
+     * Die Einheit bekommt `pinned_at` — genau wie alles, was der Athlet über
+     * den Coach-Chat setzt. Ohne das würde die nächste Neuberechnung seine
+     * Entscheidung still wieder wegwerfen.
+     *
+     * @return bool false, wenn die Einheit inzwischen fehlt
+     */
+    public function accept(): bool
+    {
+        if (! $this->isOpen()) {
+            return true;
+        }
+
+        $session = $this->session;
+
+        if (! $session) {
+            $this->update(['status' => self::STATUS_EXPIRED, 'responded_at' => now()]);
+
+            return false;
+        }
+
+        $session->update(array_intersect_key($this->after, array_flip(self::FIELDS)) + [
+            'pinned_at' => now(),
+            // Steps und Verpflegungstipps beschrieben die alte Einheit.
+            'steps'          => null,
+            'nutrition_tips' => null,
+        ]);
+
+        $this->update(['status' => self::STATUS_ACCEPTED, 'responded_at' => now()]);
+
+        Log::info('Empfehlung angenommen', [
+            'user_id'        => $this->user_id,
+            'session_id'     => $session->id,
+            'recommendation' => $this->id,
+        ]);
+
+        return true;
+    }
+
+    /** Den Vorschlag ablehnen — der Plan bleibt, wie er ist. */
+    public function reject(): void
+    {
+        if (! $this->isOpen()) {
+            return;
+        }
+
+        $this->update(['status' => self::STATUS_REJECTED, 'responded_at' => now()]);
+
+        Log::info('Empfehlung abgelehnt', [
+            'user_id'        => $this->user_id,
+            'recommendation' => $this->id,
+        ]);
     }
 }

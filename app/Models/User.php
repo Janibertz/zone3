@@ -21,8 +21,10 @@ use Illuminate\Notifications\Notifiable;
     'notify_monthly_review',
     'avatar', 'bio', 'location', 'birth_year', 'favorite_distance', 'coach_id',
     'garmin_email', 'garmin_session', 'ai_daily_limit',
-    'newsletter_opt_in', 'unsubscribe_token'])]
-#[Hidden(['password', 'remember_token', 'garmin_session', 'garmin_email', 'unsubscribe_token'])]
+    'newsletter_opt_in', 'unsubscribe_token',
+    'telegram_chat_id', 'telegram_link_token', 'telegram_linked_at'])]
+#[Hidden(['password', 'remember_token', 'garmin_session', 'garmin_email', 'unsubscribe_token',
+    'telegram_chat_id', 'telegram_link_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -47,7 +49,14 @@ class User extends Authenticatable
             'notify_monthly_review'         => 'boolean',
             'garmin_session'                => 'encrypted',
             'newsletter_opt_in'             => 'boolean',
+            'telegram_linked_at'            => 'datetime',
         ];
+    }
+
+    /** Ob der Coach diesen Athleten auch per Telegram erreicht. */
+    public function hasTelegram(): bool
+    {
+        return $this->telegram_chat_id !== null;
     }
 
     public function coach()

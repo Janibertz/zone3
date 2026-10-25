@@ -425,6 +425,8 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar');
     Route::patch('/profile/coach', [ProfileController::class, 'updateCoach'])->name('profile.coach');
+    Route::post('/profile/telegram', [\App\Http\Controllers\TelegramLinkController::class, 'store'])->name('telegram.link');
+    Route::delete('/profile/telegram', [\App\Http\Controllers\TelegramLinkController::class, 'destroy'])->name('telegram.unlink');
     Route::post('/profile/garmin-connect', [ProfileController::class, 'garminConnect'])->name('profile.garmin-connect');
     Route::post('/profile/garmin-sync-health', [ProfileController::class, 'garminSyncHealth'])->name('profile.garmin-sync-health');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -580,6 +582,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     // Coach Chat
     Route::get('/api/coach/messages', [CoachChatController::class, 'messages'])->name('coach.messages');
     Route::post('/api/coach/chat', [CoachChatController::class, 'send'])->name('coach.send');
+    Route::get('/api/coach/chat/{message}/reply', [CoachChatController::class, 'reply'])->name('coach.reply');
     // Verlauf und Gemerktes sind zwei verschiedene Dinge und werden einzeln geloescht.
     // Ueber einen Vorschlag des Coaches entscheiden. Der Athlet, nicht der Job.
     Route::post('/recommendations/{recommendation}/accept', [\App\Http\Controllers\SessionRecommendationController::class, 'accept'])->name('recommendations.accept');
@@ -609,6 +612,10 @@ Route::post('/strava/webhook', [StravaController::class, 'webhook'])->name('stra
 
 // GitHub Webhook — no auth middleware, signature-verified
 Route::post('/webhook/github', [WebhookController::class, 'github'])->name('webhook.github');
+
+// Telegram-Bot des Coaches. Geschuetzt durch das Geheimnis im Header, nicht
+// durch eine Sitzung — siehe TelegramWebhookController.
+Route::post('/telegram/webhook', [\App\Http\Controllers\TelegramWebhookController::class, 'handle'])->name('telegram.webhook');
 
 // ── LiveTrack ────────────────────────────────────────────────────────────────
 // Oeffentliche Verfolgerseite: kein Login, Zugang allein ueber den

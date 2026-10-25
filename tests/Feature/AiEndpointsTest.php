@@ -47,13 +47,27 @@ class AiEndpointsTest extends TestCase
         ]);
     }
 
+    /**
+     * Fragen und Antwort abholen. Die Antwort entsteht in CoachReplyJob;
+     * unter Test laeuft die Queue synchron, sie ist also beim Nachfragen da.
+     */
+    private function ask(User $user, string $message): \Illuminate\Testing\TestResponse
+    {
+        $sent = $this->actingAs($user)
+            ->postJson(route('coach.send'), ['message' => $message])
+            ->assertStatus(202)
+            ->assertJsonPath('pending', true);
+
+        return $this->getJson(route('coach.reply', $sent->json('message_id')))
+            ->assertOk()
+            ->assertJsonPath('pending', false);
+    }
+
     public function test_the_coach_chat_endpoint_answers(): void
     {
         $this->fakeReply('Klingt gut, bleib dran!');
 
-        $this->actingAs($this->athlete())
-            ->postJson(route('coach.send'), ['message' => 'Wie läuft mein Training?'])
-            ->assertOk()
+        $this->ask($this->athlete(), 'Wie läuft mein Training?')
             ->assertJsonPath('response', 'Klingt gut, bleib dran!');
     }
 
@@ -99,9 +113,7 @@ class AiEndpointsTest extends TestCase
                 ->push($answer),
         ]);
 
-        $this->actingAs($user)
-            ->postJson(route('coach.send'), ['message' => 'Merk dir das bitte.'])
-            ->assertOk()
+        $this->ask($user, 'Merk dir das bitte.')
             ->assertJsonPath('response', 'Notiert!');
 
         $this->assertStringContainsString(
@@ -152,9 +164,7 @@ class AiEndpointsTest extends TestCase
                 ]),
         ]);
 
-        $this->actingAs($user)
-            ->postJson(route('coach.send'), ['message' => 'Mach das bitte.'])
-            ->assertOk()
+        $this->ask($user, 'Mach das bitte.')
             ->assertJsonPath('response', 'Erledigt.');
     }
 
@@ -164,7 +174,7 @@ class AiEndpointsTest extends TestCase
         $this->fakeReply('Alles im grünen Bereich.');
         $user = $this->athlete();
 
-        $this->actingAs($user)->postJson(route('coach.send'), ['message' => 'Hallo'])->assertOk();
+        $this->ask($user, 'Hallo');
 
         $this->assertDatabaseHas('coach_messages', [
             'user_id' => $user->id,

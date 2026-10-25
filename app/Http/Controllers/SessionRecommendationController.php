@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\SessionRecommendation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Über einen Vorschlag des Coaches entscheiden.
@@ -18,13 +17,7 @@ use Illuminate\Support\Facades\Log;
  */
 class SessionRecommendationController extends Controller
 {
-    /**
-     * Den Vorschlag annehmen.
-     *
-     * Die Einheit bekommt `pinned_at` — genau wie alles, was der Athlet über
-     * den Coach-Chat setzt. Ohne das würde die nächste Neuberechnung seine
-     * Entscheidung still wieder wegwerfen.
-     */
+    /** Den Vorschlag annehmen — siehe {@see SessionRecommendation::accept()}. */
     public function accept(Request $request, SessionRecommendation $recommendation): RedirectResponse
     {
         $this->mine($request, $recommendation);
@@ -33,59 +26,19 @@ class SessionRecommendationController extends Controller
             return back();
         }
 
-        $session = $recommendation->session;
-
-        if (! $session) {
-            $recommendation->update([
-                'status'       => SessionRecommendation::STATUS_EXPIRED,
-                'responded_at' => now(),
-            ]);
-
+        if (! $recommendation->accept()) {
             return back()->with('error', 'Die Einheit gibt es nicht mehr.');
         }
-
-        $session->update(array_intersect_key(
-            $recommendation->after,
-            array_flip(SessionRecommendation::FIELDS),
-        ) + [
-            'pinned_at' => now(),
-            // Steps und Verpflegungstipps beschrieben die alte Einheit.
-            'steps'          => null,
-            'nutrition_tips' => null,
-        ]);
-
-        $recommendation->update([
-            'status'       => SessionRecommendation::STATUS_ACCEPTED,
-            'responded_at' => now(),
-        ]);
-
-        Log::info('Empfehlung angenommen', [
-            'user_id'        => $request->user()->id,
-            'session_id'     => $session->id,
-            'recommendation' => $recommendation->id,
-        ]);
 
         return back()->with('success', 'Die Einheit wurde angepasst.');
     }
 
-    /**
-     * Den Vorschlag ablehnen — der Plan bleibt, wie er ist.
-     */
+    /** Den Vorschlag ablehnen — der Plan bleibt, wie er ist. */
     public function reject(Request $request, SessionRecommendation $recommendation): RedirectResponse
     {
         $this->mine($request, $recommendation);
 
-        if ($recommendation->isOpen()) {
-            $recommendation->update([
-                'status'       => SessionRecommendation::STATUS_REJECTED,
-                'responded_at' => now(),
-            ]);
-
-            Log::info('Empfehlung abgelehnt', [
-                'user_id'        => $request->user()->id,
-                'recommendation' => $recommendation->id,
-            ]);
-        }
+        $recommendation->reject();
 
         return back()->with('success', 'Alles bleibt wie geplant.');
     }

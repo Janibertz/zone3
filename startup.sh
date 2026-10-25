@@ -21,6 +21,10 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
+echo "[startup] Registering Telegram webhook..."
+# Idempotent; ohne TELEGRAM_BOT_TOKEN ein No-op.
+php artisan telegram:set-webhook --no-interaction || true
+
 echo "[startup] Starting queue worker in background..."
 # Restart-loop so the worker comes back up automatically if it exits.
 # `imports` steht mit in der Liste, obwohl nichts mehr darauf schreibt: eine
