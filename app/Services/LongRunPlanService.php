@@ -61,9 +61,15 @@ class LongRunPlanService
     /** Darüber ist die Steigerung sportlich, aber noch vertretbar. */
     private const SAFE_STEP_KM = 3.5;
 
-    /** Entlastung in jeder dritten Woche. */
-    private const CUTBACK_EVERY = 3;
+    /**
+     * So viel kürzer ist der lange Lauf einer Entlastungswoche. WELCHE Woche
+     * entlastet, entscheidet {@see PeriodizationService} — vorher zählte die
+     * Leiter selbst jede dritte Woche ab heute, und bei einem Plan, der jeden
+     * Sonntag neu ansetzt, kam diese Woche nie an.
+     */
     private const CUTBACK_FACTOR = 0.7;
+
+    public function __construct(private readonly PeriodizationService $periods) {}
 
     /**
      * @param  array       $volume     Ergebnis von {@see WeeklyVolumeService::forUser()}
@@ -105,7 +111,12 @@ class LongRunPlanService
         // nicht bei null an, sondern bei einer Stunde auf den Beinen.
         $current = max($volume['longest_run'] ?? 0, round(60 * 60 / $longSec, 1));
 
-        [$ladder, $kinds, $peak] = $this->climb($current, $idealPeak, count($weeks['build']));
+        $recovery = array_map(
+            fn (string $key) => $this->periods->forWeek($event, self::weekStart($key))['recovery'],
+            $weeks['build'],
+        );
+
+        [$ladder, $kinds, $peak] = $this->climb($current, $idealPeak, $recovery);
 
         $plan = [];
         foreach ($weeks['build'] as $i => $key) {
@@ -144,17 +155,20 @@ class LongRunPlanService
      * die Höhe, die dabei tatsächlich erreicht wird — die kann unter dem
      * Ideal liegen, wenn die Wochen nicht reichen.
      *
+     * @param  list<bool>  $recovery  je Aufbauwoche: entlastet sie?
+     *
      * @return array{0: list<float>, 1: list<string>, 2: float}
      */
-    private function climb(float $current, float $idealPeak, int $steps): array
+    private function climb(float $current, float $idealPeak, array $recovery): array
     {
         $ladder = [];
         $kinds  = [];
         $last   = $current;
+        $steps  = count($recovery);
 
         for ($i = 0; $i < $steps; $i++) {
             $isPeak    = $i === $steps - 1;
-            $isCutback = ! $isPeak && ($i + 1) % self::CUTBACK_EVERY === 0;
+            $isCutback = ! $isPeak && $recovery[$i];
 
             if ($isCutback) {
                 // Die Entlastung bricht die Leiter nicht ab: der nächste
@@ -223,7 +237,7 @@ class LongRunPlanService
         // beim Marathon drei Wochen. Über Wochen zu zählen ging daneben,
         // sobald das Rennen nicht am Wochenanfang lag: der Peak rutschte
         // eine Woche zu früh und der Aufbau verlor eine Woche.
-        $peakWeek = $raceDate->subDays($taperDays)->startOfWeek()->format('o-\WW');
+        $peakWeek = PeriodizationService::peakWeek($raceDate, $taperDays)->format('o-\WW');
         $peakIdx  = array_search($peakWeek, $keys, true);
 
         if ($peakIdx === false) {
@@ -235,6 +249,14 @@ class LongRunPlanService
             'build' => array_slice($keys, 0, $peakIdx + 1),
             'taper' => array_values(array_slice($keys, $peakIdx + 1)),
         ];
+    }
+
+    /** Montag einer ISO-Woche (`2026-W44`). */
+    private static function weekStart(string $key): CarbonImmutable
+    {
+        [$year, $week] = explode('-W', $key);
+
+        return CarbonImmutable::now()->setISODate((int) $year, (int) $week)->startOfWeek();
     }
 
     private function verdict(Event $event, float $current, float $peak, float $idealPeak, array $spec, int $minutesCap, int $steps): string

@@ -30,6 +30,7 @@ class PlanContextBuilder
         private readonly TrainingPaceService $paces,
         private readonly WeeklyVolumeService $volume,
         private readonly LongRunPlanService $longRuns,
+        private readonly IntensityDistributionService $intensity,
     ) {}
 
     /**
@@ -124,6 +125,7 @@ class PlanContextBuilder
             paces:                 $paces,
             volume:                $volume,
             longRuns:              $longRuns,
+            intensity:             $this->intensity->forUser($user->id, $vdot['value'] ?? null, $windowFrom),
         );
 
         // Gerüst und Garmin-Zusammenfassung bauen auf dem Rest auf.

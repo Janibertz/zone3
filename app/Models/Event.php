@@ -217,35 +217,14 @@ class Event extends Model
      * 14 Tage vorher — der Prompt bekam für denselben Tag „längster Lauf"
      * und „kein Umfang mehr". Jetzt beginnt der Taper dort, wo die Leiter
      * ihn beginnen lässt, und die Rennwoche ist die letzte Woche.
+     *
+     * Die Grenzen stehen in {@see \App\Services\PeriodizationService},
+     * dort rechnet auch der Plan.
      */
     public function getTrainingPhaseAttribute(): array
     {
-        $days  = $this->days_until;
-        $taper = \App\Services\LongRunPlanService::taperDays($this->race_distance);
-
-        if ($days < 0) {
-            return ['key' => 'past',      'label' => 'Vergangenheit', 'color' => 'gray'];
-        } elseif ($days <= self::RACE_WEEK_DAYS) {
-            return ['key' => 'race_week', 'label' => 'Race Week',     'color' => 'red'];
-        } elseif ($days <= $taper) {
-            return ['key' => 'taper',     'label' => 'Taper',         'color' => 'yellow'];
-        } elseif ($days <= $taper + self::PEAK_PHASE_DAYS) {
-            return ['key' => 'peak',      'label' => 'Peak',           'color' => 'orange'];
-        } elseif ($days <= $taper + self::PEAK_PHASE_DAYS + self::BUILD_PHASE_DAYS) {
-            return ['key' => 'build',     'label' => 'Build',          'color' => 'blue'];
-        } else {
-            return ['key' => 'base',      'label' => 'Base',           'color' => 'green'];
-        }
+        return app(\App\Services\PeriodizationService::class)->phaseOn($this);
     }
-
-    /** Die letzte Woche vor dem Rennen. */
-    private const RACE_WEEK_DAYS = 7;
-
-    /** Spezifische Phase vor dem Taper: sechs Wochen Renntempo-Arbeit. */
-    private const PEAK_PHASE_DAYS = 42;
-
-    /** Aufbau davor: sechs Wochen. */
-    private const BUILD_PHASE_DAYS = 42;
 
     public function getWeeksUntilAttribute(): int
     {

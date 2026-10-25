@@ -290,6 +290,8 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
 
         // CTL / ATL / TSB training load metrics
         'trainingLoad' => $trainingLoadService->calculate($user->id),
+        // 80/20 nach dem, was gelaufen wurde — nicht nach dem Plan.
+        'intensityDistribution' => app(\App\Services\IntensityDistributionService::class)->forUser($user->id, $runnerProfile?->vdot()),
 
         // Weekly AI review (generated every Monday, cached for the week)
         'weeklyReview' => (function () use ($user) {

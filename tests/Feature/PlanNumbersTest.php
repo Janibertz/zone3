@@ -141,7 +141,7 @@ class PlanNumbersTest extends TestCase
             ->toPromptSection(app(WeeklyVolumeService::class)->forUser($user->id), $this->marathon($user));
 
         $this->assertStringContainsString('44 km NICHT überschreiten', $text);
-        $this->assertStringContainsString('Entlastungswoche', $text);
+        $this->assertStringContainsString('Periodisierung', $text);
     }
 
     // ── Datenhygiene ─────────────────────────────────────────────────────

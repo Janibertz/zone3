@@ -26,7 +26,7 @@ class WeeklyPatternTest extends TestCase
         return Event::create([
             'user_id'             => $user->id,
             'name'                => 'Testrennen',
-            'event_date'          => now()->addDays($daysUntil),
+            'event_date'          => CarbonImmutable::parse('2026-08-17')->addDays($daysUntil), // relativ zum Fenster in build()
             'race_distance'       => $distance,
             'priority'            => 'A',
             'target_time_hours'   => 1,

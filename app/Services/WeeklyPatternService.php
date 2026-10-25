@@ -83,6 +83,33 @@ class WeeklyPatternService
      */
     private const RACE_COUNTS_AS_LONG_RUN_KM = 15.0;
 
+    /**
+     * Höchstens so viel der Laufzeit einer Woche ist hart (Seiler, 80/20).
+     *
+     * Gezählt werden die Hauptteile der harten Einheiten und die
+     * Renntempo-Abschnitte des langen Laufs. Einlaufen und Auslaufen sind
+     * locker, auch wenn sie in einem Intervalltag stecken. Daneben gilt
+     * weiter die Regel nach Einheiten ({@see SECOND_HARD_FROM_SESSIONS}) —
+     * Entscheidung vom 25.10.2026: beides.
+     */
+    public const HARD_SHARE = 0.20;
+
+    /** So lang ist der Hauptteil einer harten Einheit, wenn die Woche Platz hat. */
+    public const HARD_MAIN_MINUTES = [
+        'tempo_run'       => 25,
+        'interval'        => 20,
+        'progressive_run' => 15,
+        'test_run'        => 20,
+    ];
+
+    /** Darunter ist ein Hauptteil kein Reiz mehr — die Einheit wird locker. */
+    public const MIN_HARD_MAIN_MINUTES = 10;
+
+    /** Einlaufen und Auslaufen zusammen. */
+    public const WARMUP_COOLDOWN_MINUTES = 20;
+
+    public function __construct(private readonly PeriodizationService $periodization) {}
+
     private const ISO_TO_KEY = [
         1 => 'monday', 2 => 'tuesday', 3 => 'wednesday', 4 => 'thursday',
         5 => 'friday', 6 => 'saturday', 7 => 'sunday',
@@ -113,6 +140,7 @@ class WeeklyPatternService
         $days     = $this->availabilityPerDate($from, $to, $weeklyAvailability, $overrides, $finalizedDates, $races);
         $priority = self::PRIORITIES[$event->race_distance] ?? self::DEFAULT_PRIORITY;
         $maxHard  = self::MAX_HARD_PER_WEEK[$event->race_distance] ?? 2;
+        $periods  = $this->periodization->forWindow($event, $from, $to);
 
         // Die Stufe wandert über die Wochen mit: sie zählt Trainingseinheiten,
         // nicht Kalendertage. Ist die Leiter durch, plant die nächste Woche
@@ -127,9 +155,21 @@ class WeeklyPatternService
 
         $weeks = [];
         foreach ($this->groupByWeek($days) as $weekKey => $dates) {
+            // Die Phase entscheidet, welche harten Einheiten die Woche
+            // überhaupt bekommt — in der Grundlage keine Intervalle, in einer
+            // Entlastungswoche nur eine.
+            $period       = $periods[$weekKey] ?? null;
+            $weekPriority = $period
+                ? array_values(array_filter(
+                    $priority,
+                    fn ($t) => ! in_array($t, self::HARD_TYPES, true) || in_array($t, $period['quality'], true),
+                ))
+                : $priority;
+            $weekMaxHard  = $period ? min($maxHard, $period['max_hard']) : $maxHard;
+
             $weeks[$weekKey] = $step !== null && $step < ReturnToRunService::TOTAL_STEPS
                 ? $this->planComebackWeek($days, $dates, $step, $lastRun, $priority, $maxHard)
-                : $this->planWeek($days, $dates, $priority, $maxHard);
+                : $this->planWeek($days, $dates, $weekPriority, $weekMaxHard);
 
             // Was danach noch frei ist, wird HIER entschieden — nicht vom
             // Modell. Siehe assignFreeDays().
@@ -146,8 +186,12 @@ class WeeklyPatternService
         // Wochenumfang. Muss NACH der Leiter laufen: der lange Lauf geht vor,
         // der Rest teilt sich, was übrig bleibt.
         if ($volume && ! empty($volume['has_data']) && $planningPaceSec > 0) {
-            $this->applyVolumeBudget($days, $volume, $planningPaceSec, $priority);
+            $this->applyVolumeBudget($days, $volume, $planningPaceSec, $priority, $periods);
         }
+
+        // 80/20 nach Zeit — erst jetzt, weil es die Minuten aller Einheiten
+        // der Woche braucht.
+        $this->applyEightyTwenty($days, $priority);
 
         return [
             'days'      => $days,
@@ -155,6 +199,7 @@ class WeeklyPatternService
             'priority'  => $priority,
             'comeback'  => $comeback,
             'long_runs' => $longRuns,
+            'periods'   => $periods,
         ];
     }
 
@@ -319,7 +364,7 @@ class WeeklyPatternService
      *
      * @param  list<string>  $priority  Wunschreihenfolge; von hinten wird gestrichen.
      */
-    private function applyVolumeBudget(array &$days, array $volume, int $paceSec, array $priority): void
+    private function applyVolumeBudget(array &$days, array $volume, int $paceSec, array $priority, array $periods = []): void
     {
         $budgetKm = (float) ($volume['next_week_max'] ?? 0);
         if ($budgetKm <= 0) {
@@ -331,17 +376,138 @@ class WeeklyPatternService
         // hungerte die zweite Woche aus: ihr langer Lauf ist laut Leiter
         // länger, und vom selben Deckel bliebe für den Rest der Woche
         // weniger übrig als in der ersten.
+        //
+        // Entlastung und Taper kommen als Faktor obendrauf. Sie stehen damit
+        // im Gerüst und nicht als Bitte im Prompt („jede dritte bis vierte
+        // Woche entlasten"), die nie jemand durchgesetzt hat.
         $week = 0;
-        foreach ($this->groupByWeek($days) as $dates) {
+        foreach ($this->groupByWeek($days) as $weekKey => $dates) {
             $this->budgetWeek(
                 $days,
                 $dates,
-                $budgetKm * (1 + WeeklyVolumeService::MAX_PROGRESSION_PCT / 100) ** $week,
+                $budgetKm
+                    * (1 + WeeklyVolumeService::MAX_PROGRESSION_PCT / 100) ** $week
+                    * ($periods[$weekKey]['volume_factor'] ?? 1.0),
                 $paceSec,
                 $priority,
             );
             $week++;
         }
+    }
+
+    /**
+     * 80/20 nach Zeit: höchstens 20 % der Laufminuten einer Woche sind hart.
+     *
+     * Die Regel nach Einheiten allein reichte nicht. Eine Woche mit vier
+     * Läufen, davon ein Intervalltag und ein langer Lauf mit 8 km im
+     * Renntempo, war nach Einheiten 75/25 in Ordnung — nach Zeit kam sie auf
+     * fast ein Drittel hart.
+     *
+     * Jede harte Einheit bekommt hier `hard_min`: die Minuten ihres
+     * Hauptteils. Was der Renntempo-Abschnitt des langen Laufs und ein fester
+     * harter Termin verbrauchen, geht vorher ab. Reicht der Rest nicht für
+     * einen Hauptteil mit Substanz, wird die unwichtigste harte Einheit
+     * locker — eine halbe Intervalleinheit setzt keinen Reiz, ermüdet aber.
+     *
+     * Rennen zählen nicht mit: ein Marathon wäre allein 180 harte Minuten,
+     * und er wird nicht geplant, sondern gelaufen.
+     *
+     * @param  list<string>  $priority  Wunschreihenfolge; von hinten wird gestrichen.
+     */
+    private function applyEightyTwenty(array &$days, array $priority): void
+    {
+        foreach ($this->groupByWeek($days) as $dates) {
+            $total      = 0.0;
+            $taken      = 0.0;
+            $open       = [];
+            $incomplete = false;
+
+            foreach ($dates as $date) {
+                foreach ($days[$date]['slots'] ?? [] as $i => $slot) {
+                    if (! empty($slot['race']) || ! in_array($slot['type'], self::RUN_SLOT_TYPES, true)) {
+                        continue;
+                    }
+
+                    $min = (int) ($slot['target_min'] ?? 0);
+                    $total += $min;
+
+                    if ($slot['type'] === 'long_run') {
+                        $km = (float) ($slot['target_km'] ?? 0);
+                        if ($km > 0 && ($slot['race_km'] ?? 0) > 0) {
+                            $taken += (float) $slot['race_km'] * $min / $km;
+                        }
+                        continue;
+                    }
+
+                    if (! in_array($slot['type'], self::HARD_TYPES, true)) {
+                        continue;
+                    }
+
+                    $want = self::HARD_MAIN_MINUTES[$slot['type']] ?? 20;
+                    if ($min > 0) {
+                        $want = min($want, max(0, $min - self::WARMUP_COOLDOWN_MINUTES));
+                    } else {
+                        // Ohne Wochenumfang (keine Laufdaten) gibt es keine
+                        // Minuten, gegen die sich ein Anteil rechnen liesse.
+                        // Dann bleibt es beim Richtwert; der Validator prüft
+                        // gegen das, was das Modell tatsächlich plant.
+                        $incomplete = true;
+                    }
+
+                    if (! empty($slot['fixed'])) {
+                        $taken += $want;
+                        continue;
+                    }
+
+                    $open[] = ['date' => $date, 'index' => $i, 'type' => $slot['type'], 'want' => $want];
+                }
+            }
+
+            if ($open === []) {
+                continue;
+            }
+
+            $cap = $incomplete ? INF : self::HARD_SHARE * $total - $taken;
+
+            // Solange der Rest nicht für jeden Hauptteil die Mindestdauer
+            // trägt, wird die unwichtigste harte Einheit locker.
+            while ($open && array_sum(array_column($open, 'want')) > $cap
+                && $cap / count($open) < self::MIN_HARD_MAIN_MINUTES) {
+                $victim = $this->leastImportantHard($open, $priority);
+                $o      = $open[$victim];
+
+                $days[$o['date']]['slots'][$o['index']]['type']         = 'easy_run';
+                $days[$o['date']]['slots'][$o['index']]['hard']         = false;
+                $days[$o['date']]['slots'][$o['index']]['eighty_twenty'] = $o['type'];
+
+                array_splice($open, $victim, 1);
+            }
+
+            $wanted = array_sum(array_column($open, 'want'));
+            $scale  = $wanted > $cap && $wanted > 0 ? $cap / $wanted : 1.0;
+
+            foreach ($open as $o) {
+                $days[$o['date']]['slots'][$o['index']]['hard_min'] = (int) max(
+                    min(self::MIN_HARD_MAIN_MINUTES, $o['want']),
+                    floor($o['want'] * $scale),
+                );
+            }
+        }
+    }
+
+    /** Die harte Einheit, die nach der Wunschreihenfolge am ehesten wegkann. */
+    private function leastImportantHard(array $open, array $priority): int
+    {
+        $rank  = array_flip($priority);
+        $worst = 0;
+
+        foreach ($open as $i => $o) {
+            if (($rank[$o['type']] ?? PHP_INT_MAX) >= ($rank[$open[$worst]['type']] ?? PHP_INT_MAX)) {
+                $worst = $i;
+            }
+        }
+
+        return $worst;
     }
 
     /**
@@ -1133,17 +1299,27 @@ class WeeklyPatternService
 
                 $optional = ! empty($slot['optional']) ? ' [optional, weglassen wenn unpassend]' : '';
 
+                // 80/20 nach Zeit: der Hauptteil hat eine Obergrenze. Und
+                // eine Einheit, die deswegen locker wurde, sagt es — sonst
+                // schreibt das Modell den Tempolauf trotzdem hinein.
+                $hard = isset($slot['hard_min'])
+                    ? " — Hauptteil (Zone 4–5) hoechstens {$slot['hard_min']} min, hard_min={$slot['hard_min']}"
+                    : '';
+                if (! empty($slot['eighty_twenty'])) {
+                    $optional .= " — statt {$slot['eighty_twenty']}: die Woche laege sonst ueber 20 % harter Laufzeit. Rein locker, keine Tempoabschnitte";
+                }
+
                 // Der Zielumfang kommt aus dem Wochenbudget. Ohne ihn stand
                 // dort nur die Verfuegbarkeit — und das Modell las eine
                 // Obergrenze von 120 Minuten als Auftrag, 120 Minuten zu
                 // planen.
                 if (isset($slot['target_km'])) {
                     $parts[] = "type=\"{$slot['type']}\" ({$label}) — Ziel {$slot['target_km']} km"
-                        . " (~{$slot['target_min']} min){$slotCap}{$optional}";
+                        . " (~{$slot['target_min']} min){$slotCap}{$hard}{$optional}";
                     continue;
                 }
 
-                $parts[]  = "type=\"{$slot['type']}\" ({$label}{$slotCap}){$optional}";
+                $parts[]  = "type=\"{$slot['type']}\" ({$label}{$slotCap}){$hard}{$optional}";
             }
 
             $lines[] = "- {$date} ({$wd}): hoechstens {$cap} → " . implode(' + ', $parts);
@@ -1153,7 +1329,8 @@ class WeeklyPatternService
         // der Wochenplanung. Letzteres entsteht, bevor das Umfangsbudget
         // Einheiten streicht — die Übersicht behauptete danach Einheiten,
         // die in der Tagesliste darunter gar nicht mehr standen.
-        $byWeek = [];
+        $byWeek  = [];
+        $minutes = [];
         foreach ($skeleton['days'] as $day) {
             if ($day['finalized'] || ! empty($day['kept'])) {
                 continue;
@@ -1162,6 +1339,10 @@ class WeeklyPatternService
             foreach ($day['slots'] ?? [] as $slot) {
                 if (in_array($slot['type'], self::RUN_SLOT_TYPES, true)) {
                     $byWeek[$day['week']][] = $slot['type'];
+
+                    if (empty($slot['race'])) {
+                        $minutes[$day['week']] = ($minutes[$day['week']] ?? 0) + (int) ($slot['target_min'] ?? 0);
+                    }
                 }
             }
         }
@@ -1171,7 +1352,12 @@ class WeeklyPatternService
             $list = ! empty($byWeek[$weekKey])
                 ? implode(', ', $byWeek[$weekKey])
                 : 'keine Laufeinheit';
-            $planned[] = "- {$weekKey}: {$list}";
+
+            $share = ($minutes[$weekKey] ?? 0) > 0
+                ? " — rund {$minutes[$weekKey]} min Laufzeit, davon hoechstens " . (int) floor($minutes[$weekKey] * self::HARD_SHARE) . ' min hart'
+                : '';
+
+            $planned[] = "- {$weekKey}: {$list}{$share}";
         }
 
         $comeback = '';
@@ -1188,6 +1374,7 @@ class WeeklyPatternService
             . $comeback
             . "\n\nRegeln zum Gerüst:\n"
             . "- Der vorgegebene \"type\" jedes Tages ist BINDEND. Du füllst nur title, description, distance_km, duration_min, pace_target, zone und intensity aus.\n"
+            . "- 80/20 NACH ZEIT: Hoechstens 20 % der Laufminuten einer Woche sind hart (Zone 4–5 und Renntempo-Abschnitte). Einlaufen, Trabpausen und Auslaufen zaehlen als locker. Gib bei jeder harten Einheit \"hard_min\" an — die Minuten ihres Hauptteils — und halte die Obergrenze aus dem Geruest ein. Bei allen anderen Einheiten hard_min=0.\n"
             . "- HÖCHSTENS EINE LAUFEINHEIT PRO TAG. Ein Tag bekommt genau so viele Einträge, wie oben Slots stehen — nie mehr. Ein zweiter Eintrag am selben Tag darf ausschließlich strength, core oder mobility sein, niemals ein weiterer Lauf.\n"
             . "- Tage mit zwei Einträgen bekommen ZWEI Objekte mit demselben \"date\"; die Summe beider duration_min darf das Tages-Maximum nicht überschreiten.\n"
             . "- Steht bei einer Einheit \"max. N min\", ist das ihre Obergrenze — nicht die des Tages. Sie zu überschreiten oder die fehlende Zeit mit einer zweiten Einheit aufzufüllen, ist beides falsch.\n"
