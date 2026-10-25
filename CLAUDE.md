@@ -51,7 +51,7 @@ The queue worker and scheduler both run as background loops inside the same cont
 
 **Zone3** is an AI-powered endurance training platform: Laravel 13 + Vue 3 + Inertia.js. Users connect Strava, set race goals, and get AI-generated training plans. OpenAI drives plan generation, threshold pace calculation, coach chat, and daily messaging.
 
-Strava delivers **all** activity types. Counting and display are multi-sport (fixed filter: Alle · Laufen · Rad · Schwimmen); **plan generation is running-only** — threshold pace, weekly volume and the long-run ladder all filter `type = 'Run'`. The stated direction is triathlon / backyard / running, but nothing in the planner supports swim or bike training yet.
+Strava delivers **all** activity types. Counting and display are multi-sport (fixed filter: Alle · Laufen · Rad · Schwimmen); **plan generation is running-first** — threshold pace, weekly volume and the long-run ladder all filter `type = 'Run'`. The one exception is the bike (Zwift): it can replace easy runs and one interval session per week (see „Rad / Zwift"). Swim is not planned.
 
 **Mobile first.** Zone3 is used as a PWA from the iPhone home screen; desktop is explicitly secondary. Anything pinned to a screen edge needs the safe-area utilities in `resources/css/app.css` (`pt-safe-banner`, `pt-mobile-header`, `pb-safe-tabbar`, `pb-safe-sheet`). In standalone mode there is no browser chrome — `top-0` really does sit under the Dynamic Island.
 
@@ -694,7 +694,23 @@ Zwift-Fahrten kommen über Strava als `VirtualRide`. Zwift nimmt Einheiten nur a
 - **Radeinheiten sind fest, nicht vom Modell** (`App\Services\Bike\BikeWorkouts`): locker 60–75 % FTP, VO2max 4–6×4 min bei 110–120 %, Schwelle 2–4×10 min bei 95–100 %. Die Schritte haben die Form der Laufschritte plus `power_low`/`power_high` (Anteil der FTP) und `watts`. Ein Modell würde hier nur Zahlen erfinden, die schon feststehen.
 - **`GET /training-sessions/{session}/zwift.zwo`** (`ZwoWriter`) — nur für Einheiten, deren Schritte in % FTP stehen. Arbeit + Pause mit gleicher Wiederholung wird ein `IntervalsT`. Die Leistung steht als Anteil der FTP in der Datei; Zwift rechnet mit der FTP, die dort hinterlegt ist.
 - **FTP-Hinweis** (`FtpCheck`): Zone3 schätzt keine FTP, aber eine Fahrt kann belegen, dass die eingetragene zu niedrig ist. Gemessen an der Normalized Power (`activities.weighted_average_watts`, sonst Durchschnitt), ab 20 min mit 95 %, ab 60 min mit 100 %, 3 % Luft. Geschätzte Watt (`device_watts = false`) zählen nicht; ältere Fahrten ohne Herkunft nur auf Zwift. Hinweis auf der Aktivitätsseite, Vorschlag mit „Übernehmen" im Profil (stärkste Fahrt der letzten 6 Wochen).
-- **Die Planlogik fehlt noch** — wann ein Radtag einen Lauf ersetzt, wartet auf Jans Entscheidung.
+**Rad im Plan** (`App\Services\Bike\BikeSchedule`, läuft am Ende von `WeeklyPatternService::build()`, nach Umfangsbudget und 80/20). Jans fünf Regeln vom 25.10.2026:
+
+1. Rad ersetzt einen **lockeren Lauf** — Wunschtage zuerst, sonst nach Datum —, bis `bike_max_per_week`. Der lange Lauf nie. Dauer = Lauf × `BikeWorkouts::EASY_DURATION_FACTOR` (**1,25**, Entscheidung von Jan), gedeckelt durch das Tagesfenster.
+2. **Höchstens ein Radintervall** pro Woche, statt der VO2-Intervalle (`interval`), nie statt Tempo/Schwelle. Bleibt hart (Abstand, Ruhetag danach); die Wiederholungen deckelt der `hard_min`, den 80/20 dem Lauf gelassen hat. Es zählt ins Wochenmaximum.
+3. **Norwegisch:** Doppel-Schwelle und Sub-Schwelle bleiben Laufen. Die kurze schnelle Einheit wird auf dem Rad 1-Minuten-Stöße (`BikeWorkouts::FAST`), sofern ihr 5-%-Anteil fünf davon trägt.
+4. **Taper und Rennwoche:** keine Radintervalle, lockeres Rad ja.
+5. Die Kilometer des Radtags **fallen aus dem Laufumfang** und werden nicht auf andere Läufe verteilt — deshalb läuft der Tausch nach dem Budget.
+
+Nie aufs Rad: Rennen, feste Termine, Wiedereinstiegs-Läufe. Saison `winter` = November bis März, je Tag geprüft.
+
+**Das Modell schreibt keine Radeinheit.** Der Slot trägt die fertige Einheit (`workout`); der Prompt sagt „keinen Eintrag zurückgeben", `TrainingPlanValidator::clearBikeDays()` wirft weg, was das Modell trotzdem an dem Tag liefert (außer Kraft/Mobility), und `insertBikeSessions()` setzt die Radeinheit ein — `_locked`, damit das Tagesbudget sie nicht kürzt, denn die Schritte passen nur zu genau dieser Dauer. Beide Plan-Jobs speichern `sport_type` und `steps` mit. Gespeichert wird `type = cross_training`, `sport_type = VirtualRide`.
+
+**Strava:** eine `VirtualRide`- oder `Ride`-Aktivität erfüllt die geplante Radeinheit des Tages (`TrainingSession::BIKE_SPORTS`, mit Schnappschuss). Ein Lauf erfüllt sie nicht — er wird ungeplant, und die Radeinheit bleibt offen. Dieselbe Ausnahme gilt beim nachträglichen Abgleich in beiden Plan-Jobs.
+
+**Coach-Werkzeug `switch_to_bike`** (Web und Telegram): „heute lieber Zwift" — lockerer Lauf → lockeres Rad (× 1,25), Intervalle → VO2max auf dem Rad; langer Lauf, Schwelle und Rennen bleiben Laufen. **Über den Chat gilt kein Tagesfenster** (Entscheidung von Jan): wer es dort bestellt, hat die Zeit. Die Einheit wird gepinnt. `modify_training_session` zurück auf einen Lauf setzt `sport_type` wieder auf NULL.
+
+Oberfläche: `zwo_url` an jeder Einheit mit Schritten in % FTP (`TrainingSession::hasBikeSteps()`), Knopf „Für Zwift herunterladen" auf dem Dashboard und in der Einheit auf der Planseite statt „Zu Garmin senden". `AppButton` hat dafür `external` (ein echtes `<a>`, kein Inertia-Link — ein Download über XHR kommt nie an).
 
 ## Garmin
 

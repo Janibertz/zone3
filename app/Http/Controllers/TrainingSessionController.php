@@ -259,10 +259,9 @@ class TrainingSessionController extends Controller
     {
         abort_if($session->user_id !== Auth::id(), 403);
 
-        $steps = collect($session->steps ?? []);
-        abort_unless($steps->isNotEmpty() && $steps->every(fn ($s) => isset($s['power_low'])), 404);
+        abort_unless($session->hasBikeSteps(), 404);
 
-        $xml  = $writer->write($session->title, (string) $session->description, $steps->all());
+        $xml  = $writer->write($session->title, (string) $session->description, $session->steps);
         $name = \Illuminate\Support\Str::slug('zone3-' . $session->planned_date->format('Y-m-d') . '-' . str_replace('×', 'x', $session->title)) . '.zwo';
 
         return response($xml, 200, [

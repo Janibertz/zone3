@@ -74,6 +74,17 @@ class TrainingSession extends Model
     /** Sportarten, deren Pace und Distanz mit dem Laufen vergleichbar sind. */
     public const RUN_SPORTS = ['Run', 'TrailRun', 'VirtualRun'];
 
+    /** Was eine geplante Radeinheit erfüllt — Zwift oder draußen. */
+    public const BIKE_SPORTS = ['VirtualRide', 'Ride'];
+
+    /** Eine Radeinheit mit Schritten in % FTP — nur die lässt sich als .zwo schreiben. */
+    public function hasBikeSteps(): bool
+    {
+        $steps = collect($this->steps ?? []);
+
+        return $steps->isNotEmpty() && $steps->every(fn ($s) => isset($s['power_low']));
+    }
+
     /**
      * Trainingstypen, die tatsaechlich Laufen bedeuten.
      *

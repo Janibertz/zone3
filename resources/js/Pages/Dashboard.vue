@@ -1616,6 +1616,11 @@ async function saveWeek() {
                             :badge-tone="props.todayPlanSession.status === 'completed' ? 'success' : props.todayPlanSession.is_today ? 'accent' : 'neutral'"
                             :href="props.todayPlanSession.event_id ? `/events/${props.todayPlanSession.event_id}/plan?open=${props.todayPlanSession.id}` : '/events'"
                         />
+                        <!-- Radeinheit: die .zwo-Datei für Zwift. Ein normaler Link, kein Inertia — es ist ein Download. -->
+                        <AppButton v-if="props.todayPlanSession?.zwo_url && props.todayPlanSession.status === 'planned'"
+                            :href="props.todayPlanSession.zwo_url" external download variant="secondary" block class="mt-3">
+                            Für Zwift herunterladen
+                        </AppButton>
                         <AppCard v-else>
                             <EmptyState title="Heute steht nichts an" description="Erholung gehört zum Training. Genieß den freien Tag.">
                                 <AppButton href="/events" variant="secondary">Zum Plan</AppButton>

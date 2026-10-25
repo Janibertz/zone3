@@ -15,6 +15,8 @@ const props = defineProps({
     disabled:{ type: Boolean, default: false },
     /** Rendert einen Inertia-<Link> statt eines <button>. */
     href:    { type: String,  default: null },
+    /** Mit `href`: ein normales <a> statt Inertia — für Downloads und fremde Seiten. */
+    external:{ type: Boolean, default: false },
     type:    { type: String,  default: 'button' },
 });
 
@@ -46,7 +48,7 @@ const isDisabled = computed(() => props.disabled || props.loading);
 
 <template>
     <component
-        :is="href ? Link : 'button'"
+        :is="href ? (external ? 'a' : Link) : 'button'"
         :href="href ?? undefined"
         :type="href ? undefined : type"
         :disabled="href ? undefined : isDisabled"

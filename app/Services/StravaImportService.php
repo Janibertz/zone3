@@ -163,6 +163,35 @@ class StravaImportService
                 }
             }
 
+            // Rad → die geplante Radeinheit des Tages. Eine Fahrt draußen
+            // erfüllt die Zwift-Einheit genauso; was geplant war, hält der
+            // Schnappschuss fest.
+            if (in_array($activity->type, TrainingSession::BIKE_SPORTS, true)) {
+                $bikeSession = TrainingSession::where('user_id', $userId)
+                    ->whereDate('planned_date', $date)
+                    ->where('status', 'planned')
+                    ->where('type', 'cross_training')
+                    ->whereIn('sport_type', TrainingSession::BIKE_SPORTS)
+                    ->whereHas('trainingPlan', fn ($q) => $q->where('is_active', true))
+                    ->first();
+
+                if ($bikeSession) {
+                    $bikeSession->update([
+                        'planned_snapshot' => $bikeSession->planned_snapshot ?? [
+                            'type'         => $bikeSession->type,
+                            'title'        => $bikeSession->title,
+                            'duration_min' => $bikeSession->duration_min,
+                            'intensity'    => $bikeSession->intensity,
+                        ],
+                        'status'       => 'completed',
+                        'activity_id'  => $activity->id,
+                        'sport_type'   => $activity->type,
+                        'duration_min' => $durMin ?? $bikeSession->duration_min,
+                    ]);
+                    return;
+                }
+            }
+
             // No matching planned session → create an unplanned completed entry
             if (TrainingSession::where('user_id', $userId)->where('activity_id', $activity->id)->exists()) {
                 return;
@@ -209,7 +238,8 @@ class StravaImportService
         $session = TrainingSession::where('user_id', $userId)
             ->whereDate('planned_date', $date)
             ->where('status', 'planned')
-            ->whereNotIn('type', ['strength', 'core', 'mobility'])
+            // Eine geplante Radeinheit erfüllt ein Lauf nicht — sie wartet auf die Fahrt.
+            ->whereNotIn('type', ['strength', 'core', 'mobility', 'cross_training'])
             ->whereHas('trainingPlan', fn ($q) => $q->where('is_active', true))
             ->first();
 

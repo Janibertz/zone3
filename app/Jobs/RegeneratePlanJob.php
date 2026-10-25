@@ -357,6 +357,10 @@ class RegeneratePlanJob implements ShouldQueue
                     'zone'             => $s['zone'] ?? null,
                     'intensity'        => $s['intensity'] ?? 'low',
                     'exercises'        => ! empty($s['exercises']) && is_array($s['exercises']) ? $s['exercises'] : null,
+                    // Radeinheiten kommen fertig aus dem Gerüst: Sportart und
+                    // Schritte in % FTP. Laufeinheiten tragen beides nicht.
+                    'sport_type'       => $s['sport_type'] ?? null,
+                    'steps'            => ! empty($s['steps']) && is_array($s['steps']) ? $s['steps'] : null,
                     'status'           => 'planned',
                     'sort_order'       => $i,
                 ]);
@@ -408,7 +412,8 @@ class RegeneratePlanJob implements ShouldQueue
                     // run to the RUNNING session, never a strength/core/mobility block. If the
                     // day is only strength (no run planned), leave it null so the run is added
                     // as a separate completed session below instead of overwriting the strength.
-                    $sessionOnDate = $plannedOnDate->first(fn ($s) => ! in_array($s->type, ['rest', 'strength', 'core', 'mobility']))
+                    // Eine geplante Radeinheit ist kein Lauf — ein Lauf an dem Tag erfüllt sie nicht.
+                    $sessionOnDate = $plannedOnDate->first(fn ($s) => ! in_array($s->type, ['rest', 'strength', 'core', 'mobility', 'cross_training']))
                         ?? $plannedOnDate->first(fn ($s) => $s->type === 'rest');
 
                     $distKm = $run->distance > 0 ? round($run->distance / 1000, 2) : null;

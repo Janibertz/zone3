@@ -346,7 +346,7 @@ class CoachChatService
         $systemPrompt = $this->ai->systemPrompt(
             "Du bist {$coachName}, der persönliche Lauf-Coach von {$user->name}. ".
             "Du kennst alle Trainingsdaten und antwortest wie ein echter Coach der seinen Athleten kennt. ".
-            "Du kannst den Trainingsplan wirklich verändern. Deine Werkzeuge: Einheiten anlegen (create_training_session), ändern (modify_training_session, an JEDEM Tag – nicht nur heute), verschieben (move_training_session), löschen (delete_training_session), bei Krankheit/Urlaub überspringen (skip_training_sessions), eine mehrtägige Pause festlegen (pause_training) oder beenden (end_training_pause), Zielzeiten anpassen (update_event_target) und Infos dauerhaft merken (remember_user_fact). ".
+            "Du kannst den Trainingsplan wirklich verändern. Deine Werkzeuge: Einheiten anlegen (create_training_session), ändern (modify_training_session, an JEDEM Tag – nicht nur heute), verschieben (move_training_session), löschen (delete_training_session), bei Krankheit/Urlaub überspringen (skip_training_sessions), eine mehrtägige Pause festlegen (pause_training) oder beenden (end_training_pause), Zielzeiten anpassen (update_event_target), einen Lauf aufs Rad legen (switch_to_bike, z. B. „heute lieber Zwift“) und Infos dauerhaft merken (remember_user_fact). ".
             "Nutze Tools proaktiv: Athlet sagt er ist krank, verletzt, hatte eine OP oder pausiert mehrere Tage → pause_training bis zum letzten Pausentag. Einzelne Einheit fällt aus → skip_training_sessions. 'Zu leicht' → ändere Einheit. Präferenz geäußert → merke sie dir. ".
             // Der Coach hatte lange nur ein Werkzeug fuer HEUTE. Bat der
             // Athlet um eine Aenderung am Sonntag, passte kein Werkzeug — und
@@ -467,6 +467,14 @@ class CoachChatService
                     'type' => ['type' => 'string', 'description' => 'Nur nötig, wenn an dem Tag mehrere Einheiten stehen'],
                     'part' => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur eine Hälfte einer Doppel-Schwelle löschen'],
                 ], 'required' => ['date']],
+            ]],
+            ['type' => 'function', 'function' => [
+                'name'        => 'switch_to_bike',
+                'description' => 'Lege einen geplanten Lauf aufs Rad (Zwift) — "heute lieber drinnen Zwift statt Easy Run". Ein lockerer Lauf wird eine lockere Radeinheit (etwas länger als der Lauf), Intervalle werden Rad-Intervalle an der VO2max. Langer Lauf, Schwelle und Rennen bleiben Laufen. Die Einheit kommt mit Schritten in % FTP und als .zwo-Datei für Zwift.',
+                'parameters'  => ['type' => 'object', 'properties' => [
+                    'date' => ['type' => 'string', 'description' => 'Tag der Einheit YYYY-MM-DD. Weglassen für heute.'],
+                    'part' => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit zwei Läufen: morgens (am) oder abends (pm)'],
+                ]],
             ]],
             ['type' => 'function', 'function' => [
                 'name'        => 'skip_training_sessions',
@@ -727,6 +735,9 @@ class CoachChatService
         }
 
         if ($this->isRun($session->type)) {
+            // Aus einer Radeinheit wird wieder ein Lauf — die Sportart
+            // gehört zur alten Einheit (NULL heisst Laufen).
+            $session->sport_type = null;
             $this->reconcileDistanceAndDuration($session, $given, $user);
         }
 
@@ -1098,6 +1109,9 @@ class CoachChatService
                 return ['message' => "{$count} Einheiten übersprungen.", 'action' => ['type' => 'sessions_skipped', 'label' => "{$count} " . ($count === 1 ? 'Einheit' : 'Einheiten') . " übersprungen{$detail}", 'reload' => true]];
             }
 
+            case 'switch_to_bike':
+                return $this->switchToBike($user, $args);
+
             case 'update_event_target': {
                 $event = \App\Models\Event::where('id', $args['event_id'] ?? 0)->where('user_id', $user->id)->first();
                 if (!$event) return ['message' => 'Event nicht gefunden.', 'action' => null];
@@ -1112,6 +1126,80 @@ class CoachChatService
             default:
                 return ['message' => 'Unbekanntes Tool.', 'action' => null];
         }
+    }
+
+    /**
+     * Einen geplanten Lauf aufs Rad legen — mit derselben Umrechnung wie das
+     * Gerüst ({@see \App\Services\Bike\BikeSchedule}): lockerer Lauf →
+     * lockeres Rad um den Dauerfaktor länger, Intervalle → VO2max auf dem
+     * Rad. Was keinen Radersatz hat, bleibt Laufen, und der Coach sagt es.
+     */
+    private function switchToBike(\App\Models\User $user, array $args): array
+    {
+        $date = $this->toolDate($args['date'] ?? null);
+        if (! $date) {
+            return ['message' => 'Das Datum liegt in der Vergangenheit — dort aendere ich nichts mehr.', 'action' => null];
+        }
+
+        $session = $this->runHalf($this->plannedRunsOn($user, $date), $args['part'] ?? null)
+            ?? $this->plannedRunOn($user, $date);
+
+        if (! $session) {
+            return ['message' => "Am {$date} steht kein geplanter Lauf, den ich aufs Rad legen koennte.", 'action' => null];
+        }
+
+        $kind = match ($session->type) {
+            'easy_run' => \App\Services\Bike\BikeWorkouts::EASY,
+            'interval' => \App\Services\Bike\BikeWorkouts::VO2,
+            default    => null,
+        };
+
+        if ($kind === null) {
+            return [
+                'message' => "„{$session->title}“ ({$session->type}) bleibt ein Lauf: aufs Rad wandern nur lockere Laeufe und Intervalle. "
+                    . 'Langer Lauf, Schwelle und Rennen trainieren das Laufen selbst.',
+                'action'  => null,
+            ];
+        }
+
+        $profile = $user->runnerProfile;
+        $workouts = app(\App\Services\Bike\BikeWorkouts::class);
+
+        // Kein Deckel aus dem Wochenraster (Entscheidung von Jan): wer im
+        // Chat aufs Rad will, hat an dem Tag die Zeit dafür. Im Gerüst gilt
+        // das Tagesfenster weiter.
+        $run = (int) ($session->duration_min ?: 45);
+
+        $workout = $kind === \App\Services\Bike\BikeWorkouts::EASY
+            ? $workouts->build($kind, $workouts->easyMinutesFor($run), $profile?->ftp)
+            : $workouts->build($kind, $run, $profile?->ftp);
+
+        $session->fill([
+            'type'           => 'cross_training',
+            'sport_type'     => 'VirtualRide',
+            'title'          => $workout['title'],
+            'description'    => $workout['description'],
+            'intensity'      => $workout['intensity'],
+            'duration_min'   => $workout['duration_min'],
+            'distance_km'    => null,
+            'pace_target'    => null,
+            'zone'           => null,
+            'steps'          => $workout['steps'],
+            'nutrition_tips' => null,
+            // Der Athlet hat es bestellt — eine Neuberechnung bleibt davon weg.
+            'pinned_at'      => now(),
+        ])->save();
+
+        $this->invalidateCoachCaches($user);
+
+        $main  = collect($workout['steps'])->firstWhere('type', 'work');
+        $watts = ! empty($main['watts']) ? " ({$main['watts']})" : ' (ohne FTP im Profil nur in % FTP)';
+
+        return [
+            'message' => "Am {$date} aufs Rad gelegt: {$workout['title']}, {$workout['duration_min']} min{$watts}. "
+                . 'Die .zwo-Datei fuer Zwift liegt an der Einheit im Plan.',
+            'action'  => ['type' => 'session_modified', 'label' => "Aufs Rad gelegt ({$this->dayLabel($date)}): {$workout['title']}", 'reload' => true],
+        ];
     }
 
     /**

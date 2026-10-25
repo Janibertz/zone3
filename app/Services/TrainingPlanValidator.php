@@ -52,6 +52,7 @@ class TrainingPlanValidator
         $days = $skeleton['days'] ?? [];
 
         $sessions = $this->dropUnknownDates($sessions, $days, $raceDate);
+        $sessions = $this->clearBikeDays($sessions, $days);
         $sessions = $this->fixTypes($sessions, $days);
         $sessions = $this->enforceAvailability($sessions, $days);
         $sessions = $this->assignParts($sessions, $days);
@@ -61,6 +62,7 @@ class TrainingPlanValidator
         $sessions = $this->enforceSlotCaps($sessions, $days);
         $sessions = $this->enforceDailyBudget($sessions, $days);
         $sessions = $this->restoreMissingSlots($sessions, $days);
+        $sessions = $this->insertBikeSessions($sessions, $days);
         // Ein eingesetzter Notnagel muss ebenfalls noch ins Tagesbudget
         // passen; erst danach entscheiden wir, ob ein kurzer Lauf überhaupt
         // einen Trainingsreiz ergibt.
@@ -75,13 +77,78 @@ class TrainingPlanValidator
 
         // Morgens vor abends, sonst die harte Einheit zuerst. Die Reihenfolge
         // wird als sort_order gespeichert.
+        // Kraft und Mobility hinter die Haupteinheit — auch hinter eine
+        // Radeinheit, die erst am Ende eingesetzt wird.
         $evening = fn ($s) => ($s['part'] ?? null) === 'pm' ? 1 : 0;
-        usort($sessions, fn ($a, $b) => [$a['date'], $evening($a), $b['_hard'] ?? false] <=> [$b['date'], $evening($b), $a['_hard'] ?? false]);
+        $extra   = fn ($s) => in_array($s['type'] ?? '', ['strength', 'core', 'mobility'], true) ? 1 : 0;
+        usort($sessions, fn ($a, $b) => [$a['date'], $evening($a), $extra($a), $b['_hard'] ?? false] <=> [$b['date'], $evening($b), $extra($b), $a['_hard'] ?? false]);
         foreach ($sessions as &$s) {
-            unset($s['_hard']);
+            unset($s['_hard'], $s['_locked']);
         }
 
         return ['sessions' => array_values($sessions), 'report' => $this->report];
+    }
+
+    /**
+     * An einem Radtag schreibt das Modell nichts — die Radeinheit steht fest
+     * und kommt aus den Vorlagen. Was es trotzdem liefert (meist den Lauf,
+     * den das Rad ersetzt), fliegt raus. Kraft und Mobility daneben bleiben.
+     */
+    private function clearBikeDays(array $sessions, array $days): array
+    {
+        return array_values(array_filter($sessions, function ($s) use ($days) {
+            $isBikeDay = collect($days[$s['date']]['slots'] ?? [])->contains(fn ($slot) => ! empty($slot['bike']));
+
+            if (! $isBikeDay || in_array($s['type'] ?? '', ['strength', 'core', 'mobility'], true)) {
+                return true;
+            }
+
+            if (in_array($s['type'] ?? '', self::RUN_TYPES, true)) {
+                $this->note("{$s['date']}: {$s['type']} an einem Radtag → durch die Radeinheit ersetzt");
+            }
+
+            return false;
+        }));
+    }
+
+    /**
+     * Die Radeinheiten aus dem Gerüst einsetzen, fertig mit Schritten in
+     * % FTP. `_locked` schützt sie vor dem Kürzen aufs Tagesbudget — die
+     * Schritte passen nur zu genau dieser Dauer.
+     */
+    private function insertBikeSessions(array $sessions, array $days): array
+    {
+        foreach ($days as $date => $day) {
+            if ($day['finalized'] || ! empty($day['kept'])) {
+                continue;
+            }
+
+            foreach ($day['slots'] ?? [] as $slot) {
+                if (empty($slot['bike'])) {
+                    continue;
+                }
+
+                $w = $slot['workout'];
+
+                $sessions[] = [
+                    'date'         => $date,
+                    'type'         => 'cross_training',
+                    'sport_type'   => $slot['sport'] ?? 'VirtualRide',
+                    'title'        => $w['title'],
+                    'description'  => $w['description'],
+                    'distance_km'  => 0,
+                    'duration_min' => $w['duration_min'],
+                    'pace_target'  => null,
+                    'zone'         => null,
+                    'intensity'    => $w['intensity'],
+                    'steps'        => $w['steps'],
+                    '_hard'        => ! empty($slot['hard']),
+                    '_locked'      => true,
+                ];
+            }
+        }
+
+        return $sessions;
     }
 
     /** Tage außerhalb des Fensters und hinter dem Renntag fliegen raus. */
@@ -485,10 +552,14 @@ class TrainingPlanValidator
             $this->note("{$date}: {$total} min geplant, nur {$budget} min verfügbar → gekürzt");
 
             // Weiche Einheiten zuerst opfern, danach anteilig kürzen.
-            usort($indexes, fn ($a, $b) => ($sessions[$a]['_hard'] ?? false) <=> ($sessions[$b]['_hard'] ?? false));
+            // Eine Radeinheit wird nie gekürzt — ihre Schritte passen nur zu
+            // genau dieser Dauer.
+            $firm = fn ($i) => [! empty($sessions[$i]['_locked']), $sessions[$i]['_hard'] ?? false];
+            usort($indexes, fn ($a, $b) => $firm($a) <=> $firm($b));
 
             foreach ($indexes as $i) {
                 if ($total <= $budget) break;
+                if (! empty($sessions[$i]['_locked'])) continue;
 
                 $dur = (int) ($sessions[$i]['duration_min'] ?? 0);
                 if ($dur <= 0) continue;
@@ -799,7 +870,8 @@ class TrainingPlanValidator
             }
 
             foreach ($day['slots'] as $slot) {
-                if (! empty($slot['optional'])) {
+                // Radeinheiten setzt insertBikeSessions() ein.
+                if (! empty($slot['optional']) || ! empty($slot['bike'])) {
                     continue;
                 }
 

@@ -130,7 +130,8 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             ->whereDate('planned_date', $todayStr)
             ->orderBy('sort_order')
             ->get();
-        $s = $todaySessions->first(fn ($t) => $t->status === 'planned' && in_array($t->type, \App\Services\TrainingPlanValidator::RUN_TYPES, true))
+        $s = $todaySessions->first(fn ($t) => $t->status === 'planned'
+                && (in_array($t->type, \App\Services\TrainingPlanValidator::RUN_TYPES, true) || $t->hasBikeSteps()))
             ?? $todaySessions->first();
 
         // If today is skipped, fall through to show next upcoming session instead
@@ -167,6 +168,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 'event_name'   => $activePlan->event?->name,
                 'session_date' => $s->planned_date->format('Y-m-d'),
                 'is_today'     => $s->planned_date->toDateString() === $todayStr,
+                'zwo_url'      => $s->hasBikeSteps() ? route('training-sessions.zwo', $s) : null,
             ];
         }
     }

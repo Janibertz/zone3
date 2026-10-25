@@ -159,6 +159,9 @@ class PlanContextBuilder
                 // ein „Langer Lauf" am Marathon-Renntag.
                 $this->races($user, $event, $windowTo),
                 $this->trainingModel($user, $windowFrom, $paces),
+                // Rad/Zwift: welche lockeren Läufe und welches Intervall
+                // aufs Rad wandern, entscheidet das Gerüst — nicht der Prompt.
+                \App\Services\Bike\BikeSchedule::settingsFor($user->runnerProfile),
             ),
             garminText: empty($user->garmin_session)
                 ? null
