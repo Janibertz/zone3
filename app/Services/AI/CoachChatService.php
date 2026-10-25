@@ -243,6 +243,7 @@ class CoachChatService
         $profileLines = [];
         if ($profile) {
             if ($profile->threshold_speed)      $profileLines[] = 'Schwellenpace: ' . $floatMinToMSS($profile->threshold_speed) . ' min/km';
+            if ($profile->isPausedOn())         $profileLines[] = 'TRAININGSPAUSE bis ' . $profile->training_paused_until->format('d.m.Y') . ($profile->training_pause_reason ? " ({$profile->training_pause_reason})" : '') . ' — kein Lauftraining empfehlen.';
             if ($profile->threshold_heart_rate) $profileLines[] = 'LTHR: ' . $profile->threshold_heart_rate . ' bpm';
             if ($profile->max_heart_rate)       $profileLines[] = 'Max HR: ' . $profile->max_heart_rate . ' bpm';
             if (!empty($profile->pace_zones)) {
@@ -334,8 +335,8 @@ class CoachChatService
         $systemPrompt = $this->ai->systemPrompt(
             "Du bist {$coachName}, der persönliche Lauf-Coach von {$user->name}. ".
             "Du kennst alle Trainingsdaten und antwortest wie ein echter Coach der seinen Athleten kennt. ".
-            "Du kannst den Trainingsplan wirklich verändern. Deine Werkzeuge: Einheiten anlegen (create_training_session), ändern (modify_training_session, an JEDEM Tag – nicht nur heute), verschieben (move_training_session), löschen (delete_training_session), bei Krankheit/Urlaub überspringen (skip_training_sessions), Zielzeiten anpassen (update_event_target) und Infos dauerhaft merken (remember_user_fact). ".
-            "Nutze Tools proaktiv: Athlet sagt er ist krank → überspringe Einheiten. 'Zu leicht' → ändere Einheit. Präferenz geäußert → merke sie dir. ".
+            "Du kannst den Trainingsplan wirklich verändern. Deine Werkzeuge: Einheiten anlegen (create_training_session), ändern (modify_training_session, an JEDEM Tag – nicht nur heute), verschieben (move_training_session), löschen (delete_training_session), bei Krankheit/Urlaub überspringen (skip_training_sessions), eine mehrtägige Pause festlegen (pause_training) oder beenden (end_training_pause), Zielzeiten anpassen (update_event_target) und Infos dauerhaft merken (remember_user_fact). ".
+            "Nutze Tools proaktiv: Athlet sagt er ist krank, verletzt, hatte eine OP oder pausiert mehrere Tage → pause_training bis zum letzten Pausentag. Einzelne Einheit fällt aus → skip_training_sessions. 'Zu leicht' → ändere Einheit. Präferenz geäußert → merke sie dir. ".
             // Der Coach hatte lange nur ein Werkzeug fuer HEUTE. Bat der
             // Athlet um eine Aenderung am Sonntag, passte kein Werkzeug — und
             // das Modell beschrieb die Aenderung einfach, statt sie
@@ -389,6 +390,19 @@ class CoachChatService
                 'parameters'  => ['type' => 'object', 'properties' => [
                     'fact' => ['type' => 'string', 'description' => 'Die zu merkende Information, prägnant formuliert'],
                 ], 'required' => ['fact']],
+            ]],
+            ['type' => 'function', 'function' => [
+                'name'        => 'pause_training',
+                'description' => 'Lege eine Trainingspause bis einschließlich eines Datums fest — bei Krankheit, Verletzung, OP oder wenn der Athlet sagt, er pausiert. Überspringt alle geplanten Einheiten bis dahin, und bis zum Ende der Pause gibt es keine Laufempfehlung. Danach beginnt der Wiedereinstieg von selbst. Eine Notiz (remember_user_fact) reicht dafür NICHT — die wirkt nicht auf den Plan.',
+                'parameters'  => ['type' => 'object', 'properties' => [
+                    'until'  => ['type' => 'string', 'description' => 'Letzter Pausentag YYYY-MM-DD'],
+                    'reason' => ['type' => 'string', 'description' => 'Kurz, z.B. "Weisheitszahn-OP" oder "Grippe"'],
+                ], 'required' => ['until']],
+            ]],
+            ['type' => 'function', 'function' => [
+                'name'        => 'end_training_pause',
+                'description' => 'Beende eine laufende Trainingspause vorzeitig, wenn der Athlet wieder laufen will oder darf.',
+                'parameters'  => ['type' => 'object', 'properties' => new \stdClass()],
             ]],
             ['type' => 'function', 'function' => [
                 'name'        => 'modify_training_session',
@@ -886,6 +900,46 @@ class CoachChatService
                     'message' => "{$count} Einheit(en) am {$date} geloescht: {$titles}.",
                     'action'  => ['type' => 'session_deleted', 'label' => "Geloescht ({$this->dayLabel($date)}): {$titles}", 'reload' => true],
                 ];
+            }
+
+            case 'pause_training': {
+                $until = $this->toolDate($args['until'] ?? null);
+                if (! $until) {
+                    return ['message' => 'Das Enddatum der Pause liegt in der Vergangenheit.', 'action' => null];
+                }
+
+                $reason  = mb_substr(trim((string) ($args['reason'] ?? '')), 0, 160) ?: null;
+                $profile = $user->runnerProfile ?? \App\Models\RunnerProfile::firstOrCreate(['user_id' => $user->id]);
+                $profile->update(['training_paused_until' => $until, 'training_pause_reason' => $reason]);
+
+                $count = \App\Models\TrainingSession::where('user_id', $user->id)
+                    ->whereDate('planned_date', '>=', now()->toDateString())
+                    ->whereDate('planned_date', '<=', $until)
+                    ->where('status', 'planned')
+                    ->update(['status' => 'skipped']);
+
+                // Auch ohne übersprungene Einheit: die gespeicherte
+                // Tagesempfehlung beschreibt einen Lauf, den es nicht gibt.
+                $this->invalidateCoachCaches($user);
+
+                $label = 'Pause bis ' . $this->dayLabel($until) . ($reason ? " ({$reason})" : '');
+
+                return [
+                    'message' => "Pause bis {$until} gespeichert, {$count} Einheiten übersprungen.",
+                    'action'  => ['type' => 'training_paused', 'label' => $label, 'reload' => true],
+                ];
+            }
+
+            case 'end_training_pause': {
+                $profile = $user->runnerProfile;
+                if (! $profile?->training_paused_until) {
+                    return ['message' => 'Es läuft keine Pause.', 'action' => null];
+                }
+
+                $profile->update(['training_paused_until' => null, 'training_pause_reason' => null]);
+                $this->invalidateCoachCaches($user);
+
+                return ['message' => 'Pause beendet.', 'action' => ['type' => 'training_resumed', 'label' => 'Pause beendet', 'reload' => true]];
             }
 
             case 'skip_training_sessions': {

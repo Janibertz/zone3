@@ -1745,7 +1745,8 @@ async function saveWeek() {
                                     Nebenwege und stehen als Textaktionen
                                     darunter.
                                 -->
-                                <div class="space-y-1">
+                                <!-- Ein Ruhetag (krank, Pause) wird nicht eingeplant und nicht „schwerer" gemacht. -->
+                                <div v-if="trainingRecommendation.type !== 'rest'" class="space-y-1">
                                     <button @click="acceptRecommendation()"
                                         :disabled="acceptingRecommendation || adjustingDirection !== null"
                                         class="flex h-[50px] w-full items-center justify-center gap-2 rounded-field bg-accent text-[17px] font-semibold tracking-[-0.2px] text-white transition-transform duration-150 ease-out-strong active:scale-[0.97] disabled:opacity-40">
