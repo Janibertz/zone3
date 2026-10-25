@@ -64,6 +64,9 @@ class TrainingPlanValidator
         // passen; erst danach entscheiden wir, ob ein kurzer Lauf überhaupt
         // einen Trainingsreiz ergibt.
         $sessions = $this->enforceDailyBudget($sessions, $days);
+        // 80/20 nach Zeit erst, wenn alle Dauern feststehen — jede Kürzung
+        // davor verschiebt den Anteil.
+        $sessions = $this->enforceEightyTwenty($sessions, $days);
         $sessions = $this->enforceMinimumUsefulRunDuration($sessions);
         $sessions = $this->fillMissingDays($sessions, $days);
 
@@ -409,6 +412,137 @@ class TrainingPlanValidator
         return $sessions;
     }
 
+    /** Rundungsspielraum, bevor eine Abweichung als Verstoß gilt. */
+    private const HARD_TOLERANCE_MIN = 2;
+
+    /**
+     * 80/20 nach Zeit: höchstens 20 % der Laufminuten einer Woche sind hart.
+     *
+     * Zwei Stufen. Zuerst die einzelne Einheit: das Gerüst gibt jedem
+     * Hauptteil eine Obergrenze (`hard_min`), und wer darüber plant, wird
+     * darauf zurückgesetzt. Danach die Woche: liegen die harten Minuten
+     * insgesamt über 20 % — etwa weil das Modell die lockeren Läufe kürzer
+     * geplant hat als vorgesehen —, werden die Hauptteile anteilig gekürzt.
+     * Bleibt dabei weniger als ein Reiz übrig, wird die Einheit locker.
+     *
+     * Hart heißt: der Hauptteil der harten Einheiten und der
+     * Renntempo-Abschnitt des langen Laufs. Rennen zählen nicht, ein fester
+     * Termin zählt mit, wird aber nicht angefasst.
+     *
+     * Gekürzt wird nur `hard_min`, nicht die Dauer: die Minuten gehen ins
+     * Ein- und Auslaufen. Die Beschreibung des Modells kann danach noch
+     * „3×10 min" sagen — deshalb hängt der Validator den Satz dazu, der gilt.
+     */
+    private function enforceEightyTwenty(array $sessions, array $days): array
+    {
+        $weeks = [];
+
+        foreach ($sessions as $i => $s) {
+            $date = $s['date'] ?? null;
+            $type = $s['type'] ?? '';
+            $day  = $days[$date] ?? null;
+
+            if (! $day || $type === 'race_prep' || ! in_array($type, self::RUN_TYPES, true)) {
+                continue;
+            }
+
+            $week = $day['week'] ?? substr($date, 0, 7);
+            $dur  = (int) ($s['duration_min'] ?? 0);
+            $slot = collect($day['slots'] ?? [])->firstWhere('type', $type) ?? [];
+
+            $weeks[$week]['total'] = ($weeks[$week]['total'] ?? 0) + $dur;
+            $weeks[$week]['taken'] ??= 0.0;
+            $weeks[$week]['open']  ??= [];
+
+            if ($type === 'long_run') {
+                $km = (float) ($s['distance_km'] ?? 0);
+                if ($km > 0 && ($slot['race_km'] ?? 0) > 0) {
+                    $weeks[$week]['taken'] += min($km, (float) $slot['race_km']) * $dur / $km;
+                }
+                continue;
+            }
+
+            if (! in_array($type, WeeklyPatternService::HARD_TYPES, true)) {
+                continue;
+            }
+
+            $planned  = isset($slot['hard_min']) ? (int) $slot['hard_min'] : null;
+            $estimate = min(
+                WeeklyPatternService::HARD_MAIN_MINUTES[$type] ?? 20,
+                max(0, $dur - WeeklyPatternService::WARMUP_COOLDOWN_MINUTES),
+            );
+
+            // Ohne Angabe gehen wir davon aus, dass das Modell dem Gerüst
+            // gefolgt ist — sonst würde eine fehlende Zahl als Verstoß gelten.
+            $hard = (int) ($s['hard_min'] ?? 0) > 0 ? (int) $s['hard_min'] : ($planned ?? $estimate);
+
+            if ($planned !== null && empty($slot['fixed']) && $hard > $planned + self::HARD_TOLERANCE_MIN) {
+                $this->note("{$date}: {$type} mit {$hard} min Hauptteil, das Gerüst erlaubt {$planned} (80/20) → gekürzt");
+                $hard = $planned;
+                $sessions[$i]['description'] = $this->withMainSetNote($s['description'] ?? '', $hard);
+            }
+
+            $sessions[$i]['hard_min'] = $hard;
+
+            if (! empty($slot['fixed'])) {
+                $weeks[$week]['taken'] += $hard;
+                continue;
+            }
+
+            $weeks[$week]['open'][] = $i;
+        }
+
+        foreach ($weeks as $week => $w) {
+            $adjustable = array_sum(array_map(fn ($i) => $sessions[$i]['hard_min'], $w['open']));
+            $hard       = $w['taken'] + $adjustable;
+            $cap        = floor($w['total'] * WeeklyPatternService::HARD_SHARE);
+
+            if ($adjustable <= 0 || $hard <= $cap + self::HARD_TOLERANCE_MIN) {
+                continue;
+            }
+
+            $pct = (int) round($hard / max(1, $w['total']) * 100);
+            $this->note("{$week}: " . (int) round($hard) . " von {$w['total']} min hart ({$pct} %), erlaubt sind {$cap} (80/20) → Hauptteile gekürzt");
+
+            $scale = max(0.0, $cap - $w['taken']) / $adjustable;
+
+            foreach ($w['open'] as $i) {
+                $new = (int) floor($sessions[$i]['hard_min'] * $scale);
+
+                if ($new >= WeeklyPatternService::MIN_HARD_MAIN_MINUTES) {
+                    $sessions[$i]['hard_min']    = $new;
+                    $sessions[$i]['description'] = $this->withMainSetNote($sessions[$i]['description'] ?? '', $new);
+                    continue;
+                }
+
+                // Ein Hauptteil unter zehn Minuten ist kein Reiz mehr.
+                $this->note("{$sessions[$i]['date']}: {$sessions[$i]['type']} wird lockerer Lauf — für einen harten Hauptteil reicht der 20-%-Anteil der Woche nicht");
+
+                $sessions[$i] = array_merge($sessions[$i], [
+                    'type'        => 'easy_run',
+                    'title'       => 'Lockerer Lauf',
+                    'description' => 'Ruhiges Grundlagentempo in Zone 2. Ursprünglich eine harte Einheit — die Woche läge damit über 20 % harter Laufzeit.',
+                    'pace_target' => null,
+                    'zone'        => 2,
+                    'intensity'   => 'low',
+                    'hard_min'    => 0,
+                    '_hard'       => false,
+                ]);
+            }
+        }
+
+        return $sessions;
+    }
+
+    private function withMainSetNote(string $description, int $minutes): string
+    {
+        // Wird ein Hauptteil zweimal gekürzt (Einheit, dann Woche), gilt nur
+        // der letzte Satz.
+        $description = preg_replace('/\s*Hauptteil höchstens \d+ min \(80\/20\)[^.]*\./u', '', $description);
+
+        return trim($description . " Hauptteil höchstens {$minutes} min (80/20) — den Rest locker ein- und auslaufen.");
+    }
+
     /**
      * Eine Lauf-Einheit mit 8 oder 15 Minuten erzeugt nur Planrauschen.
      * Sie wird nicht künstlich auf 20 Minuten verlängert — die angegebene
@@ -644,6 +778,7 @@ class TrainingPlanValidator
             'pace_target'  => null,
             'zone'         => $zone,
             'intensity'    => $intensity,
+            'hard_min'     => (int) ($slot['hard_min'] ?? 0),
             '_hard'        => in_array($slot['type'], WeeklyPatternService::HARD_TYPES, true),
         ];
     }

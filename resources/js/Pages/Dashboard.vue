@@ -97,6 +97,10 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    intensityDistribution: {
+        type: Object,
+        default: null,
+    },
     coachPrMessage: {
         type: String,
         default: null,
@@ -2093,6 +2097,57 @@ async function saveWeek() {
                             <p class="mt-3 text-[13px] leading-relaxed text-ink-3">
                                 Form ist Fitness minus Ermüdung. −10 bis +5 heißt wettkampfbereit,
                                 darunter steckst du in einem Trainingsblock.
+                            </p>
+                        </AppCard>
+                    </section>
+
+                    <!-- 80/20 — was tatsächlich gelaufen wurde -->
+                    <section v-if="props.intensityDistribution" class="min-w-0">
+                        <SectionHeader title="Locker / Hart">
+                            <template #action>
+                                <span class="rounded-full px-3 py-1.5 text-[13px] font-semibold"
+                                    :class="props.intensityDistribution.hard_pct > 25
+                                        ? 'bg-warn-soft text-warn-ink'
+                                        : 'bg-success-soft text-success-ink'">
+                                    {{ props.intensityDistribution.hard_pct > 25 ? 'Zu viel hart' : 'Passt zu 80/20' }}
+                                </span>
+                            </template>
+                        </SectionHeader>
+
+                        <AppCard>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-[15px] font-semibold text-success">Locker</p>
+                                    <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">
+                                        {{ 100 - props.intensityDistribution.hard_pct }}<span class="ml-0.5 text-[15px] font-semibold text-ink-3">%</span>
+                                    </p>
+                                </div>
+                                <div>
+                                    <p class="text-[15px] font-semibold text-warn">Hart</p>
+                                    <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">
+                                        {{ props.intensityDistribution.hard_pct }}<span class="ml-0.5 text-[15px] font-semibold text-ink-3">%</span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Je Woche ein Balken, der harte Anteil vorn. -->
+                            <div class="mt-4 space-y-2">
+                                <div v-for="w in props.intensityDistribution.weeks" :key="w.label" class="flex items-center gap-3">
+                                    <span class="w-12 shrink-0 text-[13px] tabular-nums text-ink-3">{{ w.label }}</span>
+                                    <div class="flex h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
+                                        <template v-if="w.hard_pct !== null">
+                                            <div class="h-full bg-warn" :style="{ width: w.hard_pct + '%' }" />
+                                            <div class="h-full bg-success" :style="{ width: (100 - w.hard_pct) + '%' }" />
+                                        </template>
+                                    </div>
+                                    <span class="w-10 shrink-0 text-right text-[13px] tabular-nums text-ink-3">{{ w.hard_pct !== null ? w.hard_pct + ' %' : '–' }}</span>
+                                </div>
+                            </div>
+
+                            <p class="mt-3 text-[13px] leading-relaxed text-ink-3">
+                                Laufzeit der letzten vier Wochen nach Pace, Runde für Runde.
+                                Hart ist alles ab Zone 3. Höchstens 20 % sollten es sein, sonst
+                                sind meist die lockeren Läufe zu schnell.
                             </p>
                         </AppCard>
                     </section>

@@ -113,26 +113,26 @@ class TrainingPlanGenerator
         $nextLongRun  = $ladderWeeks ? array_values($ladderWeeks)[0]['km'] : null;
 
         $volumeText = $c->volume
-            ? app(\App\Services\WeeklyVolumeService::class)->toPromptSection($c->volume, $event, $nextLongRun)
+            ? app(\App\Services\WeeklyVolumeService::class)->toPromptSection(
+                $c->volume,
+                $event,
+                $nextLongRun,
+                (float) (array_values($c->skeleton['periods'] ?? [])[0]['volume_factor'] ?? 1.0),
+            )
             : '';
 
-        // Die Trainingsphase kommt aus dem Event — dieselbe, die der Athlet
-        // in der App sieht. Vorher stand im Prompt eine eigene, grobe
-        // Wenn-Regel daneben, die etwas anderes sagen konnte.
-        $phase     = $event->training_phase;
+        // Die Phase je Woche kommt aus dem Gerüst — dieselbe Rechnung, nach
+        // der es Umfang, Entlastung und harte Einheiten verteilt hat. Vorher
+        // stand hier die Phase von HEUTE, für ein Fenster von zwei Wochen,
+        // das über eine Phasengrenze reichen kann.
         $weeksLeft = $event->weeks_until;
-        $phaseRule = match ($phase['key']) {
-            'base'      => 'Grundlage: lockeres Volumen aufbauen, eine Qualitätseinheit pro Woche, noch keine Rennschärfe.',
-            'build'     => 'Aufbau: Umfang steigt, dazu Schwellenarbeit. Der lange Lauf wächst schrittweise.',
-            'peak'      => 'Spezifische Phase: die Schlüsseleinheiten laufen jetzt im Renntempo. Höchster Umfang, längster Lauf, danach beginnt die Reduktion.',
-            'taper'     => 'Tapering: Umfang deutlich zurück (je Woche rund 25 %), Intensität und Renntempo aber halten. Weniger, nicht langsamer.',
-            // Taper heisst Umfang runter, Intensität halten. „Keine harten
-            // Einheiten mehr" galt hier vorher für die letzten 14 Tage und
-            // nahm dem Athleten genau den Renntempo-Reiz, der die Spannung hält.
-            'race_week' => 'Rennwoche: Umfang stark zurück, Beine frisch machen. Drei bis vier Tage vor dem Rennen eine kurze Einheit mit wenigen Minuten im Zielrenntempo (z. B. 3×1 km), sonst kurze lockere Läufe mit ein paar Steigerungen. Keine langen oder ermüdenden Einheiten mehr — die Form ist gemacht.',
-            default     => 'Trainingsblock fortsetzen.',
-        };
-        $phaseText = "\n\n**Trainingsphase: {$phase['label']}** — noch {$weeksLeft} Wochen bis zum Rennen.\n{$phaseRule}";
+        $phaseText = app(\App\Services\PeriodizationService::class)
+            ->toPromptSection($c->skeleton['periods'] ?? [], $weeksLeft);
+
+        // Ob die lockeren Läufe auch locker gelaufen werden. Steht bei der
+        // Periodisierung, weil es dieselbe Frage von der anderen Seite ist:
+        // dort was geplant ist, hier was passiert.
+        $phaseText .= app(\App\Services\IntensityDistributionService::class)->toPromptSection($c->intensity);
 
         // Was die Zieldistanz im Kern verlangt. Der Backyard-Prompt war
         // darin ausführlich, der Standard-Prompt behandelte 5 km und
@@ -568,6 +568,7 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
     "pace_target": "6:30-7:30 oder null bei Ruhetag",
     "zone": 2,
     "intensity": "rest|low|medium|high",
+    "hard_min": 0,
     "exercises": [{ "name": "Kettlebell Swing", "sets": 4, "reps": "15", "load": "16 kg", "note": "explosiv" }]
   }
 ]
@@ -639,6 +640,7 @@ Reduziere im Zweifel die Intensität einer Einheit, nicht ihre Existenz — ein 
     "pace_target": "5:30-6:00 oder null bei Ruhetag",
     "zone": 2,
     "intensity": "rest|low|medium|high",
+    "hard_min": 0,
     "exercises": [{ "name": "Goblet Squat", "sets": 3, "reps": "10", "load": "20 kg", "note": "" }]
   }
 ]

@@ -366,9 +366,34 @@ Gemeldet im Sub-90-Check: in einer knappen Woche strich `budgetWeek()` beim Halb
 - `leastImportant()` streicht den **letzten lockeren Lauf nie, solange eine harte Einheit offen ist**. Die Zielreihenfolge gilt sonst weiter.
 - Der lange Lauf zählt dabei nicht als hart, obwohl er beim HM ein Renntempo-Finish hat.
 
-**Die Phase hängt an der Distanz.** `Event::training_phase` sagte für jedes Rennen „≤ 14 Tage Race Week" — beim Halbmarathon setzt die Leiter genau dort den längsten Lauf. Jetzt: Race Week = letzte 7 Tage, Taper = `LongRunPlanService::taperDays()` (die einzige Quelle), davor je 6 Wochen Peak und Build. In der Rennwoche bleibt ein kurzer Renntempo-Reiz erlaubt — Taper heißt Umfang runter, Intensität halten.
+**Die Phase hängt an der Distanz.** `Event::training_phase` (heute `PeriodizationService::phaseOn()`) sagte für jedes Rennen „≤ 14 Tage Race Week" — beim Halbmarathon setzt die Leiter genau dort den längsten Lauf. Jetzt: Race Week = letzte 7 Tage, Taper = `LongRunPlanService::taperDays()` (die einzige Quelle), davor je 6 Wochen Peak und Build. In der Rennwoche bleibt ein kurzer Renntempo-Reiz erlaubt — Taper heißt Umfang runter, Intensität halten.
 
 **Intervall-Pace** kommt seit dem 25.10.2026 aus dem VDOT (I = 97,5–100 %, R = 105 %, siehe unten). Vorher reichte der Intervallbereich bis T + 4 s, also langsamer als die Schwelle.
+
+### Periodisierung und 80/20 nach Zeit (seit 25.10.2026)
+
+**Die Entlastungswoche kam nie an.** Die Leiter der langen Läufe zählte ihre Entlastung ab heute: jede dritte Woche ab dem Planungstag. Ein rollierender 14-Tage-Plan, der jeden Sonntag neu ansetzt, sieht immer nur Woche 1 und 2 — die dritte lag jedes Mal knapp hinter dem Fenster. Und der Umfangsblock im Prompt bat um „jede dritte bis vierte Woche Entlastung", ohne dass das Gerüst davon wusste.
+
+`PeriodizationService` hängt jede Woche fest an den Renntag:
+
+| Frage | Antwort | Wer liest |
+|---|---|---|
+| Phase | Base → Build → Peak → Taper → Race Week (Grenzen wie bisher, Taper aus `LongRunPlanService::taperDays()`) | Gerüst, Prompt, `Event::training_phase` |
+| Entlastung | 3:1, **vom längsten Lauf rückwärts** gezählt — die Peak-Woche ist immer Belastung | Leiter (langer Lauf × 0,7), Gerüst (Umfang × 0,75, eine harte Einheit) |
+| Umfang | Taper: 85 % / 70 %, Rennwoche 50 % | `applyVolumeBudget()`, Deckel im Prompt |
+| Harte Einheiten | Base nur Schwelle/Steigerung (keine Intervalle) und eine; sonst zwei, Rennwoche eine | `planWeek()` |
+
+Die Taper-Grenze ist `PeriodizationService::peakWeek()` — **eine** Definition, die auch die Leiter benutzt. Lägen beide Grenzen einen Tag auseinander, stünde der längste Lauf in einer Taperwoche. `Event::training_phase` rechnet nach Tagen (Anzeige: „Race Week" sind die letzten sieben Tage), der Plan nach Wochen; die Grenzen sind dieselben Konstanten.
+
+**80/20 zählt doppelt** (Entscheidung von Jan): die Regel nach Einheiten bleibt (`SECOND_HARD_FROM_SESSIONS`), dazu höchstens **20 % der Laufminuten hart**. Hart heißt: der Hauptteil einer harten Einheit plus der Renntempo-Abschnitt des langen Laufs. Ein- und Auslaufen sind locker, Rennen zählen nicht (ein Marathon wäre allein 180 harte Minuten).
+
+- `WeeklyPatternService::applyEightyTwenty()` gibt jeder harten Einheit `hard_min` (Richtwert Tempo 25, Intervall 20, Steigerung 15 min). Was der lange Lauf im Renntempo und ein fester harter Termin verbrauchen, geht vorher ab. Reicht der Rest nicht für zehn Minuten je Hauptteil, wird die **unwichtigste harte Einheit locker** (`eighty_twenty` am Slot) — eine halbe Intervalleinheit setzt keinen Reiz, ermüdet aber.
+- Das Modell gibt `hard_min` mit zurück. `TrainingPlanValidator::enforceEightyTwenty()` setzt einen Hauptteil über dem Gerüst zurück und kürzt danach die Woche anteilig, falls sie insgesamt über 20 % liegt. Gekürzt wird `hard_min`, nicht die Dauer, und die Beschreibung bekommt den Satz, der gilt („Hauptteil höchstens 18 min (80/20)") — das Modell hat vielleicht „3×10 min" hineingeschrieben. `hard_min` wird nicht gespeichert; der Satz in der Beschreibung ist, was die Schritte-Erzeugung später sieht.
+- Fehlt `hard_min` in der Antwort, gilt der Wert aus dem Gerüst. Sonst wäre eine vergessene Zahl ein Verstoß.
+
+**Was tatsächlich gelaufen wurde:** `IntensityDistributionService` misst die letzten vier Wochen nach Pace, Runde für Runde aus den Strava-Laps; hart ist alles ab Zone 3 (74 % VO2max). Dashboard-Karte „Locker / Hart", und im Plan-Prompt mit der Anweisung, lockere Läufe ausdrücklich langsam anzusagen, sobald mehr als 25 % hart waren. Pace kennt keine Steigung — für einen einzelnen Lauf taugt die Zahl nicht, über vier Wochen gleicht es sich aus.
+
+**Tests mit festen Fenstern brauchen ein festes Rennen.** `WeeklyPatternTest` baute das Gerüst ab dem 17.08.2026, legte das Rennen aber auf `now() + 60 Tage`. Solange die Phase egal war, fiel das nicht auf; mit Periodisierung lag das Fenster plötzlich in der Grundlage, und das Intervall fehlte. Das Rennen hängt jetzt am selben Datum wie das Fenster. Die Suite lief vor dem Merge an neun verschiedenen Tagen (Mo–So und zwei spätere Daten) grün.
 
 ### One verdict on the goal, not two
 

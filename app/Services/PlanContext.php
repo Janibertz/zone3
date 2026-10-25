@@ -39,6 +39,8 @@ readonly class PlanContext
         public ?array $paces = null,
         public ?array $volume = null,
         public ?array $longRuns = null,
+        /** Was der Athlet tatsächlich locker und hart lief — {@see IntensityDistributionService}. */
+        public ?array $intensity = null,
         public ?array $skeleton = null,
         public ?array $interview = null,
         public ?string $garminText = null,
@@ -92,6 +94,7 @@ readonly class PlanContext
             paces:                 $this->paces,
             volume:                $this->volume,
             longRuns:              $this->longRuns,
+            intensity:             $this->intensity,
             skeleton:              $skeleton    ?? $this->skeleton,
             garminText:            $garminText  ?? $this->garminText,
         );
