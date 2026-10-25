@@ -40,7 +40,25 @@ class RunnerProfile extends Model
         'return_to_run_dismissed_at',
         'training_paused_until',
         'training_pause_reason',
+        'ftp',
+        'training_model',
+        'running_experience_years',
+        'has_lactate_meter',
+        'bike_enabled',
+        'bike_season',
+        'bike_purpose',
+        'bike_max_per_week',
+        'bike_preferred_days',
     ];
+
+    /** Polarisiert nach Seiler/Daniels oder norwegisch mit Sub-Schwelle. */
+    public const TRAINING_MODELS = ['polarized', 'norwegian'];
+
+    /** Rad nur im Winter (November bis März) oder das ganze Jahr. */
+    public const BIKE_SEASONS = ['winter', 'all_year'];
+
+    /** Lockere Läufe ersetzen, eigene Radintervalle, oder beides. */
+    public const BIKE_PURPOSES = ['easy', 'intervals', 'both'];
 
     protected $casts = [
         'heart_rate_zones' => 'array',
@@ -55,6 +73,12 @@ class RunnerProfile extends Model
         'strength_equipment'         => 'array',
         'return_to_run_dismissed_at' => 'datetime',
         'training_paused_until'      => 'date',
+        'has_lactate_meter'          => 'boolean',
+        'bike_enabled'               => 'boolean',
+        'bike_max_per_week'          => 'integer',
+        'bike_preferred_days'        => 'array',
+        'running_experience_years'   => 'integer',
+        'ftp'                        => 'integer',
     ];
 
     public function user()

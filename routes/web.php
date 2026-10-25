@@ -71,6 +71,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/onboarding/profile', [OnboardingController::class, 'saveProfile'])->name('onboarding.profile');
     Route::post('/onboarding/availability', [OnboardingController::class, 'saveAvailability'])->name('onboarding.availability');
     Route::post('/onboarding/strength', [OnboardingController::class, 'saveStrength'])->name('onboarding.strength');
+    Route::post('/onboarding/training-model', [OnboardingController::class, 'saveTrainingModel'])->name('onboarding.training-model');
+    Route::post('/onboarding/bike', [OnboardingController::class, 'saveBike'])->name('onboarding.bike');
     Route::post('/onboarding/goal', [OnboardingController::class, 'saveGoal'])->name('onboarding.goal');
     Route::post('/onboarding/reset', [OnboardingController::class, 'reset'])->name('onboarding.reset');
     Route::post('/onboarding/complete', [OnboardingController::class, 'complete'])->name('onboarding.complete');

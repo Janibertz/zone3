@@ -579,7 +579,7 @@ Inertia.js — no API calls, all data passed as props from Laravel controllers.
 - `Profile/Edit.vue` — settings list on mobile, tab bar from `lg`
 - `Activities/Show.vue` — Leaflet map + pace zones per activity
 - `Workouts/Builder.vue` — custom workout + Garmin FIT export
-- `Onboarding.vue` — 5-step flow (coach → profile → availability → goal → complete)
+- `Onboarding.vue` — 9 Schritte (welcome → coach → profile → **model** → availability → strength → **bike** → goal → strava), nach Schlüssel statt Nummer. Trainingsmodell und Rad / Zwift stehen mit denselben Komponenten (`Components/Settings/TrainingModelFields.vue`, `BikeFields.vue`) und denselben Endpunkten auch im Profil. Das zweite Zeitfenster (`weekly_availability.*.second_min`) wird nur im norwegischen Modell abgefragt; die Planlogik dafür kommt separat. `TrainingModelService::norwegianReadiness()` sperrt nichts, sondern begründet eine Warnung (unter 2 Jahren Erfahrung oder 40 km/Woche aus Strava).
 - `Admin/` — user management, AI log, coach editor, settings
 
 **Shared composables** — use these instead of copying tables around:
