@@ -11,34 +11,11 @@ use App\Models\Workout;
  * Dass Workouts überhaupt teilbar sind, liegt an einer Entscheidung im
  * Builder: seine Blöcke tragen `pace_zone`, keine festen Paces. „4×1000 m
  * in Zone 5" ist für jeden Läufer richtig, „4×1000 m in 4:10" nur für
- * einen. Die Sekunden entstehen hier, aus der Zonentabelle des jeweiligen
- * Profils.
- *
- * Fehlt die Tabelle — neues Profil, Schwellenpace noch nicht berechnet —,
- * wird sie aus `threshold_speed` abgeleitet. Die Abstände dafür stehen
- * schon im Prompt, mit dem die Zonen sonst berechnet werden; sie hier ein
- * zweites Mal zu erfinden wäre die Sorte zweiter Wahrheit, die dieses
- * Projekt teuer bezahlt hat.
+ * einen. Die Sekunden entstehen hier, aus dem VDOT des jeweiligen
+ * Athleten — derselben Zahl, aus der Plan, Zonen und Prognose kommen.
  */
 class WorkoutPaceResolver
 {
-    /**
-     * Abstand zur Schwellenpace je Zone, in Sekunden je Kilometer.
-     *
-     * Aus `AthleteProfileService::calculatePaceZonesWithAI()` — dieselben
-     * Grenzen, nur ohne Modellaufruf, jeweils die Mitte des Bereichs.
-     * Zone 5 liegt unter der Schwelle, deshalb negativ.
-     *
-     * @var array<int, int>
-     */
-    private const ZONE_OFFSET_SECONDS = [
-        1 => 100,   // Recovery:  mehr als +1:21
-        2 => 64,    // Easy:      +0:46 bis +1:21
-        3 => 34,    // Tempo:     +0:21 bis +0:46
-        4 => 10,    // Threshold: Schwelle bis +0:21
-        5 => -12,   // VO2max:    unter Schwelle − 0:04
-    ];
-
     /**
      * Das Workout in konkrete Werte übersetzen.
      *
@@ -170,50 +147,17 @@ class WorkoutPaceResolver
     }
 
     /**
-     * Die Pace einer Zone in Sekunden je Kilometer.
+     * Die Pace einer Zone in Sekunden je Kilometer, aus dem VDOT des Athleten.
      *
-     * Bevorzugt aus der berechneten Zonentabelle des Athleten; dort steht
-     * ein Bereich, genommen wird die Mitte. Ohne Tabelle aus der
-     * Schwellenpace, mit denselben Abständen.
+     * Nicht die Mitte des Zonenbereichs: „Zone 4" im Builder heisst
+     * Schwelle, also T, und „Zone 5" heisst Intervall, also I — siehe
+     * {@see Vdot::ZONE_TARGET}. Die Mitte von Zone 5 gab es auch gar nicht,
+     * der Bereich ist nach oben offen.
      */
     private function paceSecondsForZone(?RunnerProfile $profile, int $zone): ?float
     {
-        $zone  = max(1, min(5, $zone));
-        $zones = $profile?->pace_zones;
+        $vdot = $profile?->vdot();
 
-        if (is_array($zones) && isset($zones["z{$zone}"])) {
-            $min = $this->toSeconds($zones["z{$zone}"]['min_pace'] ?? null);
-            $max = $this->toSeconds($zones["z{$zone}"]['max_pace'] ?? null);
-
-            if ($min && $max) {
-                return ($min + $max) / 2;
-            }
-
-            if ($min || $max) {
-                return $min ?: $max;
-            }
-        }
-
-        $threshold = (float) ($profile?->threshold_speed ?? 0);
-
-        if ($threshold <= 0) {
-            return null;
-        }
-
-        return $threshold * 60 + (self::ZONE_OFFSET_SECONDS[$zone] ?? 0);
-    }
-
-    /** „5:30" → 330 Sekunden. */
-    private function toSeconds(?string $pace): ?float
-    {
-        if (! $pace || ! str_contains($pace, ':')) {
-            return null;
-        }
-
-        [$min, $sec] = array_pad(explode(':', trim($pace), 2), 2, '0');
-
-        $seconds = ((int) $min) * 60 + (int) $sec;
-
-        return $seconds > 0 ? (float) $seconds : null;
+        return $vdot ? Vdot::paceAt($vdot, Vdot::ZONE_TARGET[max(1, min(5, $zone))]) : null;
     }
 }

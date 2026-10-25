@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Services\PaceFormat;
+use App\Services\Vdot;
+use App\Services\VdotService;
 
 class RunnerProfile extends Model
 {
@@ -82,53 +84,75 @@ class RunnerProfile extends Model
         ];
     }
 
+    /** @var array{key: string, value: array|null}|null */
+    private ?array $vdotMemo = null;
+
     /**
-     * Calculate pace zones based on threshold pace (in minutes as float)
+     * Der VDOT mit seiner Herkunft — siehe {@see VdotService}.
+     *
+     * Pro Instanz gemerkt, solange sich die Schwellenpace nicht ändert:
+     * Zonen, Prognose und Plan fragen ihn innerhalb eines Requests mehrfach.
+     *
+     * @return array{value: float, source: string, label: string, from_threshold: float|null, from_effort: float|null}|null
+     */
+    public function vdotInfo(): ?array
+    {
+        $key = (string) $this->threshold_speed;
+
+        if ($this->vdotMemo === null || $this->vdotMemo['key'] !== $key) {
+            $this->vdotMemo = ['key' => $key, 'value' => app(VdotService::class)->forProfile($this)];
+        }
+
+        return $this->vdotMemo['value'];
+    }
+
+    public function vdot(): ?float
+    {
+        return $this->vdotInfo()['value'] ?? null;
+    }
+
+    /**
+     * Die Pace-Zonen kommen aus dem VDOT und werden nicht mehr gespeichert.
+     *
+     * Die Spalte `pace_zones` wurde an drei Stellen geschrieben (Schwellen-
+     * Job, Onboarding, Profil) und an fünf gelesen. Mit den Bestzeiten als
+     * zweiter VDOT-Quelle wäre sie nach jedem schnellen Lauf veraltet. Der
+     * gespeicherte Wert zählt nur noch, solange es keinen VDOT gibt.
+     */
+    public function getPaceZonesAttribute($value): ?array
+    {
+        $zones = $this->calculatePaceZones();
+
+        return $zones ?: ($value ? json_decode($value, true) : null);
+    }
+
+    /**
+     * Die fünf Pace-Zonen, Grenzen als Anteil am VO2max aus {@see Vdot::ZONES}.
+     *
+     * Vorher feste Abstände zur Schwellenpace (Z2 = T + 0:46 bis + 1:21),
+     * die für einen 3:30-Läufer etwas anderes bedeuteten als für einen
+     * 6:00-Läufer.
      */
     public function calculatePaceZones(): array
     {
-        if (!$this->threshold_speed) {
+        $vdot = $this->vdot();
+
+        if (! $vdot) {
             return [];
         }
 
-        // threshold_speed is stored as minutes (e.g. 5.5 = 5:30)
-        $ts = $this->threshold_speed;
+        $names = [1 => 'Zone 1 (Recovery)', 2 => 'Zone 2 (Easy)', 3 => 'Zone 3 (Tempo)', 4 => 'Zone 4 (Threshold)', 5 => 'Zone 5 (VO2 Max)'];
+        $zones = [];
 
-        // Build a model similar zu deinem Screenshot (4:19):
-        // Z1 > +1:21, Z2 0:46 - 1:21, Z3 0:21 - 0:46, Z4 0:00 - 0:21, Z5 < -0:04 
-        $z1Min = $ts + (1 + 21/60); // +1:21
-        $z2Min = $ts + (0 + 46/60); // +0:46
-        $z3Min = $ts + (0 + 21/60); // +0:21
-        $z4Min = $ts;
-        $z5Max = max(0, $ts - (0 + 4/60)); // -0:04
+        foreach (Vdot::ZONES as $zone => [$fast, $slow]) {
+            $zones["z{$zone}"] = [
+                'name'     => $names[$zone],
+                'min_pace' => $fast !== null ? PaceFormat::fromSeconds(Vdot::paceAt($vdot, $fast)) : '0:00',
+                'max_pace' => $slow !== null ? PaceFormat::fromSeconds(Vdot::paceAt($vdot, $slow)) : '∞',
+            ];
+        }
 
-        return [
-            'z1' => [
-                'name' => 'Zone 1 (Recovery)',
-                'min_pace' => $this->minutesToPace(round($z1Min, 2)),
-                'max_pace' => '∞',
-            ],
-            'z2' => [
-                'name' => 'Zone 2 (Easy)',
-                'min_pace' => $this->minutesToPace(round($z2Min, 2)),
-                'max_pace' => $this->minutesToPace(round($z1Min, 2)),
-            ],
-            'z3' => [
-                'name' => 'Zone 3 (Tempo)',
-                'min_pace' => $this->minutesToPace(round($z3Min, 2)),
-                'max_pace' => $this->minutesToPace(round($z2Min, 2)),
-            ],
-            'z4' => [
-                'name' => 'Zone 4 (Threshold)',
-                'min_pace' => $this->minutesToPace(round($z4Min, 2)),
-                'max_pace' => $this->minutesToPace(round($z3Min, 2)),
-            ],
-            'z5' => [
-                'name' => 'Zone 5 (VO2 Max)',
-                'min_pace' => '0:00',
-                'max_pace' => $this->minutesToPace(round($z5Max, 2)),
-            ],
-        ];
+        return $zones;
     }
 
     /**
@@ -178,14 +202,5 @@ class RunnerProfile extends Model
         $this->update([
             'coach_notes' => implode("\n", array_slice($lines, -self::MAX_COACH_NOTES)),
         ]);
-    }
-
-    /**
-     * Convert minutes (float) to pace format (MM:SS)
-     * E.g. 5.5 = "5:30"
-     */
-    private function minutesToPace(float $minutes): string
-    {
-        return PaceFormat::fromMinutes($minutes);
     }
 }

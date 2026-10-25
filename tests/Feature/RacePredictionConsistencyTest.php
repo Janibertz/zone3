@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\AI\CoachingTextService;
 use App\Services\PredictFinishTimeService;
 use App\Services\RacePredictionService;
+use App\Services\Vdot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -33,23 +34,50 @@ class RacePredictionConsistencyTest extends TestCase
 
     // ── Die Formel ───────────────────────────────────────────────────────
 
-    /** Marathon = Schwellenpace × 1,12. Bei 4:22/km sind das 3:26:xx. */
-    public function test_the_marathon_multiplier(): void
+    /**
+     * Daniels' Tabelle („Daniels' Running Formula", 3. Aufl.) auf wenige
+     * Sekunden. Die alten Faktoren lagen bei 5 km fast eine Minute daneben.
+     *
+     * @return array<string, array{float, string, int}>
+     */
+    public static function danielsTable(): array
     {
-        // 4:22 min/km als Dezimalminuten
-        $result = $this->service()->fromThreshold(4 + 22 / 60, 'marathon');
-
-        $this->assertSame('4:53', $result['pace']);
-        $this->assertStringStartsWith('3:26', $result['time']);
+        return [
+            'VDOT 40, 5 km'        => [40, '5km',           1448],  // 24:08
+            'VDOT 40, Marathon'    => [40, 'marathon',     13785],  // 3:49:45
+            'VDOT 50, 10 km'       => [50, '10km',          2481],  // 41:21
+            'VDOT 50, Halbmarathon'=> [50, 'half_marathon', 5495],  // 1:31:35
+            'VDOT 60, Marathon'    => [60, 'marathon',      9805],  // 2:43:25
+            'VDOT 70, 5 km'        => [70, '5km',            897],  // 14:57
+        ];
     }
 
-    public function test_all_four_anchors_are_produced_for_the_dashboard(): void
+    #[\PHPUnit\Framework\Attributes\DataProvider('danielsTable')]
+    public function test_the_prediction_matches_daniels_table(float $vdot, string $distance, int $tableSec): void
     {
-        $tiles = $this->service()->standardDistances(5.0);
+        $result = $this->service()->forVdot($vdot, $distance);
+
+        // 0,2 % — beim Marathon gut 20 s, beim 5er 2–3 s.
+        $this->assertEqualsWithDelta($tableSec, $result['total_sec'], max(3, $tableSec * 0.002));
+    }
+
+    /** Schwellenpace 4:22 → VDOT 48,4 → Marathon 3:15:57 (vorher mit × 1,12: 3:26). */
+    public function test_the_marathon_from_a_threshold(): void
+    {
+        $vdot   = Vdot::fromThresholdPace(262);
+        $result = $this->service()->forVdot($vdot, 'marathon');
+
+        $this->assertSame('3:15:57', $result['time']);
+        $this->assertSame('4:39', $result['pace']);
+    }
+
+    public function test_all_four_distances_are_produced_for_the_dashboard(): void
+    {
+        $tiles = $this->service()->standardDistances(50);
 
         $this->assertSame(['5k', '10k', 'half', 'marathon'], array_keys($tiles));
         $this->assertSame('Halbmarathon', $tiles['half']['label']);
-        $this->assertSame('4:30', $tiles['5k']['pace']);      // 5:00 × 0,90
+        $this->assertSame('19:56', $tiles['5k']['total_time']);
     }
 
     /** Planseite und Dashboard müssen dieselbe Marathonzeit nennen. */
@@ -58,28 +86,27 @@ class RacePredictionConsistencyTest extends TestCase
         $svc = $this->service();
 
         $this->assertSame(
-            $svc->fromThreshold(4.75, 'marathon')['time'],
-            $svc->standardDistances(4.75)['marathon']['total_time'],
+            $svc->forVdot(47.3, 'marathon')['time'],
+            $svc->standardDistances(47.3)['marathon']['total_time'],
         );
     }
 
-    public function test_a_custom_distance_is_interpolated(): void
+    public function test_a_custom_distance_lies_between_its_neighbours(): void
     {
         $svc = $this->service();
 
-        $fifteen = $svc->fromThreshold(5.0, 'custom', 15.0);
-        $ten     = $svc->fromThreshold(5.0, '10km');
-        $half    = $svc->fromThreshold(5.0, 'half_marathon');
+        $fifteen = $svc->forVdot(45, 'custom', 15.0);
+        $ten     = $svc->forVdot(45, '10km');
+        $half    = $svc->forVdot(45, 'half_marathon');
 
-        // 15 km liegt zwischen den Ankern — die Pace also auch.
         $this->assertGreaterThan($ten['total_sec'] / 10, $fifteen['total_sec'] / 15);
         $this->assertLessThan($half['total_sec'] / 21.0975, $fifteen['total_sec'] / 15);
     }
 
-    public function test_without_a_threshold_there_is_no_prediction(): void
+    public function test_without_a_vdot_there_is_no_prediction(): void
     {
-        $this->assertNull($this->service()->fromThreshold(0.0, 'marathon'));
-        $this->assertNull($this->service()->fromThreshold(5.0, 'custom', null));
+        $this->assertNull($this->service()->forVdot(null, 'marathon'));
+        $this->assertNull($this->service()->forVdot(45, 'custom', null));
     }
 
     // ── Der Text bekommt die angezeigte Zahl ─────────────────────────────
@@ -128,10 +155,10 @@ class RacePredictionConsistencyTest extends TestCase
             app(RacePredictionService::class),
         );
 
-        $this->assertStringStartsWith('3:26', $seen['predicted_finish_time'], 'Der Text bekommt die Schwellen-Prognose');
+        $this->assertStringStartsWith('3:15', $seen['predicted_finish_time'], 'Der Text bekommt die VDOT-Prognose');
         $this->assertSame('improving', $seen['prediction_trend'], 'Trend kommt weiter aus dem Predictor');
-        $this->assertStringContainsString('3:26', $plan->refresh()->prediction_text);
-        $this->assertStringStartsWith('3:26', $plan->predicted_finish_time);
+        $this->assertStringContainsString('3:15', $plan->refresh()->prediction_text);
+        $this->assertStringStartsWith('3:15', $plan->predicted_finish_time);
     }
 
     /** Ohne Schwellenpace bleibt es bei der Riegel-Hochrechnung. */

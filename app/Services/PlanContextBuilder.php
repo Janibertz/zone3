@@ -78,7 +78,8 @@ class PlanContextBuilder
         $comeback = $this->returnToRun->forPlan($user, $wellbeing, $finalized);
 
         $availability = $user->runnerProfile?->weekly_availability;
-        $paces        = $this->paces->forEvent($event, $user->runnerProfile?->threshold_speed);
+        $vdot         = $user->runnerProfile?->vdotInfo();
+        $paces        = $this->paces->forEvent($event, $vdot['value'] ?? null, $vdot['label'] ?? null);
         $interview    = $this->interviews->forPlan($user);
         $volume       = $this->applyInterviewToVolume(
             $this->volume->forUser($user->id, $windowFrom),

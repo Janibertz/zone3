@@ -150,11 +150,11 @@ class EightyTwentyTest extends TestCase
     /** Intervalle laufen schneller als die Schwelle — am oberen Ende auch. */
     public function test_interval_pace_is_faster_than_threshold(): void
     {
-        $paces = app(TrainingPaceService::class)->forEvent($this->event(), 4 + 22 / 60);
+        $paces = app(TrainingPaceService::class)->forEvent($this->event(), \App\Services\Vdot::fromThresholdPace(262));
 
         $this->assertSame('4:22', $paces['threshold']);
-        $this->assertSame('4:01–4:09', $paces['interval']);
-        $this->assertSame('3:51', $paces['repetition']);
+        $this->assertSame('3:56–4:01', $paces['interval'], 'Daniels I: 97,5–100 % VO2max');
+        $this->assertSame('3:47', $paces['repetition'], 'Daniels R: ~105 %');
     }
 
     // ── Phase und Taper ──────────────────────────────────────────────────

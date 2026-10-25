@@ -61,15 +61,17 @@ class PlanNumbersTest extends TestCase
     public function test_the_pace_table_is_derived_from_threshold_and_goal(): void
     {
         $user  = User::factory()->create();
-        $paces = app(TrainingPaceService::class)->forEvent($this->marathon($user), 4 + 22 / 60);
+        $paces = app(TrainingPaceService::class)->forEvent($this->marathon($user), \App\Services\Vdot::fromThresholdPace(262));
 
         $this->assertSame('4:22', $paces['threshold']);
         $this->assertSame('4:58', $paces['target_pace'], 'Zielpace = 3:30 Std auf 42,195 km');
-        $this->assertSame('5:08–5:43', $paces['easy']);
+        $this->assertSame('5:01–6:01', $paces['easy'], 'Daniels E: 59–74 % VO2max');
 
-        // Das Ziel ist minimal langsamer als die Prognose — also machbar.
-        $this->assertLessThan(0, $paces['delta_sec']);
-        $this->assertStringContainsString('passt zur heutigen Form', $paces['verdict']);
+        // VDOT 48,4 gibt 3:15:57 her — 3:30 ist 20 s/km langsamer. Mit den
+        // alten Faktoren (× 1,12 → 3:26) stand hier „passt".
+        $this->assertSame('3:15:57', $paces['predicted_time']);
+        $this->assertSame(-20, $paces['delta_sec']);
+        $this->assertStringContainsString('konservativ', $paces['verdict']);
     }
 
     /** Ein zu ehrgeiziges Ziel wird als solches benannt, nicht verschwiegen. */
@@ -79,7 +81,7 @@ class PlanNumbersTest extends TestCase
         $event = $this->marathon($user);
         $event->update(['target_time_hours' => 2, 'target_time_minutes' => 45]);
 
-        $paces = app(TrainingPaceService::class)->forEvent($event->refresh(), 4 + 22 / 60);
+        $paces = app(TrainingPaceService::class)->forEvent($event->refresh(), \App\Services\Vdot::fromThresholdPace(262));
 
         $this->assertGreaterThan(25, $paces['delta_sec']);
         $this->assertStringContainsString('deutlich über der heutigen Form', $paces['verdict']);

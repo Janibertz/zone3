@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Event;
 use App\Services\PaceFormat;
+use App\Services\Vdot;
 
 /**
  * Die konkreten Tempos, in denen ein Plan gelaufen werden soll.
@@ -24,9 +25,11 @@ class TrainingPaceService
     public function __construct(private readonly RacePredictionService $prediction) {}
 
     /**
-     * @param  float|null  $thresholdSpeed  Schwellenpace in Minuten je Kilometer (5.5 = 5:30)
+     * @param  float|null   $vdot   Aus {@see VdotService::forProfile()}.
+     * @param  string|null  $label  Woher der VDOT kommt — steht im Prompt daneben.
      *
      * @return array{
+     *     vdot: float, vdot_label: string|null,
      *     threshold: string, easy: string, long: string, marathon: string,
      *     interval: string, repetition: string,
      *     race_km: float|null, target_pace: string|null, target_time: string|null,
@@ -34,32 +37,28 @@ class TrainingPaceService
      *     delta_sec: int|null, verdict: string|null
      * }|null
      */
-    public function forEvent(Event $event, ?float $thresholdSpeed): ?array
+    public function forEvent(Event $event, ?float $vdot, ?string $label = null): ?array
     {
-        if (! $thresholdSpeed || $thresholdSpeed <= 0) {
+        if (! $vdot || $vdot <= 0) {
             return null;
         }
 
-        $t = $thresholdSpeed * 60; // Sekunden je Kilometer
+        // Daniels' Intensitäten aus Vdot — dieselben, aus denen
+        // RunnerProfile::calculatePaceZones() die Zonen der App rechnet.
+        $long = [Vdot::paceAt($vdot, Vdot::LONG[0]), Vdot::paceAt($vdot, Vdot::LONG[1])];
 
-        // Dieselben Abstände, die RunnerProfile::calculatePaceZones() für die
-        // Anzeige benutzt — der Plan muss dieselben Zahlen nennen wie die App.
         $paces = [
-            'threshold'  => $this->pace($t),
-            'easy'       => $this->range($t + 46, $t + 81),
-            'long'       => $this->range($t + 46, $t + 95),
-            'marathon'   => $this->pace($t * 1.12),
-            // Intervalle laufen schneller als die Schwelle, nie langsamer.
-            // Hier stand „T − 12 bis T + 4 s" — das obere Ende war ein
-            // Schwellenlauf mit Pausen, kein VO2max-Reiz. Die Faktoren
-            // treffen Daniels' I- und R-Pace auf ein paar Sekunden, in
-            // Prozent statt Sekunden, weil ein fester Abstand für einen
-            // 5:30-Läufer etwas anderes bedeutet als für einen 3:30-Läufer.
-            'interval'   => $this->range($t * 0.92, $t * 0.95),
-            'repetition' => $this->pace($t * 0.88),
+            'vdot'       => round($vdot, 1),
+            'vdot_label' => $label,
+            'threshold'  => $this->pace(Vdot::paceAt($vdot, Vdot::THRESHOLD)),
+            'easy'       => $this->range(Vdot::paceAt($vdot, Vdot::EASY[0]), Vdot::paceAt($vdot, Vdot::EASY[1])),
+            'long'       => $this->range(...$long),
+            'marathon'   => $this->pace(Vdot::raceSeconds($vdot, 42195) / 42.195),
+            'interval'   => $this->range(Vdot::paceAt($vdot, Vdot::INTERVAL[0]), Vdot::paceAt($vdot, Vdot::INTERVAL[1])),
+            'repetition' => $this->pace(Vdot::paceAt($vdot, Vdot::REPETITION)),
             // Der numerische Wert für alles, was mit Distanzen rechnet —
             // die Leiter der langen Läufe zum Beispiel.
-            'long_sec'   => (int) round($t + 70),
+            'long_sec'   => (int) round(($long[0] + $long[1]) / 2),
         ];
 
         $km = $this->raceKm($event);
@@ -78,7 +77,7 @@ class TrainingPaceService
             ];
         }
 
-        $predicted   = $this->prediction->fromThreshold($thresholdSpeed, $event->race_distance, $km);
+        $predicted   = $this->prediction->forVdot($vdot, $event->race_distance, $km);
         $targetSec   = ($event->target_time_hours * 60 + $event->target_time_minutes) * 60;
         $targetPace  = $targetSec > 0 ? $targetSec / $km : null;
 
@@ -110,15 +109,16 @@ class TrainingPaceService
     {
         $lines = [
             "- ZIELRENNTEMPO (darauf führt der Plan hin): " . ($p['target_pace'] ? "{$p['target_pace']} min/km" : 'keine Zielzeit hinterlegt'),
-            "- Schwellenpace (T): {$p['threshold']} min/km",
-            "- Ruhiges Dauertempo aus der heutigen Form: {$p['marathon']} min/km",
-            "- Locker / Grundlage (Zone 2): {$p['easy']} min/km",
-            "- Langer Lauf: {$p['long']} min/km",
-            "- Intervalle (Zone 4–5): {$p['interval']} min/km",
-            "- Kurze schnelle Wiederholungen: schneller als {$p['repetition']} min/km",
+            "- VDOT: {$p['vdot']}" . ($p['vdot_label'] ? " ({$p['vdot_label']})" : ''),
+            "- Schwelle (T, Daniels): {$p['threshold']} min/km",
+            "- Marathontempo (M) aus der heutigen Form: {$p['marathon']} min/km",
+            "- Locker / Grundlage (E, Zone 2): {$p['easy']} min/km",
+            "- Langer Lauf (E): {$p['long']} min/km",
+            "- Intervalle (I, 3–5 min Belastung): {$p['interval']} min/km",
+            "- Kurze schnelle Wiederholungen (R, 200–400 m): {$p['repetition']} min/km",
         ];
 
-        $text = "\n\n**Trainingstempi (aus der gemessenen Schwellenpace berechnet — benutze DIESE Zahlen in pace_target und description, erfinde keine eigenen):**\n"
+        $text = "\n\n**Trainingstempi nach Daniels (aus dem VDOT berechnet — benutze DIESE Zahlen in pace_target und description, erfinde keine eigenen):**\n"
             . implode("\n", $lines);
 
         if ($p['target_pace']) {
@@ -130,7 +130,7 @@ class TrainingPaceService
             $sign  = $delta > 0 ? "{$delta} s/km schneller als die heutige Form" : abs($delta) . ' s/km langsamer als die heutige Form';
 
             $text .= "\n\n**Ziel gegen Ist:** Zielzeit {$p['target_time']} ({$p['target_pace']} min/km) — "
-                . "aus der aktuellen Schwellenpace ergibt sich {$p['predicted_time']} ({$p['predicted_pace']} min/km). "
+                . "aus dem aktuellen VDOT ergibt sich {$p['predicted_time']} ({$p['predicted_pace']} min/km). "
                 . "Das Ziel verlangt also ein Renntempo, das {$sign} ist.\n"
                 . "Einordnung: " . $this->combinedVerdict($p, $longRuns);
         }
@@ -170,7 +170,7 @@ class TrainingPaceService
             return $paceVerdict;
         }
 
-        return "Das Tempo trägt, die Ausdauer noch nicht. Aus der Schwellenpace allein wäre die Zielzeit erreichbar, "
+        return "Das Tempo trägt, die Ausdauer noch nicht. Aus dem VDOT allein wäre die Zielzeit erreichbar, "
             . "aber der lange Lauf kommt bis zum Renntag nur auf {$peak} km statt der nötigen {$ideal} km. "
             . "Der begrenzende Faktor ist also die Distanz, nicht die Geschwindigkeit. "
             . "Plane das Renntempo weiter konsequent, aber sage dem Athleten in der description des längsten Laufs "

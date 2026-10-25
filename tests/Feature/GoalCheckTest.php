@@ -28,7 +28,11 @@ class GoalCheckTest extends TestCase
 
     private int $seq = 910000;
 
-    private function athlete(float $thresholdPace = 4.3667): User
+    /**
+     * Schwelle 4:35 → VDOT 45,6 → Marathon 3:26. Bis zur Umstellung auf
+     * Daniels war das 4:22 (× 1,12); die Fälle unten sind um 3:26 gebaut.
+     */
+    private function athlete(float $thresholdPace = 4 + 35 / 60): User
     {
         $user = User::factory()->create(['onboarding_completed_at' => now()]);
         $user->runnerProfile()->create(['threshold_speed' => $thresholdPace]);

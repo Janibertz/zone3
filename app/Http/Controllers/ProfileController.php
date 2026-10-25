@@ -49,6 +49,8 @@ class ProfileController extends Controller
             'mustVerifyEmail'  => $user instanceof MustVerifyEmail,
             'status'           => session('status'),
             'runnerProfile'    => $user->runnerProfile,
+            // Woher Zonen und Prognosen kommen — siehe VdotService.
+            'vdot'             => $user->runnerProfile?->vdotInfo(),
             'stravaConnected'  => (bool) $user->stravaAccount,
             'stravaAccount'    => $user->stravaAccount ? [
                 'username'       => $user->stravaAccount->username,

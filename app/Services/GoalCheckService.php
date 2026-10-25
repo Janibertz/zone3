@@ -90,9 +90,9 @@ class GoalCheckService
         }
 
         $targetSec = ($event->target_time_hours * 60 + $event->target_time_minutes) * 60;
-        $threshold = $user->runnerProfile?->threshold_speed;
+        $vdot = $user->runnerProfile?->vdot();
 
-        if ($targetSec <= 0 || ! $threshold) {
+        if ($targetSec <= 0 || ! $vdot) {
             return null;
         }
 
@@ -101,7 +101,7 @@ class GoalCheckService
             return null;
         }
 
-        $predicted = $this->prediction->fromThreshold($threshold, $event->race_distance);
+        $predicted = $this->prediction->forVdot($vdot, $event->race_distance);
         if (! $predicted) {
             return null;
         }
