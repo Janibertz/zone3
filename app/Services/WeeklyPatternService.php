@@ -119,10 +119,16 @@ class WeeklyPatternService
         // wieder normal.
         $step = $comeback['step'] ?? null;
 
+        // Der letzte Comeback-Lauf wandert ebenfalls mit. Lag er am Sonntag,
+        // begann die neue Woche ohne ihn — und Montag bekam Stufe 2 ohne den
+        // Ruhetag dazwischen. Aufgefallen, weil die Tests nur sonntags
+        // fielen; `plan:write-week` laeuft genau dann.
+        $lastRun = null;
+
         $weeks = [];
         foreach ($this->groupByWeek($days) as $weekKey => $dates) {
             $weeks[$weekKey] = $step !== null && $step < ReturnToRunService::TOTAL_STEPS
-                ? $this->planComebackWeek($days, $dates, $step, $priority, $maxHard)
+                ? $this->planComebackWeek($days, $dates, $step, $lastRun, $priority, $maxHard)
                 : $this->planWeek($days, $dates, $priority, $maxHard);
 
             // Was danach noch frei ist, wird HIER entschieden — nicht vom
@@ -693,7 +699,7 @@ class WeeklyPatternService
      * Die Stufe zählt Einheiten, keine Tage — deshalb wandert sie als
      * Referenz durch alle Wochen des Fensters.
      */
-    private function planComebackWeek(array &$days, array $dates, int &$step, array $priority, int $maxHard): array
+    private function planComebackWeek(array &$days, array $dates, int &$step, ?string &$lastRun, array $priority, int $maxHard): array
     {
         $usable = array_values(array_filter(
             $dates,
@@ -708,7 +714,6 @@ class WeeklyPatternService
 
         $capacity = count($dates) >= 7 ? max(1, count($usable) - 1) : count($usable);
         $planned  = [];
-        $lastRun  = null;
 
         foreach ($usable as $date) {
             if (count($planned) >= $capacity) {

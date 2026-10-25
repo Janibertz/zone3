@@ -272,6 +272,37 @@ class OneRunPerDayTest extends TestCase
         $this->assertSame([], $restDay['slots']);
     }
 
+    /**
+     * Beginnt das Fenster an einem Sonntag, ist die erste Woche einen Tag
+     * lang. Der Ruhetag nach dem ersten Comeback-Lauf fiel dann auf den
+     * Montag der naechsten Woche — und ging verloren, weil jede Woche ohne
+     * den letzten Lauf anfing. Die beiden Tests oben fielen deshalb nur
+     * sonntags; dieser hier haelt den Sonntag fest.
+     */
+    public function test_a_comeback_starting_on_a_sunday_keeps_its_rest_day(): void
+    {
+        \Carbon\Carbon::setTestNow('2026-10-25'); // ein Sonntag
+
+        try {
+            $user     = $this->athlete(sickToday: true);
+            $skeleton = $this->skeleton($user, [
+                'step' => 1, 'total_steps' => 5, 'trigger' => 'sick', 'trigger_label' => 'Krankheit',
+            ]);
+
+            $this->assertNotEmpty($skeleton['days']['2026-10-25']['slots'], 'Sonntag traegt Stufe 1');
+            $this->assertTrue($skeleton['days']['2026-10-26']['rest'] ?? false, 'Montag muss Ruhetag sein');
+            $this->assertSame([], $skeleton['days']['2026-10-26']['slots']);
+
+            foreach (collect($skeleton['days'])->take(4) as $date => $day) {
+                foreach ($day['slots'] as $slot) {
+                    $this->assertNotContains($slot['type'], WeeklyPatternService::HARD_TYPES, "{$date}: harte Einheit im Wiedereinstieg");
+                }
+            }
+        } finally {
+            \Carbon\Carbon::setTestNow();
+        }
+    }
+
     /** Ein 8-Minuten-"Mini-Reset" ist kein sinnvoller geplanter Lauf. */
     public function test_a_sub_twenty_minute_run_becomes_a_rest_day(): void
     {
