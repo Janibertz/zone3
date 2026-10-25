@@ -160,6 +160,16 @@ const wellbeingBanner = computed(() => {
 // ── Generate plan ─────────────────────────────────────────────────────────────
 let pollTimer = null;
 
+/*
+ * Ein NEUER Plan beginnt mit dem Interview — jedes Mal, samt der Frage nach
+ * dem Startdatum. Das Interview schickt danach mit `?generate=1` hierher
+ * zurück, und der Bau startet von selbst. „Plan aktualisieren" bei einem
+ * laufenden Plan bleibt ein direkter Neubau.
+ */
+function startNewPlan() {
+    router.visit(route('plan-interview.show', { event: props.event.id }));
+}
+
 async function generatePlan() {
     generating.value = true;
     errorMsg.value   = '';
@@ -378,6 +388,11 @@ onMounted(() => {
     // Resume polling if a plan generation is already running (e.g. started on another device).
     if (props.event.plan_generating) {
         pollGenerateStatus();
+    } else if (new URLSearchParams(window.location.search).get('generate') === '1') {
+        // Aus dem Interview: den Parameter sofort entfernen, sonst baute ein
+        // Neuladen der Seite den Plan ein zweites Mal.
+        window.history.replaceState({}, '', window.location.pathname);
+        if (!currentPlan.value?.is_active && !props.isPastEvent) generatePlan();
     }
     // Race-day strategy: auto-loaded in the race week (next ~10 days).
     if (!props.isPastEvent && props.event.days_until >= 0 && props.event.days_until <= 10) {
@@ -916,6 +931,10 @@ const lapHeightPct = computed(() => {
                                     <span :class="event.days_until <= 7 && event.days_until >= 0 ? 'font-semibold text-danger' : ''">
                                         {{ event.days_until > 0 ? `noch ${event.days_until} Tage` : event.days_until === 0 ? 'Heute!' : 'Vorbei' }}
                                     </span>
+                                    <template v-if="event.plan_start_label">
+                                        <span aria-hidden="true">·</span>
+                                        <span class="font-medium text-accent">Plan ab {{ event.plan_start_label }}</span>
+                                    </template>
                                 </div>
                             </div>
                         </div>
@@ -930,7 +949,7 @@ const lapHeightPct = computed(() => {
                                 size="md"
                                 class="flex-1 sm:flex-none"
                                 :loading="generating"
-                                @click="generatePlan"
+                                @click="currentPlan?.is_active ? generatePlan() : startNewPlan()"
                             >
                                 {{ generating ? coachName + ' rechnet…' : currentPlan?.is_active ? 'Plan aktualisieren' : 'Plan erstellen' }}
                             </AppButton>
@@ -1018,7 +1037,7 @@ const lapHeightPct = computed(() => {
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
                             </svg>
                         </template>
-                        <AppButton v-if="!isPastEvent" :loading="generating" @click="generatePlan">Plan erstellen</AppButton>
+                        <AppButton v-if="!isPastEvent" :loading="generating" @click="startNewPlan">Plan erstellen</AppButton>
                     </EmptyState>
                 </AppCard>
 

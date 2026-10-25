@@ -122,6 +122,10 @@ class TrainingPlanController extends Controller
                 'days_until'            => $event->days_until,
                 'plan_generating'       => $event->isGeneratingPlan(),
                 'plan_error'            => $event->plan_error,
+                // Nur ein Start in der Zukunft — ein vergangener ist erledigt.
+                'plan_start_label'      => $event->plan_start_date?->isFuture()
+                    ? $event->plan_start_date->locale('de')->isoFormat('dd, D. MMMM')
+                    : null,
             ],
             'backyard' => $backyard,
             // True when the race is beyond the rolling window, so the plan only covers

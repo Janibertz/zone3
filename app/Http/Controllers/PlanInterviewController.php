@@ -28,9 +28,11 @@ class PlanInterviewController extends Controller
     /**
      * Das Interview, optional fuer ein bestimmtes Event.
      *
-     * Der Einstieg ist „Plan erstellen" unter Events. Wer das Gespraech
-     * ueberspringt oder es kuerzlich schon gefuehrt hat, landet trotzdem auf
-     * der Planseite — ein Interview ist eine Einladung, kein Schlagbaum.
+     * Der Einstieg ist „Plan erstellen" — unter Events und auf der Planseite.
+     * Es kommt bei JEDEM neuen Plan (Entscheidung von Jan, 25.10.2026), auch
+     * wenn das letzte erst ein paar Wochen her ist: vorher wurde durchgewunken,
+     * wer in den letzten acht Wochen geantwortet hatte, und damit fehlte genau
+     * dann die Frage nach dem Startdatum. Jede Frage bleibt optional.
      */
     public function show(Request $request, PlanInterviewService $service): Response|RedirectResponse
     {
@@ -38,13 +40,6 @@ class PlanInterviewController extends Controller
 
         if ($request->filled('event')) {
             $event = Auth::user()->events()->find($request->integer('event'));
-        }
-
-        // Schon gefuehrt und noch frisch? Dann nicht ein zweites Mal fragen —
-        // dieselbe Acht-Wochen-Grenze, ab der `forPlan()` das Interview
-        // ohnehin nicht mehr beruecksichtigt.
-        if ($event && $service->forPlan(Auth::user()) !== null) {
-            return redirect()->route('events.plan.show', $event->id);
         }
 
         return Inertia::render('Plan/Interview', [
@@ -56,6 +51,10 @@ class PlanInterviewController extends Controller
                 'date_label' => $event->event_date->format('d.m.Y'),
                 'distance'   => $event->distance_label,
                 'days_until' => $event->days_until,
+                // Frühestens heute, spätestens am Vortag des Rennens.
+                'start_min'  => now()->toDateString(),
+                'start_max'  => $event->event_date->copy()->subDay()->toDateString(),
+                'start_date' => $event->planStartsOn()->toDateString(),
             ] : null,
         ]);
     }
@@ -85,7 +84,12 @@ class PlanInterviewController extends Controller
             'focus'             => 'nullable|string|in:' . implode(',', array_keys(PlanInterview::FOCUS)),
             'event_id'          => 'nullable|integer|exists:events,id',
             'free_note'         => 'nullable|string|max:2000',
+
+            'plan_start_date'   => 'nullable|date|after_or_equal:today',
         ]);
+
+        $startDate = $data['plan_start_date'] ?? null;
+        unset($data['plan_start_date']);
 
         // Fremde Events haben hier nichts zu suchen — `exists` prueft nur,
         // dass es die Zeile gibt, nicht wem sie gehoert.
@@ -95,6 +99,15 @@ class PlanInterviewController extends Controller
                     Auth::user()->events()->whereKey($data[$key])->exists(),
                     403,
                 );
+            }
+        }
+
+        // Vor dem Speichern prüfen — sonst stünde ein Interview doppelt da,
+        // sobald der Athlet das Datum korrigiert.
+        if ($startDate && ! empty($data['event_id'])) {
+            $raceDay = Auth::user()->events()->findOrFail($data['event_id'])->event_date->toDateString();
+            if ($startDate >= $raceDay) {
+                return back()->withErrors(['plan_start_date' => 'Der Plan muss vor dem Renntag beginnen.']);
             }
         }
 
@@ -110,11 +123,27 @@ class PlanInterviewController extends Controller
             : 'Übernommen: ' . implode(' · ', $changes);
 
         // Wer ueber „Plan erstellen" kam, will zum Plan — nicht zurueck ins
-        // Formular.
+        // Formular, und auch nicht vor einen zweiten „Plan erstellen"-Knopf.
+        // `generate=1` laesst die Planseite den Bau sofort anstossen; dort
+        // stehen schon alle Pruefungen (anderer aktiver Plan, Rennen vorbei)
+        // samt Fehleranzeige.
         if (! empty($data['event_id'])) {
+            $event = Auth::user()->events()->findOrFail($data['event_id']);
+
+            // Heute als Start ist dasselbe wie kein Start — gespeichert wird
+            // nur ein echtes Später, sonst stuende das Datum morgen in der
+            // Vergangenheit und behauptete etwas.
+            $event->update([
+                'plan_start_date' => $startDate && $startDate > now()->toDateString() ? $startDate : null,
+            ]);
+
+            $when = $event->plan_start_date
+                ? ' Der Plan beginnt am ' . $event->plan_start_date->format('d.m.Y') . '.'
+                : '';
+
             return redirect()
-                ->route('events.plan.show', $data['event_id'])
-                ->with('success', $message . ' — jetzt kann der Plan gebaut werden.');
+                ->route('events.plan.show', ['event' => $data['event_id'], 'generate' => 1])
+                ->with('success', $message . $when);
         }
 
         return redirect()->route('plan-interview.show')->with('success', $message);

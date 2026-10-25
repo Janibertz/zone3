@@ -52,9 +52,14 @@ class TrainingPlanGenerator
             . "Beziehe das in die Planung ein. Wenn eine Angabe einer Einheit im Gerüst widerspricht "
             . "(Beschwerden, Belastung, Vorlieben), passe Inhalt und Intensität an — der Slot bleibt.";
 
-        $today        = now()->format('Y-m-d');
-        $eventDate    = $event->event_date->format('Y-m-d');
-        $daysUntil    = $event->days_until;
+        // Das Fenster beginnt beim Planstart, nicht zwingend heute — wer den
+        // Plan später starten lässt, bekommt davor keinen Tag.
+        $today         = $c->windowFrom->format('Y-m-d');
+        $startsToday   = $c->windowFrom->isToday();
+        $fromLabel     = $startsToday ? "heute ({$today})" : "dem Planstart ({$today})";
+        $eventDate     = $event->event_date->format('Y-m-d');
+        $daysUntil     = $event->days_until;
+        $daysFromStart = (int) $c->windowFrom->diffInDays(\Carbon\CarbonImmutable::parse($eventDate), false);
         $targetH      = $event->target_time_hours;
         $targetM      = $event->target_time_minutes;
         $targetTime   = $targetH > 0 ? sprintf('%d:%02d Std', $targetH, $targetM) : "{$targetM} Min";
@@ -208,9 +213,9 @@ class TrainingPlanGenerator
         // Pre-compute per-date availability for each day in the plan window
         $isoToWeekday = [1 => 'monday', 2 => 'tuesday', 3 => 'wednesday', 4 => 'thursday', 5 => 'friday', 6 => 'saturday', 7 => 'sunday'];
         $perDateLines = [];
-        $planWindowDays = min(\App\Models\Event::PLAN_HORIZON_DAYS, $daysUntil + 1); // rolling window
+        $planWindowDays = min(\App\Models\Event::PLAN_HORIZON_DAYS, $daysFromStart + 1); // rolling window
         for ($i = 0; $i < $planWindowDays; $i++) {
-            $date    = now()->addDays($i);
+            $date    = $c->windowFrom->addDays($i);
             $dateStr = $date->format('Y-m-d');
             if ($dateStr > $eventDate) break;
             $dayKey    = $isoToWeekday[$date->isoWeekday()];
@@ -448,9 +453,9 @@ WARN;
         // regenerated regularly anyway, so far-future detail just wastes tokens. The
         // race day + taper are added once the race falls inside the window.
         $horizon     = \App\Models\Event::PLAN_HORIZON_DAYS;
-        $totalDays   = min($horizon, $daysUntil + 1);            // number of day-entries to produce
-        $reachesRace = ($daysUntil + 1) <= $horizon;            // window includes race day?
-        $planEndDate = $reachesRace ? $eventDate : now()->addDays($totalDays - 1)->format('Y-m-d');
+        $totalDays   = min($horizon, $daysFromStart + 1);        // number of day-entries to produce
+        $reachesRace = ($daysFromStart + 1) <= $horizon;        // window includes race day?
+        $planEndDate = $reachesRace ? $eventDate : $c->windowFrom->addDays($totalDays - 1)->format('Y-m-d');
 
         // Welche Tage das Modell ueberhaupt schreiben soll.
         //
@@ -468,7 +473,7 @@ WARN;
         }
 
         $openList = $openDates === []
-            ? "von heute ({$today}) bis {$planEndDate}"
+            ? "von {$fromLabel} bis {$planEndDate}"
             : (count($openDates) > 6
                 ? 'fuer diese ' . count($openDates) . ' Tage: ' . implode(', ', $openDates)
                 : 'fuer GENAU diese Tage: ' . implode(', ', $openDates));
@@ -550,7 +555,7 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 4. Der Zielehrgeiz. Er bestimmt, WAS trainiert wird, aber nie gegen die drei Punkte darüber, WIE VIEL.
 
 **Planungsregeln (Backyard-spezifisch):**
-- Starte den Plan ab heute ({$today})
+- Starte den Plan ab {$fromLabel}
 - Plane GENAU jeden Tag von {$today} bis {$planEndDate} — das sind {$totalDays} Tage. KEIN Tag nach {$planEndDate}.
 - {$endRuleBackyard}
 - HAUPTFOKUS: hohes, lockeres aerobes Volumen (Zone 1–2) ist die Basis und macht den Großteil des Umfangs aus (ca. 80 %).
@@ -624,7 +629,7 @@ Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute b
 Reduziere im Zweifel die Intensität einer Einheit, nicht ihre Existenz — ein gekürzter Tempolauf ist besser als ein gestrichener.
 
 **Planungsregeln:**
-- Plane GENAU jeden Tag von heute ({$today}) bis {$planEndDate} — das sind {$totalDays} Tage. Kein Tag davor, kein Tag danach.
+- Plane GENAU jeden Tag von {$fromLabel} bis {$planEndDate} — das sind {$totalDays} Tage. Kein Tag davor, kein Tag danach.
 - {$endRuleStandard}
 - Halte dich an die Trainingsphase und an die Umfangsregeln oben. Beides ist ausgerechnet, nicht geschätzt.
 - Mindestens ein Ruhetag pro Woche.

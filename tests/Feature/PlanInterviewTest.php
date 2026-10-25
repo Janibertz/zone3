@@ -312,15 +312,15 @@ class PlanInterviewTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('plan-interview.store'), ['event_id' => $event->id, 'focus' => 'race'])
-            ->assertRedirect(route('events.plan.show', $event->id));
+            ->assertRedirect(route('events.plan.show', ['event' => $event->id, 'generate' => 1]));
     }
 
     /**
-     * Ein frisches Interview wird nicht zweimal verlangt — wer vor drei Tagen
-     * geantwortet hat, soll beim naechsten Event nicht wieder durch die
-     * Fragen. Dieselbe Acht-Wochen-Grenze wie in `forPlan()`.
+     * Das Interview kommt bei jedem neuen Plan — auch wenn das letzte erst
+     * drei Tage her ist (Entscheidung von Jan, 25.10.2026). Vorher wurde
+     * durchgewunken, und damit fehlte die Frage nach dem Startdatum.
      */
-    public function test_a_recent_interview_waves_you_through(): void
+    public function test_a_recent_interview_is_asked_again_for_a_new_plan(): void
     {
         $user  = $this->athlete();
         $event = Event::create([
@@ -333,7 +333,8 @@ class PlanInterviewTest extends TestCase
 
         $this->actingAs($user)
             ->get(route('plan-interview.show', ['event' => $event->id]))
-            ->assertRedirect(route('events.plan.show', $event->id));
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('event.id', $event->id));
     }
 
     /** Ohne Event bleibt das Interview offen — auch mit frischer Antwort. */
