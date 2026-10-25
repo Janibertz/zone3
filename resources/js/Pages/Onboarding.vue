@@ -2,6 +2,8 @@
 import { ref, computed, watch } from 'vue';
 import { Head, usePage, router } from '@inertiajs/vue3';
 import axios from 'axios';
+import TrainingModelFields from '@/Components/Settings/TrainingModelFields.vue';
+import BikeFields from '@/Components/Settings/BikeFields.vue';
 
 const props = defineProps({ stravaConnectUrl: String, coaches: Array });
 
@@ -9,17 +11,23 @@ const page = usePage();
 const user = computed(() => page.props.auth.user);
 
 // ── Steps ─────────────────────────────────────────────────────────────────
+// Schritte über Schlüssel statt Nummern: mit Trainingsmodell und Rad kamen
+// zwei Schritte in die Mitte, und jede feste Nummer im Template hätte sich
+// verschoben.
 const currentStep = ref(1);
-const totalSteps  = 7;
 const steps = [
-    { number: 1, label: 'Willkommen'    },
-    { number: 2, label: 'Dein Coach'    },
-    { number: 3, label: 'Dein Profil'   },
-    { number: 4, label: 'Verfügbarkeit' },
-    { number: 5, label: 'Kraft & Core'  },
-    { number: 6, label: 'Dein Ziel'     },
-    { number: 7, label: 'Strava'        },
-];
+    { key: 'welcome',      label: 'Willkommen'    },
+    { key: 'coach',        label: 'Dein Coach'    },
+    { key: 'profile',      label: 'Dein Profil'   },
+    { key: 'model',        label: 'Trainingsmodell' },
+    { key: 'availability', label: 'Verfügbarkeit' },
+    { key: 'strength',     label: 'Kraft & Core'  },
+    { key: 'bike',         label: 'Rad / Zwift'   },
+    { key: 'goal',         label: 'Dein Ziel'     },
+    { key: 'strava',       label: 'Strava'        },
+].map((s, i) => ({ ...s, number: i + 1 }));
+const totalSteps = steps.length;
+const stepKey    = computed(() => steps[currentStep.value - 1].key);
 function nextStep() { if (currentStep.value < totalSteps) currentStep.value++; }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -162,8 +170,71 @@ const availabilityErrors  = ref({});
 
 function toggleDay(key) {
     availability.value[key].available = !availability.value[key].available;
-    if (!availability.value[key].available) availability.value[key].duration_min = 0;
+    if (!availability.value[key].available) {
+        availability.value[key].duration_min = 0;
+        delete availability.value[key].second_min;
+    }
     else if (availability.value[key].duration_min === 0) availability.value[key].duration_min = 60;
+}
+
+// Zweites Zeitfenster (abends). Wer norwegisch trainiert, braucht es an den
+// Doppel-Tagen; für alle anderen bleibt es aus.
+const secondOptions = [30, 45, 60];
+function toggleSecond(key) {
+    if (availability.value[key].second_min) delete availability.value[key].second_min;
+    else availability.value[key].second_min = 45;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Trainingsmodell
+// ════════════════════════════════════════════════════════════════════════
+const modelForm    = ref({ training_model: 'polarized', running_experience_years: null, has_lactate_meter: false });
+const modelLoading = ref(false);
+const modelError   = ref(null);
+
+async function submitModel() {
+    modelLoading.value = true;
+    modelError.value   = null;
+    try {
+        await axios.post(route('onboarding.training-model'), modelForm.value);
+        nextStep();
+    } catch (err) {
+        modelError.value = Object.values(err?.response?.data?.errors ?? {})[0]?.[0] ?? 'Speichern fehlgeschlagen.';
+    } finally {
+        modelLoading.value = false;
+    }
+}
+
+// Die Readiness braucht den Wochenumfang aus Strava, und Strava kommt erst
+// im letzten Schritt. Hier zählt deshalb nur die Erfahrung.
+const modelReadiness = computed(() => {
+    const years = modelForm.value.running_experience_years;
+    return years !== null && years !== '' && years < 2
+        ? { recommended: false, reasons: [`Du läufst seit ${years} ${years === 1 ? 'Jahr' : 'Jahren'}. Doppel-Schwelle ist für Läufer mit mindestens 2 Jahren Erfahrung gedacht.`] }
+        : { recommended: true, reasons: [] };
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Rad / Zwift
+// ════════════════════════════════════════════════════════════════════════
+const bikeForm = ref({
+    bike_enabled: false, bike_season: 'winter', bike_purpose: 'both',
+    bike_max_per_week: 2, bike_preferred_days: [], ftp: null,
+});
+const bikeLoading = ref(false);
+const bikeError   = ref(null);
+
+async function submitBike() {
+    bikeLoading.value = true;
+    bikeError.value   = null;
+    try {
+        await axios.post(route('onboarding.bike'), { ...bikeForm.value, ftp: bikeForm.value.ftp || null });
+        nextStep();
+    } catch (err) {
+        bikeError.value = Object.values(err?.response?.data?.errors ?? {})[0]?.[0] ?? 'Speichern fehlgeschlagen.';
+    } finally {
+        bikeLoading.value = false;
+    }
 }
 
 async function submitAvailability() {
@@ -311,8 +382,13 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                 :style="{ width: ((currentStep - 1) / (totalSteps - 1) * 100) + '%' }"></div>
         </div>
 
+        <!-- Auf dem Telefon passen neun Kreise nicht in eine Zeile — dort steht der Schritt als Text. -->
+        <p class="pt-5 px-4 text-center text-[13px] text-ink-3 sm:hidden">
+            Schritt {{ currentStep }} von {{ totalSteps }} · <span class="font-semibold text-ink">{{ steps[currentStep - 1].label }}</span>
+        </p>
+
         <!-- Step indicators -->
-        <div class="flex justify-center gap-2 pt-6 px-4">
+        <div class="hidden sm:flex justify-center gap-2 pt-6 px-4">
             <div v-for="step in steps" :key="step.number" class="flex items-center gap-1.5">
                 <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition duration-300"
                     :class="currentStep > step.number
@@ -325,11 +401,11 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                     </svg>
                     <span v-else>{{ step.number }}</span>
                 </div>
-                <span class="text-xs hidden sm:block transition-colors"
+                <span class="text-xs hidden lg:block transition-colors"
                     :class="currentStep === step.number ? 'text-accent-ink font-medium' : 'text-ink-3'">
                     {{ step.label }}
                 </span>
-                <div v-if="step.number < totalSteps" class="w-8 sm:w-12 h-px bg-surface-3 mx-1"></div>
+                <div v-if="step.number < totalSteps" class="w-4 lg:w-8 h-px bg-surface-3 mx-1"></div>
             </div>
         </div>
 
@@ -340,7 +416,7 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                 <!-- ══════════════════════════════════════════
                      STEP 1 — Welcome
                      ══════════════════════════════════════════ -->
-                <div v-if="currentStep === 1" class="text-center space-y-6">
+                <div v-if="stepKey === 'welcome'" class="text-center space-y-6">
                     <div class="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-accent to-accent flex items-center justify-center shadow-lg">
                         <svg class="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
@@ -380,7 +456,7 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                 <!-- ══════════════════════════════════════════
                      STEP 2 — Coach selection
                      ══════════════════════════════════════════ -->
-                <div v-else-if="currentStep === 2" class="space-y-5">
+                <div v-else-if="stepKey === 'coach'" class="space-y-5">
                     <div class="text-center">
                         <h2 class="text-2xl font-bold text-ink">Wähle deinen Coach</h2>
                         <p class="mt-2 text-ink-3">
@@ -445,7 +521,7 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                 <!-- ══════════════════════════════════════════
                      STEP 3 — Athlete profile
                      ══════════════════════════════════════════ -->
-                <div v-else-if="currentStep === 3" class="space-y-5">
+                <div v-else-if="stepKey === 'profile'" class="space-y-5">
                     <div class="text-center">
                         <h2 class="text-2xl font-bold text-ink">Dein Athletenprofil</h2>
                         <p class="mt-2 text-ink-3">
@@ -653,9 +729,28 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                 </div>
 
                 <!-- ══════════════════════════════════════════
+                     Trainingsmodell
+                     ══════════════════════════════════════════ -->
+                <div v-else-if="stepKey === 'model'" class="space-y-5">
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold text-ink">Wie willst du trainieren?</h2>
+                        <p class="mt-2 text-ink-3">Du kannst das Modell später im Profil jederzeit wechseln.</p>
+                    </div>
+
+                    <TrainingModelFields v-model="modelForm" :readiness="modelReadiness" />
+
+                    <p v-if="modelError" class="z-error">{{ modelError }}</p>
+
+                    <button @click="submitModel" :disabled="modelLoading"
+                        class="w-full rounded-card bg-accent px-6 py-3.5 text-base font-semibold text-white hover:opacity-90 active:opacity-80 disabled:opacity-50 transition-colors">
+                        {{ modelLoading ? 'Speichern…' : 'Weiter' }}
+                    </button>
+                </div>
+
+                <!-- ══════════════════════════════════════════
                      STEP 4 — Availability
                      ══════════════════════════════════════════ -->
-                <div v-else-if="currentStep === 4" class="space-y-6">
+                <div v-else-if="stepKey === 'availability'" class="space-y-6">
                     <div class="text-center">
                         <h2 class="text-2xl font-bold text-ink">Wann kannst du trainieren?</h2>
                         <p class="mt-2 text-ink-3">
@@ -684,23 +779,46 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                     <!-- Duration per available day -->
                     <div class="space-y-3">
                         <p class="text-sm font-semibold text-ink-2">Trainingszeit pro Tag</p>
-                        <div v-for="day in days.filter(d => availability[d.key].available)" :key="day.key + '_dur'" class="flex items-center gap-3">
-                            <span class="w-24 text-sm text-ink-2 font-medium">{{ day.full }}</span>
-                            <div class="flex flex-wrap gap-1.5 flex-1">
-                                <button
-                                    v-for="opt in durationOptions"
-                                    :key="opt.value"
-                                    type="button"
-                                    @click="availability[day.key].duration_min = opt.value"
-                                    class="px-2.5 py-1 rounded-field text-xs font-semibold border transition-colors"
-                                    :class="availability[day.key].duration_min === opt.value
-                                        ? 'bg-accent border-accent text-white'
-                                        : 'bg-surface border-line text-ink-2 hover:border-accent'"
-                                >
-                                    {{ opt.label }}
+                        <div v-for="day in days.filter(d => availability[d.key].available)" :key="day.key + '_dur'" class="space-y-2">
+                            <div class="flex items-center gap-3">
+                                <span class="w-24 text-sm text-ink-2 font-medium">{{ day.full }}</span>
+                                <div class="flex flex-wrap gap-1.5 flex-1">
+                                    <button
+                                        v-for="opt in durationOptions"
+                                        :key="opt.value"
+                                        type="button"
+                                        @click="availability[day.key].duration_min = opt.value"
+                                        class="px-2.5 py-1 rounded-field text-xs font-semibold border transition-colors"
+                                        :class="availability[day.key].duration_min === opt.value
+                                            ? 'bg-accent border-accent text-white'
+                                            : 'bg-surface border-line text-ink-2 hover:border-accent'"
+                                    >
+                                        {{ opt.label }}
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- Zweites Zeitfenster: nur im norwegischen Modell gefragt -->
+                            <div v-if="modelForm.training_model === 'norwegian'" class="ml-[108px] flex flex-wrap items-center gap-1.5">
+                                <button type="button" @click="toggleSecond(day.key)"
+                                    class="rounded-full px-3 py-1 text-xs font-medium transition-colors"
+                                    :class="availability[day.key].second_min ? 'bg-accent-soft text-accent-ink' : 'bg-surface-2 text-ink-3'">
+                                    {{ availability[day.key].second_min ? 'Abends' : '+ Abends' }}
                                 </button>
+                                <template v-if="availability[day.key].second_min">
+                                    <button v-for="m in secondOptions" :key="m" type="button"
+                                        @click="availability[day.key].second_min = m"
+                                        class="px-2.5 py-1 rounded-field text-xs font-semibold border transition-colors"
+                                        :class="availability[day.key].second_min === m
+                                            ? 'bg-accent border-accent text-white'
+                                            : 'bg-surface border-line text-ink-2'">
+                                        {{ m }} min
+                                    </button>
+                                </template>
                             </div>
                         </div>
+                        <p v-if="modelForm.training_model === 'norwegian'" class="text-[13px] leading-relaxed text-ink-3">
+                            Für die Doppel-Schwelle braucht es mindestens zwei Tage mit einem zweiten Zeitfenster am Abend.
+                        </p>
                         <p v-if="!days.some(d => availability[d.key].available)" class="text-sm text-warn-ink">
                             Bitte wähle mindestens einen Tag aus.
                         </p>
@@ -731,7 +849,7 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                 <!-- ══════════════════════════════════════════
                      STEP 5 — Kraft & Core
                      ══════════════════════════════════════════ -->
-                <div v-else-if="currentStep === 5" class="space-y-5">
+                <div v-else-if="stepKey === 'strength'" class="space-y-5">
                     <div class="text-center">
                         <div class="w-16 h-16 mx-auto rounded-card bg-gradient-to-br from-danger to-danger flex items-center justify-center shadow-lg text-3xl">💪</div>
                         <h2 class="mt-4 text-2xl font-bold text-ink">Kraft & Core</h2>
@@ -801,9 +919,37 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                 </div>
 
                 <!-- ══════════════════════════════════════════
+                     Rad / Zwift
+                     ══════════════════════════════════════════ -->
+                <div v-else-if="stepKey === 'bike'" class="space-y-5">
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold text-ink">Rad als Abwechslung?</h2>
+                        <p class="mt-2 text-ink-3">
+                            Gerade im Winter ist ein Reiz auf dem Rad eine gute Ergänzung.
+                            Zwift-Fahrten kommen über Strava ohnehin in Zone3 an.
+                        </p>
+                    </div>
+
+                    <BikeFields v-model="bikeForm" />
+
+                    <p v-if="bikeError" class="z-error">{{ bikeError }}</p>
+
+                    <div class="flex gap-3">
+                        <button @click="nextStep"
+                            class="flex-1 py-2.5 px-4 text-sm text-ink-3 hover:text-ink border border-line rounded-field transition-colors">
+                            Überspringen
+                        </button>
+                        <button @click="submitBike" :disabled="bikeLoading"
+                            class="flex-1 py-2.5 px-4 bg-accent hover:opacity-90 active:opacity-80 disabled:opacity-50 text-white font-semibold rounded-field transition-colors">
+                            {{ bikeLoading ? 'Speichern…' : 'Weiter' }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ══════════════════════════════════════════
                      STEP 6 — Ziel
                      ══════════════════════════════════════════ -->
-                <div v-else-if="currentStep === 6" class="space-y-5">
+                <div v-else-if="stepKey === 'goal'" class="space-y-5">
                     <div class="text-center">
                         <h2 class="text-2xl font-bold text-ink">Was ist dein Ziel?</h2>
                         <p class="mt-2 text-ink-3">
@@ -925,7 +1071,7 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                 <!-- ══════════════════════════════════════════
                      STEP 6 — Strava
                      ══════════════════════════════════════════ -->
-                <div v-else-if="currentStep === 7" class="space-y-6 text-center">
+                <div v-else-if="stepKey === 'strava'" class="space-y-6 text-center">
                     <div class="w-20 h-20 mx-auto rounded-3xl bg-warn flex items-center justify-center shadow-lg">
                         <svg class="w-10 h-10 text-white" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066l-2.084 4.116z"/>

@@ -5,6 +5,8 @@ import InputError from '@/Components/InputError.vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
+import TrainingModelFields from '@/Components/Settings/TrainingModelFields.vue';
+import BikeFields from '@/Components/Settings/BikeFields.vue';
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import axios from 'axios';
 
@@ -23,6 +25,7 @@ const props = defineProps({
     personalRecords:       { type: Array, default: () => [] },
     prHistory:             { type: Object, default: () => ({}) },
     telegram:              { type: Object, default: () => ({ available: false, linked: false }) },
+    norwegianReadiness:    { type: Object, default: null },
 });
 
 const page = usePage();
@@ -437,6 +440,7 @@ function toggleAvailDay(key) {
     if (!availability.value[key].available) {
         availability.value[key].duration_min = 0;
         delete availability.value[key].fixed;   // ohne Tag kein Termin
+        delete availability.value[key].second_min;
     } else if (!availability.value[key].duration_min) {
         availability.value[key].duration_min = 60;
     }
@@ -481,6 +485,67 @@ async function saveAvailability() {
             ?? 'Speichern fehlgeschlagen.';
     } finally {
         availSaving.value = false;
+    }
+}
+
+// ── Trainingsmodell ──────────────────────────────────────────────────────────
+// Dieselben Felder wie im Onboarding, derselbe Endpunkt. Gilt ab dem
+// naechsten Wochenplan — eine laufende Woche wird nicht umgeworfen.
+const modelForm = ref({
+    training_model:           props.runnerProfile?.training_model ?? 'polarized',
+    running_experience_years: props.runnerProfile?.running_experience_years ?? null,
+    has_lactate_meter:        props.runnerProfile?.has_lactate_meter ?? false,
+});
+const modelSaving = ref(false);
+const modelSaved  = ref(false);
+const modelError  = ref('');
+
+async function saveModel() {
+    modelSaving.value = true;
+    modelError.value  = '';
+    try {
+        await axios.post(route('onboarding.training-model'), { ...modelForm.value });
+        modelSaved.value = true;
+        setTimeout(() => { modelSaved.value = false; }, 2500);
+    } catch (e) {
+        modelError.value = Object.values(e?.response?.data?.errors ?? {})[0]?.[0] ?? 'Speichern fehlgeschlagen.';
+    } finally {
+        modelSaving.value = false;
+    }
+}
+
+// Zweites Zeitfenster am Abend — nur fuer die Doppel-Schwelle gebraucht.
+const secondOptions = [30, 45, 60];
+function toggleSecond(key) {
+    const day = availability.value[key];
+    if (day.second_min) delete day.second_min;
+    else day.second_min = 45;
+}
+
+// ── Rad / Zwift ──────────────────────────────────────────────────────────────
+const bikeForm = ref({
+    bike_enabled:        props.runnerProfile?.bike_enabled ?? false,
+    bike_season:         props.runnerProfile?.bike_season ?? 'winter',
+    bike_purpose:        props.runnerProfile?.bike_purpose ?? 'both',
+    bike_max_per_week:   props.runnerProfile?.bike_max_per_week ?? 2,
+    bike_preferred_days: [...(props.runnerProfile?.bike_preferred_days ?? [])],
+    ftp:                 props.runnerProfile?.ftp ?? null,
+});
+const bikeSaving = ref(false);
+const bikeSaved  = ref(false);
+const bikeError  = ref('');
+
+async function saveBike() {
+    bikeSaving.value = true;
+    bikeError.value  = '';
+    try {
+        await axios.post(route('onboarding.bike'), { ...bikeForm.value, ftp: bikeForm.value.ftp || null });
+        bikeSaved.value = true;
+        setTimeout(() => { bikeSaved.value = false; }, 2500);
+    } catch (e) {
+        bikeError.value = Object.values(e?.response?.data?.errors ?? {})[0]?.[0] ?? 'Speichern fehlgeschlagen.';
+    } finally {
+        bikeSaving.value = false;
     }
 }
 
@@ -1018,6 +1083,24 @@ const inputClass = 'z-input';
                             </div>
                         </div>
 
+                        <!-- Trainingsmodell -->
+                        <div class="border-t border-line pt-5 space-y-4">
+                            <div>
+                                <h3 class="text-sm font-semibold text-ink-2">Trainingsmodell</h3>
+                                <p class="text-xs text-ink-3 mt-0.5">Gilt ab dem nächsten Wochenplan (Sonntagabend).</p>
+                            </div>
+                            <TrainingModelFields v-model="modelForm" :readiness="props.norwegianReadiness" />
+                            <p v-if="modelError" class="z-error">{{ modelError }}</p>
+                            <div class="flex items-center justify-end gap-3">
+                                <span v-if="modelSaved" class="inline-flex items-center gap-1 text-[13px] text-success-ink"><svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>Gespeichert</span>
+                                <button type="button" @click="saveModel" :disabled="modelSaving"
+                                    class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90 active:opacity-80 disabled:opacity-50 transition-colors">
+                                    <svg v-if="modelSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                    Modell speichern
+                                </button>
+                            </div>
+                        </div>
+
                         <!-- Weekly availability -->
                         <div class="border-t border-line pt-5 space-y-4">
                             <div class="flex items-center justify-between">
@@ -1078,6 +1161,25 @@ const inputClass = 'z-input';
                                             : 'bg-surface-2 text-ink-3 hover:text-ink-2'">
                                         {{ availability[day.key].fixed ? 'Fester Termin' : '+ Fester Termin' }}
                                     </button>
+                                    </div>
+
+                                    <!-- Zweites Zeitfenster: nur im norwegischen Modell -->
+                                    <div v-if="modelForm.training_model === 'norwegian'" class="ml-24 flex flex-wrap items-center gap-1.5">
+                                        <button type="button" @click="toggleSecond(day.key)"
+                                            class="rounded-full px-3 py-1 text-xs font-medium transition-colors"
+                                            :class="availability[day.key].second_min ? 'bg-accent-soft text-accent-ink' : 'bg-surface-2 text-ink-3'">
+                                            {{ availability[day.key].second_min ? 'Abends' : '+ Abends' }}
+                                        </button>
+                                        <template v-if="availability[day.key].second_min">
+                                            <button v-for="m in secondOptions" :key="m" type="button"
+                                                @click="availability[day.key].second_min = m"
+                                                class="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors border"
+                                                :class="availability[day.key].second_min === m
+                                                    ? 'bg-accent border-accent text-white'
+                                                    : 'bg-surface-2 border-line text-ink-3'">
+                                                {{ m }} min
+                                            </button>
+                                        </template>
                                     </div>
 
                                     <!-- Fester Termin: der Tag ist belegt, der Inhalt kommt von außen -->
@@ -1421,6 +1523,24 @@ const inputClass = 'z-input';
                                         Verbinden
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- Rad / Zwift: lockere Läufe ersetzen, eigene Radintervalle -->
+                        <div class="rounded-card bg-surface-2 p-4 space-y-4">
+                            <div>
+                                <p class="text-sm font-semibold text-ink">Rad / Zwift</p>
+                                <p class="text-xs text-ink-3 mt-0.5">Zwift-Fahrten kommen über Strava. Hier legst du fest, ob der Plan Radeinheiten vorsieht.</p>
+                            </div>
+                            <BikeFields v-model="bikeForm" />
+                            <p v-if="bikeError" class="z-error">{{ bikeError }}</p>
+                            <div class="flex items-center justify-end gap-3">
+                                <span v-if="bikeSaved" class="inline-flex items-center gap-1 text-[13px] text-success-ink"><svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>Gespeichert</span>
+                                <button type="button" @click="saveBike" :disabled="bikeSaving"
+                                    class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90 active:opacity-80 disabled:opacity-50 transition-colors">
+                                    <svg v-if="bikeSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                    Rad speichern
+                                </button>
                             </div>
                         </div>
 

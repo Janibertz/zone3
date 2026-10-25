@@ -116,6 +116,10 @@ class OnboardingController extends Controller
             'availability.*.available'    => 'required|boolean',
             'availability.*.duration_min' => 'required|integer|min:0|max:300',
 
+            // Zweites Zeitfenster am selben Tag (z. B. abends). Erst damit
+            // kann das norwegische Modell zwei Einheiten an einen Tag legen.
+            'availability.*.second_min'   => 'nullable|integer|min:0|max:180',
+
             // Fester woechentlicher Termin (Laufclub, Vereinstraining). Der
             // Inhalt wechselt und wird nicht geplant — der Tag ist trotzdem
             // belegt und die Einheit zaehlt fuer die Woche.
@@ -125,10 +129,15 @@ class OnboardingController extends Controller
         ]);
 
         foreach ($validated['availability'] as $day => $entry) {
-            // Ein fester Termin an einem gesperrten Tag ergibt keinen Sinn.
+            // Ein fester Termin an einem gesperrten Tag ergibt keinen Sinn,
+            // ein zweites Zeitfenster auch nicht.
             if (empty($entry['available'])) {
-                unset($validated['availability'][$day]['fixed']);
+                unset($validated['availability'][$day]['fixed'], $validated['availability'][$day]['second_min']);
                 continue;
+            }
+
+            if (empty($entry['second_min'])) {
+                unset($validated['availability'][$day]['second_min']);
             }
 
             if (! isset($entry['fixed'])) {
@@ -177,6 +186,53 @@ class OnboardingController extends Controller
         $profile->strength_equipment     = $validated['strength_equipment'] ?? [];
         $profile->strength_experience    = $validated['strength_experience'] ?? null;
         $profile->save();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Trainingsmodell und was Zone3 dafür wissen muss. Wird auch aus dem
+     * Profil aufgerufen, wie Kraft & Core.
+     */
+    public function saveTrainingModel(Request $request)
+    {
+        $validated = $request->validate([
+            'training_model'           => ['required', Rule::in(RunnerProfile::TRAINING_MODELS)],
+            'running_experience_years' => 'nullable|integer|min:0|max:60',
+            'has_lactate_meter'        => 'required|boolean',
+        ]);
+
+        $user    = Auth::user();
+        $profile = $user->runnerProfile ?? new RunnerProfile(['user_id' => $user->id]);
+        $profile->user_id = $user->id;
+        $profile->fill($validated)->save();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Rad / Zwift. Die FTP ist optional — ohne sie kann Zone3 keine
+     * Radintervalle in % FTP schreiben, lockere Radeinheiten gehen trotzdem.
+     */
+    public function saveBike(Request $request)
+    {
+        $validated = $request->validate([
+            'bike_enabled'          => 'required|boolean',
+            'bike_season'           => ['required', Rule::in(RunnerProfile::BIKE_SEASONS)],
+            'bike_purpose'          => ['required', Rule::in(RunnerProfile::BIKE_PURPOSES)],
+            'bike_max_per_week'     => 'required|integer|min:1|max:4',
+            'bike_preferred_days'   => 'nullable|array',
+            'bike_preferred_days.*' => 'string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+            'ftp'                   => 'nullable|integer|min:50|max:600',
+        ]);
+
+        $user    = Auth::user();
+        $profile = $user->runnerProfile ?? new RunnerProfile(['user_id' => $user->id]);
+        $profile->user_id = $user->id;
+        $profile->fill([
+            ...$validated,
+            'bike_preferred_days' => array_values(array_unique($validated['bike_preferred_days'] ?? [])),
+        ])->save();
 
         return response()->json(['success' => true]);
     }
