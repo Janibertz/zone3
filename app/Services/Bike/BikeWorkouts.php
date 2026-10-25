@@ -17,19 +17,32 @@ class BikeWorkouts
     public const EASY      = 'easy';
     public const VO2       = 'vo2';
     public const THRESHOLD = 'threshold';
+    public const FAST      = 'fast';
 
     /** Lockeres Rad, Zone 2: 60–75 % FTP. */
     public const EASY_LOW  = 0.60;
     public const EASY_HIGH = 0.75;
 
     /**
+     * Wie viel länger eine lockere Radeinheit dauert als der Lauf, den sie
+     * ersetzt. Radfahren belastet bei gleichem Puls weniger — dieselbe
+     * Minute auf dem Rad ist nicht dieselbe Minute Laufen. Gilt im Plan und
+     * beim Tausch über den Coach.
+     */
+    public const EASY_DURATION_FACTOR = 1.25;
+
+    /** Länge der VO2-Wiederholung — daraus folgen die harten Minuten. */
+    public const VO2_REP_MINUTES = 4;
+
+    /**
      * @return array{title: string, description: string, intensity: string, duration_min: int, steps: list<array<string, mixed>>}
      */
-    public function build(string $kind, int $minutes, ?int $ftp): array
+    public function build(string $kind, int $minutes, ?int $ftp, ?int $maxReps = null): array
     {
         $workout = match ($kind) {
-            self::VO2       => $this->vo2($minutes),
+            self::VO2       => $this->vo2($minutes, $maxReps),
             self::THRESHOLD => $this->threshold($minutes),
+            self::FAST      => $this->fast($minutes, $maxReps),
             default         => $this->easy($minutes),
         };
 
@@ -58,10 +71,30 @@ class BikeWorkouts
     }
 
     /** 4-Minuten-Intervalle an der VO2max, gleich lange Pausen. */
-    private function vo2(int $minutes): array
+    /**
+     * Ein lockerer Lauf als Radeinheit: um {@see EASY_DURATION_FACTOR}
+     * länger, aber nie über das Zeitfenster des Tages.
+     */
+    public function easyMinutesFor(int $runMinutes, int $cap = 0): int
+    {
+        $minutes = (int) round($runMinutes * self::EASY_DURATION_FACTOR);
+
+        return $cap > 0 ? min($minutes, $cap) : $minutes;
+    }
+
+    /**
+     * 4-Minuten-Intervalle an der VO2max, gleich lange Pausen.
+     *
+     * `$maxReps` deckelt die Wiederholungen — das Zeitfenster des Tages und
+     * die harten Minuten, die 80/20 der Einheit lässt.
+     */
+    private function vo2(int $minutes, ?int $maxReps = null): array
     {
         // 15 Ein-, 10 Ausfahren, je Wiederholung 8 Minuten — 4 bis 6.
         $reps = max(4, min(6, intdiv(max(0, $minutes - 25), 8)));
+        if ($maxReps !== null) {
+            $reps = max(1, min($reps, $maxReps));
+        }
 
         return [
             'title'       => "Rad {$reps}×4 min VO2max",
@@ -71,6 +104,32 @@ class BikeWorkouts
                 $this->step('warmup', 'Einfahren', 15, 0.50, 0.75),
                 $this->step('work', '4 min hart', 4, 1.10, 1.20, $reps),
                 $this->step('rest', 'Locker', 4, 0.50, 0.50, $reps),
+                $this->step('cooldown', 'Ausfahren', 10, 0.60, 0.45),
+            ],
+        ];
+    }
+
+    /**
+     * Kurz und schnell — der Rad-Ersatz für die schnelle Einheit des
+     * norwegischen Modells: 1-Minuten-Stöße über der VO2max, 2 Minuten
+     * locker. `$maxReps` sind die schnellen Minuten, die der Woche bleiben.
+     */
+    private function fast(int $minutes, ?int $maxReps = null): array
+    {
+        // 15 Ein-, 10 Ausfahren, je Wiederholung 3 Minuten — 5 bis 10.
+        $reps = max(5, min(10, intdiv(max(0, $minutes - 25), 3)));
+        if ($maxReps !== null) {
+            $reps = max(1, min($reps, $maxReps));
+        }
+
+        return [
+            'title'       => "Rad {$reps}×1 min schnell",
+            'description' => "{$reps}×1 min bei 120–130 % FTP, dazwischen 2 min locker. Kurz und kräftig, hohe Trittfrequenz — keine Ausbelastung.",
+            'intensity'   => 'high',
+            'steps'       => [
+                $this->step('warmup', 'Einfahren', 15, 0.50, 0.75),
+                $this->step('work', '1 min schnell', 1, 1.20, 1.30, $reps),
+                $this->step('rest', 'Locker', 2, 0.50, 0.50, $reps),
                 $this->step('cooldown', 'Ausfahren', 10, 0.60, 0.45),
             ],
         ];

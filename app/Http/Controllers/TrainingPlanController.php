@@ -562,6 +562,8 @@ class TrainingPlanController extends Controller
             // Die Sportart, damit die Oberflaeche "Schwimmen" zeigen kann
             // und nicht nur "Alternativtraining".
             'sport_label'  => $s->isRun() ? null : $s->sportLabel(),
+            // Radeinheit in % FTP → als Zwift-Workout herunterladbar.
+            'zwo_url'      => $s->hasBikeSteps() ? route('training-sessions.zwo', $s) : null,
             'title'        => $s->title,
             'description'  => $s->description,
             'distance_km'  => $s->distance_km,

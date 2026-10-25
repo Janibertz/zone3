@@ -425,6 +425,10 @@ const skipReasons = ['Keine Zeit', 'Krank', 'Verletzt', 'Erschöpft', 'Sonstiges
 
 // ── Session detail modal ──────────────────────────────────────────────────────
 const detailSession      = ref(null);
+
+// Radeinheit: Watt, wenn die FTP bekannt ist, sonst der Anteil der FTP.
+const stepPower = (step) => step.watts
+    ?? (step.power_low != null ? `${Math.round(step.power_low * 100)}–${Math.round(step.power_high * 100)} % FTP` : null);
 const aiNutritionTips    = ref(null);
 const nutritionLoading   = ref(false);
 const nutritionError     = ref('');
@@ -1701,8 +1705,8 @@ const lapHeightPct = computed(() => {
                                                 <span class="h-2 w-2 shrink-0 rounded-full bg-danger" />
                                                 <span class="text-[13px] font-medium text-ink-2">{{ step.label }}</span>
                                                 <span class="ml-auto text-[13px] tabular-nums text-ink-3">{{ stepAmount(step) }}</span>
-                                                <span v-if="step.pace_target" class="w-16 text-right text-[13px] font-semibold tabular-nums text-ink">
-                                                    {{ step.pace_target }}
+                                                <span v-if="step.pace_target || stepPower(step)" class="min-w-16 whitespace-nowrap text-right text-[13px] font-semibold tabular-nums text-ink">
+                                                    {{ step.pace_target || stepPower(step) }}
                                                 </span>
                                             </div>
                                             <div v-if="step.pairedRest" class="flex items-center gap-2.5">
@@ -1724,8 +1728,8 @@ const lapHeightPct = computed(() => {
                                                 <p class="text-[13px] font-medium text-ink">{{ step.label }}</p>
                                             </div>
                                             <span class="shrink-0 text-[13px] tabular-nums text-ink-3">{{ stepAmount(step) }}</span>
-                                            <span v-if="step.pace_target" class="w-16 shrink-0 text-right text-[13px] font-semibold tabular-nums text-ink">
-                                                {{ step.pace_target }}
+                                            <span v-if="step.pace_target || stepPower(step)" class="min-w-16 shrink-0 whitespace-nowrap text-right text-[13px] font-semibold tabular-nums text-ink">
+                                                {{ step.pace_target || stepPower(step) }}
                                             </span>
                                         </div>
                                     </template>
@@ -1897,6 +1901,11 @@ const lapHeightPct = computed(() => {
                     @click="completeSession(detailSession)"
                 >
                     Als erledigt markieren
+                </AppButton>
+
+                <!-- Radeinheit: ein Zwift-Workout statt eines Laufs für die Uhr. -->
+                <AppButton v-else-if="detailSession.zwo_url" :href="detailSession.zwo_url" external download block>
+                    Für Zwift herunterladen
                 </AppButton>
 
                 <AppButton v-else-if="!detailIsStrength" block @click="openGarminModal">

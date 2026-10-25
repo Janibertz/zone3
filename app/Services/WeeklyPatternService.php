@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Event;
+use App\Services\Bike\BikeSchedule;
 use Carbon\CarbonImmutable;
 
 /**
@@ -145,7 +146,10 @@ class WeeklyPatternService
      */
     private const NORWEGIAN_PRIORITY = ['long_run', 'tempo_run', 'interval', 'easy_run'];
 
-    public function __construct(private readonly PeriodizationService $periodization) {}
+    public function __construct(
+        private readonly PeriodizationService $periodization,
+        private readonly BikeSchedule $bikeSchedule,
+    ) {}
 
     private const ISO_TO_KEY = [
         1 => 'monday', 2 => 'tuesday', 3 => 'wednesday', 4 => 'thursday',
@@ -174,6 +178,7 @@ class WeeklyPatternService
         ?int $planningPaceSec = null,
         array $races = [],
         ?array $model = null,
+        ?array $bike = null,
     ): array {
         $days      = $this->availabilityPerDate($from, $to, $weeklyAvailability, $overrides, $finalizedDates, $races);
         $norwegian = ($model['name'] ?? 'polarized') === 'norwegian';
@@ -242,6 +247,13 @@ class WeeklyPatternService
             // 80/20 nach Zeit — erst jetzt, weil es die Minuten aller
             // Einheiten der Woche braucht.
             $this->applyEightyTwenty($days, $priority);
+        }
+
+        // Rad/Zwift zuletzt: der Lauf, den eine Radeinheit ersetzt, hat dann
+        // seine Minuten und seinen Hauptteil — und seine Kilometer fallen mit
+        // dem Tausch aus der Woche, statt auf andere Läufe verteilt zu werden.
+        if ($bike) {
+            $this->bikeSchedule->apply($days, $this->groupByWeek($days), $bike, $periods);
         }
 
         return [
@@ -1640,6 +1652,14 @@ class WeeklyPatternService
                     ? ", max. {$slotMax} min"
                     : '';
 
+                // Eine Radeinheit steht fest — sie kommt aus den Vorlagen in
+                // % FTP und wird vom System eingesetzt, nicht vom Modell.
+                if (! empty($slot['bike'])) {
+                    $parts[] = "RADEINHEIT (Zwift, vom System gesetzt: \"{$slot['workout']['title']}\", {$slot['target_min']} min) — "
+                        . 'gib dafuer KEINEN Eintrag zurueck, auch keinen Lauf';
+                    continue;
+                }
+
                 // Ein Rennen wird benannt, nicht als fester Termin getarnt.
                 if (! empty($slot['race'])) {
                     $race = $slot['race'];
@@ -1749,12 +1769,17 @@ class WeeklyPatternService
         // die in der Tagesliste darunter gar nicht mehr standen.
         $byWeek  = [];
         $minutes = [];
+        $bikes   = [];
         foreach ($skeleton['days'] as $day) {
             if ($day['finalized'] || ! empty($day['kept'])) {
                 continue;
             }
 
             foreach ($day['slots'] ?? [] as $slot) {
+                if (! empty($slot['bike'])) {
+                    $bikes[$day['week']] = ($bikes[$day['week']] ?? 0) + 1;
+                }
+
                 if (in_array($slot['type'], self::RUN_SLOT_TYPES, true)) {
                     $byWeek[$day['week']][] = $slot['type'];
 
@@ -1779,7 +1804,11 @@ class WeeklyPatternService
                 default => " — rund {$minutes[$weekKey]} min Laufzeit, davon hoechstens " . (int) floor($minutes[$weekKey] * self::HARD_SHARE) . ' min hart',
             };
 
-            $planned[] = "- {$weekKey}: {$list}{$share}";
+            // Rad zählt nicht in die Laufminuten — die Kilometer des
+            // ersetzten Laufs sind aus der Woche heraus, nicht verteilt.
+            $bike = ! empty($bikes[$weekKey]) ? " (dazu {$bikes[$weekKey]}× Rad statt Laufen)" : '';
+
+            $planned[] = "- {$weekKey}: {$list}{$bike}{$share}";
         }
 
         $comeback = '';
@@ -1803,6 +1832,7 @@ class WeeklyPatternService
             . "- Als [optional] markierte Zweiteinheiten darfst du weglassen, wenn sie an dem Tag nicht sinnvoll sind — aber niemals durch eine harte Einheit ersetzen.\n"
             . "- Als RUHETAG markierte Tage sind Pflicht: type=\"rest\", keine Einheit, auch keine lockere. Der Athlet hat sie fest eingeplant und richtet seine Woche danach ein.\n"
             . "- Erfinde KEINE zusätzlichen harten Einheiten und verschiebe KEINE Termine.\n"
+            . ($bikes !== [] ? "- RADEINHEITEN (Zwift) setzt das System selbst ein — gib an diesen Tagen keinen Lauf und keine Radeinheit zurueck. Die Kilometer des ersetzten Laufs fehlen bewusst im Laufumfang: gleiche sie NICHT an anderen Tagen aus. Ein Radintervall ist eine harte Einheit — plane den Tag danach entsprechend locker.\n" : '')
             . "- FESTE TERMINE sind auswärtige Einheiten (Laufclub, Vereinstraining). Ihr Inhalt steht NICHT fest und wechselt wöchentlich. Schreibe dort KEINE erfundene Struktur hinein: kurzer title mit dem Namen des Termins, und eine description, die sagt, dass der Inhalt vor Ort vorgegeben wird. Setze pace_target=null. Plane an diesem Tag nichts Zusätzliches und ziehe die Einheit bei der Wochenbelastung mit ein.";
     }
 }
