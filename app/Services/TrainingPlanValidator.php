@@ -54,7 +54,8 @@ class TrainingPlanValidator
         $sessions = $this->dropUnknownDates($sessions, $days, $raceDate);
         $sessions = $this->fixTypes($sessions, $days);
         $sessions = $this->enforceAvailability($sessions, $days);
-        $sessions = $this->enforceOneHardPerDay($sessions);
+        $sessions = $this->assignParts($sessions, $days);
+        $sessions = $this->enforceOneHardPerDay($sessions, $days);
         $sessions = $this->enforceOneRunPerDay($sessions, $days);
         $sessions = $this->enforceLongRunTargets($sessions, $days);
         $sessions = $this->enforceSlotCaps($sessions, $days);
@@ -66,11 +67,16 @@ class TrainingPlanValidator
         $sessions = $this->enforceDailyBudget($sessions, $days);
         // 80/20 nach Zeit erst, wenn alle Dauern feststehen — jede Kürzung
         // davor verschiebt den Anteil.
-        $sessions = $this->enforceEightyTwenty($sessions, $days);
+        $sessions = ($skeleton['model']['name'] ?? 'polarized') === 'norwegian'
+            ? $this->enforceNorwegianShares($sessions, $days)
+            : $this->enforceEightyTwenty($sessions, $days);
         $sessions = $this->enforceMinimumUsefulRunDuration($sessions);
         $sessions = $this->fillMissingDays($sessions, $days);
 
-        usort($sessions, fn ($a, $b) => [$a['date'], $b['_hard'] ?? false] <=> [$b['date'], $a['_hard'] ?? false]);
+        // Morgens vor abends, sonst die harte Einheit zuerst. Die Reihenfolge
+        // wird als sort_order gespeichert.
+        $evening = fn ($s) => ($s['part'] ?? null) === 'pm' ? 1 : 0;
+        usort($sessions, fn ($a, $b) => [$a['date'], $evening($a), $b['_hard'] ?? false] <=> [$b['date'], $evening($b), $a['_hard'] ?? false]);
         foreach ($sessions as &$s) {
             unset($s['_hard']);
         }
@@ -166,8 +172,87 @@ class TrainingPlanValidator
         }));
     }
 
-    /** Zwei harte Einheiten an einem Tag: die zweite wird locker. */
-    private function enforceOneHardPerDay(array $sessions): array
+    /**
+     * Doppel-Tage (norwegisches Modell): welche Einheit ist morgens, welche
+     * abends? Das Modell sagt es mit `part`; fehlt die Angabe, gilt die
+     * Reihenfolge der Antwort. An allen anderen Tagen gibt es kein `part`.
+     */
+    private function assignParts(array $sessions, array $days): array
+    {
+        $byDate = [];
+        foreach ($sessions as $i => $s) {
+            $byDate[$s['date']][] = $i;
+        }
+
+        foreach ($byDate as $date => $indexes) {
+            $isDouble = collect($days[$date]['slots'] ?? [])->contains(fn ($slot) => ! empty($slot['double']));
+
+            if (! $isDouble) {
+                foreach ($indexes as $i) {
+                    unset($sessions[$i]['part']);
+                }
+                continue;
+            }
+
+            $taken = [];
+            $open  = [];
+            foreach ($indexes as $i) {
+                if (($sessions[$i]['type'] ?? '') !== 'tempo_run') {
+                    unset($sessions[$i]['part']);
+                    continue;
+                }
+
+                $part = $sessions[$i]['part'] ?? null;
+                if (in_array($part, ['am', 'pm'], true) && ! isset($taken[$part])) {
+                    $taken[$part] = true;
+                } else {
+                    $open[] = $i;
+                }
+            }
+
+            foreach ($open as $i) {
+                $part = isset($taken['am']) ? (isset($taken['pm']) ? null : 'pm') : 'am';
+                if ($part === null) {
+                    unset($sessions[$i]['part']);
+                    continue;
+                }
+                $sessions[$i]['part'] = $part;
+                $taken[$part]         = true;
+            }
+        }
+
+        return $sessions;
+    }
+
+    /** Die Gerüst-Einheit, zu der eine Einheit gehört — an Doppel-Tagen nach Morgen/Abend. */
+    private function slotFor(array $day, array $session): array
+    {
+        return collect($day['slots'] ?? [])->first(
+            fn ($slot) => $slot['type'] === ($session['type'] ?? '')
+                && (empty($slot['double']) || $slot['double'] === ($session['part'] ?? null))
+        ) ?? [];
+    }
+
+    /** Gehört die Einheit zu diesem Slot? Ohne Doppel-Tag reicht der Typ. */
+    private function belongsTo(array $session, array $slot): bool
+    {
+        return ($session['type'] ?? '') === $slot['type']
+            && (empty($slot['double']) || ($session['part'] ?? null) === $slot['double']);
+    }
+
+    /**
+     * Wie viele Laufeinheiten das Gerüst an einem Tag vorsieht — eine, an
+     * einem Doppel-Tag des norwegischen Modells zwei.
+     */
+    private function runsAllowed(array $day): int
+    {
+        $doubles = collect($day['slots'] ?? [])->filter(fn ($slot) => ! empty($slot['double']))->count();
+
+        return max(1, $doubles);
+    }
+
+    /** Zwei harte Einheiten an einem Tag: die zweite wird locker — außer an einem Doppel-Tag. */
+    private function enforceOneHardPerDay(array $sessions, array $days): array
     {
         $hardSeen = [];
 
@@ -177,16 +262,17 @@ class TrainingPlanValidator
 
             if (! $isHard) continue;
 
-            if (isset($hardSeen[$s['date']])) {
+            $hardSeen[$s['date']] = ($hardSeen[$s['date']] ?? 0) + 1;
+
+            if ($hardSeen[$s['date']] > $this->runsAllowed($days[$s['date']] ?? [])) {
                 $this->note("{$s['date']}: zweite harte Einheit (\"{$s['type']}\") → easy_run");
                 $s['type']      = 'easy_run';
                 $s['intensity'] = 'low';
                 $s['zone']      = 2;
                 $s['_hard']     = false;
+                unset($s['part']);
                 continue;
             }
-
-            $hardSeen[$s['date']] = true;
         }
 
         return $sessions;
@@ -212,7 +298,9 @@ class TrainingPlanValidator
 
         $drop = [];
         foreach ($byDate as $date => $indexes) {
-            if (count($indexes) < 2) {
+            $allowed = $this->runsAllowed($days[$date] ?? []);
+
+            if (count($indexes) <= $allowed) {
                 continue;
             }
 
@@ -230,8 +318,10 @@ class TrainingPlanValidator
                 return $rank($b) <=> $rank($a);
             });
 
-            foreach (array_slice($indexes, 1) as $i) {
-                $this->note("{$date}: zweite Laufeinheit (\"{$sessions[$i]['type']}\") → entfernt, ein Lauf pro Tag");
+            foreach (array_slice($indexes, $allowed) as $i) {
+                $this->note($allowed > 1
+                    ? "{$date}: dritte Laufeinheit (\"{$sessions[$i]['type']}\") → entfernt, höchstens Doppel-Schwelle"
+                    : "{$date}: zweite Laufeinheit (\"{$sessions[$i]['type']}\") → entfernt, ein Lauf pro Tag");
                 $drop[$i] = true;
             }
         }
@@ -277,7 +367,7 @@ class TrainingPlanValidator
                 $tolerance = $isLongRun ? 0.10 : 0.30;
 
                 foreach ($sessions as &$s) {
-                    if ($s['date'] !== $date || ($s['type'] ?? '') !== $slot['type']) {
+                    if ($s['date'] !== $date || ! $this->belongsTo($s, $slot)) {
                         continue;
                     }
 
@@ -339,7 +429,7 @@ class TrainingPlanValidator
                 }
 
                 foreach ($sessions as &$s) {
-                    if ($s['date'] !== $date || ($s['type'] ?? '') !== $slot['type']) {
+                    if ($s['date'] !== $date || ! $this->belongsTo($s, $slot)) {
                         continue;
                     }
 
@@ -375,6 +465,11 @@ class TrainingPlanValidator
         foreach ($byDate as $date => $indexes) {
             $budget = (int) ($days[$date]['budget_min'] ?? 0);
             if ($budget <= 0) continue;
+
+            // Ein Doppel-Tag hat zwei Fenster: der Abend kommt dazu.
+            if (collect($days[$date]['slots'] ?? [])->contains(fn ($slot) => ! empty($slot['double']))) {
+                $budget += (int) ($days[$date]['second_min'] ?? 0);
+            }
 
             // An einem Renntag gilt das Tagesbudget nicht — siehe
             // enforceSlotCaps(). Sonst kuerzt diese Schleife den Marathon
@@ -448,7 +543,7 @@ class TrainingPlanValidator
 
             $week = $day['week'] ?? substr($date, 0, 7);
             $dur  = (int) ($s['duration_min'] ?? 0);
-            $slot = collect($day['slots'] ?? [])->firstWhere('type', $type) ?? [];
+            $slot = $this->slotFor($day, $s);
 
             $weeks[$week]['total'] = ($weeks[$week]['total'] ?? 0) + $dur;
             $weeks[$week]['taken'] ??= 0.0;
@@ -534,13 +629,123 @@ class TrainingPlanValidator
         return $sessions;
     }
 
-    private function withMainSetNote(string $description, int $minutes): string
+    /**
+     * Die Anteile des norwegischen Modells statt 80/20: höchstens 25 % der
+     * Laufminuten Sub-Schwelle, höchstens 5 % schneller als die Schwelle.
+     *
+     * Dieselbe Mechanik wie {@see enforceEightyTwenty()}: zuerst die
+     * einzelne Einheit gegen ihr `hard_min` aus dem Gerüst, dann die Woche.
+     * Zu wenig übrig für einen Reiz → lockerer Lauf.
+     */
+    private function enforceNorwegianShares(array $sessions, array $days): array
+    {
+        $rules = [
+            'sub'  => ['share' => WeeklyPatternService::SUB_THRESHOLD_SHARE, 'min' => WeeklyPatternService::MIN_SUB_MAIN_MINUTES, 'label' => 'Schwellenanteil 25 %', 'name' => 'Sub-Schwelle'],
+            'fast' => ['share' => WeeklyPatternService::FAST_SHARE,          'min' => WeeklyPatternService::MIN_FAST_MAIN_MINUTES, 'label' => 'schnell höchstens 5 %', 'name' => 'schnell'],
+        ];
+
+        $weeks = [];
+
+        foreach ($sessions as $i => $s) {
+            $date = $s['date'] ?? null;
+            $type = $s['type'] ?? '';
+            $day  = $days[$date] ?? null;
+
+            if (! $day || $type === 'race_prep' || ! in_array($type, self::RUN_TYPES, true)) {
+                continue;
+            }
+
+            $week = $day['week'] ?? substr($date, 0, 7);
+            $dur  = (int) ($s['duration_min'] ?? 0);
+
+            $weeks[$week]['total'] = ($weeks[$week]['total'] ?? 0) + $dur;
+
+            if (! in_array($type, WeeklyPatternService::HARD_TYPES, true)) {
+                continue;
+            }
+
+            $slot = $this->slotFor($day, $s);
+            // Schneller als die Schwelle ist nur der kurze schnelle Reiz —
+            // im Gerüst eine Intervalleinheit. Alles andere ist Sub-Schwelle.
+            $kind = ! empty($slot['fast']) || $type === 'interval' ? 'fast' : 'sub';
+
+            $planned  = isset($slot['hard_min']) ? (int) $slot['hard_min'] : null;
+            $estimate = $kind === 'fast'
+                ? min(WeeklyPatternService::FAST_MAIN_MINUTES, max(0, $dur - WeeklyPatternService::WARMUP_COOLDOWN_MINUTES))
+                : min(WeeklyPatternService::SUB_MAIN_MINUTES['single'], max(0, $dur - WeeklyPatternService::SUB_WARMUP_MINUTES));
+
+            $hard = (int) ($s['hard_min'] ?? 0) > 0 ? (int) $s['hard_min'] : ($planned ?? $estimate);
+
+            if ($planned !== null && empty($slot['fixed']) && $hard > $planned + self::HARD_TOLERANCE_MIN) {
+                $this->note("{$date}: {$type} mit {$hard} min Hauptteil, das Gerüst erlaubt {$planned} ({$rules[$kind]['label']}) → gekürzt");
+                $hard = $planned;
+                $sessions[$i]['description'] = $this->withMainSetNote($s['description'] ?? '', $hard, $rules[$kind]['label']);
+            }
+
+            $sessions[$i]['hard_min'] = $hard;
+
+            $weeks[$week][$kind]['taken'] ??= 0;
+            $weeks[$week][$kind]['open']  ??= [];
+
+            if (! empty($slot['fixed'])) {
+                $weeks[$week][$kind]['taken'] += $hard;
+                continue;
+            }
+
+            $weeks[$week][$kind]['open'][] = $i;
+        }
+
+        foreach ($weeks as $week => $w) {
+            foreach ($rules as $kind => $rule) {
+                $open  = $w[$kind]['open'] ?? [];
+                $taken = $w[$kind]['taken'] ?? 0;
+
+                $adjustable = array_sum(array_map(fn ($i) => $sessions[$i]['hard_min'], $open));
+                $cap        = floor($w['total'] * $rule['share']);
+
+                if ($adjustable <= 0 || $taken + $adjustable <= $cap + self::HARD_TOLERANCE_MIN) {
+                    continue;
+                }
+
+                $this->note("{$week}: " . (int) round($taken + $adjustable) . " von {$w['total']} min {$rule['name']}, erlaubt sind {$cap} ({$rule['label']}) → Hauptteile gekürzt");
+
+                $scale = max(0.0, $cap - $taken) / $adjustable;
+
+                foreach ($open as $i) {
+                    $new = (int) floor($sessions[$i]['hard_min'] * $scale);
+
+                    if ($new >= $rule['min']) {
+                        $sessions[$i]['hard_min']    = $new;
+                        $sessions[$i]['description'] = $this->withMainSetNote($sessions[$i]['description'] ?? '', $new, $rule['label']);
+                        continue;
+                    }
+
+                    $this->note("{$sessions[$i]['date']}: {$sessions[$i]['type']} wird lockerer Lauf — der Anteil der Woche ({$rule['label']}) trägt keinen Hauptteil");
+
+                    $sessions[$i] = array_merge($sessions[$i], [
+                        'type'        => 'easy_run',
+                        'title'       => 'Lockerer Lauf',
+                        'description' => 'Ruhiges Grundlagentempo in Zone 2. Ursprünglich eine Qualitätseinheit — die Woche läge damit über ihrem Anteil.',
+                        'pace_target' => null,
+                        'zone'        => 2,
+                        'intensity'   => 'low',
+                        'hard_min'    => 0,
+                        '_hard'       => false,
+                    ]);
+                }
+            }
+        }
+
+        return $sessions;
+    }
+
+    private function withMainSetNote(string $description, int $minutes, string $rule = '80/20'): string
     {
         // Wird ein Hauptteil zweimal gekürzt (Einheit, dann Woche), gilt nur
         // der letzte Satz.
-        $description = preg_replace('/\s*Hauptteil höchstens \d+ min \(80\/20\)[^.]*\./u', '', $description);
+        $description = preg_replace('/\s*Hauptteil höchstens \d+ min \([^)]*\)[^.]*\./u', '', $description);
 
-        return trim($description . " Hauptteil höchstens {$minutes} min (80/20) — den Rest locker ein- und auslaufen.");
+        return trim($description . " Hauptteil höchstens {$minutes} min ({$rule}) — den Rest locker ein- und auslaufen.");
     }
 
     /**
@@ -599,7 +804,7 @@ class TrainingPlanValidator
                 }
 
                 $present = collect($sessions)->contains(
-                    fn ($s) => $s['date'] === $date && ($s['type'] ?? '') === $slot['type']
+                    fn ($s) => $s['date'] === $date && $this->belongsTo($s, $slot)
                 );
                 if ($present) continue;
 
@@ -613,8 +818,11 @@ class TrainingPlanValidator
                 // Steht dort schon ein Lauf — nur eben der falsche —, wird er
                 // ersetzt und nicht ergänzt. Sonst hätte der Tag am Ende zwei.
                 if (in_array($slot['type'], self::RUN_TYPES, true)) {
+                    // An einem Doppel-Tag wird nur ein Lauf ersetzt, der zu
+                    // keiner Hälfte gehört — die andere Hälfte bleibt stehen.
                     $runIndex = collect($sessions)->search(
                         fn ($s) => $s['date'] === $date && in_array($s['type'] ?? '', self::RUN_TYPES, true)
+                            && (empty($slot['double']) || empty($s['part']))
                     );
 
                     if ($runIndex !== false) {
@@ -753,14 +961,44 @@ class TrainingPlanValidator
             ];
         }
 
-        [$title, $desc, $zone, $intensity] = match ($slot['type']) {
+        [$title, $desc, $zone, $intensity] = match (true) {
+            ($slot['double'] ?? null) === 'am' => ['Morgens: Sub-Schwelle', 'Einlaufen, dann 5×6 min knapp unter der Schwelle (T + 5–15 s/km) mit 1 min Trabpause, auslaufen. Kontrolliert — du solltest danach noch mehr können.', 3, 'medium'],
+            ($slot['double'] ?? null) === 'pm' => ['Abends: Sub-Schwelle', 'Einlaufen, dann 10×1000 m knapp unter der Schwelle (T + 5–15 s/km) mit 1 min Trabpause, auslaufen.', 3, 'medium'],
+            ! empty($slot['controlled'])       => ['Sub-Schwelle', 'Einlaufen, dann 5×6 min knapp unter der Schwelle (T + 5–15 s/km) mit 1 min Trabpause, auslaufen.', 3, 'medium'],
+            ! empty($slot['fast'])             => ['Kurz und schnell', 'Einlaufen, dann 10×200 m zügig (schneller als die Schwelle) mit Gehpause, auslaufen.', 5, 'high'],
+            default                            => $this->typicalContent($slot['type']),
+        };
+
+        $entry = [
+            'date'         => $date,
+            'type'         => $slot['type'],
+            'title'        => $title,
+            'description'  => $desc,
+            'zone'         => $zone,
+            'intensity'    => $intensity,
+        ];
+
+        if (! empty($slot['double'])) {
+            $entry['part'] = $slot['double'];
+        }
+
+        return $this->withTargets($entry, $slot, $minutes);
+    }
+
+    /** @return array{0: string, 1: string, 2: int, 3: string} */
+    private function typicalContent(string $type): array
+    {
+        return match ($type) {
             'interval'  => ['Intervalltraining', 'Nach dem Einlaufen 5–6 harte Abschnitte mit lockerer Trabpause dazwischen, danach auslaufen.', 4, 'high'],
             'tempo_run' => ['Tempolauf', 'Nach dem Einlaufen zügig an der Schwelle laufen, danach auslaufen.', 3, 'medium'],
             'long_run'  => ['Langer Lauf', 'Gleichmäßig locker, Tempo bewusst zurückhalten. Trinken und essen mitnehmen.', 2, 'medium'],
             'easy_run'  => ['Lockerer Lauf', 'Ruhiges Grundlagentempo in Zone 2 — unterhalten können muss möglich sein.', 2, 'low'],
             default     => ['Ergänzende Einheit', 'Lockere Ergänzung zum Lauftraining.', 2, 'low'],
         };
+    }
 
+    private function withTargets(array $entry, array $slot, int $minutes): array
+    {
         // Steht ein Zielumfang aus dem Wochenbudget bereit, gilt er auch fuer
         // den Notnagel — sonst faellt die Wochenbilanz auseinander, sobald
         // eine Einheit nachgesetzt werden muss.
@@ -768,16 +1006,10 @@ class TrainingPlanValidator
             $minutes = (int) $slot['target_min'];
         }
 
-        return [
-            'date'         => $date,
-            'type'         => $slot['type'],
-            'title'        => $title,
-            'description'  => $desc,
+        return $entry + [
             'distance_km'  => (float) ($slot['target_km'] ?? 0),
             'duration_min' => $minutes,
             'pace_target'  => null,
-            'zone'         => $zone,
-            'intensity'    => $intensity,
             'hard_min'     => (int) ($slot['hard_min'] ?? 0),
             '_hard'        => in_array($slot['type'], WeeklyPatternService::HARD_TYPES, true),
         ];

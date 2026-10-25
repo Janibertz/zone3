@@ -36,12 +36,19 @@ class IntensityDistributionService
     public const TOO_HARD_PCT = 25;
 
     /**
+     * Im norwegischen Modell sind bis zu 30 % Qualität geplant (25 %
+     * Sub-Schwelle, 5 % schnell) — und Sub-Schwelle misst sich nach Pace
+     * als „hart". Erst darüber ist es zu viel.
+     */
+    public const TOO_HARD_PCT_NORWEGIAN = 35;
+
+    /**
      * @return array{
-     *     easy_min: int, hard_min: int, hard_pct: int, runs: int,
+     *     easy_min: int, hard_min: int, hard_pct: int, runs: int, model: string, limit_pct: int,
      *     weeks: list<array{label: string, easy_min: int, hard_min: int, hard_pct: int|null}>
      * }|null
      */
-    public function forUser(int $userId, ?float $vdot, ?CarbonImmutable $today = null): ?array
+    public function forUser(int $userId, ?float $vdot, ?CarbonImmutable $today = null, string $model = 'polarized'): ?array
     {
         if (! $vdot) {
             return null;
@@ -88,6 +95,8 @@ class IntensityDistributionService
             'hard_min' => (int) round($hard / 60),
             'hard_pct' => (int) round($hard / ($easy + $hard) * 100),
             'runs'     => $runs->count(),
+            'model'    => $model,
+            'limit_pct' => $model === 'norwegian' ? self::TOO_HARD_PCT_NORWEGIAN : self::TOO_HARD_PCT,
             'weeks'    => array_values(array_map(fn ($w) => [
                 'label'    => $w['label'],
                 'easy_min' => (int) round($w['easy'] / 60),
@@ -133,9 +142,19 @@ class IntensityDistributionService
             $d['weeks'],
         ));
 
-        $verdict = $d['hard_pct'] > self::TOO_HARD_PCT
-            ? "Der Athlet läuft deutlich mehr als 20 % hart — fast immer, weil die lockeren Läufe zu schnell werden. Sage bei JEDEM lockeren Lauf ausdrücklich, dass er langsam sein muss, und nenne die schnellste erlaubte Pace (die schnelle Grenze von Zone 2)."
-            : 'Die Verteilung passt zu 80/20. Halte die lockeren Läufe weiter locker.';
+        $norwegian = ($d['model'] ?? 'polarized') === 'norwegian';
+        $limit     = $d['limit_pct'] ?? self::TOO_HARD_PCT;
+
+        $verdict = match (true) {
+            $d['hard_pct'] > $limit && $norwegian
+                => 'Der Athlet läuft deutlich mehr als die geplanten 30 % im Schwellenbereich und schneller — meist, weil die lockeren Läufe zu schnell werden oder die Sub-Schwelle zur Schwelle wird. Sage bei JEDEM lockeren Lauf ausdrücklich, dass er langsam sein muss, und betone bei der Sub-Schwelle den Pulsdeckel.',
+            $d['hard_pct'] > $limit
+                => "Der Athlet läuft deutlich mehr als 20 % hart — fast immer, weil die lockeren Läufe zu schnell werden. Sage bei JEDEM lockeren Lauf ausdrücklich, dass er langsam sein muss, und nenne die schnellste erlaubte Pace (die schnelle Grenze von Zone 2).",
+            $norwegian
+                => 'Die Verteilung passt zum norwegischen Modell. Halte die lockeren Läufe weiter locker.',
+            default
+                => 'Die Verteilung passt zu 80/20. Halte die lockeren Läufe weiter locker.',
+        };
 
         return "\n\n**Tatsächliche Intensitätsverteilung (letzte " . self::WEEKS . " Wochen, aus Strava nach Pace):**\n"
             . "{$d['easy_min']} min locker, {$d['hard_min']} min hart — {$d['hard_pct']} % hart.\n{$weeks}\n\n{$verdict}";

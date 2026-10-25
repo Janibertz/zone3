@@ -123,10 +123,15 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
     $todayStr   = now()->toDateString();
     $todayPlanSession = null;
     if ($activePlan) {
-        $s = TrainingSession::where('training_plan_id', $activePlan->id)
-            ->where('planned_date', $todayStr)
+        // An einem Doppel-Tag (norwegisches Modell) stehen zwei Läufe. Ist
+        // der Morgen erledigt, zeigt die Karte den Abend — die erste noch
+        // offene Laufeinheit, sonst wie bisher die erste des Tages.
+        $todaySessions = TrainingSession::where('training_plan_id', $activePlan->id)
+            ->whereDate('planned_date', $todayStr)
             ->orderBy('sort_order')
-            ->first();
+            ->get();
+        $s = $todaySessions->first(fn ($t) => $t->status === 'planned' && in_array($t->type, \App\Services\TrainingPlanValidator::RUN_TYPES, true))
+            ?? $todaySessions->first();
 
         // If today is skipped, fall through to show next upcoming session instead
         if ($s && $s->status === 'skipped') {
@@ -293,7 +298,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         // CTL / ATL / TSB training load metrics
         'trainingLoad' => $trainingLoadService->calculate($user->id),
         // 80/20 nach dem, was gelaufen wurde — nicht nach dem Plan.
-        'intensityDistribution' => app(\App\Services\IntensityDistributionService::class)->forUser($user->id, $runnerProfile?->vdot()),
+        'intensityDistribution' => app(\App\Services\IntensityDistributionService::class)->forUser($user->id, $runnerProfile?->vdot(), null, $runnerProfile?->trainingModelOn() ?? 'polarized'),
 
         // Weekly AI review (generated every Monday, cached for the week)
         'weeklyReview' => (function () use ($user) {

@@ -395,6 +395,27 @@ Die Taper-Grenze ist `PeriodizationService::peakWeek()` — **eine** Definition,
 
 **Tests mit festen Fenstern brauchen ein festes Rennen.** `WeeklyPatternTest` baute das Gerüst ab dem 17.08.2026, legte das Rennen aber auf `now() + 60 Tage`. Solange die Phase egal war, fiel das nicht auf; mit Periodisierung lag das Fenster plötzlich in der Grundlage, und das Intervall fehlte. Das Rennen hängt jetzt am selben Datum wie das Fenster. Die Suite lief vor dem Merge an neun verschiedenen Tagen (Mo–So und zwei spätere Daten) grün.
 
+### Norwegisches Modell — Doppel-Schwelle (seit 25.10.2026)
+
+Der Athlet wählt sein Trainingsmodell selbst (Onboarding, Profil → Athletenprofil). Jans Entscheidungen:
+
+- **Jeder darf**, mit Hinweis statt Sperre: `TrainingModelService::norwegianReadiness()` begründet eine Warnung unter 2 Jahren Erfahrung oder 40 km/Woche (Strava-Median).
+- **Woche:** zwei Tage Doppel-Schwelle (morgens z. B. 5×6 min, abends 10×1000 m, beides knapp unter der Schwelle), eine kurze schnelle Einheit am Wochenende, ein **lockerer** langer Lauf (kein Renntempo-Abschnitt), sonst locker.
+- **Statt 80/20:** höchstens 25 % der Laufminuten Sub-Schwelle, höchstens 5 % schneller als die Schwelle.
+- **Kontrolle ohne Laktat:** Pace T + 5–15 s (`TrainingPaceService::SUB_THRESHOLD_SEC`, `paces['sub_threshold']`) und Puls höchstens Schwellen-HF − 5 (`PlanContextBuilder::SUB_THRESHOLD_HR_MARGIN`).
+- **Ein Wechsel wirkt ab dem nächsten Montag**, solange ein Plan läuft (`training_model_next` / `_next_from`, `RunnerProfile::trainingModelOn()`); ohne Plan sofort. Das Datum entscheidet, kein Kommando — `PlanContextBuilder` fragt das Modell am ersten Tag des Fensters.
+
+**Zwei Läufe an einem Tag sind hier die Regel, nicht der Fehler.** „Ein Lauf pro Tag" steht an fünf Stellen (Validator zweimal, Gerüst-Prompt, Plan-Prompt zweimal), und jede kennt jetzt genau eine Ausnahme: einen Tag, an dem das Gerüst zwei Slots mit `double = am|pm` trägt. Dort erlaubt `runsAllowed()` zwei Läufe und zwei harte Einheiten. Doppelt wird nur an einem Tag mit **Abendfenster** (`weekly_availability.*.second_min` ≥ 30, im Wochenraster unter „+ Abends"); ohne bleibt eine Einzel-Schwelle im Tagesfenster.
+
+- **Morgen und Abend unterscheidet `part`**, nicht der Typ — beide sind `tempo_run`. Das Modell gibt `part` zurück; fehlt es, vergibt `assignParts()` es in Antwortreihenfolge. Jede typbezogene Prüfung (`slotFor()`, `belongsTo()`) paart über `part`, sonst bekäme der Abend das Ziel des Morgens. Gespeichert wird die Reihenfolge als `sort_order` (morgens vor abends); `PlanDeltaService` vergleicht in derselben Reihenfolge.
+- **Sub-Schwelle ist `controlled`:** sie hält Abstand zu anderen harten Einheiten, verlangt aber **keinen Ruhetag danach** (`assignFreeDays()`) — nach der Doppel-Schwelle folgt ein lockerer Lauf. Ein Ruhetag pro Woche bleibt.
+- **Phase:** Grundlage und Entlastungswoche ein Schwellentag ohne schnelle Einheit, Rennwoche eine Einzel-Schwelle, sonst zwei Tage plus schnell. Ein fester harter Termin ersetzt die schnelle Einheit.
+- **Knappe Woche:** zuerst fällt die Abend-Hälfte (im Budget und in den Anteilen), der Morgen bleibt als Einzel-Schwelle (`normalizeDoubles()`).
+- **Tagesbudget** an einem Doppel-Tag = Tagesfenster + Abendfenster.
+- Die Dashboard-Karte zeigt nach erledigtem Morgen den Abend; „Locker / Hart" warnt im norwegischen Modell erst ab 35 % (`TOO_HARD_PCT_NORWEGIAN`), weil Sub-Schwelle nach Pace als hart zählt.
+
+**Noch offen:** Der Coach-Chat kennt die Ausnahme nicht — `create_training_session` ersetzt an einem Tag mit Lauf weiter den vorhandenen, auch an einem Doppel-Tag. Telegram-Briefing zeigt die erste Einheit des Tages.
+
 ### One verdict on the goal, not two
 
 `TrainingPaceService` judged the goal from threshold pace ("Das Ziel passt zur heutigen Form"); `LongRunPlanService` judged it from the ladder ("Mit dieser Vorbereitung ist die Zielzeit unwahrscheinlich"). Both landed in the same prompt as fact, with no precedence, and the model picked one at random for the description.

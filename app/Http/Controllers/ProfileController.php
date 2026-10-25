@@ -45,6 +45,10 @@ class ProfileController extends Controller
             ? $stats->total_distance / $stats->total_time
             : 0;
 
+        // Ein Modellwechsel, dessen Montag vorbei ist, gilt — sonst stünde
+        // im Profil „gilt ab" mit einem Datum in der Vergangenheit.
+        $user->runnerProfile?->settlePendingTrainingModel();
+
         return Inertia::render('Profile/Edit', [
             'mustVerifyEmail'  => $user instanceof MustVerifyEmail,
             'status'           => session('status'),

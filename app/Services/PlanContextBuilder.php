@@ -125,7 +125,7 @@ class PlanContextBuilder
             paces:                 $paces,
             volume:                $volume,
             longRuns:              $longRuns,
-            intensity:             $this->intensity->forUser($user->id, $vdot['value'] ?? null, $windowFrom),
+            intensity:             $this->intensity->forUser($user->id, $vdot['value'] ?? null, $windowFrom, $user->runnerProfile?->trainingModelOn($windowFrom) ?? 'polarized'),
         );
 
         // Gerüst und Garmin-Zusammenfassung bauen auf dem Rest auf.
@@ -154,11 +154,43 @@ class PlanContextBuilder
                 // Zielrennen dieses Plans aus, und genau dort stand zuletzt
                 // ein „Langer Lauf" am Marathon-Renntag.
                 $this->races($user, $event, $windowTo),
+                $this->trainingModel($user, $windowFrom, $paces),
             ),
             garminText: empty($user->garmin_session)
                 ? null
                 : $this->garmin->toPromptSection($this->garmin->forUser($user->id, $windowFrom)),
         );
+    }
+
+    /** Pulsdeckel der Sub-Schwelle: so viele Schläge unter der Schwellen-HF. */
+    private const SUB_THRESHOLD_HR_MARGIN = 5;
+
+    /**
+     * Das Trainingsmodell für dieses Fenster — mit den Zahlen, die das
+     * norwegische Modell zur Kontrolle braucht. Ohne Laktatmessgerät
+     * steuert der Athlet die Sub-Schwelle über die Pace (T + 5–15 s) und
+     * einen Pulsdeckel knapp unter der Schwellen-HF.
+     *
+     * Es zählt das Modell am ersten Tag des Fensters: ein Wechsel wartet bis
+     * zum nächsten Montag, und der Sonntagsplan beginnt genau dort.
+     */
+    private function trainingModel(User $user, CarbonImmutable $windowFrom, ?array $paces): array
+    {
+        $profile = $user->runnerProfile;
+        $name    = $profile?->trainingModelOn($windowFrom) ?? 'polarized';
+
+        if ($name !== 'norwegian') {
+            return ['name' => $name];
+        }
+
+        $lthr = (int) ($profile?->threshold_heart_rate ?? 0);
+
+        return [
+            'name'      => 'norwegian',
+            'threshold' => $paces['threshold'] ?? null,
+            'sub_pace'  => $paces['sub_threshold'] ?? null,
+            'hr_max'    => $lthr > 0 ? $lthr - self::SUB_THRESHOLD_HR_MARGIN : null,
+        ];
     }
 
     /**
