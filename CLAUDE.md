@@ -197,7 +197,7 @@ Reported: *"Ich hatte 30 Min Zone2 auf dem Plan, ich habe aber Bock auf Interval
 
 **Dashboard → Einheit tauschen** lists workouts other athletes have shared, grouped by run type. Picking one opens a **detail view first** — full description, every section with repetitions, duration, pace and zone, and the totals — and only then offers to take it. Choosing a session you cannot read is a blind buy, and it lands in the plan. From there it applies to today's session. The session is replaced, `steps` come straight from the workout, and it gets `pinned_at` — the athlete chose it, so a regeneration must not discard it.
 
-This deliberately reuses the existing workout builder instead of adding a curated template table beside it. The reason it works at all is a decision already made in the builder: **its blocks carry `pace_zone`, not fixed paces.** A shared workout is therefore athlete-independent by construction — `WorkoutPaceResolver` turns zones into seconds from *this* runner's `pace_zones` (midpoint of the band), falling back to offsets from `threshold_speed` when the table is missing. Those offsets are copied from `AthleteProfileService::calculatePaceZonesWithAI()`; inventing a second set would be exactly the duplicate-truth mistake this project keeps paying for. A test asserts two athletes get different paces from the same workout.
+This deliberately reuses the existing workout builder instead of adding a curated template table beside it. The reason it works at all is a decision already made in the builder: **its blocks carry `pace_zone`, not fixed paces.** A shared workout is therefore athlete-independent by construction — `WorkoutPaceResolver` turns zones into seconds from *this* runner's VDOT (`Vdot::ZONE_TARGET` — zone 4 is T, zone 5 is I). A test asserts two athletes get different paces from the same workout.
 
 **Eine Strecke bleibt eine Strecke.** `WorkoutPaceResolver` rechnete
 distanzbasierte Abschnitte in Minuten um und verwarf die Meter danach — der
@@ -368,7 +368,7 @@ Gemeldet im Sub-90-Check: in einer knappen Woche strich `budgetWeek()` beim Halb
 
 **Die Phase hängt an der Distanz.** `Event::training_phase` sagte für jedes Rennen „≤ 14 Tage Race Week" — beim Halbmarathon setzt die Leiter genau dort den längsten Lauf. Jetzt: Race Week = letzte 7 Tage, Taper = `LongRunPlanService::taperDays()` (die einzige Quelle), davor je 6 Wochen Peak und Build. In der Rennwoche bleibt ein kurzer Renntempo-Reiz erlaubt — Taper heißt Umfang runter, Intensität halten.
 
-**Intervall-Pace** ist `T × 0,92–0,95`, Wiederholungen `T × 0,88` (Daniels-nah). Vorher reichte der Intervallbereich bis T + 4 s, also langsamer als die Schwelle. Eine echte VDOT-Quelle für alle Paces ist geplant.
+**Intervall-Pace** kommt seit dem 25.10.2026 aus dem VDOT (I = 97,5–100 %, R = 105 %, siehe unten). Vorher reichte der Intervallbereich bis T + 4 s, also langsamer als die Schwelle.
 
 ### One verdict on the goal, not two
 
@@ -427,13 +427,25 @@ Always round once on whole seconds, then split. Truncating the minute while roun
 
 Total times (`3:26:21`, `1:35 Std`) stay out of this class — different quantity, different presentation.
 
-### Race Prediction (Jack Daniels T-Pace)
+### VDOT — eine Zahl für Tempi, Zonen und Prognose (seit 25.10.2026)
 
-**Source of truth: `RacePredictionService`.** Used by the dashboard route, `TrainingPlanController` and `GenerateRacePredictionJob` — the formula previously existed three times and the numbers drifted apart.
+Vorher hingen alle Tempos an festen Faktoren auf die Schwellenpace (5 km = T × 0,90, Marathon = T × 1,12, locker = T + 46 bis 81 s). Bei T = 4:15 sagte Zone3 für 5 km 19:08 voraus (Daniels: 19:56) und für den Marathon 3:20:51 (3:10:39). Ein fester Sekundenabstand bedeutet ausserdem für einen 3:30-Läufer etwas anderes als für einen 6:00-Läufer.
 
-- threshold_speed (min/km float) × multiplier × distance = total time
-- Multipliers: 5k = 0.90, 10k = 0.95, half = 1.03, marathon = 1.12
-- Linear interpolation for custom distances between anchors
+Drei Klassen, eine Richtung:
+
+| Klasse | Aufgabe |
+|---|---|
+| `Vdot` | reine Mathematik: Daniels/Gilbert-Formeln, Zonen- und Trainingsintensitäten als Anteil am VO2max |
+| `VdotService::forProfile()` | **woher** der VDOT kommt — die einzige Stelle, die das entscheidet |
+| `RunnerProfile::vdot()` / `vdotInfo()` | der Zugang für alle anderen, pro Instanz gemerkt |
+
+**Quelle (Entscheidung von Jan):** Schwellenpace und Strava-Bestzeiten der letzten 6 Wochen (5 km, 10 km, HM, Marathon — nicht 1 km, die Formel gilt ab ~1,5 km) werden je in einen VDOT umgerechnet, **der höhere gilt**. Eine Bestzeit ist eine Untergrenze der Form; eine langsame Teilstrecke aus einem lockeren Lauf drückt deshalb nichts nach unten.
+
+Daran hängt alles, was ein Tempo nennt: `RacePredictionService::forVdot()` (Dashboard, Planseite, Prognose-Job, `GoalCheckService`), `TrainingPaceService` (E 59–74 %, T 88 %, I 97,5–100 %, R 105 %, M aus der Marathonprognose), die Pace-Zonen und `WorkoutPaceResolver` (Zonenziel aus `Vdot::ZONE_TARGET`: Zone 4 = T, Zone 5 = I — nicht die Bandmitte).
+
+**`pace_zones` wird nicht mehr gelesen, sondern berechnet.** Ein Accessor auf `RunnerProfile` liefert die Zonen aus dem VDOT; die Spalte zählt nur noch ohne VDOT. Gespeichert wurde an drei Stellen, gelesen an fünf — und mit den Bestzeiten als zweiter Quelle wäre der gespeicherte Wert nach jedem schnellen Lauf veraltet. Dabei fiel auf, dass der Coach-Chat die Zonen über `min`/`max` las, die es nie gab: er sah seit jeher leere Zonen.
+
+`RacePredictionConsistencyTest` prüft gegen Daniels' Tabelle (VDOT 40–70, 0,2 % Toleranz). Der Wert bleibt ungerundet, bis er angezeigt wird — aus einem auf eine Stelle gerundeten VDOT käme T um eine Sekunde neben der gemessenen Schwelle heraus.
 
 ### Threshold Pace Calculation
 

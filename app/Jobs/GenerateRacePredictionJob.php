@@ -58,8 +58,8 @@ class GenerateRacePredictionJob implements ShouldQueue
         // Trend und Laufanzahl kommen weiter aus dem Predictor — die kann die
         // Schwellenformel nicht liefern.
         $profile   = $user->runnerProfile;
-        $threshold = ($profile?->threshold_speed && ! $event->isBackyard())
-            ? $prediction->fromThreshold($profile->threshold_speed, $event->race_distance, $event->distance_km)
+        $threshold = ($profile?->vdot() && ! $event->isBackyard())
+            ? $prediction->forVdot($profile->vdot(), $event->race_distance, $event->distance_km)
             : null;
 
         if ($threshold) {

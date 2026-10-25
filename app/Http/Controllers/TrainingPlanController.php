@@ -87,8 +87,8 @@ class TrainingPlanController extends Controller
         // Calculate prediction from threshold pace (same formula as Dashboard).
         // Backyard Ultra uses a separate yard-readiness estimate instead.
         $profile    = RunnerProfile::where('user_id', Auth::id())->first();
-        $threshPred = (! $event->isBackyard() && $profile?->threshold_speed)
-            ? app(RacePredictionService::class)->fromThreshold($profile->threshold_speed, $event->race_distance, $event->distance_km)
+        $threshPred = (! $event->isBackyard() && $profile?->vdot())
+            ? app(RacePredictionService::class)->forVdot($profile->vdot(), $event->race_distance, $event->distance_km)
             : null;
 
         // Delta vs. target time (positive = faster than goal)

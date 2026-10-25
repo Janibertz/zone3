@@ -42,8 +42,10 @@ class CoachChatService
             if ($profile->max_heart_rate)       $profileLines[] = 'Max HR: ' . $profile->max_heart_rate . ' bpm';
 
             if (!empty($profile->pace_zones)) {
+                // Die Zonen tragen min_pace/max_pace als „M:SS". Hier wurde
+                // `min`/`max` gelesen, das es nie gab — der Coach sah leere Zonen.
                 $zoneStr = collect($profile->pace_zones)->map(
-                    fn ($r, $z) => "Z{$z}: " . $floatMinToMSS($r['min'] ?? null) . '–' . $floatMinToMSS($r['max'] ?? null)
+                    fn ($r, $z) => strtoupper($z) . ': ' . ($r['min_pace'] ?? '?') . '–' . ($r['max_pace'] ?? '?')
                 )->implode(' | ');
                 if ($zoneStr) $profileLines[] = 'Pace-Zonen: ' . $zoneStr;
             }
@@ -244,10 +246,11 @@ class CoachChatService
         if ($profile) {
             if ($profile->threshold_speed)      $profileLines[] = 'Schwellenpace: ' . $floatMinToMSS($profile->threshold_speed) . ' min/km';
             if ($profile->isPausedOn())         $profileLines[] = 'TRAININGSPAUSE bis ' . $profile->training_paused_until->format('d.m.Y') . ($profile->training_pause_reason ? " ({$profile->training_pause_reason})" : '') . ' — kein Lauftraining empfehlen.';
+            if ($vdot = $profile->vdotInfo())  $profileLines[] = 'VDOT (Daniels): ' . number_format($vdot['value'], 1, ',', '') . ' — ' . $vdot['label'];
             if ($profile->threshold_heart_rate) $profileLines[] = 'LTHR: ' . $profile->threshold_heart_rate . ' bpm';
             if ($profile->max_heart_rate)       $profileLines[] = 'Max HR: ' . $profile->max_heart_rate . ' bpm';
             if (!empty($profile->pace_zones)) {
-                $zStr = collect($profile->pace_zones)->map(fn ($r, $z) => "Z{$z}: " . $floatMinToMSS($r['min'] ?? null) . '–' . $floatMinToMSS($r['max'] ?? null))->implode(' | ');
+                $zStr = collect($profile->pace_zones)->map(fn ($r, $z) => strtoupper($z) . ': ' . ($r['min_pace'] ?? '?') . '–' . ($r['max_pace'] ?? '?'))->implode(' | ');
                 if ($zStr) $profileLines[] = 'Pace-Zonen: ' . $zStr;
             }
         }

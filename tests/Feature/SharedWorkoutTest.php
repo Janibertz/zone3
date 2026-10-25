@@ -265,8 +265,9 @@ class SharedWorkoutTest extends TestCase
         $this->actingAs($athlete)
             ->post(route('workouts.apply-to-session', [$session->id, $workout->id]));
 
-        // 5×1000 m + 5×400 m = 7,0 km, dazu Ein- und Auslaufen nach Zeit.
-        $this->assertSame(10.0, (float) $session->fresh()->distance_km);
+        // 5×1000 m + 5×400 m = 7,0 km, dazu Ein- und Auslaufen nach Zeit —
+        // die 2,8 km daraus sind über die Zonen-Pace (VDOT) geschätzt.
+        $this->assertSame(9.8, (float) $session->fresh()->distance_km);
     }
 
     /**

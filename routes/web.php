@@ -111,7 +111,9 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
 
         // Dieselbe Quelle wie auf der Planseite — die Formel stand hier
         // als zweite Kopie und musste von Hand mitgepflegt werden.
-        $racePredictions = app(\App\Services\RacePredictionService::class)->standardDistances($ts);
+        // Aus dem VDOT — siehe VdotService für die Quellen.
+        $vdot            = $runnerProfile->vdot();
+        $racePredictions = $vdot ? app(\App\Services\RacePredictionService::class)->standardDistances($vdot) : null;
     }
 
     // Today's session from the active training plan

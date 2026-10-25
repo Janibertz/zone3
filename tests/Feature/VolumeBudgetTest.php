@@ -319,7 +319,8 @@ class VolumeBudgetTest extends TestCase
      */
     public function test_the_goal_verdict_accounts_for_the_long_run(): void
     {
-        $paces = app(TrainingPaceService::class)->forEvent($this->event(), 4 + 22 / 60);
+        // Eine Form, die 3:28 im Marathon hergibt — das Ziel 3:30 passt.
+        $paces = app(TrainingPaceService::class)->forEvent($this->event(), \App\Services\Vdot::fromPerformance(42195, 3 * 3600 + 28 * 60));
 
         $reachable   = ['reachable' => true,  'peak_km' => 32.0, 'ideal_peak_km' => 32.0];
         $unreachable = ['reachable' => false, 'peak_km' => 23.6, 'ideal_peak_km' => 32.0];
@@ -338,7 +339,8 @@ class VolumeBudgetTest extends TestCase
     /** Ohne Leiter bleibt es beim reinen Tempo-Vergleich. */
     public function test_without_a_ladder_the_pace_verdict_stands(): void
     {
-        $paces = app(TrainingPaceService::class)->forEvent($this->event(), 4 + 22 / 60);
+        // Eine Form, die 3:28 im Marathon hergibt — das Ziel 3:30 passt.
+        $paces = app(TrainingPaceService::class)->forEvent($this->event(), \App\Services\Vdot::fromPerformance(42195, 3 * 3600 + 28 * 60));
 
         $this->assertStringContainsString(
             'Das Ziel passt zur heutigen Form',

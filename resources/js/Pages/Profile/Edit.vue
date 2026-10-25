@@ -12,6 +12,7 @@ const props = defineProps({
     mustVerifyEmail:       Boolean,
     status:                String,
     runnerProfile:         Object,
+    vdot:                  Object,
     stravaConnected:       Boolean,
     stravaAccount:         Object,
     notificationSettings:  Object,
@@ -996,7 +997,11 @@ const inputClass = 'z-input';
                         </form>
 
                         <div v-if="paceZones.length > 0" class="border-t border-line pt-5">
-                            <h3 class="text-sm font-semibold text-ink-2 mb-3">Deine Laufzonen</h3>
+                            <h3 class="text-sm font-semibold text-ink-2">Deine Laufzonen</h3>
+                            <p v-if="vdot" class="mt-0.5 mb-3 text-[13px] text-ink-3">
+                                Nach Daniels aus VDOT <span class="font-semibold text-ink tabular-nums">{{ vdot.value.toFixed(1).replace('.', ',') }}</span>, {{ vdot.label }}
+                            </p>
+                            <div v-else class="mb-3" />
                             <div class="space-y-2">
                                 <div v-for="(zone, idx) in paceZones" :key="idx" class="flex items-center justify-between rounded-field border px-4 py-3" :class="zoneColors[idx]">
                                     <div class="flex items-center gap-3">
