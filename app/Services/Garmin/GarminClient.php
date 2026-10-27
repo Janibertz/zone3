@@ -147,7 +147,7 @@ class GarminClient
     /** @return list<string> */
     public function permissions(string $accessToken): array
     {
-        return array_values((array) $this->api($accessToken)->get('/wellness-api/rest/user/permissions')->throw()->json());
+        return GarminConnection::normalizePermissions($this->api($accessToken)->get('/wellness-api/rest/user/permissions')->throw()->json());
     }
 
     /**

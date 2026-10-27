@@ -204,7 +204,7 @@ class GarminController extends Controller
 
         if ($response->successful()) {
             $connection->update([
-                'permissions'            => array_values((array) $response->json()),
+                'permissions'            => GarminConnection::normalizePermissions($response->json()),
                 'permissions_checked_at' => now(),
             ]);
         }

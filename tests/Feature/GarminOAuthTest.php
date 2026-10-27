@@ -188,6 +188,32 @@ class GarminOAuthTest extends TestCase
         $this->assertGuest();
     }
 
+    public function test_permissions_wrapped_one_level_deeper_are_recognised(): void
+    {
+        // So kam die Antwort von Garmin am 27.10.2026 wirklich an.
+        Http::fake([
+            self::TOKEN_URL                 => Http::response($this->tokenResponse()),
+            self::API . '/user/id'          => Http::response(['userId' => 'g-777']),
+            self::API . '/user/permissions' => Http::response(['permissions' => ['ACTIVITY_EXPORT', 'HEALTH_EXPORT', 'WORKOUT_IMPORT']]),
+        ]);
+
+        $user = $this->athlete();
+        $this->pending('abc', $user);
+        $this->get('/garmin/callback?code=c&state=abc');
+
+        $connection = $user->fresh()->garminConnection;
+        $this->assertSame(['ACTIVITY_EXPORT', 'HEALTH_EXPORT', 'WORKOUT_IMPORT'], $connection->permissions);
+        $this->assertTrue($connection->allows(GarminConnection::HEALTH));
+    }
+
+    public function test_an_already_stored_nested_list_is_read_correctly(): void
+    {
+        $connection = $this->connection($this->athlete(), ['permissions' => [['ACTIVITY_EXPORT', 'HEALTH_EXPORT', 'WORKOUT_IMPORT']]]);
+
+        $this->assertTrue($connection->fresh()->allows(GarminConnection::WORKOUTS));
+        $this->assertTrue($connection->fresh()->summary()['health']);
+    }
+
     public function test_a_state_works_only_once(): void
     {
         Http::fake([
