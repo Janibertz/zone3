@@ -461,10 +461,9 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::post('/strava/sync', [StravaController::class, 'sync'])->name('strava.sync');
     Route::delete('/strava/disconnect', [StravaController::class, 'disconnect'])->name('strava.disconnect');
 
-    // Offizielle Garmin-Verbindung (OAuth2 mit PKCE). Die Callback-URL steht
-    // so im Garmin Developer Portal — beim Umbenennen dort mitziehen.
+    // Offizielle Garmin-Verbindung (OAuth2 mit PKCE). Der Callback steht
+    // weiter unten ausserhalb der Anmeldung.
     Route::post('/garmin/connect', [\App\Http\Controllers\GarminController::class, 'connect'])->name('garmin.connect');
-    Route::get('/garmin/callback', [\App\Http\Controllers\GarminController::class, 'callback'])->name('garmin.callback');
     Route::delete('/garmin/connection', [\App\Http\Controllers\GarminController::class, 'disconnect'])->name('garmin.connection.destroy');
 
 
@@ -636,6 +635,11 @@ Route::post('/impersonate/stop', [\App\Http\Controllers\Admin\AdminImpersonation
 // Solange der Import nicht zuverlaessig laeuft, steht ihm nichts im Weg.
 Route::get('/strava/webhook', [StravaController::class, 'webhookVerify'])->name('strava.webhook.verify');
 Route::post('/strava/webhook', [StravaController::class, 'webhook'])->name('strava.webhook');
+
+// Garmin-Callback ausserhalb von auth: aus der Homescreen-App kommt der
+// Rueckweg von Garmin in Safari an, ohne Anmeldung. Der Controller erkennt
+// den Athleten am state. Die URL steht so im Garmin Developer Portal.
+Route::get('/garmin/callback', [\App\Http\Controllers\GarminController::class, 'callback'])->name('garmin.callback');
 
 // Garmin-Webhook fuer Deregistrierung und Freigaben — ohne Auth, Garmin ruft
 // von aussen an. Braucht in Cloudflare dieselbe WAF-Skip-Regel wie

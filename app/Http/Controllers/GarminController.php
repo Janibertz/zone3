@@ -4,13 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\GarminConnection;
 use App\Models\GarminWebhookEvent;
+use App\Models\User;
 use App\Services\Garmin\GarminClient;
 use App\Services\Garmin\GarminDisconnector;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -18,14 +21,21 @@ use Throwable;
  * Die offizielle Garmin-Verbindung: verbinden, trennen, Benutzer-Webhook.
  *
  * Der Ablauf beim Verbinden: Zone3 erzeugt ein Geheimnis (`code_verifier`),
- * legt es mit einem `state` in die Session und schickt den Athleten mit dem
+ * legt es unter einem `state` ab und schickt den Athleten mit dem
  * Fingerabdruck des Geheimnisses zu Garmin. Dort gibt er frei, was er teilen
  * will. Garmin schickt ihn mit einem Einmal-Code zurueck, und nur wer das
  * Geheimnis kennt, kann den Code gegen Tokens tauschen.
+ *
+ * Das Geheimnis liegt im Cache, nicht in der Session. Startet der Athlet in
+ * der Homescreen-App, oeffnet iOS den Rueckweg von Garmin in Safari — mit
+ * eigenem Cookie-Speicher, also ohne Session und ohne Anmeldung. Der Callback
+ * erkennt den Athleten deshalb am `state` (zufaellig, zehn Minuten, einmal
+ * benutzbar). Ist im Browser jemand anderes angemeldet, wird abgelehnt.
  */
 class GarminController extends Controller
 {
-    private const SESSION_KEY = 'garmin_oauth';
+    private const CACHE_PREFIX = 'garmin-oauth:';
+    private const PENDING_MINUTES = 10;
 
     public function __construct(
         private readonly GarminClient $client,
@@ -43,48 +53,56 @@ class GarminController extends Controller
         $state    = Str::random(40);
         $verifier = $this->client->makeVerifier();
 
-        $request->session()->put(self::SESSION_KEY, [
-            'state'      => $state,
+        Cache::put(self::CACHE_PREFIX . $state, [
+            'user_id'    => $request->user()->id,
             'verifier'   => $verifier,
             'consent_at' => now()->toIso8601String(),
-        ]);
+        ], now()->addMinutes(self::PENDING_MINUTES));
 
         // Ein externer Redirect aus einem Inertia-Request braucht location().
-        return \Inertia\Inertia::location($this->client->authorizationUrl($state, $verifier));
+        return Inertia::location($this->client->authorizationUrl($state, $verifier));
     }
 
-    public function callback(Request $request): RedirectResponse
+    public function callback(Request $request): Response
     {
-        $pending = $request->session()->pull(self::SESSION_KEY);
-        $back    = redirect()->route('profile.edit');
+        $state   = (string) $request->query('state');
+        $pending = $state !== '' ? Cache::pull(self::CACHE_PREFIX . $state) : null;
 
         if ($request->filled('error')) {
-            return $back->with('garmin_status', ['type' => 'error', 'message' => 'Garmin-Verbindung abgebrochen.']);
+            return $this->finish($request, false, 'Garmin-Verbindung abgebrochen.');
         }
 
-        if (! $pending || ! hash_equals($pending['state'], (string) $request->query('state'))) {
-            return $back->with('garmin_status', ['type' => 'error', 'message' => 'Garmin-Verbindung abgelaufen. Bitte noch einmal verbinden.']);
+        if (! $pending) {
+            return $this->finish($request, false, 'Garmin-Verbindung abgelaufen. Bitte noch einmal verbinden.');
         }
 
-        $request->validate(['code' => 'required|string']);
+        // Wer hier angemeldet ist, muss der sein, der die Verbindung gestartet
+        // hat. Sonst koennte ein fremder Verbinden-Link ein Garmin-Konto in
+        // das Zone3-Konto eines anderen holen.
+        if ($request->user() && $request->user()->id !== $pending['user_id']) {
+            return $this->finish($request, false, 'Diese Garmin-Verbindung wurde von einem anderen Konto gestartet.');
+        }
+
+        $user = User::find($pending['user_id']);
+        if (! $user || ! $request->filled('code')) {
+            return $this->finish($request, false, 'Garmin hat die Verbindung nicht bestätigt. Bitte noch einmal verbinden.');
+        }
 
         try {
-            $token     = $this->client->exchangeCode($request->query('code'), $pending['verifier']);
+            $token     = $this->client->exchangeCode((string) $request->query('code'), $pending['verifier']);
             $garminId  = $this->client->userId($token['access_token']);
             $permitted = $this->client->permissions($token['access_token']);
         } catch (Throwable $e) {
-            Log::warning('Garmin-Verbindung fehlgeschlagen', ['user_id' => $request->user()->id, 'error' => $e->getMessage()]);
+            Log::warning('Garmin-Verbindung fehlgeschlagen', ['user_id' => $user->id, 'error' => $e->getMessage()]);
 
-            return $back->with('garmin_status', ['type' => 'error', 'message' => 'Garmin hat die Verbindung nicht bestätigt. Bitte später noch einmal versuchen.']);
+            return $this->finish($request, false, 'Garmin hat die Verbindung nicht bestätigt. Bitte später noch einmal versuchen.');
         }
-
-        $user = $request->user();
 
         // Ein Garmin-Konto gehoert genau einem Athleten. Sonst landeten die
         // Erholungswerte des einen beim anderen.
         $taken = GarminConnection::where('garmin_user_id', $garminId)->where('user_id', '!=', $user->id)->exists();
         if ($taken) {
-            return $back->with('garmin_status', ['type' => 'error', 'message' => 'Dieses Garmin-Konto ist schon mit einem anderen Zone3-Konto verbunden.']);
+            return $this->finish($request, false, 'Dieses Garmin-Konto ist schon mit einem anderen Zone3-Konto verbunden.');
         }
 
         GarminConnection::updateOrCreate(
@@ -102,7 +120,23 @@ class GarminController extends Controller
 
         Log::info('Garmin verbunden', ['user_id' => $user->id, 'permissions' => $permitted]);
 
-        return $back->with('garmin_status', ['type' => 'success', 'message' => 'Garmin verbunden.']);
+        return $this->finish($request, true, 'Garmin verbunden.');
+    }
+
+    /**
+     * Wer angemeldet ist, landet wieder im Profil. Wer es nicht ist, kam in
+     * einem anderen Browser zurueck als dem, in dem er gestartet hat (Safari
+     * statt Homescreen-App) — dorthin fuehrt kein Weg, also eine Seite, die
+     * sagt, was passiert ist und wohin es weitergeht.
+     */
+    private function finish(Request $request, bool $ok, string $message): Response
+    {
+        if ($request->user()) {
+            return redirect()->route('profile.edit')
+                ->with('garmin_status', ['type' => $ok ? 'success' : 'error', 'message' => $message]);
+        }
+
+        return Inertia::render('Garmin/Callback', ['ok' => $ok, 'message' => $message])->toResponse($request);
     }
 
     public function disconnect(Request $request): RedirectResponse
