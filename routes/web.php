@@ -48,7 +48,11 @@ Route::get('/', function () {
     ]);
 });
 
-Route::get('/support', fn() => Inertia::render('Support'))->name('support');
+// Datenschutz — öffentlich, Garmin und Strava verlangen eine erreichbare Seite.
+// /support war die alte Adresse (u. a. in den Strava-App-Einstellungen) und
+// leitet dauerhaft weiter; der Routenname bleibt, damit alte Verweise halten.
+Route::get('/privacy', fn() => Inertia::render('Privacy'))->name('privacy');
+Route::permanentRedirect('/support', '/privacy')->name('support');
 
 // Newsletter unsubscribe — public, no auth required
 Route::get('/newsletter/unsubscribe/{token}', [NewsletterController::class, 'unsubscribe'])->name('newsletter.unsubscribe');
@@ -61,7 +65,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/support/tickets/{ticket}',                [SupportTicketController::class, 'show'])  ->name('support.tickets.show');
     Route::post('/support/tickets/{ticket}/reply',         [SupportTicketController::class, 'reply']) ->name('support.tickets.reply');
 });
-Route::get('/privacy', fn() => redirect()->route('support'))->name('privacy');
 
 // ── Onboarding (auth required, no onboarding-complete check) ──────────────
 Route::middleware('auth')->group(function () {

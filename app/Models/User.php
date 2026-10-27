@@ -31,6 +31,22 @@ class User extends Authenticatable
     use HasFactory, Notifiable;
 
     /**
+     * Alles andere hängt per `cascadeOnDelete` am Konto. Nur zwei Tabellen
+     * sind `nullOnDelete`, damit Statistik und Webhook-Protokoll das Konto
+     * überleben — `ai_logs` trägt dabei den vollständigen Prompt samt
+     * Trainingsdaten und Chatnachrichten. /privacy verspricht, dass mit dem
+     * Konto alles verschwindet. Beide Löschwege (Profil, Admin) laufen über
+     * `$user->delete()`, also gehört es hierher.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(function (User $user) {
+            AiLog::where('user_id', $user->id)->delete();
+            StravaWebhookEvent::where('user_id', $user->id)->delete();
+        });
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
