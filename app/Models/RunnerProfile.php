@@ -120,7 +120,7 @@ class RunnerProfile extends Model
      * Pro Instanz gemerkt, solange sich die Schwellenpace nicht ändert:
      * Zonen, Prognose und Plan fragen ihn innerhalb eines Requests mehrfach.
      *
-     * @return array{value: float, source: string, label: string, from_threshold: float|null, from_effort: float|null}|null
+     * @return array{value: float, source: string, label: string, from_threshold: float|null, from_effort: float|null, from_garmin: float|null}|null
      */
     public function vdotInfo(): ?array
     {

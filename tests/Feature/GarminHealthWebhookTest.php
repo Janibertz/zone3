@@ -155,6 +155,21 @@ class GarminHealthWebhookTest extends TestCase
         $this->assertSame(GarminWebhookEvent::OUTCOME_NOT_PERMITTED, GarminWebhookEvent::first()->outcome);
     }
 
+    public function test_user_metrics_bring_vo2max_and_fitness_age(): void
+    {
+        $user = $this->connected();
+
+        $this->postJson('/garmin/webhook/health', ['userMetrics' => [[
+            'userId' => 'g-' . $user->id, 'calendarDate' => '2026-10-27',
+            'vo2Max' => 53.0, 'vo2MaxCycling' => 49.5, 'enhanced' => true, 'fitnessAge' => 32,
+        ]]])->assertOk();
+
+        $m = $this->metric($user, '2026-10-27');
+        $this->assertSame(53.0, $m->vo2max);
+        $this->assertSame(49.5, $m->vo2max_cycling);
+        $this->assertSame(32, $m->fitness_age);
+    }
+
     public function test_every_push_keeps_its_raw_payload_for_fourteen_days(): void
     {
         $user = $this->connected();

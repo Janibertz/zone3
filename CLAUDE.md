@@ -497,7 +497,7 @@ Drei Klassen, eine Richtung:
 | `VdotService::forProfile()` | **woher** der VDOT kommt — die einzige Stelle, die das entscheidet |
 | `RunnerProfile::vdot()` / `vdotInfo()` | der Zugang für alle anderen, pro Instanz gemerkt |
 
-**Quelle (Entscheidung von Jan):** Schwellenpace und Strava-Bestzeiten der letzten 6 Wochen (5 km, 10 km, HM, Marathon — nicht 1 km, die Formel gilt ab ~1,5 km) werden je in einen VDOT umgerechnet, **der höhere gilt**. Eine Bestzeit ist eine Untergrenze der Form; eine langsame Teilstrecke aus einem lockeren Lauf drückt deshalb nichts nach unten.
+**Quelle (Entscheidung von Jan):** Schwellenpace und Strava-Bestzeiten der letzten 6 Wochen (5 km, 10 km, HM, Marathon — nicht 1 km, die Formel gilt ab ~1,5 km) werden je in einen VDOT umgerechnet, **der höhere gilt**. Eine Bestzeit ist eine Untergrenze der Form; eine langsame Teilstrecke aus einem lockeren Lauf drückt deshalb nichts nach unten. **Seit 27.10.2026 ist Garmins VO2max die dritte Quelle** (Entscheidung von Jan): der neueste Wert der letzten sechs Wochen aus den User Metrics, gleichrangig, es gilt der höchste. Garmin schätzt anders als Daniels — ein zu optimistischer Wert macht alle Tempi schneller; die Herkunft steht im `label` (Profil → Laufzonen, Coach-Kontext).
 
 Daran hängt alles, was ein Tempo nennt: `RacePredictionService::forVdot()` (Dashboard, Planseite, Prognose-Job, `GoalCheckService`), `TrainingPaceService` (E 59–74 %, T 88 %, I 97,5–100 %, R 105 %, M aus der Marathonprognose), die Pace-Zonen und `WorkoutPaceResolver` (Zonenziel aus `Vdot::ZONE_TARGET`: Zone 4 = T, Zone 5 = I — nicht die Bandmitte).
 
@@ -753,6 +753,7 @@ Zone3 ist im Garmin Connect Developer Program (Activity, Health, Training API). 
 - **Feldnamen nach der Health API Specification 1.2.2** (PDF im Garmin-Portal). Jeder Push behält trotzdem 14 Tage seine Rohdaten in `garmin_webhook_events.payload` (`garmin:prune-webhook-payloads`). Kommt ein Wert nicht an: dort nachsehen, nicht raten.
 - **200 vor der Verarbeitung** verlangt die Spezifikation (30 s Timeout), darum legt der Controller den Push nur als `ImportGarminHealthJob` in die Queue.
 - Backfill und Ping/Pull sind laut Spezifikation **Enterprise**; Zone3 hat nur Push und keine Historie.
+- **User Metrics** liefern `vo2max`, `vo2max_cycling` und `fitness_age` (nur ein Kalenderdatum, kommt bei Änderung). Die Lauf-VO2max zählt im VDOT mit und steht als Kachel unter „Erholung“, sobald im Zeitraum ein Wert da ist.
 - **Training Readiness gibt es in der Health API nicht** — die Spalte bleibt für offizielle Verbindungen leer. Die Oberfläche zeigt sie deshalb nicht mehr (Entscheidung von Jan): die Dashboard-Kachel ist jetzt Body Battery, Karte und Rohdaten unter „Erholung“ ohne Readiness. Spalte und Prompt-Zeile bleiben bis zum Abbau des alten Logins (Schritt 6).
 - Im Garmin-Endpunkt-Tool zeigen Dailies, Sleeps, HRV Summary, Stress und User Metrics auf `https://zone3.run/garmin/webhook/health`. Die Werte stehen ungeprüft im Body (Garmin signiert nicht); gespeichert wird nur für verbundene Athleten mit `HEALTH_EXPORT`.
 

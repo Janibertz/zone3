@@ -18,12 +18,17 @@ class GarminDailyMetric extends Model
         'stress_avg',
         'steps',
         'training_readiness',
+        'vo2max',
+        'vo2max_cycling',
+        'fitness_age',
     ];
 
     protected $casts = [
-        'date'        => 'date',
-        'hrv'         => 'float',
-        'sleep_hours' => 'float',
+        'date'           => 'date',
+        'hrv'            => 'float',
+        'sleep_hours'    => 'float',
+        'vo2max'         => 'float',
+        'vo2max_cycling' => 'float',
     ];
 
     public function user()
