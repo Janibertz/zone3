@@ -376,9 +376,9 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         })(),
 
         // Garmin recovery data (HRV, sleep, RHR, Body Battery, stress, readiness).
-        // Synced read-only via SyncGarminHealthJob. Missing values stay null ("keine Daten").
+        // Per Push ueber die Health API oder, mit dem alten Login, via SyncGarminHealthJob. Missing values stay null ("keine Daten").
         'garminMetrics' => (function () use ($user) {
-            if (empty($user->garmin_session)) return null;
+            if (! $user->receivesGarminHealth()) return null;
 
             $rows = \App\Models\GarminDailyMetric::where('user_id', $user->id)
                 ->where('date', '>=', now()->subDays(60)->toDateString())
@@ -409,7 +409,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
 
         // Activities for the recovery dashboard's logbook + weekly-km chart (last 60 days).
         'recoveryActivities' => (function () use ($user) {
-            if (empty($user->garmin_session) && ! $user->stravaAccount) return [];
+            if (! $user->receivesGarminHealth() && ! $user->stravaAccount) return [];
 
             return Activity::where('user_id', $user->id)
                 ->where('start_date', '>=', now()->subDays(60))
@@ -645,6 +645,7 @@ Route::get('/garmin/callback', [\App\Http\Controllers\GarminController::class, '
 // von aussen an. Braucht in Cloudflare dieselbe WAF-Skip-Regel wie
 // /strava/webhook. Was der Aufruf behauptet, prueft der Controller bei Garmin.
 Route::post('/garmin/webhook/user', [\App\Http\Controllers\GarminController::class, 'webhookUser'])->name('garmin.webhook.user');
+Route::post('/garmin/webhook/health', [\App\Http\Controllers\GarminController::class, 'webhookHealth'])->name('garmin.webhook.health');
 
 // GitHub Webhook — no auth middleware, signature-verified
 Route::post('/webhook/github', [WebhookController::class, 'github'])->name('webhook.github');

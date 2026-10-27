@@ -54,6 +54,7 @@ Schedule::command('garmin:sync-health --days=2')->dailyAt('09:00');
 // Benutzung. Einmal am Tag erneuern haelt jede Verbindung am Leben, auch die
 // eines Athleten, der gerade nicht trainiert.
 Schedule::command('garmin:refresh-tokens')->dailyAt('04:30');
+Schedule::command('garmin:prune-webhook-payloads')->dailyAt('04:40');
 
 // Jede Minute: laufende LiveTrack-Sitzungen abfragen. Der Command prueft
 // selbst, ob ueberhaupt eine Sitzung im Zeitfenster liegt.

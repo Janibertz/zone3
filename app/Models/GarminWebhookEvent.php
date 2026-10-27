@@ -12,13 +12,16 @@ use Illuminate\Database\Eloquent\Model;
  */
 class GarminWebhookEvent extends Model
 {
-    protected $fillable = ['type', 'garmin_user_id', 'user_id', 'outcome', 'note'];
+    protected $fillable = ['type', 'garmin_user_id', 'user_id', 'outcome', 'note', 'payload'];
 
     public const OUTCOME_DEREGISTERED       = 'deregistered';
     public const OUTCOME_PERMISSIONS        = 'permissions_updated';
     public const OUTCOME_UNKNOWN_USER       = 'unknown_user';
     public const OUTCOME_STILL_CONNECTED    = 'still_connected';
     public const OUTCOME_CHECK_FAILED       = 'check_failed';
+    public const OUTCOME_STORED             = 'stored';
+    public const OUTCOME_NOT_PERMITTED      = 'not_permitted';
+    public const OUTCOME_NOTHING_TO_STORE   = 'nothing_to_store';
 
     public function user()
     {

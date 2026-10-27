@@ -166,6 +166,28 @@ class GarminController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /**
+     * Erholungswerte per Push (Dailies, Sleeps, HRV, Stress, User Metrics).
+     * Eine URL fuer alle Health-Typen; der Schluessel im Body sagt, was kam.
+     *
+     * Garmin signiert auch diese Aufrufe nicht, und anders als beim
+     * Benutzer-Webhook stehen die Werte im Body selbst. Geschuetzt ist der
+     * Weg nur dadurch, dass eine Garmin-User-ID nirgends oeffentlich steht.
+     * Gespeichert wird nur fuer verbundene Athleten mit Health-Freigabe.
+     */
+    public function webhookHealth(Request $request, \App\Services\Garmin\GarminHealthImporter $importer): JsonResponse
+    {
+        $written = $importer->import($request->json()->all());
+
+        if ($written !== []) {
+            Log::info('Garmin-Erholungswerte empfangen', $written);
+        }
+
+        // Immer 200: ein Fehler hier liesse Garmin denselben Push wiederholen,
+        // und an unbekannten Nutzern aendert eine Wiederholung nichts.
+        return response()->json(['ok' => true]);
+    }
+
     private function handleUserEvent(string $type, string $garminUserId): void
     {
         $connection = $garminUserId !== '' ? GarminConnection::where('garmin_user_id', $garminUserId)->first() : null;

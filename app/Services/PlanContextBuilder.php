@@ -163,7 +163,7 @@ class PlanContextBuilder
                 // aufs Rad wandern, entscheidet das Gerüst — nicht der Prompt.
                 \App\Services\Bike\BikeSchedule::settingsFor($user->runnerProfile),
             ),
-            garminText: empty($user->garmin_session)
+            garminText: ! $user->receivesGarminHealth()
                 ? null
                 : $this->garmin->toPromptSection($this->garmin->forUser($user->id, $windowFrom)),
         );
