@@ -319,7 +319,7 @@ const beispielWoche = [
             <div class="mx-auto flex max-w-5xl flex-col items-center justify-between gap-3 text-[13px] text-ink-3 sm:flex-row">
                 <span>Zone3</span>
                 <div class="flex gap-5">
-                    <Link :href="route('support')" class="transition hover:text-ink-2">Support</Link>
+                    <Link :href="route('privacy')" class="transition hover:text-ink-2">Datenschutz</Link>
                     <Link v-if="canLogin" :href="route('login')" class="transition hover:text-ink-2">Anmelden</Link>
                 </div>
             </div>

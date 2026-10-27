@@ -34,9 +34,9 @@ class LandingPagePrefetchTest extends TestCase
     }
 
     /** Auch die anderen oeffentlichen Seiten nicht. */
-    public function test_the_support_page_is_light_too(): void
+    public function test_the_privacy_page_is_light_too(): void
     {
-        $html = $this->get('/support')->assertOk()->getContent();
+        $html = $this->get('/privacy')->assertOk()->getContent();
 
         $this->assertSame(0, $this->prefetchCount($html));
     }
