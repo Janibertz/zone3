@@ -62,6 +62,7 @@ const days = computed(() => {
             body_battery_high:  r.body_battery_high ?? null,
             stress_avg:         r.stress_avg ?? null,
             steps:              r.steps ?? null,
+            vo2max:             r.vo2max ?? null,
         });
     }
     return out;
@@ -78,7 +79,7 @@ function stat(key) {
 function last(key) { const a = series(key); return a.length ? a[a.length - 1] : null; }
 
 const daysWithData = computed(() =>
-    days.value.filter(d => ['hrv', 'resting_hr', 'sleep_hours', 'body_battery_high', 'stress_avg', 'steps']
+    days.value.filter(d => ['hrv', 'resting_hr', 'sleep_hours', 'body_battery_high', 'stress_avg', 'steps', 'vo2max']
         .some(k => d[k] !== null)).length);
 
 const hasData = computed(() => daysWithData.value > 0 || props.activities.length > 0);
@@ -118,6 +119,9 @@ const tiles = computed(() => [
     tile('resting_hr',  { label: 'Ruhepuls',  color: C.rhr,    unit: 'bpm', digits: 0, invert: true }),
     tile('sleep_hours', { label: 'Schlaf',    color: C.sleep,  unit: 'h',   digits: 1 }),
     tile('stress_avg',  { label: 'Stress',    color: C.stress, unit: '',    digits: 0, invert: true }),
+    // Garmin schickt die VO2max nur, wenn sie sich ändert — ohne Wert im
+    // Zeitraum bleibt die Kachel weg statt dauerhaft „–" zu zeigen.
+    ...(last('vo2max') != null ? [tile('vo2max', { label: 'VO2max', color: C.energy, unit: 'ml/kg/min', digits: 1 })] : []),
 ]);
 function deltaClass(t) {
     if (t.delta == null) return 'text-ink-3';
@@ -309,9 +313,10 @@ const sideValues = computed(() => [
                 </div>
             </AppCard>
 
-            <!-- Vier Kacheln -->
-            <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                <AppCard v-for="t in tiles" :key="t.label">
+            <!-- Kacheln -->
+            <div class="grid grid-cols-2 gap-3" :class="tiles.length === 5 ? 'xl:grid-cols-5' : 'xl:grid-cols-4'">
+                <AppCard v-for="(t, i) in tiles" :key="t.label"
+                    :class="tiles.length % 2 === 1 && i === tiles.length - 1 ? 'col-span-2 xl:col-span-1' : ''">
                     <p class="text-[13px] font-medium text-ink-3">{{ t.label }}</p>
                     <p class="mt-1 flex items-baseline gap-1">
                         <span class="text-2xl font-bold tabular-nums tracking-tight" :style="{ color: t.color }">
@@ -425,6 +430,7 @@ const sideValues = computed(() => [
                                 <th class="px-2 py-2 text-right font-semibold">Battery</th>
                                 <th class="px-2 py-2 text-right font-semibold">Stress</th>
                                 <th class="px-2 py-2 text-right font-semibold">Schritte</th>
+                                <th class="px-2 py-2 text-right font-semibold">VO2max</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-line">
@@ -436,6 +442,7 @@ const sideValues = computed(() => [
                                 <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ d.body_battery_high != null ? `${d.body_battery_low ?? '?'}–${d.body_battery_high}` : '–' }}</td>
                                 <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ nf(d.stress_avg) }}</td>
                                 <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ nf(d.steps) }}</td>
+                                <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ nf(d.vo2max, 1) }}</td>
                             </tr>
                         </tbody>
                     </table>

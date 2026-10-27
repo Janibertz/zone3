@@ -113,6 +113,13 @@ class GarminHealthImporter
                 'hrv' => $this->positive($s['lastNightAvg'] ?? null, float: true),
             ],
             'stressDetails' => $this->bodyBattery($s['timeOffsetBodyBatteryValues'] ?? null),
+            // Nur ein Kalenderdatum, kein Zeitraum: Garmin schickt den
+            // aktuellen Wert, wenn er sich aendert.
+            'userMetrics' => [
+                'vo2max'         => $this->positive($s['vo2Max'] ?? null, float: true),
+                'vo2max_cycling' => $this->positive($s['vo2MaxCycling'] ?? null, float: true),
+                'fitness_age'    => $this->positive($s['fitnessAge'] ?? null),
+            ],
             default => [],
         };
 

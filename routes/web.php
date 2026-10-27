@@ -386,7 +386,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 ->get([
                     'date', 'hrv', 'resting_hr', 'sleep_hours', 'sleep_score',
                     'body_battery_low', 'body_battery_high', 'stress_avg',
-                    'steps',
+                    'steps', 'vo2max',
                 ]);
 
             if ($rows->isEmpty()) return ['latest' => null, 'series' => []];
@@ -401,6 +401,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 'body_battery_high'  => $r->body_battery_high,
                 'stress_avg'         => $r->stress_avg,
                 'steps'              => $r->steps,
+                'vo2max'             => $r->vo2max,
             ])->values();
 
             return ['latest' => $series->last(), 'series' => $series];

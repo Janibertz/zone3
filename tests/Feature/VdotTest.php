@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Activity;
 use App\Models\BestEffort;
+use App\Models\GarminDailyMetric;
 use App\Models\RunnerProfile;
 use App\Models\User;
 use App\Services\Vdot;
@@ -54,6 +55,13 @@ class VdotTest extends TestCase
             'user_id' => $p->user_id, 'activity_id' => $activity->id, 'distance_key' => $key,
             'distance_m' => \App\Services\BestEffortService::DISTANCES[$key], 'elapsed_time' => $seconds,
             'achieved_at' => now()->subDays($daysAgo),
+        ]);
+    }
+
+    private function garmin(RunnerProfile $p, float $vo2max, int $daysAgo): void
+    {
+        GarminDailyMetric::create([
+            'user_id' => $p->user_id, 'date' => now()->subDays($daysAgo)->toDateString(), 'vo2max' => $vo2max,
         ]);
     }
 
@@ -136,6 +144,45 @@ class VdotTest extends TestCase
 
         $this->assertNotNull($p->vdot());
         $this->assertNotEmpty($p->pace_zones);
+    }
+
+    /** Garmins VO2max ist die dritte Quelle (Entscheidung vom 27.10.2026). */
+    public function test_a_higher_garmin_vo2max_wins(): void
+    {
+        $p = $this->profile(4.5);
+        $this->garmin($p, 49.0, 30);
+        $this->garmin($p, 52.0, 3); // der neueste zählt, nicht der höchste
+
+        $info = app(VdotService::class)->forProfile($p);
+
+        $this->assertSame('garmin', $info['source']);
+        $this->assertSame(52.0, $info['value']);
+        $this->assertSame('aus Garmins VO2max vom 22.10.', $info['label']);
+        $this->assertNotNull($info['from_threshold']);
+    }
+
+    public function test_the_newest_garmin_value_counts_even_when_it_dropped(): void
+    {
+        $p = $this->profile(null);
+        $this->garmin($p, 55.0, 20);
+        $this->garmin($p, 50.0, 2);
+
+        $this->assertSame(50.0, app(VdotService::class)->forProfile($p)['value']);
+    }
+
+    public function test_a_lower_or_old_garmin_value_changes_nothing(): void
+    {
+        $p = $this->profile(4.5);
+        $this->garmin($p, 40.0, 2);
+
+        $this->assertSame('threshold', app(VdotService::class)->forProfile($p)['source']);
+
+        $q = $this->profile(4.5);
+        $this->garmin($q, 60.0, VdotService::EFFORT_WINDOW_DAYS + 1);
+
+        $info = app(VdotService::class)->forProfile($q);
+        $this->assertSame('threshold', $info['source']);
+        $this->assertNull($info['from_garmin']);
     }
 
     public function test_nothing_known_means_no_vdot(): void
