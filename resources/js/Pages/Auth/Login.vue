@@ -109,12 +109,9 @@ const submit = () => {
                 </form>
             </div>
 
-            <!-- Register link -->
+            <!-- Registrieren geht nur über einen Einladungslink -->
             <p class="mt-5 text-center text-sm text-ink-3">
-                Noch kein Account?
-                <Link :href="route('register')" class="text-accent font-medium hover:text-accent transition-colors">
-                    Jetzt registrieren
-                </Link>
+                Noch kein Konto? Zone3 ist nur auf Einladung.
             </p>
         </div>
     </GuestLayout>
