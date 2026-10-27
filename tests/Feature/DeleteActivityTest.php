@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use App\Models\Activity;
 use App\Models\BestEffort;
 use App\Models\Event;
-use App\Models\IgnoredStravaActivity;
+use App\Models\IgnoredActivity;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
@@ -219,9 +219,9 @@ class DeleteActivityTest extends TestCase
         $this->actingAs($this->user)->deleteJson(route('activities.destroy', $activity))->assertOk();
 
         $this->assertTrue(
-            IgnoredStravaActivity::where('user_id', $this->user->id)->where('strava_id', 777123)->exists(),
+            IgnoredActivity::blocks($this->user->id, 'strava', 777123),
         );
-        $this->assertContains(777123, IgnoredStravaActivity::idsFor($this->user->id));
+        $this->assertContains(777123, IgnoredActivity::idsFor($this->user->id, 'strava'));
     }
 
     /**
@@ -267,6 +267,6 @@ class DeleteActivityTest extends TestCase
 
         $this->actingAs($this->user)->deleteJson(route('activities.destroy', $activity))->assertOk();
 
-        $this->assertSame([], IgnoredStravaActivity::idsFor($other->id));
+        $this->assertSame([], IgnoredActivity::idsFor($other->id, 'strava'));
     }
 }

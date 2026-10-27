@@ -179,7 +179,7 @@ class PlanStabilityTest extends TestCase
             'average_speed' => 12000 / 3300,
         ]);
 
-        app(\App\Services\StravaImportService::class)
+        app(\App\Services\ActivityImportService::class)
             ->matchActivityToSession($this->user->id, $activity);
 
         $this->assertSame('completed', $session->refresh()->status);

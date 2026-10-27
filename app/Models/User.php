@@ -95,6 +95,26 @@ class User extends Authenticatable
      * Kommen Erholungswerte von Garmin an — per Push ueber die offizielle
      * Verbindung (mit Health-Freigabe) oder ueber den alten Login.
      */
+    /**
+     * Woher Aktivitäten kommen. Eine Quelle pro Athlet (Entscheidung vom
+     * 27.10.2026), damit nie zwei Wege dieselbe Einheit anlegen.
+     *
+     * Ohne eigene Wahl: Strava, wenn verbunden, sonst Garmin mit
+     * Aktivitäts-Freigabe, sonst Strava.
+     */
+    public function activitySource(): string
+    {
+        if (in_array($this->activity_source, array_keys(Activity::ID_COLUMNS), true)) {
+            return $this->activity_source;
+        }
+
+        if (! $this->stravaAccount && $this->garminConnection?->allows(GarminConnection::ACTIVITY)) {
+            return Activity::SOURCE_GARMIN;
+        }
+
+        return Activity::SOURCE_STRAVA;
+    }
+
     public function receivesGarminHealth(): bool
     {
         return ! empty($this->garmin_session)

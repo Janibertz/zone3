@@ -76,7 +76,7 @@ class SportSeparationTest extends TestCase
 
     private function import(Activity $activity): void
     {
-        app(\App\Services\StravaImportService::class)
+        app(\App\Services\ActivityImportService::class)
             ->matchActivityToSession($this->user->id, $activity);
     }
 

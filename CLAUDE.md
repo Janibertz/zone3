@@ -625,7 +625,7 @@ Inertia.js — no API calls, all data passed as props from Laravel controllers.
 
 - `training_sessions.activity_id` is `nullOnDelete`, so a session the import completed would stay on `completed` with the run's numbers but no evidence behind them. A session the import *created* (`was_unplanned`) is deleted with it; a **planned** session is restored from `planned_snapshot` and goes back to `planned`, review and rating cleared. Without a snapshot the numbers stay — inventing them would be worse.
 - `race_analysis_text` pointing at it is cleared; `best_efforts` cascade away.
-- **A tombstone is required.** The manual sync runs `Activity::updateOrCreate` over Strava's recent activities and would re-create the deleted one on the next run. `ignored_strava_activities` holds (user_id, strava_id); both the sync and the webhook check it. The webhook alone would not have brought it back — it only handles `aspect_type = create` — but the sync would.
+- **A tombstone is required.** The manual sync runs `Activity::updateOrCreate` over Strava's recent activities and would re-create the deleted one on the next run. `ignored_activities` holds (user_id, source, external_id) — `IgnoredActivity::bury()` writes one per ID the row carries, so neither Strava nor Garmin brings it back; both the sync and the webhook check it. The webhook alone would not have brought it back — it only handles `aspect_type = create` — but the sync would.
 
 ## Strava Webhook
 
@@ -633,7 +633,7 @@ Inertia.js — no API calls, all data passed as props from Laravel controllers.
 
 It ran as a queued job for a while, and the reasoning was sound: the web process is single-threaded, and an import makes two outbound HTTP calls. But after that change activities stopped arriving, and a second attempt — a dedicated `imports` queue with its own worker — did not bring them back either. A core feature that does not work outweighs a request that takes a few seconds, so it went back to what worked. The job class and the second worker are gone.
 
-What did **not** go back: the import and matching logic stays in `StravaImportService`, shared with the manual sync. That extraction changed no behaviour and was not the problem.
+What did **not** go back: the import and matching logic stays out of the controller, shared with the manual sync. Since 28.10.2026 the source-independent part (store/attach, session matching, review, push) lives in `ActivityImportService`; `StravaImportService` only translates Strava's fields.
 
 What is new and deliberate: `Log::info('Strava-Webhook empfangen', …)` fires **before any filtering**, and a warning fires when the athlete is unknown or the activity is not retrievable. Diagnosing this cost two long sessions because nothing recorded whether Strava called at all.
 
@@ -755,6 +755,16 @@ Zone3 ist im Garmin Connect Developer Program (Activity, Health, Training API). 
 - Backfill und Ping/Pull sind laut Spezifikation **Enterprise**; Zone3 hat nur Push und keine Historie.
 - **User Metrics** liefern `vo2max`, `vo2max_cycling` und `fitness_age` (nur ein Kalenderdatum, kommt bei Änderung). Die Lauf-VO2max zählt im VDOT mit und steht als Kachel unter „Erholung“, sobald im Zeitraum ein Wert da ist.
 - **Training Readiness gibt es in der Health API nicht** — die Spalte bleibt für offizielle Verbindungen leer. Die Oberfläche zeigt sie deshalb nicht mehr (Entscheidung von Jan): die Dashboard-Kachel ist jetzt Body Battery, Karte und Rohdaten unter „Erholung“ ohne Readiness. Spalte und Prompt-Zeile bleiben bis zum Abbau des alten Logins (Schritt 6).
+
+**Eine Einheit, eine Zeile (Schritt 3).** Aktivitäten kommen aus Strava **oder** Garmin — `User::activitySource()` (Spalte `activity_source`; ohne Wahl Garmin nur, wenn kein Strava verbunden ist und die Activity-Freigabe besteht). Strava-Webhook, manueller Abgleich und `strava:sync` legen für einen Garmin-Athleten nichts an (Webhook-Ergebnis `other_source`). Dieselbe Einheit kommt trotzdem doppelt — beim Quellenwechsel und bei Zwift, das zu beiden hochlädt:
+
+- `activities` trägt `strava_id` (jetzt nullable), `garmin_activity_id` (unique), `source` (wer die Zeile angelegt hat) und `device_name`.
+- `ActivityImportService::store()`: gibt es die ID der Quelle, wird aufgefrischt; sonst sucht `ActivityMatcher::findTwin()` dieselbe Einheit aus der anderen Quelle — zuerst über Stravas `external_id = garmin_push_<ID>` (nicht dokumentiert, nur beobachtet), sonst gleiche Sportfamilie (`Activity::sportFamily()`), Start ±2 min, Distanz ±5 % (ohne Distanz: Dauer ±5 %). Gesucht wird nur unter Zeilen, denen die ID dieser Quelle fehlt — zwei Strava-Aktivitäten verschmelzen nie.
+- **Die Zahlen der ersten Quelle bleiben**, die zweite füllt nur leere Felder. Zwei Uhren messen nie gleich, und ein Lauf soll nicht bei jedem Abgleich seine Distanz wechseln.
+- **Zuordnung, Review und Push nur bei `wasRecentlyCreated`** (`processNew()`). Eine angehängte Aktivität ist kein neuer Lauf (Webhook-Ergebnis `attached`).
+- Löscht Strava eine Zeile, die Garmin angelegt hat, fällt nur die `strava_id` weg (`detached`).
+- **Strava trennen löscht keine Aktivitäten mehr** (vorher `$user->activities()->delete()`).
+
 - Im Garmin-Endpunkt-Tool zeigen Dailies, Sleeps, HRV Summary, Stress und User Metrics auf `https://zone3.run/garmin/webhook/health`. Die Werte stehen ungeprüft im Body (Garmin signiert nicht); gespeichert wird nur für verbundene Athleten mit `HEALTH_EXPORT`.
 
 ## Admin Panel

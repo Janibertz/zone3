@@ -218,12 +218,16 @@ class SystemHealth
      */
     public function integrations(): array
     {
+        // Nur was von Strava kam — eine Garmin-Aktivität sagt nichts
+        // darüber, ob Strava zustellt.
         $lastActivity = Activity::selectRaw('user_id, MAX(start_date) as last_at, COUNT(*) as total')
+            ->whereNotNull('strava_id')
             ->groupBy('user_id')
             ->get()
             ->keyBy('user_id');
 
         $lastImport = Activity::selectRaw('user_id, MAX(created_at) as imported_at')
+            ->where('source', Activity::SOURCE_STRAVA)
             ->groupBy('user_id')
             ->get()
             ->keyBy('user_id');

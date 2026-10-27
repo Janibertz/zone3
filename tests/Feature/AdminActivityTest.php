@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Activity;
 use App\Models\Event;
-use App\Models\IgnoredStravaActivity;
+use App\Models\IgnoredActivity;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
@@ -124,7 +124,7 @@ class AdminActivityTest extends TestCase
 
         $this->assertDatabaseMissing('activities', ['id' => $activity->id]);
         $this->assertTrue(
-            IgnoredStravaActivity::where('user_id', $user->id)->where('strava_id', 555001)->exists(),
+            IgnoredActivity::blocks($user->id, 'strava', 555001),
             'Ohne Grabstein kommt sie beim naechsten Abgleich zurueck',
         );
     }

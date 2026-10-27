@@ -14,7 +14,7 @@ use App\Services\PlanContext;
 use App\Services\PlanContextBuilder;
 use App\Services\WebPushService;
 use App\Services\Bike\BikeWorkouts;
-use App\Services\StravaImportService;
+use App\Services\ActivityImportService;
 use App\Services\TrainingPlanValidator;
 use App\Services\WeeklyPatternService;
 use Carbon\Carbon;
@@ -275,7 +275,7 @@ class BikePlanTest extends TestCase
         $session = $this->plannedRide($user, $plan);
         $ride    = $this->activity($user, 'VirtualRide');
 
-        app(StravaImportService::class)->matchActivityToSession($user->id, $ride);
+        app(ActivityImportService::class)->matchActivityToSession($user->id, $ride);
 
         $session->refresh();
         $this->assertSame('completed', $session->status);
@@ -290,7 +290,7 @@ class BikePlanTest extends TestCase
         [$user, $plan] = $this->athleteWithPlan();
         $session = $this->plannedRide($user, $plan);
 
-        app(StravaImportService::class)->matchActivityToSession($user->id, $this->activity($user, 'Run'));
+        app(ActivityImportService::class)->matchActivityToSession($user->id, $this->activity($user, 'Run'));
 
         $this->assertSame('planned', $session->fresh()->status);
     }

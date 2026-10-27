@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\Activity;
-use App\Models\IgnoredStravaActivity;
+use App\Models\IgnoredActivity;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use Illuminate\Support\Facades\DB;
@@ -31,13 +31,10 @@ class ActivityDeletionService
      */
     public function delete(Activity $activity): array
     {
-        $userId   = $activity->user_id;
-        $stravaId = $activity->strava_id;
-
         $deleted  = 0;
         $restored = 0;
 
-        DB::transaction(function () use ($activity, $userId, $stravaId, &$deleted, &$restored) {
+        DB::transaction(function () use ($activity, &$deleted, &$restored) {
             ['sessions_deleted' => $deleted, 'sessions_restored' => $restored] = $this->unlink($activity);
 
             // Die Renn-Analyse verweist auf die Aktivität; ohne sie ist der
@@ -48,13 +45,9 @@ class ActivityDeletionService
             ]);
 
             // Bestleistungen haengen per cascadeOnDelete an der Aktivitaet und
-            // gehen mit ihr; der Grabstein muss sie ueberleben.
-            if ($stravaId) {
-                IgnoredStravaActivity::firstOrCreate([
-                    'user_id'   => $userId,
-                    'strava_id' => $stravaId,
-                ]);
-            }
+            // gehen mit ihr; der Grabstein muss sie ueberleben — je Quelle,
+            // sonst holt die andere sie wieder herein.
+            IgnoredActivity::bury($activity);
 
             $activity->delete();
         });
