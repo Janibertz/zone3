@@ -3,7 +3,14 @@ import GuestLayout from '@/Layouts/GuestLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
+const props = defineProps({
+    // Gültiger Token oder null — ohne gibt es kein Formular.
+    invite:      { type: String, default: null },
+    inviteGiven: { type: Boolean, default: false },
+});
+
 const form = useForm({
+    invite: props.invite ?? '',
     name: '',
     email: '',
     password: '',
@@ -30,13 +37,29 @@ const submit = () => {
                     </div>
                     <span class="text-xl font-bold text-ink tracking-tight">Zone3</span>
                 </Link>
-                <h1 class="mt-5 text-[28px] font-bold leading-[34px] tracking-[-0.4px] text-ink">Konto erstellen</h1>
-                <p class="mt-1 text-sm text-ink-3">Starte deine smarte Laufkarriere</p>
+                <h1 class="mt-5 text-[28px] font-bold leading-[34px] tracking-[-0.4px] text-ink">
+                    {{ invite ? 'Konto erstellen' : 'Nur auf Einladung' }}
+                </h1>
+                <p v-if="invite" class="mt-1 text-sm text-ink-3">Du wurdest zu Zone3 eingeladen</p>
+            </div>
+
+            <!-- Ohne gültigen Link kein Formular -->
+            <div v-if="!invite" class="bg-surface rounded-2xl border border-line-strong shadow-xl p-6 text-[15px] leading-relaxed text-ink-2">
+                <p v-if="inviteGiven">
+                    Dieser Einladungslink ist nicht mehr gültig — er wurde schon eingelöst,
+                    ist abgelaufen oder wurde zurückgezogen. Frag nach einem neuen.
+                </p>
+                <p v-else>
+                    Zone3 ist im Moment nur auf Einladung. Wenn du einen Einladungslink
+                    bekommen hast, öffne ihn direkt.
+                </p>
             </div>
 
             <!-- Card -->
-            <div class="bg-surface rounded-2xl border border-line-strong shadow-xl p-6">
+            <div v-else class="bg-surface rounded-2xl border border-line-strong shadow-xl p-6">
                 <form @submit.prevent="submit" class="space-y-4">
+                    <InputError :message="form.errors.invite" />
+
                     <div>
                         <label for="name" class="block text-sm font-medium text-ink-3 mb-1.5">Name</label>
                         <input

@@ -740,6 +740,16 @@ Two separate connection paths — do not confuse them:
 
 Routes in `routes/admin.php` — protected by `is_admin` on User. Manual threshold recalculation, AI log viewer (all OpenAI calls with tokens + duration), coach personality editor, push test sender, settings page showing both models.
 
+### Einladungen — Registrieren nur mit Link
+
+Seit 27.10.2026 kommt niemand mehr ohne Einladung auf die Plattform (Entscheidung von Jan). `/admin/invitations` erzeugt einen Link `/register?invite=<token>`:
+
+- **Offen für jeden, der ihn hat** — an keine Adresse gebunden. Die Notiz („für Christopher") ist nur die Erinnerung des Admins.
+- **Einmal einlösbar, `Invitation::VALID_DAYS` = 14 Tage gültig**, vom Admin zurückziehbar, solange er nicht eingelöst ist.
+- `RegisteredUserController::store()` prüft beim Absenden **noch einmal** und sperrt die Zeile (`lockForUpdate`) — zwei gleichzeitige Absendungen mit demselben Link bekommen nicht beide ein Konto. Eine Absendung mit falschem Passwort verbraucht den Link nicht.
+- Ohne gültigen Link zeigt `/register` den Hinweis „Nur auf Einladung" statt des Formulars. Die Startseite und der Login bieten kein Registrieren mehr an.
+- Strava ist kein zweiter Weg hinein: es wird erst nach dem Login verbunden.
+
 ### Impersonation — `Als … ansehen`
 
 `POST /admin/users/{user}/impersonate` logs the admin in as that athlete; `POST /impersonate/stop` comes back. The fastest way to understand a report is to see the page the athlete sees — "there is a gap in my plan today" cost hours of database queries that one click would have answered.

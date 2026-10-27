@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AdminActivityController;
 use App\Http\Controllers\Admin\AdminCoachController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminImpersonationController;
+use App\Http\Controllers\Admin\AdminInvitationController;
 use App\Http\Controllers\Admin\AdminNewsletterController;
 use App\Http\Controllers\Admin\AdminSettingsController;
 use App\Http\Controllers\Admin\AdminSupportController;
@@ -31,6 +32,11 @@ Route::delete('/users/{user}',                     [AdminUserController::class, 
 // Als Athlet anmelden. Das BEENDEN liegt in web.php — waehrend der
 // Uebernahme ist man kein Admin mehr und kaeme hier nicht mehr durch.
 Route::post('/users/{user}/impersonate',           [AdminImpersonationController::class, 'start'])      ->name('users.impersonate');
+
+// Einladungen — Registrieren geht nur mit einem gueltigen Link.
+Route::get('/invitations',                         [AdminInvitationController::class, 'index'])  ->name('invitations.index');
+Route::post('/invitations',                        [AdminInvitationController::class, 'store'])  ->name('invitations.store');
+Route::post('/invitations/{invitation}/revoke',    [AdminInvitationController::class, 'revoke']) ->name('invitations.revoke');
 
 // Aktivitaeten ueber alle Athleten — inklusive Loeschen, das es im
 // Admin-Bereich bis hierher nicht gab.

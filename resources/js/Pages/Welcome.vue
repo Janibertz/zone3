@@ -68,14 +68,10 @@ const beispielWoche = [
                         Dashboard
                     </Link>
                     <template v-else>
+                        <!-- Registrieren nur per Einladungslink — kein offener Einstieg. -->
                         <Link v-if="canLogin" :href="route('login')"
-                            class="whitespace-nowrap rounded-field px-3 py-2 text-sm font-medium text-ink-2 transition hover:text-ink sm:px-4">
-                            Anmelden
-                        </Link>
-                        <Link v-if="canRegister" :href="route('register')"
                             class="whitespace-nowrap rounded-field bg-accent px-3 py-2 text-sm font-semibold text-white transition hover:opacity-90 sm:px-4">
-                            <span class="sm:hidden">Starten</span>
-                            <span class="hidden sm:inline">Kostenlos starten</span>
+                            Anmelden
                         </Link>
                     </template>
                 </div>
@@ -106,9 +102,9 @@ const beispielWoche = [
                         </p>
 
                         <div class="mt-8 flex flex-col gap-3 sm:flex-row">
-                            <Link v-if="canRegister" :href="route('register')"
+                            <Link v-if="canLogin" :href="route('login')"
                                 class="inline-flex h-12 items-center justify-center rounded-full bg-accent px-7 font-semibold text-white transition hover:opacity-90 active:scale-[0.98]">
-                                Kostenlos starten
+                                Anmelden
                             </Link>
                             <a href="#so-arbeitet-es"
                                 class="inline-flex h-12 items-center justify-center rounded-full bg-surface-2 px-7 font-semibold text-ink transition hover:bg-surface-3">
@@ -117,7 +113,7 @@ const beispielWoche = [
                         </div>
 
                         <p class="mt-4 text-[13px] text-ink-3">
-                            Kostenlos · Verbindung zu Strava und Garmin · kein Abo nötig
+                            Nur auf Einladung · Verbindung zu Strava und Garmin · kein Abo nötig
                         </p>
                     </div>
 
@@ -308,9 +304,12 @@ const beispielWoche = [
                     Strava verbinden, Renndatum eintragen, fertig. Den Rest rechnet Zone3 aus —
                     und meldet sich, wenn etwas nicht mehr passt.
                 </p>
-                <Link v-if="canRegister" :href="route('register')"
-                    class="mt-7 inline-flex h-12 items-center justify-center rounded-full bg-accent px-8 font-semibold text-white transition hover:opacity-90 active:scale-[0.98]">
-                    Kostenlos starten
+                <p class="mx-auto mt-7 max-w-md text-[13px] text-ink-3">
+                    Zone3 ist im Moment nur auf Einladung.
+                </p>
+                <Link v-if="canLogin" :href="route('login')"
+                    class="mt-4 inline-flex h-12 items-center justify-center rounded-full bg-accent px-8 font-semibold text-white transition hover:opacity-90 active:scale-[0.98]">
+                    Anmelden
                 </Link>
             </div>
         </section>
