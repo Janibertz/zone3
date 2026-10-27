@@ -113,7 +113,7 @@ const beispielWoche = [
                         </div>
 
                         <p class="mt-4 text-[13px] text-ink-3">
-                            Nur auf Einladung · Verbindung zu Strava · kein Abo nötig
+                            Nur auf Einladung · Verbindung zu Strava und Garmin · kein Abo nötig
                         </p>
                     </div>
 
@@ -270,12 +270,19 @@ const beispielWoche = [
         <section class="px-5 py-12">
             <div class="mx-auto max-w-5xl rounded-card bg-surface p-6 shadow-card sm:p-8">
                 <h2 class="text-lg font-bold tracking-tight">Es rechnet mit dem, was du ohnehin aufzeichnest</h2>
-                <div class="mt-5 grid gap-5 sm:grid-cols-2">
+                <div class="mt-5 grid gap-5 sm:grid-cols-3">
                     <div>
                         <p class="text-[15px] font-semibold text-ink">Strava</p>
                         <p class="mt-1 text-[13px] leading-relaxed text-ink-3">
                             Jede Aktivität kommt automatisch herein — Laufen, Rad, Schwimmen.
                             Absolvierte Einheiten werden dem Plan zugeordnet.
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-[15px] font-semibold text-ink">Garmin</p>
+                        <p class="mt-1 text-[13px] leading-relaxed text-ink-3">
+                            Schlaf, HRV und Ruhepuls gegen deine eigene Grundlinie. Geplante
+                            Einheiten gehen mit einem Tippen auf deine Uhr.
                         </p>
                     </div>
                     <!--

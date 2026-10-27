@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\GenerateRacePredictionJob;
 use App\Jobs\GenerateSessionReviewJob;
 use App\Jobs\RegeneratePlanJob;
+use App\Models\GarminDailyMetric;
 use App\Models\TrainingSession;
 use App\Services\AI\CoachingTextService;
 use App\Services\AI\SessionContentService;
@@ -552,9 +553,19 @@ class TrainingSessionController extends Controller
     /**
      * Remove stored Garmin Connect session tokens for the current user.
      */
+    /**
+     * Garmin trennen: Zugang und Erholungswerte gehen, Aktivitäten bleiben.
+     *
+     * So steht es auf /privacy. Die Erholungswerte kommen nur von Garmin und
+     * sind ohne Verbindung nicht mehr zu erneuern; Aktivitäten sind
+     * Trainingshistorie, an der erledigte Einheiten und Bewertungen hängen.
+     */
     public function garminDisconnect()
     {
-        Auth::user()->update(['garmin_email' => null, 'garmin_session' => null]);
+        $user = Auth::user();
+        $user->update(['garmin_email' => null, 'garmin_session' => null]);
+        GarminDailyMetric::where('user_id', $user->id)->delete();
+
         return response()->json(['success' => true]);
     }
 

@@ -28,9 +28,14 @@ const empfaenger = [
         zweck: 'Anmeldung per OAuth und Import deiner Aktivitäten. Zone3 liest nur die Daten, die du bei der Verbindung freigibst.',
     },
     {
+        name: 'Garmin Ltd. und Tochtergesellschaften',
+        ort: 'Schweiz, USA',
+        zweck: 'Nur wenn du Garmin verbindest: Abruf deiner Erholungswerte und Aktivitäten aus Garmin Connect und Übertragung geplanter Einheiten auf deine Uhr, wenn du das antippst. Garmin erfährt dabei, welche Einheit du senden lässt.',
+    },
+    {
         name: 'OpenAI, L.L.C.',
         ort: 'USA',
-        zweck: 'Erzeugung von Trainingsplänen, Auswertungen und Antworten des Coachs. Übermittelt werden die dafür nötigen Trainingsdaten (Aktivitäten, Pace, Herzfrequenz, Ziele und Rennen, Trainingsprofil), deine Tagesform-Einträge, Coach-Notizen und deine Chat-Nachrichten sowie dein Name. E-Mail-Adresse, Passwort und Zugangsdaten werden nicht übermittelt.',
+        zweck: 'Erzeugung von Trainingsplänen, Auswertungen und Antworten des Coachs. Übermittelt werden die dafür nötigen Trainingsdaten (Aktivitäten, Pace, Herzfrequenz, Ziele und Rennen, Trainingsprofil), deine Tagesform-Einträge, Coach-Notizen und deine Chat-Nachrichten sowie dein Name. Hast du Garmin verbunden, außerdem Wochenmittel und Tageswerte deiner Erholung (Schlaf, HRV, Ruhepuls, Stress, Body Battery, Training Readiness). Nicht zum Training von KI-Modellen, siehe Abschnitt 7. E-Mail-Adresse, Passwort und Zugangsdaten werden nicht übermittelt.',
     },
     {
         name: 'Telegram',
@@ -102,16 +107,17 @@ const empfaenger = [
                 <ul class="list-disc space-y-2 pl-5">
                     <li><strong class="text-ink">Konto:</strong> Name, E-Mail-Adresse, Passwort (nur als Hash gespeichert), optional ein Profilbild.</li>
                     <li><strong class="text-ink">Trainingsprofil:</strong> deine Angaben aus Onboarding und Profil, z. B. Erfahrung, verfügbare Trainingszeiten, Trainingsmodell, Schwellenpace, Herzfrequenz- und Pace-Zonen, FTP.</li>
-                    <li><strong class="text-ink">Aktivitäten von Strava:</strong> Sportart, Datum, Distanz, Dauer, Pace, Herzfrequenz, Leistung, Höhenmeter, Runden, Bestzeiten und die GPS-Strecke.</li>
+                    <li><strong class="text-ink">Aktivitäten von Strava oder Garmin:</strong> Sportart, Datum, Distanz, Dauer, Pace, Herzfrequenz, Leistung, Höhenmeter, Runden, Bestzeiten und die GPS-Strecke.</li>
+                    <li><strong class="text-ink">Erholungswerte von Garmin:</strong> nur wenn du Garmin verbindest. Tageswerte für Schlafdauer und Schlafscore, HRV, Ruhepuls, Stress, Body Battery, Schritte und Training Readiness.</li>
                     <li><strong class="text-ink">Ziele und Pläne:</strong> Rennen, Zielzeiten, Trainingspläne und -einheiten, deine Bewertungen und Notizen dazu, Antworten im Plan-Interview.</li>
                     <li><strong class="text-ink">Tagesform:</strong> freiwillige Selbsteinschätzung (Energie, Schlaf, Muskelkater, Stress, krank oder verletzt, Notiz).</li>
                     <li><strong class="text-ink">Coach:</strong> deine Nachrichten an den Coach, seine Antworten und Notizen, die er sich über dich merkt.</li>
-                    <li><strong class="text-ink">Verbindungen:</strong> Zugangstoken für Strava, deine Telegram-Chat-ID, das Token deines Kalender-Abos, Push-Abonnements.</li>
+                    <li><strong class="text-ink">Verbindungen:</strong> Zugangstoken für Strava und Garmin, deine Telegram-Chat-ID, das Token deines Kalender-Abos, Push-Abonnements.</li>
                     <li><strong class="text-ink">Support:</strong> Inhalt deiner Support-Anfragen.</li>
                     <li><strong class="text-ink">Technische Daten:</strong> IP-Adresse, Zeitpunkt und aufgerufene Adresse in Server-Logs.</li>
                 </ul>
                 <p class="mt-3">
-                    Herzfrequenz, Tagesform und Angaben zu Krankheit oder Verletzung sind Gesundheitsdaten im Sinne
+                    Herzfrequenz, Erholungswerte, Tagesform und Angaben zu Krankheit oder Verletzung sind Gesundheitsdaten im Sinne
                     von Art. 9 DSGVO. Wir verarbeiten sie nur, weil und soweit du sie Zone3 selbst gibst.
                 </p>
             </section>
@@ -125,8 +131,8 @@ const empfaenger = [
                     </li>
                     <li>
                         <strong class="text-ink">Gesundheitsdaten:</strong> deine ausdrückliche Einwilligung nach
-                        Art. 9 Abs. 2 lit. a DSGVO, die du mit dem Verbinden von Strava und dem Ausfüllen der Tagesform
-                        erteilst. Du kannst sie jederzeit widerrufen, indem du die Verbindung trennst, Einträge löschst
+                        Art. 9 Abs. 2 lit. a DSGVO, die du mit dem Verbinden von Strava oder Garmin und dem Ausfüllen der
+                        Tagesform erteilst. Du kannst sie jederzeit widerrufen, indem du die Verbindung trennst, Einträge löschst
                         oder dein Konto löschst.
                     </li>
                     <li>
@@ -180,7 +186,51 @@ const empfaenger = [
             </section>
 
             <section>
-                <h2 class="mb-3 text-[22px] font-bold text-ink">6. Cookies und lokale Speicherung</h2>
+                <h2 class="mb-3 text-[22px] font-bold text-ink">6. Garmin</h2>
+                <p>
+                    Verbindest du dein Garmin-Konto, liest Zone3 die Daten, die du dabei freigibst: deine
+                    Erholungswerte und, wenn du Garmin als Quelle für Aktivitäten wählst, deine Aktivitäten.
+                    Zone3 nutzt sie nur, um dir deinen Trainingsplan, dein Dashboard und die Auswertungen des
+                    Coachs zu liefern, und schickt geplante Einheiten auf deine Uhr, wenn du das antippst.
+                </p>
+                <p class="mt-3">
+                    Garmin-Daten und alles, was Zone3 daraus berechnet, werden <strong class="text-ink">nicht verkauft</strong>,
+                    nicht für Werbung genutzt, nicht anderen Nutzern gezeigt und nicht zum Training, zur Bewertung
+                    oder Verbesserung von KI-Modellen verwendet.
+                </p>
+                <p class="mt-3">
+                    Trennen kannst du die Verbindung in Zone3 unter <strong class="text-ink">Profil → Verbindungen</strong>
+                    oder in Garmin Connect in den Einstellungen unter den verbundenen Apps. Beim Trennen löscht Zone3
+                    deinen Garmin-Zugang und alle gespeicherten Erholungswerte. Bereits übernommene Aktivitäten bleiben
+                    als Teil deiner Trainingshistorie stehen, weil erledigte Einheiten und deine Bewertungen daran
+                    hängen. Du kannst sie einzeln löschen oder mit dem Konto.
+                </p>
+            </section>
+
+            <section>
+                <h2 class="mb-3 text-[22px] font-bold text-ink">7. KI-Verarbeitung</h2>
+                <p>
+                    Trainingspläne, Auswertungen deiner Einheiten, Vorschläge zur Tagesform und die Antworten des
+                    Coachs schreibt ein KI-Modell von OpenAI. Dafür schickt Zone3 bei jeder Anfrage den Ausschnitt
+                    deiner eigenen Daten, den die Aufgabe braucht, über die OpenAI-API (welche Daten das sind, steht
+                    in Abschnitt 4). Was das Modell antwortet, prüft Zone3 gegen feste Regeln, bevor es in deinen
+                    Plan kommt, und Änderungen an der heutigen Einheit schlägt der Coach nur vor: du entscheidest.
+                </p>
+                <p class="mt-3">
+                    Deine Daten werden nicht zum Training von KI-Modellen verwendet, weder von uns noch von OpenAI.
+                    Zone3 hat das Teilen von Daten mit OpenAI zu Trainingszwecken abgeschaltet.
+                </p>
+                <p class="mt-3">
+                    Daten von Garmin gehen nur mit deiner <strong class="text-ink">ausdrücklichen Einwilligung</strong>
+                    an OpenAI, die du beim Verbinden von Garmin erteilst. Du kannst sie jederzeit widerrufen, indem du
+                    Garmin unter <strong class="text-ink">Profil → Verbindungen</strong> trennst oder eine formlose
+                    E-Mail an <a :href="`mailto:${MAIL}`" class="text-accent">{{ MAIL }}</a> schreibst. Danach gehen
+                    keine Garmin-Daten mehr an OpenAI.
+                </p>
+            </section>
+
+            <section>
+                <h2 class="mb-3 text-[22px] font-bold text-ink">8. Cookies und lokale Speicherung</h2>
                 <p>
                     Zone3 setzt nur technisch notwendige Cookies: ein Sitzungs-Cookie, damit du angemeldet bleibst,
                     und ein Sicherheits-Cookie gegen gefälschte Anfragen. Im Browser werden außerdem Einstellungen
@@ -189,7 +239,7 @@ const empfaenger = [
             </section>
 
             <section>
-                <h2 class="mb-3 text-[22px] font-bold text-ink">7. Speicherdauer und Löschung</h2>
+                <h2 class="mb-3 text-[22px] font-bold text-ink">9. Speicherdauer und Löschung</h2>
                 <p>
                     Deine Daten bleiben gespeichert, solange dein Konto besteht. Einzelne Aktivitäten, Rennen,
                     Coach-Nachrichten und Coach-Notizen kannst du selbst löschen.
@@ -206,7 +256,7 @@ const empfaenger = [
             </section>
 
             <section>
-                <h2 class="mb-3 text-[22px] font-bold text-ink">8. Deine Rechte</h2>
+                <h2 class="mb-3 text-[22px] font-bold text-ink">10. Deine Rechte</h2>
                 <p>Du hast jederzeit das Recht auf</p>
                 <ul class="mt-2 list-disc space-y-1 pl-5">
                     <li>Auskunft über deine gespeicherten Daten (Art. 15 DSGVO),</li>
@@ -225,12 +275,12 @@ const empfaenger = [
             </section>
 
             <section>
-                <h2 class="mb-3 text-[22px] font-bold text-ink">9. Mindestalter</h2>
+                <h2 class="mb-3 text-[22px] font-bold text-ink">11. Mindestalter</h2>
                 <p>Zone3 richtet sich an Personen ab 18 Jahren.</p>
             </section>
 
             <section>
-                <h2 class="mb-3 text-[22px] font-bold text-ink">10. Änderungen</h2>
+                <h2 class="mb-3 text-[22px] font-bold text-ink">12. Änderungen</h2>
                 <p>
                     Ändert sich, welche Daten Zone3 verarbeitet oder wer sie bekommt, passen wir diese Seite an.
                     Es gilt die jeweils hier veröffentlichte Fassung.

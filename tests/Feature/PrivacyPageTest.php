@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Activity;
 use App\Models\AiLog;
+use App\Models\GarminDailyMetric;
 use App\Models\StravaWebhookEvent;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -49,6 +51,29 @@ class PrivacyPageTest extends TestCase
         $user->delete();
 
         $this->assertSame(0, StravaWebhookEvent::count());
+    }
+
+    /** /privacy verspricht: Garmin trennen löscht Zugang und Erholungswerte, nicht die Aktivitäten. */
+    public function test_disconnecting_garmin_removes_access_and_recovery_data(): void
+    {
+        $user  = User::factory()->create(['garmin_email' => 'a@b.de', 'garmin_session' => 'token', 'onboarding_completed_at' => now()]);
+        $other = User::factory()->create(['garmin_session' => 'token']);
+        GarminDailyMetric::create(['user_id' => $user->id, 'date' => '2026-10-26', 'hrv' => 55]);
+        GarminDailyMetric::create(['user_id' => $other->id, 'date' => '2026-10-26', 'hrv' => 60]);
+        $activity = Activity::create([
+            'user_id' => $user->id, 'strava_id' => 555001, 'name' => 'Abendlauf',
+            'type' => 'Run', 'start_date' => now()->subDay(), 'distance' => 10000,
+            'moving_time' => 3000, 'elapsed_time' => 3000, 'average_speed' => 10000 / 3000,
+        ]);
+
+        $this->actingAs($user)->deleteJson(route('garmin.disconnect'))->assertOk();
+
+        $user->refresh();
+        $this->assertNull($user->garmin_session);
+        $this->assertNull($user->garmin_email);
+        $this->assertSame(0, GarminDailyMetric::where('user_id', $user->id)->count());
+        $this->assertSame(1, GarminDailyMetric::where('user_id', $other->id)->count());
+        $this->assertNotNull($activity->fresh());
     }
 
     private function webhookEvent(User $user): array
