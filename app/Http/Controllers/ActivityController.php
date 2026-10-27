@@ -50,6 +50,8 @@ class ActivityController extends Controller
             'activity' => [
                 'id'                   => $activity->id,
                 'strava_id'            => $activity->strava_id,
+                'garmin_activity_id'   => $activity->garmin_activity_id,
+                'device_name'          => $activity->device_name,
                 'name'                 => $activity->name,
                 'description'          => $activity->description,
                 'type'                 => $activity->type,

@@ -442,6 +442,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar');
     Route::patch('/profile/coach', [ProfileController::class, 'updateCoach'])->name('profile.coach');
+    Route::patch('/profile/activity-source', [ProfileController::class, 'updateActivitySource'])->name('profile.activity-source');
     Route::post('/profile/telegram', [\App\Http\Controllers\TelegramLinkController::class, 'store'])->name('telegram.link');
     Route::delete('/profile/telegram', [\App\Http\Controllers\TelegramLinkController::class, 'destroy'])->name('telegram.unlink');
     Route::post('/profile/calendar', [\App\Http\Controllers\CalendarFeedController::class, 'store'])->name('calendar-feed.store');
@@ -646,6 +647,7 @@ Route::get('/garmin/callback', [\App\Http\Controllers\GarminController::class, '
 // /strava/webhook. Was der Aufruf behauptet, prueft der Controller bei Garmin.
 Route::post('/garmin/webhook/user', [\App\Http\Controllers\GarminController::class, 'webhookUser'])->name('garmin.webhook.user');
 Route::post('/garmin/webhook/health', [\App\Http\Controllers\GarminController::class, 'webhookHealth'])->name('garmin.webhook.health');
+Route::post('/garmin/webhook/activities', [\App\Http\Controllers\GarminController::class, 'webhookActivities'])->name('garmin.webhook.activities');
 
 // GitHub Webhook — no auth middleware, signature-verified
 Route::post('/webhook/github', [WebhookController::class, 'github'])->name('webhook.github');

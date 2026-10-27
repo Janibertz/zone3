@@ -167,6 +167,75 @@ class BestEffortService
         return $history;
     }
 
+    /**
+     * Bestzeiten aus Messpunkten, in Stravas Form (`distance`, `elapsed_time`),
+     * damit `syncFromActivityData()` sie unverändert verarbeitet.
+     *
+     * Garmin liefert keine `best_efforts`, nur Messpunkte mit Zeit und
+     * zurückgelegter Strecke (Entscheidung von Jan: selbst berechnen). Gesucht
+     * wird je Distanz das kürzeste Zeitfenster, in dem sie gelaufen wurde:
+     * Start auf einem Messpunkt, das Ende zwischen zwei Punkten linear
+     * eingepasst — bei einem Punkt pro Sekunde ein Fehler unter einer Sekunde.
+     *
+     * Gemessen wird Uhrzeit, nicht Bewegungszeit. Eine Ampelpause gehört zu
+     * dieser Zeit dazu; sonst wären 5 km mit zwei Minuten Stehen eine
+     * Bestzeit, die nie gelaufen wurde.
+     *
+     * @param  list<array{0: int|float, 1: int|float}>  $points  [Sekunden, Meter gesamt], zeitlich sortiert
+     * @return list<array{name: string, distance: int, elapsed_time: int}>
+     */
+    public static function effortsFromStream(array $points): array
+    {
+        $count = count($points);
+        if ($count < 2) {
+            return [];
+        }
+
+        $total   = (float) $points[$count - 1][1] - (float) $points[0][1];
+        $efforts = [];
+
+        foreach (self::DISTANCES as $key => $distanceM) {
+            if ($total < $distanceM) {
+                continue;
+            }
+
+            $best = null;
+            $end  = 0;
+
+            for ($start = 0; $start < $count; $start++) {
+                $target = (float) $points[$start][1] + $distanceM;
+
+                if ($end < $start) {
+                    $end = $start;
+                }
+                while ($end < $count && (float) $points[$end][1] < $target) {
+                    $end++;
+                }
+                if ($end >= $count) {
+                    break;
+                }
+
+                // Zwischen dem letzten Punkt davor und diesem einpassen.
+                [$t1, $d1] = $points[$end];
+                [$t0, $d0] = $points[max($end - 1, $start)];
+                $reachedAt = $d1 > $d0
+                    ? $t0 + ($target - $d0) / ($d1 - $d0) * ($t1 - $t0)
+                    : $t1;
+
+                $elapsed = $reachedAt - $points[$start][0];
+                if ($elapsed > 0 && ($best === null || $elapsed < $best)) {
+                    $best = $elapsed;
+                }
+            }
+
+            if ($best !== null) {
+                $efforts[] = ['name' => $key, 'distance' => $distanceM, 'elapsed_time' => (int) round($best)];
+            }
+        }
+
+        return $efforts;
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /** Find the Strava effort whose distance matches the canonical distance. */
