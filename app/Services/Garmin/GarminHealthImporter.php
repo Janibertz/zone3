@@ -16,8 +16,9 @@ use App\Models\GarminWebhookEvent;
  * eigenen Spalten und laesst die anderen stehen. Ein fehlender Wert bleibt
  * null ("keine Daten"), nie 0.
  *
- * Die Feldnamen stammen nicht aus der Spezifikation, sondern aus bekannten
- * Health-API-Anbindungen. Jeder Push wird deshalb roh mitgespeichert.
+ * Feldnamen nach der Health API Specification 1.2.2 (Stand 09/2025). Jeder
+ * Push wird trotzdem 14 Tage roh mitgespeichert: kommt ein Wert nicht an,
+ * steht dort, was Garmin wirklich geschickt hat.
  */
 class GarminHealthImporter
 {
@@ -103,12 +104,10 @@ class GarminHealthImporter
                 // -1 heisst bei Garmin "zu wenig Daten", nicht "kein Stress".
                 'stress_avg'        => $this->positive($s['averageStressLevel'] ?? null),
                 'steps'             => $this->positive($s['steps'] ?? null, allowZero: true),
-                'body_battery_high' => $this->positive($s['bodyBatteryHighestValue'] ?? null),
-                'body_battery_low'  => $this->positive($s['bodyBatteryLowestValue'] ?? null),
             ],
             'sleeps' => [
                 'sleep_hours' => $this->sleepHours($s),
-                'sleep_score' => $this->positive($s['overallSleepScore']['value'] ?? ($s['sleepScores']['overall']['value'] ?? null)),
+                'sleep_score' => $this->positive($s['overallSleepScore']['value'] ?? null),
             ],
             'hrv' => [
                 'hrv' => $this->positive($s['lastNightAvg'] ?? null, float: true),
@@ -121,8 +120,8 @@ class GarminHealthImporter
     }
 
     /**
-     * Geschlafen, ohne Wachphasen. Die Phasen sind genauer als die Dauer,
-     * die bei Garmin je nach Geraet die Wachzeit mitzaehlt.
+     * Geschlafen, ohne Wachphasen. `durationInSeconds` zaehlt laut
+     * Spezifikation die Wachzeit nicht mit; fehlt es, die Summe der Phasen.
      */
     private function sleepHours(array $s): ?float
     {
@@ -132,7 +131,7 @@ class GarminHealthImporter
             $s['remSleepInSeconds'] ?? null,
         ], 'is_numeric');
 
-        $seconds = $phases !== [] ? array_sum($phases) : ($s['durationInSeconds'] ?? null);
+        $seconds = $s['durationInSeconds'] ?? ($phases !== [] ? array_sum($phases) : null);
 
         return is_numeric($seconds) && $seconds > 0 ? round($seconds / 3600, 2) : null;
     }

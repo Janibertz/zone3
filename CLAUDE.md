@@ -750,7 +750,9 @@ Zone3 ist im Garmin Connect Developer Program (Activity, Health, Training API). 
 
 **Erholungswerte per Push (Schritt 2).** `POST /garmin/webhook/health` nimmt alle Health-Typen an einer URL an (`dailies`, `sleeps`, `hrv`, `stressDetails`, `userMetrics`), `GarminHealthImporter` schreibt sie in dieselben Spalten von `garmin_daily_metrics` wie der alte Abruf. Jede Summary belegt nur ihre eigenen Spalten — ein Tag kommt in Teilen. `-1`/`0` bleiben null. Body Battery tief/hoch kommt aus dem Verlauf in `stressDetails` und wird über Teil-Pushs desselben Tages erweitert. `User::receivesGarminHealth()` (alter Login **oder** Health-Freigabe) entscheidet, ob Dashboard und Plan-Prompt die Werte zeigen.
 
-- **Die Feldnamen sind nicht aus der Spezifikation** (sie liegt hinter Garmins Portal-Login), sondern aus bekannten Anbindungen. Darum speichert jeder Push seine Rohdaten in `garmin_webhook_events.payload`; `garmin:prune-webhook-payloads` leert sie nach 14 Tagen. Kommt ein Wert nicht an: dort nachsehen, nicht raten.
+- **Feldnamen nach der Health API Specification 1.2.2** (PDF im Garmin-Portal). Jeder Push behält trotzdem 14 Tage seine Rohdaten in `garmin_webhook_events.payload` (`garmin:prune-webhook-payloads`). Kommt ein Wert nicht an: dort nachsehen, nicht raten.
+- **200 vor der Verarbeitung** verlangt die Spezifikation (30 s Timeout), darum legt der Controller den Push nur als `ImportGarminHealthJob` in die Queue.
+- Backfill und Ping/Pull sind laut Spezifikation **Enterprise**; Zone3 hat nur Push und keine Historie.
 - **Training Readiness gibt es in der Health API nicht** — die Spalte bleibt für offizielle Verbindungen leer.
 - Im Garmin-Endpunkt-Tool zeigen Dailies, Sleeps, HRV Summary, Stress und User Metrics auf `https://zone3.run/garmin/webhook/health`. Die Werte stehen ungeprüft im Body (Garmin signiert nicht); gespeichert wird nur für verbundene Athleten mit `HEALTH_EXPORT`.
 

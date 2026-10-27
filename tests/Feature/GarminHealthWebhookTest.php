@@ -49,7 +49,7 @@ class GarminHealthWebhookTest extends TestCase
         ]]])->assertOk();
 
         $this->postJson('/garmin/webhook/health', ['sleeps' => [[
-            'userId' => $id, 'calendarDate' => '2026-10-27', 'durationInSeconds' => 30000,
+            'userId' => $id, 'calendarDate' => '2026-10-27', 'durationInSeconds' => 27000, 'awakeDurationInSeconds' => 1800,
             'deepSleepDurationInSeconds' => 5400, 'lightSleepDurationInSeconds' => 14400, 'remSleepInSeconds' => 7200,
             'overallSleepScore' => ['value' => 82, 'qualifierKey' => 'GOOD'],
         ]]])->assertOk();
@@ -67,7 +67,7 @@ class GarminHealthWebhookTest extends TestCase
         $this->assertSame(48, $m->resting_hr);
         $this->assertSame(27, $m->stress_avg);
         $this->assertSame(9123, $m->steps);
-        $this->assertSame(7.5, $m->sleep_hours);   // ohne Wachzeit
+        $this->assertSame(7.5, $m->sleep_hours);   // durationInSeconds, ohne Wachzeit
         $this->assertSame(82, $m->sleep_score);
         $this->assertSame(61.0, $m->hrv);
         $this->assertSame(34, $m->body_battery_low);
@@ -120,6 +120,17 @@ class GarminHealthWebhookTest extends TestCase
         $m = $this->metric($user, '2026-10-27');
         $this->assertSame(25, $m->body_battery_low);
         $this->assertSame(90, $m->body_battery_high);
+    }
+
+    public function test_garmin_gets_its_200_before_the_work_is_done(): void
+    {
+        // Spezifikation: 200 vor jeder Verarbeitung, 30 s Timeout.
+        \Illuminate\Support\Facades\Queue::fake();
+
+        $this->postJson('/garmin/webhook/health', ['dailies' => [['userId' => 'x', 'calendarDate' => '2026-10-27']]])->assertOk();
+        $this->postJson('/garmin/webhook/health', ['somethingElse' => []])->assertOk();
+
+        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\ImportGarminHealthJob::class, 1);
     }
 
     public function test_an_unknown_user_is_recorded_and_nothing_stored(): void
