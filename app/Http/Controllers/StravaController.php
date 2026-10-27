@@ -4,13 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Jobs\GenerateSessionReviewJob;
 use App\Models\TrainingSession;
-use App\Models\User;
-use App\Services\WebPushService;
 use Illuminate\Support\Facades\Log;
 use App\Models\Activity;
 use App\Models\StravaAccount;
 use App\Models\StravaWebhookEvent;
 use App\Services\ActivityDeletionService;
+use App\Services\ActivityImportService;
 use App\Services\BestEffortService;
 use App\Services\StravaImportService;
 use App\Services\StravaService;
@@ -21,7 +20,10 @@ use Illuminate\Support\Carbon;
 
 class StravaController extends Controller
 {
-    public function __construct(private readonly StravaImportService $importer) {}
+    public function __construct(
+        private readonly StravaImportService $importer,
+        private readonly ActivityImportService $activities,
+    ) {}
 
     public function connect(StravaService $strava): RedirectResponse
     {
@@ -56,8 +58,11 @@ class StravaController extends Controller
     {
         $user = $request->user();
 
+        // Die Aktivitäten bleiben als Trainingshistorie stehen (Entscheidung
+        // vom 27.10.2026). Vorher verschwanden mit dem Trennen alle Läufe —
+        // beim Wechsel zu Garmin auch die Wochen, aus denen Umfang,
+        // Schwellenpace und Bestzeiten kommen.
         $user->stravaAccount?->delete();
-        $user->activities()->delete();
 
         return redirect()->route('profile.edit')
             ->with('status', 'strava-disconnected');
@@ -82,59 +87,52 @@ class StravaController extends Controller
         $lapBackfilled = 0;
 
         // Was der Athlet geloescht hat, bleibt geloescht. Ohne diese Sperre
-        // legt updateOrCreate es beim naechsten Abgleich wieder an.
-        $ignored = array_flip(\App\Models\IgnoredStravaActivity::idsFor($user->id));
+        // legt der Abgleich es wieder an.
+        $ignored = array_flip(\App\Models\IgnoredActivity::idsFor($user->id, Activity::SOURCE_STRAVA));
 
         foreach ($activities as $activityData) {
             if (isset($ignored[$activityData['id']])) {
                 continue;
             }
 
-            $isNew = ! Activity::where('strava_id', $activityData['id'])
+            $activity = Activity::where('strava_id', $activityData['id'])
                 ->where('user_id', $user->id)
-                ->exists();
+                ->first();
 
-            $activity = Activity::updateOrCreate(
-                ['strava_id' => $activityData['id'], 'user_id' => $user->id],
-                [
-                    'name'                 => $activityData['name'] ?? 'Aktivität',
-                    'description'          => $activityData['description'] ?? null,
-                    'type'                 => $activityData['type'] ?? 'Run',
-                    'distance'             => $activityData['distance'] ?? 0,
-                    'moving_time'          => $activityData['moving_time'] ?? 0,
-                    'elapsed_time'         => $activityData['elapsed_time'] ?? 0,
-                    'total_elevation_gain' => $activityData['total_elevation_gain'] ?? 0,
-                    'average_speed'        => $activityData['average_speed'] ?? 0,
-                    'average_watts'        => $activityData['average_watts'] ?? null,
-                    'weighted_average_watts' => $activityData['weighted_average_watts'] ?? null,
-                    'device_watts'         => isset($activityData['device_watts']) ? (bool) $activityData['device_watts'] : null,
-                    'max_speed'            => $activityData['max_speed'] ?? 0,
-                    'average_heartrate'    => $activityData['average_heartrate'] ?? null,
-                    'max_heartrate'        => $activityData['max_heartrate'] ?? null,
-                    'start_date'           => $activityData['start_date'] ?? now(),
-                    'location_city'        => $activityData['location_city'] ?? null,
-                    'location_state'       => $activityData['location_state'] ?? null,
-                    'location_country'     => $activityData['location_country'] ?? null,
-                    'polyline'             => $this->importer->extractPolyline($activityData),
-                ]
-            );
+            $isNew = false;
+
+            if ($activity) {
+                // Bekannt: nur auffrischen. Stammt die Zeile aus Garmin,
+                // ergaenzt Strava nur leere Felder.
+                $activity = $this->activities->store(
+                    $user->id, Activity::SOURCE_STRAVA, (int) $activityData['id'],
+                    $this->importer->attributes($activityData, detail: false),
+                );
+            } elseif ($user->activitySource() === Activity::SOURCE_STRAVA) {
+                // Neu: die Detailansicht traegt Runden, Bestzeiten und den
+                // Verweis auf Garmin. Ist dieselbe Einheit schon aus Garmin
+                // da, haengt der Import die Strava-ID nur an.
+                $detail   = $strava->fetchActivity($account, (int) $activityData['id']);
+                $activity = $this->importer->importFromDetail($user->id, $detail ?: $activityData);
+
+                if (! $activity) {
+                    continue;
+                }
+
+                $isNew = $activity->wasRecentlyCreated;
+            } else {
+                // Aktivitaeten kommen von Garmin; Strava legt nichts an.
+                continue;
+            }
 
             if ($isNew) {
                 $newCount++;
-                // One detail call yields both laps and best_efforts (the activity
-                // list endpoint carries neither).
-                $detail = $strava->fetchActivity($account, (int) $activityData['id']);
                 if ($detail) {
-                    $this->importer->applyStartCoords($activity, $detail);
-                    if (! empty($detail['laps'])) {
-                        $activity->laps = $this->importer->normalizeLaps($detail['laps']);
-                        $activity->save();
-                    }
                     if ($activity->type === 'Run') {
                         $newRunCount++;
                         $newRecords = $bestEfforts->syncFromActivityData($activity, $detail);
                         if (! empty($newRecords)) {
-                            $this->importer->flagPendingPr($user->id, $activity->id);
+                            $this->activities->flagPendingPr($user->id, $activity->id);
                         }
                     } else {
                         // Mark non-runs as processed so the backfill skips them.
@@ -163,11 +161,11 @@ class StravaController extends Controller
             }
 
             // Match to plan sessions or create unplanned entry for all activity types
-            $this->importer->matchActivityToSession($user->id, $activity);
+            $this->activities->matchActivityToSession($user->id, $activity);
         }
 
-        $this->importer->dispatchCalculationIfDue($user->id, $newRunCount);
-        $this->importer->dispatchPlanRegenerationIfNeeded($user->id);
+        $this->activities->dispatchCalculationIfDue($user->id, $newRunCount);
+        $this->activities->dispatchPlanRegenerationIfNeeded($user->id);
 
         if ($newCount === 0) {
             $message = 'Keine neuen Aktivitäten gefunden.';
@@ -263,7 +261,7 @@ class StravaController extends Controller
 
         if ($reclassified) {
             app(ActivityDeletionService::class)->unlink($activity);
-            $this->importer->matchActivityToSession($userId, $activity);
+            $this->activities->matchActivityToSession($userId, $activity);
 
             // Die Zuordnung ist neu, also auch das Urteil darueber. Ein
             // Review, das einen Lauf beschrieb, wurde beim Loesen entfernt.
@@ -274,7 +272,7 @@ class StravaController extends Controller
                 ->pluck('id')
                 ->each(fn ($id) => GenerateSessionReviewJob::dispatch($id)->delay(now()->addSeconds(20)));
         } else {
-            $this->importer->syncSessionsWithActivity($activity);
+            $this->activities->syncSessionsWithActivity($activity);
         }
 
         if ($activity->type === 'Run') {
@@ -339,6 +337,20 @@ class StravaController extends Controller
             return response('OK');
         }
 
+        // Stammt die Zeile aus Garmin und Strava hatte nur seine ID
+        // angehaengt, verschwindet bei Strava nur die Kopie. Der Lauf bleibt.
+        if ($activity->source !== Activity::SOURCE_STRAVA) {
+            $activity->update(['strava_id' => null]);
+
+            $event->update([
+                'user_id' => $account->user_id,
+                'outcome' => StravaWebhookEvent::OUTCOME_DETACHED,
+                'note'    => $activity->name,
+            ]);
+
+            return response('OK');
+        }
+
         $name   = $activity->name;
         $result = app(ActivityDeletionService::class)->delete($activity);
 
@@ -397,7 +409,6 @@ class StravaController extends Controller
     public function webhook(
         Request $request,
         StravaService $strava,
-        WebPushService $webPush,
         BestEffortService $bestEfforts,
     ): Response {
         $data = $request->all();
@@ -456,6 +467,17 @@ class StravaController extends Controller
             return response('OK');
         }
 
+        // Eine Quelle pro Athlet: kommen die Aktivitaeten von Garmin, legt
+        // Strava nichts an — sonst stuende jeder Lauf zweimal im Plan.
+        if ($account->user?->activitySource() !== Activity::SOURCE_STRAVA) {
+            $event->update([
+                'user_id' => $account->user_id,
+                'outcome' => StravaWebhookEvent::OUTCOME_OTHER_SOURCE,
+            ]);
+
+            return response('OK');
+        }
+
         $activityData = $strava->fetchActivity($account, (int) $data['object_id']);
 
         if (! $activityData) {
@@ -486,35 +508,27 @@ class StravaController extends Controller
             return response('OK');
         }
 
-        $isRun = $activity->type === 'Run';
+        // Schon da — ein zweites Zustellen desselben Ereignisses, oder
+        // dieselbe Einheit kam schon aus Garmin. Dann kein zweites Review,
+        // keine zweite Push.
+        if (! $activity->wasRecentlyCreated) {
+            $event->update([
+                'user_id' => $userId,
+                'outcome' => $activity->source === Activity::SOURCE_STRAVA
+                    ? StravaWebhookEvent::OUTCOME_UPDATED
+                    : StravaWebhookEvent::OUTCOME_ATTACHED,
+                'note'    => $activity->name,
+            ]);
 
-        $this->importer->dispatchCalculationIfDue($userId, $isRun ? 1 : 0);
-        $this->importer->matchActivityToSession($userId, $activity);
-        $this->importer->dispatchPlanRegenerationIfNeeded($userId);
-
-        // Ein Review fuer jede Einheit, die diese Aktivitaet abgeschlossen hat.
-        TrainingSession::where('user_id', $userId)
-            ->where('activity_id', $activity->id)
-            ->where('status', 'completed')
-            ->whereNull('reviewed_at')
-            ->pluck('id')
-            ->each(fn ($id) => GenerateSessionReviewJob::dispatch($id)->delay(now()->addSeconds(20)));
-
-        if ($isRun) {
-            // Die Detailantwort traegt `best_efforts` — die Aktivitaetsliste nicht.
-            $newRecords = $bestEfforts->syncFromActivityData($activity, $activityData);
-            if (! empty($newRecords)) {
-                $this->importer->flagPendingPr($userId, $activity->id);
-            }
+            return response('OK');
         }
 
-        $user = User::find($userId);
-        if ($user && $user->push_notifications_enabled) {
-            $distKm = $activity->distance > 0 ? round($activity->distance / 1000, 1) . ' km' : '';
-            $body   = trim($activity->name . ($distKm ? " · {$distKm}" : ''));
-
-            $webPush->sendToUser($user, 'Neue Aktivität importiert 🏃', $body, '/activities');
-        }
+        // Die Detailantwort traegt `best_efforts` — die Aktivitaetsliste nicht.
+        $this->activities->processNew(
+            $activity,
+            fn (Activity $a) => $bestEfforts->syncFromActivityData($a, $activityData),
+        );
+        $this->activities->dispatchPlanRegenerationIfNeeded($userId);
 
         Log::info('Strava-Aktivitaet importiert', [
             'user_id'   => $userId,

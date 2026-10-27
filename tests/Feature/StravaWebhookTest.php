@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use App\Jobs\GenerateSessionReviewJob;
 use App\Models\Activity;
 use App\Models\Event;
-use App\Models\IgnoredStravaActivity;
+use App\Models\IgnoredActivity;
 use App\Models\StravaAccount;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
@@ -211,7 +211,7 @@ class StravaWebhookTest extends TestCase
      */
     public function test_a_deleted_activity_does_not_come_back(): void
     {
-        IgnoredStravaActivity::create(['user_id' => $this->user->id, 'strava_id' => 998877]);
+        IgnoredActivity::create(['user_id' => $this->user->id, 'source' => 'strava', 'external_id' => 998877]);
 
         $this->stravaReturns();
         $this->postJson('/strava/webhook', $this->event())->assertOk();

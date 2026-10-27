@@ -29,6 +29,7 @@ class BackfillBestEfforts extends Command
         foreach ($accountQuery->get() as $account) {
             $pending = Activity::where('user_id', $account->user_id)
                 ->where('type', 'Run')
+                ->whereNotNull('strava_id')
                 ->whereNull('best_efforts_synced_at')
                 ->orderByDesc('start_date')
                 ->get();

@@ -27,6 +27,9 @@ class StravaWebhookEvent extends Model
     public const OUTCOME_DELETE_UNKNOWN = 'delete_unknown';
     public const OUTCOME_UPDATED       = 'updated';
     public const OUTCOME_RECLASSIFIED  = 'reclassified';
+    public const OUTCOME_OTHER_SOURCE  = 'other_source';
+    public const OUTCOME_ATTACHED      = 'attached';
+    public const OUTCOME_DETACHED      = 'detached';
 
     public const OUTCOME_LABELS = [
         self::OUTCOME_IMPORTED      => 'importiert',
@@ -38,6 +41,9 @@ class StravaWebhookEvent extends Model
         self::OUTCOME_DELETE_UNKNOWN => 'Löschung, war hier nicht vorhanden',
         self::OUTCOME_UPDATED       => 'aktualisiert',
         self::OUTCOME_RECLASSIFIED  => 'Sportart geändert → neu zugeordnet',
+        self::OUTCOME_OTHER_SOURCE  => 'Aktivitäten kommen von Garmin',
+        self::OUTCOME_ATTACHED      => 'schon aus Garmin da → angehängt',
+        self::OUTCOME_DETACHED      => 'bei Strava gelöscht → Garmin-Aktivität bleibt',
     ];
 
     public function user()

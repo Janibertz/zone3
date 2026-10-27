@@ -2,14 +2,12 @@
 
 namespace App\Console\Commands;
 
-use App\Jobs\GenerateSessionReviewJob;
+use App\Models\Activity;
 use App\Models\StravaAccount;
-use App\Models\TrainingSession;
-use App\Models\User;
+use App\Services\ActivityImportService;
 use App\Services\BestEffortService;
 use App\Services\StravaImportService;
 use App\Services\StravaService;
-use App\Services\WebPushService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -50,7 +48,7 @@ class SyncStravaActivities extends Command
         StravaService $strava,
         StravaImportService $importer,
         BestEffortService $bestEfforts,
-        WebPushService $webPush,
+        ActivityImportService $activities,
     ): int {
         $accounts = StravaAccount::query()
             ->when($this->option('user'), fn ($q) => $q->where('user_id', (int) $this->option('user')))
@@ -67,8 +65,14 @@ class SyncStravaActivities extends Command
                 continue;
             }
 
+            // Eine Quelle pro Athlet: kommen die Aktivitaeten von Garmin,
+            // holt Strava nichts — sonst stuende jeder Lauf zweimal da.
+            if ($account->user?->activitySource() !== Activity::SOURCE_STRAVA) {
+                continue;
+            }
+
             try {
-                $imported += $this->syncAccount($account, $strava, $importer, $bestEfforts, $webPush);
+                $imported += $this->syncAccount($account, $strava, $importer, $bestEfforts, $activities);
 
                 // Ein Durchlauf ohne Fehler loescht einen alten Vermerk —
                 // sonst bliebe „neu verbinden" stehen, nachdem der Athlet
@@ -129,7 +133,7 @@ class SyncStravaActivities extends Command
         StravaService $strava,
         StravaImportService $importer,
         BestEffortService $bestEfforts,
-        WebPushService $webPush,
+        ActivityImportService $activities,
     ): int {
         $userId   = $account->user_id;
         $imported = 0;
@@ -144,7 +148,7 @@ class SyncStravaActivities extends Command
 
             // Schon da? Dann war der Webhook schneller — und dann ist hier
             // nichts zu tun. Kein zweites Review, keine zweite Push.
-            $known = \App\Models\Activity::where('user_id', $userId)
+            $known = Activity::where('user_id', $userId)
                 ->where('strava_id', $stravaId)
                 ->exists();
 
@@ -161,39 +165,18 @@ class SyncStravaActivities extends Command
 
             $activity = $importer->importFromDetail($userId, $detail);
 
-            // Grabstein — der Athlet hat sie in Zone3 geloescht.
-            if (! $activity) {
+            // Grabstein — der Athlet hat sie in Zone3 geloescht. Oder sie
+            // war schon aus Garmin da und hat nur die Strava-ID bekommen.
+            if (! $activity || ! $activity->wasRecentlyCreated) {
                 continue;
             }
 
             $imported++;
 
-            $isRun = $activity->type === 'Run';
-
-            $importer->dispatchCalculationIfDue($userId, $isRun ? 1 : 0);
-            $importer->matchActivityToSession($userId, $activity);
-
-            TrainingSession::where('user_id', $userId)
-                ->where('activity_id', $activity->id)
-                ->where('status', 'completed')
-                ->whereNull('reviewed_at')
-                ->pluck('id')
-                ->each(fn ($id) => GenerateSessionReviewJob::dispatch($id)->delay(now()->addSeconds(20)));
-
-            if ($isRun) {
-                $newRecords = $bestEfforts->syncFromActivityData($activity, $detail);
-                if (! empty($newRecords)) {
-                    $importer->flagPendingPr($userId, $activity->id);
-                }
-            }
-
-            $user = User::find($userId);
-            if ($user && $user->push_notifications_enabled) {
-                $distKm = $activity->distance > 0 ? round($activity->distance / 1000, 1) . ' km' : '';
-                $body   = trim($activity->name . ($distKm ? " · {$distKm}" : ''));
-
-                $webPush->sendToUser($user, 'Neue Aktivität importiert 🏃', $body, '/activities');
-            }
+            $activities->processNew(
+                $activity,
+                fn (Activity $a) => $bestEfforts->syncFromActivityData($a, $detail),
+            );
 
             Log::info('Strava-Aktivitaet ueber den Abgleich importiert', [
                 'user_id'   => $userId,
@@ -206,7 +189,7 @@ class SyncStravaActivities extends Command
 
         // Erst nach dem Import: die Neuberechnung sieht dann alles Neue.
         if ($imported > 0) {
-            $importer->dispatchPlanRegenerationIfNeeded($userId);
+            $activities->dispatchPlanRegenerationIfNeeded($userId);
         }
 
         return $imported;
