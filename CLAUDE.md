@@ -738,7 +738,7 @@ Two separate connection paths — do not confuse them:
 
 ### Offizielle Verbindung (OAuth2 PKCE, seit 27.10.2026)
 
-Zone3 ist im Garmin Connect Developer Program (Activity, Health, Training API). Der Plan steht im Projekt-Dokument „Garmin-Integration: Plan“; dies ist Schritt 1 von 6 und läuft **neben** dem alten Login, bis Erholungswerte (Schritt 2) und Workouts (Schritt 5) darüber gehen. Danach fallen `garmin_session` und der Fit-Service weg.
+Zone3 ist im Garmin Connect Developer Program (Activity, Health, Training API). Der Plan steht im Projekt-Dokument „Garmin-Integration: Plan“; dies ist Schritt 1 von 6. Sobald `GARMIN_CLIENT_ID` gesetzt ist, startet „Verbinden“ auf der Garmin-Karte im Profil die offizielle Verbindung; das alte Login-Formular erscheint nur noch ohne konfigurierte App (Entscheidung von Jan). Code und Dashboard-Knopf des alten Wegs bleiben, bis Erholungswerte (Schritt 2) und Workouts (Schritt 5) über die API gehen; danach fallen `garmin_session` und der Fit-Service weg.
 
 - `GarminController` (connect, callback, Trennen, `/garmin/webhook/user`), `GarminClient` (Transport), `GarminDisconnector` (der eine Weg zum Trennen). Tokens in `garmin_connections`, verschlüsselt und `Hidden`.
 - **Redirect-URL im Portal: `https://zone3.run/garmin/callback`.** Die Token-URL steht in `config/services.php` (`GARMIN_TOKEN_URL`), weil zwei Quellen sich widersprachen.
