@@ -58,7 +58,7 @@ const beispielWoche = [
                 </div>
 
                 <!--
-                    whitespace-nowrap: „Kostenlos starten" brach auf dem
+                    whitespace-nowrap: ein längerer Knopftext brach auf dem
                     Telefon auf drei Zeilen um und machte aus dem Knopf einen
                     56 Pixel hohen Klotz.
                 -->
@@ -113,7 +113,7 @@ const beispielWoche = [
                         </div>
 
                         <p class="mt-4 text-[13px] text-ink-3">
-                            Nur auf Einladung · Verbindung zu Strava und Garmin · kein Abo nötig
+                            Nur auf Einladung · Verbindung zu Strava · kein Abo nötig
                         </p>
                     </div>
 
@@ -167,7 +167,7 @@ const beispielWoche = [
                         <p class="mt-4 text-[15px] leading-relaxed text-ink-2">
                             Aus deinen letzten Läufen entsteht die Schwellenpace, daraus jedes
                             Tempo im Plan. Der lange Lauf wird vom Renntag rückwärts gerechnet —
-                            nicht fortgeschrieben, bis die Woche voll ist. Wieviel Zeit du an
+                            nicht fortgeschrieben, bis die Woche voll ist. Wie viel Zeit du an
                             welchem Tag hast, steht in deinem Profil und wird eingehalten.
                         </p>
                     </div>
@@ -270,7 +270,7 @@ const beispielWoche = [
         <section class="px-5 py-12">
             <div class="mx-auto max-w-5xl rounded-card bg-surface p-6 shadow-card sm:p-8">
                 <h2 class="text-lg font-bold tracking-tight">Es rechnet mit dem, was du ohnehin aufzeichnest</h2>
-                <div class="mt-5 grid gap-5 sm:grid-cols-3">
+                <div class="mt-5 grid gap-5 sm:grid-cols-2">
                     <div>
                         <p class="text-[15px] font-semibold text-ink">Strava</p>
                         <p class="mt-1 text-[13px] leading-relaxed text-ink-3">
@@ -278,18 +278,16 @@ const beispielWoche = [
                             Absolvierte Einheiten werden dem Plan zugeordnet.
                         </p>
                     </div>
+                    <!--
+                        Der Coach schlägt vor, der Athlet entscheidet — hier stand
+                        vorher „das Training des Tages wird kürzer", als passiere
+                        es von selbst.
+                    -->
                     <div>
-                        <p class="text-[15px] font-semibold text-ink">Garmin</p>
+                        <p class="text-[15px] font-semibold text-ink">Deine Tagesform</p>
                         <p class="mt-1 text-[13px] leading-relaxed text-ink-3">
-                            HRV, Ruhepuls und Schlaf gegen deine eigene Grundlinie. Miserabel
-                            geschlafen? Das Training des Tages wird kürzer.
-                        </p>
-                    </div>
-                    <div>
-                        <p class="text-[15px] font-semibold text-ink">Deine Einschätzung</p>
-                        <p class="mt-1 text-[13px] leading-relaxed text-ink-3">
-                            Ein Check-in am Tag. Wenn Uhr und Gefühl sich widersprechen, gewinnt
-                            das vorsichtigere von beiden.
+                            Ein kurzer Check-in am Tag. Schlecht geschlafen, Beine schwer? Der
+                            Coach schlägt eine leichtere Einheit vor — du entscheidest.
                         </p>
                     </div>
                 </div>
