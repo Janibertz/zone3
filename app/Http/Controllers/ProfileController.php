@@ -58,6 +58,13 @@ class ProfileController extends Controller
             'ftpSuggestion'    => app(\App\Services\Bike\FtpCheck::class)->suggestionFor($user),
             'norwegianReadiness' => app(\App\Services\TrainingModelService::class)->norwegianReadiness($user->runnerProfile, $user->id),
             'stravaConnected'  => (bool) $user->stravaAccount,
+            // Offizielle Garmin-Verbindung. `available` ist false, solange
+            // GARMIN_CLIENT_ID/SECRET fehlen — dann bleibt nur der alte Login.
+            'garminOfficial'   => [
+                'available'  => app(\App\Services\Garmin\GarminClient::class)->configured(),
+                'connection' => $user->garminConnection?->summary(),
+                'status'     => session('garmin_status'),
+            ],
             'stravaAccount'    => $user->stravaAccount ? [
                 'username'       => $user->stravaAccount->username,
                 'last_synced_at' => $user->stravaAccount->last_synced_at,
@@ -151,6 +158,12 @@ class ProfileController extends Controller
         ]);
 
         $user = $request->user();
+
+        // Bei Garmin abmelden, solange der Token noch da ist — sonst bliebe
+        // Zone3 dort als verbundene App stehen.
+        if ($user->garminConnection) {
+            app(\App\Services\Garmin\GarminDisconnector::class)->disconnect($user);
+        }
 
         Auth::logout();
 

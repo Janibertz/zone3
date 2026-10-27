@@ -5,9 +5,9 @@ namespace App\Http\Controllers;
 use App\Jobs\GenerateRacePredictionJob;
 use App\Jobs\GenerateSessionReviewJob;
 use App\Jobs\RegeneratePlanJob;
-use App\Models\GarminDailyMetric;
 use App\Models\TrainingSession;
 use App\Services\AI\CoachingTextService;
+use App\Services\Garmin\GarminDisconnector;
 use App\Services\AI\SessionContentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -560,11 +560,9 @@ class TrainingSessionController extends Controller
      * sind ohne Verbindung nicht mehr zu erneuern; Aktivitäten sind
      * Trainingshistorie, an der erledigte Einheiten und Bewertungen hängen.
      */
-    public function garminDisconnect()
+    public function garminDisconnect(GarminDisconnector $disconnector)
     {
-        $user = Auth::user();
-        $user->update(['garmin_email' => null, 'garmin_session' => null]);
-        GarminDailyMetric::where('user_id', $user->id)->delete();
+        $disconnector->disconnect(Auth::user());
 
         return response()->json(['success' => true]);
     }

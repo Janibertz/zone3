@@ -50,6 +50,11 @@ Schedule::command('review:monthly')->monthlyOn(1, '09:00');
 Schedule::command('garmin:sync-health --days=7')->dailyAt('06:00');
 Schedule::command('garmin:sync-health --days=2')->dailyAt('09:00');
 
+// Offizielle Garmin-Verbindung: Refresh-Tokens verfallen nach ~90 Tagen ohne
+// Benutzung. Einmal am Tag erneuern haelt jede Verbindung am Leben, auch die
+// eines Athleten, der gerade nicht trainiert.
+Schedule::command('garmin:refresh-tokens')->dailyAt('04:30');
+
 // Jede Minute: laufende LiveTrack-Sitzungen abfragen. Der Command prueft
 // selbst, ob ueberhaupt eine Sitzung im Zeitfenster liegt.
 Schedule::command('livetrack:poll')->everyMinute()->withoutOverlapping();

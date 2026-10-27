@@ -461,6 +461,12 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::post('/strava/sync', [StravaController::class, 'sync'])->name('strava.sync');
     Route::delete('/strava/disconnect', [StravaController::class, 'disconnect'])->name('strava.disconnect');
 
+    // Offizielle Garmin-Verbindung (OAuth2 mit PKCE). Die Callback-URL steht
+    // so im Garmin Developer Portal — beim Umbenennen dort mitziehen.
+    Route::post('/garmin/connect', [\App\Http\Controllers\GarminController::class, 'connect'])->name('garmin.connect');
+    Route::get('/garmin/callback', [\App\Http\Controllers\GarminController::class, 'callback'])->name('garmin.callback');
+    Route::delete('/garmin/connection', [\App\Http\Controllers\GarminController::class, 'disconnect'])->name('garmin.connection.destroy');
+
 
     Route::get('/activities', [ActivityController::class, 'index'])->name('activities.index');
     Route::get('/activities/{activity}', [ActivityController::class, 'show'])->name('activities.show');
@@ -630,6 +636,11 @@ Route::post('/impersonate/stop', [\App\Http\Controllers\Admin\AdminImpersonation
 // Solange der Import nicht zuverlaessig laeuft, steht ihm nichts im Weg.
 Route::get('/strava/webhook', [StravaController::class, 'webhookVerify'])->name('strava.webhook.verify');
 Route::post('/strava/webhook', [StravaController::class, 'webhook'])->name('strava.webhook');
+
+// Garmin-Webhook fuer Deregistrierung und Freigaben — ohne Auth, Garmin ruft
+// von aussen an. Braucht in Cloudflare dieselbe WAF-Skip-Regel wie
+// /strava/webhook. Was der Aufruf behauptet, prueft der Controller bei Garmin.
+Route::post('/garmin/webhook/user', [\App\Http\Controllers\GarminController::class, 'webhookUser'])->name('garmin.webhook.user');
 
 // GitHub Webhook — no auth middleware, signature-verified
 Route::post('/webhook/github', [WebhookController::class, 'github'])->name('webhook.github');
