@@ -8,6 +8,7 @@ use App\Models\GarminDailyMetric;
 use App\Models\GarminWebhookEvent;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -67,23 +68,25 @@ class GarminOAuthTest extends TestCase
             ->post(route('garmin.connect'))
             ->assertSessionHasErrors('ai_consent');
 
-        $this->assertNull(session('garmin_oauth'));
     }
 
     public function test_connect_sends_the_athlete_to_garmin_with_a_pkce_challenge(): void
     {
-        $response = $this->actingAs($this->athlete())
+        $user     = $this->athlete();
+        $response = $this->actingAs($user)
             ->post(route('garmin.connect'), ['ai_consent' => true]);
-
-        $pending = session('garmin_oauth');
-        $this->assertNotEmpty($pending['verifier']);
 
         $location = $response->headers->get('Location') ?? $response->headers->get('X-Inertia-Location');
         $this->assertStringStartsWith('https://connect.garmin.com/oauth2Confirm?', $location);
 
         parse_str(parse_url($location, PHP_URL_QUERY), $query);
         $this->assertSame('S256', $query['code_challenge_method']);
-        $this->assertSame($pending['state'], $query['state']);
+
+        // Das Geheimnis liegt unter dem state im Cache, nicht in der Session —
+        // der Rueckweg kann in einem anderen Browser ankommen.
+        $pending = Cache::get('garmin-oauth:' . $query['state']);
+        $this->assertNotEmpty($pending['verifier']);
+        $this->assertSame($user->id, $pending['user_id']);
         $this->assertSame('https://zone3.run/garmin/callback', $query['redirect_uri']);
 
         // Der Fingerabdruck geht zu Garmin, das Geheimnis bleibt hier.
@@ -102,8 +105,9 @@ class GarminOAuthTest extends TestCase
 
         $user = $this->athlete();
 
+        $this->pending('abc', $user, 'v-secret');
+
         $this->actingAs($user)
-            ->withSession(['garmin_oauth' => ['state' => 'abc', 'verifier' => 'v-secret', 'consent_at' => now()->toIso8601String()]])
             ->get('/garmin/callback?code=the-code&state=abc')
             ->assertRedirect(route('profile.edit'));
 
@@ -133,8 +137,9 @@ class GarminOAuthTest extends TestCase
         Http::fake();
         $user = $this->athlete();
 
+        $this->pending('abc', $user);
+
         $this->actingAs($user)
-            ->withSession(['garmin_oauth' => ['state' => 'abc', 'verifier' => 'v', 'consent_at' => now()->toIso8601String()]])
             ->get('/garmin/callback?code=the-code&state=other')
             ->assertRedirect(route('profile.edit'));
 
@@ -154,12 +159,69 @@ class GarminOAuthTest extends TestCase
         ]);
 
         $other = $this->athlete();
+        $this->pending('abc', $other);
+
         $this->actingAs($other)
-            ->withSession(['garmin_oauth' => ['state' => 'abc', 'verifier' => 'v', 'consent_at' => now()->toIso8601String()]])
             ->get('/garmin/callback?code=c&state=abc');
 
         $this->assertNull($other->fresh()->garminConnection);
         $this->assertSame(1, GarminConnection::count());
+    }
+
+    public function test_the_callback_works_without_a_session_as_from_the_home_screen_app(): void
+    {
+        // Homescreen-App → Garmin → Safari: dort ist niemand angemeldet.
+        Http::fake([
+            self::TOKEN_URL                 => Http::response($this->tokenResponse()),
+            self::API . '/user/id'          => Http::response(['userId' => 'g-777']),
+            self::API . '/user/permissions' => Http::response(['HEALTH_EXPORT']),
+        ]);
+
+        $user = $this->athlete();
+        $this->pending('abc', $user, 'v-secret');
+
+        $this->get('/garmin/callback?code=the-code&state=abc')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Garmin/Callback')->where('ok', true));
+
+        $this->assertSame('g-777', $user->fresh()->garminConnection->garmin_user_id);
+        $this->assertGuest();
+    }
+
+    public function test_a_state_works_only_once(): void
+    {
+        Http::fake([
+            self::TOKEN_URL                 => Http::response($this->tokenResponse()),
+            self::API . '/user/id'          => Http::response(['userId' => 'g-777']),
+            self::API . '/user/permissions' => Http::response([]),
+        ]);
+
+        $user = $this->athlete();
+        $this->pending('abc', $user);
+
+        $this->get('/garmin/callback?code=c&state=abc')->assertInertia(fn ($page) => $page->where('ok', true));
+        $this->get('/garmin/callback?code=c&state=abc')->assertInertia(fn ($page) => $page->where('ok', false));
+
+        Http::assertSentCount(3);
+    }
+
+    public function test_a_callback_started_by_someone_else_is_rejected_for_a_logged_in_athlete(): void
+    {
+        // Ein fremder Verbinden-Link darf kein Garmin-Konto in das Zone3-Konto
+        // seines Erzeugers holen, solange der Klickende angemeldet ist.
+        Http::fake();
+
+        $attacker = $this->athlete();
+        $victim   = $this->athlete();
+        $this->pending('abc', $attacker);
+
+        $this->actingAs($victim)
+            ->get('/garmin/callback?code=c&state=abc')
+            ->assertRedirect(route('profile.edit'));
+
+        $this->assertNull($attacker->fresh()->garminConnection);
+        $this->assertNull($victim->fresh()->garminConnection);
+        Http::assertNothingSent();
     }
 
     // ── Tokens erneuern ──────────────────────────────────────────────────
@@ -335,5 +397,14 @@ class GarminOAuthTest extends TestCase
                 ->where('garminOfficial.available', true)
                 ->where('garminOfficial.connection.health', true)
                 ->missing('garminOfficial.connection.access_token'));
+    }
+
+    private function pending(string $state, User $user, string $verifier = 'v'): void
+    {
+        Cache::put('garmin-oauth:' . $state, [
+            'user_id'    => $user->id,
+            'verifier'   => $verifier,
+            'consent_at' => now()->toIso8601String(),
+        ], now()->addMinutes(10));
     }
 }
