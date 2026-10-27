@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Arr;
 
 /**
  * Die offizielle Garmin-Verbindung eines Athleten.
@@ -49,7 +50,21 @@ class GarminConnection extends Model
 
     public function allows(string $permission): bool
     {
-        return in_array($permission, $this->permissions ?? [], true);
+        return in_array($permission, self::normalizePermissions($this->permissions), true);
+    }
+
+    /**
+     * Die Freigaben als flache Liste von Namen. Die Spezifikation zeigt eine
+     * nackte Liste, Garmin liefert sie aber eine Ebene tiefer verpackt —
+     * am 27.10.2026 im Log als `[["ACTIVITY_EXPORT", …]]` gespeichert. Wer
+     * nur die oberste Ebene las, fand keine einzige Freigabe.
+     */
+    public static function normalizePermissions(mixed $raw): array
+    {
+        return array_values(array_unique(array_filter(
+            Arr::flatten((array) $raw),
+            fn ($value) => is_string($value) && $value !== '',
+        )));
     }
 
     /** Was das Profil anzeigt — ohne Tokens. */
