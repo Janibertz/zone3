@@ -43,6 +43,7 @@ class User extends Authenticatable
         static::deleting(function (User $user) {
             AiLog::where('user_id', $user->id)->delete();
             StravaWebhookEvent::where('user_id', $user->id)->delete();
+            GarminWebhookEvent::where('user_id', $user->id)->delete();
         });
     }
 
@@ -83,6 +84,11 @@ class User extends Authenticatable
     public function stravaAccount()
     {
         return $this->hasOne(StravaAccount::class);
+    }
+
+    public function garminConnection()
+    {
+        return $this->hasOne(GarminConnection::class);
     }
 
     public function goals()

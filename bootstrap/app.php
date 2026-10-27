@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->validateCsrfTokens(except: [
             'strava/webhook',
+            'garmin/webhook/*',
             'telegram/webhook',
             'webhook/github',
         ]);

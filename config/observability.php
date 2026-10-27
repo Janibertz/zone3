@@ -57,6 +57,7 @@ return [
         'strava:sync'              => 45,
         'push:wellbeing-reminders' => 30,
         'garmin:sync-health'       => 1560,
+        'garmin:refresh-tokens'    => 1560,
     ],
 
 ];

@@ -1,6 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, useForm, usePage, Link } from '@inertiajs/vue3';
+import { Head, useForm, usePage, Link, router } from '@inertiajs/vue3';
 import InputError from '@/Components/InputError.vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
@@ -29,11 +29,15 @@ const props = defineProps({
     telegram:              { type: Object, default: () => ({ available: false, linked: false }) },
     norwegianReadiness:    { type: Object, default: null },
     calendarFeed:          { type: Object, default: null },
+    garminOfficial:        { type: Object, default: () => ({ available: false, connection: null }) },
 });
 
 const page = usePage();
 const user = computed(() => page.props.auth.user);
-const activeTab = ref('personal');
+// Kommt der Athlet von Garmin zurück, landet er direkt bei den Verbindungen —
+// sonst sähe er die Rückmeldung zum Verbinden gar nicht.
+const backFromGarmin = !!props.garminOfficial?.status;
+const activeTab = ref(backFromGarmin ? 'connections' : 'personal');
 
 // Alle vier Zahlen beziehen sich auf Laeufe — deshalb steht hier "Läufe"
 // und nicht "Aktivitäten": Radtouren und Schwimmen zaehlen nicht mit.
@@ -63,7 +67,7 @@ const tabs = [
  * praktisch versteckt. Ab lg bleibt es beim Reiterband — dort ist der Platz
  * da, und der Wechsel ohne Seitenwechsel ist bequemer.
  */
-const sectionOpen = ref(false);
+const sectionOpen = ref(backFromGarmin);
 
 function openSection(key) {
     activeTab.value = key;
@@ -696,6 +700,28 @@ async function connectGarmin() {
     } finally {
         garminConnecting.value = false;
     }
+}
+
+// ── Offizielle Garmin-Verbindung (OAuth) ─────────────────────────────────────
+// Läuft neben dem alten Login, bis Erholungswerte und Workouts darüber gehen.
+// Die Einwilligung ist Pflicht: Garmin verlangt sie für die KI-Auswertung.
+const garminConsent        = ref(false);
+const garminOAuthBusy      = ref(false);
+
+function connectGarminOfficial() {
+    if (!garminConsent.value) return;
+    garminOAuthBusy.value = true;
+    router.post(route('garmin.connect'), { ai_consent: true }, {
+        onFinish: () => { garminOAuthBusy.value = false; },
+    });
+}
+
+function disconnectGarminOfficial() {
+    garminOAuthBusy.value = true;
+    router.delete(route('garmin.connection.destroy'), {
+        preserveScroll: true,
+        onFinish: () => { garminOAuthBusy.value = false; },
+    });
 }
 
 async function disconnectGarmin() {
@@ -1538,6 +1564,53 @@ const inputClass = 'z-input';
 
                             <div v-if="garminConnectOk && garminConnected" class="border-t border-line px-4 py-3">
                                 <p class="text-xs text-success-ink">Verbunden! Die letzten 60 Tage Erholungsdaten werden im Hintergrund geladen und erscheinen dann im Dashboard.</p>
+                            </div>
+
+                            <!-- Offizielle Verbindung über Garmin (OAuth) -->
+                            <div v-if="props.garminOfficial.available" class="border-t border-line p-4 space-y-3">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <p class="text-sm font-semibold text-ink">Offizielle Verbindung</p>
+                                        <p v-if="props.garminOfficial.connection" class="text-xs text-success-ink mt-0.5">
+                                            Verbunden · freigegeben:
+                                            {{ [
+                                                props.garminOfficial.connection.activities && 'Aktivitäten',
+                                                props.garminOfficial.connection.health && 'Erholungswerte',
+                                                props.garminOfficial.connection.workouts && 'Workouts',
+                                            ].filter(Boolean).join(', ') || 'nichts' }}
+                                        </p>
+                                        <p v-else class="text-xs text-ink-3 mt-0.5">Anmeldung direkt bei Garmin, ohne Passwort in Zone3.</p>
+                                    </div>
+                                    <button v-if="props.garminOfficial.connection" @click="disconnectGarminOfficial" :disabled="garminOAuthBusy"
+                                        class="shrink-0 rounded-field border border-danger/25 px-3 py-1.5 text-xs font-semibold text-danger-ink hover:bg-danger-soft active:opacity-60 transition-colors disabled:opacity-50">
+                                        Trennen
+                                    </button>
+                                </div>
+
+                                <p v-if="props.garminOfficial.connection?.refresh_error" class="text-xs text-danger-ink">
+                                    Garmin nimmt die Verbindung nicht mehr an. Bitte trennen und neu verbinden.
+                                </p>
+
+                                <template v-if="!props.garminOfficial.connection">
+                                    <label class="flex items-start gap-3 text-xs leading-relaxed text-ink-2">
+                                        <input v-model="garminConsent" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 rounded border-line text-info focus:ring-info/40" />
+                                        <span>
+                                            Ich willige ein, dass Zone3 meine Garmin-Daten für Plan, Auswertungen und Coach
+                                            an OpenAI übermittelt. Die Daten werden nicht zum Training von KI-Modellen verwendet.
+                                            Widerruf jederzeit durch Trennen.
+                                            <Link :href="route('privacy')" class="text-accent">Datenschutz</Link>
+                                        </span>
+                                    </label>
+                                    <button @click="connectGarminOfficial" :disabled="!garminConsent || garminOAuthBusy"
+                                        class="rounded-field bg-info px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 active:scale-[0.98] disabled:opacity-50 transition">
+                                        Mit Garmin verbinden
+                                    </button>
+                                </template>
+
+                                <p v-if="props.garminOfficial.status" class="text-xs"
+                                    :class="props.garminOfficial.status.type === 'error' ? 'text-danger-ink' : 'text-success-ink'">
+                                    {{ props.garminOfficial.status.message }}
+                                </p>
                             </div>
                         </div>
 

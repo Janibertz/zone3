@@ -43,6 +43,18 @@ return [
         'webhook_verify_token'   => env('STRAVA_WEBHOOK_VERIFY_TOKEN', 'zone3_webhook'),
     ],
 
+    // Garmin Connect Developer Program (OAuth2 mit PKCE). Die Token-URL steht
+    // hier und nicht im Code: Garmins PKCE-Spezifikation nennt diauth, ein
+    // anderer Entwurf connectapi — umstellbar ohne Deploy von Code.
+    'garmin' => [
+        'client_id'     => env('GARMIN_CLIENT_ID'),
+        'client_secret' => env('GARMIN_CLIENT_SECRET'),
+        'redirect'      => env('GARMIN_REDIRECT_URI', env('APP_URL') . '/garmin/callback'),
+        'authorize_url' => env('GARMIN_AUTHORIZE_URL', 'https://connect.garmin.com/oauth2Confirm'),
+        'token_url'     => env('GARMIN_TOKEN_URL', 'https://diauth.garmin.com/di-oauth2-service/oauth/token'),
+        'api_url'       => env('GARMIN_API_URL', 'https://apis.garmin.com'),
+    ],
+
     'openai' => [
         'api_key'    => env('OPENAI_API_KEY'),
         'model'      => env('OPENAI_MODEL',      'gpt-5.6-sol'),

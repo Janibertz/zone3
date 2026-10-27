@@ -736,6 +736,17 @@ Two separate connection paths — do not confuse them:
 
 **FIT export** uses `@garmin/fitsdk` (npm) on the frontend; speed targets are stored as mm/s.
 
+### Offizielle Verbindung (OAuth2 PKCE, seit 27.10.2026)
+
+Zone3 ist im Garmin Connect Developer Program (Activity, Health, Training API). Der Plan steht im Projekt-Dokument „Garmin-Integration: Plan“; dies ist Schritt 1 von 6 und läuft **neben** dem alten Login, bis Erholungswerte (Schritt 2) und Workouts (Schritt 5) darüber gehen. Danach fallen `garmin_session` und der Fit-Service weg.
+
+- `GarminController` (connect, callback, Trennen, `/garmin/webhook/user`), `GarminClient` (Transport), `GarminDisconnector` (der eine Weg zum Trennen). Tokens in `garmin_connections`, verschlüsselt und `Hidden`.
+- **Redirect-URL im Portal: `https://zone3.run/garmin/callback`.** Die Token-URL steht in `config/services.php` (`GARMIN_TOKEN_URL`), weil zwei Quellen sich widersprachen.
+- **Ohne Einwilligung keine Verbindung** (`ai_consent_at`). Garmin verlangt sie für die KI-Auswertung; /privacy Abschnitt 7 sagt es zu. Widerruf = Trennen.
+- **Jede Erneuerung liefert einen neuen Refresh-Token.** Erneuert wird unter `Cache::lock` pro Athlet und mit frisch gelesener Zeile, sonst benutzt ein zweiter Prozess einen verbrauchten Token und die Verbindung ist tot. `garmin:refresh-tokens` läuft täglich, weil ein Refresh-Token nach ~90 Tagen ohne Benutzung verfällt.
+- **Garmin signiert keine Webhooks.** Aus dem Body zählt nur die User-ID: eine Deregistrierung gilt erst, wenn Garmin den Token wirklich abweist, die Freigaben kommen aus `user/permissions`. Ein Netzfehler trennt nie. Jeder Aufruf steht in `garmin_webhook_events`. `/garmin/webhook/*` braucht in Cloudflare eine WAF-Skip-Regel wie `/strava/webhook`.
+- **Trennen** löscht Zugang und Erholungswerte, Aktivitäten bleiben (Entscheidung von Jan). Konto löschen meldet vorher bei Garmin ab.
+
 ## Admin Panel
 
 Routes in `routes/admin.php` — protected by `is_admin` on User. Manual threshold recalculation, AI log viewer (all OpenAI calls with tokens + duration), coach personality editor, push test sender, settings page showing both models.
@@ -890,6 +901,11 @@ FIT_SERVICE_TOKEN=
 # Telegram-Bot (@BotFather). Das Geheimnis ist optional — ohne wird es aus APP_KEY abgeleitet.
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_WEBHOOK_SECRET=
+
+# Garmin Connect Developer Program (OAuth2 PKCE). Ohne ID/Secret erscheint
+# im Profil nur der alte Login.
+GARMIN_CLIENT_ID=
+GARMIN_CLIENT_SECRET=
 
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
