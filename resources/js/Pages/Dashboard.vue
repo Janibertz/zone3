@@ -580,17 +580,18 @@ const metricTiles = computed(() => {
         const hrvBase = garminBaseline('hrv');
         const rhrBase = garminBaseline('resting_hr');
 
-        const readinessPct = g.training_readiness ?? null;
         const sleepPct     = g.sleep_hours != null ? clamp((g.sleep_hours / 8) * 100) : null;
 
         return [
+            // Body Battery statt Training Readiness: die Health API liefert
+            // keine Readiness, die Kachel bliebe für immer leer.
             {
-                label: 'Readiness',
-                value: g.training_readiness ?? '–',
-                unit:  g.training_readiness != null ? '/ 100' : null,
-                pct:   readinessPct,
-                tone:  toneFromPct(readinessPct),
-                hint:  null,
+                label: 'Body Battery',
+                value: g.body_battery_high ?? '–',
+                unit:  g.body_battery_high != null ? '/ 100' : null,
+                pct:   g.body_battery_high,
+                tone:  toneFromPct(g.body_battery_high),
+                hint:  g.body_battery_low != null ? `tiefster ${g.body_battery_low}` : null,
             },
             {
                 label: 'Schlaf',

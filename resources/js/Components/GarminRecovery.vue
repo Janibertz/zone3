@@ -62,7 +62,6 @@ const days = computed(() => {
             body_battery_high:  r.body_battery_high ?? null,
             stress_avg:         r.stress_avg ?? null,
             steps:              r.steps ?? null,
-            training_readiness: r.training_readiness ?? null,
         });
     }
     return out;
@@ -79,19 +78,10 @@ function stat(key) {
 function last(key) { const a = series(key); return a.length ? a[a.length - 1] : null; }
 
 const daysWithData = computed(() =>
-    days.value.filter(d => ['hrv', 'resting_hr', 'sleep_hours', 'body_battery_high', 'stress_avg', 'steps', 'training_readiness']
+    days.value.filter(d => ['hrv', 'resting_hr', 'sleep_hours', 'body_battery_high', 'stress_avg', 'steps']
         .some(k => d[k] !== null)).length);
 
 const hasData = computed(() => daysWithData.value > 0 || props.activities.length > 0);
-
-// ── Readiness ────────────────────────────────────────────────────────────────
-const readiness     = computed(() => last('training_readiness'));
-const readinessAvg  = computed(() => { const s = stat('training_readiness'); return s ? Math.round(s.mean) : null; });
-const readinessDiff = computed(() => (readiness.value != null && readinessAvg.value != null) ? readiness.value - readinessAvg.value : null);
-const readinessColor = computed(() => {
-    const r = readiness.value ?? 0;
-    return r >= 75 ? C.energy : r >= 50 ? C.sleep : r >= 25 ? C.stress : C.rhr;
-});
 
 // ── Kacheln ──────────────────────────────────────────────────────────────────
 function spark(key) {
@@ -307,44 +297,17 @@ const sideValues = computed(() => [
                 </div>
             </div>
 
-            <!-- Readiness + aktuelle Werte -->
-            <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <AppCard class="lg:col-span-2">
-                    <p class="text-[13px] font-medium text-ink-3">Training Readiness</p>
-                    <template v-if="readiness != null">
-                        <p class="mt-1 flex items-baseline gap-2">
-                            <span class="text-5xl font-bold tabular-nums tracking-tight" :style="{ color: readinessColor }">{{ readiness }}</span>
-                            <span class="text-[15px] text-ink-3">/ 100</span>
-                        </p>
-
-                        <div class="relative mt-4 h-2 overflow-hidden rounded-full bg-surface-2">
-                            <div class="h-full rounded-full" :style="{ width: readiness + '%', background: readinessColor }" />
-                        </div>
-                        <div class="mt-1.5 flex justify-between text-[11px] text-ink-3"><span>0</span><span>50</span><span>100</span></div>
-
-                        <p class="mt-4 text-[13px] leading-relaxed text-ink-3">
-                            Garmins Bereitschaftswert fasst Schlaf, Erholung, HRV und Belastung zusammen.
-                            <template v-if="readinessDiff != null">
-                                Dein Wert liegt
-                                <strong class="text-ink">{{ Math.abs(readinessDiff) }} Punkte {{ readinessDiff >= 0 ? 'über' : 'unter' }}</strong>
-                                deinem Schnitt ({{ readinessAvg }}).
-                            </template>
-                        </p>
-                    </template>
-                    <p v-else class="mt-2 text-[15px] text-ink-3">Keine Readiness-Daten</p>
-                </AppCard>
-
-                <AppCard flush>
-                    <div class="divide-y divide-line">
-                        <div v-for="row in sideValues" :key="row.label" class="flex items-baseline justify-between px-5 py-3">
-                            <span class="text-[13px] text-ink-3">{{ row.label }}</span>
-                            <span class="text-[17px] font-bold tabular-nums text-ink">
-                                {{ row.value }}<span v-if="row.unit" class="ml-0.5 text-[12px] font-normal text-ink-3">{{ row.unit }}</span>
-                            </span>
-                        </div>
+            <!-- Aktuelle Werte -->
+            <AppCard flush>
+                <div class="divide-y divide-line">
+                    <div v-for="row in sideValues" :key="row.label" class="flex items-baseline justify-between px-5 py-3">
+                        <span class="text-[13px] text-ink-3">{{ row.label }}</span>
+                        <span class="text-[17px] font-bold tabular-nums text-ink">
+                            {{ row.value }}<span v-if="row.unit" class="ml-0.5 text-[12px] font-normal text-ink-3">{{ row.unit }}</span>
+                        </span>
                     </div>
-                </AppCard>
-            </div>
+                </div>
+            </AppCard>
 
             <!-- Vier Kacheln -->
             <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -462,7 +425,6 @@ const sideValues = computed(() => [
                                 <th class="px-2 py-2 text-right font-semibold">Battery</th>
                                 <th class="px-2 py-2 text-right font-semibold">Stress</th>
                                 <th class="px-2 py-2 text-right font-semibold">Schritte</th>
-                                <th class="px-2 py-2 text-right font-semibold">Readiness</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-line">
@@ -474,7 +436,6 @@ const sideValues = computed(() => [
                                 <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ d.body_battery_high != null ? `${d.body_battery_low ?? '?'}–${d.body_battery_high}` : '–' }}</td>
                                 <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ nf(d.stress_avg) }}</td>
                                 <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ nf(d.steps) }}</td>
-                                <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ nf(d.training_readiness) }}</td>
                             </tr>
                         </tbody>
                     </table>

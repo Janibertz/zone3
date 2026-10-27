@@ -375,7 +375,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             return ['weekStart' => $start->format('Y-m-d'), 'days' => $days];
         })(),
 
-        // Garmin recovery data (HRV, sleep, RHR, Body Battery, stress, readiness).
+        // Garmin recovery data (HRV, sleep, RHR, Body Battery, stress, steps).
         // Per Push ueber die Health API oder, mit dem alten Login, via SyncGarminHealthJob. Missing values stay null ("keine Daten").
         'garminMetrics' => (function () use ($user) {
             if (! $user->receivesGarminHealth()) return null;
@@ -386,7 +386,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 ->get([
                     'date', 'hrv', 'resting_hr', 'sleep_hours', 'sleep_score',
                     'body_battery_low', 'body_battery_high', 'stress_avg',
-                    'steps', 'training_readiness',
+                    'steps',
                 ]);
 
             if ($rows->isEmpty()) return ['latest' => null, 'series' => []];
@@ -401,7 +401,6 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 'body_battery_high'  => $r->body_battery_high,
                 'stress_avg'         => $r->stress_avg,
                 'steps'              => $r->steps,
-                'training_readiness' => $r->training_readiness,
             ])->values();
 
             return ['latest' => $series->last(), 'series' => $series];

@@ -753,7 +753,7 @@ Zone3 ist im Garmin Connect Developer Program (Activity, Health, Training API). 
 - **Feldnamen nach der Health API Specification 1.2.2** (PDF im Garmin-Portal). Jeder Push behält trotzdem 14 Tage seine Rohdaten in `garmin_webhook_events.payload` (`garmin:prune-webhook-payloads`). Kommt ein Wert nicht an: dort nachsehen, nicht raten.
 - **200 vor der Verarbeitung** verlangt die Spezifikation (30 s Timeout), darum legt der Controller den Push nur als `ImportGarminHealthJob` in die Queue.
 - Backfill und Ping/Pull sind laut Spezifikation **Enterprise**; Zone3 hat nur Push und keine Historie.
-- **Training Readiness gibt es in der Health API nicht** — die Spalte bleibt für offizielle Verbindungen leer.
+- **Training Readiness gibt es in der Health API nicht** — die Spalte bleibt für offizielle Verbindungen leer. Die Oberfläche zeigt sie deshalb nicht mehr (Entscheidung von Jan): die Dashboard-Kachel ist jetzt Body Battery, Karte und Rohdaten unter „Erholung“ ohne Readiness. Spalte und Prompt-Zeile bleiben bis zum Abbau des alten Logins (Schritt 6).
 - Im Garmin-Endpunkt-Tool zeigen Dailies, Sleeps, HRV Summary, Stress und User Metrics auf `https://zone3.run/garmin/webhook/health`. Die Werte stehen ungeprüft im Body (Garmin signiert nicht); gespeichert wird nur für verbundene Athleten mit `HEALTH_EXPORT`.
 
 ## Admin Panel
