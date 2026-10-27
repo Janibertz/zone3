@@ -748,6 +748,14 @@ Zone3 ist im Garmin Connect Developer Program (Activity, Health, Training API). 
 - **Garmin signiert keine Webhooks.** Aus dem Body zählt nur die User-ID: eine Deregistrierung gilt erst, wenn Garmin den Token wirklich abweist, die Freigaben kommen aus `user/permissions`. Ein Netzfehler trennt nie. Jeder Aufruf steht in `garmin_webhook_events`. `/garmin/webhook/*` braucht in Cloudflare eine WAF-Skip-Regel wie `/strava/webhook`.
 - **Trennen** löscht Zugang und Erholungswerte, Aktivitäten bleiben (Entscheidung von Jan). Konto löschen meldet vorher bei Garmin ab.
 
+**Erholungswerte per Push (Schritt 2).** `POST /garmin/webhook/health` nimmt alle Health-Typen an einer URL an (`dailies`, `sleeps`, `hrv`, `stressDetails`, `userMetrics`), `GarminHealthImporter` schreibt sie in dieselben Spalten von `garmin_daily_metrics` wie der alte Abruf. Jede Summary belegt nur ihre eigenen Spalten — ein Tag kommt in Teilen. `-1`/`0` bleiben null. Body Battery tief/hoch kommt aus dem Verlauf in `stressDetails` und wird über Teil-Pushs desselben Tages erweitert. `User::receivesGarminHealth()` (alter Login **oder** Health-Freigabe) entscheidet, ob Dashboard und Plan-Prompt die Werte zeigen.
+
+- **Feldnamen nach der Health API Specification 1.2.2** (PDF im Garmin-Portal). Jeder Push behält trotzdem 14 Tage seine Rohdaten in `garmin_webhook_events.payload` (`garmin:prune-webhook-payloads`). Kommt ein Wert nicht an: dort nachsehen, nicht raten.
+- **200 vor der Verarbeitung** verlangt die Spezifikation (30 s Timeout), darum legt der Controller den Push nur als `ImportGarminHealthJob` in die Queue.
+- Backfill und Ping/Pull sind laut Spezifikation **Enterprise**; Zone3 hat nur Push und keine Historie.
+- **Training Readiness gibt es in der Health API nicht** — die Spalte bleibt für offizielle Verbindungen leer.
+- Im Garmin-Endpunkt-Tool zeigen Dailies, Sleeps, HRV Summary, Stress und User Metrics auf `https://zone3.run/garmin/webhook/health`. Die Werte stehen ungeprüft im Body (Garmin signiert nicht); gespeichert wird nur für verbundene Athleten mit `HEALTH_EXPORT`.
+
 ## Admin Panel
 
 Routes in `routes/admin.php` — protected by `is_admin` on User. Manual threshold recalculation, AI log viewer (all OpenAI calls with tokens + duration), coach personality editor, push test sender, settings page showing both models.

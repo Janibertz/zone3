@@ -91,6 +91,16 @@ class User extends Authenticatable
         return $this->hasOne(GarminConnection::class);
     }
 
+    /**
+     * Kommen Erholungswerte von Garmin an — per Push ueber die offizielle
+     * Verbindung (mit Health-Freigabe) oder ueber den alten Login.
+     */
+    public function receivesGarminHealth(): bool
+    {
+        return ! empty($this->garmin_session)
+            || (bool) $this->garminConnection?->allows(GarminConnection::HEALTH);
+    }
+
     public function goals()
     {
         return $this->hasMany(Goal::class);
