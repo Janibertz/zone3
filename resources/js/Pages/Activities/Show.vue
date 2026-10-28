@@ -1,13 +1,24 @@
 <script setup>
-import { zoneRange } from '@/Composables/usePaceZones';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { Link, Head } from '@inertiajs/vue3';
+import { Link, Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import AppCard from '@/Components/UI/AppCard.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
+import SectionHeader from '@/Components/UI/SectionHeader.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
-import { router } from '@inertiajs/vue3';
+import { activityType } from '@/Composables/useActivityTypes';
+import { sessionType } from '@/Composables/useSessionTypes';
+import { fmtNum, clock, speedOf, distanceOf, paceFromSpeed } from '@/Composables/useFormat';
+
+/**
+ * Eine Aktivität im Story-Look (Redesign 28.10.2026).
+ *
+ * Vorher sieben bis elf gleich große Kacheln, eine davon mit rotem Puls,
+ * dazu eine Rundentabelle und eine Zonenkarte mit fünf Zeilen. Jetzt:
+ * die Karte randlos oben, drei große Zahlen, die übrigen Werte klein in
+ * einer Karte, das Coach-Review, die Runden als Balken in Zonenfarbe und
+ * die Zeit je Zone als ein Band.
+ */
 
 const props = defineProps({
     activity:      Object,
@@ -48,71 +59,74 @@ async function destroyActivity() {
     }
 }
 
-// ── Lap helpers ───────────────────────────────────────────────────────────────
+// ── Runden ────────────────────────────────────────────────────────────────────
 
 const hasLaps = computed(() => Array.isArray(props.activity.laps) && props.activity.laps.length > 1);
-const totalLapTime = computed(() => hasLaps.value
-    ? props.activity.laps.reduce((s, l) => s + (l.moving_time || l.elapsed_time || 0), 0)
-    : 0
-);
+const isRun = computed(() => activityType(props.activity.type).group === 'run');
+const isCycling = computed(() => activityType(props.activity.type).group === 'ride');
 
-function lapPace(lap) {
-    if (!lap.average_speed || lap.average_speed <= 0) return '–';
-    const sec = 1000 / lap.average_speed;
-    return `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2,'0')}`;
+// Parse "m:ss" pace string to total seconds.
+// "∞" → Infinity (Zone 1 has no upper slowness limit)
+// "0:00" → 0 (Zone 5 has no lower speed limit)
+function paceToSeconds(paceStr) {
+    if (!paceStr) return null;
+    if (paceStr === '∞') return Infinity;
+    const parts = paceStr.split(':');
+    if (parts.length !== 2) return null;
+    return parseInt(parts[0]) * 60 + parseInt(parts[1]);
 }
 
-function lapSpeed(lap) {
-    if (!lap.average_speed || lap.average_speed <= 0) return '–';
-    return (lap.average_speed * 3.6).toFixed(1);
-}
+const ZONES = ['z1', 'z2', 'z3', 'z4', 'z5'];
+/** Dieselben Farben wie die Einheiten: Z2 locker, Z4 Tempo, Z5 Intervall. */
+const ZONE_BG = { z1: 'bg-ink-3', z2: 'bg-success', z3: 'bg-accent', z4: 'bg-warn', z5: 'bg-danger' };
 
-function lapDist(lap) {
-    return ((lap.distance || 0) / 1000).toFixed(2);
-}
-
-function lapTime(sec) {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}:${String(s).padStart(2,'0')}`;
-}
-
-// Lap bar color by pace (for runs) or by index cycling (for others)
-const lapBarColors = [
-    'bg-accent', 'bg-accent', 'bg-accent', 'bg-accent',
-    'bg-info', 'bg-info', 'bg-info', 'bg-info',
-];
-
-function lapColor(lap, index) {
-    if (props.activity.type !== 'Run' || !lap.average_speed) {
-        return lapBarColors[index % lapBarColors.length];
-    }
-    if (!props.paceZones) return 'bg-accent';
-    const paceSec = 1000 / lap.average_speed;
-    const zones = ['z1','z2','z3','z4','z5'];
-    const zoneBar = { z1: 'bg-info', z2: 'bg-success', z3: 'bg-warn', z4: 'bg-warn', z5: 'bg-danger' };
-    for (const key of zones) {
+/** Zone zu einer Geschwindigkeit (m/s) — nur bei Läufen mit Zonen. */
+function zoneOf(speed) {
+    if (!isRun.value || !props.paceZones || !speed) return null;
+    const sec = 1000 / speed;
+    for (const key of ZONES) {
         const z = props.paceZones[key];
         if (!z) continue;
-        const minSec = paceToSeconds(z.min_pace) ?? 0;
-        const maxSec = paceToSeconds(z.max_pace) ?? Infinity;
-        if (paceSec >= minSec && paceSec <= maxSec) return zoneBar[key];
+        if (sec >= (paceToSeconds(z.min_pace) ?? 0) && sec <= (paceToSeconds(z.max_pace) ?? Infinity)) return key;
     }
-    return 'bg-accent';
+    return null;
 }
 
-// Lap height as % of container: faster lap = taller bar (40%–100%)
-const lapHeightPct = computed(() => {
+/** Je Runde: Balkenbreite nach Tempo (schnell = lang, 40–100 %), Farbe nach Zone. */
+const lapRows = computed(() => {
     if (!hasLaps.value) return [];
-    const speeds = props.activity.laps.map(l => l.average_speed || 0).filter(s => s > 0);
-    if (speeds.length === 0) return props.activity.laps.map(() => 70);
-    const minSpeed = Math.min(...speeds);
-    const maxSpeed = Math.max(...speeds);
-    const range = maxSpeed - minSpeed;
-    return props.activity.laps.map(l => {
-        if (!l.average_speed || range === 0) return 70;
-        return Math.round(40 + ((l.average_speed - minSpeed) / range) * 60);
+    const speeds = props.activity.laps.map((l) => l.average_speed || 0).filter((v) => v > 0);
+    const min = Math.min(...speeds);
+    const range = Math.max(...speeds) - min;
+
+    return props.activity.laps.map((lap, i) => {
+        const speed = lap.average_speed || 0;
+        const zone = zoneOf(speed);
+        return {
+            n: lap.index ?? i + 1,
+            width: speed && range ? Math.round(40 + (speed - min) / range * 60) : 70,
+            bar: zone ? ZONE_BG[zone] : 'bg-accent',
+            value: isCycling.value ? fmtNum(speed * 3.6) : (paceFromSpeed(speed) ?? '–'),
+            distance: fmtNum((lap.distance || 0) / 1000, 2),
+            time: clock(lap.moving_time || lap.elapsed_time || 0),
+            hr: lap.average_heartrate ? Math.round(lap.average_heartrate) : null,
+        };
     });
+});
+
+/** Zeit je Zone in Prozent, aus den Runden; ohne Runden der ganze Lauf in einer. */
+const zoneShare = computed(() => {
+    if (!isRun.value || !props.paceZones) return null;
+    const secs = Object.fromEntries(ZONES.map((z) => [z, 0]));
+    const laps = hasLaps.value ? props.activity.laps : [{ average_speed: props.activity.average_speed, moving_time: props.activity.moving_time }];
+    laps.forEach((l) => {
+        const z = zoneOf(l.average_speed);
+        if (z) secs[z] += l.moving_time || l.elapsed_time || 0;
+    });
+    const total = Object.values(secs).reduce((a, b) => a + b, 0);
+    if (!total) return null;
+
+    return ZONES.map((z) => ({ key: z, label: z.toUpperCase(), pct: Math.round(secs[z] / total * 100), bg: ZONE_BG[z] }));
 });
 
 // ── Lap ↔ chart ↔ map interaction ─────────────────────────────────────────────
@@ -150,103 +164,61 @@ async function saveRating() {
     }
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Kopf und Kennzahlen ───────────────────────────────────────────────────────
 
-function formatDistance(m) {
-    if (!m) return '–';
-    return (m / 1000).toFixed(2) + ' km';
-}
+const planned = computed(() => props.linkedSession && !props.linkedSession.was_unplanned);
 
-function formatDuration(seconds) {
-    if (!seconds) return '–';
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    return `${m}:${String(s).padStart(2,'0')}`;
-}
-
-function formatPace(averageSpeed) {
-    if (!averageSpeed || averageSpeed === 0) return '–';
-    const secPerKm = 1000 / averageSpeed;
-    const min = Math.floor(secPerKm / 60);
-    const sec = Math.floor(secPerKm % 60);
-    return `${min}:${String(sec).padStart(2,'0')}`;
-}
-
-function formatSwimPace(averageSpeed) {
-    if (!averageSpeed || averageSpeed === 0) return '–';
-    const secPer100m = 100 / averageSpeed;
-    const min = Math.floor(secPer100m / 60);
-    const sec = Math.floor(secPer100m % 60);
-    return `${min}:${String(sec).padStart(2,'0')}`;
-}
-
-function formatDate(dateStr) {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
-}
-
-function formatTime(dateStr) {
-    const d = new Date(dateStr);
-    return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-}
-
-// Parse "m:ss" pace string to total seconds.
-// "∞" → Infinity (Zone 1 has no upper slowness limit)
-// "0:00" → 0 (Zone 5 has no lower speed limit)
-function paceToSeconds(paceStr) {
-    if (!paceStr) return null;
-    if (paceStr === '∞') return Infinity;
-    const parts = paceStr.split(':');
-    if (parts.length !== 2) return null;
-    return parseInt(parts[0]) * 60 + parseInt(parts[1]);
-}
-
-// ── Zone computation ─────────────────────────────────────────────────────────
-
-const paceZoneInfo = computed(() => {
-    if (!props.paceZones || !props.activity.average_speed || props.activity.type !== 'Run') return null;
-
-    const paceSec = 1000 / props.activity.average_speed; // sec/km
-
-    const zones = ['z1','z2','z3','z4','z5'];
-    for (const key of zones) {
-        const z = props.paceZones[key];
-        if (!z) continue;
-        const minSec = paceToSeconds(z.min_pace) ?? 0;          // faster bound (0 = no limit)
-        const maxSec = paceToSeconds(z.max_pace) ?? Infinity;   // slower bound (∞ = no limit)
-        if (paceSec >= minSec && paceSec <= maxSec) {
-            return { key, name: z.name, minPace: z.min_pace, maxPace: z.max_pace };
-        }
+/** Oben farbig: der Typ der geplanten Einheit, sonst die Sportart. */
+const label = computed(() => {
+    if (planned.value) {
+        const t = sessionType(props.linkedSession.type);
+        return { text: `${t.label} · geplant und erledigt`, color: t.text, dot: t.dot };
     }
-    return null;
+    return { text: activityType(props.activity.type).label, color: 'text-accent', dot: 'bg-accent' };
 });
 
-const zoneColors = {
-    z1: { bg: 'bg-info',   light: 'bg-info-soft',   text: 'text-info-ink',   label: 'Zone 1' },
-    z2: { bg: 'bg-success',  light: 'bg-success-soft', text: 'text-success-ink', label: 'Zone 2' },
-    z3: { bg: 'bg-warn', light: 'bg-accent-soft', text: 'text-warn-ink', label: 'Zone 3' },
-    z4: { bg: 'bg-warn', light: 'bg-warn-soft', text: 'text-warn-ink', label: 'Zone 4' },
-    z5: { bg: 'bg-danger',    light: 'bg-danger-soft',     text: 'text-danger-ink',     label: 'Zone 5' },
-};
+const dateLine = computed(() => {
+    const d = new Date(props.activity.start_date);
+    const parts = [
+        d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }),
+        d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+    ];
+    if (props.activity.device_name && props.activity.device_name !== 'unknown') parts.push(props.activity.device_name);
+    else if (props.activity.location_city) parts.push(props.activity.location_city);
+    return parts.join(' · ');
+});
 
-// ── Type badges ───────────────────────────────────────────────────────────────
+const bigMetrics = computed(() => {
+    const a = props.activity;
+    const out = [];
+    const d = distanceOf(a);
+    if (d) out.push({ k: 'Distanz', v: d.value, u: d.unit });
+    out.push({ k: 'Zeit', v: clock(a.moving_time), u: null });
+    const s = speedOf(a);
+    if (s) out.push({ k: s.label, v: s.value, u: s.unit });
+    return out;
+});
 
-const typeLabel = { Run: 'Laufen', Ride: 'Radfahren', VirtualRide: 'Virtual Ride', Swim: 'Schwimmen', Walk: 'Gehen', Workout: 'Workout' };
-const typeColors = {
-    Run:         'bg-accent-soft text-accent-ink',
-    Ride:        'bg-success-soft text-success-ink',
-    VirtualRide: 'bg-success-soft text-success-ink',
-    Swim:        'bg-info-soft text-info-ink',
-    Workout:     'bg-warn-soft text-warn-ink',
-    Walk:        'bg-warn-soft text-warn-ink',
-};
+const miniMetrics = computed(() => {
+    const a = props.activity;
+    const out = [];
+    if (a.average_heartrate) out.push({ k: 'Puls Ø', v: Math.round(a.average_heartrate), u: 'bpm' });
+    if (a.max_heartrate)     out.push({ k: 'Puls max', v: Math.round(a.max_heartrate), u: 'bpm' });
+    if (a.total_elevation_gain > 0) out.push({ k: 'Höhe', v: fmtNum(a.total_elevation_gain, 0), u: 'm' });
+    if (isCycling.value && a.average_watts) out.push({ k: 'Leistung', v: Math.round(a.average_watts), u: 'W' });
+    if (isCycling.value && a.weighted_average_watts) out.push({ k: 'NP', v: Math.round(a.weighted_average_watts), u: 'W' });
+    if (isRun.value && a.max_speed) out.push({ k: 'Schnellste', v: paceFromSpeed(a.max_speed), u: '/km' });
+    if (a.elapsed_time && a.elapsed_time - a.moving_time >= 60) out.push({ k: 'Gesamtzeit', v: clock(a.elapsed_time), u: null });
+    if (props.linkedSession?.effort_perceived) out.push({ k: 'Gefühl', v: props.linkedSession.effort_perceived, u: '/10' });
+    return out;
+});
 
-const isCycling = computed(() => ['Ride', 'VirtualRide'].includes(props.activity.type));
-function typeColor(t) {
-    return typeColors[t] ?? 'bg-surface-2 text-ink-2';
-}
+const reviewedAt = computed(() => {
+    const at = props.linkedSession?.reviewed_at;
+    if (!at) return null;
+    const d = new Date(at);
+    return `${d.toLocaleDateString('de-DE', { day: 'numeric', month: 'long' })}, ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+});
 
 // ── Google Encoded Polyline decoder ──────────────────────────────────────────
 
@@ -353,14 +325,16 @@ onMounted(async () => {
             shadowUrl:     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
         });
 
-        mapInstance = L.map(mapContainer.value, { zoomControl: true, scrollWheelZoom: false });
+        mapInstance = L.map(mapContainer.value, { zoomControl: false, scrollWheelZoom: false, attributionControl: true });
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap',
             maxZoom: 18,
         }).addTo(mapInstance);
 
-        const polyline = L.polyline(routeCoords, { color: '#4f46e5', weight: 3, opacity: 0.85 }).addTo(mapInstance);
+        // Die Linie in der Farbe der Einheit, nicht im alten Indigo.
+        const accent = getComputedStyle(document.documentElement).getPropertyValue('--z-accent').trim().split(/\s+/).join(',');
+        const polyline = L.polyline(routeCoords, { color: `rgb(${accent || '0,113,227'})`, weight: 4, opacity: 0.95 }).addTo(mapInstance);
         mapInstance.fitBounds(polyline.getBounds(), { padding: [16, 16] });
 
         // Start + End markers
@@ -388,359 +362,198 @@ onUnmounted(() => {
     <Head :title="activity.name" />
 
     <AuthenticatedLayout>
-        <div class="min-h-screen bg-canvas">
-            <div class="space-y-5 px-4 py-4 lg:px-6 lg:py-6">
-
-                <!-- ── Kopf ───────────────────────────────────────── -->
-                <header class="flex items-start gap-3 px-1">
-                    <Link
-                        :href="route('activities.index')"
-                        class="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface text-ink-3 shadow-card transition-colors hover:text-ink"
-                    >
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/>
-                        </svg>
+        <div class="min-h-screen bg-canvas pb-8">
+            <div class="mx-auto max-w-3xl lg:px-8 lg:pt-6">
+                <!-- ── Karte randlos oben ─────────────────────────── -->
+                <div class="relative">
+                    <div v-if="activity.polyline" ref="mapContainer" class="z-0 h-[300px] w-full bg-surface-2 lg:rounded-card" />
+                    <div v-else class="h-16" />
+                    <Link :href="route('activities.index')" aria-label="Zurück"
+                        class="absolute left-4 top-4 z-[500] flex h-10 w-10 items-center justify-center rounded-full bg-surface/80 text-ink backdrop-blur-xl transition-transform active:scale-90">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
                     </Link>
-                    <div class="min-w-0 flex-1">
-                        <div class="mb-1.5 flex flex-wrap items-center gap-1.5">
-                            <span class="shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold" :class="typeColor(activity.type)">
-                                {{ typeLabel[activity.type] ?? activity.type }}
-                            </span>
-                            <span v-if="paceZoneInfo" class="shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold" :class="[zoneColors[paceZoneInfo.key]?.light, zoneColors[paceZoneInfo.key]?.text]">
-                                {{ paceZoneInfo.name }}
-                            </span>
+                </div>
+
+                <div class="space-y-7 px-4 pt-5 lg:px-0">
+                    <!-- ── Kopf ───────────────────────────────────── -->
+                    <header>
+                        <p class="flex items-center gap-1.5 text-[15px] font-semibold" :class="label.color">
+                            <span class="h-2 w-2 shrink-0 rounded-full" :class="label.dot" />{{ label.text }}
+                        </p>
+                        <h1 class="mt-1.5 break-words text-[28px] font-extrabold leading-[34px] tracking-[-0.03em] text-ink">{{ activity.name }}</h1>
+                        <p class="mt-1 text-[15px] text-ink-3">{{ dateLine }}</p>
+                    </header>
+
+                    <div class="grid grid-cols-3 gap-3">
+                        <div v-for="m in bigMetrics" :key="m.k" class="min-w-0">
+                            <p class="text-[13px] text-ink-3">{{ m.k }}</p>
+                            <p class="whitespace-nowrap font-rounded text-[30px] font-extrabold leading-9 tracking-[-0.035em] tabular-nums text-ink">{{ m.v }}<span v-if="m.u" class="ml-0.5 text-[15px] font-semibold tracking-normal text-ink-3">{{ m.u }}</span></p>
                         </div>
-                        <h1 class="text-[28px] font-bold leading-[34px] text-ink">{{ activity.name }}</h1>
-                        <p class="mt-1 text-[15px] text-ink-3">
-                            {{ formatDate(activity.start_date) }} · {{ formatTime(activity.start_date) }} Uhr
-                            <template v-if="activity.location_city">
-                                · {{ activity.location_city }}<template v-if="activity.location_country">, {{ activity.location_country }}</template>
+                    </div>
+
+                    <div v-if="miniMetrics.length" class="grid grid-cols-3 gap-y-4 rounded-card bg-surface p-4">
+                        <div v-for="m in miniMetrics" :key="m.k" class="min-w-0">
+                            <p class="text-[13px] text-ink-3">{{ m.k }}</p>
+                            <p class="whitespace-nowrap font-rounded text-[20px] font-bold tracking-[-0.02em] tabular-nums text-ink">{{ m.v }}<span v-if="m.u" class="ml-0.5 text-[13px] font-semibold tracking-normal text-ink-3">{{ m.u }}</span></p>
+                        </div>
+                    </div>
+
+                    <!--
+                        Zone3 schätzt keine FTP, aber eine Fahrt kann belegen, dass
+                        die eingetragene zu niedrig ist. Übernehmen geht im Profil,
+                        wo der Wert steht.
+                    -->
+                    <div v-if="ftpHint" class="rounded-card bg-warn-soft p-4 text-[15px] text-warn-ink">
+                        <p class="font-semibold">Diese Fahrt lag über deiner FTP</p>
+                        <p class="mt-1 text-[13px] text-ink-2">
+                            Sie spricht für mindestens <span class="font-semibold tabular-nums">{{ ftpHint.estimate }} W</span><template v-if="ftpHint.current">, eingetragen sind {{ ftpHint.current }} W</template>.
+                            Mit einer zu niedrigen FTP fallen die Radintervalle zu leicht aus.
+                        </p>
+                        <Link :href="route('profile.edit')" class="mt-2 inline-block text-[13px] font-semibold text-accent active:opacity-60">
+                            FTP im Profil anpassen
+                        </Link>
+                    </div>
+
+                    <!-- ── Coach ──────────────────────────────────── -->
+                    <section v-if="linkedSession?.coach_review">
+                        <SectionHeader title="Coach" />
+                        <div class="rounded-card bg-surface p-4">
+                            <p class="whitespace-pre-line text-[17px] leading-[25px] text-ink">{{ linkedSession.coach_review }}</p>
+                            <p v-if="reviewedAt" class="mt-2.5 text-[13px] text-ink-3">Zone3 Coach · {{ reviewedAt }}</p>
+                        </div>
+                    </section>
+
+                    <!-- ── Runden ─────────────────────────────────── -->
+                    <section v-if="hasLaps">
+                        <SectionHeader title="Runden">
+                            <template #action><span class="text-[13px] text-ink-3">{{ zoneShare ? 'nach Zone' : (isCycling ? 'km/h' : 'Pace') }}</span></template>
+                        </SectionHeader>
+                        <div class="space-y-1 rounded-card bg-surface p-3">
+                            <button v-for="(r, i) in lapRows" :key="i" type="button"
+                                class="grid w-full grid-cols-[28px_1fr_56px] items-center gap-2.5 rounded-[8px] px-1 py-[3px] text-left transition-colors"
+                                :class="activeLap === i ? 'bg-surface-2' : ''"
+                                :aria-label="`Runde ${r.n}: ${r.distance} km in ${r.time}, ${r.value}`"
+                                :aria-pressed="activeLap === i"
+                                @mouseenter="setActiveLap(i)" @mouseleave="clearActiveLap" @click="toggleActiveLap(i)">
+                                <span class="text-[13px] tabular-nums text-ink-3">{{ r.n }}</span>
+                                <span class="block h-[18px]">
+                                    <span class="block h-full rounded-[5px] transition-opacity" :class="[r.bar, activeLap !== null && activeLap !== i ? 'opacity-30' : '']" :style="{ width: r.width + '%' }" />
+                                </span>
+                                <span class="text-right text-[15px] font-bold tabular-nums text-ink">{{ r.value }}</span>
+                            </button>
+                            <p v-if="activeLap !== null && lapRows[activeLap]" class="px-1 pt-2 text-[13px] tabular-nums text-ink-3">
+                                Runde {{ lapRows[activeLap].n }} · {{ lapRows[activeLap].distance }} km · {{ lapRows[activeLap].time }}<template v-if="lapRows[activeLap].hr"> · {{ lapRows[activeLap].hr }} bpm</template>
+                            </p>
+                        </div>
+                    </section>
+
+                    <!-- ── Zonen ──────────────────────────────────── -->
+                    <section v-if="zoneShare">
+                        <SectionHeader title="Zonen" />
+                        <div class="rounded-card bg-surface p-4">
+                            <div class="flex h-3.5 gap-[2px] overflow-hidden rounded-full" aria-hidden="true">
+                                <i v-for="z in zoneShare.filter(z => z.pct > 0)" :key="z.key" class="block" :class="z.bg" :style="{ flex: z.pct }" />
+                            </div>
+                            <div class="mt-2.5 grid grid-cols-5 text-center text-[13px] text-ink-3">
+                                <span v-for="z in zoneShare" :key="z.key">{{ z.label }}<br><b class="font-semibold tabular-nums text-ink">{{ z.pct }} %</b></span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ── Beschreibung ───────────────────────────── -->
+                    <section v-if="activity.description">
+                        <SectionHeader title="Notiz" />
+                        <p class="whitespace-pre-wrap rounded-card bg-surface p-4 text-[17px] leading-[25px] text-ink-2">{{ activity.description }}</p>
+                    </section>
+
+                    <!-- ── Bewerten ───────────────────────────────── -->
+                    <section v-if="linkedSession">
+                        <SectionHeader title="Wie war's?">
+                            <template #action>
+                                <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
+                                    <span v-if="ratingSaved" class="text-[13px] font-semibold text-success">Gespeichert</span>
+                                </Transition>
                             </template>
-                        </p>
-                    </div>
-                </header>
-
-                <!--
-                    Zone3 schätzt keine FTP, aber eine Fahrt kann belegen, dass
-                    die eingetragene zu niedrig ist. Übernehmen geht im Profil,
-                    wo der Wert steht.
-                -->
-                <div v-if="ftpHint" class="rounded-card bg-warn-soft p-4 text-[15px] text-warn-ink">
-                    <p class="font-semibold">Diese Fahrt lag über deiner FTP</p>
-                    <p class="mt-1 text-[13px] text-ink-2">
-                        Sie spricht für mindestens <span class="font-semibold tabular-nums">{{ ftpHint.estimate }} W</span><template v-if="ftpHint.current">, eingetragen sind {{ ftpHint.current }} W</template>.
-                        Mit einer zu niedrigen FTP fallen die Radintervalle zu leicht aus.
-                    </p>
-                    <Link :href="route('profile.edit')" class="mt-2 inline-block text-[13px] font-semibold text-accent active:opacity-60">
-                        FTP im Profil anpassen
-                    </Link>
-                </div>
-
-                <!-- ── Kennzahlen ─────────────────────────────────── -->
-                <section class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-                    <div class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[13px] font-medium text-ink-3">Distanz</p>
-                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ (activity.distance / 1000).toFixed(2) }}</p>
-                        <p class="mt-1 text-[11px] text-ink-3">km</p>
-                    </div>
-                    <div class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[13px] font-medium text-ink-3">Bewegungszeit</p>
-                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ formatDuration(activity.moving_time) }}</p>
-                        <p class="mt-1 text-[11px] text-ink-3">ohne Pausen</p>
-                    </div>
-                    <div v-if="activity.type === 'Run'" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[13px] font-medium text-ink-3">Pace</p>
-                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ formatPace(activity.average_speed) }}</p>
-                        <p class="mt-1 text-[11px] text-ink-3">min/km</p>
-                    </div>
-                    <div v-if="activity.type === 'Swim'" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[13px] font-medium text-ink-3">Pace</p>
-                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ formatSwimPace(activity.average_speed) }}</p>
-                        <p class="mt-1 text-[11px] text-ink-3">min/100m</p>
-                    </div>
-                    <div v-if="isCycling && activity.average_speed" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[13px] font-medium text-ink-3">Tempo</p>
-                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ (activity.average_speed * 3.6).toFixed(1) }}</p>
-                        <p class="mt-1 text-[11px] text-ink-3">km/h</p>
-                    </div>
-                    <div v-if="isCycling && activity.average_watts" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[13px] font-medium text-ink-3">Leistung</p>
-                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ Math.round(activity.average_watts) }}</p>
-                        <p class="mt-1 text-[11px] text-ink-3">Watt</p>
-                    </div>
-                    <div v-if="isCycling && activity.weighted_average_watts" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[13px] font-medium text-ink-3">Normalized Power</p>
-                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ activity.weighted_average_watts }}</p>
-                        <p class="mt-1 text-[11px] text-ink-3">Watt</p>
-                    </div>
-                    <div v-if="activity.total_elevation_gain > 0" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[13px] font-medium text-ink-3">Höhenmeter</p>
-                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ Math.round(activity.total_elevation_gain) }}</p>
-                        <p class="mt-1 text-[11px] text-ink-3">m aufwärts</p>
-                    </div>
-                    <div v-if="activity.average_heartrate" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[13px] font-medium text-ink-3">Puls</p>
-                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-danger">{{ Math.round(activity.average_heartrate) }}</p>
-                        <p class="mt-1 text-[11px] text-ink-3">
-                            Ø bpm<template v-if="activity.max_heartrate"> · max {{ Math.round(activity.max_heartrate) }}</template>
-                        </p>
-                    </div>
-                    <div class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[13px] font-medium text-ink-3">Gesamtzeit</p>
-                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ formatDuration(activity.elapsed_time) }}</p>
-                        <p class="mt-1 text-[11px] text-ink-3">inkl. Pausen</p>
-                    </div>
-                    <div v-if="!isCycling && activity.max_speed" class="min-w-0 rounded-card bg-surface p-4 shadow-card">
-                        <p class="text-[13px] font-medium text-ink-3">Schnellste Pace</p>
-                        <p class="mt-1.5 text-2xl font-bold leading-none tabular-nums text-ink">{{ formatPace(activity.max_speed) }}</p>
-                        <p class="mt-1 text-[11px] text-ink-3">min/km</p>
-                    </div>
-                </section>
-
-                <!-- ── Karte + Runden nebeneinander ab xl ─────────── -->
-                <div class="grid grid-cols-1 gap-5 xl:grid-cols-3">
-
-                    <!-- Karte -->
-                    <section class="min-w-0 xl:col-span-2">
-                        <AppCard flush>
-                            <div
-                                v-if="activity.polyline"
-                                ref="mapContainer"
-                                class="h-72 w-full overflow-hidden rounded-card bg-surface-2 lg:h-96"
-                            />
-                            <div v-else class="flex h-32 w-full items-center justify-center rounded-card bg-surface-2">
-                                <p class="text-[15px] text-ink-3">Keine Kartendaten verfügbar</p>
+                        </SectionHeader>
+                        <div class="rounded-card bg-surface p-4">
+                            <div class="flex items-center gap-1">
+                                <button v-for="star in 5" :key="star" type="button"
+                                    :aria-label="`${star} von 5`" :aria-pressed="star <= ratingValue"
+                                    class="flex h-11 w-11 items-center justify-center rounded-full transition-transform active:scale-90"
+                                    :class="star <= ratingValue ? 'text-warn' : 'text-surface-3'"
+                                    @click="ratingValue = ratingValue === star ? 0 : star">
+                                    <svg class="h-7 w-7" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.6 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.5 6.1 20.6l1.2-6.5L2.5 9.5l6.6-.9Z" /></svg>
+                                </button>
+                                <span class="ml-2 text-[15px] text-ink-3">{{ ['', 'Sehr schwer', 'Schwer', 'Okay', 'Gut', 'Top'][ratingValue] }}</span>
                             </div>
-                        </AppCard>
+
+                            <p class="mb-2 mt-4 text-[13px] text-ink-3">Gefühlte Belastung (1–10)</p>
+                            <div class="grid grid-cols-10 gap-1">
+                                <button v-for="rpe in 10" :key="rpe" type="button"
+                                    class="h-10 rounded-[10px] text-[15px] font-semibold tabular-nums transition active:scale-95"
+                                    :class="rpe === effortValue ? 'bg-accent text-white' : 'bg-surface-2 text-ink-2'"
+                                    @click="effortValue = effortValue === rpe ? 0 : rpe">{{ rpe }}</button>
+                            </div>
+
+                            <label for="feeling-notes" class="sr-only">Notiz</label>
+                            <textarea id="feeling-notes" v-model="feelingNotes" rows="2"
+                                placeholder="Was lief gut, was nicht? (optional)"
+                                class="z-input mt-4 resize-none" />
+
+                            <p v-if="ratingError" class="z-error">{{ ratingError }}</p>
+
+                            <AppButton block class="mt-3" :loading="ratingSaving"
+                                :disabled="!ratingValue && !effortValue && !feelingNotes" @click="saveRating">
+                                Sichern
+                            </AppButton>
+                        </div>
                     </section>
 
-                    <!-- Tempo-Zonen -->
-                    <section v-if="paceZoneInfo && paceZones" class="min-w-0">
-                        <AppCard title="Tempo-Zonen">
-                            <div class="mb-4 flex gap-1.5">
-                                <div
-                                    v-for="key in ['z1','z2','z3','z4','z5']"
-                                    :key="key"
-                                    class="h-2 flex-1 rounded-full transition-[transform,opacity]"
-                                    :class="[zoneColors[key]?.bg, paceZoneInfo.key === key ? 'scale-y-150 opacity-100' : 'opacity-25']"
-                                />
-                            </div>
+                    <!-- ── Herkunft und Löschen ───────────────────── -->
+                    <section class="space-y-3">
+                        <div v-if="activity.strava_id || activity.garmin_activity_id" class="divide-y divide-line overflow-hidden rounded-card bg-surface">
+                            <a v-if="activity.strava_id" :href="`https://www.strava.com/activities/${activity.strava_id}`" target="_blank" rel="noopener noreferrer"
+                                class="flex min-h-[44px] items-center gap-3 px-4 py-3 transition-colors active:bg-surface-2">
+                                <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-[#FC4C02] text-white">
+                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
+                                </span>
+                                <span class="flex-1 text-[17px] text-ink">Auf Strava ansehen</span>
+                                <svg class="h-4 w-4 shrink-0 text-ink-3/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                            </a>
+                            <!-- Garmin verlangt die Herkunftsangabe. -->
+                            <a v-if="activity.garmin_activity_id" :href="`https://connect.garmin.com/modern/activity/${activity.garmin_activity_id}`" target="_blank" rel="noopener noreferrer"
+                                class="flex min-h-[44px] items-center gap-3 px-4 py-3 transition-colors active:bg-surface-2">
+                                <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-ink text-canvas">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="7" /><path stroke-linecap="round" d="M12 9v3l2 1.5" /></svg>
+                                </span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-[17px] text-ink">In Garmin Connect ansehen</span>
+                                    <span v-if="activity.device_name && activity.device_name !== 'unknown'" class="block text-[13px] text-ink-3">Aufgezeichnet mit {{ activity.device_name }}</span>
+                                </span>
+                                <svg class="h-4 w-4 shrink-0 text-ink-3/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                            </a>
+                        </div>
 
-                            <div class="mb-4 flex items-center gap-3">
-                                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" :class="zoneColors[paceZoneInfo.key]?.light">
-                                    <span class="text-lg font-bold" :class="zoneColors[paceZoneInfo.key]?.text">{{ paceZoneInfo.key.replace('z','') }}</span>
-                                </div>
-                                <div class="min-w-0">
-                                    <p class="truncate text-[15px] font-bold text-ink">{{ paceZoneInfo.name }}</p>
-                                    <p class="text-[13px] text-ink-3">{{ paceZoneInfo.minPace }} – {{ paceZoneInfo.maxPace }} min/km</p>
-                                </div>
-                                <div class="ml-auto shrink-0 text-right">
-                                    <p class="text-[11px] text-ink-3">Dein Tempo</p>
-                                    <p class="text-[15px] font-bold tabular-nums text-ink">{{ formatPace(activity.average_speed) }}</p>
-                                </div>
-                            </div>
-
-                            <div class="space-y-1 border-t border-line pt-3">
-                                <div
-                                    v-for="key in ['z1','z2','z3','z4','z5']"
-                                    :key="key"
-                                    class="flex items-center gap-3 rounded-field px-2 py-2"
-                                    :class="paceZoneInfo.key === key ? [zoneColors[key]?.light] : ''"
-                                >
-                                    <div class="h-2 w-2 shrink-0 rounded-full" :class="zoneColors[key]?.bg" />
-                                    <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-ink-2">{{ paceZones[key]?.name }}</span>
-                                    <span class="shrink-0 text-[12px] tabular-nums text-ink-3">{{ zoneRange(paceZones[key]) }}</span>
-                                </div>
-                            </div>
-                        </AppCard>
+                        <p v-if="deleteError" class="z-error text-center">{{ deleteError }}</p>
+                        <div class="overflow-hidden rounded-card bg-surface">
+                            <button type="button" class="flex min-h-[44px] w-full items-center px-4 py-3 text-left text-[17px] text-danger transition-colors active:bg-surface-2"
+                                @click="confirmDelete = true">
+                                Aktivität löschen
+                            </button>
+                        </div>
                     </section>
                 </div>
-
-                <!-- ── Runden ─────────────────────────────────────── -->
-                <section v-if="hasLaps">
-                    <AppCard :title="`Runden`" :subtitle="`${activity.laps.length} Laps · zum Hervorheben antippen`">
-                        <div class="mb-4 flex h-14 items-end gap-0.5">
-                            <div
-                                v-for="(lap, i) in activity.laps"
-                                :key="i"
-                                :style="{
-                                    width:  ((lap.moving_time || lap.elapsed_time || 0) / totalLapTime * 100).toFixed(2) + '%',
-                                    height: lapHeightPct[i] + '%',
-                                }"
-                                :class="[
-                                    lapColor(lap, i),
-                                    activeLap === i ? 'opacity-100 ring-2 ring-ink' : (activeLap !== null ? 'opacity-25' : 'opacity-80'),
-                                ]"
-                                class="cursor-pointer rounded-t-sm transition-[opacity,box-shadow]"
-                                @mouseenter="setActiveLap(i)"
-                                @mouseleave="clearActiveLap"
-                                @click="toggleActiveLap(i)"
-                                :title="activity.type === 'Run'
-                                    ? `Lap ${lap.index ?? i+1}: ${lapDist(lap)} km · ${lapPace(lap)} min/km`
-                                    : `Lap ${lap.index ?? i+1}: ${lapDist(lap)} km · ${lapSpeed(lap)} km/h`"
-                            />
-                        </div>
-
-                        <div class="-mx-1 overflow-x-auto">
-                            <table class="w-full min-w-[26rem] border-collapse text-[13px]">
-                                <thead>
-                                    <tr class="text-ink-3">
-                                        <th class="px-2 py-2 text-left font-semibold">#</th>
-                                        <th class="px-2 py-2 text-left font-semibold">Zeit</th>
-                                        <th class="px-2 py-2 text-right font-semibold">Distanz</th>
-                                        <th class="px-2 py-2 text-right font-semibold">{{ isCycling ? 'km/h' : 'Pace' }}</th>
-                                        <th v-if="activity.average_heartrate" class="px-2 py-2 text-right font-semibold">Puls</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-line">
-                                    <tr
-                                        v-for="(lap, i) in activity.laps"
-                                        :key="'row'+i"
-                                        class="cursor-pointer transition-colors"
-                                        :class="activeLap === i ? 'bg-surface-2' : 'hover:bg-surface-2'"
-                                        @mouseenter="setActiveLap(i)"
-                                        @mouseleave="clearActiveLap"
-                                        @click="toggleActiveLap(i)"
-                                    >
-                                        <td class="px-2 py-2.5">
-                                            <span class="flex items-center gap-2">
-                                                <span class="h-2 w-2 shrink-0 rounded-full" :class="lapColor(lap, i)" />
-                                                <span class="text-ink-3">{{ lap.index ?? i + 1 }}</span>
-                                            </span>
-                                        </td>
-                                        <td class="px-2 py-2.5 font-medium tabular-nums text-ink-2">{{ lapTime(lap.moving_time || lap.elapsed_time || 0) }}</td>
-                                        <td class="px-2 py-2.5 text-right tabular-nums text-ink-3">{{ lapDist(lap) }} km</td>
-                                        <td class="px-2 py-2.5 text-right font-bold tabular-nums text-ink">
-                                            <template v-if="isCycling">{{ lapSpeed(lap) }}</template>
-                                            <template v-else>{{ lapPace(lap) }}</template>
-                                        </td>
-                                        <td v-if="activity.average_heartrate" class="px-2 py-2.5 text-right tabular-nums text-danger">
-                                            {{ lap.average_heartrate ? Math.round(lap.average_heartrate) : '–' }}
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </AppCard>
-                </section>
-
-                <!-- ── Beschreibung + Bewertung ───────────────────── -->
-                <div class="grid grid-cols-1 gap-5" :class="activity.description && linkedSession ? 'xl:grid-cols-2' : ''">
-
-                    <AppCard v-if="activity.description" title="Beschreibung">
-                        <p class="whitespace-pre-wrap text-[15px] leading-relaxed text-ink-2">{{ activity.description }}</p>
-                    </AppCard>
-
-                    <AppCard v-if="linkedSession" title="Einheit bewerten"
-                        :subtitle="`${linkedSession.title} · dein Feedback verbessert den Plan`">
-                        <template #action>
-                            <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
-                                <span v-if="ratingSaved" class="text-[13px] font-semibold text-success-ink">Gespeichert</span>
-                            </Transition>
-                        </template>
-
-                        <p class="z-label">Wie war die Einheit?</p>
-                        <div class="mb-4 flex items-center gap-1.5">
-                            <button
-                                v-for="star in 5"
-                                :key="star"
-                                type="button"
-                                class="flex h-10 w-10 items-center justify-center rounded-full text-xl transition"
-                                :class="star <= ratingValue ? 'scale-110 bg-warn-soft' : 'bg-surface-2 opacity-40 hover:opacity-70'"
-                                @click="ratingValue = ratingValue === star ? 0 : star"
-                            >⭐</button>
-                            <span class="ml-2 text-[13px] text-ink-3">
-                                {{ ['', 'Sehr schwer', 'Schwer', 'Okay', 'Gut', 'Top'][ratingValue] }}
-                            </span>
-                        </div>
-
-                        <p class="z-label">Gefühlte Belastung (RPE)</p>
-                        <div class="mb-4 flex flex-wrap gap-1.5">
-                            <button
-                                v-for="rpe in 10"
-                                :key="rpe"
-                                type="button"
-                                class="h-9 w-9 rounded-full text-[13px] font-bold transition active:scale-90"
-                                :class="rpe === effortValue
-                                    ? (rpe <= 3 ? 'bg-success text-white' : rpe <= 6 ? 'bg-warn text-white' : 'bg-danger text-white')
-                                    : 'bg-surface-2 text-ink-3 hover:bg-surface-3'"
-                                @click="effortValue = effortValue === rpe ? 0 : rpe"
-                            >{{ rpe }}</button>
-                        </div>
-
-                        <textarea
-                            v-model="feelingNotes"
-                            rows="2"
-                            placeholder="Notizen (optional) — was lief gut, was nicht?"
-                            class="z-input resize-none"
-                        />
-
-                        <p v-if="ratingError" class="z-error">{{ ratingError }}</p>
-
-                        <AppButton
-                            block
-                            class="mt-4"
-                            :loading="ratingSaving"
-                            :disabled="!ratingValue && !effortValue && !feelingNotes"
-                            @click="saveRating"
-                        >
-                            Bewertung speichern
-                        </AppButton>
-                    </AppCard>
-                </div>
-
-                <!-- ── Löschen ────────────────────────────────────── -->
-                <div class="pt-2">
-                    <p v-if="deleteError" class="z-error mb-2 text-center">{{ deleteError }}</p>
-                    <button
-                        type="button"
-                        class="mx-auto block text-[13px] font-medium text-ink-3 transition-colors hover:text-danger-ink"
-                        @click="confirmDelete = true"
-                    >
-                        Aktivität löschen
-                    </button>
-                </div>
-
-                <ConfirmSheet
-                    :show="confirmDelete"
-                    title="Aktivität löschen?"
-                    :message="deleteMessage"
-                    confirm-label="Endgültig löschen"
-                    :loading="deleting"
-                    @confirm="destroyActivity"
-                    @close="confirmDelete = false"
-                />
-
-                <!-- ── Strava ─────────────────────────────────────── -->
-                <div v-if="activity.strava_id" class="flex justify-center pb-2 pt-1">
-                    <a
-                        :href="`https://www.strava.com/activities/${activity.strava_id}`"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="inline-flex items-center gap-2 rounded-full bg-[#FC4C02] px-5 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
-                    >
-                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/>
-                        </svg>
-                        Auf Strava ansehen
-                    </a>
-                </div>
-
-                <!-- ── Garmin: Herkunft nennen (Garmin verlangt die Angabe) ── -->
-                <div v-if="activity.garmin_activity_id || activity.device_name" class="flex flex-col items-center gap-2 pb-2 pt-1">
-                    <p v-if="activity.device_name" class="text-[13px] text-ink-3">Aufgezeichnet mit {{ activity.device_name }}</p>
-                    <a
-                        v-if="activity.garmin_activity_id"
-                        :href="`https://connect.garmin.com/modern/activity/${activity.garmin_activity_id}`"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="inline-flex items-center gap-2 rounded-full bg-surface-2 px-5 py-2.5 text-[13px] font-semibold text-ink transition-opacity hover:opacity-90 active:opacity-70"
-                    >
-                        In Garmin Connect ansehen
-                    </a>
-                </div>
-
             </div>
+
+            <ConfirmSheet
+                :show="confirmDelete"
+                title="Aktivität löschen?"
+                :message="deleteMessage"
+                confirm-label="Endgültig löschen"
+                :loading="deleting"
+                @confirm="destroyActivity"
+                @close="confirmDelete = false"
+            />
         </div>
     </AuthenticatedLayout>
 </template>

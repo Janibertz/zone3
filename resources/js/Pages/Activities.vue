@@ -1,101 +1,166 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import { router, Link, Head } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { activityType } from '@/Composables/useActivityTypes';
+import { activityType, SPORT_FILTERS } from '@/Composables/useActivityTypes';
+import { fmtNum, clock, speedOf, distanceOf } from '@/Composables/useFormat';
 import PageHeader from '@/Components/UI/PageHeader.vue';
+import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 import AppCard from '@/Components/UI/AppCard.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
 
-const props = defineProps({
-    activities: Object,
-    filters: Object,
-});
-
-const search = ref(props.filters?.search ?? '');
-const selectedType = ref(props.filters?.type ?? '');
-const selectedMonth = ref(props.filters?.month ?? '');
-
-function applyFilters() {
-    router.get(route('activities.index'), {
-        search: search.value || undefined,
-        type: selectedType.value || undefined,
-        month: selectedMonth.value || undefined,
-    }, { preserveState: true, replace: true });
-}
-
-function resetFilters() {
-    search.value = '';
-    selectedType.value = '';
-    selectedMonth.value = '';
-    applyFilters();
-}
-
-function formatDistance(m) {
-    return (m / 1000).toFixed(2);
-}
-
-function formatDuration(seconds) {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    return `${m}:${String(s).padStart(2,'0')}`;
-}
-
-function formatPace(averageSpeed) {
-    if (!averageSpeed || averageSpeed === 0) return '–';
-    const secPerKm = 1000 / averageSpeed;
-    return `${Math.floor(secPerKm / 60)}:${String(Math.floor(secPerKm % 60)).padStart(2,'0')}`;
-}
-
-function formatDateShort(dateStr) {
-    return new Date(dateStr).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' });
-}
-
-/*
- * Die Sportarten-Tabelle stand hier ein zweites Mal — mit Emoji und
- * eigenen Pill-Farben, neben der im Composable. Genau davor warnt der
- * Docblock von `useActivityTypes.js`, und sie war trotzdem wieder da.
- * Jetzt nur noch eine Quelle; das Icon kommt als Strich-Pfad mit.
+/**
+ * Aktivitäten als gruppierte Liste, Woche für Woche (Redesign 28.10.2026).
+ *
+ * Vorher: eine Filterkarte mit Suchfeld und zwei Auswahllisten über einem
+ * Raster aus Karten, jede mit Pille, Ort, vier Zahlen und einem roten
+ * Herz. Jetzt wie in Health: Sportart als Segment, darunter die Wochen mit
+ * ihrer Summe, je Aktivität links Name und Tag, rechts die eine Zahl groß
+ * und das Tempo darunter. Puls und Höhenmeter stehen in der Aktivität.
  */
-const typeOf = (t) => activityType(t);
-
-const monthOptions = computed(() => {
-    const opts = [];
-    for (let i = 0; i < 12; i++) {
-        const d = new Date();
-        d.setDate(1);
-        d.setMonth(d.getMonth() - i);
-        opts.push({
-            value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}`,
-            label: d.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' }),
-        });
-    }
-    return opts;
+const props = defineProps({
+    activities: { type: Array, default: () => [] },
+    weekTotals: { type: Object, default: () => ({}) },
+    pagination: { type: Object, default: () => ({ current_page: 1, last_page: 1, total: 0 }) },
+    filters:    { type: Object, default: () => ({}) },
 });
 
-const activeFilterCount = computed(() =>
-    [selectedType.value, selectedMonth.value, search.value].filter(Boolean).length
-);
+const sport = ref(props.filters?.sport ?? 'all');
+const search = ref(props.filters?.search ?? '');
+const searchOpen = ref(!!search.value);
+const searchInput = ref(null);
 
-/** Kennzahlen einer Aktivität, je nach Sportart unterschiedlich sinnvoll. */
-function metricsOf(a) {
+/** Ein neuer Filter fängt von vorn an — die angehängten Seiten gehören zum alten. */
+function reload() {
+    router.get(route('activities.index'), {
+        sport: sport.value !== 'all' ? sport.value : undefined,
+        search: search.value || undefined,
+    }, { preserveState: true, preserveScroll: true, replace: true, reset: ['activities', 'weekTotals'] });
+}
+
+function setSport(value) {
+    sport.value = value;
+    reload();
+}
+
+async function toggleSearch() {
+    searchOpen.value = !searchOpen.value;
+    if (searchOpen.value) {
+        await nextTick();
+        searchInput.value?.focus();
+    } else if (search.value) {
+        search.value = '';
+        reload();
+    }
+}
+
+const loadingMore = ref(false);
+const hasMore = computed(() => props.pagination.current_page < props.pagination.last_page);
+
+function loadMore() {
+    loadingMore.value = true;
+    router.reload({
+        data: { page: props.pagination.current_page + 1 },
+        only: ['activities', 'weekTotals', 'pagination'],
+        preserveScroll: true,
+        preserveUrl: true,
+        onFinish: () => { loadingMore.value = false; },
+    });
+}
+
+/* ── Wochen ─────────────────────────────────────────────────────────── */
+
+const pad = (n) => String(n).padStart(2, '0');
+
+function mondayKey(date) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+const thisMonday = mondayKey(new Date());
+const lastMonday = (() => {
+    const d = new Date(thisMonday + 'T00:00:00');
+    d.setDate(d.getDate() - 7);
+    return mondayKey(d);
+})();
+
+function weekTitle(key) {
+    if (key === thisMonday) return 'Diese Woche';
+    if (key === lastMonday) return 'Letzte Woche';
+
+    const from = new Date(key + 'T00:00:00');
+    const to = new Date(from);
+    to.setDate(to.getDate() + 6);
+    const sameYear = from.getFullYear() === new Date().getFullYear();
+    const fmt = (d, withMonth) => d.toLocaleDateString('de-DE', withMonth
+        ? { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) }
+        : { day: 'numeric' });
+
+    return from.getMonth() === to.getMonth()
+        ? `${fmt(from, false)}.–${fmt(to, true)}`
+        : `${fmt(from, true)} – ${fmt(to, true)}`;
+}
+
+function weekSum(key) {
+    const t = props.weekTotals?.[key];
+    if (!t) return '';
+    const n = `${t.count} ${t.count === 1 ? 'Einheit' : 'Einheiten'}`;
+
+    return t.km > 0 ? `${n} · ${fmtNum(t.km)} km` : n;
+}
+
+const weeks = computed(() => {
     const out = [];
-    if (a.distance > 0) out.push({ value: formatDistance(a.distance), unit: 'km', strong: true });
-    out.push({ value: formatDuration(a.moving_time), unit: null });
-
-    if (['Ride', 'VirtualRide', 'EBikeRide'].includes(a.type)) {
-        if (a.average_speed)  out.push({ value: (a.average_speed * 3.6).toFixed(1), unit: 'km/h' });
-        if (a.average_watts)  out.push({ value: Math.round(a.average_watts), unit: 'W' });
-    } else if (a.type === 'Swim') {
-        if (a.average_speed)  out.push({ value: formatPace(a.average_speed * 10), unit: '/100m' });
-    } else if (a.average_speed) {
-        out.push({ value: formatPace(a.average_speed), unit: '/km' });
+    for (const a of props.activities) {
+        const key = mondayKey(a.start_date);
+        let week = out[out.length - 1];
+        if (!week || week.key !== key) {
+            week = { key, rows: [] };
+            out.push(week);
+        }
+        week.rows.push(a);
     }
     return out;
+});
+
+/* ── Zeile ──────────────────────────────────────────────────────────── */
+
+function when(a) {
+    const d = new Date(a.start_date);
+    const day = d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'short' });
+    const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+    return `${day} · ${time}`;
 }
+
+/** Rechts groß: die Strecke, ohne Strecke die Zeit. */
+function primary(a) {
+    const d = distanceOf(a);
+    return d ? `${d.value} ${d.unit}` : clock(a.moving_time);
+}
+
+/** Darunter: das Tempo, sonst die Zeit. */
+function secondary(a) {
+    if (!distanceOf(a)) return null;
+    const s = speedOf(a);
+    return s ? `${s.value} ${s.unit}` : clock(a.moving_time);
+}
+
+/** Icon-Grund je Sportart — Laufen in Akzent, Rad wie die Radeinheiten im Plan. */
+const ICON_BG = {
+    run: 'bg-accent', ride: 'bg-info', swim: 'bg-success', walk: 'bg-warn', strength: 'bg-warn', other: 'bg-ink-3',
+};
+const iconBg = (a) => ICON_BG[activityType(a.type).group] ?? 'bg-ink-3';
+
+const subtitle = computed(() => {
+    const n = props.pagination.total ?? 0;
+    return `${fmtNum(n, 0)} ${n === 1 ? 'Einheit' : 'Einheiten'}`;
+});
+
+const filtered = computed(() => sport.value !== 'all' || !!search.value);
 </script>
 
 <template>
@@ -103,116 +168,66 @@ function metricsOf(a) {
 
     <AuthenticatedLayout>
         <div class="min-h-screen bg-canvas">
-            <PageHeader
-                title="Aktivitäten"
-                :subtitle="`${activities.total} ${activities.total === 1 ? 'Einheit' : 'Einheiten'} insgesamt`"
-            />
+            <PageHeader title="Aktivitäten" :eyebrow="subtitle">
+                <template #action>
+                    <button type="button" :aria-label="searchOpen ? 'Suche schließen' : 'Suchen'"
+                        class="flex h-11 w-11 items-center justify-center rounded-full text-accent transition-transform active:scale-90"
+                        @click="toggleSearch">
+                        <svg v-if="!searchOpen" class="h-[22px] w-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
+                        <span v-else class="text-[17px]">Fertig</span>
+                    </button>
+                </template>
+            </PageHeader>
 
-            <div class="space-y-5 px-4 pb-8 pt-2 lg:px-8">
+            <div class="mx-auto max-w-3xl space-y-6 px-4 pb-8 pt-3 lg:px-8">
+                <div v-if="searchOpen" class="relative">
+                    <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
+                    <label for="activity-search" class="sr-only">Aktivität suchen</label>
+                    <input id="activity-search" ref="searchInput" v-model="search" type="search" enterkeyhint="search"
+                        placeholder="Suchen"
+                        class="h-10 w-full rounded-[10px] border-0 bg-surface-2 pl-9 pr-3 text-[17px] text-ink placeholder:text-ink-3 focus:ring-2 focus:ring-accent"
+                        @keyup.enter="reload" />
+                </div>
 
-                <!-- ── Filter ─────────────────────────────────────── -->
-                <AppCard>
-                    <div class="grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr_1fr]">
-                        <div class="relative">
-                            <svg class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 15.803a7.5 7.5 0 0010.607 10.607z"/>
-                            </svg>
-                            <input
-                                v-model="search"
-                                type="text"
-                                placeholder="Aktivität suchen…"
-                                class="z-input pl-11"
-                                @keyup.enter="applyFilters"
-                            />
-                        </div>
+                <SegmentedControl :model-value="sport" :options="SPORT_FILTERS" @update:model-value="setSport" />
 
-                        <select v-model="selectedType" class="z-input" @change="applyFilters">
-                            <option value="">Alle Typen</option>
-                            <option value="Run">Laufen</option>
-                            <option value="Ride">Radfahren</option>
-                            <option value="Swim">Schwimmen</option>
-                            <option value="Walk">Gehen</option>
-                            <option value="Workout">Workout</option>
-                        </select>
-
-                        <select v-model="selectedMonth" class="z-input" @change="applyFilters">
-                            <option value="">Alle Monate</option>
-                            <option v-for="m in monthOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
-                        </select>
-                    </div>
-
-                    <div v-if="activeFilterCount > 0" class="mt-3 flex items-center gap-3">
-                        <span class="text-[13px] font-semibold text-ink-2">
-                            {{ activeFilterCount }} {{ activeFilterCount === 1 ? 'Filter' : 'Filter' }} aktiv
-                        </span>
-                        <button class="text-[13px] font-semibold text-danger hover:underline" @click="resetFilters">
-                            Zurücksetzen
-                        </button>
-                    </div>
-                </AppCard>
-
-                <!-- ── Liste ──────────────────────────────────────── -->
-                <AppCard v-if="activities.data.length === 0">
+                <AppCard v-if="activities.length === 0">
                     <EmptyState
-                        title="Keine Aktivitäten gefunden"
-                        :description="activeFilterCount > 0
-                            ? 'Mit diesen Filtern gibt es nichts. Setz sie zurück, um alles zu sehen.'
-                            : 'Verbinde Strava und synchronisiere, dann erscheinen deine Einheiten hier.'"
+                        title="Keine Aktivitäten"
+                        :description="filtered
+                            ? 'Mit diesem Filter gibt es nichts.'
+                            : 'Verbinde Strava oder Garmin, dann erscheinen deine Einheiten hier.'"
                     >
-                        <AppButton v-if="activeFilterCount > 0" variant="secondary" @click="resetFilters">Filter zurücksetzen</AppButton>
-                        <AppButton v-else href="/profile">Strava verbinden</AppButton>
+                        <AppButton v-if="filtered" variant="secondary" @click="search = ''; searchOpen = false; setSport('all')">Alle zeigen</AppButton>
+                        <AppButton v-else href="/profile">Verbinden</AppButton>
                     </EmptyState>
                 </AppCard>
 
-                <div v-else class="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-                    <Link
-                        v-for="activity in activities.data"
-                        :key="activity.id"
-                        :href="route('activities.show', activity.id)"
-                        class="block min-w-0 rounded-card bg-surface p-4 shadow-card transition-transform active:scale-[0.99]"
-                    >
-                        <div class="mb-2.5 flex items-start justify-between gap-2">
-                            <div class="flex min-w-0 items-center gap-2">
-                                <svg class="h-5 w-5 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true" v-html="typeOf(activity.type).icon" />
-                                <p class="truncate text-[15px] font-semibold leading-tight text-ink">{{ activity.name }}</p>
-                            </div>
-                            <span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="typeOf(activity.type).pill">
-                                {{ typeOf(activity.type).label }}
+                <section v-for="week in weeks" :key="week.key">
+                    <div class="mx-1 mb-2 flex items-baseline justify-between gap-3">
+                        <h2 class="text-[17px] font-bold text-ink">{{ weekTitle(week.key) }}</h2>
+                        <span class="text-[13px] tabular-nums text-ink-3">{{ weekSum(week.key) }}</span>
+                    </div>
+                    <div class="divide-y divide-line overflow-hidden rounded-card bg-surface">
+                        <Link v-for="a in week.rows" :key="a.id" :href="route('activities.show', a.id)"
+                            class="flex min-w-0 items-center gap-3 px-4 py-3 transition-colors duration-150 active:bg-surface-2">
+                            <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] text-white" :class="iconBg(a)">
+                                <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9" aria-hidden="true" v-html="activityType(a.type).icon" />
                             </span>
-                        </div>
-
-                        <p class="mb-2 text-[12px] text-ink-3">
-                            {{ formatDateShort(activity.start_date) }}
-                            <template v-if="activity.location_city"> · {{ activity.location_city }}</template>
-                        </p>
-
-                        <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                            <span v-for="(m, i) in metricsOf(activity)" :key="i" class="flex items-baseline gap-1">
-                                <span class="tabular-nums" :class="m.strong ? 'text-xl font-black leading-none text-ink' : 'text-[15px] font-semibold text-ink-2'">{{ m.value }}</span>
-                                <span v-if="m.unit" class="text-[11px] font-semibold text-ink-3">{{ m.unit }}</span>
+                            <span class="min-w-0 flex-1">
+                                <span class="block truncate text-[17px] text-ink">{{ a.name }}</span>
+                                <span class="block truncate text-[13px] text-ink-3">{{ when(a) }}</span>
                             </span>
-                            <span v-if="activity.average_heartrate" class="ml-auto text-[13px] font-semibold text-danger">
-                                ♥ {{ Math.round(activity.average_heartrate) }}
+                            <span class="shrink-0 text-right">
+                                <span class="block font-rounded text-[17px] font-bold tabular-nums text-ink">{{ primary(a) }}</span>
+                                <span v-if="secondary(a)" class="block text-[13px] tabular-nums text-ink-3">{{ secondary(a) }}</span>
                             </span>
-                        </div>
-                    </Link>
-                </div>
+                        </Link>
+                    </div>
+                </section>
 
-                <!-- ── Seitenwechsel ──────────────────────────────── -->
-                <div v-if="activities.last_page > 1" class="flex flex-wrap items-center justify-center gap-1.5 pt-2">
-                    <button
-                        v-for="link in activities.links"
-                        :key="link.label"
-                        v-html="link.label"
-                        :disabled="!link.url"
-                        class="min-w-[2.5rem] rounded-full px-3 py-2 text-[13px] font-semibold transition-colors"
-                        :class="link.active
-                            ? 'bg-accent text-white'
-                            : link.url
-                                ? 'bg-surface text-ink-2 hover:bg-surface-2'
-                                : 'text-ink-3 cursor-default opacity-50'"
-                        @click="link.url && router.visit(link.url)"
-                    />
+                <div v-if="hasMore" class="flex justify-center">
+                    <AppButton variant="plain" :loading="loadingMore" @click="loadMore">Ältere laden</AppButton>
                 </div>
             </div>
         </div>

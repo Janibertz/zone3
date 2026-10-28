@@ -1,225 +1,178 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import PageHeader from '@/Components/UI/PageHeader.vue';
+import SessionCard from '@/Components/UI/SessionCard.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 import axios from 'axios';
-import { paceWithUnit } from '@/Composables/useSessionTypes';
+import { sessionType } from '@/Composables/useSessionTypes';
+import { activityType } from '@/Composables/useActivityTypes';
+import { clock, speedOf, distanceOf } from '@/Composables/useFormat';
 import SwipeRow from '@/Components/SwipeRow.vue';
 import DragGhost from '@/Components/UI/DragGhost.vue';
 import { useFinePointer } from '@/Composables/useFinePointer';
 import { useDragToDay } from '@/Composables/useDragToDay';
 
+/**
+ * Kalender im Story-Look (Redesign 28.10.2026).
+ *
+ * Großer Monatstitel, das Raster als eine Karte mit einem Punkt je Tag in
+ * der Farbe der Einheit — voll, wenn erledigt, blass, wenn sie noch kommt.
+ * Darunter die Phasen bis zum Rennen als dünner Streifen und der gewählte
+ * Tag. Vorher stand der Tag zweimal da (Seitenleiste und eine zweite Liste
+ * nur fürs Telefon), dazu eine Legendenkarte der Phasen mit Wochenangaben.
+ */
 const props = defineProps({
     activities:       { type: Array, default: () => [] },
     events:           { type: Array, default: () => [] },
     trainingSessions: { type: Array, default: () => [] },
+    phaseSegments:    { type: Array, default: () => [] },
 });
 
-// --- State ---
-const today      = new Date();
-const calYear    = ref(today.getFullYear());
-const calMonth   = ref(today.getMonth());
-const selected   = ref(null); // { type: 'activity'|'event', data }
+const pad = (n) => String(n).padStart(2, '0');
+const iso = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
 
-// --- Navigation ---
-function prevMonth() {
-    if (calMonth.value === 0) { calMonth.value = 11; calYear.value--; }
-    else calMonth.value--;
-    selected.value = null;
-    selectToday();
-}
-function nextMonth() {
-    if (calMonth.value === 11) { calMonth.value = 0; calYear.value++; }
-    else calMonth.value++;
-    selected.value = null;
-    selectToday();
-}
-function goToday() {
-    calYear.value  = today.getFullYear();
-    calMonth.value = today.getMonth();
-    selected.value = null;
-    selectToday();
+const today    = new Date();
+const todayKey = iso(today.getFullYear(), today.getMonth(), today.getDate());
+const calYear  = ref(today.getFullYear());
+const calMonth = ref(today.getMonth());
+const selectedKey = ref(todayKey);
+
+function shiftMonth(n) {
+    const d = new Date(calYear.value, calMonth.value + n, 1);
+    calYear.value = d.getFullYear();
+    calMonth.value = d.getMonth();
+    // Im heutigen Monat steht heute unten, sonst der Erste.
+    selectedKey.value = calYear.value === today.getFullYear() && calMonth.value === today.getMonth()
+        ? todayKey
+        : iso(calYear.value, calMonth.value, 1);
 }
 
-const monthLabel = computed(() =>
-    new Date(calYear.value, calMonth.value, 1)
-        .toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
-);
+const monthName = computed(() => new Date(calYear.value, calMonth.value, 1).toLocaleDateString('de-DE', { month: 'long' }));
+const isCurrentMonth = computed(() => calYear.value === today.getFullYear() && calMonth.value === today.getMonth());
 
-// --- Data maps for current month ---
-const activityMap = computed(() => {
+/* ── Daten je Tag ───────────────────────────────────────────────── */
+
+function groupBy(list, keyOf) {
     const map = new Map();
-    props.activities.forEach(a => {
-        const d = new Date(a.start_date);
-        if (d.getFullYear() === calYear.value && d.getMonth() === calMonth.value) {
-            const day = d.getDate();
-            if (!map.has(day)) map.set(day, []);
-            map.get(day).push(a);
+    list.forEach((x) => {
+        const k = keyOf(x);
+        if (!map.has(k)) map.set(k, []);
+        map.get(k).push(x);
+    });
+    return map;
+}
+
+const activitiesByDay = computed(() => groupBy(props.activities, (a) => {
+    const d = new Date(a.start_date);
+    return iso(d.getFullYear(), d.getMonth(), d.getDate());
+}));
+const sessionsByDay = computed(() => groupBy(props.trainingSessions, (s) => s.planned_date));
+const eventsByDay   = computed(() => groupBy(props.events, (e) => e.event_date));
+
+/** Erste Einheit des Tages, die kein Ruhetag ist — sie gibt die Farbe. */
+const mainSession = (sessions) => sessions.find((s) => s.type !== 'rest') ?? null;
+
+
+/** Phase je Datum, ab heute aus den Segmenten des aktiven Plans. */
+const PHASE_LABELS = { base: 'Grundlage', build: 'Aufbau', peak: 'Spitze', taper: 'Taper', race_week: 'Rennwoche' };
+const PHASE_COLORS = { base: 'bg-success', build: 'bg-accent', peak: 'bg-warn', taper: 'bg-info', race_week: 'bg-danger' };
+
+const phaseByDay = computed(() => {
+    const map = new Map();
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    props.phaseSegments.forEach((seg) => {
+        for (let i = 0; i < seg.days; i++) {
+            map.set(iso(d.getFullYear(), d.getMonth(), d.getDate()), seg.key);
+            d.setDate(d.getDate() + 1);
         }
     });
     return map;
 });
 
-const eventMap = computed(() => {
-    const map = new Map();
-    props.events.forEach(e => {
-        const d = new Date(e.event_date);
-        if (d.getFullYear() === calYear.value && d.getMonth() === calMonth.value) {
-            map.set(d.getDate(), e);
-        }
+const cells = computed(() => {
+    const y = calYear.value;
+    const m = calMonth.value;
+    const lead = (new Date(y, m, 1).getDay() + 6) % 7;
+    const days = new Date(y, m + 1, 0).getDate();
+    const total = Math.ceil((lead + days) / 7) * 7;
+
+    return Array.from({ length: total }, (_, i) => {
+        const date = new Date(y, m, i - lead + 1);
+        const key = iso(date.getFullYear(), date.getMonth(), date.getDate());
+        const inMonth = date.getMonth() === m;
+        const sessions = sessionsByDay.value.get(key) ?? [];
+        const acts = activitiesByDay.value.get(key) ?? [];
+        const event = (eventsByDay.value.get(key) ?? [])[0] ?? null;
+        const main = mainSession(sessions);
+        const done = acts.length > 0 || main?.status === 'completed';
+
+        let dot = null;
+        if (event) dot = sessionType('race_prep').dot;
+        else if (main) dot = sessionType(main.type).dot;
+        else if (acts.length) dot = 'bg-ink-3';
+
+        return {
+            key, inMonth, day: date.getDate(), sessions, acts, event, main,
+            isToday: key === todayKey,
+            dot,
+            dotState: done || event ? 'done' : main?.status === 'skipped' ? 'skipped' : 'open',
+        };
     });
-    return map;
 });
 
-const sessionMap = computed(() => {
-    const map = new Map();
-    props.trainingSessions.forEach(s => {
-        const d = new Date(s.planned_date + 'T00:00:00');
-        if (d.getFullYear() === calYear.value && d.getMonth() === calMonth.value) {
-            const day = d.getDate();
-            if (!map.has(day)) map.set(day, []);
-            map.get(day).push(s);
-        }
-    });
-    return map;
+const selected = computed(() => cells.value.find((c) => c.key === selectedKey.value) ?? null);
+
+const selectedTitle = computed(() => {
+    if (!selected.value) return '';
+    return new Date(selected.value.key + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
 });
-
-// --- Calendar grid (Monday-first) ---
-const calendarWeeks = computed(() => {
-    const firstDow      = new Date(calYear.value, calMonth.value, 1).getDay();
-    const leadingBlanks = (firstDow + 6) % 7;
-    const daysInMonth   = new Date(calYear.value, calMonth.value + 1, 0).getDate();
-    const daysInPrev    = new Date(calYear.value, calMonth.value, 0).getDate();
-    const isCurrentMon  = calYear.value === today.getFullYear() && calMonth.value === today.getMonth();
-
-    const days = [];
-    for (let i = leadingBlanks - 1; i >= 0; i--) {
-        days.push({ day: daysInPrev - i, currentMonth: false, isToday: false, activities: [], event: null, sessions: [] });
-    }
-    for (let i = 1; i <= daysInMonth; i++) {
-        days.push({
-            day: i,
-            currentMonth: true,
-            isToday: isCurrentMon && i === today.getDate(),
-            activities: activityMap.value.get(i) ?? [],
-            event:      eventMap.value.get(i) ?? null,
-            sessions:   sessionMap.value.get(i) ?? [],
-        });
-    }
-    const total     = days.length;
-    const remaining = total % 7 === 0 ? 0 : 7 - (total % 7);
-    for (let i = 1; i <= remaining; i++) {
-        days.push({ day: i, currentMonth: false, isToday: false, activities: [], event: null, sessions: [] });
-    }
-
-    // Split into weeks
-    const weeks = [];
-    for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
-    return weeks;
-});
-
-// --- Helpers ---
-function formatDistance(m) {
-    return m ? (m / 1000).toFixed(1) : '0';
-}
-function formatTime(s) {
-    if (!s) return '—';
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
-function formatPace(mps) {
-    if (!mps || mps <= 0) return '—';
-    const spk = 1000 / mps;
-    return `${Math.floor(spk / 60)}:${String(Math.round(spk % 60)).padStart(2, '0')}`;
-}
-function phaseColor(key) {
-    return {
-        race_week: 'bg-danger',
-        taper:     'bg-warn',
-        peak:      'bg-warn',
-        build:     'bg-info',
-        base:      'bg-success',
-    }[key] ?? 'bg-ink-3';
-}
-function priorityColor(p) {
-    return { A: 'bg-danger', B: 'bg-warn', C: 'bg-ink-3' }[p] ?? 'bg-ink-3';
-}
-
-// Past days with Strava activities → Strava is the ground truth, don't show plan sessions
-function visibleSessions(d) {
-    if (!d.currentMonth) return [];
-    const dayDate  = new Date(calYear.value, calMonth.value, d.day);
-    const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const isPast   = dayDate < todayDate;
-    // If there's a Strava activity on a past day, hide plan sessions (Strava = completed workout)
-    if (isPast && d.activities.length > 0) return [];
-    return d.sessions;
-}
 
 /**
- * Jeder Tag des Monats ist waehlbar — auch ein leerer.
- *
- * Vorher passierte beim Antippen eines Tages ohne Inhalt schlicht nichts.
- * Am Schreibtisch faellt das kaum auf, weil die Zelle den Inhalt selbst
- * zeigt; auf dem Telefon zeigt die Zelle nur noch Punkte, und dann ist ein
- * Tippen ohne jede Reaktion ein kaputter Knopf.
+ * Was die Tagesansicht zeigt. An einem Tag mit Aktivität steht die
+ * Aktivität — die erledigte Einheit dazu wäre derselbe Lauf ein zweites
+ * Mal. Ruhetage zeigen wir nur, wenn sonst nichts da ist.
  */
-function selectDay(d) {
-    if (!d.currentMonth) return;
-    selected.value = { day: d.day, activities: d.activities, event: d.event, sessions: visibleSessions(d) };
-}
-
-const selectedDate = computed(() => {
-    if (!selected.value) return '';
-    return new Date(calYear.value, calMonth.value, selected.value.day)
-        .toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+const daySessions = computed(() => {
+    const c = selected.value;
+    if (!c) return [];
+    const list = c.acts.length ? c.sessions.filter((s) => s.status !== 'completed') : c.sessions;
+    const real = list.filter((s) => s.type !== 'rest');
+    return real.length ? real : list;
 });
 
-const selectedIsEmpty = computed(() =>
-    selected.value
-    && !selected.value.event
-    && selected.value.activities.length === 0
-    && selected.value.sessions.length === 0
-);
+const dayIsEmpty = computed(() => selected.value && !selected.value.event && !selected.value.acts.length && !daySessions.value.length);
 
-/** Beim Aufschlagen steht der heutige Tag unten — nicht eine leere Karte. */
-function selectToday() {
-    const week = calendarWeeks.value.flat();
-    const d = week.find(x => x.isToday) ?? week.find(x => x.currentMonth);
-    if (d) selectDay(d);
-}
+/* ── Phasenstreifen ─────────────────────────────────────────────── */
 
-onMounted(selectToday);
+const monthPhases = computed(() => cells.value
+    .filter((c) => c.inMonth)
+    .map((c) => ({ key: c.key, phase: phaseByDay.value.get(c.key) ?? null })));
 
-// ── Verschieben und Loeschen per Geste ────────────────────────────────────────
-// Lange druecken auf eine Einheit in der Tagesansicht und nach oben ins
-// Raster ziehen; nach links wischen loescht. Regel wie
+const hasPhases = computed(() => monthPhases.value.some((p) => p.phase));
+
+const phaseLine = computed(() => {
+    const seg = props.phaseSegments[0];
+    if (!seg) return null;
+    const next = props.phaseSegments[1];
+    const weeks = Math.round(seg.days / 7);
+    const left = seg.days < 14 ? `noch ${seg.days} ${seg.days === 1 ? 'Tag' : 'Tage'}` : `noch ${weeks} Wochen`;
+
+    return next ? `${PHASE_LABELS[seg.key]} · ${left}, dann ${PHASE_LABELS[next.key]}` : `${PHASE_LABELS[seg.key]} · ${left}`;
+});
+
+/* ── Verschieben und Löschen per Geste ──────────────────────────── */
+// Lange drücken auf eine Einheit in der Tagesansicht und nach oben ins
+// Raster ziehen; nach links wischen löscht. Regel wie
 // SessionScheduleService::canChange(): geplant, kein Ruhetag, kein Rennen.
-const pad = (n) => String(n).padStart(2, '0');
-const todayKey = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
 
 /** Ein Tag im Raster ist ein Ziel, wenn er in diesem Monat liegt und nicht vorbei ist. */
-function dropDate(d) {
-    if (!d.currentMonth) return null;
-    const key = `${calYear.value}-${pad(calMonth.value + 1)}-${pad(d.day)}`;
-    return key >= todayKey ? key : null;
-}
+const dropDate = (c) => (c.inMonth && c.key >= todayKey ? c.key : null);
 
 const canChange = (s) => s.status === 'planned' && !['rest', 'race_prep'].includes(s.type) && s.planned_date >= todayKey;
 const actionError = ref('');
 
 function reloadSessions() {
-    const day = selected.value?.day;
-    router.reload({
-        only: ['trainingSessions'],
-        preserveScroll: true,
-        onSuccess: () => {
-            const d = calendarWeeks.value.flat().find(x => x.currentMonth && x.day === day);
-            if (d) selectDay(d);
-        },
-    });
+    router.reload({ only: ['trainingSessions'], preserveScroll: true });
 }
 
 const { drag, start: startDrag } = useDragToDay(async (session, date) => {
@@ -249,394 +202,186 @@ function confirmDelete(session) {
     if (window.confirm(`„${session.title}“ löschen?`)) deleteSession(session);
 }
 
-const sessionTypeLabels = {
-    rest: 'Ruhetag', easy_run: 'Lockerer Lauf', tempo_run: 'Tempolauf',
-    interval: 'Intervall', long_run: 'Langer Lauf', race_prep: 'Rennvorbereitung',
-    progressive_run: 'Progressiver Lauf', test_run: 'Testlauf',
+function openSession(s) {
+    if (s.event_id) router.visit(`/events/${s.event_id}/plan?open=${s.id}`);
+}
+
+/* ── Zeilen ─────────────────────────────────────────────────────── */
+
+const actPrimary = (a) => {
+    const d = distanceOf(a);
+    return d ? `${d.value} ${d.unit}` : clock(a.moving_time);
 };
-const sessionTypeColors = {
-    rest:            'bg-surface-2 text-ink-3',
-    easy_run:        'bg-success-soft text-success-ink',
-    tempo_run:       'bg-warn-soft text-warn-ink',
-    interval:        'bg-danger-soft text-danger-ink',
-    long_run:        'bg-info-soft text-info-ink',
-    race_prep:       'bg-accent-soft text-accent-ink',
-    progressive_run: 'bg-success-soft text-success-ink',
-    test_run:        'bg-accent-soft text-accent-ink',
+const actSecondary = (a) => {
+    if (!distanceOf(a)) return null;
+    const s = speedOf(a);
+    return s ? `${s.value} ${s.unit}` : clock(a.moving_time);
 };
-const sessionDotColors = {
-    rest: 'bg-ink-3', easy_run: 'bg-success', tempo_run: 'bg-warn',
-    interval: 'bg-danger', long_run: 'bg-info', race_prep: 'bg-accent',
-    progressive_run: 'bg-success', test_run: 'bg-accent',
-};
+const actTime = (a) => new Date(a.start_date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+const LEGEND = [
+    { label: 'Locker', type: 'easy_run' },
+    { label: 'Tempo', type: 'tempo_run' },
+    { label: 'Intervalle', type: 'interval' },
+    { label: 'Lang', type: 'long_run' },
+    { label: 'Rennen', type: 'race_prep' },
+];
+
 </script>
 
 <template>
     <Head title="Kalender – Zone3" />
     <AuthenticatedLayout>
-        <!--
-            Der Seitengrund war `bg-surface-2` — als einzige Seite der App.
-            Auf `bg-canvas` gezogen, sonst sieht der Kalender aus wie aus
-            einer anderen Anwendung.
-        -->
         <div class="min-h-screen bg-canvas">
-
-            <PageHeader title="Kalender" subtitle="Trainingsübersicht & Events" />
-
-            <div class="px-4 pb-8 pt-2 lg:px-8">
-
-            <!-- Monatsnavigation -->
-            <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4">
-                <div class="flex items-center gap-2">
-                    <button @click="prevMonth"
-                        class="flex h-11 w-11 items-center justify-center rounded-field bg-surface text-ink-3 transition hover:border-line-strong hover:text-ink sm:h-9 sm:w-9">
-                        ‹
+            <header class="flex items-end justify-between gap-3 px-4 pb-2 pt-2 lg:px-8 lg:pt-8">
+                <div class="min-w-0">
+                    <p class="text-[15px] leading-5 text-ink-3">{{ calYear }}</p>
+                    <h1 class="text-[34px] font-extrabold capitalize leading-[41px] tracking-[-0.035em] text-ink">{{ monthName }}</h1>
+                </div>
+                <div class="flex shrink-0 items-center pb-1">
+                    <button v-if="!isCurrentMonth" type="button" class="mr-1 px-2 text-[17px] text-accent active:opacity-60" @click="shiftMonth((today.getFullYear() - calYear) * 12 + today.getMonth() - calMonth)">Heute</button>
+                    <button type="button" aria-label="Vorheriger Monat" class="flex h-11 w-11 items-center justify-center rounded-full text-accent active:bg-surface-2" @click="shiftMonth(-1)">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
                     </button>
-                    <button @click="goToday"
-                        class="h-11 min-w-[140px] flex-1 rounded-field px-4 text-center text-sm font-semibold text-ink-2 transition bg-surface hover:border-accent sm:h-9 sm:flex-none">
-                        {{ monthLabel }}
-                    </button>
-                    <button @click="nextMonth"
-                        class="flex h-11 w-11 items-center justify-center rounded-field bg-surface text-ink-3 transition hover:border-line-strong hover:text-ink sm:h-9 sm:w-9">
-                        ›
-                    </button>
-                    <button @click="goToday"
-                        class="h-11 shrink-0 rounded-field bg-accent px-4 text-sm font-semibold text-white transition hover:opacity-90 sm:h-9">
-                        Heute
+                    <button type="button" aria-label="Nächster Monat" class="flex h-11 w-11 items-center justify-center rounded-full text-accent active:bg-surface-2" @click="shiftMonth(1)">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
                     </button>
                 </div>
-            </div>
+            </header>
 
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
-
-                <!-- Kalender Grid -->
-                <div class="flex-1 bg-surface rounded-card border border-line overflow-hidden shadow-card">
-                    <!-- Wochentage Header -->
-                    <div class="grid grid-cols-7 border-b border-line">
-                        <div v-for="day in ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']" :key="day"
-                            class="py-3 text-center text-xs font-semibold text-ink-3 uppercase tracking-wider">
-                            {{ day }}
-                        </div>
+            <div class="flex flex-col gap-6 px-4 pb-8 pt-3 lg:flex-row lg:items-start lg:px-8">
+                <!-- ── Raster ───────────────────────────────────── -->
+                <section class="rounded-card bg-surface px-2 pb-3 pt-3.5 lg:flex-1">
+                    <div class="mb-1.5 grid grid-cols-7 text-center text-[13px] font-semibold text-ink-3">
+                        <span v-for="d in ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']" :key="d">{{ d }}</span>
+                    </div>
+                    <div class="grid grid-cols-7 gap-y-1.5">
+                        <button v-for="c in cells" :key="c.key" type="button"
+                            :data-drop-date="dropDate(c)"
+                            :disabled="!c.inMonth"
+                            :aria-label="new Date(c.key + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })"
+                            :aria-pressed="c.key === selectedKey"
+                            class="flex min-h-[48px] min-w-0 flex-col items-center gap-[5px] rounded-[12px] pt-1 transition-colors sm:min-h-[84px]"
+                            :class="drag.overDate && drag.overDate === dropDate(c) ? 'bg-accent-soft ring-2 ring-inset ring-accent' : ''"
+                            @click="selectedKey = c.key">
+                            <span class="flex h-[30px] w-[30px] items-center justify-center rounded-full text-[17px] tabular-nums"
+                                :class="c.key === selectedKey && !c.isToday ? 'bg-ink font-bold text-canvas'
+                                    : c.isToday ? 'bg-accent font-bold text-white'
+                                    : c.inMonth ? 'text-ink' : 'text-ink-3/60'">
+                                {{ c.day }}
+                            </span>
+                            <span v-if="c.inMonth && c.dot" class="h-1.5 w-1.5 rounded-full"
+                                :class="[c.dotState === 'skipped' ? 'bg-ink-3/40' : c.dot, c.dotState === 'open' ? 'opacity-40' : '']" />
+                            <!-- Ab sm Platz für den Titel; am Desktop zieht man ihn direkt von hier. -->
+                            <span v-if="c.inMonth && (c.event || c.main)"
+                                class="hidden w-full truncate px-1 text-[12px] font-medium sm:block"
+                                :class="[
+                                    c.event ? sessionType('race_prep').text : sessionType(c.main.type).text,
+                                    c.main && canChange(c.main) ? 'cursor-grab' : '',
+                                    c.main && drag.active && drag.item?.id === c.main.id ? 'opacity-40' : '',
+                                ]"
+                                @mousedown="!c.event && c.main && canChange(c.main) && startDrag($event, c.main, c.main.planned_date, c.main.title)">
+                                {{ c.event ? c.event.name : c.main.title }}
+                            </span>
+                        </button>
                     </div>
 
-                    <!-- Wochen -->
-                    <div>
-                        <div v-for="(week, wi) in calendarWeeks" :key="wi"
-                            class="grid grid-cols-7"
-                            :class="wi < calendarWeeks.length - 1 ? 'border-b border-line' : ''">
-
-                            <!--
-                                Auf dem Telefon zeigt die Zelle nur, DASS an dem
-                                Tag etwas war — Punkte statt Text. Sieben Spalten
-                                zu 44 Pixeln haben fuer Titel und Dauer keinen
-                                Platz: der Titel schrumpfte auf "…" und die
-                                Kilometer brachen mittendrin ab ("22.4 k"). Was
-                                an dem Tag ansteht, steht darunter in der
-                                Tagesliste. Ab sm bleibt alles wie gehabt.
-                            -->
-                            <div v-for="(d, di) in week" :key="di"
-                                :data-drop-date="dropDate(d)"
-                                class="min-h-[56px] border-r border-line p-1 transition-colors last:border-r-0 sm:min-h-[110px] sm:p-2"
-                                :class="{
-                                    'bg-accent-soft ring-2 ring-inset ring-accent': drag.overDate && drag.overDate === dropDate(d),
-                                    'bg-accent-soft/50': d.isToday,
-                                    'opacity-40': !d.currentMonth,
-                                    'cursor-pointer hover:bg-surface-2/50': d.currentMonth,
-                                    'ring-2 ring-inset ring-accent': selected && selected.day === d.day && d.currentMonth,
-                                }"
-                                @click="selectDay(d)">
-
-                                <!-- Tag Zahl -->
-                                <div class="mb-1 flex items-center justify-between">
-                                    <span class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
-                                        :class="{
-                                            'bg-accent text-white': d.isToday,
-                                            'text-ink-3': !d.currentMonth,
-                                            'text-ink-2': d.currentMonth && !d.isToday,
-                                        }">
-                                        {{ d.day }}
-                                    </span>
-                                    <!-- Event Marker -->
-                                    <span v-if="d.event"
-                                        class="rounded-md px-1.5 py-0.5 text-xs font-bold leading-none text-white"
-                                        :class="priorityColor(d.event.priority)">
-                                        {{ d.event.priority }}
-                                    </span>
-                                </div>
-
-                                <!-- Marker statt Inhalt (nur Telefon) -->
-                                <div class="flex flex-wrap items-center gap-1 px-0.5 sm:hidden">
-                                    <span v-if="d.event" class="h-1.5 w-1.5 rounded-full bg-danger" />
-                                    <span v-for="act in d.activities.slice(0, 3)" :key="'a' + act.id"
-                                        class="h-1.5 w-1.5 rounded-full bg-accent" />
-                                    <span v-for="s in visibleSessions(d).slice(0, 3)" :key="'s' + s.id"
-                                        class="h-1.5 w-1.5 rounded-full"
-                                        :class="s.status === 'skipped' ? 'bg-surface-3' : (sessionDotColors[s.type] ?? 'bg-info')" />
-                                </div>
-
-                                <div class="hidden sm:block">
-
-                                <!-- Event Label -->
-                                <div v-if="d.event"
-                                    class="mb-1 px-1.5 py-1 rounded-lg text-xs font-semibold text-white truncate"
-                                    :class="phaseColor(d.event.training_phase?.key)">
-                                    <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18M3 4.5h13.5l-2.25 4.5 2.25 4.5H3" /></svg> {{ d.event.name }}
-                                </div>
-
-                                <!-- Aktivitäten -->
-                                <div v-for="act in d.activities.slice(0, 2)" :key="act.id"
-                                    class="px-1.5 py-1 rounded-lg bg-accent-soft mb-0.5 truncate">
-                                    <p class="text-xs font-semibold text-accent-ink truncate">{{ formatDistance(act.distance) }} km</p>
-                                    <p class="text-xs text-accent">{{ formatTime(act.moving_time) }} · {{ formatPace(act.average_speed) }}/km</p>
-                                </div>
-                                <div v-if="d.activities.length > 2"
-                                    class="px-1.5 text-xs text-ink-3">
-                                    +{{ d.activities.length - 2 }} weitere
-                                </div>
-                                <!-- Training sessions (past days with Strava: hidden) -->
-                                <!-- Am Desktop direkt aus dem Raster ziehen; mit dem Finger
-                                     geht es ueber die Tagesliste (im Raster sind es Punkte). -->
-                                <div v-for="s in visibleSessions(d).slice(0, 1)" :key="s.id"
-                                    class="px-1.5 py-1 rounded-lg mb-0.5 truncate"
-                                    :class="[
-                                        s.status === 'skipped' ? 'opacity-40 bg-surface-2' : 'bg-accent-soft',
-                                        canChange(s) ? 'cursor-grab' : '',
-                                        drag.active && drag.item?.id === s.id ? 'opacity-40' : '',
-                                    ]"
-                                    @mousedown="canChange(s) && startDrag($event, s, s.planned_date, s.title)">
-                                    <p class="text-xs font-semibold truncate"
-                                        :class="s.status === 'skipped' ? 'text-ink-3' : 'text-accent-ink'">
-                                        {{ s.status === 'skipped' ? '✗' : '●' }} {{ s.title }}
-                                    </p>
-                                    <p v-if="s.distance_km && s.status !== 'skipped'" class="text-xs text-accent">{{ s.distance_km }} km</p>
-                                </div>
-                                <div v-if="visibleSessions(d).length > 1" class="px-1.5 text-xs text-ink-3">
-                                    +{{ visibleSessions(d).length - 1 }} weitere
-                                </div>
-                                </div>
-                            </div>
+                    <div v-if="hasPhases" class="mx-2 mt-3">
+                        <div class="flex h-1 gap-[2px]" aria-hidden="true">
+                            <i v-for="p in monthPhases" :key="p.key" class="block flex-1 rounded-full" :class="p.phase ? PHASE_COLORS[p.phase] : 'bg-surface-2'" />
                         </div>
+                        <p v-if="phaseLine" class="mt-1.5 text-[13px] text-ink-3">{{ phaseLine }}</p>
                     </div>
-                </div>
+                </section>
 
-                <!--
-                    Der Tagesbereich stand nur ab lg daneben. Auf dem Telefon
-                    gab es ihn gar nicht — und damit keinen Ort, an dem der
-                    Inhalt eines Tages lesbar gewesen waere. Jetzt steht er
-                    unter dem Raster und rueckt erst ab lg an die Seite.
-                -->
-                <div class="w-full lg:w-72 lg:flex-shrink-0">
-                    <div v-if="!selected" class="rounded-card border border-line bg-surface p-5 text-center shadow-card">
-                        <svg class="mx-auto mb-3 h-8 w-8 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0V11.25A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>
-                        <p class="text-sm font-semibold text-ink-2">Tag auswählen</p>
-                        <p class="mt-1 text-xs text-ink-3">Tippe auf einen Tag im Raster</p>
+                <!-- ── Gewählter Tag ────────────────────────────── -->
+                <section v-if="selected" class="min-w-0 lg:w-[360px] lg:shrink-0">
+                    <div class="mb-2.5 flex items-baseline justify-between gap-3">
+                        <h2 class="text-[22px] font-bold leading-7 tracking-[-0.02em] text-ink">{{ selectedTitle }}</h2>
+                        <span v-if="selected.isToday" class="shrink-0 text-[13px] font-semibold text-accent">Heute</span>
                     </div>
 
-                    <div v-else class="overflow-hidden rounded-card border border-line bg-surface shadow-card">
-                        <!-- Datum als Kopfzeile — sonst weiss man nicht, welcher Tag hier steht -->
-                        <div class="flex items-baseline justify-between gap-3 border-b border-line px-4 py-3">
-                            <p class="text-sm font-bold text-ink">{{ selectedDate }}</p>
-                            <p v-if="selected.day === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear()"
-                                class="shrink-0 text-xs font-semibold text-accent-ink">Heute</p>
-                        </div>
+                    <p v-if="actionError" class="mb-3 rounded-field bg-danger-soft px-3 py-2 text-[13px] text-danger-ink">{{ actionError }}</p>
 
-                        <div v-if="selectedIsEmpty" class="px-4 py-6 text-center">
-                            <p class="text-sm text-ink-3">Nichts geplant, nichts aufgezeichnet.</p>
-                        </div>
-                        <!-- Event -->
-                        <div v-if="selected.event" class="p-4 border-b border-line">
-                            <div class="flex items-center gap-2 mb-2">
-                                <span class="text-xs px-2 py-0.5 rounded-md font-bold text-white" :class="priorityColor(selected.event.priority)">
-                                    Priorität {{ selected.event.priority }}
-                                </span>
-                                <span class="text-xs px-2 py-0.5 rounded-md font-semibold"
-                                    :class="{
-                                        'bg-danger-soft text-danger': selected.event.training_phase?.key === 'race_week',
-                                        'bg-warn-soft text-warn-ink': selected.event.training_phase?.key === 'taper',
-                                        'bg-warn-soft text-warn': selected.event.training_phase?.key === 'peak',
-                                        'bg-info-soft text-info': selected.event.training_phase?.key === 'build',
-                                        'bg-success-soft text-success': selected.event.training_phase?.key === 'base',
-                                    }">
-                                    {{ selected.event.training_phase?.label }}
-                                </span>
-                            </div>
-                            <h3 class="font-bold text-ink"><svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18M3 4.5h13.5l-2.25 4.5 2.25 4.5H3" /></svg> {{ selected.event.name }}</h3>
-                            <p class="text-sm text-ink-3 mt-1">{{ selected.event.distance_label }}</p>
-                            <p v-if="selected.event.target_time_formatted" class="text-sm text-accent-ink font-semibold mt-1">
-                                Ziel: {{ selected.event.target_time_formatted }}
+                    <div class="space-y-3">
+                        <!-- Rennen -->
+                        <Link v-if="selected.event" :href="`/events/${selected.event.id}/plan`"
+                            class="block rounded-card bg-surface p-5 transition-transform active:scale-[0.98]">
+                            <p class="flex items-center gap-1.5 text-[15px] font-semibold" :class="sessionType('race_prep').text">
+                                <span class="h-2 w-2 rounded-full" :class="sessionType('race_prep').dot" />Rennen · Priorität {{ selected.event.priority }}
                             </p>
-                            <p class="text-xs text-ink-3 mt-1">Noch {{ selected.event.days_until }} Tage</p>
-                        </div>
-
-                        <!-- Training Sessions -->
-                        <div v-if="selected.sessions?.length > 0" class="p-4 border-b border-line">
-                            <h5 class="text-[13px] font-semibold text-ink-3 mb-3">Trainingsplan</h5>
-                            <p v-if="actionError" class="mb-3 rounded-field bg-danger-soft px-3 py-2 text-[13px] text-danger-ink">{{ actionError }}</p>
-                            <SwipeRow v-for="s in selected.sessions" :key="s.id"
-                                class="mb-4 last:mb-0 rounded-field"
-                                content-class="bg-surface"
-                                :right-width="canChange(s) ? 88 : 0"
-                                :disabled="!canChange(s) || drag.active">
-                                <template #right="{ close }">
-                                    <button @click="deleteSession(s); close()"
-                                        class="flex w-full flex-col items-center justify-center gap-1 bg-danger text-[11px] font-semibold text-white">
-                                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
-                                        Löschen
-                                    </button>
-                                </template>
-                                <div class="flex items-start gap-2 py-1 select-none"
-                                    :class="drag.active && drag.item?.id === s.id ? 'opacity-40' : ''"
-                                    :style="canChange(s) ? '-webkit-touch-callout: none' : null"
-                                    @touchstart="canChange(s) && startDrag($event, s, s.planned_date, s.title)"
-                                    @mousedown="canChange(s) && startDrag($event, s, s.planned_date, s.title)"
-                                    @contextmenu="canChange(s) && $event.preventDefault()">
-                                    <span class="shrink-0 mt-0.5 h-4 w-4 rounded-full flex items-center justify-center text-xs"
-                                        :class="s.status === 'completed' ? 'bg-success' : s.status === 'skipped' ? 'bg-ink-3' : (sessionDotColors[s.type] || 'bg-accent')">
-                                    </span>
-                                    <div class="flex-1 min-w-0">
-                                        <p class="text-sm font-semibold text-ink leading-tight">{{ s.title }}</p>
-                                        <!-- Als Pille, nicht als Absatz: die Flaechenfarbe lief sonst
-                                             ueber die volle Breite und sah aus wie ein Fehler. -->
-                                        <span class="mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium"
-                                            :class="sessionTypeColors[s.type] || 'bg-surface-2 text-ink-3'">{{ sessionTypeLabels[s.type] || s.type }}</span>
-                                        <div class="flex gap-2 mt-1 flex-wrap">
-                                            <span v-if="s.distance_km" class="text-xs text-ink-3">{{ s.distance_km }} km</span>
-                                            <span v-if="s.duration_min" class="text-xs text-ink-3">{{ s.duration_min }} min</span>
-                                            <span v-if="paceWithUnit(s.pace_target)" class="text-xs text-ink-3">{{ paceWithUnit(s.pace_target) }}</span>
-                                        </div>
-                                        <span v-if="s.status === 'completed'" class="text-xs text-success-ink font-medium"><svg class="mr-1 inline-block h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Erledigt</span>
-                                        <span v-else-if="s.status === 'skipped'" class="text-xs text-ink-3">Übersprungen<span v-if="s.skip_reason"> — {{ s.skip_reason }}</span></span>
-                                        <!-- Description -->
-                                        <p v-if="s.description && s.type !== 'rest'" class="mt-1.5 text-xs text-ink-3 leading-relaxed line-clamp-3">{{ s.description }}</p>
-                                        <!-- Rating badge -->
-                                        <div v-if="s.rating" class="mt-1 flex items-center gap-1">
-                                            <span v-for="i in s.rating" :key="i" class="text-warn text-xs"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.6 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.5 6.1 20.6l1.2-6.5L2.5 9.5l6.6-.9Z" /></svg></span>
-                                        </div>
-                                        <!-- Link to plan -->
-                                        <a v-if="s.event_id && s.type !== 'rest'"
-                                            :href="`/events/${s.event_id}/plan`"
-                                            class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-accent-ink hover:text-accent-ink transition-colors"
-                                        >
-                                            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
-                                            Zum Plan
-                                        </a>
-                                    </div>
-                                    <button v-if="finePointer && canChange(s)" type="button"
-                                        :aria-label="`${s.title} löschen`" title="Löschen"
-                                        class="shrink-0 rounded-full p-1.5 text-ink-3 transition hover:bg-danger-soft hover:text-danger-ink active:scale-95"
-                                        @click="confirmDelete(s)">
-                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
-                                    </button>
+                            <h3 class="mt-1.5 text-[22px] font-bold leading-7 tracking-tight text-ink">{{ selected.event.name }}</h3>
+                            <div class="mt-3 flex gap-6">
+                                <div>
+                                    <p class="text-[13px] text-ink-3">Distanz</p>
+                                    <p class="font-rounded text-[22px] font-bold tabular-nums text-ink">{{ selected.event.distance_label }}</p>
                                 </div>
-                            </SwipeRow>
-                        </div>
+                                <div v-if="selected.event.target_time_formatted">
+                                    <p class="text-[13px] text-ink-3">Ziel</p>
+                                    <p class="font-rounded text-[22px] font-bold tabular-nums text-ink">{{ selected.event.target_time_formatted }}</p>
+                                </div>
+                            </div>
+                        </Link>
+
+                        <!-- Einheiten -->
+                        <SwipeRow v-for="s in daySessions" :key="s.id"
+                            class="rounded-card"
+                            content-class="bg-transparent"
+                            :right-width="canChange(s) ? 88 : 0"
+                            :disabled="!canChange(s) || drag.active">
+                            <template #right="{ close }">
+                                <button @click="deleteSession(s); close()"
+                                    class="flex w-full flex-col items-center justify-center gap-1 bg-danger text-[11px] font-semibold text-white">
+                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
+                                    Löschen
+                                </button>
+                            </template>
+                            <div class="relative select-none"
+                                :class="[drag.active && drag.item?.id === s.id ? 'opacity-40' : '', s.status === 'skipped' ? 'opacity-50' : '', s.event_id ? 'cursor-pointer' : '']"
+                                :style="canChange(s) ? '-webkit-touch-callout: none' : null"
+                                @touchstart="canChange(s) && startDrag($event, s, s.planned_date, s.title)"
+                                @mousedown="canChange(s) && startDrag($event, s, s.planned_date, s.title)"
+                                @contextmenu="canChange(s) && $event.preventDefault()"
+                                @click="openSession(s)">
+                                <SessionCard :session="s"
+                                    :badge="s.status === 'completed' ? 'Erledigt' : s.status === 'skipped' ? 'Ausgelassen' : null"
+                                    :badge-tone="s.status === 'completed' ? 'success' : 'neutral'" />
+                                <button v-if="finePointer && canChange(s)" type="button"
+                                    :aria-label="`${s.title} löschen`" title="Löschen"
+                                    class="absolute right-3 top-3 rounded-full p-1.5 text-ink-3 transition hover:bg-danger-soft hover:text-danger-ink active:scale-95"
+                                    @click.stop="confirmDelete(s)">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
+                                </button>
+                            </div>
+                        </SwipeRow>
 
                         <!-- Aktivitäten -->
-                        <div v-if="selected.activities.length" class="p-4">
-                            <div v-for="act in selected.activities" :key="act.id" class="mb-4 last:mb-0">
-                                <!--
-                                    Hier standen fuenf Kacheln in fuenf
-                                    Saettigungsfarben, jede mit farbigem Grund
-                                    UND farbiger Zahl. Distanz, Zeit, Tempo,
-                                    Puls und Hoehe sind aber keine Zustaende —
-                                    nichts davon ist gut oder schlecht, also
-                                    traegt nichts davon eine Farbe. Label grau,
-                                    Zahl neutral, Einheit klein daneben.
-                                -->
-                                <h4 class="mb-3 text-[15px] font-semibold text-ink">{{ act.name }}</h4>
-                                <div class="grid grid-cols-2 gap-x-4 gap-y-3">
-                                    <div>
-                                        <p class="text-[13px] leading-4 text-ink-3">Distanz</p>
-                                        <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ formatDistance(act.distance) }}<span class="text-[13px] font-medium text-ink-3"> km</span></p>
-                                    </div>
-                                    <div>
-                                        <p class="text-[13px] leading-4 text-ink-3">Zeit</p>
-                                        <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ formatTime(act.moving_time) }}</p>
-                                    </div>
-                                    <div>
-                                        <p class="text-[13px] leading-4 text-ink-3">Tempo</p>
-                                        <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ formatPace(act.average_speed) }}<span class="text-[13px] font-medium text-ink-3"> /km</span></p>
-                                    </div>
-                                    <div v-if="act.average_heartrate">
-                                        <p class="text-[13px] leading-4 text-ink-3">Puls</p>
-                                        <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ Math.round(act.average_heartrate) }}<span class="text-[13px] font-medium text-ink-3"> bpm</span></p>
-                                    </div>
-                                    <div v-if="act.total_elevation_gain">
-                                        <p class="text-[13px] leading-4 text-ink-3">Höhe</p>
-                                        <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ Math.round(act.total_elevation_gain) }}<span class="text-[13px] font-medium text-ink-3"> m</span></p>
-                                    </div>
-                                </div>
-                            </div>
+                        <div v-if="selected.acts.length" class="divide-y divide-line overflow-hidden rounded-card bg-surface">
+                            <Link v-for="a in selected.acts" :key="a.id" :href="route('activities.show', a.id)"
+                                class="flex min-w-0 items-center gap-3 px-4 py-3 transition-colors active:bg-surface-2">
+                                <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-surface-2 text-ink-2">
+                                    <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9" aria-hidden="true" v-html="activityType(a.type).icon" />
+                                </span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-[17px] text-ink">{{ a.name }}</span>
+                                    <span class="block text-[13px] text-ink-3">{{ actTime(a) }} Uhr</span>
+                                </span>
+                                <span class="shrink-0 text-right">
+                                    <span class="block font-rounded text-[17px] font-bold tabular-nums text-ink">{{ actPrimary(a) }}</span>
+                                    <span v-if="actSecondary(a)" class="block text-[13px] tabular-nums text-ink-3">{{ actSecondary(a) }}</span>
+                                </span>
+                            </Link>
                         </div>
+
+                        <p v-if="dayIsEmpty" class="rounded-card bg-surface px-4 py-6 text-center text-[15px] text-ink-3">Nichts geplant, nichts aufgezeichnet.</p>
                     </div>
 
-                    <!-- Legende -->
-                    <div class="mt-4 bg-surface rounded-card border border-line p-4 shadow-card">
-                        <h5 class="text-[13px] font-semibold text-ink-3 mb-3">Trainingsphasen</h5>
-                        <div class="space-y-1.5">
-                            <div v-for="phase in [
-                                { key: 'base', label: 'Base', color: 'bg-success' },
-                                { key: 'build', label: 'Build (6 Wo.)', color: 'bg-info' },
-                                { key: 'peak', label: 'Peak (6 Wo.)', color: 'bg-warn' },
-                                { key: 'taper', label: 'Taper (1–3 Wo., je nach Distanz)', color: 'bg-warn' },
-                                { key: 'race_week', label: 'Race Week (letzte 7 Tage)', color: 'bg-danger' },
-                            ]" :key="phase.key" class="flex items-center gap-2">
-                                <div class="h-2.5 w-2.5 rounded-full flex-shrink-0" :class="phase.color"></div>
-                                <span class="text-xs text-ink-2">{{ phase.label }}</span>
-                            </div>
-                        </div>
+                    <div class="mt-5 flex flex-wrap gap-x-3.5 gap-y-1.5 text-[13px] text-ink-3">
+                        <span v-for="l in LEGEND" :key="l.type" class="flex items-center gap-1.5">
+                            <span class="h-2 w-2 rounded-full" :class="sessionType(l.type).dot" />{{ l.label }}
+                        </span>
                     </div>
-                </div>
-            </div>
-
-            <!-- Mobile: selected day detail -->
-            <div v-if="selected" class="mt-4 lg:hidden bg-surface rounded-card border border-line p-4 shadow-card">
-                <div v-if="selected.event" class="mb-3 pb-3 border-b border-line">
-                    <p class="font-bold text-ink"><svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18M3 4.5h13.5l-2.25 4.5 2.25 4.5H3" /></svg> {{ selected.event.name }}</p>
-                    <p class="text-sm text-ink-3">{{ selected.event.distance_label }} · Noch {{ selected.event.days_until }} Tage</p>
-                </div>
-                <div v-if="selected.sessions?.length > 0" class="mb-3 pb-3 border-b border-line">
-                    <p class="text-[13px] font-semibold text-ink-3 mb-2">Trainingsplan</p>
-                    <div v-for="s in selected.sessions" :key="s.id" class="mb-2 last:mb-0">
-                        <div class="flex items-center gap-2">
-                            <div class="h-3 w-3 rounded-full shrink-0" :class="s.status === 'completed' ? 'bg-success' : s.status === 'skipped' ? 'bg-ink-3' : (sessionDotColors[s.type] || 'bg-accent')"></div>
-                            <span class="text-sm font-medium text-ink flex-1">{{ s.title }}</span>
-                            <span v-if="s.distance_km" class="text-xs text-ink-3">{{ s.distance_km }} km</span>
-                        </div>
-                        <p v-if="s.description && s.type !== 'rest'" class="mt-1 ml-5 text-xs text-ink-3 line-clamp-2">{{ s.description }}</p>
-                        <div v-if="s.rating" class="mt-1 ml-5 flex items-center gap-0.5">
-                            <span v-for="i in s.rating" :key="i" class="text-warn text-xs"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.6 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.5 6.1 20.6l1.2-6.5L2.5 9.5l6.6-.9Z" /></svg></span>
-                        </div>
-                        <a v-if="s.event_id && s.type !== 'rest'" :href="`/events/${s.event_id}/plan`"
-                            class="mt-1 ml-5 inline-flex items-center gap-1 text-xs font-semibold text-accent-ink">
-                            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
-                            Zum Plan
-                        </a>
-                    </div>
-                </div>
-                <div v-for="act in selected.activities" :key="act.id" class="mb-4 last:mb-0">
-                    <p class="mb-3 text-[15px] font-semibold text-ink">{{ act.name }}</p>
-                    <div class="grid grid-cols-2 gap-x-4 gap-y-3">
-                        <div>
-                            <p class="text-[13px] leading-4 text-ink-3">Distanz</p>
-                            <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ formatDistance(act.distance) }}<span class="text-[13px] font-medium text-ink-3"> km</span></p>
-                        </div>
-                        <div>
-                            <p class="text-[13px] leading-4 text-ink-3">Zeit</p>
-                            <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ formatTime(act.moving_time) }}</p>
-                        </div>
-                        <div>
-                            <p class="text-[13px] leading-4 text-ink-3">Tempo</p>
-                            <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ formatPace(act.average_speed) }}<span class="text-[13px] font-medium text-ink-3"> /km</span></p>
-                        </div>
-                        <div v-if="act.average_heartrate">
-                            <p class="text-[13px] leading-4 text-ink-3">Puls</p>
-                            <p class="font-rounded text-[17px] font-semibold leading-[21px] tabular-nums text-ink">{{ Math.round(act.average_heartrate) }}<span class="text-[13px] font-medium text-ink-3"> bpm</span></p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
+                </section>
             </div>
         </div>
         <DragGhost :drag="drag" />

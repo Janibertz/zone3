@@ -75,13 +75,32 @@ class SportFilterTest extends TestCase
                 ->where('totals.km', 40));
     }
 
-    /** Die Pace bleibt bei Läufen — über Radfahrten sagt sie nichts. */
-    public function test_the_pace_trend_stays_with_runs(): void
+    /** Bestzeiten und 80/20 bleiben bei Läufen — über Radfahrten sagen sie nichts. */
+    public function test_best_times_stay_with_runs(): void
     {
         $user = $this->athlete();
+        \App\Models\BestEffort::create([
+            'user_id' => $user->id, 'activity_id' => Activity::where('user_id', $user->id)->value('id'), 'distance_key' => '5k', 'distance_m' => 5000,
+            'elapsed_time' => 1200, 'achieved_at' => now()->subDays(3),
+        ]);
+
+        $this->actingAs($user)->get(route('statistics.index', ['sport' => 'run']))
+            ->assertInertia(fn ($page) => $page->has('bests', 1)->where('bests.0.seconds', 1200));
 
         $this->actingAs($user)->get(route('statistics.index', ['sport' => 'ride']))
-            ->assertInertia(fn ($page) => $page->has('paceTrend', 2));
+            ->assertInertia(fn ($page) => $page->has('bests', 0)->where('intensity', null));
+    }
+
+    /** Unter „Alle" zählt die Pace nur Läufe; eine Mischung mit dem Rad hätte keine Aussage. */
+    public function test_the_average_pace_under_all_counts_runs_only(): void
+    {
+        // Feste Gegenwart: drei Tage alte Aktivitäten liegen sonst Anfang
+        // Januar im Vorjahr.
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-10-28 12:00'));
+        $user = $this->athlete(); // zwei Läufe à 30 min: 22 km in 3600 s
+
+        $this->actingAs($user)->get(route('statistics.index', ['period' => 'year']))
+            ->assertInertia(fn ($page) => $page->where('current.speed', round(22000 / 3600, 4)));
     }
 
     /**
