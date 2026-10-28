@@ -187,6 +187,23 @@ class GarminController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /**
+     * Aktivitaeten per Push (Zusammenfassung, Details mit Messpunkten,
+     * in Garmin Connect geaenderte). Dieselbe Haltung wie bei den
+     * Erholungswerten: 200 sofort, die Arbeit in der Queue, gespeichert nur
+     * fuer verbundene Athleten mit Aktivitaets-Freigabe und Garmin als Quelle.
+     */
+    public function webhookActivities(Request $request): JsonResponse
+    {
+        $payload = $request->json()->all();
+
+        if (array_intersect(array_keys($payload), \App\Services\Garmin\GarminActivityImporter::TYPES) !== []) {
+            \App\Jobs\ImportGarminActivitiesJob::dispatch($payload);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
     private function handleUserEvent(string $type, string $garminUserId): void
     {
         $connection = $garminUserId !== '' ? GarminConnection::where('garmin_user_id', $garminUserId)->first() : null;

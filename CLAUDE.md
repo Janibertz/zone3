@@ -765,6 +765,18 @@ Zone3 ist im Garmin Connect Developer Program (Activity, Health, Training API). 
 - Löscht Strava eine Zeile, die Garmin angelegt hat, fällt nur die `strava_id` weg (`detached`).
 - **Strava trennen löscht keine Aktivitäten mehr** (vorher `$user->activities()->delete()`).
 
+**Aktivitäten per Push (Schritt 4).** `POST /garmin/webhook/activities` nimmt `activities`, `activityDetails` und `manuallyUpdatedActivities` an einer URL an → `ImportGarminActivitiesJob` → `GarminActivityImporter`. Feldnamen nach der **Activity API Specification 2.0** (PDF im Portal).
+
+- **Profil → Verbindungen → „Aktivitäten kommen von"** erscheint nur, wenn Strava verbunden ist **und** Garmin Aktivitäten freigegeben hat (`User::usableActivitySources()`). Eine Wahl, die nicht liefern kann (Freigabe entzogen), fällt still auf die andere Quelle zurück.
+- Zusammenfassung und Details kommen getrennt, in beliebiger Reihenfolge. Die erste legt an, die zweite frischt auf; Bestzeiten entstehen, sobald Messpunkte da sind. Details liefern Linie (`Polyline::encode`, höchstens 2000 Punkte), Runden (aus den Rundenstarts und den Messpunkten dazwischen) und die Bewegungszeit (`movingDurationInSeconds`).
+- **Bestzeiten rechnet Zone3 selbst** (`BestEffortService::effortsFromStream()`): kürzestes Zeitfenster je Distanz über Uhrzeit, nicht Bewegungszeit — eine Ampelpause gehört zur Zeit.
+- `manuallyUpdatedActivities` trägt laut Spezifikation **kein `activityId`**, nur `summaryId` (dieselbe Zahl; bei Details mit `-detail`). Ein Mehrsport-Rahmen (`isParent`) wird nicht gespeichert, seine Teile kommen einzeln. `deviceName = unknown` heißt manuell angelegt.
+- Typen übersetzt `GarminActivityType::toInternal()` in Stravas `type`-Vokabular (Trail/Laufband → `Run`, Gravel/MTB → `Ride`, Wechselzonen und Rollstuhl → `Workout`).
+- `start_date` hält wie bei Strava die **UTC-Uhrzeit** — sonst fände der Abgleich dieselbe Einheit nicht.
+- Im Protokoll (`garmin_webhook_events.payload`) stehen nur die ersten drei Messpunkte plus `samples_count`; zwei Stunden mit einem Punkt pro Sekunde wären Megabytes je Lauf.
+- Die Aktivitätsseite nennt das Gerät und verlinkt Garmin Connect (Garmin verlangt die Herkunftsangabe).
+- Im Garmin-Endpunkt-Tool zeigen Activities, Activity Details und Manually Updated Activities auf `https://zone3.run/garmin/webhook/activities`.
+
 - Im Garmin-Endpunkt-Tool zeigen Dailies, Sleeps, HRV Summary, Stress und User Metrics auf `https://zone3.run/garmin/webhook/health`. Die Werte stehen ungeprüft im Body (Garmin signiert nicht); gespeichert wird nur für verbundene Athleten mit `HEALTH_EXPORT`.
 
 ## Admin Panel

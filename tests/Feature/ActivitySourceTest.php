@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\GenerateSessionReviewJob;
 use App\Models\Activity;
+use App\Models\GarminConnection;
 use App\Models\IgnoredActivity;
 use App\Models\StravaAccount;
 use App\Models\StravaWebhookEvent;
@@ -55,6 +56,19 @@ class ActivitySourceTest extends TestCase
             'access_token'     => 'tok',
             'refresh_token'    => 'ref',
             'token_expires_at' => now()->addDay(),
+        ]);
+    }
+
+    private function connectGarmin(): void
+    {
+        GarminConnection::create([
+            'user_id'                 => $this->user->id,
+            'garmin_user_id'          => 'g-' . $this->user->id,
+            'access_token'            => 'a',
+            'refresh_token'           => 'r',
+            'access_token_expires_at' => now()->addHours(20),
+            'permissions'             => [GarminConnection::ACTIVITY],
+            'ai_consent_at'           => now(),
         ]);
     }
 
@@ -215,6 +229,7 @@ class ActivitySourceTest extends TestCase
 
     public function test_a_garmin_athlete_gets_nothing_from_the_strava_webhook(): void
     {
+        $this->connectGarmin();
         $this->user->forceFill(['activity_source' => Activity::SOURCE_GARMIN])->save();
 
         // Kein Http::fake — ein Abruf bei Strava würde hier werfen.
@@ -290,8 +305,40 @@ class ActivitySourceTest extends TestCase
 
     public function test_an_explicit_choice_wins(): void
     {
+        $this->connectGarmin();
         $this->user->forceFill(['activity_source' => Activity::SOURCE_GARMIN])->save();
 
         $this->assertSame(Activity::SOURCE_GARMIN, $this->user->fresh()->activitySource());
+    }
+
+    public function test_a_choice_that_cannot_deliver_falls_back(): void
+    {
+        // Garmin gewählt, aber keine Verbindung mit Aktivitäts-Freigabe.
+        $this->user->forceFill(['activity_source' => Activity::SOURCE_GARMIN])->save();
+
+        $this->assertSame(Activity::SOURCE_STRAVA, $this->user->fresh()->activitySource());
+    }
+
+    public function test_garmin_alone_is_the_source(): void
+    {
+        $this->account->delete();
+        $this->connectGarmin();
+
+        $this->assertSame(Activity::SOURCE_GARMIN, $this->user->fresh()->activitySource());
+    }
+
+    public function test_the_source_can_only_be_chosen_when_both_deliver(): void
+    {
+        $this->actingAs($this->user)
+            ->patch(route('profile.activity-source'), ['source' => 'garmin'])
+            ->assertSessionHasErrors('source');
+
+        $this->connectGarmin();
+
+        $this->actingAs($this->user->fresh())
+            ->patch(route('profile.activity-source'), ['source' => 'garmin'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('garmin', $this->user->fresh()->activity_source);
     }
 }

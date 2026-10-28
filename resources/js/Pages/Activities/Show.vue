@@ -725,6 +725,20 @@ onUnmounted(() => {
                     </a>
                 </div>
 
+                <!-- ── Garmin: Herkunft nennen (Garmin verlangt die Angabe) ── -->
+                <div v-if="activity.garmin_activity_id || activity.device_name" class="flex flex-col items-center gap-2 pb-2 pt-1">
+                    <p v-if="activity.device_name" class="text-[13px] text-ink-3">Aufgezeichnet mit {{ activity.device_name }}</p>
+                    <a
+                        v-if="activity.garmin_activity_id"
+                        :href="`https://connect.garmin.com/modern/activity/${activity.garmin_activity_id}`"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-flex items-center gap-2 rounded-full bg-surface-2 px-5 py-2.5 text-[13px] font-semibold text-ink transition-opacity hover:opacity-90 active:opacity-70"
+                    >
+                        In Garmin Connect ansehen
+                    </a>
+                </div>
+
             </div>
         </div>
     </AuthenticatedLayout>

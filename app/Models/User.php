@@ -20,7 +20,7 @@ use Illuminate\Notifications\Notifiable;
     'push_notifications_enabled', 'wellbeing_reminder_time', 'notify_threshold_pace', 'notify_plan_updated',
     'notify_monthly_review',
     'avatar', 'bio', 'location', 'birth_year', 'favorite_distance', 'coach_id',
-    'garmin_email', 'garmin_session', 'ai_daily_limit',
+    'garmin_email', 'garmin_session', 'ai_daily_limit', 'activity_source',
     'newsletter_opt_in', 'unsubscribe_token',
     'telegram_chat_id', 'telegram_link_token', 'telegram_linked_at', 'calendar_token'])]
 #[Hidden(['password', 'remember_token', 'garmin_session', 'garmin_email', 'unsubscribe_token',
@@ -92,29 +92,42 @@ class User extends Authenticatable
     }
 
     /**
-     * Kommen Erholungswerte von Garmin an — per Push ueber die offizielle
-     * Verbindung (mit Health-Freigabe) oder ueber den alten Login.
-     */
-    /**
      * Woher Aktivitäten kommen. Eine Quelle pro Athlet (Entscheidung vom
      * 27.10.2026), damit nie zwei Wege dieselbe Einheit anlegen.
      *
-     * Ohne eigene Wahl: Strava, wenn verbunden, sonst Garmin mit
-     * Aktivitäts-Freigabe, sonst Strava.
+     * Die eigene Wahl gilt, solange die Quelle liefern kann: Strava
+     * verbunden, bei Garmin mit Aktivitäts-Freigabe. Sonst die Quelle, die
+     * liefern kann — wer Garmin wählt und die Freigabe in Garmin Connect
+     * abschaltet, fällt auf Strava zurück, statt nichts mehr zu bekommen.
      */
     public function activitySource(): string
     {
-        if (in_array($this->activity_source, array_keys(Activity::ID_COLUMNS), true)) {
+        $usable = $this->usableActivitySources();
+
+        if (in_array($this->activity_source, $usable, true)) {
             return $this->activity_source;
         }
 
-        if (! $this->stravaAccount && $this->garminConnection?->allows(GarminConnection::ACTIVITY)) {
-            return Activity::SOURCE_GARMIN;
-        }
-
-        return Activity::SOURCE_STRAVA;
+        return $usable[0] ?? Activity::SOURCE_STRAVA;
     }
 
+    /**
+     * Die Quellen, die gerade liefern können, Strava zuerst.
+     *
+     * @return list<string>
+     */
+    public function usableActivitySources(): array
+    {
+        return array_values(array_filter([
+            $this->stravaAccount ? Activity::SOURCE_STRAVA : null,
+            $this->garminConnection?->allows(GarminConnection::ACTIVITY) ? Activity::SOURCE_GARMIN : null,
+        ]));
+    }
+
+    /**
+     * Kommen Erholungswerte von Garmin an — per Push ueber die offizielle
+     * Verbindung (mit Health-Freigabe) oder ueber den alten Login.
+     */
     public function receivesGarminHealth(): bool
     {
         return ! empty($this->garmin_session)

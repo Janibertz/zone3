@@ -65,6 +65,11 @@ class ProfileController extends Controller
                 'connection' => $user->garminConnection?->summary(),
                 'status'     => session('garmin_status'),
             ],
+            // Woher Aktivitäten kommen. Wählbar nur, wenn beide liefern können.
+            'activitySource'   => [
+                'current' => $user->activitySource(),
+                'usable'  => $user->usableActivitySources(),
+            ],
             'stravaAccount'    => $user->stravaAccount ? [
                 'username'       => $user->stravaAccount->username,
                 'last_synced_at' => $user->stravaAccount->last_synced_at,
@@ -149,6 +154,24 @@ class ProfileController extends Controller
         $request->user()->update(['coach_id' => $request->coach_id]);
 
         return Redirect::route('profile.edit')->with('status', 'coach-updated');
+    }
+
+    /**
+     * „Aktivitäten kommen von" — eine Quelle pro Athlet. Gewählt werden kann
+     * nur, was gerade liefern kann; sonst stünde eine Wahl da, die
+     * `User::activitySource()` stillschweigend übergeht.
+     */
+    public function updateActivitySource(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        $request->validate([
+            'source' => ['required', 'string', \Illuminate\Validation\Rule::in($user->usableActivitySources())],
+        ]);
+
+        $user->update(['activity_source' => $request->source]);
+
+        return Redirect::route('profile.edit')->with('status', 'activity-source-updated');
     }
 
     public function destroy(Request $request): RedirectResponse

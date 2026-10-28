@@ -23,6 +23,13 @@ class GarminWebhookEvent extends Model
     public const OUTCOME_NOT_PERMITTED      = 'not_permitted';
     public const OUTCOME_NOTHING_TO_STORE   = 'nothing_to_store';
 
+    // Aktivitaeten
+    public const OUTCOME_IMPORTED           = 'imported';
+    public const OUTCOME_ATTACHED           = 'attached';
+    public const OUTCOME_UPDATED            = 'updated';
+    public const OUTCOME_OTHER_SOURCE       = 'other_source';
+    public const OUTCOME_TOMBSTONED         = 'tombstoned';
+
     public function user()
     {
         return $this->belongsTo(User::class);
