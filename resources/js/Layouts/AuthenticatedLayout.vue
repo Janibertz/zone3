@@ -8,7 +8,6 @@ import { useInstallPrompt } from '@/Composables/useInstallPrompt';
 import { usePullToRefresh } from '@/Composables/usePullToRefresh';
 import UserAvatar from '@/Components/UserAvatar.vue';
 import CoachSlideOver from '@/Components/CoachSlideOver.vue';
-import AppSheet from '@/Components/UI/AppSheet.vue';
 import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 
 const { updateReady, startVersionPolling, reload } = useVersionCheck();
@@ -17,7 +16,7 @@ onMounted(() => startVersionPolling());
 /*
  * Hier stand ein schwebender Hilfe-Knopf. Er lag in jeder Scrollposition
  * auf Text, und iOS kennt das Muster nicht — eine schwebende Aktion ist
- * Android. „Hilfe & Feedback" steht jetzt im Mehr-Sheet und in der
+ * Android. „Hilfe & Feedback" steht jetzt auf der Mehr-Seite und in der
  * Seitenleiste, wie eine Zeile in den Einstellungen.
  */
 
@@ -25,8 +24,6 @@ onMounted(() => startVersionPolling());
 const { pullDistance, refreshing, threshold: ptrThreshold } = usePullToRefresh();
 
 const { isInstallable, isIOSHint, installApp, dismiss: dismissInstall } = useInstallPrompt();
-
-const moreOpen = ref(false);
 
 const page = usePage();
 const user       = computed(() => page.props.auth.user);
@@ -107,22 +104,12 @@ const mobileNavItems = computed(() => {
     ];
 });
 
-// Items shown in the "Mehr" sheet — everything not on the bottom bar.
-// `tint` ist die Farbe des Icon-Quadrats, wie in den iOS-Einstellungen:
-// weisses Symbol auf farbiger Flaeche, damit man die Zeile am Icon findet.
-const moreNavItems = computed(() => {
-    const items = [
-        { ...nav('statistics.index'), tint: 'bg-fitness' },
-        { ...nav('workouts.index'),   tint: 'bg-warn' },
-        { ...nav('live.manage'),      tint: 'bg-success' },
-        { ...nav('profile.edit'),     tint: 'bg-ink-3' },
-    ];
-    // With an active plan the bottom bar shows "Plan", so surface Events here too.
-    if (activePlan.value) items.splice(0, 0, { ...nav('events.index'), tint: 'bg-danger' });
-    return items;
-});
-
+/** Was über „Mehr" erreicht wird, lässt den Tab aktiv — wie in iOS. */
+const MORE_ROUTES = ['more', 'profile.edit', 'workouts.*', 'statistics.index', 'live.*', 'wrapped.index', 'support.*', 'admin.*'];
 const helpIcon = `<path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />`;
+
+const moreActive = computed(() =>
+    MORE_ROUTES.some(r => route().current(r)) || (!!activePlan.value && route().current('events.index')));
 </script>
 
 <template>
@@ -463,160 +450,22 @@ const helpIcon = `<path stroke-linecap="round" stroke-linejoin="round" d="M9.879
                     <span class="max-w-full truncate px-0.5 text-[10px] font-semibold leading-none">{{ item.label }}</span>
                 </Link>
 
-                <!-- Mehr button -->
-                <button
-                    @click="moreOpen = true"
+                <!-- Mehr: eine eigene Seite, aktiv auch auf allem, was von dort aus erreicht wird -->
+                <Link
+                    :href="route('more')"
+                    :aria-current="moreActive ? 'page' : undefined"
                     class="flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-0.5 transition-colors"
-                    :class="moreOpen ? 'text-accent' : 'text-ink-3'"
+                    :class="moreActive ? 'text-accent' : 'text-ink-3'"
                 >
-                    <svg class="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7">
+                    <svg class="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="moreActive ? 2.1 : 1.7">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                     </svg>
                     <span class="text-[10px] font-semibold leading-none">Mehr</span>
-                </button>
+                </Link>
             </div>
         </nav>
 
-        <!-- ══════════════════════════════════════
-             MOBILE "MEHR" SHEET
-             ══════════════════════════════════════ -->
-        <AppSheet :show="moreOpen" title="Menü" @close="moreOpen = false">
-            <!--
-                Eine gruppierte Liste wie in den iOS-Einstellungen: farbiges
-                Icon-Quadrat, Titel, Pfeil, Haarlinien eingerueckt bis zum Text.
-            -->
-            <nav class="overflow-hidden rounded-card bg-surface-2/60 dark:bg-surface-2">
-                <Link
-                    v-for="(item, i) in moreNavItems"
-                    :key="item.routeName"
-                    :href="item.planId ? route(item.routeName, item.planId) : route(item.routeName)"
-                    @click="moreOpen = false"
-                    class="flex min-h-[48px] items-center gap-3 pl-3 transition-colors active:bg-surface-3"
-                >
-                    <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] text-white" :class="item.tint">
-                        <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" v-html="item.icon" />
-                    </span>
-                    <span class="flex min-h-[48px] min-w-0 flex-1 items-center gap-2 pr-3" :class="i > 0 ? 'border-t border-line' : ''">
-                        <span class="flex-1 truncate text-[17px] text-ink">{{ item.label }}</span>
-                        <svg class="h-4 w-4 shrink-0 text-ink-3/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                        </svg>
-                    </span>
-                </Link>
-            </nav>
-
-            <nav class="mt-5 overflow-hidden rounded-card bg-surface-2/60 dark:bg-surface-2">
-                <Link
-                    :href="route('support.tickets.index')"
-                    @click="moreOpen = false"
-                    class="flex min-h-[48px] items-center gap-3 pl-3 transition-colors active:bg-surface-3"
-                >
-                    <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-accent text-white">
-                        <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" v-html="helpIcon" />
-                    </span>
-                    <span class="flex min-h-[48px] min-w-0 flex-1 items-center gap-2 pr-3">
-                        <span class="flex-1 truncate text-[17px] text-ink">Hilfe &amp; Feedback</span>
-                        <svg class="h-4 w-4 shrink-0 text-ink-3/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                        </svg>
-                    </span>
-                </Link>
-
-                <!-- Admin link -->
-                <Link
-                    v-if="isAdmin"
-                    :href="route('admin.dashboard')"
-                    @click="moreOpen = false"
-                    class="flex min-h-[48px] items-center gap-3 pl-3 transition-colors active:bg-surface-3"
-                >
-                    <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-danger text-white">
-                        <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-                        </svg>
-                    </span>
-                    <span class="flex min-h-[48px] min-w-0 flex-1 items-center gap-2 border-t border-line pr-3">
-                        <span class="flex-1 truncate text-[17px] text-ink">Admin-Bereich</span>
-                        <svg class="h-4 w-4 shrink-0 text-ink-3/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                        </svg>
-                    </span>
-                </Link>
-            </nav>
-
-            <!-- Darstellung -->
-            <div class="mt-5">
-                <p class="mb-1.5 px-1 text-[13px] font-semibold text-ink-3">Darstellung</p>
-                <SegmentedControl :model-value="theme" :options="themeOptions" @update:model-value="setTheme" />
-            </div>
-
-            <!-- PWA Install Card (Android) -->
-            <div v-if="isInstallable" class="mt-5 rounded-card bg-accent px-4 py-4">
-                <div class="mb-3 flex items-start gap-3">
-                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-field bg-surface/20">
-                        <span class="text-base font-bold text-white">Z3</span>
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <p class="text-sm font-bold leading-tight text-white">Zone3 immer griffbereit</p>
-                        <p class="mt-0.5 text-xs leading-snug text-white/75">Kostenlos als App auf deinem Homescreen – kein Speicherplatz nötig</p>
-                    </div>
-                </div>
-                <div class="flex items-center justify-end gap-3">
-                    <button @click="dismissInstall" class="py-1 text-xs font-medium text-white/70 transition-colors hover:text-white">
-                        Nicht jetzt
-                    </button>
-                    <button
-                        @click="installApp"
-                        class="rounded-full bg-surface px-5 py-2 text-xs font-bold text-accent-ink transition-colors hover:bg-surface/90"
-                    >
-                        Installieren
-                    </button>
-                </div>
-            </div>
-
-            <!-- PWA Install Card (iOS) -->
-            <div v-else-if="isIOSHint" class="mt-5 rounded-card bg-accent px-4 py-4">
-                <div class="mb-3 flex items-start gap-3">
-                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-field bg-surface/20">
-                        <span class="text-base font-bold text-white">Z3</span>
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <p class="text-sm font-bold leading-tight text-white">Zone3 als App installieren</p>
-                        <p class="mt-1 text-xs leading-snug text-white/80">
-                            Tippe auf
-                            <svg class="mx-0.5 -mt-0.5 inline h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15m0-3-3-3m0 0-3 3m3-3V15" />
-                            </svg>
-                            und dann <strong>„Zum Home-Bildschirm"</strong>
-                        </p>
-                    </div>
-                </div>
-                <div class="flex items-center justify-end">
-                    <button @click="dismissInstall" class="py-1 text-xs font-medium text-white/70 transition-colors hover:text-white">
-                        Verstanden
-                    </button>
-                </div>
-            </div>
-
-            <!-- User -->
-            <div class="mt-5 overflow-hidden rounded-card bg-surface-2/60 dark:bg-surface-2">
-                <div class="flex items-center gap-3 px-3 py-2.5">
-                    <UserAvatar :user="user" size="sm" />
-                    <div class="min-w-0 flex-1">
-                        <p class="truncate text-[15px] font-semibold text-ink">{{ user.name }}</p>
-                        <p class="truncate text-[13px] text-ink-3">{{ user.email }}</p>
-                    </div>
-                </div>
-                <Link
-                    :href="route('logout')"
-                    method="post"
-                    as="button"
-                    class="flex min-h-[48px] w-full items-center justify-center border-t border-line text-[17px] text-danger transition-colors active:bg-surface-3"
-                >
-                    Abmelden
-                </Link>
-            </div>
-        </AppSheet>
 
     </div>
 </template>

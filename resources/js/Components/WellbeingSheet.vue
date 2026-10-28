@@ -34,11 +34,11 @@ const saveError  = ref('');
  * soreness and stress the good end is the low one.
  */
 const scales = [
-    { key: 'energy_level',    label: 'Energie',     low: 'leer',      high: 'voller Energie' },
+    { key: 'energy_level',    label: 'Energie',     low: 'leer',      high: 'voll' },
     { key: 'mood',            label: 'Stimmung',    low: 'mies',      high: 'super' },
-    { key: 'sleep_quality',   label: 'Schlaf',      low: 'schlecht',  high: 'erholsam' },
+    { key: 'sleep_quality',   label: 'Schlaf',      low: 'schlecht',  high: 'super' },
     { key: 'muscle_soreness', label: 'Muskelkater', low: 'keiner',    high: 'stark' },
-    { key: 'stress_level',    label: 'Stress',      low: 'entspannt', high: 'sehr hoch' },
+    { key: 'stress_level',    label: 'Stress',      low: 'entspannt', high: 'hoch' },
 ];
 
 const flags = [
@@ -68,14 +68,6 @@ const scoreLabel = computed(() => score.value.toLocaleString('de-DE', {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
 }));
-
-/** Filled part of the track — the native range has no fill on WebKit. */
-const trackStyle = (value) => {
-    const pct = ((value - 1) / 9) * 100;
-    return {
-        background: `linear-gradient(to right, rgb(var(--z-accent)) ${pct}%, rgb(var(--z-surface-3)) ${pct}%)`,
-    };
-};
 
 const formatDate = (date) => date.toLocaleDateString('de-DE', {
     weekday: 'long',
@@ -128,45 +120,38 @@ watch(() => props.show, async (open) => {
 <template>
     <AppSheet
         :show="show"
-        title="Tagesform"
-        :subtitle="formatDate(today)"
+        title="Wie geht's dir heute?"
+        :subtitle="`Tagesform · ${formatDate(today)}`"
         max-width="lg"
         @close="$emit('close')"
     >
         <p v-if="loadError" class="mb-4 rounded-card bg-warn-soft p-3 text-[13px] text-warn-ink">{{ loadError }}</p>
 
         <div class="space-y-6 pt-1">
-            <!-- Ergebnis zuerst: es antwortet live auf jeden Regler -->
-            <div class="rounded-card bg-surface-2 px-4 py-4" aria-live="polite">
-                <p class="text-[13px] font-semibold" :class="verdict.tone">{{ verdict.text }}</p>
-                <p class="mt-1 font-rounded text-[34px] font-bold leading-none tabular-nums text-ink">
-                    {{ scoreLabel }}<span class="ml-1 text-[17px] font-semibold text-ink-3">/ 10</span>
+            <!-- Ergebnis zuerst: es antwortet live auf jede Skala -->
+            <div class="flex items-baseline justify-between rounded-card bg-surface-2 px-4 py-3" aria-live="polite">
+                <p class="text-[15px] font-semibold" :class="verdict.tone">{{ verdict.text }}</p>
+                <p class="font-rounded text-[28px] font-bold leading-none tabular-nums text-ink">
+                    {{ scoreLabel }}<span class="ml-1 text-[15px] font-semibold text-ink-3">/ 10</span>
                 </p>
             </div>
 
-            <!-- Regler als gruppierte Liste -->
-            <div>
-                <p class="mb-2 px-1 text-[13px] text-ink-3">Wie geht es dir heute?</p>
-                <div class="divide-y divide-line rounded-card bg-surface-2">
-                    <div v-for="s in scales" :key="s.key" class="px-4 py-3.5">
-                        <div class="flex items-baseline justify-between">
-                            <label :for="`tf-${s.key}`" class="text-[17px] text-ink">{{ s.label }}</label>
-                            <span class="font-rounded text-[20px] font-semibold tabular-nums text-ink">{{ form[s.key] }}</span>
-                        </div>
-                        <input
-                            :id="`tf-${s.key}`"
-                            v-model.number="form[s.key]"
-                            type="range"
-                            min="1"
-                            max="10"
-                            class="z-range mt-3 w-full"
-                            :style="trackStyle(form[s.key])"
-                        />
-                        <div class="mt-1.5 flex justify-between text-[13px] text-ink-3">
-                            <span>{{ s.low }}</span>
-                            <span>{{ s.high }}</span>
-                        </div>
-                    </div>
+            <!--
+                Skalen als Segmente statt Schieberegler (Redesign Paket 3,
+                28.10.2026): ein Tipp statt Ziehen, und der Wert steht da,
+                wo der Finger war. Die Skala bleibt 1 bis 10 — sie ist so
+                gespeichert und so in den Prompts beschrieben.
+            -->
+            <div v-for="s in scales" :key="s.key" role="radiogroup" :aria-label="s.label">
+                <div class="mb-2 flex items-baseline justify-between px-1">
+                    <span class="text-[17px] font-semibold text-ink">{{ s.label }}</span>
+                    <span class="text-[13px] text-ink-3">1 {{ s.low }} · 10 {{ s.high }}</span>
+                </div>
+                <div class="grid grid-cols-10 gap-[3px] rounded-[10px] bg-surface-2 p-[3px]">
+                    <button v-for="n in 10" :key="n" type="button" role="radio" :aria-checked="form[s.key] === n"
+                        class="h-9 rounded-[7px] text-[15px] font-semibold tabular-nums transition-colors duration-150"
+                        :class="form[s.key] === n ? 'bg-accent text-white' : 'text-ink-2 active:bg-surface-3'"
+                        @click="form[s.key] = n">{{ n }}</button>
                 </div>
             </div>
 

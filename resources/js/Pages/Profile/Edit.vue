@@ -40,7 +40,13 @@ const user = computed(() => page.props.auth.user);
 // Kommt der Athlet von Garmin zurück, landet er direkt bei den Verbindungen —
 // sonst sähe er die Rückmeldung zum Verbinden gar nicht.
 const backFromGarmin = !!props.garminOfficial?.status;
-const activeTab = ref(backFromGarmin ? 'connections' : 'personal');
+// „Mehr" verlinkt direkt in einen Abschnitt (/profile?section=connections).
+const SECTION_KEYS = ['personal', 'coach', 'athlete', 'notifications', 'connections', 'security', 'account'];
+const requestedSection = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('section')
+    : null;
+const startSection = backFromGarmin ? 'connections' : (SECTION_KEYS.includes(requestedSection) ? requestedSection : null);
+const activeTab = ref(startSection ?? 'personal');
 
 // Alle vier Zahlen beziehen sich auf Laeufe — deshalb steht hier "Läufe"
 // und nicht "Aktivitäten": Radtouren und Schwimmen zaehlen nicht mit.
@@ -70,7 +76,7 @@ const tabs = [
  * praktisch versteckt. Ab lg bleibt es beim Reiterband — dort ist der Platz
  * da, und der Wechsel ohne Seitenwechsel ist bequemer.
  */
-const sectionOpen = ref(backFromGarmin);
+const sectionOpen = ref(!!startSection);
 
 function openSection(key) {
     activeTab.value = key;
@@ -740,7 +746,8 @@ const inputClass = 'z-input';
         <div class="flex flex-col gap-5 px-4 py-4 lg:px-6 lg:py-6">
 
             <!-- ══ PROFILE HERO ══ -->
-            <div class="bg-surface rounded-card shadow-card p-5 sm:p-6">
+            <!-- Mit offenem Abschnitt steht auf dem Telefon nur der Abschnitt da, wie eine Unterseite in iOS. -->
+            <div class="bg-surface rounded-card shadow-card p-5 sm:p-6" :class="sectionOpen ? 'hidden lg:block' : ''">
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
                     <div class="flex min-w-0 flex-1 items-center gap-4">
@@ -898,14 +905,15 @@ const inputClass = 'z-input';
             <button
                 v-if="sectionOpen"
                 type="button"
-                class="order-1 -ml-2 inline-flex h-11 items-center gap-1 rounded-field px-2 text-sm font-medium text-ink-3 transition-colors active:text-ink lg:order-none lg:hidden"
-                @click="sectionOpen = false"
+                class="order-1 -ml-2 inline-flex h-11 items-center gap-0.5 rounded-field px-2 text-[17px] text-accent transition-opacity active:opacity-60 lg:order-none lg:hidden"
+                @click="requestedSection ? router.visit(route('more')) : (sectionOpen = false)"
             >
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
                 </svg>
-                Profil
+                {{ requestedSection ? 'Mehr' : 'Profil' }}
             </button>
+            <h1 v-if="sectionOpen" class="order-1 -mt-4 text-[34px] font-extrabold leading-tight tracking-[-0.035em] text-ink lg:hidden">{{ activeTabLabel }}</h1>
 
             <!-- ══ REITER — ab lg ══ -->
             <div class="order-2 hidden gap-1 rounded-full bg-surface-2 p-1 lg:order-none lg:flex" role="tablist">
