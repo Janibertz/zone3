@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import AppCard from '@/Components/UI/AppCard.vue';
 import SectionHeader from '@/Components/UI/SectionHeader.vue';
+import RecoveryChart from '@/Components/RecoveryChart.vue';
 import { SLEEP_SCORE_ZONES, TONE_COLOR, zoneOf } from '@/Composables/useRecoveryGauges.js';
 
 const props = defineProps({
@@ -18,12 +19,6 @@ const C = {
     rhr:    'rgb(var(--z-danger))',
     sleep:  'rgb(var(--z-accent))',
     energy: 'rgb(var(--z-success))',
-    stress: 'rgb(var(--z-warn))',
-    ink:    'rgb(var(--z-ink))',
-    sub:    'rgb(var(--z-ink-2))',
-    muted:  'rgb(var(--z-ink-3))',
-    grid:   'rgb(var(--z-border))',
-    mark:   'rgb(var(--z-ink))',
 };
 
 const rangeDays = ref(30);
@@ -81,94 +76,81 @@ const daysWithData = computed(() =>
 
 const hasData = computed(() => daysWithData.value > 0 || props.activities.length > 0);
 
-// ── Liniendiagramme (HRV mit Baseline-Band, Ruhepuls) ────────────────────────
-function buildLine(key, { min = null, max = null, band = false } = {}) {
-    const s = stat(key);
-    if (!s || s.n < 2) return null;
-    const W = 1000, H = 190, padX = 10, padTop = 16, padBottom = 24;
-    const lo = min != null ? min : Math.floor(s.min - (s.max - s.min) * 0.1);
-    const hi = max != null ? max : Math.ceil(s.max + (s.max - s.min) * 0.1);
-    const range = (hi - lo) || 1;
-    const n = days.value.length;
-    const X = i => padX + (n > 1 ? i / (n - 1) : 0) * (W - padX * 2);
-    const Y = v => padTop + (H - padTop - padBottom) - ((v - lo) / range) * (H - padTop - padBottom);
-    let d = '', open = false; const pts = [];
-    days.value.forEach((day, i) => {
-        const v = day[key];
-        if (v === null) { open = false; pts.push(null); return; }
-        const x = X(i), y = Y(v);
-        d += (open ? ' L ' : ' M ') + x.toFixed(1) + ' ' + y.toFixed(1);
-        pts.push({ x, y, v, date: day.date }); open = true;
-    });
-    let lastPt = null; for (let i = pts.length - 1; i >= 0; i--) { if (pts[i]) { lastPt = pts[i]; break; } }
-    const grid = [0.25, 0.5, 0.75].map(f => ({ y: padTop + (H - padTop - padBottom) * f, v: Math.round(hi - range * f) }));
-    const step = Math.max(1, Math.ceil(n / 6));
-    const xlabels = [];
-    for (let i = 0; i < n; i += step) xlabels.push({ x: X(i), t: fmtDM(days.value[i].date) });
-    const bandRect = band ? { y1: Y(s.mean + s.sd), y2: Y(s.mean - s.sd), mean: Y(s.mean) } : null;
-    return { d, pts, W, H, padX, lo, hi, X, Y, lastPt, grid, xlabels, bandRect };
-}
-const hrvChart = computed(() => buildLine('hrv', { band: true }));
-const rhrChart = computed(() => buildLine('resting_hr'));
+// ── Verläufe ────────────────────────────────────────────────────────────────
+/**
+ * Ein Diagramm über 60 Tage mit drei Werten ist eine leere Fläche mit einem
+ * Strich. Solange weniger Tage da sind, zeigt es nur die Tage seit dem
+ * ersten Wert, mindestens eine Woche.
+ */
+const chartDays = computed(() => {
+    const first = days.value.findIndex(d => ['hrv', 'resting_hr', 'sleep_hours', 'sleep_score', 'body_battery_high']
+        .some(k => d[k] !== null));
+    if (first < 0) return days.value;
 
-// Fadenkreuz-Tooltip
-const hover = ref(null);
-function onMove(evt, chart, unit) {
-    const svg = evt.currentTarget;
-    const pt = svg.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY;
-    const p = pt.matrixTransform(svg.getScreenCTM().inverse());
-    let best = null, bd = 1e9;
-    chart.pts.forEach(q => { if (!q) return; const dd = Math.abs(q.x - p.x); if (dd < bd) { bd = dd; best = q; } });
-    if (best) hover.value = { x: best.x, y: best.y, v: best.v, date: best.date, unit, W: chart.W };
+    return days.value.slice(Math.min(first, Math.max(0, days.value.length - 7)));
+});
+
+/** Bei einer Woche reicht der Wochentag; Datumsangaben stießen dort aneinander. */
+const dayLabel = (date) => chartDays.value.length <= 8
+    ? new Date(date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')
+    : fmtDM(date) + '.';
+const avg = (key) => {
+    const a = chartDays.value.map(d => d[key]).filter(v => v !== null);
+    return a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
+};
+/** „Ø 3 Tage" zählt die Tage mit Wert, nicht die Breite des Diagramms. */
+const avgLabel = (key) => {
+    const n = chartDays.value.filter(d => d[key] !== null).length;
+    return `Ø ${n} ${n === 1 ? 'Tag' : 'Tage'}`;
+};
+const hm = (h) => `${Math.floor(h)}:${String(Math.round((h % 1) * 60)).padStart(2, '0')} h`;
+
+function line(key) {
+    const points = chartDays.value.map(d => ({ date: d.date, label: dayLabel(d.date), value: d[key] }));
+    const a = avg(key);
+
+    return points.some(p => p.value !== null)
+        ? { points, summary: { label: avgLabel(key), value: Math.round(a).toLocaleString('de-DE') } }
+        : null;
 }
-function onLeave() { hover.value = null; }
+
+const hrvChart = computed(() => {
+    const c = line('hrv');
+    const s = stat('hrv');
+    // Der Normalbereich braucht ein paar Werte, sonst ist die Streuung Zufall.
+    return c && { ...c, band: s && s.n >= 7 ? { from: s.mean - s.sd, to: s.mean + s.sd } : null };
+});
+const rhrChart = computed(() => line('resting_hr'));
 
 // ── Schlaf: Schlafwert in Garmins Stufen, ohne Wert die Stunden ──────────────
-const sleepBars = computed(() => {
-    const W = 1000, H = 170, padX = 8, padTop = 14, padBottom = 22;
-    const n = days.value.length;
-    const bw = (W - padX * 2) / n;
-    const bar = (i, y) => ({ x: padX + i * bw + bw * 0.15, w: bw * 0.7, y, h: (H - padBottom) - y });
-
-    // Dieselben Farben wie der Bogen unter „Körper“.
+const sleepChart = computed(() => {
     if (series('sleep_score').length) {
-        const Y = v => padTop + (H - padTop - padBottom) * (1 - v / 100);
-        const bars = days.value.map((day, i) => {
-            const v = day.sleep_score;
-            if (v === null) return null;
-            const z = zoneOf(SLEEP_SCORE_ZONES, v);
-            return { ...bar(i, Y(v)), fill: TONE_COLOR[z.tone], title: `${fmtDM(day.date)}: ${v}${day.sleep_hours != null ? ` · ${day.sleep_hours.toFixed(1)} h` : ''}` };
-        });
-        return { W, H, bars, score: true };
+        const points = chartDays.value.map(d => ({
+            date: d.date, label: dayLabel(d.date), value: d.sleep_score,
+            color: d.sleep_score != null ? TONE_COLOR[zoneOf(SLEEP_SCORE_ZONES, d.sleep_score).tone] : null,
+            note: d.sleep_score != null
+                ? [zoneOf(SLEEP_SCORE_ZONES, d.sleep_score).label, d.sleep_hours != null ? hm(d.sleep_hours) : null].filter(Boolean).join(' · ')
+                : null,
+        }));
+        return { score: true, points, summary: { label: avgLabel('sleep_score'), value: Math.round(avg('sleep_score')) } };
     }
+    if (!series('sleep_hours').length) return null;
 
-    const s = stat('sleep_hours');
-    if (!s) return null;
-    const hi = Math.max(s.max, 8);
-    const Y = v => padTop + (H - padTop - padBottom) - (v / hi) * (H - padTop - padBottom);
-    const bars = days.value.map((day, i) => {
-        const v = day.sleep_hours;
-        if (v === null) return null;
-        return { ...bar(i, Y(v)), fill: v < 6 ? C.rhr : C.sleep, title: `${fmtDM(day.date)}: ${v.toFixed(1)} h` };
-    });
-    return { W, H, bars, score: false, sevenY: Y(7) };
+    const points = chartDays.value.map(d => ({
+        date: d.date, label: dayLabel(d.date), value: d.sleep_hours,
+        color: d.sleep_hours != null && d.sleep_hours < 6 ? C.rhr : C.sleep,
+    }));
+    return { score: false, points, summary: { label: avgLabel('sleep_hours'), value: avg('sleep_hours').toLocaleString('de-DE', { maximumFractionDigits: 1 }) } };
 });
 
 // ── Body Battery als Tagesspanne ─────────────────────────────────────────────
-const bbBars = computed(() => {
-    const highs = series('body_battery_high');
-    if (!highs.length) return null;
-    const W = 1000, H = 170, padX = 8, padTop = 14, padBottom = 22;
-    const n = days.value.length;
-    const bw = (W - padX * 2) / n;
-    const Y = v => padTop + (H - padTop - padBottom) - (v / 100) * (H - padTop - padBottom);
-    const bars = days.value.map((day, i) => {
-        const lo = day.body_battery_low, hi = day.body_battery_high;
-        if (hi === null) return null;
-        const yTop = Y(hi), yBot = Y(lo ?? 0);
-        return { x: padX + i * bw + bw * 0.15, w: bw * 0.7, y: yTop, h: Math.max(1, yBot - yTop), hi, lo, date: day.date, weak: hi < 50 };
-    });
-    return { W, H, bars, fiftyY: Y(50) };
+const bbChart = computed(() => {
+    if (!series('body_battery_high').length) return null;
+    const points = chartDays.value.map(d => ({
+        date: d.date, label: dayLabel(d.date), value: d.body_battery_high, lo: d.body_battery_low,
+        color: d.body_battery_high != null && d.body_battery_high < 50 ? C.rhr : C.energy,
+    }));
+    return { points, summary: { label: `Höchstwert, ${avgLabel('body_battery_high')}`, value: Math.round(avg('body_battery_high')) } };
 });
 
 // ── Kilometer pro Kalenderwoche ──────────────────────────────────────────────
@@ -187,15 +169,16 @@ const weeklyKm = computed(() => {
     const nowWk = isoWeek(new Date());
     const keys = Object.keys(map).sort();
     if (!keys.length) return null;
-    const W = 1000, H = 150, padX = 8, padTop = 14, padBottom = 24;
-    const hi = Math.max(...Object.values(map), 1);
-    const bw = (W - padX * 2) / keys.length;
-    const Y = v => padTop + (H - padTop - padBottom) - (v / hi) * (H - padTop - padBottom);
-    const bars = keys.map((wk, i) => ({
-        x: padX + i * bw + bw * 0.18, w: bw * 0.64, y: Y(map[wk]), h: (H - padTop - padBottom) - (Y(map[wk]) - padTop),
-        v: map[wk], label: 'KW ' + wk.slice(-2), current: wk === nowWk,
+    const points = keys.map(wk => ({
+        date: wk, label: 'KW ' + Number(wk.slice(-2)), title: `KW ${Number(wk.slice(-2))}${wk === nowWk ? ' (läuft)' : ''}`,
+        value: Math.round(map[wk] * 10) / 10,
+        color: wk === nowWk ? 'rgb(var(--z-info) / 0.45)' : C.hrv,
     }));
-    return { W, H, bars };
+    const done = keys.filter(k => k !== nowWk).map(k => map[k]);
+    return {
+        points,
+        summary: done.length ? { label: 'Ø je Woche', value: (done.reduce((s, v) => s + v, 0) / done.length).toLocaleString('de-DE', { maximumFractionDigits: 1 }) } : null,
+    };
 });
 
 // ── Rohdaten ─────────────────────────────────────────────────────────────────
@@ -247,85 +230,44 @@ function nf(v, digits = 0) {
 
             <!-- HRV -->
             <AppCard v-if="hrvChart" title="HRV"
-                subtitle="Das grüne Band ist dein Normalbereich im gewählten Zeitraum.">
-                <svg :viewBox="`0 0 ${hrvChart.W} ${hrvChart.H}`" class="block h-auto w-full" @mousemove="onMove($event, hrvChart, ' ms')" @mouseleave="onLeave">
-                    <rect v-if="hrvChart.bandRect" :x="hrvChart.padX" :y="hrvChart.bandRect.y1" :width="hrvChart.W - hrvChart.padX*2" :height="Math.max(0, hrvChart.bandRect.y2 - hrvChart.bandRect.y1)" :fill="C.energy" opacity="0.14" />
-                    <line v-if="hrvChart.bandRect" :x1="hrvChart.padX" :x2="hrvChart.W - hrvChart.padX" :y1="hrvChart.bandRect.mean" :y2="hrvChart.bandRect.mean" :stroke="C.energy" stroke-width="1" opacity="0.4" />
-                    <line v-for="g in hrvChart.grid" :key="g.y" :x1="hrvChart.padX" :x2="hrvChart.W - hrvChart.padX" :y1="g.y" :y2="g.y" :stroke="C.grid" stroke-width="1" />
-                    <path :d="hrvChart.d" fill="none" :stroke="C.hrv" stroke-width="2" />
-                    <circle v-if="hrvChart.lastPt" :cx="hrvChart.lastPt.x" :cy="hrvChart.lastPt.y" r="4" :fill="C.hrv" />
-                    <text v-if="hrvChart.lastPt" :x="hrvChart.lastPt.x - 8" :y="hrvChart.lastPt.y - 10" :fill="C.ink" font-size="13" text-anchor="end">{{ Math.round(hrvChart.lastPt.v) }} ms</text>
-                    <text v-for="l in hrvChart.xlabels" :key="l.x" :x="l.x" :y="hrvChart.H - 6" :fill="C.muted" font-size="11" text-anchor="middle">{{ l.t }}</text>
-                    <template v-if="hover">
-                        <line :x1="hover.x" :x2="hover.x" y1="12" :y2="hrvChart.H - 22" :stroke="C.sub" stroke-width="1" opacity="0.5" />
-                        <text :x="Math.min(Math.max(hover.x, 40), hover.W - 40)" y="12" :fill="C.ink" font-size="12" text-anchor="middle">{{ fmtDM(hover.date) }}: {{ Math.round(hover.v) }}{{ hover.unit }}</text>
-                    </template>
-                </svg>
+                :subtitle="hrvChart.band ? 'Das grüne Band ist dein Normalbereich. Tippe auf einen Tag für seinen Wert.' : 'Tippe auf einen Tag für seinen Wert.'">
+                <RecoveryChart :points="hrvChart.points" :summary="hrvChart.summary" :band="hrvChart.band" unit="ms" :color="C.hrv" />
             </AppCard>
 
             <!-- Ruhepuls -->
             <AppCard v-if="rhrChart" title="Ruhepuls"
                 subtitle="Steigt er über mehrere Tage, steckt oft Belastung, zu wenig Schlaf oder ein Infekt dahinter.">
-                <svg :viewBox="`0 0 ${rhrChart.W} ${rhrChart.H}`" class="block h-auto w-full" @mousemove="onMove($event, rhrChart, ' bpm')" @mouseleave="onLeave">
-                    <line v-for="g in rhrChart.grid" :key="g.y" :x1="rhrChart.padX" :x2="rhrChart.W - rhrChart.padX" :y1="g.y" :y2="g.y" :stroke="C.grid" stroke-width="1" />
-                    <path :d="rhrChart.d" fill="none" :stroke="C.rhr" stroke-width="2" />
-                    <circle v-if="rhrChart.lastPt" :cx="rhrChart.lastPt.x" :cy="rhrChart.lastPt.y" r="4" :fill="C.rhr" />
-                    <text v-if="rhrChart.lastPt" :x="rhrChart.lastPt.x - 8" :y="rhrChart.lastPt.y - 10" :fill="C.ink" font-size="13" text-anchor="end">{{ Math.round(rhrChart.lastPt.v) }} bpm</text>
-                    <text v-for="l in rhrChart.xlabels" :key="l.x" :x="l.x" :y="rhrChart.H - 6" :fill="C.muted" font-size="11" text-anchor="middle">{{ l.t }}</text>
-                    <template v-if="hover">
-                        <line :x1="hover.x" :x2="hover.x" y1="12" :y2="rhrChart.H - 22" :stroke="C.sub" stroke-width="1" opacity="0.5" />
-                        <text :x="Math.min(Math.max(hover.x, 40), hover.W - 40)" y="12" :fill="C.ink" font-size="12" text-anchor="middle">{{ fmtDM(hover.date) }}: {{ Math.round(hover.v) }}{{ hover.unit }}</text>
-                    </template>
-                </svg>
+                <RecoveryChart :points="rhrChart.points" :summary="rhrChart.summary" unit="bpm" :color="C.rhr" />
             </AppCard>
 
             <!-- Schlaf + Body Battery nebeneinander ab lg -->
             <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <AppCard v-if="sleepBars" :title="sleepBars.score ? 'Schlafwert' : 'Schlaf'"
-                    :subtitle="sleepBars.score ? 'Jede Säule in der Farbe ihrer Stufe, wie im Bogen oben.' : 'Die Linie markiert 7 Stunden. Rot markiert sind kurze Nächte.'">
-                    <svg :viewBox="`0 0 ${sleepBars.W} ${sleepBars.H}`" class="block h-auto w-full">
-                        <template v-if="!sleepBars.score">
-                            <line :x1="8" :x2="sleepBars.W - 8" :y1="sleepBars.sevenY" :y2="sleepBars.sevenY" :stroke="C.muted" stroke-width="1" opacity="0.5" stroke-dasharray="4 4" />
-                            <text :x="12" :y="sleepBars.sevenY - 5" :fill="C.muted" font-size="11">7 Stunden</text>
-                        </template>
-                        <template v-for="(b, i) in sleepBars.bars" :key="i">
-                            <rect v-if="b" :x="b.x" :y="b.y" :width="b.w" :height="b.h" rx="2" :fill="b.fill">
-                                <title>{{ b.title }}</title>
-                            </rect>
-                        </template>
-                    </svg>
-                    <div v-if="sleepBars.score" class="mt-2 flex flex-wrap gap-x-3.5 gap-y-1 text-[12px] text-ink-3">
+                <AppCard v-if="sleepChart" :title="sleepChart.score ? 'Schlafwert' : 'Schlaf'"
+                    :subtitle="sleepChart.score ? 'Jede Säule in der Farbe ihrer Stufe.' : 'Rot markiert sind Nächte unter 6 Stunden.'">
+                    <RecoveryChart v-if="sleepChart.score" kind="bar" :points="sleepChart.points" :summary="sleepChart.summary" :min="0" :max="100" />
+                    <RecoveryChart v-else kind="bar" :points="sleepChart.points" :summary="sleepChart.summary" unit="h"
+                        :min="0" :reference="{ value: 7, label: '7 h' }"
+                        :format="v => v.toLocaleString('de-DE', { maximumFractionDigits: 1 })" />
+                    <div v-if="sleepChart.score" class="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-ink-3">
                         <span v-for="z in SLEEP_SCORE_ZONES" :key="z.label" class="flex items-center gap-1.5">
-                            <i class="inline-block h-2 w-2 rounded-sm" :style="{ background: TONE_COLOR[z.tone] }" />
+                            <i class="inline-block h-2.5 w-2.5 rounded-full" :style="{ background: TONE_COLOR[z.tone] }" />
                             {{ z.label }}{{ z.from ? ` ab ${z.from}` : ` unter ${z.to}` }}
                         </span>
                     </div>
                 </AppCard>
 
-                <AppCard v-if="bbBars" title="Body Battery"
-                    subtitle="Jede Säule ist die Tagesspanne von tief nach hoch. Rot markiert sind Tage unter 50.">
-                    <svg :viewBox="`0 0 ${bbBars.W} ${bbBars.H}`" class="block h-auto w-full">
-                        <line :x1="8" :x2="bbBars.W - 8" :y1="bbBars.fiftyY" :y2="bbBars.fiftyY" :stroke="C.grid" stroke-width="1" />
-                        <template v-for="(b, i) in bbBars.bars" :key="i">
-                            <rect v-if="b" :x="b.x" :y="b.y" :width="b.w" :height="b.h" rx="2" :fill="b.weak ? C.rhr : C.energy">
-                                <title>{{ fmtDM(b.date) }}: {{ b.lo ?? '?' }}–{{ b.hi }}</title>
-                            </rect>
-                        </template>
-                    </svg>
+                <AppCard v-if="bbChart" title="Body Battery"
+                    subtitle="Jede Säule reicht vom Tiefst- zum Höchstwert des Tages. Rot: nicht über 50 gekommen.">
+                    <RecoveryChart kind="range" :points="bbChart.points" :summary="bbChart.summary" :min="0" :max="100"
+                        :reference="{ value: 50 }" />
                 </AppCard>
             </div>
 
             <!-- Kilometer pro Woche -->
             <AppCard v-if="weeklyKm" title="Kilometer pro Kalenderwoche"
-                subtitle="Die hervorgehobene Säule ist die laufende, noch unvollständige Woche.">
-                <svg :viewBox="`0 0 ${weeklyKm.W} ${weeklyKm.H}`" class="block h-auto w-full">
-                    <template v-for="(b, i) in weeklyKm.bars" :key="i">
-                        <rect :x="b.x" :y="b.y" :width="b.w" :height="b.h" rx="3" :fill="C.hrv" :opacity="b.current ? 0.45 : 1">
-                            <title>{{ b.label }}: {{ b.v.toFixed(1) }} km</title>
-                        </rect>
-                        <text :x="b.x + b.w / 2" :y="weeklyKm.H - 6" :fill="C.muted" font-size="11" text-anchor="middle">{{ b.label }}</text>
-                    </template>
-                </svg>
+                subtitle="Die blasse Säule ist die laufende, noch unvollständige Woche.">
+                <RecoveryChart kind="bar" :points="weeklyKm.points" :summary="weeklyKm.summary" unit="km"
+                    :format="v => v.toLocaleString('de-DE', { maximumFractionDigits: 1 })" />
             </AppCard>
 
             <!-- Rohdaten -->
