@@ -46,11 +46,12 @@ defineProps({
                 -->
                 <p v-if="eyebrow" class="text-[15px] leading-5 text-ink-3">{{ eyebrow }}</p>
                 <!--
-                    Negatives Tracking gehoert ab Grad 28 dazu — Apple setzt
-                    den Large Title auf -0.4pt. Ohne das wirkt die Zeile
-                    auseinandergefallen.
+                    Negatives Tracking gehoert ab Grad 28 dazu. Seit den
+                    Story-Slides (28.10.2026) extra fett und enger, wie dort
+                    die Headlines — Inter schaltet bei der Groesse auf den
+                    Display-Schnitt.
                 -->
-                <h1 class="truncate text-[34px] font-bold leading-[41px] tracking-[-0.8px] text-ink">{{ title }}</h1>
+                <h1 class="truncate text-[34px] font-extrabold leading-[41px] tracking-[-0.035em] text-ink">{{ title }}</h1>
                 <p v-if="subtitle" class="mt-0.5 text-[15px] text-ink-3">{{ subtitle }}</p>
             </div>
             <div v-if="$slots.action" class="shrink-0 pb-1">

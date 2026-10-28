@@ -571,6 +571,7 @@ class TrainingPlanController extends Controller
             'watch_url'    => \App\Services\Watch\AppleWorkoutWriter::offered($s, $garminConnected) ? route('training-sessions.apple-workout', $s) : null,
             'title'        => $s->title,
             'description'  => $s->description,
+            'steps'        => $s->steps,
             'distance_km'  => $s->distance_km,
             'duration_min' => $s->duration_min,
             'pace_target'  => $s->pace_target,

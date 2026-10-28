@@ -187,7 +187,15 @@
   }
 
   /* Prevent layout jump from scrollbar on desktop */
-  body { scrollbar-gutter: stable; }
+  /*
+   * Inter wie in den Story-Slides: cv11 = einstoeckiges a, ss03 = runde
+   * Anfuehrungszeichen. Die Ziffern bleiben proportional; Kennzahlen
+   * setzen `tabular-nums` selbst.
+   */
+  body {
+    scrollbar-gutter: stable;
+    font-feature-settings: "cv11", "ss03";
+  }
 }
 
 /* ── Safe area helpers (iOS notch / Dynamic Island) ─────── */

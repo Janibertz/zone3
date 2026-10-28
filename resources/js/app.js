@@ -1,3 +1,4 @@
+import '@fontsource-variable/inter/opsz.css';
 import '../css/app.css';
 import './bootstrap';
 

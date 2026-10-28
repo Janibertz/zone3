@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
-import { paceValue, paceWithUnit, sessionType, stepAmount } from '@/Composables/useSessionTypes';
+import { paceValue, paceWithUnit, sessionType, stepAmount, stepRows } from '@/Composables/useSessionTypes';
 import AppButton from '@/Components/UI/AppButton.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
@@ -280,6 +280,24 @@ function updateSessionInList(updated) {
 // ── Type config ───────────────────────────────────────────────────────────────
 // Typ-Tabelle liegt in useSessionTypes — Dashboard und Plan teilen sie sich.
 const typeOf = (t) => sessionType(t);
+
+/** Die drei großen Zahlen der Karte — dieselbe Auswahl wie SessionCard. */
+function cardMetrics(s) {
+    const out = [];
+    if (s.distance_km)  out.push({ label: 'Distanz', value: String(s.distance_km).replace('.', ','), unit: 'km' });
+    if (s.duration_min) out.push({ label: 'Dauer',   value: String(s.duration_min), unit: 'min' });
+    const pace = paceValue(s.pace_target);
+    if (pace)           out.push({ label: 'Tempo',   value: pace, unit: '/km' });
+    if (s.zone && out.length < 3) out.push({ label: 'Zone', value: String(s.zone), unit: null });
+    return out.slice(0, 3);
+}
+
+/** Aus den Details in ein anderes Sheet: zwei offene Sheets übereinander gehen nicht. */
+function switchFromDetail(action) {
+    const s = detailSession.value;
+    detailSession.value = null;
+    if (s) action(s);
+}
 
 /**
  * Der geplante Zustand einer Einheit — er steht im Schnappschuss, weil der
@@ -1166,114 +1184,85 @@ const lapHeightPct = computed(() => {
                                                 : 'Nicht im Plan — aus Strava importiert' }}
                                         </p>
 
-                                        <div class="flex gap-3.5 p-4">
-                                            <!-- Typ-Marke -->
-                                            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-field"
-                                                :class="typeOf(session.type).pill">
-                                                <svg v-if="session.status === 'completed'" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                                                </svg>
-                                                <svg v-else-if="session.status === 'skipped'" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                                                </svg>
-                                                <svg v-else class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="typeOf(session.type).icon" />
-                                            </span>
+                                        <!--
+                                            Aufbau wie die Story-Karte (28.10.2026): Typ farbig
+                                            oben, Titel, drei Zahlen, die Abschnitte als Balken.
+                                            Die Beschreibung und die Aktionen stehen in den
+                                            Details — die ganze Karte öffnet sie. Vorher
+                                            standen hier sieben Zeilen Text und vier Knöpfe.
+                                        -->
+                                        <div class="p-5" :class="session.type !== 'rest' ? 'cursor-pointer' : ''"
+                                            @click="session.type !== 'rest' && openDetail(session)">
+                                            <div class="flex items-center justify-between gap-3">
+                                                <span class="flex min-w-0 items-center gap-1.5 text-[15px] font-semibold"
+                                                    :class="session.status === 'planned' ? typeOf(session.type).text : 'text-ink-3'">
+                                                    <svg v-if="session.status === 'completed'" class="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                                    </svg>
+                                                    <svg v-else-if="session.status === 'skipped'" class="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                                                    </svg>
+                                                    <svg v-else class="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" v-html="typeOf(session.type).icon" />
+                                                    <span class="truncate">{{ session.sport_label || typeOf(session.type).label }}</span>
+                                                </span>
 
-                                            <div class="min-w-0 flex-1">
-                                                <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                                    <span class="text-[13px] font-medium text-ink-3">{{ formatDate(session.planned_date) }}</span>
-                                                    <span v-if="isToday(session.planned_date) && session.status === 'planned'"
-                                                        class="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent-ink">Heute</span>
-                                                    <span v-if="session.status === 'completed'"
-                                                        class="rounded-full bg-success-soft px-2 py-0.5 text-[11px] font-semibold text-success-ink">Erledigt</span>
-                                                    <span v-else-if="session.status === 'skipped'"
-                                                        class="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-semibold text-ink-3">Ausgelassen</span>
-                                                    <span v-if="session.activity_id"
-                                                        class="rounded-full bg-warn-soft px-2 py-0.5 text-[11px] font-semibold text-warn-ink">Strava</span>
-                                                </div>
+                                                <span v-if="isToday(session.planned_date) && session.status === 'planned'"
+                                                    class="shrink-0 rounded-full bg-accent-soft px-2.5 py-0.5 text-[13px] font-semibold text-accent-ink">Heute</span>
+                                                <span v-else-if="session.status === 'completed'"
+                                                    class="shrink-0 rounded-full bg-success-soft px-2.5 py-0.5 text-[13px] font-semibold text-success-ink">Erledigt</span>
+                                                <span v-else-if="session.status === 'skipped'"
+                                                    class="shrink-0 rounded-full bg-surface-2 px-2.5 py-0.5 text-[13px] font-semibold text-ink-3">Ausgelassen</span>
+                                            </div>
 
-                                                <h3 class="mt-1 text-[15px] font-semibold text-ink">{{ session.title }}</h3>
+                                            <p class="mt-1.5 text-[13px] font-medium text-ink-3">
+                                                {{ formatDate(session.planned_date) }}<template v-if="session.activity_id"> · Strava</template>
+                                            </p>
+                                            <h3 class="text-[20px] font-bold leading-7 tracking-tight text-ink">{{ session.title }}</h3>
 
-                                                <p v-if="session.description" class="mt-1 text-[13px] leading-relaxed text-ink-3">
-                                                    {{ session.description }}
-                                                </p>
-                                                <p v-if="session.skip_reason" class="mt-1 text-[13px] italic text-ink-3">
-                                                    Grund: {{ session.skip_reason }}
-                                                </p>
+                                            <p v-if="session.skip_reason" class="mt-1 text-[13px] italic text-ink-3">
+                                                Grund: {{ session.skip_reason }}
+                                            </p>
 
-                                                <!-- Was ursprünglich geplant war. Die Felder daneben
-                                                     tragen nach dem Strava-Import die Ist-Werte. -->
-                                                <p v-if="plannedDiffers(session)" class="mt-1 text-[13px] text-ink-3">
-                                                    Geplant war: {{ plannedSummary(session) }}
-                                                </p>
+                                            <!-- Was ursprünglich geplant war. Die Felder daneben
+                                                 tragen nach dem Strava-Import die Ist-Werte. -->
+                                            <p v-if="plannedDiffers(session)" class="mt-1 text-[13px] text-ink-3">
+                                                Geplant war: {{ plannedSummary(session) }}
+                                            </p>
 
-                                                <!-- Kennzahlen -->
-                                                <div v-if="session.type !== 'rest' && session.status !== 'skipped'"
-                                                    class="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px] tabular-nums text-ink-2">
-                                                    <span v-if="session.distance_km"><strong class="font-semibold text-ink">{{ session.distance_km }}</strong> km</span>
-                                                    <span v-if="session.duration_min"><strong class="font-semibold text-ink">{{ session.duration_min }}</strong> min</span>
-                                                    <span v-if="paceValue(session.pace_target)">
-                                                        <strong class="font-semibold text-ink">{{ paceValue(session.pace_target) }}</strong> /km
-                                                    </span>
-                                                    <span v-if="session.zone" class="rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                                                        :class="typeOf(session.type).pill">Zone {{ session.zone }}</span>
-                                                </div>
-
-                                                <!-- Übungen -->
-                                                <ul v-if="session.exercises && session.exercises.length && session.status !== 'skipped'"
-                                                    class="mt-2.5 space-y-1">
-                                                    <li v-for="(ex, i) in session.exercises" :key="i"
-                                                        class="flex flex-wrap items-baseline gap-1.5 text-[13px]">
-                                                        <span class="font-medium text-ink-2">{{ ex.name }}</span>
-                                                        <span v-if="ex.sets || ex.reps" class="tabular-nums text-ink-3">{{ [ex.sets, ex.reps].filter(Boolean).join('×') }}</span>
-                                                        <span v-if="ex.load" class="text-ink-3">· {{ ex.load }}</span>
-                                                    </li>
-                                                </ul>
-
-                                                <!-- Aktionen -->
-                                                <div v-if="session.type !== 'rest'" class="mt-3 flex flex-wrap gap-2">
-                                                    <AppButton variant="secondary" size="sm" @click="openDetail(session)">Details</AppButton>
-
-                                                    <AppButton
-                                                        v-if="session.status === 'planned' && isStrengthType(session.type) && session.planned_date <= today && !isPastEvent"
-                                                        variant="secondary" size="sm"
-                                                        :loading="completingId === session.id"
-                                                        @click="completeSession(session)"
-                                                    >
-                                                        Erledigt
-                                                    </AppButton>
-
-                                                    <AppButton
-                                                        v-if="session.status === 'planned' && !isPastEvent && !isStrengthType(session.type)"
-                                                        variant="ghost" size="sm"
-                                                        @click="openWorkoutPicker(session)"
-                                                    >
-                                                        Eigenes Workout
-                                                    </AppButton>
-
-                                                    <AppButton
-                                                        v-if="session.status === 'planned' && session.planned_date !== event.event_date"
-                                                        variant="ghost" size="sm"
-                                                        @click="openSkipModal(session)"
-                                                    >
-                                                        Kein Training
-                                                    </AppButton>
-
-                                                    <AppButton
-                                                        v-if="finePointer && canChange(session)"
-                                                        variant="ghost" size="sm"
-                                                        @click="deleteSession(session, true)"
-                                                    >
-                                                        Löschen
-                                                    </AppButton>
-
-                                                    <AppButton v-if="isAdmin" variant="ghost" size="sm"
-                                                        title="Admin: Steps- und Nutrition-Cache leeren"
-                                                        @click="resetSessionCache(session)">
-                                                        AI Reset
-                                                    </AppButton>
+                                            <!-- Kennzahlen -->
+                                            <div v-if="session.type !== 'rest' && session.status !== 'skipped' && cardMetrics(session).length"
+                                                class="mt-3 grid gap-2"
+                                                :class="cardMetrics(session).length === 1 ? 'grid-cols-1' : cardMetrics(session).length === 2 ? 'grid-cols-2' : 'grid-cols-[1fr_1fr_1.4fr]'">
+                                                <div v-for="m in cardMetrics(session)" :key="m.label" class="min-w-0">
+                                                    <p class="text-[13px] text-ink-3">{{ m.label }}</p>
+                                                    <p class="flex flex-wrap items-baseline gap-x-1">
+                                                        <span class="font-rounded font-bold tabular-nums tracking-tight text-ink"
+                                                            :class="m.value.length > 6 ? 'whitespace-nowrap text-[20px] leading-8' : 'text-[26px] leading-8'">{{ m.value }}</span>
+                                                        <span v-if="m.unit" class="text-[13px] font-semibold text-ink-3">{{ m.unit }}</span>
+                                                    </p>
                                                 </div>
                                             </div>
+
+                                            <!-- Abschnitte -->
+                                            <div v-if="session.status !== 'skipped' && stepRows(session.steps).length"
+                                                class="mt-4 space-y-2 border-t border-line pt-3">
+                                                <div v-for="(r, i) in stepRows(session.steps)" :key="i" class="flex items-center gap-3 text-[15px] leading-5">
+                                                    <i class="h-[18px] w-1 shrink-0 rounded-full"
+                                                        :class="r.kind === 'work' ? typeOf(session.type).dot : r.kind === 'rest' ? 'bg-ink-3' : 'bg-success'" />
+                                                    <span class="min-w-0 flex-1 truncate text-ink-2">{{ r.name }}</span>
+                                                    <b v-if="r.value" class="shrink-0 font-semibold tabular-nums text-ink">{{ r.value }}</b>
+                                                </div>
+                                            </div>
+
+                                            <!-- Übungen -->
+                                            <ul v-if="session.exercises && session.exercises.length && session.status !== 'skipped'"
+                                                class="mt-4 space-y-1.5 border-t border-line pt-3">
+                                                <li v-for="(ex, i) in session.exercises" :key="i"
+                                                    class="flex items-baseline gap-3 text-[15px]">
+                                                    <span class="min-w-0 flex-1 truncate text-ink-2">{{ ex.name }}</span>
+                                                    <b v-if="ex.sets || ex.reps" class="shrink-0 font-semibold tabular-nums text-ink">{{ [ex.sets, ex.reps].filter(Boolean).join(' × ') }}</b>
+                                                </li>
+                                            </ul>
                                         </div>
                                     </article>
                                 </SwipeRow>
@@ -1923,6 +1912,30 @@ const lapHeightPct = computed(() => {
                         {{ ratingSaved ? 'Gespeichert' : 'Bewertung speichern' }}
                     </AppButton>
                 </section>
+
+                <!--
+                    Was vorher als Knopfreihe unter jeder Karte stand. „Kein
+                    Training" und „Löschen" gehen in der Liste auch per Wischen.
+                -->
+                <div v-if="detailSession.type !== 'rest'" class="mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t border-line pt-4">
+                    <AppButton v-if="detailSession.status === 'planned' && !isPastEvent && !detailIsStrength"
+                        variant="plain" size="sm" @click="switchFromDetail(openWorkoutPicker)">
+                        Eigenes Workout
+                    </AppButton>
+                    <AppButton v-if="detailSession.status === 'planned' && detailSession.planned_date !== event.event_date"
+                        variant="plain" size="sm" @click="switchFromDetail(openSkipModal)">
+                        Kein Training
+                    </AppButton>
+                    <AppButton v-if="canChange(detailSession)"
+                        variant="plain" size="sm" @click="switchFromDetail((s) => deleteSession(s, true))">
+                        Löschen
+                    </AppButton>
+                    <AppButton v-if="isAdmin" variant="plain" size="sm"
+                        title="Admin: Steps- und Nutrition-Cache leeren"
+                        @click="resetSessionCache(detailSession)">
+                        AI Reset
+                    </AppButton>
+                </div>
             </div>
 
             <template v-if="detailSession" #footer>

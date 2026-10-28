@@ -131,3 +131,43 @@ export function formatMinutes(min) {
 export function useSessionTypes() {
     return { sessionType, SESSION_TYPES, paceWithUnit, paceValue, stepAmount, formatMinutes };
 }
+
+/**
+ * Die Abschnitte einer Einheit als kurze Zeilen für die Karte — wie in der
+ * Story: „Einlaufen · 15 min", „3 × 10 min Schwelle · 4:09–4:15".
+ *
+ * Eine Wiederholung mit ihrer Trabpause wird eine Zeile; die Pause steht
+ * in den Details. Rechts steht bei Belastung die Pace (das ist die Ansage),
+ * sonst Strecke oder Dauer.
+ */
+export function stepRows(steps) {
+    if (!Array.isArray(steps) || !steps.length) return [];
+
+    const rows = [];
+    for (let i = 0; i < steps.length; i++) {
+        const s = steps[i];
+        const reps = Number(s.repetitions) > 1 ? Number(s.repetitions) : 1;
+        const amount = stepAmount(s);
+
+        if (s.type === 'rest') {
+            // Gehört zur Wiederholung davor.
+            if (reps > 1 || steps[i - 1]?.repetitions > 1) continue;
+            rows.push({ kind: 'rest', name: s.label ?? 'Pause', value: amount });
+            continue;
+        }
+
+        if (s.type === 'work') {
+            const prefix = [reps > 1 ? `${reps} ×` : null, amount].filter(Boolean).join(' ');
+            rows.push({
+                kind: 'work',
+                name: [prefix, s.label].filter(Boolean).join(' '),
+                value: paceValue(s.pace_target) ?? (reps > 1 ? null : amount),
+            });
+            continue;
+        }
+
+        rows.push({ kind: s.type, name: s.label ?? (s.type === 'warmup' ? 'Einlaufen' : 'Auslaufen'), value: amount });
+    }
+
+    return rows;
+}

@@ -49,15 +49,20 @@ export default {
     theme: {
         extend: {
             /*
-             * Die Systemschrift — auf dem iPhone SF Pro, ohne Download.
-             * `rounded` ist SF Pro Rounded fuer Kennzahlen, wie in Health
-             * und Fitness: grosse Zahlen sollen weich und kraeftig wirken.
-             * Ausserhalb von Apple-Geraeten faellt sie auf die Systemschrift
-             * zurueck.
+             * Inter mit optischer Groesse (seit 28.10.2026, aus den
+             * Story-Slides): ab etwa 32 px schaltet der Browser von selbst auf
+             * den Display-Schnitt mit engeren Abstaenden — die grossen
+             * Headlines und Zahlen bekommen dadurch ihren Charakter. Selbst
+             * gehostet (`@fontsource-variable/inter`), kein Google-Server.
+             * Vorher die Systemschrift; die bleibt der Rueckfall.
+             *
+             * `rounded` heisst weiter so, damit die Kennzahlen nicht an 30
+             * Stellen umbenannt werden muessen — es ist jetzt Inter mit
+             * Tabellenziffern statt SF Pro Rounded.
              */
             fontFamily: {
-                sans:    ['-apple-system', 'BlinkMacSystemFont', ...defaultTheme.fontFamily.sans],
-                rounded: ['ui-rounded', '"SF Pro Rounded"', '-apple-system', 'BlinkMacSystemFont', ...defaultTheme.fontFamily.sans],
+                sans:    ['"Inter Variable"', '-apple-system', 'BlinkMacSystemFont', ...defaultTheme.fontFamily.sans],
+                rounded: ['"Inter Variable"', '-apple-system', 'BlinkMacSystemFont', ...defaultTheme.fontFamily.sans],
             },
 
             colors: {
