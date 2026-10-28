@@ -136,7 +136,15 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         // An einem Doppel-Tag (norwegisches Modell) stehen zwei Läufe. Ist
         // der Morgen erledigt, zeigt die Karte den Abend — die erste noch
         // offene Laufeinheit, sonst wie bisher die erste des Tages.
-        $todaySessions = TrainingSession::where('training_plan_id', $activePlan->id)
+        //
+        // Ein eingeplantes Workout hat keinen Plan, gehört aber genauso
+        // dazu: wer es für heute setzt, will es hier sehen und nicht die
+        // nächste Planeinheit in fünf Wochen (Jan, 28.10.2026).
+        $ownSessions = fn () => TrainingSession::where(fn ($q) => $q
+            ->where('training_plan_id', $activePlan->id)
+            ->orWhere(fn ($q) => $q->whereNull('training_plan_id')->where('user_id', $user->id)));
+
+        $todaySessions = $ownSessions()
             ->whereDate('planned_date', $todayStr)
             ->orderBy('sort_order')
             ->get();
@@ -151,8 +159,8 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
 
         // No session today (or skipped) → show next upcoming planned session
         if (! $s) {
-            $s = TrainingSession::where('training_plan_id', $activePlan->id)
-                ->where('planned_date', '>', $todayStr)
+            $s = $ownSessions()
+                ->whereDate('planned_date', '>', $todayStr)
                 ->where('status', 'planned')
                 ->where('type', '!=', 'rest')
                 ->orderBy('planned_date')
@@ -175,7 +183,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 'activity_id'  => $s->activity_id,
                 'event_id'     => $s->event_id,
                 'plan_id'      => $activePlan->id,
-                'event_name'   => $activePlan->event?->name,
+                'event_name'   => $s->training_plan_id ? $activePlan->event?->name : null,
                 'session_date' => $s->planned_date->format('Y-m-d'),
                 'is_today'     => $s->planned_date->toDateString() === $todayStr,
                 'zwo_url'      => $s->hasBikeSteps() ? route('training-sessions.zwo', $s) : null,
@@ -214,7 +222,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
     $todayRecommendationSession = null;
     if (! $activePlan) {
         $sr = TrainingSession::where('user_id', $user->id)
-            ->where('planned_date', $todayStr)
+            ->whereDate('planned_date', $todayStr)
             ->whereNull('training_plan_id')
             ->orderBy('sort_order')
             ->first();

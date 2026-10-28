@@ -11,6 +11,7 @@ import SectionHeader from '@/Components/UI/SectionHeader.vue';
 import GarminSendSheet from '@/Components/UI/GarminSendSheet.vue';
 import SwipeRow from '@/Components/SwipeRow.vue';
 import DragGhost from '@/Components/UI/DragGhost.vue';
+import { useFinePointer } from '@/Composables/useFinePointer';
 import { useDragToDay } from '@/Composables/useDragToDay';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
@@ -350,7 +351,12 @@ const { drag, start: startDrag } = useDragToDay(async (session, date) => {
     }
 });
 
-async function deleteSession(session) {
+// Am Desktop gibt es kein Wischen; dort steht „Löschen“ als Knopf in der
+// Karte, und ein Klick allein soll keine Einheit kosten.
+const finePointer = useFinePointer();
+
+async function deleteSession(session, ask = false) {
+    if (ask && !window.confirm(`„${session.title}“ löschen?`)) return;
     try {
         await axios.delete(route('training-sessions.destroy', session.id));
         reloadSessions();
@@ -1154,12 +1160,14 @@ const lapHeightPct = computed(() => {
                                         :data-drop-date="session.planned_date >= today ? session.planned_date : null"
                                         class="overflow-hidden rounded-card bg-surface shadow-card transition"
                                         :style="canChange(session) ? '-webkit-touch-callout: none' : null"
+                                        :title="canChange(session) && finePointer ? 'Auf einen anderen Tag ziehen' : null"
                                         @touchstart="canChange(session) && startDrag($event, session, session.planned_date, session.title)"
                                         @mousedown="canChange(session) && startDrag($event, session, session.planned_date, session.title)"
                                         @contextmenu="canChange(session) && $event.preventDefault()"
                                         :class="[
                                             drag.overDate && drag.overDate === session.planned_date ? 'ring-2 ring-accent bg-accent-soft' : '',
                                             drag.active && drag.item?.id === session.id ? 'opacity-40' : '',
+                                            canChange(session) && finePointer ? 'cursor-grab' : '',
                                             session.status === 'completed' ? 'opacity-75' : '',
                                             session.status === 'skipped'   ? 'opacity-50' : '',
                                             isToday(session.planned_date) && session.status === 'planned'
@@ -1281,6 +1289,14 @@ const lapHeightPct = computed(() => {
                                                         @click="openSkipModal(session)"
                                                     >
                                                         Kein Training
+                                                    </AppButton>
+
+                                                    <AppButton
+                                                        v-if="finePointer && canChange(session)"
+                                                        variant="ghost" size="sm"
+                                                        @click="deleteSession(session, true)"
+                                                    >
+                                                        Löschen
                                                     </AppButton>
 
                                                     <AppButton v-if="isAdmin" variant="ghost" size="sm"

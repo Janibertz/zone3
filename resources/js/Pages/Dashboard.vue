@@ -1603,7 +1603,7 @@ async function resetLayout() {
                                 : props.todayPlanSession.is_today ? 'Heute'
                                 : new Date(props.todayPlanSession.session_date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' })"
                             :badge-tone="props.todayPlanSession.status === 'completed' ? 'success' : props.todayPlanSession.is_today ? 'accent' : 'neutral'"
-                            :href="props.todayPlanSession.event_id ? `/events/${props.todayPlanSession.event_id}/plan?open=${props.todayPlanSession.id}` : '/events'"
+                            :href="props.todayPlanSession.event_id ? `/events/${props.todayPlanSession.event_id}/plan?open=${props.todayPlanSession.id}` : route('calendar')"
                         />
                         <!--
                             Downloads, keine Inertia-Links: die .zwo-Datei für Zwift

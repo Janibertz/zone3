@@ -167,6 +167,54 @@ class WorkoutScheduleTest extends TestCase
             ->assertForbidden();
     }
 
+    // ── Dashboard ────────────────────────────────────────────────────────
+
+    /** Jan: „Wenn ich heute ein Workout setze, ist das doch das nächste Training." */
+    public function test_the_dashboard_shows_a_scheduled_workout_before_a_later_plan_start(): void
+    {
+        $event = Event::create([
+            'user_id' => $this->user->id, 'name' => 'HM', 'event_date' => '2027-03-01',
+            'race_distance' => 'half_marathon', 'priority' => 'A',
+        ]);
+        $plan = TrainingPlan::create(['user_id' => $this->user->id, 'event_id' => $event->id, 'sessions' => [], 'is_active' => true]);
+        TrainingSession::create([
+            'user_id' => $this->user->id, 'training_plan_id' => $plan->id, 'event_id' => $event->id,
+            'planned_date' => '2026-11-30', 'type' => 'easy_run', 'title' => 'Planstart', 'intensity' => 'low', 'status' => 'planned', 'sort_order' => 0,
+        ]);
+
+        // Morgen: das naechste Training ist das Workout, nicht der Planstart.
+        $this->actingAs($this->user)->postJson(route('workouts.schedule', $this->intervals()), ['date' => '2026-10-29'])->assertOk();
+        $this->actingAs($this->user)->get('/dashboard')->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('todayPlanSession.title', '10×30 s')
+                ->where('todayPlanSession.is_today', false));
+
+        // Heute: dann steht es als heutige Einheit da.
+        TrainingSession::where('title', '10×30 s')->update(['planned_date' => '2026-10-28']);
+        $this->actingAs($this->user)->get('/dashboard')->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('todayPlanSession.title', '10×30 s')
+                ->where('todayPlanSession.is_today', true));
+    }
+
+    public function test_another_athletes_scheduled_workout_never_shows_up(): void
+    {
+        $event = Event::create([
+            'user_id' => $this->user->id, 'name' => 'HM', 'event_date' => '2027-03-01',
+            'race_distance' => 'half_marathon', 'priority' => 'A',
+        ]);
+        TrainingPlan::create(['user_id' => $this->user->id, 'event_id' => $event->id, 'sessions' => [], 'is_active' => true]);
+
+        $other = User::factory()->onboarded()->create();
+        TrainingSession::create([
+            'user_id' => $other->id, 'planned_date' => '2026-10-29', 'type' => 'interval', 'title' => 'Fremd',
+            'intensity' => 'high', 'status' => 'planned', 'sort_order' => 0,
+        ]);
+
+        $this->actingAs($this->user)->get('/dashboard')->assertOk()
+            ->assertInertia(fn ($page) => $page->where('todayPlanSession', null));
+    }
+
     // ── Garmin folgt ─────────────────────────────────────────────────────
 
     public function test_garmin_follows_a_scheduled_workout_without_a_plan(): void

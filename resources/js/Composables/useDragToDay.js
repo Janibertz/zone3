@@ -7,9 +7,14 @@ import { reactive, onBeforeUnmount } from 'vue';
  * kann Safari auf dem iPhone nicht, darum laeuft es hier ueber Touch- und
  * Mausereignisse selbst:
  *
- * - **Erst nach dem langen Druck** (`HOLD_MS`) wird gezogen. Bewegt sich der
- *   Finger vorher, ist es ein Scrollen oder ein Wischen (SwipeRow), und es
+ * - **Mit dem Finger erst nach dem langen Druck** (`HOLD_MS`). Bewegt sich
+ *   der Finger vorher, ist es ein Scrollen oder ein Wischen (SwipeRow), und es
  *   passiert nichts.
+ * - **Mit der Maus sofort**, sobald sie sich bei gedrueckter Taste bewegt —
+ *   so erwartet man es am Desktop. Ein langer Druck vorher hiess dort: wer
+ *   gleich zieht, bricht ab, und das war jeder. Knoepfe und Links in der
+ *   Karte starten nichts, und das native Ziehen des Browsers (markierter
+ *   Text, Links) wird unterdrueckt, sonst kaemen keine `mousemove` mehr an.
  * - Waehrend des Ziehens wird das Scrollen der Seite unterdrueckt; nahe am
  *   oberen oder unteren Rand scrollt sie von selbst, damit man im Kalender
  *   aus der Tagesansicht ins Raster darueber kommt.
@@ -29,6 +34,7 @@ export function useDragToDay(onDrop) {
     let startY = 0;
     let fromDate = null;
     let raf = null;
+    let pending = null;
 
     function pointOf(e) {
         const t = e.touches?.[0] ?? e.changedTouches?.[0] ?? e;
@@ -40,35 +46,47 @@ export function useDragToDay(onDrop) {
      * und dasselbe fuer `@mousedown`.
      */
     function start(e, item, date, label) {
-        if (e.type === 'mousedown' && e.button !== 0) return;
+        const mouse = e.type === 'mousedown';
+        if (mouse && (e.button !== 0 || e.target.closest?.('button, a, input, textarea, select'))) return;
         cancel();
 
         const p = pointOf(e);
         startX = p.x;
         startY = p.y;
         fromDate = date;
+        pending = { item, label };
 
         window.addEventListener('touchmove', onMove, { passive: false });
         window.addEventListener('touchend', onEnd);
         window.addEventListener('touchcancel', cancel);
         window.addEventListener('mousemove', onMove);
         window.addEventListener('mouseup', onEnd);
+        window.addEventListener('dragstart', preventNative);
 
-        timer = setTimeout(() => {
-            timer = null;
-            Object.assign(drag, { active: true, item, label, x: p.x, y: p.y, overDate: null });
-            document.documentElement.classList.add('select-none');
-            autoscroll();
-        }, HOLD_MS);
+        if (!mouse) timer = setTimeout(() => activate(p), HOLD_MS);
     }
+
+    function activate(p) {
+        clearTimeout(timer);
+        timer = null;
+        Object.assign(drag, { active: true, ...pending, x: p.x, y: p.y, overDate: null });
+        window.getSelection?.()?.removeAllRanges();
+        document.documentElement.classList.add('select-none');
+        autoscroll();
+    }
+
+    function preventNative(e) { e.preventDefault(); }
 
     function onMove(e) {
         const p = pointOf(e);
 
         if (!drag.active) {
-            // Vor dem langen Druck bewegt: Scrollen oder Wischen, kein Ziehen.
-            if (Math.abs(p.x - startX) > SLOP_PX || Math.abs(p.y - startY) > SLOP_PX) cancel();
-            return;
+            const moved = Math.abs(p.x - startX) > SLOP_PX || Math.abs(p.y - startY) > SLOP_PX;
+            if (!moved) return;
+            // Maus: jetzt geht es los. Finger vor dem langen Druck: Scrollen
+            // oder Wischen, kein Ziehen.
+            if (e.type === 'mousemove') activate(p);
+            else return cancel();
         }
 
         if (e.cancelable) e.preventDefault();
@@ -104,6 +122,7 @@ export function useDragToDay(onDrop) {
         clearTimeout(timer);
         timer = null;
         cancelAnimationFrame(raf);
+        pending = null;
         Object.assign(drag, { active: false, item: null, label: '', overDate: null });
         document.documentElement.classList.remove('select-none');
 
@@ -112,6 +131,7 @@ export function useDragToDay(onDrop) {
         window.removeEventListener('touchcancel', cancel);
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onEnd);
+        window.removeEventListener('dragstart', preventNative);
     }
 
     onBeforeUnmount(cancel);
