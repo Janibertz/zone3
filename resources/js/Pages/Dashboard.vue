@@ -19,7 +19,8 @@ import SessionCard from '@/Components/UI/SessionCard.vue';
 import AppCard from '@/Components/UI/AppCard.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
 import StatChip from '@/Components/UI/StatChip.vue';
-import MetricTile from '@/Components/UI/MetricTile.vue';
+import GaugeTile from '@/Components/UI/GaugeTile.vue';
+import { garminGauges, wellbeingGauges } from '@/Composables/useRecoveryGauges.js';
 import SectionHeader from '@/Components/UI/SectionHeader.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { sessionType, stepAmount } from '@/Composables/useSessionTypes';
@@ -541,105 +542,13 @@ const checkinDone = computed(() => wellbeingEnteredToday.value);
 /** Letzter Garmin-Tag mit Werten. */
 const garminLatest = computed(() => props.garminMetrics?.latest ?? null);
 
-/** Mittelwert einer Garmin-Kennzahl über die Serie — als persönliche Basislinie. */
-function garminBaseline(key) {
-    const vals = (props.garminMetrics?.series ?? [])
-        .map(r => r[key])
-        .filter(v => v !== null && v !== undefined);
-    if (vals.length < 3) return null;
-    return vals.reduce((s, v) => s + v, 0) / vals.length;
-}
-
-/** 0–100 skalieren und begrenzen. */
-const clamp = (v) => Math.max(0, Math.min(100, v));
-
-/** Höher ist besser → good ab 75 %, ok ab 45 %. */
-function toneFromPct(pct) {
-    if (pct == null) return 'none';
-    return pct >= 75 ? 'good' : pct >= 45 ? 'ok' : 'weak';
-}
-
-/** Abweichung von der Basislinie einordnen; `invert` für Werte, bei denen weniger besser ist. */
-function toneFromBaseline(value, base, invert = false) {
-    if (value == null || base == null) return 'none';
-    const diff = ((value - base) / base) * 100 * (invert ? -1 : 1);
-    return diff >= -2 ? 'good' : diff >= -10 ? 'ok' : 'weak';
-}
-
-function baselineHint(value, base, unit = '') {
-    if (value == null || base == null) return null;
-    const d = Math.round(value - base);
-    if (d === 0) return 'im Schnitt';
-    return `${d > 0 ? '+' : ''}${d}${unit} zum Schnitt`;
-}
-
 /**
- * Vier Kacheln, gespeist aus Garmin. Ohne Garmin-Verbindung übernimmt der
- * Check-in — dieselbe Darstellung, andere Quelle.
+ * Die Kacheln unter „Körper“: Garmin-Bögen, ohne Garmin der Check-in in
+ * derselben Darstellung. Die Rechnung steht in useRecoveryGauges.js.
  */
-const metricTiles = computed(() => {
-    const g = garminLatest.value;
-
-    // ── Garmin ──────────────────────────────────────────────────────────
-    if (g) {
-        const hrvBase = garminBaseline('hrv');
-        const rhrBase = garminBaseline('resting_hr');
-
-        const sleepPct     = g.sleep_hours != null ? clamp((g.sleep_hours / 8) * 100) : null;
-
-        return [
-            // Body Battery statt Training Readiness: die Health API liefert
-            // keine Readiness, die Kachel bliebe für immer leer.
-            {
-                label: 'Body Battery',
-                value: g.body_battery_high ?? '–',
-                unit:  g.body_battery_high != null ? '/ 100' : null,
-                pct:   g.body_battery_high,
-                tone:  toneFromPct(g.body_battery_high),
-                hint:  g.body_battery_low != null ? `tiefster ${g.body_battery_low}` : null,
-            },
-            {
-                label: 'Schlaf',
-                value: g.sleep_hours != null ? g.sleep_hours.toFixed(1) : '–',
-                unit:  'h',
-                pct:   sleepPct,
-                tone:  toneFromPct(sleepPct),
-                hint:  g.sleep_hours != null ? (g.sleep_hours >= 7 ? 'ausreichend' : 'kurze Nacht') : null,
-            },
-            {
-                label: 'HRV',
-                value: g.hrv ?? '–',
-                unit:  'ms',
-                // Basislinie sitzt bei 70 % Ringfüllung, damit Abweichungen sichtbar werden.
-                pct:   g.hrv != null && hrvBase ? clamp((g.hrv / hrvBase) * 70) : null,
-                tone:  toneFromBaseline(g.hrv, hrvBase),
-                hint:  baselineHint(g.hrv, hrvBase, ' ms'),
-            },
-            {
-                label: 'Ruhepuls',
-                value: g.resting_hr ?? '–',
-                unit:  'bpm',
-                pct:   g.resting_hr != null && rhrBase ? clamp((rhrBase / g.resting_hr) * 70) : null,
-                tone:  toneFromBaseline(g.resting_hr, rhrBase, true),
-                hint:  baselineHint(g.resting_hr, rhrBase),
-            },
-        ];
-    }
-
-    // ── Check-in als Rückfallebene ──────────────────────────────────────
-    const w = props.wellbeingToday;
-    if (!w) return [];
-
-    // Muskelkater und Stress sind invertiert: hoher Wert ist schlecht.
-    const scale = (v, invert = false) => (v == null ? null : clamp(((invert ? 11 - v : v) / 10) * 100));
-
-    return [
-        { label: 'Energie',     value: w.energy_level    ?? '–', unit: '/ 10', pct: scale(w.energy_level),          tone: toneFromPct(scale(w.energy_level)) },
-        { label: 'Schlaf',      value: w.sleep_quality   ?? '–', unit: '/ 10', pct: scale(w.sleep_quality),         tone: toneFromPct(scale(w.sleep_quality)) },
-        { label: 'Muskeln',     value: w.muscle_soreness ?? '–', unit: '/ 10', pct: scale(w.muscle_soreness, true), tone: toneFromPct(scale(w.muscle_soreness, true)), hint: 'weniger ist besser' },
-        { label: 'Stress',      value: w.stress_level    ?? '–', unit: '/ 10', pct: scale(w.stress_level, true),    tone: toneFromPct(scale(w.stress_level, true)),    hint: 'weniger ist besser' },
-    ];
-});
+const metricTiles = computed(() => (garminLatest.value
+    ? garminGauges(props.garminMetrics)
+    : wellbeingGauges(props.wellbeingToday)));
 
 /** Woher die Kacheln stammen — für die Beschriftung darüber. */
 const metricSource = computed(() => {
@@ -2114,8 +2023,11 @@ async function resetLayout() {
                                         <span class="text-[15px] text-ink-3">{{ metricSource }}</span>
                                     </template>
                                 </SectionHeader>
-                                <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                    <MetricTile v-for="t in metricTiles" :key="t.label" v-bind="t" />
+                                <!-- Eine Reihe (Jan): am iPhone wischbar, ab lg alle nebeneinander -->
+                                <div class="no-scrollbar -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto px-4 lg:mx-0 lg:grid lg:overflow-visible lg:px-0"
+                                    :class="metricTiles.length === 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'">
+                                    <GaugeTile v-for="t in metricTiles" :key="t.key" v-bind="t"
+                                        class="w-[28%] min-w-[104px] shrink-0 snap-start lg:w-auto lg:min-w-0" />
                                 </div>
                             </section>
 

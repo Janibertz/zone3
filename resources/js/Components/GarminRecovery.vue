@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import AppCard from '@/Components/UI/AppCard.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import SectionHeader from '@/Components/UI/SectionHeader.vue';
+import { SLEEP_SCORE_ZONES, TONE_COLOR, zoneOf } from '@/Composables/useRecoveryGauges.js';
 
 const props = defineProps({
     metrics:    { type: Object,  default: null },     // { latest, series: [...] } bis zu 60 Tage
@@ -76,62 +77,12 @@ function stat(key) {
     const sd = Math.sqrt(a.reduce((s, v) => s + (v - mean) ** 2, 0) / a.length);
     return { mean, sd, min: Math.min(...a), max: Math.max(...a), last: a[a.length - 1], n: a.length };
 }
-function last(key) { const a = series(key); return a.length ? a[a.length - 1] : null; }
 
 const daysWithData = computed(() =>
-    days.value.filter(d => ['hrv', 'resting_hr', 'sleep_hours', 'body_battery_high', 'stress_avg', 'steps', 'vo2max']
+    days.value.filter(d => ['hrv', 'resting_hr', 'sleep_hours', 'sleep_score', 'body_battery_high', 'stress_avg', 'steps', 'vo2max']
         .some(k => d[k] !== null)).length);
 
 const hasData = computed(() => daysWithData.value > 0 || props.activities.length > 0);
-
-// ── Kacheln ──────────────────────────────────────────────────────────────────
-function spark(key) {
-    const W = 120, H = 34, pad = 2;
-    const s = stat(key);
-    if (!s) return null;
-    const range = (s.max - s.min) || 1;
-    const n = days.value.length;
-    let d = '', open = false;
-    days.value.forEach((day, i) => {
-        const v = day[key];
-        if (v === null) { open = false; return; }
-        const x = pad + (n > 1 ? i / (n - 1) : 0) * (W - pad * 2);
-        const y = pad + (H - pad * 2) - ((v - s.min) / range) * (H - pad * 2);
-        d += (open ? ' L ' : ' M ') + x.toFixed(1) + ' ' + y.toFixed(1);
-        open = true;
-    });
-    return d;
-}
-function tile(key, opts) {
-    const s = stat(key);
-    const a = series(key);
-    let delta = null, highlight = false;
-    if (a.length >= 4) {
-        const half = Math.floor(a.length / 2);
-        const mean = arr => arr.reduce((x, y) => x + y, 0) / arr.length;
-        delta = mean(a.slice(half)) - mean(a.slice(0, half));
-        highlight = s.sd > 0 && Math.abs(delta) > 0.6 * s.sd;
-    }
-    return { ...opts, key, value: s ? s.last : null, spark: spark(key), delta, highlight };
-}
-const tiles = computed(() => [
-    tile('hrv',         { label: 'HRV',       color: C.hrv,    unit: 'ms',  digits: 0 }),
-    tile('resting_hr',  { label: 'Ruhepuls',  color: C.rhr,    unit: 'bpm', digits: 0, invert: true }),
-    tile('sleep_hours', { label: 'Schlaf',    color: C.sleep,  unit: 'h',   digits: 1 }),
-    tile('stress_avg',  { label: 'Stress',    color: C.stress, unit: '',    digits: 0, invert: true }),
-    // Garmin schickt die VO2max nur, wenn sie sich ändert — ohne Wert im
-    // Zeitraum bleibt die Kachel weg statt dauerhaft „–" zu zeigen.
-    ...(last('vo2max') != null ? [tile('vo2max', { label: 'VO2max', color: C.energy, unit: 'ml/kg/min', digits: 1 })] : []),
-]);
-function deltaClass(t) {
-    if (t.delta == null) return 'text-ink-3';
-    const good = t.invert ? t.delta < 0 : t.delta > 0;
-    return good ? 'text-success' : 'text-danger';
-}
-function fmtDelta(t) {
-    const sign = t.delta > 0 ? '+' : '';
-    return `${sign}${t.delta.toFixed(1)} zur ersten Hälfte`;
-}
 
 // ── Liniendiagramme (HRV mit Baseline-Band, Ruhepuls) ────────────────────────
 function buildLine(key, { min = null, max = null, band = false } = {}) {
@@ -175,22 +126,35 @@ function onMove(evt, chart, unit) {
 }
 function onLeave() { hover.value = null; }
 
-// ── Schlafbalken (7-Stunden-Marke) ───────────────────────────────────────────
+// ── Schlaf: Schlafwert in Garmins Stufen, ohne Wert die Stunden ──────────────
 const sleepBars = computed(() => {
-    const s = stat('sleep_hours');
-    if (!s) return null;
     const W = 1000, H = 170, padX = 8, padTop = 14, padBottom = 22;
-    const hi = Math.max(s.max, 8);
     const n = days.value.length;
     const bw = (W - padX * 2) / n;
+    const bar = (i, y) => ({ x: padX + i * bw + bw * 0.15, w: bw * 0.7, y, h: (H - padBottom) - y });
+
+    // Dieselben Farben wie der Bogen unter „Körper“.
+    if (series('sleep_score').length) {
+        const Y = v => padTop + (H - padTop - padBottom) * (1 - v / 100);
+        const bars = days.value.map((day, i) => {
+            const v = day.sleep_score;
+            if (v === null) return null;
+            const z = zoneOf(SLEEP_SCORE_ZONES, v);
+            return { ...bar(i, Y(v)), fill: TONE_COLOR[z.tone], title: `${fmtDM(day.date)}: ${v}${day.sleep_hours != null ? ` · ${day.sleep_hours.toFixed(1)} h` : ''}` };
+        });
+        return { W, H, bars, score: true };
+    }
+
+    const s = stat('sleep_hours');
+    if (!s) return null;
+    const hi = Math.max(s.max, 8);
     const Y = v => padTop + (H - padTop - padBottom) - (v / hi) * (H - padTop - padBottom);
     const bars = days.value.map((day, i) => {
         const v = day.sleep_hours;
         if (v === null) return null;
-        return { x: padX + i * bw + bw * 0.15, w: bw * 0.7, y: Y(v), h: (H - padTop - padBottom) - (Y(v) - padTop), v, date: day.date, short: v < 6 };
+        return { ...bar(i, Y(v)), fill: v < 6 ? C.rhr : C.sleep, title: `${fmtDM(day.date)}: ${v.toFixed(1)} h` };
     });
-    let lastIdx = -1; bars.forEach((b, i) => { if (b) lastIdx = i; });
-    return { W, H, bars, sevenY: Y(7), lastIdx };
+    return { W, H, bars, score: false, sevenY: Y(7) };
 });
 
 // ── Body Battery als Tagesspanne ─────────────────────────────────────────────
@@ -237,13 +201,7 @@ const weeklyKm = computed(() => {
     return { W, H, bars };
 });
 
-// ── Logbuch + Randwerte ──────────────────────────────────────────────────────
-const dist7 = computed(() => {
-    const cut = new Date(); cut.setHours(0, 0, 0, 0); cut.setDate(cut.getDate() - 6);
-    return props.activities.filter(a => a.date && new Date(a.date + 'T00:00:00') >= cut)
-        .reduce((s, a) => s + (a.distance_km || 0), 0);
-});
-
+// ── Rohdaten ─────────────────────────────────────────────────────────────────
 const rawOpen = ref(false);
 const dateSpan = computed(() => {
     const d = days.value;
@@ -262,13 +220,6 @@ function nf(v, digits = 0) {
         : n.toLocaleString('de-DE', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
-const sideValues = computed(() => [
-    { label: 'Schlaf',          value: nf(last('sleep_hours'), 1), unit: 'h'   },
-    { label: 'HRV',             value: nf(last('hrv')),            unit: 'ms'  },
-    { label: 'Ruhepuls',        value: nf(last('resting_hr')),     unit: 'bpm' },
-    { label: 'Body Battery',    value: nf(last('body_battery_high')), unit: '' },
-    { label: 'Distanz 7 Tage',  value: nf(dist7.value, 1),         unit: 'km'  },
-]);
 </script>
 
 <template>
@@ -301,44 +252,12 @@ const sideValues = computed(() => [
                 </div>
             </div>
 
-            <!-- Aktuelle Werte -->
-            <AppCard flush>
-                <div class="divide-y divide-line">
-                    <div v-for="row in sideValues" :key="row.label" class="flex items-baseline justify-between px-5 py-3">
-                        <span class="text-[13px] text-ink-3">{{ row.label }}</span>
-                        <span class="text-[17px] font-bold tabular-nums text-ink">
-                            {{ row.value }}<span v-if="row.unit" class="ml-0.5 text-[12px] font-normal text-ink-3">{{ row.unit }}</span>
-                        </span>
-                    </div>
-                </div>
-            </AppCard>
-
-            <!-- Kacheln -->
-            <div class="grid grid-cols-2 gap-3" :class="tiles.length === 5 ? 'xl:grid-cols-5' : 'xl:grid-cols-4'">
-                <AppCard v-for="(t, i) in tiles" :key="t.label"
-                    :class="tiles.length % 2 === 1 && i === tiles.length - 1 ? 'col-span-2 xl:col-span-1' : ''">
-                    <p class="text-[13px] font-medium text-ink-3">{{ t.label }}</p>
-                    <p class="mt-1 flex items-baseline gap-1">
-                        <span class="text-2xl font-bold tabular-nums tracking-tight" :style="{ color: t.color }">
-                            {{ t.value == null ? '–' : Number(t.value).toFixed(t.digits) }}
-                        </span>
-                        <span v-if="t.unit" class="text-[12px] text-ink-3">{{ t.unit }}</span>
-                    </p>
-                    <svg v-if="t.spark" viewBox="0 0 120 34" class="mt-2 block h-8 w-full" preserveAspectRatio="none">
-                        <path :d="t.spark" fill="none" :stroke="t.color" stroke-width="1.5" />
-                    </svg>
-                    <p class="mt-2 text-[11px]" :class="t.highlight ? deltaClass(t) : 'text-ink-3'">
-                        {{ t.delta == null ? '—' : fmtDelta(t) }}
-                    </p>
-                </AppCard>
-            </div>
-
             <!-- HRV -->
-            <AppCard v-if="hrvChart" title="HRV mit Baseline-Band"
-                subtitle="Das Band zeigt deinen Normalbereich — Ausreißer fallen sofort auf.">
+            <AppCard v-if="hrvChart" title="HRV"
+                subtitle="Das grüne Band ist dein Normalbereich im gewählten Zeitraum.">
                 <svg :viewBox="`0 0 ${hrvChart.W} ${hrvChart.H}`" class="block h-auto w-full" @mousemove="onMove($event, hrvChart, ' ms')" @mouseleave="onLeave">
-                    <rect v-if="hrvChart.bandRect" :x="hrvChart.padX" :y="hrvChart.bandRect.y1" :width="hrvChart.W - hrvChart.padX*2" :height="Math.max(0, hrvChart.bandRect.y2 - hrvChart.bandRect.y1)" :fill="C.hrv" opacity="0.12" />
-                    <line v-if="hrvChart.bandRect" :x1="hrvChart.padX" :x2="hrvChart.W - hrvChart.padX" :y1="hrvChart.bandRect.mean" :y2="hrvChart.bandRect.mean" :stroke="C.hrv" stroke-width="1" opacity="0.4" />
+                    <rect v-if="hrvChart.bandRect" :x="hrvChart.padX" :y="hrvChart.bandRect.y1" :width="hrvChart.W - hrvChart.padX*2" :height="Math.max(0, hrvChart.bandRect.y2 - hrvChart.bandRect.y1)" :fill="C.energy" opacity="0.14" />
+                    <line v-if="hrvChart.bandRect" :x1="hrvChart.padX" :x2="hrvChart.W - hrvChart.padX" :y1="hrvChart.bandRect.mean" :y2="hrvChart.bandRect.mean" :stroke="C.energy" stroke-width="1" opacity="0.4" />
                     <line v-for="g in hrvChart.grid" :key="g.y" :x1="hrvChart.padX" :x2="hrvChart.W - hrvChart.padX" :y1="g.y" :y2="g.y" :stroke="C.grid" stroke-width="1" />
                     <path :d="hrvChart.d" fill="none" :stroke="C.hrv" stroke-width="2" />
                     <circle v-if="hrvChart.lastPt" :cx="hrvChart.lastPt.x" :cy="hrvChart.lastPt.y" r="4" :fill="C.hrv" />
@@ -369,17 +288,25 @@ const sideValues = computed(() => [
 
             <!-- Schlaf + Body Battery nebeneinander ab lg -->
             <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <AppCard v-if="sleepBars" title="Schlaf"
-                    subtitle="Die Linie markiert 7 Stunden. Hervorgehobene Säulen sind kurze Nächte.">
+                <AppCard v-if="sleepBars" :title="sleepBars.score ? 'Schlafwert' : 'Schlaf'"
+                    :subtitle="sleepBars.score ? 'Jede Säule in der Farbe ihrer Stufe, wie im Bogen oben.' : 'Die Linie markiert 7 Stunden. Rot markiert sind kurze Nächte.'">
                     <svg :viewBox="`0 0 ${sleepBars.W} ${sleepBars.H}`" class="block h-auto w-full">
-                        <line :x1="8" :x2="sleepBars.W - 8" :y1="sleepBars.sevenY" :y2="sleepBars.sevenY" :stroke="C.muted" stroke-width="1" opacity="0.5" stroke-dasharray="4 4" />
-                        <text :x="12" :y="sleepBars.sevenY - 5" :fill="C.muted" font-size="11">7 Stunden</text>
+                        <template v-if="!sleepBars.score">
+                            <line :x1="8" :x2="sleepBars.W - 8" :y1="sleepBars.sevenY" :y2="sleepBars.sevenY" :stroke="C.muted" stroke-width="1" opacity="0.5" stroke-dasharray="4 4" />
+                            <text :x="12" :y="sleepBars.sevenY - 5" :fill="C.muted" font-size="11">7 Stunden</text>
+                        </template>
                         <template v-for="(b, i) in sleepBars.bars" :key="i">
-                            <rect v-if="b" :x="b.x" :y="b.y" :width="b.w" :height="b.h" rx="2" :fill="b.short ? C.rhr : C.sleep" :opacity="b.short ? 1 : 0.85">
-                                <title>{{ fmtDM(b.date) }}: {{ b.v.toFixed(1) }} h</title>
+                            <rect v-if="b" :x="b.x" :y="b.y" :width="b.w" :height="b.h" rx="2" :fill="b.fill">
+                                <title>{{ b.title }}</title>
                             </rect>
                         </template>
                     </svg>
+                    <div v-if="sleepBars.score" class="mt-2 flex flex-wrap gap-x-3.5 gap-y-1 text-[12px] text-ink-3">
+                        <span v-for="z in SLEEP_SCORE_ZONES" :key="z.label" class="flex items-center gap-1.5">
+                            <i class="inline-block h-2 w-2 rounded-sm" :style="{ background: TONE_COLOR[z.tone] }" />
+                            {{ z.label }}{{ z.from ? ` ab ${z.from}` : ` unter ${z.to}` }}
+                        </span>
+                    </div>
                 </AppCard>
 
                 <AppCard v-if="bbBars" title="Body Battery"
@@ -427,6 +354,7 @@ const sideValues = computed(() => [
                                 <th class="px-2 py-2 text-right font-semibold">HRV</th>
                                 <th class="px-2 py-2 text-right font-semibold">Ruhepuls</th>
                                 <th class="px-2 py-2 text-right font-semibold">Schlaf</th>
+                                <th class="px-2 py-2 text-right font-semibold">Schlafwert</th>
                                 <th class="px-2 py-2 text-right font-semibold">Battery</th>
                                 <th class="px-2 py-2 text-right font-semibold">Stress</th>
                                 <th class="px-2 py-2 text-right font-semibold">Schritte</th>
@@ -439,6 +367,7 @@ const sideValues = computed(() => [
                                 <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ nf(d.hrv) }}</td>
                                 <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ nf(d.resting_hr) }}</td>
                                 <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ d.sleep_hours != null ? d.sleep_hours.toFixed(1) : '–' }}</td>
+                                <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ nf(d.sleep_score) }}</td>
                                 <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ d.body_battery_high != null ? `${d.body_battery_low ?? '?'}–${d.body_battery_high}` : '–' }}</td>
                                 <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ nf(d.stress_avg) }}</td>
                                 <td class="px-2 py-2 text-right tabular-nums text-ink-2">{{ nf(d.steps) }}</td>
