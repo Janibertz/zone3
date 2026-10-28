@@ -22,7 +22,8 @@ use Illuminate\Notifications\Notifiable;
     'avatar', 'bio', 'location', 'birth_year', 'favorite_distance', 'coach_id',
     'garmin_email', 'garmin_session', 'ai_daily_limit', 'activity_source', 'garmin_workout_sync',
     'newsletter_opt_in', 'unsubscribe_token',
-    'telegram_chat_id', 'telegram_link_token', 'telegram_linked_at', 'calendar_token'])]
+    'telegram_chat_id', 'telegram_link_token', 'telegram_linked_at', 'calendar_token',
+    'dashboard_layout'])]
 #[Hidden(['password', 'remember_token', 'garmin_session', 'garmin_email', 'unsubscribe_token',
     'telegram_chat_id', 'telegram_link_token', 'calendar_token'])]
 class User extends Authenticatable
@@ -67,6 +68,7 @@ class User extends Authenticatable
             'garmin_session'                => 'encrypted',
             'newsletter_opt_in'             => 'boolean',
             'telegram_linked_at'            => 'datetime',
+            'dashboard_layout'              => 'array',
             'garmin_workout_sync'           => 'boolean',
         ];
     }
