@@ -6,7 +6,7 @@ import AppButton from '@/Components/UI/AppButton.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
 import AppCard from '@/Components/UI/AppCard.vue';
-import StatTile from '@/Components/UI/StatTile.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import SectionHeader from '@/Components/UI/SectionHeader.vue';
 import GarminSendSheet from '@/Components/UI/GarminSendSheet.vue';
 import SwipeRow from '@/Components/SwipeRow.vue';
@@ -23,13 +23,6 @@ const isAdmin = computed(() => usePage().props.auth?.isAdmin ?? false);
 const flash   = computed(() => usePage().props.flash ?? {});
 const coachName = computed(() => coach.value?.name ?? 'Dein Coach');
 
-const coachAccentColors = {
-    orange: { stripe: 'bg-warn', badge: 'bg-warn-soft text-warn-ink border-warn/25', avatar: 'bg-warn' },
-    blue:   { stripe: 'bg-info',   badge: 'bg-info-soft text-info-ink border-info/25',             avatar: 'bg-info'   },
-    green:  { stripe: 'bg-success',  badge: 'bg-success-soft text-success-ink border-success/25',       avatar: 'bg-success'  },
-    purple: { stripe: 'bg-accent', badge: 'bg-accent-soft text-accent-ink border-accent/25', avatar: 'bg-accent' },
-};
-const coachAccent = computed(() => coachAccentColors[coach.value?.avatar_color] ?? coachAccentColors.blue);
 
 const props = defineProps({
     event:        Object,
@@ -292,6 +285,83 @@ function cardMetrics(s) {
     return out.slice(0, 3);
 }
 
+// ── Tage und Wochen der Liste ─────────────────────────────────────────────────
+const PHASE_LABELS = { base: 'Grundlage', build: 'Aufbau', peak: 'Spitze', taper: 'Taper', race_week: 'Rennwoche', past: 'Vorbei' };
+const PHASE_COLORS = { base: 'bg-success', build: 'bg-accent', peak: 'bg-warn', taper: 'bg-info', race_week: 'bg-danger' };
+
+const fmtNum = (v, digits = 1) => Number(v || 0).toLocaleString('de-DE', { maximumFractionDigits: digits });
+const dayShort = (d) => new Date(d + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '');
+const dayNum   = (d) => new Date(d + 'T00:00:00').getDate();
+
+/** Rechts in der Zeile: die Strecke, sonst die Dauer. */
+function rowPrimary(s) {
+    if (s.distance_km) return `${fmtNum(s.distance_km)} km`;
+    if (s.duration_min) return `${s.duration_min} min`;
+    return '';
+}
+function rowSecondary(s) {
+    if (s.distance_km && s.duration_min) {
+        return s.duration_min >= 90 ? `${Math.floor(s.duration_min / 60)}:${String(s.duration_min % 60).padStart(2, '0')} h` : `${s.duration_min} min`;
+    }
+    return paceValue(s.pace_target) ?? '';
+}
+
+/** Montag der Woche als YYYY-MM-DD. */
+function mondayOf(d) {
+    const x = new Date(d + 'T00:00:00');
+    x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Die Einheiten nach Wochen, mit Wochensumme. Die Summe zählt die ganze
+ * Woche des Plans (auch die schon vergangenen Tage), die Liste zeigt wie
+ * bisher ab heute.
+ */
+const sessionWeeks = computed(() => {
+    const thisMonday = mondayOf(today);
+    const nextMonday = (() => { const x = new Date(thisMonday + 'T00:00:00'); x.setDate(x.getDate() + 7); return mondayOf(x.toISOString().slice(0, 10)); })();
+    const weeks = new Map();
+
+    visibleSessions.value.forEach((s) => {
+        const key = mondayOf(s.planned_date);
+        if (!weeks.has(key)) weeks.set(key, []);
+        weeks.get(key).push(s);
+    });
+
+    return [...weeks.entries()].map(([key, sessions]) => {
+        const all = currentSessions.value.filter((s) => mondayOf(s.planned_date) === key && s.type !== 'rest' && s.status !== 'skipped' && !s.sport_label);
+        const planned = all.reduce((t, s) => t + (s.distance_km || 0), 0);
+        const done = all.filter((s) => s.status === 'completed').reduce((t, s) => t + (s.distance_km || 0), 0);
+        const title = props.isPastEvent
+            ? `Woche ab ${new Date(key + 'T00:00:00').toLocaleDateString('de-DE', { day: 'numeric', month: 'short' })}`
+            : key === thisMonday ? 'Diese Woche'
+            : key === nextMonday ? 'Nächste Woche'
+            : `Ab ${new Date(key + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' })}`;
+
+        return {
+            key,
+            title,
+            summary: !planned ? '' : done > 0 ? `${fmtNum(done)} von ${fmtNum(planned)} km` : `${fmtNum(planned)} km`,
+            sessions,
+        };
+    });
+});
+
+const headerEyebrow = computed(() => {
+    const parts = [props.event.distance_label,
+        new Date(props.event.event_date + 'T00:00:00').toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })];
+    if (props.event.plan_start_label) parts.push(`Plan ab ${props.event.plan_start_label}`);
+    return parts.filter(Boolean).join(' · ');
+});
+
+const timeLeftLabel = computed(() => {
+    const d = props.event.days_until;
+    if (d == null || d < 0) return '—';
+    if (d === 0) return 'heute';
+    return d >= 14 ? `${Math.round(d / 7)} Wochen` : `${d} ${d === 1 ? 'Tag' : 'Tage'}`;
+});
+
 /** Aus den Details in ein anderes Sheet: zwei offene Sheets übereinander gehen nicht. */
 function switchFromDetail(action) {
     const s = detailSession.value;
@@ -337,7 +407,6 @@ function exerciseVideoUrl(name) {
         encodeURIComponent((name || '') + ' Übung richtige Ausführung');
 }
 
-const priorityColors = { A: 'text-danger-ink bg-danger-soft', B: 'text-warn-ink bg-warn-soft', C: 'text-ink-2 bg-surface-2' };
 
 function formatDate(dateStr) {
     const d = new Date(dateStr + 'T00:00:00');
@@ -468,14 +537,6 @@ onMounted(() => {
     }
 });
 
-const weeklyLoad = computed(() => {
-    const all  = currentSessions.value; // stats over full plan
-    const runs = all.filter(s => s.type !== 'rest' && s.status !== 'skipped');
-    const total = runs.reduce((s, x) => s + (x.distance_km || 0), 0);
-    const done    = all.filter(s => s.status === 'completed').length;
-    const skipped = all.filter(s => s.status === 'skipped').length;
-    return { total: Math.round(total * 10) / 10, runs: runs.length, done, skipped };
-});
 
 const skipReasons = ['Keine Zeit', 'Krank', 'Verletzt', 'Erschöpft', 'Sonstiges'];
 
@@ -742,17 +803,17 @@ function secToPaceStr(sec) {
     return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-// Step bar colors by type
-const stepBarColor = {
+// Abschnittsfarben wie auf der Karte: Ein- und Auslaufen grün, Pause grau,
+// die Belastung in der Farbe der Einheit (Tempo orange, Intervall rot …).
+const stepBarColor = computed(() => ({
     warmup:   'bg-success',
-    work:     'bg-danger',
-    rest:     'bg-surface-3',
-    cooldown: 'bg-info',
-};
+    work:     detailSession.value ? typeOf(detailSession.value.type).dot : 'bg-accent',
+    rest:     'bg-ink-3',
+    cooldown: 'bg-success',
+}));
 const stepLabel = { warmup: 'Aufwärmen', work: 'Hauptteil', rest: 'Pause', cooldown: 'Auslaufen' };
 
 // Bar height % by step type (bars grow from bottom)
-const stepHeightPct = { warmup: 60, work: 100, rest: 28, cooldown: 60 };
 
 // Expand steps for bar chart — work+rest pairs are interleaved per repetition
 const stepsWithReps = computed(() => {
@@ -901,89 +962,24 @@ const lapHeightPct = computed(() => {
                 </div>
 
                 <!-- ══ KOPF ══════════════════════════════════════════ -->
-                <header class="px-1">
-                    <Link :href="route('events.index')"
-                        class="-ml-2 mb-1 inline-flex h-9 items-center gap-1 rounded-field px-2 text-sm font-medium text-ink-3 transition-colors hover:text-ink">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-                        </svg>
-                        Events
-                    </Link>
-
-                    <!--
-                        Auf dem Telefon untereinander: Titel oben, Schaltflaechen
-                        darunter ueber die volle Breite. Nebeneinander gestellt
-                        brach die Zeile um, und die Knoepfe landeten in 36 Pixel
-                        Hoehe am linken Rand — schlecht zu treffen und schief.
-                    -->
-                    <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-                        <div class="min-w-0 flex-1">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <span class="inline-flex h-6 items-center rounded-full px-2.5 text-xs font-bold"
-                                    :class="priorityColors[event.priority]">{{ event.priority }}</span>
-                                <span v-if="currentPlan?.is_active"
-                                    class="inline-flex items-center gap-1 rounded-full bg-success-soft px-2.5 py-1 text-[11px] font-semibold text-success-ink">
-                                    <span class="h-1.5 w-1.5 rounded-full bg-success" />
-                                    Aktiver Plan
-                                </span>
-                                <span v-if="coach && currentPlan?.is_active"
-                                    class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 py-1 pl-1 pr-2.5 text-[11px] font-medium text-ink-2">
-                                    <span class="flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold text-white"
-                                        :class="coachAccent.avatar">{{ coach.avatar_initials }}</span>
-                                    {{ coachName }}
-                                </span>
-                            </div>
-
-                            <h1 class="mt-2 text-[28px] font-bold leading-[34px] tracking-[-0.4px] text-ink">{{ event.name }}</h1>
-
-                            <!--
-                                Vier Angaben in einer Kette aus Mittelpunkten
-                                brachen auf dem Telefon mitten im Wort um, mit
-                                Trennzeichen am Zeilenende. Jetzt zwei feste
-                                Gruppen, die je fuer sich zusammenbleiben: Datum
-                                und Distanz, darunter Ziel und Countdown. Ab sm
-                                stehen beide wieder in einer Zeile.
-                            -->
-                            <div class="mt-1.5 space-y-0.5 text-sm text-ink-3 sm:flex sm:flex-wrap sm:items-center sm:gap-x-3 sm:space-y-0 sm:text-[15px]">
-                                <div class="flex flex-wrap items-center gap-x-2">
-                                    <span>{{ new Date(event.event_date).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' }) }}</span>
-                                    <span aria-hidden="true">·</span>
-                                    <span class="font-medium text-ink-2">{{ event.distance_label }}</span>
-                                </div>
-                                <span class="hidden sm:inline" aria-hidden="true">·</span>
-                                <div class="flex flex-wrap items-center gap-x-2">
-                                    <template v-if="event.target_time_formatted">
-                                        <span>Ziel {{ event.target_time_formatted }}</span>
-                                        <span aria-hidden="true">·</span>
-                                    </template>
-                                    <span :class="event.days_until <= 7 && event.days_until >= 0 ? 'font-semibold text-danger' : ''">
-                                        {{ event.days_until > 0 ? `noch ${event.days_until} Tage` : event.days_until === 0 ? 'Heute!' : 'Vorbei' }}
-                                    </span>
-                                    <template v-if="event.plan_start_label">
-                                        <span aria-hidden="true">·</span>
-                                        <span class="font-medium text-accent">Plan ab {{ event.plan_start_label }}</span>
-                                    </template>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div v-if="!isPastEvent" class="flex gap-2 sm:shrink-0">
-                            <AppButton v-if="currentPlan?.is_active" variant="ghost" size="md" class="flex-1 sm:flex-none"
-                                @click="cancelModal = true">
-                                Abbrechen
-                            </AppButton>
-                            <AppButton
-                                :variant="currentPlan?.is_active ? 'secondary' : 'primary'"
-                                size="md"
-                                class="flex-1 sm:flex-none"
-                                :loading="generating"
-                                @click="currentPlan?.is_active ? generatePlan() : startNewPlan()"
-                            >
-                                {{ generating ? coachName + ' rechnet…' : currentPlan?.is_active ? 'Plan aktualisieren' : 'Plan erstellen' }}
-                            </AppButton>
-                        </div>
-                    </div>
-                </header>
+                <!--
+                    Großer Titel wie auf den anderen Hauptseiten (Mockup vom
+                    28.10.2026). Distanz, Datum und Planstart stehen in der
+                    Zeile darüber; „Plan aktualisieren" ist ein Symbol oben
+                    rechts statt eines Knopfs, der auf dem Telefon umbrach.
+                    „Abbrechen" steht unten in der Liste unter dem Plan.
+                -->
+                <div class="-mx-4 -mt-4 lg:-mx-6 lg:-mt-6">
+                    <PageHeader :back="route('events.index')" :eyebrow="headerEyebrow" :title="event.name">
+                        <template v-if="!isPastEvent && currentPlan?.is_active" #action>
+                            <button type="button" :disabled="generating" @click="generatePlan()"
+                                class="flex h-11 w-11 items-center justify-center rounded-full text-accent transition-[opacity,transform] duration-150 ease-out-strong active:scale-95 disabled:opacity-50"
+                                aria-label="Plan aktualisieren" title="Plan aktualisieren">
+                                <svg class="h-6 w-6" :class="generating ? 'animate-spin' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5" /></svg>
+                            </button>
+                        </template>
+                    </PageHeader>
+                </div>
 
                 <!-- ══ HINWEISE ══════════════════════════════════════ -->
                 <Transition enter-active-class="transition duration-300" enter-from-class="opacity-0 -translate-y-2" leave-to-class="opacity-0">
@@ -1071,50 +1067,70 @@ const lapHeightPct = computed(() => {
 
                 <!-- ══ PLAN ══════════════════════════════════════════ -->
                 <template v-else>
-                    <!-- Bilanz -->
-                    <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                        <StatTile label="Kilometer" :value="weeklyLoad.total" unit="km" />
-                        <StatTile label="Einheiten" :value="weeklyLoad.runs" />
-                        <StatTile label="Erledigt"  :value="weeklyLoad.done" tone="success" />
-                        <StatTile label="Ausgelassen" :value="weeklyLoad.skipped" />
-                    </div>
+                    <!--
+                        Phase und Prognose oben statt ganz unten in der
+                        Seitenspalte: wo man im Block steht und wohin er führt,
+                        ist die erste Frage auf dieser Seite. Die vier
+                        Zählkacheln (Kilometer, Einheiten, Erledigt,
+                        Ausgelassen) sind weg — die Wochen sagen das genauer.
+                    -->
+                    <section v-if="!isPastEvent && (event.phase_segments?.length || prediction)" class="rounded-card bg-surface p-5">
+                        <div class="flex items-baseline justify-between gap-4">
+                            <div>
+                                <p class="text-[13px] text-ink-3">Phase</p>
+                                <p class="text-[22px] font-bold leading-7 tracking-tight text-ink">{{ PHASE_LABELS[event.phase] ?? '—' }}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[13px] text-ink-3">noch</p>
+                                <p class="font-rounded text-[22px] font-bold leading-7 tabular-nums text-ink">{{ timeLeftLabel }}</p>
+                            </div>
+                        </div>
+
+                        <div v-if="event.phase_segments?.length" class="mt-4">
+                            <div class="flex gap-[3px]" role="img" :aria-label="'Phasen bis zum Rennen: ' + event.phase_segments.map(p => PHASE_LABELS[p.key]).join(', ')">
+                                <i v-for="(seg, i) in event.phase_segments" :key="seg.key"
+                                    class="block h-2 rounded-full"
+                                    :class="i === 0 ? PHASE_COLORS[seg.key] : 'bg-surface-2'"
+                                    :style="{ flex: Math.max(seg.days, 3) }" />
+                            </div>
+                            <div class="mt-1.5 flex gap-[3px] text-[12px] text-ink-3">
+                                <span v-for="seg in event.phase_segments" :key="seg.key" class="min-w-0 truncate"
+                                    :style="{ flex: Math.max(seg.days, 3) }">{{ seg.days >= 14 ? PHASE_LABELS[seg.key] : '' }}</span>
+                            </div>
+                        </div>
+
+                        <div v-if="prediction && !backyard" class="mt-4 grid grid-cols-2 gap-2 border-t border-line pt-4">
+                            <div>
+                                <p class="text-[13px] text-ink-3">Prognose</p>
+                                <p class="font-rounded text-[30px] font-bold leading-9 tracking-tight tabular-nums text-ink">{{ prediction.time }}</p>
+                            </div>
+                            <div v-if="event.target_time_formatted">
+                                <p class="text-[13px] text-ink-3">Ziel
+                                    <span v-if="predictionDeltaText" class="font-semibold"
+                                        :class="predictionDeltaText.positive ? 'text-success-ink' : 'text-danger-ink'">
+                                        {{ predictionDeltaText.positive ? '−' : '+' }}{{ predictionDeltaText.label }}
+                                    </span>
+                                </p>
+                                <p class="font-rounded text-[30px] font-bold leading-9 tracking-tight tabular-nums text-ink-3">{{ event.target_time_formatted.replace(/\s*Std\.?$/, '') }}</p>
+                            </div>
+                        </div>
+                        <p v-if="prediction?.text && !backyard" class="mt-3 text-[15px] leading-snug text-ink-2">{{ prediction.text }}</p>
+                    </section>
 
                     <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
 
                         <!-- ── Einheiten ───────────────────────────── -->
                         <section class="min-w-0">
-                            <SectionHeader :title="isPastEvent ? 'Trainings-Auswertung' : 'Trainingsplan'">
-                                <template #action>
-                                    <div class="flex items-center gap-3">
-                                        <button
-                                            v-if="revisions.length"
-                                            type="button"
-                                            @click="revisionsOpen = true"
-                                            class="text-[13px] font-medium text-accent hover:underline"
-                                        >
-                                            Verlauf
-                                        </button>
-                                        <span v-if="currentPlan" class="text-[13px] text-ink-3">
-                                            {{ currentPlan.generated_at }}
-                                        </span>
-                                    </div>
-                                </template>
-                            </SectionHeader>
-
-                            <div v-if="planIsRolling && currentPlan"
-                                class="mb-3 flex items-start gap-2.5 rounded-card bg-surface px-4 py-3 shadow-card">
-                                <svg class="mt-0.5 h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
-                                </svg>
-                                <p class="text-[13px] leading-relaxed text-ink-2">
-                                    Bis zum Renntag ist es noch eine Weile — geplant werden zunächst zwei Wochen,
-                                    danach verlängert sich der Plan automatisch.
-                                </p>
-                            </div>
-
-                            <div class="space-y-2.5">
+                            <SectionHeader v-if="isPastEvent" title="Trainings-Auswertung" />
+                            <div class="space-y-6">
+                              <div v-for="week in sessionWeeks" :key="week.key">
+                                <div class="mb-2.5 flex items-baseline justify-between gap-3 px-1">
+                                    <h2 class="text-[17px] font-bold text-ink">{{ week.title }}</h2>
+                                    <span class="text-[13px] tabular-nums text-ink-3">{{ week.summary }}</span>
+                                </div>
+                                <div class="space-y-2">
                                 <SwipeRow
-                                    v-for="session in visibleSessions"
+                                    v-for="session in week.sessions"
                                     :key="session.id"
                                     content-class="bg-surface-2 rounded-card"
                                     :right-width="(canSkip(session) ? 88 : 0) + (canChange(session) ? 88 : 0)"
@@ -1161,146 +1177,66 @@ const lapHeightPct = computed(() => {
                                         ]"
                                     >
                                         <!--
-                                            Damit sichtbar ist, was eine
-                                            Neuberechnung nicht anfassen wird —
-                                            sonst wundert man sich, warum eine
-                                            Einheit von der Leiter abweicht.
+                                            Ein Tag als kompakte Zeile (Mockup vom 28.10.2026):
+                                            links das Datum, in der Mitte Typ und Titel, rechts
+                                            die eine Zahl. Abschnitte, Beschreibung und alle
+                                            Aktionen stehen in den Details — die Zeile öffnet sie.
                                         -->
-                                        <p v-if="session.pinned && session.status === 'planned'"
-                                            class="flex items-center gap-1.5 bg-accent-soft px-4 py-2 text-[12px] font-medium text-accent-ink">
-                                            <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-                                            </svg>
-                                            Von dir gesetzt — bleibt bei einer Neuberechnung erhalten
-                                        </p>
-
-                                        <p v-if="session.was_unplanned"
-                                            class="flex items-center gap-1.5 bg-warn-soft px-4 py-2 text-[12px] font-medium text-warn-ink">
-                                            <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-                                            </svg>
-                                            {{ session.planned_snapshot?.type === 'rest'
-                                                ? 'Nicht im Plan — für diesen Tag war Ruhe vorgesehen'
-                                                : 'Nicht im Plan — aus Strava importiert' }}
-                                        </p>
-
-                                        <!--
-                                            Aufbau wie die Story-Karte (28.10.2026): Typ farbig
-                                            oben, Titel, drei Zahlen, die Abschnitte als Balken.
-                                            Die Beschreibung und die Aktionen stehen in den
-                                            Details — die ganze Karte öffnet sie. Vorher
-                                            standen hier sieben Zeilen Text und vier Knöpfe.
-                                        -->
-                                        <div class="p-5" :class="session.type !== 'rest' ? 'cursor-pointer' : ''"
+                                        <div class="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3.5"
+                                            :class="session.type !== 'rest' ? 'cursor-pointer' : ''"
                                             @click="session.type !== 'rest' && openDetail(session)">
-                                            <div class="flex items-center justify-between gap-3">
-                                                <span class="flex min-w-0 items-center gap-1.5 text-[15px] font-semibold"
-                                                    :class="session.status === 'planned' ? typeOf(session.type).text : 'text-ink-3'">
-                                                    <svg v-if="session.status === 'completed'" class="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                                                    </svg>
-                                                    <svg v-else-if="session.status === 'skipped'" class="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                                                    </svg>
-                                                    <svg v-else class="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" v-html="typeOf(session.type).icon" />
+                                            <div class="text-center">
+                                                <p class="text-[12px] font-semibold leading-4"
+                                                    :class="isToday(session.planned_date) ? 'text-accent' : 'text-ink-3'">{{ isToday(session.planned_date) ? 'Heute' : dayShort(session.planned_date) }}</p>
+                                                <p class="font-rounded text-[22px] font-extrabold leading-7 tracking-tight tabular-nums text-ink">{{ dayNum(session.planned_date) }}</p>
+                                            </div>
+
+                                            <div class="min-w-0">
+                                                <p v-if="session.type !== 'rest'" class="flex items-center gap-1 text-[13px] font-semibold"
+                                                    :class="session.status === 'skipped' ? 'text-ink-3' : typeOf(session.type).text">
+                                                    <svg v-if="session.status === 'completed'" class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                                                    <svg v-if="session.pinned && session.status === 'planned'" class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-label="Von dir gesetzt"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
                                                     <span class="truncate">{{ session.sport_label || typeOf(session.type).label }}</span>
-                                                </span>
-
-                                                <span v-if="isToday(session.planned_date) && session.status === 'planned'"
-                                                    class="shrink-0 rounded-full bg-accent-soft px-2.5 py-0.5 text-[13px] font-semibold text-accent-ink">Heute</span>
-                                                <span v-else-if="session.status === 'completed'"
-                                                    class="shrink-0 rounded-full bg-success-soft px-2.5 py-0.5 text-[13px] font-semibold text-success-ink">Erledigt</span>
-                                                <span v-else-if="session.status === 'skipped'"
-                                                    class="shrink-0 rounded-full bg-surface-2 px-2.5 py-0.5 text-[13px] font-semibold text-ink-3">Ausgelassen</span>
+                                                </p>
+                                                <h3 class="truncate text-[17px] leading-6"
+                                                    :class="session.type === 'rest' || session.status === 'skipped' ? 'text-ink-2' : 'font-semibold text-ink'">{{ session.title }}</h3>
+                                                <p v-if="session.status === 'skipped'" class="text-[13px] text-ink-3">
+                                                    Ausgelassen<template v-if="session.skip_reason"> · {{ session.skip_reason }}</template>
+                                                </p>
+                                                <p v-else-if="session.was_unplanned" class="text-[13px] text-warn-ink">Nicht im Plan · aus Strava</p>
+                                                <p v-else-if="plannedDiffers(session)" class="truncate text-[13px] text-ink-3">Geplant: {{ plannedSummary(session) }}</p>
                                             </div>
 
-                                            <p class="mt-1.5 text-[13px] font-medium text-ink-3">
-                                                {{ formatDate(session.planned_date) }}<template v-if="session.activity_id"> · Strava</template>
-                                            </p>
-                                            <h3 class="text-[20px] font-bold leading-7 tracking-tight text-ink">{{ session.title }}</h3>
-
-                                            <p v-if="session.skip_reason" class="mt-1 text-[13px] italic text-ink-3">
-                                                Grund: {{ session.skip_reason }}
-                                            </p>
-
-                                            <!-- Was ursprünglich geplant war. Die Felder daneben
-                                                 tragen nach dem Strava-Import die Ist-Werte. -->
-                                            <p v-if="plannedDiffers(session)" class="mt-1 text-[13px] text-ink-3">
-                                                Geplant war: {{ plannedSummary(session) }}
-                                            </p>
-
-                                            <!-- Kennzahlen -->
-                                            <div v-if="session.type !== 'rest' && session.status !== 'skipped' && cardMetrics(session).length"
-                                                class="mt-3 grid gap-2"
-                                                :class="cardMetrics(session).length === 1 ? 'grid-cols-1' : cardMetrics(session).length === 2 ? 'grid-cols-2' : 'grid-cols-[1fr_1fr_1.4fr]'">
-                                                <div v-for="m in cardMetrics(session)" :key="m.label" class="min-w-0">
-                                                    <p class="text-[13px] text-ink-3">{{ m.label }}</p>
-                                                    <p class="flex flex-wrap items-baseline gap-x-1">
-                                                        <span class="font-rounded font-bold tabular-nums tracking-tight text-ink"
-                                                            :class="m.value.length > 6 ? 'whitespace-nowrap text-[20px] leading-8' : 'text-[26px] leading-8'">{{ m.value }}</span>
-                                                        <span v-if="m.unit" class="text-[13px] font-semibold text-ink-3">{{ m.unit }}</span>
-                                                    </p>
-                                                </div>
+                                            <div v-if="session.type !== 'rest' && session.status !== 'skipped'" class="text-right">
+                                                <p class="whitespace-nowrap font-rounded text-[17px] font-bold tabular-nums text-ink">{{ rowPrimary(session) }}</p>
+                                                <p class="whitespace-nowrap text-[13px] tabular-nums"
+                                                    :class="session.status === 'completed' ? 'font-semibold text-success-ink' : 'text-ink-3'">{{ session.status === 'completed' ? 'erledigt' : rowSecondary(session) }}</p>
                                             </div>
-
-                                            <!-- Abschnitte -->
-                                            <div v-if="session.status !== 'skipped' && stepRows(session.steps).length"
-                                                class="mt-4 space-y-2 border-t border-line pt-3">
-                                                <div v-for="(r, i) in stepRows(session.steps)" :key="i" class="flex items-center gap-3 text-[15px] leading-5">
-                                                    <i class="h-[18px] w-1 shrink-0 rounded-full"
-                                                        :class="r.kind === 'work' ? typeOf(session.type).dot : r.kind === 'rest' ? 'bg-ink-3' : 'bg-success'" />
-                                                    <span class="min-w-0 flex-1 truncate text-ink-2">{{ r.name }}</span>
-                                                    <b v-if="r.value" class="shrink-0 font-semibold tabular-nums text-ink">{{ r.value }}</b>
-                                                </div>
-                                            </div>
-
-                                            <!-- Übungen -->
-                                            <ul v-if="session.exercises && session.exercises.length && session.status !== 'skipped'"
-                                                class="mt-4 space-y-1.5 border-t border-line pt-3">
-                                                <li v-for="(ex, i) in session.exercises" :key="i"
-                                                    class="flex items-baseline gap-3 text-[15px]">
-                                                    <span class="min-w-0 flex-1 truncate text-ink-2">{{ ex.name }}</span>
-                                                    <b v-if="ex.sets || ex.reps" class="shrink-0 font-semibold tabular-nums text-ink">{{ [ex.sets, ex.reps].filter(Boolean).join(' × ') }}</b>
-                                                </li>
-                                            </ul>
                                         </div>
                                     </article>
                                 </SwipeRow>
+                                </div>
+                              </div>
                             </div>
 
-                            <p class="mt-4 px-1 text-[13px] text-ink-3">
-                                „Plan aktualisieren" berücksichtigt ausgelassene Einheiten und rechnet die verbleibenden neu.
-                            </p>
+                            <div v-if="currentPlan" class="mt-6 divide-y divide-line overflow-hidden rounded-card bg-surface">
+                                <button v-if="revisions.length" type="button" @click="revisionsOpen = true"
+                                    class="flex min-h-[52px] w-full items-center gap-3 px-4 py-2.5 text-left transition-colors active:bg-surface-2">
+                                    <span class="min-w-0 flex-1">
+                                        <span class="block text-[17px] text-ink">Verlauf</span>
+                                        <span class="block text-[13px] text-ink-3">Zuletzt berechnet {{ currentPlan.generated_at }}</span>
+                                    </span>
+                                    <svg class="h-3.5 w-2 shrink-0 text-ink-3" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m1 1 6 6-6 6" /></svg>
+                                </button>
+                                <button v-if="currentPlan.is_active && !isPastEvent" type="button" @click="cancelModal = true"
+                                    class="flex min-h-[52px] w-full items-center px-4 text-left text-[17px] text-danger transition-colors active:bg-surface-2">
+                                    Plan abbrechen
+                                </button>
+                            </div>
                         </section>
 
                         <!-- ── Seitenspalte ────────────────────────── -->
                         <aside class="min-w-0 space-y-4 lg:sticky lg:top-4 lg:self-start">
-
-                            <!-- Prognose -->
-                            <AppCard v-if="prediction && !isPastEvent && !backyard" title="Leistungsprognose">
-                                <div class="flex items-end justify-between gap-4">
-                                    <div>
-                                        <p class="text-3xl font-bold tabular-nums tracking-tight text-ink">{{ prediction.time }}</p>
-                                        <p class="mt-0.5 text-[13px] text-ink-3">Pace {{ prediction.pace }} /km</p>
-                                    </div>
-                                    <span v-if="predictionDeltaText"
-                                        class="rounded-full px-2.5 py-1 text-[13px] font-semibold"
-                                        :class="predictionDeltaText.positive ? 'bg-success-soft text-success-ink' : 'bg-danger-soft text-danger-ink'">
-                                        {{ predictionDeltaText.positive ? '−' : '+' }}{{ predictionDeltaText.label }}
-                                    </span>
-                                </div>
-
-                                <div v-if="prediction.text" class="mt-4 border-t border-line pt-3.5">
-                                    <div class="mb-1.5 flex items-center gap-1.5">
-                                        <span class="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                                            :class="coachAccent.avatar">{{ coachName[0] }}</span>
-                                        <span class="text-[13px] font-semibold text-ink-3">{{ coachName }}</span>
-                                    </div>
-                                    <p class="text-[13px] leading-relaxed text-ink-2">{{ prediction.text }}</p>
-                                </div>
-
-                                <p class="mt-3 text-[11px] text-ink-3">Aus der Schwellenpace · Jack Daniels T-Pace</p>
-                            </AppCard>
 
                             <!-- Backyard: Yard-Readiness -->
                             <AppCard v-if="backyard && !isPastEvent" title="Yard-Readiness">
@@ -1614,45 +1550,38 @@ const lapHeightPct = computed(() => {
              ══════════════════════════════════════════════════════ -->
         <AppSheet :show="!!detailSession" tall max-width="2xl" @close="detailSession = null">
             <template #header>
+                <!-- Wie die Karte: Typ farbig, großer Titel, Datum. Keine Pillen. -->
                 <div v-if="detailSession">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold" :class="typeOf(detailSession.type).pill">
-                            <!-- Bei Fremdsport die Sportart statt "Alternativtraining". -->
-                            {{ detailSession.sport_label || typeOf(detailSession.type).label }}
-                        </span>
-                        <span v-if="detailSession.zone"
-                            class="rounded-full bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-ink-2">
-                            Zone {{ detailSession.zone }}
-                        </span>
-                        <span v-if="detailSession.intensity"
-                            class="rounded-full bg-surface-2 px-2.5 py-1 text-[11px] font-semibold capitalize text-ink-2">
-                            {{ detailSession.intensity }}
-                        </span>
-                    </div>
-                    <h2 class="mt-2 text-xl font-bold leading-snug tracking-tight text-ink">{{ detailSession.title }}</h2>
-                    <p class="mt-0.5 text-[13px] text-ink-3">{{ formatDate(detailSession.planned_date) }}</p>
+                    <p class="text-[13px] text-ink-3">{{ formatDate(detailSession.planned_date) }}</p>
+                    <p class="mt-1 flex items-center gap-1.5 text-[15px] font-semibold" :class="typeOf(detailSession.type).text">
+                        <span class="h-2 w-2 rounded-full" :class="typeOf(detailSession.type).dot" />
+                        <!-- Bei Fremdsport die Sportart statt "Alternativtraining". -->
+                        {{ detailSession.sport_label || typeOf(detailSession.type).label }}<template v-if="detailSession.zone"> · Zone {{ detailSession.zone }}</template>
+                    </p>
+                    <h2 class="mt-1 text-[28px] font-extrabold leading-[34px] tracking-[-0.03em] text-ink">{{ detailSession.title }}</h2>
                 </div>
             </template>
 
             <div v-if="detailSession" class="space-y-6">
 
-                <!-- Eckdaten -->
-                <div class="grid grid-cols-3 gap-3">
-                    <div v-if="totalStepDistanceKm || detailSession.distance_km" class="rounded-card bg-surface-2 p-4">
-                        <p class="text-xl font-bold tabular-nums text-ink">{{ totalStepDistanceKm ?? detailSession.distance_km }}</p>
-                        <p class="mt-0.5 text-[13px] font-medium text-ink-3">km</p>
+                <!-- Eckdaten: drei große Zahlen wie auf der Karte statt grauer Kacheln -->
+                <div class="grid grid-cols-[1fr_1fr_1.4fr] gap-2">
+                    <div v-if="totalStepDistanceKm || detailSession.distance_km" class="min-w-0">
+                        <p class="text-[13px] text-ink-3">Distanz</p>
+                        <p class="whitespace-nowrap"><span class="font-rounded text-[30px] font-bold leading-9 tracking-tight tabular-nums text-ink">{{ String(totalStepDistanceKm ?? detailSession.distance_km).replace('.', ',') }}</span><span class="ml-1 text-[15px] font-semibold text-ink-3">km</span></p>
                     </div>
-                    <div v-if="totalStepDuration || detailSession.duration_min" class="rounded-card bg-surface-2 p-4">
-                        <p class="text-xl font-bold tabular-nums text-ink">{{ Math.round(totalStepDuration) || detailSession.duration_min }}</p>
-                        <p class="mt-0.5 text-[13px] font-medium text-ink-3">min</p>
+                    <div v-if="totalStepDuration || detailSession.duration_min" class="min-w-0">
+                        <p class="text-[13px] text-ink-3">Dauer</p>
+                        <p class="whitespace-nowrap"><span class="font-rounded text-[30px] font-bold leading-9 tracking-tight tabular-nums text-ink">{{ Math.round(totalStepDuration) || detailSession.duration_min }}</span><span class="ml-1 text-[15px] font-semibold text-ink-3">min</span></p>
                     </div>
-                    <div v-if="paceValue(detailSession.pace_target)" class="rounded-card bg-surface-2 p-4">
-                        <p class="text-xl font-bold tabular-nums text-ink">{{ paceValue(detailSession.pace_target) }}</p>
-                        <p class="mt-0.5 text-[13px] font-medium text-ink-3">min/km</p>
+                    <div v-if="paceValue(detailSession.pace_target)" class="min-w-0">
+                        <p class="text-[13px] text-ink-3">Pace</p>
+                        <p class="whitespace-nowrap"><span class="font-rounded font-bold tracking-tight tabular-nums text-ink"
+                            :class="paceValue(detailSession.pace_target).length > 6 ? 'text-[20px] leading-9' : 'text-[30px] leading-9'">{{ paceValue(detailSession.pace_target) }}</span><span class="ml-1 text-[15px] font-semibold text-ink-3">/km</span></p>
                     </div>
                 </div>
 
-                <p v-if="detailSession.description" class="text-[15px] leading-relaxed text-ink-2">
+                <p v-if="detailSession.description" class="text-[17px] leading-[25px] text-ink-2">
                     {{ detailSession.description }}
                 </p>
 
@@ -1661,7 +1590,7 @@ const lapHeightPct = computed(() => {
 
                     <!-- Übungen -->
                     <section v-if="detailIsStrength && detailSession.exercises && detailSession.exercises.length" class="lg:col-span-2">
-                        <h3 class="mb-3 text-[15px] font-semibold text-ink">Übungen</h3>
+                        <h3 class="mb-3 text-[22px] font-bold tracking-tight text-ink">Übungen</h3>
                         <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
                             <div v-for="(ex, i) in detailSession.exercises" :key="i" class="rounded-card bg-surface-2 p-4">
                                 <div class="flex flex-wrap items-baseline gap-2">
@@ -1685,7 +1614,7 @@ const lapHeightPct = computed(() => {
 
                     <!-- Trainingsstruktur -->
                     <section v-if="!isRaceSession && !isCompletedSession && !detailIsStrength">
-                        <h3 class="mb-3 text-[15px] font-semibold text-ink">Trainingsstruktur</h3>
+                        <h3 class="mb-3 text-[22px] font-bold tracking-tight text-ink">Ablauf</h3>
 
                         <div v-if="stepsLoading" class="flex items-center gap-2 py-4 text-[13px] text-ink-3">
                             <svg class="h-4 w-4 shrink-0 animate-spin text-accent" viewBox="0 0 24 24" fill="none">
@@ -1699,31 +1628,26 @@ const lapHeightPct = computed(() => {
 
                         <div v-else-if="aiSteps && aiSteps.length">
                             <!-- Verlaufsbalken: Breite = Zeitanteil, Höhe = Intensität -->
-                            <div class="mb-4 flex h-14 items-end gap-0.5">
+                            <div class="mb-4 flex h-2.5 gap-0.5 overflow-hidden rounded-full">
                                 <div
                                     v-for="(s, i) in stepsWithReps"
                                     :key="i"
-                                    :style="{
-                                        width:  stepWidthPct(s) + '%',
-                                        height: (stepHeightPct[s.type] ?? 60) + '%',
-                                    }"
-                                    :class="[stepBarColor[s.type] ?? 'bg-accent', 'rounded-t']"
+                                    :style="{ width: stepWidthPct(s) + '%' }"
+                                    :class="stepBarColor[s.type] ?? 'bg-accent'"
                                     :title="`${s.label}: ${stepAmount(s) ?? ''}`"
                                 />
                             </div>
 
-                            <div class="space-y-2">
-                                <div v-for="(step, idx) in groupedSteps" :key="idx" class="rounded-card bg-surface-2 p-3.5">
+                            <div class="divide-y divide-line overflow-hidden rounded-card bg-surface-2">
+                                <div v-for="(step, idx) in groupedSteps" :key="idx" class="px-4 py-3">
                                     <template v-if="step.isGroup">
                                         <div class="mb-2.5 flex items-center gap-2">
-                                            <span class="flex h-6 items-center rounded-full bg-danger-soft px-2 text-[11px] font-bold text-danger-ink">
-                                                ×{{ step.repetitions }}
-                                            </span>
+                                            <span class="font-rounded text-[17px] font-bold tabular-nums text-ink">{{ step.repetitions }} ×</span>
                                             <span class="text-[15px] font-semibold text-ink">{{ step.group_label || 'Intervall' }}</span>
                                         </div>
                                         <div class="space-y-2 pl-1">
                                             <div class="flex items-center gap-2.5">
-                                                <span class="h-2 w-2 shrink-0 rounded-full bg-danger" />
+                                                <span class="h-2 w-2 shrink-0 rounded-full" :class="stepBarColor.work" />
                                                 <span class="text-[13px] font-medium text-ink-2">{{ step.label }}</span>
                                                 <span class="ml-auto text-[13px] tabular-nums text-ink-3">{{ stepAmount(step) }}</span>
                                                 <span v-if="step.pace_target || stepPower(step)" class="min-w-16 whitespace-nowrap text-right text-[13px] font-semibold tabular-nums text-ink">
@@ -1761,7 +1685,7 @@ const lapHeightPct = computed(() => {
 
                     <!-- Verpflegung -->
                     <section v-if="!isCompletedSession">
-                        <h3 class="mb-3 text-[15px] font-semibold text-ink">Verpflegung</h3>
+                        <h3 class="mb-3 text-[22px] font-bold tracking-tight text-ink">Verpflegung</h3>
 
                         <div v-if="nutritionLoading" class="flex items-center gap-2 py-4 text-[13px] text-ink-3">
                             <svg class="h-4 w-4 shrink-0 animate-spin text-accent" viewBox="0 0 24 24" fill="none">
@@ -1917,24 +1841,35 @@ const lapHeightPct = computed(() => {
                     Was vorher als Knopfreihe unter jeder Karte stand. „Kein
                     Training" und „Löschen" gehen in der Liste auch per Wischen.
                 -->
-                <div v-if="detailSession.type !== 'rest'" class="mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t border-line pt-4">
-                    <AppButton v-if="detailSession.status === 'planned' && !isPastEvent && !detailIsStrength"
-                        variant="plain" size="sm" @click="switchFromDetail(openWorkoutPicker)">
-                        Eigenes Workout
-                    </AppButton>
-                    <AppButton v-if="detailSession.status === 'planned' && detailSession.planned_date !== event.event_date"
-                        variant="plain" size="sm" @click="switchFromDetail(openSkipModal)">
-                        Kein Training
-                    </AppButton>
-                    <AppButton v-if="canChange(detailSession)"
-                        variant="plain" size="sm" @click="switchFromDetail((s) => deleteSession(s, true))">
-                        Löschen
-                    </AppButton>
-                    <AppButton v-if="isAdmin" variant="plain" size="sm"
-                        title="Admin: Steps- und Nutrition-Cache leeren"
-                        @click="resetSessionCache(detailSession)">
-                        AI Reset
-                    </AppButton>
+                <!--
+                    Aktionen als gruppierte Liste (Mockup vom 28.10.2026) statt
+                    einer Reihe blauer Wörter. Löschen steht für sich, in Rot.
+                -->
+                <div v-if="detailSession.type !== 'rest'" class="mt-2 space-y-3">
+                    <div class="divide-y divide-line overflow-hidden rounded-card bg-surface-2">
+                        <button v-if="detailSession.status === 'planned' && !isPastEvent && !detailIsStrength" type="button"
+                            class="flex min-h-[52px] w-full items-center justify-between px-4 text-left text-[17px] text-ink transition-colors active:bg-surface-3"
+                            @click="switchFromDetail(openWorkoutPicker)">
+                            Eigenes Workout einsetzen
+                            <svg class="h-3.5 w-2 shrink-0 text-ink-3" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m1 1 6 6-6 6" /></svg>
+                        </button>
+                        <button v-if="detailSession.status === 'planned' && detailSession.planned_date !== event.event_date" type="button"
+                            class="flex min-h-[52px] w-full items-center justify-between px-4 text-left text-[17px] text-ink transition-colors active:bg-surface-3"
+                            @click="switchFromDetail(openSkipModal)">
+                            Kein Training
+                            <svg class="h-3.5 w-2 shrink-0 text-ink-3" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m1 1 6 6-6 6" /></svg>
+                        </button>
+                        <button v-if="isAdmin" type="button" title="Admin: Steps- und Nutrition-Cache leeren"
+                            class="flex min-h-[52px] w-full items-center px-4 text-left text-[17px] text-ink-2 transition-colors active:bg-surface-3"
+                            @click="resetSessionCache(detailSession)">
+                            KI-Inhalte neu erzeugen (Admin)
+                        </button>
+                    </div>
+                    <button v-if="canChange(detailSession)" type="button"
+                        class="flex min-h-[52px] w-full items-center justify-center rounded-card bg-surface-2 text-[17px] text-danger transition-colors active:bg-surface-3"
+                        @click="switchFromDetail((s) => deleteSession(s, true))">
+                        Einheit löschen
+                    </button>
                 </div>
             </div>
 

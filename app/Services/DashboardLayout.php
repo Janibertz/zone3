@@ -17,22 +17,24 @@ namespace App\Services;
 class DashboardLayout
 {
     /**
+     * „Monat“, „Neues Ziel“ und die Kurzinfo-Kacheln (Streak · Form · Tagesform) sind seit dem Redesign vom 28.10.2026 weg:
+     * der Monat ist der Kalender-Tab, ein neues Rennen legt man unter Rennen an, und
+     * Form und Tagesform stehen schon in ihren eigenen Modulen.
+     * Gespeicherte Schlüssel fallen beim Lesen von selbst weg.
+     *
      * Reihenfolge = Vorgabe. `wide`: ab lg über die ganze Breite, sonst
      * liegen zwei (ab 2xl drei) Module nebeneinander.
      */
     public const MODULES = [
         'woche'        => ['label' => 'Woche',                      'wide' => true],
         'koerper'      => ['label' => 'Körper',                     'wide' => true],
-        'kurzinfo'     => ['label' => 'Streak · Form · Tagesform',  'wide' => true],
         'form'         => ['label' => 'Form (Belastung)',           'wide' => false],
         'intensitaet'  => ['label' => 'Locker / Hart',              'wide' => false],
         'tempo'        => ['label' => 'Tempo & Prognose',           'wide' => false],
         'rueckblick'   => ['label' => 'Wochenrückblick',            'wide' => false],
         'erholung'     => ['label' => 'Erholung',                   'wide' => true],
         'aktivitaeten' => ['label' => 'Aktivitäten',                'wide' => true],
-        'monat'        => ['label' => 'Monat',                      'wide' => false],
         'events'       => ['label' => 'Events',                     'wide' => false],
-        'ziel'         => ['label' => 'Neues Ziel',                 'wide' => false],
     ];
 
     /** @return list<string> */

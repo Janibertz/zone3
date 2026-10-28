@@ -81,7 +81,7 @@ const barClass = (kind) => ({
         <div v-if="metrics.length" class="mt-4 grid gap-2" :class="metrics.length === 1 ? 'grid-cols-1' : metrics.length === 2 ? 'grid-cols-2' : 'grid-cols-[1fr_1fr_1.4fr]'">
             <div v-for="m in metrics" :key="m.label" class="min-w-0">
                 <p class="text-[13px] text-ink-3">{{ m.label }}</p>
-                <p class="flex flex-wrap items-baseline gap-x-1">
+                <p class="flex items-baseline gap-x-1 whitespace-nowrap">
                     <span class="font-rounded font-bold tabular-nums tracking-tight text-ink"
                         :class="m.value.length > 6 ? 'whitespace-nowrap text-[20px] leading-8' : 'text-[30px] leading-9'">{{ m.value }}</span>
                     <span v-if="m.unit" class="text-[15px] font-semibold text-ink-3">{{ m.unit }}</span>

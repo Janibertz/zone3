@@ -344,4 +344,29 @@ class PeriodizationTest extends TestCase
         $this->assertGreaterThan(IntensityDistributionService::TOO_HARD_PCT, $d['hard_pct']);
         $this->assertStringContainsString('lockeren Läufe zu schnell', app(IntensityDistributionService::class)->toPromptSection($d));
     }
+
+    /**
+     * Der Phasenbalken der Planseite: von heute (Aufbau, 90 Tage vorher)
+     * bis zum Rennen, ohne die schon vergangene Grundlage, und mit
+     * denselben Grenzen wie phaseOn().
+     */
+    public function test_segments_cover_today_to_race_with_the_same_boundaries(): void
+    {
+        $event    = $this->event();
+        $service  = app(PeriodizationService::class);
+        $segments = $service->segments($event);
+
+        $this->assertSame(['build', 'peak', 'taper', 'race_week'], array_column($segments, 'key'));
+        $this->assertSame($service->phaseOn($event)['key'], $segments[0]['key']);
+        $this->assertSame(90 + 1, array_sum(array_column($segments, 'days')));
+        $this->assertSame(PeriodizationService::PEAK_PHASE_DAYS, $segments[1]['days']);
+    }
+
+    public function test_segments_are_empty_after_the_race(): void
+    {
+        Carbon::setTestNow('2026-12-01');
+        CarbonImmutable::setTestNow('2026-12-01');
+
+        $this->assertSame([], app(PeriodizationService::class)->segments($this->event()));
+    }
 }

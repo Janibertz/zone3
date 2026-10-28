@@ -123,6 +123,8 @@ class TrainingPlanController extends Controller
                 'target_distance_km'    => $event->target_distance_km,
                 'target_time_formatted' => $event->target_time_formatted,
                 'days_until'            => $event->days_until,
+                'phase'                 => $event->training_phase['key'],
+                'phase_segments'        => app(\App\Services\PeriodizationService::class)->segments($event),
                 'plan_generating'       => $event->isGeneratingPlan(),
                 'plan_error'            => $event->plan_error,
                 // Nur ein Start in der Zukunft — ein vergangener ist erledigt.
@@ -564,7 +566,9 @@ class TrainingPlanController extends Controller
             'type'         => $s->type,
             // Die Sportart, damit die Oberflaeche "Schwimmen" zeigen kann
             // und nicht nur "Alternativtraining".
-            'sport_label'  => $s->isRun() ? null : $s->sportLabel(),
+            // Nur Fremdsport trägt eine Sportart. Ein Ruhetag ist kein Lauf, hiess
+            // über sportLabel() aber „Lauf“ — so stand es auf der Karte.
+            'sport_label'  => $s->sport_type ? $s->sportLabel() : null,
             // Radeinheit in % FTP → als Zwift-Workout herunterladbar.
             'zwo_url'      => $s->hasBikeSteps() ? route('training-sessions.zwo', $s) : null,
             // Lauf → als Training auf die Apple Watch, ausser Garmin ist verbunden.
