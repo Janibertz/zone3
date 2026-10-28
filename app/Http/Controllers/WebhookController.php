@@ -3,13 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\WikiChangelog;
-use App\Services\AI\CoachingTextService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class WebhookController extends Controller
 {
-    public function github(Request $request, CoachingTextService $text)
+    public function github(Request $request)
     {
         // Verify GitHub signature
         $secret = config('services.github.webhook_secret');
@@ -64,21 +63,16 @@ class WebhookController extends Controller
         $pusherName = $payload['pusher']['name'] ?? null;
         $pushedAt   = now();
 
-        // Generate AI summary
-        $aiSummary = null;
-        try {
-            $aiSummary = $text->generateChangelogSummary($commits, $filesChanged);
-        } catch (\Throwable $e) {
-            Log::warning('Wiki changelog: AI summary failed', ['error' => $e->getMessage()]);
-        }
-
+        // Keine KI-Zusammenfassung mehr (Entscheidung von Jan, 28.10.2026):
+        // jeder Push auf main kostete einen bezahlten Aufruf fuer einen Text,
+        // den die Commit-Nachrichten darunter schon erzaehlen. Alte Eintraege
+        // behalten ihre Zusammenfassung.
         WikiChangelog::create([
             'commit_sha'   => substr($payload['after'] ?? '', 0, 40),
             'branch'       => $branch,
             'pusher_name'  => $pusherName,
             'commits'      => $commits,
             'files_changed'=> $filesChanged,
-            'ai_summary'   => $aiSummary,
             'pushed_at'    => $pushedAt,
         ]);
 

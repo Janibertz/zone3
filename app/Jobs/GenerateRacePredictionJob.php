@@ -18,7 +18,7 @@ class GenerateRacePredictionJob implements ShouldQueue
     use Queueable;
 
     public int $tries   = 1;
-    public int $timeout = 60;
+    public int $timeout = 180; // Flex: doppeltes Zeitlimit plus ein Versuch auf Standard
 
     public function __construct(
         public readonly int $planId,

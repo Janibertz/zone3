@@ -425,9 +425,21 @@ class ActivityImportService
     }
 
     /**
+     * Wie lange eine berechnete Schwellenpace gilt, bevor ein neuer Lauf sie
+     * neu berechnen laesst.
+     *
+     * Bis 28.10.2026 waren es 24 Stunden — bei jedem, der fast taeglich
+     * laeuft, also ein bezahlter Aufruf pro Tag fuer eine Zahl, die sich
+     * ueber Wochen bewegt und seit dem VDOT-Umbau nur eine von drei Quellen
+     * ist. Ein Testlauf ({@see dispatchCalculationForTestRun()}) rechnet
+     * weiterhin sofort.
+     */
+    public const THRESHOLD_RECALC_DAYS = 7;
+
+    /**
      * Dispatch AI calculation job if:
      *  - At least one new Run was added
-     *  - Last calculation was > 24h ago (or never)
+     *  - Last calculation was more than THRESHOLD_RECALC_DAYS ago (or never)
      *  - No calculation is already running
      */
     public function dispatchCalculationIfDue(int $userId, int $newRunCount): void
@@ -440,7 +452,7 @@ class ActivityImportService
         );
 
         $lastCalc = $profile->threshold_pace_calculated_at;
-        $isDue    = $lastCalc === null || $lastCalc->lt(now()->subHours(24));
+        $isDue    = $lastCalc === null || $lastCalc->lt(now()->subDays(self::THRESHOLD_RECALC_DAYS));
 
         if ($isDue && ! $profile->threshold_pace_calculating) {
             $profile->threshold_pace_calculating = true;

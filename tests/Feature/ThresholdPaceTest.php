@@ -250,4 +250,45 @@ class ThresholdPaceTest extends TestCase
         $this->assertFalse((bool) $plan->refresh()->needs_plan_update);
         Queue::assertNotPushed(RegeneratePlanJob::class);
     }
+
+    // ── Wie oft gerechnet wird ───────────────────────────────────────────
+
+    /**
+     * Bis 28.10.2026 rechnete jeder neue Lauf nach 24 Stunden neu — fuer
+     * jemanden, der fast taeglich laeuft, ein bezahlter Aufruf pro Tag fuer
+     * eine Zahl, die sich ueber Wochen bewegt.
+     */
+    public function test_a_new_run_recalculates_only_once_a_week(): void
+    {
+        Queue::fake();
+        $user = $this->athlete();
+        $user->runnerProfile->update(['threshold_pace_calculated_at' => now()->subDays(3)]);
+
+        app(\App\Services\ActivityImportService::class)->dispatchCalculationIfDue($user->id, 1);
+
+        Queue::assertNotPushed(CalculateThresholdPaceJob::class);
+    }
+
+    public function test_after_a_week_a_new_run_recalculates(): void
+    {
+        Queue::fake();
+        $user = $this->athlete();
+        $user->runnerProfile->update(['threshold_pace_calculated_at' => now()->subDays(8)]);
+
+        app(\App\Services\ActivityImportService::class)->dispatchCalculationIfDue($user->id, 1);
+
+        Queue::assertPushed(CalculateThresholdPaceJob::class);
+    }
+
+    /** Ein Testlauf wartet nicht auf die Woche. */
+    public function test_a_test_run_recalculates_at_once(): void
+    {
+        Queue::fake();
+        $user = $this->athlete();
+        $user->runnerProfile->update(['threshold_pace_calculated_at' => now()->subDay()]);
+
+        app(\App\Services\ActivityImportService::class)->dispatchCalculationForTestRun($user->id);
+
+        Queue::assertPushed(CalculateThresholdPaceJob::class);
+    }
 }

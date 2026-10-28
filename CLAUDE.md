@@ -513,6 +513,7 @@ Daran hängt alles, was ein Tempo nennt: `RacePredictionService::forVdot()` (Das
 - AI returns `{"threshold_pace":"M:SS"}` JSON
 - Stored as `RunnerProfile.threshold_speed` (float minutes/km, e.g. 5.5 = 5:30/km)
 - While calculating: `threshold_pace_calculating = true` flag shown in UI
+- **Hoechstens einmal pro Woche** (`ActivityImportService::THRESHOLD_RECALC_DAYS`, seit 28.10.2026, vorher 24 h) — ein Testlauf rechnet sofort. Laeuft auf dem mittleren Modell ueber Flex.
 
 ## OpenAI Integration (`app/Services/AI/`)
 
@@ -528,13 +529,22 @@ Daran hängt alles, was ein Tempo nennt: `RacePredictionService::forVdot()` (Das
 | `AthleteProfileService` | threshold pace, pace zones, profile estimation |
 | `TalksToOpenAI` | trait that injects the client |
 
-**Two-model setup:**
-- `OPENAI_MODEL` (default `gpt-5.6-sol`) — `$ai->main()`: event_plan, threshold_pace, profile_estimation, coach_chat
+**Three-model setup (seit 28.10.2026):**
+- `OPENAI_MODEL` (default `gpt-5.6-sol`) — `$ai->main()`: nur noch event_plan (und der tote `chatWithCoach()`)
+- `OPENAI_MODEL_MID` (default `gpt-5.6-terra`) — `$ai->mid()`: coach_chat, threshold_pace
 - `OPENAI_MODEL_MINI` (default `gpt-5.6-luna`) — `$ai->mini()`: everything short
 
-Vorher liefen `gpt-5.5-2026-04-23` und `gpt-5.4-mini`. Listenpreise je 1M Token (Stand 09/2026): Astra 10/50 $, **Sol 4/20 $**, Terra 2/12 $, **Luna 0,20/1,20 $**. Bei unserem Verbrauch — 762 Requests und 1,275 Mio. Token in 30 Tagen — waeren das rund 10–12 $ im Monat auf Sol. Kosten sind damit **nicht** das Auswahlkriterium; der Plan-Prompt ist die schwerste Aufgabe der App, und jede Modellschwaeche landet als Validator-Korrektur.
+Listenpreise je 1M Token (Stand 10/2026): Astra 10/50 $, **Sol 4/20 $** (laut mehreren Quellen Aktion bis ~21.11.2026, danach 5/30 $ — dann `AiLog::RATES_USD_PER_MTOK` nachziehen), Terra 2/12 $, **Luna 0,20/1,20 $**. Gecachte Eingabe kostet ein Zehntel, Flex die Haelfte. Der Plan bleibt auf Sol: er ist die schwerste Aufgabe der App, und jede Modellschwaeche landet als Validator-Korrektur. Der Coach-Chat laeuft ohnehin mit `reasoning_effort: none`, also ohne das, wofuer Sol den Aufpreis nimmt; zurueck auf Sol geht es mit `OPENAI_MODEL_MID=gpt-5.6-sol`.
 
-**Die Rechnung ist trotzdem fast null — und der Grund gehoert gewusst.** Das Konto ist im Programm *complimentary daily tokens*: unter Data controls ist „Share inputs and outputs with OpenAI" fuer alle Projekte aktiv, Zone3 bezahlt also mit Daten statt mit Geld (0,05 $ Verbrauch seit Maerz 2026). In den Prompts stehen Schwellenpace, Umfaenge, Wellbeing, Coach-Notizen und die **Garmin-Gesundheitsdaten** (HRV, Schlaf, Ruhepuls, Body Battery, Stress) — und zwar aller Athleten, nicht nur des Betreibers. Nach DSGVO ist das besondere Kategorie (Art. 9). Wer das Sharing abschaltet, zahlt ab dann echtes Geld: der Credit Grant steht bei 4,95 $ und Auto-Reload ist AUS, und bei 0 $ hoert die API auf zu antworten — dann steht jede KI-Funktion still.
+**Seit 28.10.2026 kostet jeder Aufruf echtes Geld.** Bis dahin war das Konto im Programm *complimentary daily tokens* („Share inputs and outputs with OpenAI" unter Data controls) und bezahlte mit Daten — darunter Garmin-Gesundheitsdaten aller Athleten (DSGVO Art. 9). Jan hat das Teilen abgeschaltet. Das Guthaben ist begrenzt (bis 20 $ im Monat, Auto-Reload aus), das Projekt hat ein hartes Monatslimit von 15 $ auf der Plattform, und **bei 0 $ hoert die API auf zu antworten — dann steht jede KI-Funktion still.**
+
+**Die Kostenbremsen im Client** (`OpenAIClient`, getestet in `OpenAICostControlTest`):
+
+- **Flex fuer alles im Hintergrund** (`chat(..., background: true)`, `service_tier: flex`): event_plan, threshold_pace, session_review, weekly_review, race_prediction_text, coach_pr. Gleiches Modell, halber Preis, langsamer. Lehnt Flex mit 429 ab (keine Kapazitaet) oder laeuft das doppelte Zeitlimit ab, folgt **ein** Versuch auf Standard. Die Job-Timeouts sind darauf ausgelegt (2 × HTTP-Zeitlimit + 1 ×). Was ein Athlet im Browser abwartet, bleibt auf Standard. Abschalten: `OPENAI_FLEX=false`.
+- **Tagesbudget in Euro** aus `ai_logs.cost_eur`: `OPENAI_BUDGET_DAILY_EUR` (1,00, alle zusammen — faengt eine Schleife ab, auch im Plan) und `OPENAI_BUDGET_USER_DAILY_EUR` (0,30 pro Athlet, **der Plan ist ausgenommen**: er laeuft meist ohne Zutun des Athleten). Ein gebremster Aufruf schreibt eine `ai_logs`-Zeile mit `status = skipped`; `isRateLimited()` (Chat, Telegram) kennt die Budgets.
+- **Notbremse:** antwortet OpenAI mit `insufficient_quota` oder `*_spend_limit_exceeded`, pausieren alle Aufrufe 60 min (`OpenAIClient::BLOCK_KEY` im Cache), und die Admins bekommen sofort einen Push. Ein gewoehnliches 429 (Ratenlimit) zieht sie nicht. `perf:watch` meldet gebremste Aufrufe der letzten 24 h.
+- `ai_logs` traegt `cached_tokens`, `reasoning_tokens` und `service_tier`; `calculateCost()` rechnet Cache und Flex ein. Ohne diese Spalten laesst sich keine Sparmassnahme nachmessen.
+- Die KI-Zusammenfassung im Admin-Changelog ist weg (Jan, 28.10.2026): jeder Push auf `main` kostete einen Aufruf fuer einen Text, den die Commits schon erzaehlen.
 
 **`AiLog::calculateCost()` kannte lange nur GPT-4o-Preise** und fiel fuer alles andere still darauf zurueck. Gelaufen ist seit Monaten gpt-5.5 — jede Euro-Zahl im AI-Log war mit den Preisen eines Modells gerechnet, das gar nicht im Einsatz war. Ausloeser war der exakte Schluesselvergleich: konfiguriert war `gpt-5.5-2026-04-23`, in der Tabelle stand nicht einmal `gpt-5.5`. Die Suche streift jetzt einen Datumsanhang ab, und ein wirklich unbekanntes Modell kostet 0 **und schreibt eine Warnung** — eine sichtbare Luecke statt einer erfundenen Zahl.
 
@@ -935,7 +945,12 @@ VAPID-based Web Push (no Firebase). Subscriptions in `push_subscriptions`. Sched
 ```
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-5.6-sol
+OPENAI_MODEL_MID=gpt-5.6-terra
 OPENAI_MODEL_MINI=gpt-5.6-luna
+# Kostenbremsen (Vorgaben in config/services.php)
+OPENAI_FLEX=true
+OPENAI_BUDGET_DAILY_EUR=1.00
+OPENAI_BUDGET_USER_DAILY_EUR=0.30
 
 STRAVA_CLIENT_ID=
 STRAVA_CLIENT_SECRET=

@@ -21,7 +21,7 @@ class RegeneratePlanJob implements ShouldQueue
     use Queueable;
 
     public int $tries   = 1;
-    public int $timeout = 600; // reasoning model + OpenAI latency can exceed 2 min
+    public int $timeout = 900; // Flex: 2 × 240 s plus ein Versuch auf Standard (240 s)
 
     /**
      * Warum neu gerechnet wird. Der Anlass entscheidet zweierlei: ob die

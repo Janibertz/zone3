@@ -57,8 +57,20 @@ return [
 
     'openai' => [
         'api_key'    => env('OPENAI_API_KEY'),
-        'model'      => env('OPENAI_MODEL',      'gpt-5.6-sol'),
-        'model_mini' => env('OPENAI_MODEL_MINI', 'gpt-5.6-luna'),
+        'model'      => env('OPENAI_MODEL',      'gpt-5.6-sol'),     // Plan
+        'model_mid'  => env('OPENAI_MODEL_MID',  'gpt-5.6-terra'),   // Coach-Chat, Schwellenpace
+        'model_mini' => env('OPENAI_MODEL_MINI', 'gpt-5.6-luna'),    // alles Kurze
+
+        // Hintergrund-Aufrufe ueber Flex: halber Preis, langsamer.
+        'flex'       => env('OPENAI_FLEX', true),
+
+        // Tagesbudgets in Euro (0 = aus). Das Monatslimit steht zusaetzlich
+        // hart auf der OpenAI-Plattform; diese hier fangen eine Schleife ab,
+        // bevor sie den Monat aufbraucht.
+        'budget' => [
+            'daily_eur'      => (float) env('OPENAI_BUDGET_DAILY_EUR', 1.00),
+            'user_daily_eur' => (float) env('OPENAI_BUDGET_USER_DAILY_EUR', 0.30),
+        ],
     ],
 
     // Telegram-Bot fuer den Coach. Das Webhook-Geheimnis wird aus APP_KEY

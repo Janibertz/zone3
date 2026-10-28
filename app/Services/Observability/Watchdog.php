@@ -90,6 +90,7 @@ class Watchdog
             $this->failedJobs(),
             $this->stalledQueue(),
             $this->silentWebhook(),
+            $this->blockedAiCalls(),
             ...$this->overdueCommands(),
         ]));
     }
@@ -162,6 +163,38 @@ class Watchdog
         return [
             'key'     => 'webhook_silent',
             'message' => "Seit {$hours} h kein Strava-Webhook. Wenn jemand gelaufen ist, pruefe die Subscription und Cloudflare.",
+        ];
+    }
+
+    /**
+     * KI-Aufrufe, die eine Kostenbremse in den letzten 24 h verhindert hat.
+     *
+     * Ein Tagesbudget, das greift, ist kein Fehler — aber wer es nicht
+     * erfaehrt, wundert sich ueber fehlende Reviews. Die Notbremse (leeres
+     * Guthaben) meldet der Client sofort selbst; hier steht sie noch einmal,
+     * solange sie nachwirkt.
+     */
+    private function blockedAiCalls(): ?array
+    {
+        if (! Schema::hasTable('ai_logs')) {
+            return null;
+        }
+
+        $skipped = DB::table('ai_logs')
+            ->where('status', 'skipped')
+            ->where('created_at', '>=', now()->subDay())
+            ->selectRaw('error_message, COUNT(*) as n')
+            ->groupBy('error_message')
+            ->orderByDesc('n')
+            ->get();
+
+        if ($skipped->isEmpty()) {
+            return null;
+        }
+
+        return [
+            'key'     => 'ai_blocked',
+            'message' => $skipped->sum('n') . ' KI-Aufruf(e) in 24 h gebremst, haeufigster Grund: ' . $skipped->first()->error_message,
         ];
     }
 

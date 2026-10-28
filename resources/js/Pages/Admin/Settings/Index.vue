@@ -43,8 +43,8 @@ function broadcastPush() {
 
 const modelLabels = {
     'gpt-6-astra':         { label: 'GPT-6 Astra',   sub: 'Für die härtesten Aufgaben — 10 $ / 50 $ je 1M Token' },
-    'gpt-5.6-sol':         { label: 'GPT-5.6 Sol',   sub: 'Event-Plan, Schwellenpace, Coach-Chat — 4 $ / 20 $ je 1M Token' },
-    'gpt-5.6-terra':       { label: 'GPT-5.6 Terra', sub: 'Sparsame Variante — 2 $ / 12 $ je 1M Token' },
+    'gpt-5.6-sol':         { label: 'GPT-5.6 Sol',   sub: 'Event-Plan — 4 $ / 20 $ je 1M Token (Aktionspreis)' },
+    'gpt-5.6-terra':       { label: 'GPT-5.6 Terra', sub: 'Coach-Chat, Schwellenpace — 2 $ / 12 $ je 1M Token' },
     'gpt-5.6-luna':        { label: 'GPT-5.6 Luna',  sub: 'Profil-Schätzung, Empfehlung, Review, Messages, Ernährung u.a. — 0,20 $ / 1,20 $ je 1M Token' },
     'gpt-5.5':             { label: 'GPT-5.5',       sub: 'Vorgänger des Hauptmodells' },
     'gpt-5.4-mini':        { label: 'GPT-5.4 mini',  sub: 'Vorgänger des kleinen Modells' },
@@ -91,7 +91,7 @@ function modelInfo(id) {
             <div class="bg-surface rounded-card divide-y divide-line shadow-card">
                 <div class="px-6 py-4">
                     <h2 class="text-sm font-semibold text-ink-2">KI-Konfiguration</h2>
-                    <p class="text-xs text-ink-3 mt-0.5">Konfiguration via OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MODEL_MINI</p>
+                    <p class="text-xs text-ink-3 mt-0.5">Konfiguration via OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MODEL_MID, OPENAI_MODEL_MINI</p>
                 </div>
 
                 <!-- Hauptmodell -->
@@ -107,6 +107,19 @@ function modelInfo(id) {
                     </span>
                 </div>
 
+                <!-- Mittleres Modell -->
+                <div class="px-6 py-4 flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-ink">Mittleres Modell</p>
+                        <p class="text-xs text-ink-3 mt-0.5">
+                            {{ modelInfo(config.openai_model_mid)?.sub ?? 'OPENAI_MODEL_MID' }}
+                        </p>
+                    </div>
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-info-soft text-info-ink">
+                        {{ modelInfo(config.openai_model_mid)?.label ?? config.openai_model_mid }}
+                    </span>
+                </div>
+
                 <!-- Mini-Modell -->
                 <div class="px-6 py-4 flex items-center justify-between">
                     <div>
@@ -118,6 +131,19 @@ function modelInfo(id) {
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-info-soft text-info-ink">
                         {{ modelInfo(config.openai_model_mini)?.label ?? config.openai_model_mini }}
                     </span>
+                </div>
+
+                <!-- Kostenbremsen -->
+                <div class="px-6 py-4 flex items-center justify-between gap-4">
+                    <div>
+                        <p class="text-sm font-medium text-ink">Kostenbremsen</p>
+                        <p class="text-xs text-ink-3 mt-0.5">OPENAI_FLEX, OPENAI_BUDGET_DAILY_EUR, OPENAI_BUDGET_USER_DAILY_EUR</p>
+                    </div>
+                    <p class="text-sm text-ink-2 text-right">
+                        Flex {{ config.openai_flex ? 'an' : 'aus' }} ·
+                        {{ config.openai_budget_daily ? config.openai_budget_daily.toFixed(2) + ' € / Tag' : 'kein Tagesbudget' }} ·
+                        {{ config.openai_budget_user ? config.openai_budget_user.toFixed(2) + ' € / Athlet' : 'kein Athletenbudget' }}
+                    </p>
                 </div>
 
                 <!-- API Key -->

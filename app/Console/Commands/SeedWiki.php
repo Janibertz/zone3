@@ -621,7 +621,6 @@ Zentrale Klasse für alle KI-Aufrufe. Alle Calls werden in `ai_logs` protokollie
 | `generateWeeklyReview()` | Wochenrückblick | `weekly_review` |
 | `generateDailyMessage()` | Coach-Spruch Dashboard | `daily_message` |
 | `generatePrMessage()` | PR-Glückwunsch | `pr_message` |
-| `generateChangelogSummary()` | Wiki Changelog-Zusammenfassung | `changelog_summary` |
 | `calculatePaceZones()` | Pace-Zonen berechnen | `pace_zones` |
 
 ## Konfiguration

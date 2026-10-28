@@ -27,7 +27,7 @@ class GenerateSessionReviewJob implements ShouldQueue
     use Queueable;
 
     public int $tries   = 1;
-    public int $timeout = 90;
+    public int $timeout = 240; // Flex: doppeltes Zeitlimit plus ein Versuch auf Standard
 
     public function __construct(
         public readonly int $sessionId,
