@@ -23,7 +23,7 @@ import GaugeTile from '@/Components/UI/GaugeTile.vue';
 import { garminGauges, wellbeingGauges } from '@/Composables/useRecoveryGauges.js';
 import SectionHeader from '@/Components/UI/SectionHeader.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
-import { sessionType, stepAmount } from '@/Composables/useSessionTypes';
+import { paceValue, sessionType, stepAmount } from '@/Composables/useSessionTypes';
 
 
 const props = defineProps({
@@ -274,18 +274,6 @@ function decideRecommendation(action) {
     });
 }
 
-/** „12 km · 55 min · Zone 2" — nur was gesetzt ist. */
-function describeSession(s) {
-    if (!s) return '';
-    return [
-        s.title,
-        s.distance_km ? `${s.distance_km} km` : null,
-        s.duration_min ? `${s.duration_min} min` : null,
-        s.pace_target || null,
-        s.zone ? `Zone ${s.zone}` : null,
-    ].filter(Boolean).join(' · ');
-}
-
 /** Nur die Grössen zeigen, die sich wirklich unterscheiden. */
 const recommendationChanges = computed(() => {
     const r = props.coachRecommendation;
@@ -299,6 +287,19 @@ const recommendationChanges = computed(() => {
     return Object.keys(labels)
         .filter((k) => String(r.before?.[k] ?? '') !== String(r.after?.[k] ?? ''))
         .map((k) => ({ label: labels[k], from: r.before?.[k] ?? '—', to: r.after?.[k] ?? '—' }));
+});
+
+/** Die Kennzahlen aus `recommendationChanges` — Art und Titel stehen schon in der Zeile darüber. */
+const recommendationNumbers = computed(() => {
+    const units = { Distanz: ' km', Dauer: ' min' };
+    return recommendationChanges.value
+        .filter((c) => ['Distanz', 'Dauer', 'Pace', 'Zone'].includes(c.label))
+        .map((c) => {
+            const fmt = (v) => (v === '—' ? '—'
+                : c.label === 'Pace' ? paceValue(v) ?? '—'
+                : String(v).replace('.', ',') + (units[c.label] ?? ''));
+            return { label: c.label, from: fmt(c.from), to: fmt(c.to) };
+        });
 });
 
 // Flash-Meldungen blenden sich nach ein paar Sekunden selbst aus.
@@ -1498,46 +1499,48 @@ async function resetLayout() {
                      ═══════════════════════════════════════════════════
                      Kein Automatismus mehr: der Coach schlägt vor, der
                      Athlet entscheidet. -->
-                <AppCard v-if="props.coachRecommendation" class="border border-warn/25 bg-warn-soft">
-                    <div class="space-y-3">
-                        <div class="flex items-start gap-2">
-                            <span class="text-lg leading-none">💡</span>
-                            <div class="min-w-0">
-                                <p class="text-[15px] font-semibold text-warn-ink">
-                                    Dein Coach schlägt eine Anpassung vor
-                                </p>
-                                <p v-if="props.coachRecommendation.reason" class="mt-0.5 text-[13px] text-warn-ink/90">
-                                    {{ props.coachRecommendation.reason }}
-                                </p>
-                            </div>
-                        </div>
+                <!--
+                    Aufbau wie die Story-Karte (28.10.2026): vorher → nachher
+                    in einer Zeile, ein Satz Begründung, zwei gleich breite
+                    Knöpfe. Vorher eine gelbe Warnbox mit drei Textblöcken —
+                    ein Vorschlag ist keine Warnung.
+                -->
+                <div v-if="props.coachRecommendation" class="rounded-card bg-surface p-5">
+                    <p class="flex items-center gap-2 text-[15px] font-semibold text-accent-ink">
+                        <svg class="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v3m0 12v3M3 12h3m12 0h3M12 7.5c.6 2.4 2.1 3.9 4.5 4.5-2.4.6-3.9 2.1-4.5 4.5-.6-2.4-2.1-3.9-4.5-4.5 2.4-.6 3.9-2.1 4.5-4.5Z" />
+                        </svg>
+                        Vorschlag vom Coach
+                    </p>
 
-                        <div class="rounded-field bg-surface/70 px-3 py-2 text-[13px]">
-                            <p class="text-ink-3 line-through">{{ describeSession(props.coachRecommendation.before) }}</p>
-                            <p class="mt-1 font-medium text-ink">{{ describeSession(props.coachRecommendation.after) }}</p>
-
-                            <ul v-if="recommendationChanges.length" class="mt-2 space-y-0.5 text-[12px] text-ink-3">
-                                <li v-for="c in recommendationChanges" :key="c.label">
-                                    {{ c.label }}: {{ c.from }} → <span class="text-ink">{{ c.to }}</span>
-                                </li>
-                            </ul>
-                        </div>
-
-                        <p v-if="props.coachRecommendation.after?.description" class="text-[13px] text-ink-2">
-                            {{ props.coachRecommendation.after.description }}
-                        </p>
-
-                        <div class="flex gap-2">
-                            <AppButton size="sm" :disabled="recommendationBusy" @click="decideRecommendation('accept')">
-                                Übernehmen
-                            </AppButton>
-                            <AppButton size="sm" variant="secondary" :disabled="recommendationBusy"
-                                @click="decideRecommendation('reject')">
-                                Beim Plan bleiben
-                            </AppButton>
-                        </div>
+                    <div class="mt-2.5 flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+                        <span class="text-[17px] text-ink-3 line-through decoration-[1.5px]">{{ props.coachRecommendation.before?.title }}</span>
+                        <span class="text-ink-3" aria-hidden="true">→</span>
+                        <span class="text-[20px] font-bold leading-7 tracking-tight text-ink">{{ props.coachRecommendation.after?.title }}</span>
                     </div>
-                </AppCard>
+
+                    <!-- Nur die Zahlen, die sich ändern -->
+                    <div v-if="recommendationNumbers.length" class="mt-3 flex flex-wrap gap-x-5 gap-y-1">
+                        <p v-for="c in recommendationNumbers" :key="c.label" class="text-[13px] text-ink-3">
+                            {{ c.label }}
+                            <span class="tabular-nums line-through">{{ c.from }}</span>
+                            <span class="font-rounded text-[17px] font-bold tabular-nums text-ink"> {{ c.to }}</span>
+                        </p>
+                    </div>
+
+                    <p v-if="props.coachRecommendation.reason" class="mt-2 text-[15px] leading-snug text-ink-2">
+                        {{ props.coachRecommendation.reason }}
+                    </p>
+
+                    <div class="mt-4 grid grid-cols-2 gap-2">
+                        <AppButton variant="secondary" block :disabled="recommendationBusy" @click="decideRecommendation('reject')">
+                            Beim Plan bleiben
+                        </AppButton>
+                        <AppButton block :disabled="recommendationBusy" @click="decideRecommendation('accept')">
+                            Übernehmen
+                        </AppButton>
+                    </div>
+                </div>
 
                 <!-- ══════════════════════════════════════════════════
                      HEUTIGES TRAINING

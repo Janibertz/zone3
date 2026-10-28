@@ -174,6 +174,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 'type'         => $s->type,
                 'title'        => $s->title,
                 'description'  => $s->description,
+                'steps'        => $s->steps,
                 'distance_km'  => $s->distance_km,
                 'duration_min' => $s->duration_min,
                 'pace_target'  => $s->pace_target,

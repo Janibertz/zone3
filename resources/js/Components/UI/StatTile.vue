@@ -27,12 +27,12 @@ const tones = {
 </script>
 
 <template>
-    <div class="flex min-w-0 flex-col rounded-card bg-surface p-4">
+    <div class="flex min-w-0 flex-col rounded-card bg-surface p-5">
         <p v-if="label" class="flex items-center gap-1.5 text-[15px] font-semibold" :class="tones[tone] ?? tones.neutral">
             <slot name="icon" />{{ label }}
         </p>
         <p class="mt-1.5 flex items-baseline gap-1">
-            <span class="font-rounded text-[32px] font-bold leading-9 tabular-nums tracking-tight text-ink">{{ value }}</span>
+            <span class="font-rounded text-[32px] font-bold leading-9 tabular-nums tracking-[-0.02em] text-ink">{{ value }}</span>
             <span v-if="unit" class="text-[15px] font-semibold text-ink-3">{{ unit }}</span>
         </p>
         <p v-if="hint" class="mt-0.5 text-[13px] text-ink-3">{{ hint }}</p>
