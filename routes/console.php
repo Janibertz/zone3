@@ -40,16 +40,6 @@ Schedule::command('plan:auto-update')->dailyAt('05:00');
 // 1st of each month at 09:00: send the previous month's running review (push + email)
 Schedule::command('review:monthly')->monthlyOn(1, '09:00');
 
-// Garmin-Erholungsdaten. Zwei Laeufe, weil die Uhr ihre Nachtwerte erst zu
-// Garmin Connect schickt, wenn der Nutzer morgens sein Handy benutzt — um
-// 06:00 sind sie dort in der Regel noch nicht angekommen.
-//   06:00 — voller Abgleich der letzten sieben Tage (schliesst Luecken)
-//   09:00 — kurzer Nachschlag fuer die Nacht
-// Wer seinen Check-in macht, loest zusaetzlich sofort einen Abruf aus
-// (WellbeingController::refreshGarminIfStale).
-Schedule::command('garmin:sync-health --days=7')->dailyAt('06:00');
-Schedule::command('garmin:sync-health --days=2')->dailyAt('09:00');
-
 // Offizielle Garmin-Verbindung: Refresh-Tokens verfallen nach ~90 Tagen ohne
 // Benutzung. Einmal am Tag erneuern haelt jede Verbindung am Leben, auch die
 // eines Athleten, der gerade nicht trainiert.

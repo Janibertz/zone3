@@ -5,9 +5,7 @@ namespace App\Services\Garmin;
 use App\Models\GarminScheduledWorkout;
 use App\Models\TrainingSession;
 use App\Models\User;
-use App\Models\Workout;
 use App\Services\Watch\AppleWorkoutWriter;
-use App\Services\WorkoutPaceResolver;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
@@ -128,19 +126,6 @@ class GarminWorkoutSync
         }
 
         $this->create($connection, $payload, ['training_session_id' => $session->id, 'manual' => true]);
-    }
-
-    /** Ein Workout aus dem Builder an einem Tag in den Kalender legen. */
-    public function pushWorkout(User $user, Workout $workout, string $date): void
-    {
-        $resolved = app(WorkoutPaceResolver::class)->resolve($workout, $user->runnerProfile);
-        $body     = $this->builder->build($workout->name, $workout->description, $resolved['steps']);
-
-        $this->create($user->garminConnection, [
-            'body' => $body,
-            'date' => $date,
-            'hash' => sha1(json_encode($body) . '|' . $date),
-        ], ['workout_id' => $workout->id, 'manual' => true]);
     }
 
     /**

@@ -17,7 +17,6 @@ class GarminDailyMetric extends Model
         'body_battery_high',
         'stress_avg',
         'steps',
-        'training_readiness',
         'vo2max',
         'vo2max_cycling',
         'fitness_age',

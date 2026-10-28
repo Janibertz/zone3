@@ -35,7 +35,7 @@ const empfaenger = [
     {
         name: 'OpenAI, L.L.C.',
         ort: 'USA',
-        zweck: 'Erzeugung von Trainingsplänen, Auswertungen und Antworten des Coachs. Übermittelt werden die dafür nötigen Trainingsdaten (Aktivitäten, Pace, Herzfrequenz, Ziele und Rennen, Trainingsprofil), deine Tagesform-Einträge, Coach-Notizen und deine Chat-Nachrichten sowie dein Name. Hast du Garmin verbunden, außerdem Wochenmittel und Tageswerte deiner Erholung (Schlaf, HRV, Ruhepuls, Stress, Body Battery, Training Readiness). Nicht zum Training von KI-Modellen, siehe Abschnitt 7. E-Mail-Adresse, Passwort und Zugangsdaten werden nicht übermittelt.',
+        zweck: 'Erzeugung von Trainingsplänen, Auswertungen und Antworten des Coachs. Übermittelt werden die dafür nötigen Trainingsdaten (Aktivitäten, Pace, Herzfrequenz, Ziele und Rennen, Trainingsprofil), deine Tagesform-Einträge, Coach-Notizen und deine Chat-Nachrichten sowie dein Name. Hast du Garmin verbunden, außerdem Wochenmittel und Tageswerte deiner Erholung (Schlaf, HRV, Ruhepuls, Stress, Body Battery). Nicht zum Training von KI-Modellen, siehe Abschnitt 7. E-Mail-Adresse, Passwort und Zugangsdaten werden nicht übermittelt.',
     },
     {
         name: 'Telegram',
@@ -108,7 +108,7 @@ const empfaenger = [
                     <li><strong class="text-ink">Konto:</strong> Name, E-Mail-Adresse, Passwort (nur als Hash gespeichert), optional ein Profilbild.</li>
                     <li><strong class="text-ink">Trainingsprofil:</strong> deine Angaben aus Onboarding und Profil, z. B. Erfahrung, verfügbare Trainingszeiten, Trainingsmodell, Schwellenpace, Herzfrequenz- und Pace-Zonen, FTP.</li>
                     <li><strong class="text-ink">Aktivitäten von Strava oder Garmin:</strong> Sportart, Datum, Distanz, Dauer, Pace, Herzfrequenz, Leistung, Höhenmeter, Runden, Bestzeiten und die GPS-Strecke.</li>
-                    <li><strong class="text-ink">Erholungswerte von Garmin:</strong> nur wenn du Garmin verbindest. Tageswerte für Schlafdauer und Schlafscore, HRV, Ruhepuls, Stress, Body Battery, Schritte und Training Readiness.</li>
+                    <li><strong class="text-ink">Erholungswerte von Garmin:</strong> nur wenn du Garmin verbindest. Tageswerte für Schlafdauer und Schlafscore, HRV, Ruhepuls, Stress, Body Battery, Schritte und VO2max.</li>
                     <li><strong class="text-ink">Ziele und Pläne:</strong> Rennen, Zielzeiten, Trainingspläne und -einheiten, deine Bewertungen und Notizen dazu, Antworten im Plan-Interview.</li>
                     <li><strong class="text-ink">Tagesform:</strong> freiwillige Selbsteinschätzung (Energie, Schlaf, Muskelkater, Stress, krank oder verletzt, Notiz).</li>
                     <li><strong class="text-ink">Coach:</strong> deine Nachrichten an den Coach, seine Antworten und Notizen, die er sich über dich merkt.</li>

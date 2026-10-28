@@ -168,7 +168,11 @@ class AppleWorkoutTest extends TestCase
 
         $this->assertNotNull($watchUrl());
 
-        $user->update(['garmin_session' => 'token']);
+        \App\Models\GarminConnection::create([
+            'user_id' => $user->id, 'garmin_user_id' => 'g-'.$user->id, 'access_token' => 'tok', 'refresh_token' => 'ref',
+            'access_token_expires_at' => now()->addHours(20), 'permissions' => [\App\Models\GarminConnection::WORKOUTS],
+            'ai_consent_at' => now(),
+        ]);
         $this->assertNull($watchUrl());
     }
 

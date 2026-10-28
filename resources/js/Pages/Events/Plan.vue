@@ -515,7 +515,6 @@ const garminSuccess  = ref(false);
 const garminError    = ref('');
 
 const garminConnected = computed(() => !!usePage().props.auth.garminConnected);
-const garminSavedEmail = computed(() => usePage().props.auth.garminEmail);
 
 function openGarminModal() {
     garminModal.value    = true;
@@ -523,51 +522,20 @@ function openGarminModal() {
     garminSuccess.value  = false;
 }
 
-async function sendToGarminConnect({ email, password } = {}) {
+async function sendToGarminConnect() {
     if (!detailSession.value) return;
     garminSending.value = true;
     garminError.value   = '';
     garminSuccess.value = false;
     try {
-        const payload = garminConnected.value ? {} : { email, password };
-
-        const { data } = await axios.post(
-            route('training-sessions.send-to-garmin', detailSession.value.id),
-            payload
-        );
-        if (data.success) {
-            garminSuccess.value = true;
-            // Reload page props to reflect newly saved garmin connection
-            router.reload({ only: [] });
-            setTimeout(() => { garminModal.value = false; garminSuccess.value = false; }, 2500);
-        } else {
-            const err = data.error || 'Unbekannter Fehler';
-            garminError.value = err.startsWith('login_failed:')
-                ? 'Login fehlgeschlagen: ' + err.replace('login_failed:', '').trim()
-                : err;
-        }
+        await axios.post(route('training-sessions.send-to-garmin', detailSession.value.id));
+        garminSuccess.value = true;
+        setTimeout(() => { garminModal.value = false; garminSuccess.value = false; }, 2500);
     } catch (e) {
-        const detail = e.response?.data?.error || e.response?.data?.detail || e.message;
-        if (detail === 'session_expired') {
-            router.reload({ only: [] });
-            garminError.value = 'Sitzung abgelaufen. Bitte erneut einloggen.';
-        } else if (detail === 'mfa_required') {
-            garminError.value = 'Zwei-Faktor-Authentifizierung aktiv. Bitte deaktiviere 2FA temporär in deinem Garmin-Account.';
-        } else if (detail?.startsWith('login_failed:')) {
-            garminError.value = 'Login fehlgeschlagen: ' + detail.replace('login_failed:', '').trim();
-        } else {
-            garminError.value = detail || 'Verbindung fehlgeschlagen';
-        }
+        garminError.value = e.response?.data?.error || 'Verbindung fehlgeschlagen';
     } finally {
         garminSending.value = false;
     }
-}
-
-async function garminDisconnect() {
-    try {
-        await axios.delete(route('garmin.disconnect'));
-        router.reload({ only: [] });
-    } catch {}
 }
 
 async function saveRating() {
@@ -2003,15 +1971,10 @@ const lapHeightPct = computed(() => {
         <GarminSendSheet
             :show="garminModal"
             :connected="garminConnected"
-            :via-api="!!$page.props.auth.garminViaApi"
-            :saved-email="garminSavedEmail"
             :sending="garminSending"
             :error="garminError"
             :success="garminSuccess"
-            success-text="Es erscheint jetzt in Garmin Connect und ist im Kalender für heute eingetragen."
-            with-disconnect
             @send="sendToGarminConnect"
-            @disconnect="garminDisconnect"
             @close="garminModal = false"
         />
         <DragGhost :drag="drag" />

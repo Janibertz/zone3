@@ -14,8 +14,7 @@ use Throwable;
  * Profil, Konto loeschen und der Deregistrierungs-Webhook muessen dasselbe
  * tun, und /privacy sagt, was das ist: Zugang und Erholungswerte gehen,
  * Aktivitaeten bleiben (an ihnen haengen erledigte Einheiten und
- * Bewertungen). Der alte Login ueber den Fit-Service wird gleich mit
- * entfernt, damit "Trennen" nicht die Haelfte stehen laesst.
+ * Bewertungen).
  */
 class GarminDisconnector
 {
@@ -51,7 +50,6 @@ class GarminDisconnector
 
         GarminScheduledWorkout::where('user_id', $user->id)->delete();
         $connection?->delete();
-        $user->update(['garmin_email' => null, 'garmin_session' => null]);
         GarminDailyMetric::where('user_id', $user->id)->delete();
     }
 }

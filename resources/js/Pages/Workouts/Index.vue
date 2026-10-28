@@ -4,7 +4,6 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import axios from 'axios';
-import GarminSendSheet from '@/Components/UI/GarminSendSheet.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
@@ -165,9 +164,6 @@ function localToday() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// Nur der alte Garmin-Login sendet noch direkt; er faellt mit Schritt 6 weg.
-const legacyGarmin = computed(() => !!usePage().props.auth.garminConnected && !usePage().props.auth.garminViaApi);
-
 const scheduleWorkout = ref(null);
 const scheduleDate    = ref(localToday());
 const scheduling      = ref(false);
@@ -195,45 +191,6 @@ async function submitSchedule() {
     }
 }
 
-// ── Garmin ────────────────────────────────────────────────────────────────────
-const garminModal     = ref(false);
-const garminWorkout   = ref(null);
-const garminDate      = ref(new Date().toISOString().slice(0, 10));
-const garminSending   = ref(false);
-const garminSuccess   = ref(false);
-const garminError     = ref('');
-import { usePage } from '@inertiajs/vue3';
-const garminConnected  = computed(() => !!usePage().props.auth.garminConnected);
-const garminSavedEmail = computed(() => usePage().props.auth.garminEmail);
-
-function openGarminModal(w) {
-    garminWorkout.value  = w;
-    garminModal.value    = true;
-    garminError.value    = '';
-    garminSuccess.value  = false;
-    garminDate.value     = new Date().toISOString().slice(0, 10);
-}
-
-async function sendToGarmin({ email, password, date } = {}) {
-    garminSending.value = true;
-    garminError.value   = '';
-    try {
-        const payload = garminConnected.value
-            ? { date }
-            : { date, email, password };
-        const { data } = await axios.post(route('workouts.send-to-garmin', garminWorkout.value.id), payload);
-        if (data.success) {
-            garminSuccess.value = true;
-            setTimeout(() => { garminModal.value = false; garminSuccess.value = false; }, 2500);
-        } else {
-            garminError.value = data.error || 'Fehler beim Übertragen.';
-        }
-    } catch(e) {
-        garminError.value = e.response?.data?.error || e.message || 'Fehler';
-    } finally {
-        garminSending.value = false;
-    }
-}
 </script>
 
 <template>
@@ -314,10 +271,9 @@ async function sendToGarmin({ email, password, date } = {}) {
                             <!-- 28 Pixel sind fuer einen Daumen zu wenig, erst recht
                                  fuer "Loeschen". Auf dem Telefon 44, ab sm wieder kompakt. -->
                             <div class="flex shrink-0 gap-1 self-end sm:self-auto">
-                                <button @click="legacyGarmin ? openGarminModal(w) : openSchedule(w)" :title="legacyGarmin ? 'Zu Garmin senden' : 'Einplanen'"
+                                <button @click="openSchedule(w)" title="Einplanen"
                                     class="p-3.5 sm:p-1.5 rounded-lg text-ink-3 hover:text-accent hover:bg-accent-soft transition-colors">
-                                    <svg v-if="legacyGarmin" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" /></svg>
-                                    <svg v-else class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5M12 12.75v4.5m-2.25-2.25h4.5" /></svg>
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5M12 12.75v4.5m-2.25-2.25h4.5" /></svg>
                                 </button>
                                 <button @click="duplicateWorkout(w)" title="Duplizieren"
                                     class="p-3.5 sm:p-1.5 rounded-lg text-ink-3 hover:text-ink-2 hover:bg-surface-2 transition-colors">
@@ -414,20 +370,5 @@ async function sendToGarmin({ email, password, date } = {}) {
             </template>
         </AppSheet>
 
-        <!-- Zu Garmin senden (alter Login) -->
-        <GarminSendSheet
-            v-model:date="garminDate"
-            :show="garminModal"
-            :connected="garminConnected"
-            :via-api="!!$page.props.auth.garminViaApi"
-            :saved-email="garminSavedEmail"
-            :sending="garminSending"
-            :error="garminError"
-            :success="garminSuccess"
-            :subtitle="garminWorkout?.name"
-            with-date
-            @send="sendToGarmin"
-            @close="garminModal = false"
-        />
     </AuthenticatedLayout>
 </template>

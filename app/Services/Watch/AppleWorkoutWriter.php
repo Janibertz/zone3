@@ -33,7 +33,7 @@ class AppleWorkoutWriter
 {
     /**
      * Eine einzelne Zielpace wird ein Bereich von ±5 % Geschwindigkeit —
-     * dieselbe Breite, die der fit-service für Garmin setzt. Zwei Uhren mit
+     * dieselbe Breite wie bei Garmin (`GarminWorkoutBuilder`). Zwei Uhren mit
      * zwei Toleranzen für dieselbe Einheit wären eine doppelte Wahrheit.
      */
     public const PACE_TOLERANCE = 0.05;

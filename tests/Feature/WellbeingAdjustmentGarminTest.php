@@ -76,7 +76,7 @@ class WellbeingAdjustmentGarminTest extends TestCase
         ]);
     }
 
-    private function metric(User $user, int $daysAgo, float $hrv, int $rhr, float $sleep = 7.5, ?int $readiness = 70): void
+    private function metric(User $user, int $daysAgo, float $hrv, int $rhr, float $sleep = 7.5): void
     {
         GarminDailyMetric::create([
             'user_id'            => $user->id,
@@ -84,7 +84,6 @@ class WellbeingAdjustmentGarminTest extends TestCase
             'hrv'                => $hrv,
             'resting_hr'         => $rhr,
             'sleep_hours'        => $sleep,
-            'training_readiness' => $readiness,
         ]);
     }
 
@@ -107,7 +106,7 @@ class WellbeingAdjustmentGarminTest extends TestCase
             $this->metric($user, $d, 60, 50);
         }
         // Heute: HRV eingebrochen, Ruhepuls hoch, kaum geschlafen.
-        $this->metric($user, 0, 45, 56, 4.5, 28);
+        $this->metric($user, 0, 45, 56, 4.5);
 
         Http::fake(['api.openai.com/*' => Http::response([
             'choices' => [['message' => ['content' => json_encode([
@@ -125,7 +124,6 @@ class WellbeingAdjustmentGarminTest extends TestCase
         $this->assertStringContainsString('Gemessene Werte der Uhr', $prompt);
         $this->assertStringContainsString('HRV heute Nacht', $prompt);
         $this->assertStringContainsString('Auffällig', $prompt, 'Die Warnsignale müssen benannt sein');
-        $this->assertStringContainsString('Training Readiness: 28/100', $prompt);
 
         // Und die Antwort landet in einer EMPFEHLUNG, nicht in der Einheit.
         //
@@ -170,13 +168,12 @@ class WellbeingAdjustmentGarminTest extends TestCase
         foreach (range(1, 14) as $d) {
             $this->metric($user, $d, 60, 50);
         }
-        $this->metric($user, 0, 45, 56, 4.5, 28);
+        $this->metric($user, 0, 45, 56, 4.5);
 
         $day = app(GarminHealthSummary::class)->forDay($user->id, CarbonImmutable::today());
 
         $this->assertTrue($day['has_data']);
-        $this->assertSame(28, $day['readiness']);
-        $this->assertGreaterThanOrEqual(3, count($day['flags']), 'HRV, Ruhepuls, Schlaf und Readiness sind alle auffällig');
+        $this->assertGreaterThanOrEqual(3, count($day['flags']), 'HRV, Ruhepuls und Schlaf sind alle auffällig');
     }
 
     /** Dieselben Absolutwerte sind bei anderer Grundlinie unauffällig. */
@@ -188,7 +185,7 @@ class WellbeingAdjustmentGarminTest extends TestCase
         foreach (range(1, 14) as $d) {
             $this->metric($user, $d, 45, 56);
         }
-        $this->metric($user, 0, 45, 56, 7.5, 70);
+        $this->metric($user, 0, 45, 56, 7.5);
 
         $day = app(GarminHealthSummary::class)->forDay($user->id, CarbonImmutable::today());
 

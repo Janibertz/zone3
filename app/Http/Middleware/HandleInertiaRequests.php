@@ -78,12 +78,9 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user'           => $this->userProps($request->user()),
                 'isAdmin'        => (bool) $request->user()?->is_admin,
-                'garminEmail'    => $request->user()?->garmin_email,
                 // Einheiten koennen auf die Garmin-Uhr — ueber die Training
-                // API oder (bis Schritt 6) den alten Login. Ueber die API
-                // braucht das Senden-Fenster keine Anmeldedaten.
-                'garminConnected'=> (bool) $request->user()?->sendsWorkoutsToGarmin(),
-                'garminViaApi'   => (bool) $request->user()?->sendsWorkoutsViaGarminApi(),
+                // API, mit Workout-Freigabe.
+                'garminConnected'=> (bool) $request->user()?->sendsWorkoutsViaGarminApi(),
                 // Laeuft gerade eine Uebernahme? Dann gehoert das sichtbar
                 // auf jede Seite — sonst haelt man fremde Daten fuer eigene
                 // und aendert im Zweifel etwas am falschen Account.
@@ -122,7 +119,8 @@ class HandleInertiaRequests extends Middleware
      * Whitelist der User-Felder, die ins Frontend dürfen.
      *
      * Bewusst explizit statt `$request->user()`: das ganze Model zu teilen hat
-     * u. a. die entschlüsselte `garmin_session` in jedes Inertia-Payload gelegt.
+     * u. a. die entschlüsselten Garmin-Zugangsdaten des alten Logins in jedes
+     * Inertia-Payload gelegt.
      *
      * @return array<string, mixed>|null
      */
