@@ -70,7 +70,7 @@ class AdminSettingsController extends Controller
             $start    = microtime(true);
             $response = Http::withToken($key)
                 ->timeout(8)
-                ->get('https://api.openai.com/v1/models/' . config('services.openai.model', 'gpt-4o'));
+                ->get('https://api.openai.com/v1/models/' . config('services.openai.model', 'gpt-5.6-sol'));
             $ms = (int) round((microtime(true) - $start) * 1000);
 
             return [
@@ -87,7 +87,11 @@ class AdminSettingsController extends Controller
     {
         return [
             'openai_model'        => config('services.openai.model',      'gpt-5.6-sol'),
+            'openai_model_mid'    => config('services.openai.model_mid',  'gpt-5.6-terra'),
             'openai_model_mini'   => config('services.openai.model_mini', 'gpt-5.6-luna'),
+            'openai_flex'         => (bool) config('services.openai.flex', true),
+            'openai_budget_daily' => (float) config('services.openai.budget.daily_eur', 0),
+            'openai_budget_user'  => (float) config('services.openai.budget.user_daily_eur', 0),
             'openai_key_set'      => !empty(config('services.openai.api_key')),
             'push_key_set'        => !empty(config('services.webpush.public_key')),
             'mail_mailer'         => config('mail.default', 'log'),

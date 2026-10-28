@@ -15,6 +15,9 @@ class AiLog extends Model
         'prompt_tokens',
         'completion_tokens',
         'total_tokens',
+        'cached_tokens',
+        'reasoning_tokens',
+        'service_tier',
         'cost_eur',
         'duration_ms',
         'prompt_preview',
@@ -29,6 +32,8 @@ class AiLog extends Model
         'prompt_tokens'     => 'integer',
         'completion_tokens' => 'integer',
         'total_tokens'      => 'integer',
+        'cached_tokens'     => 'integer',
+        'reasoning_tokens'  => 'integer',
         'cost_eur'          => 'float',
         'duration_ms'       => 'integer',
     ];
@@ -44,6 +49,20 @@ class AiLog extends Model
             ->where('status', 'success')
             ->whereDate('created_at', today())
             ->count();
+    }
+
+    /**
+     * Was heute schon ausgegeben wurde, in Euro — fuer alle oder einen Athleten.
+     *
+     * Die Grundlage der Tagesbudgets in {@see \App\Services\AI\OpenAIClient::blockReason()}.
+     * Fehlgeschlagene Aufrufe zaehlen mit: auch sie koennen Token kosten.
+     */
+    public static function todayCost(?int $userId = null): float
+    {
+        return (float) static::query()
+            ->when($userId, fn ($q) => $q->where('user_id', $userId))
+            ->whereDate('created_at', today())
+            ->sum('cost_eur');
     }
 
     /** Umrechnungskurs fuer die Listenpreise, die OpenAI in USD nennt. */
@@ -63,15 +82,13 @@ class AiLog extends Model
      * Modell kostet 0 und schreibt eine Warnung ins Log. Eine Luecke, die
      * man sieht, ist besser als eine Zahl, der man nicht trauen kann.
      *
-     * WICHTIG: Hier stehen LISTENPREISE. Auf der echten Rechnung steht
-     * derzeit fast nichts, weil das Konto im Programm „complimentary daily
-     * tokens" ist — Zone3 teilt Ein- und Ausgaben mit OpenAI und bekommt
-     * dafuer Freikontingente (0,05 $ Verbrauch in sechs Monaten bei 1,275
-     * Mio. Token allein im letzten Monat, Stand 09.09.2026).
+     * Seit dem 28.10.2026 ist das die echte Rechnung: das Teilen der Daten
+     * mit OpenAI (und damit das Freikontingent) ist aus. Die Tagesbudgets
+     * im Client rechnen mit diesen Zahlen.
      *
-     * Die Zahl im AI-Log ist damit „was es kosten wuerde", und genau das ist
-     * die Zahl, die man zum Vergleich zweier Modelle braucht. Faellt das
-     * Freikontingent weg, stimmt sie sofort.
+     * Sol kostet 4/20 $ laut mehreren Quellen nur als Aktion bis etwa
+     * 21.11.2026, danach 5/30 $. Dann hier nachziehen — sonst greifen die
+     * Budgets zu spaet.
      */
     private const RATES_USD_PER_MTOK = [
         'gpt-6-astra'   => [10.00, 50.00],
@@ -83,8 +100,23 @@ class AiLog extends Model
         'gpt-4o-mini'   => [ 0.15,  0.60],
     ];
 
-    public static function calculateCost(string $model, int $promptTokens, int $completionTokens): float
-    {
+    /** Gecachte Eingabe-Token kosten ein Zehntel des Eingabepreises. */
+    private const CACHED_INPUT_FACTOR = 0.10;
+
+    /** Flex kostet die Haelfte — auf Ein- und Ausgabe. */
+    private const FLEX_FACTOR = 0.50;
+
+    /**
+     * @param int  $cachedTokens Teil von $promptTokens, der aus dem Cache kam
+     * @param bool $flex         lief der Aufruf ueber Flex (`service_tier`)
+     */
+    public static function calculateCost(
+        string $model,
+        int $promptTokens,
+        int $completionTokens,
+        int $cachedTokens = 0,
+        bool $flex = false,
+    ): float {
         $rate = self::rateFor($model);
 
         if ($rate === null) {
@@ -95,10 +127,18 @@ class AiLog extends Model
 
         [$in, $out] = $rate;
 
-        return round(
-            ($promptTokens * $in + $completionTokens * $out) * self::USD_TO_EUR / 1_000_000,
-            6
-        );
+        $cached   = min(max($cachedTokens, 0), $promptTokens);
+        $uncached = $promptTokens - $cached;
+
+        $usd = $uncached * $in
+            + $cached * $in * self::CACHED_INPUT_FACTOR
+            + $completionTokens * $out;
+
+        if ($flex) {
+            $usd *= self::FLEX_FACTOR;
+        }
+
+        return round($usd * self::USD_TO_EUR / 1_000_000, 6);
     }
 
     /**
@@ -145,6 +185,8 @@ class AiLog extends Model
             'nutrition'            => 'Ernährungstipps',
             'adjust_session'       => 'Session anpassen',
             'goal_analysis'        => 'Ziel-Analyse',
+            'coach_chat'           => 'Coach-Chat',
+            'session_review'       => 'Einheit-Review',
             'suggestions'          => 'Vorschläge',
             default                => $this->call_type,
         };

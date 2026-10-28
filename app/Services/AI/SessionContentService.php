@@ -465,7 +465,7 @@ PROMPT;
         $text = $this->ai->chat('session_review', [
             ['role' => 'system', 'content' => $this->ai->systemPrompt('Antworte ausschließlich mit dem angeforderten JSON-Objekt. Alle Texte auf Deutsch.')],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.6, 1200, 60, $this->ai->mini());
+        ], 0.6, 1200, 60, $this->ai->mini(), background: true);
 
         $data = $this->ai->jsonObject($text);
         if ($data !== null) {

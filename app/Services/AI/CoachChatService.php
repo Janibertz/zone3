@@ -373,7 +373,7 @@ class CoachChatService
         $actionsTaken = [];
 
         for ($i = 0; $i < 3; $i++) {
-            $body   = $this->ai->chatWithTools('coach_chat', $messages, $tools);
+            $body   = $this->ai->chatWithTools('coach_chat', $messages, $tools, model: $this->ai->mid());
             $choice = $body['choices'][0] ?? null;
 
             if (! $choice) break;

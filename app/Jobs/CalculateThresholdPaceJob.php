@@ -17,7 +17,7 @@ class CalculateThresholdPaceJob implements ShouldQueue
     use Queueable;
 
     public int $tries = 2;
-    public int $timeout = 90;
+    public int $timeout = 150; // Flex: doppeltes Zeitlimit plus ein Versuch auf Standard
 
     /** Mehr Aenderung auf einen Schlag ist kein Formzuwachs, sondern ein Ausreisser. */
     private const MAX_JUMP = 0.08;

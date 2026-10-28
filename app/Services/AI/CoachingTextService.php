@@ -302,7 +302,7 @@ PROMPT;
         $text = $this->ai->chat('weekly_review', [
             ['role' => 'system', 'content' => $this->ai->systemPrompt('Antworte auf Deutsch, kurz und präzise.')],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.7, 1000, 60, $this->ai->mini());
+        ], 0.7, 1000, 60, $this->ai->mini(), background: true);
 
         return ($text && trim($text) !== '') ? trim($text) : null;
     }
@@ -325,7 +325,7 @@ PROMPT;
         return $this->ai->chat('coach_pr', [
             ['role' => 'system', 'content' => $this->ai->systemPrompt('Du bist ein begeisterter Lauf-Coach. Feiere echte Leistungen deines Athleten.')],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.9, 700, 30, $this->ai->mini());
+        ], 0.9, 700, 30, $this->ai->mini(), background: true);
     }
 
     /**
@@ -389,7 +389,7 @@ PROMPT;
         return $this->ai->chat('race_prediction_text', [
             ['role' => 'system', 'content' => $this->ai->systemPrompt('Du bist ein erfahrener Lauf-Coach. Antworte immer auf Deutsch. Sei direkt, sachlich und motivierend. Keine Emojis. Max. 3 Sätze.')],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.6, 800, 45, $this->ai->mini());
+        ], 0.6, 800, 45, $this->ai->mini(), background: true);
     }
 
     /**
@@ -489,44 +489,6 @@ PROMPT;
             ['role' => 'system', 'content' => $this->ai->systemPrompt('Du bist ein motivierender Lauf-Coach. Antworte auf Deutsch, warm und persönlich. Nur Fließtext.')],
             ['role' => 'user',   'content' => $prompt],
         ], 0.8, 900, 45, $this->ai->mini());
-    }
-
-    /**
-     * Generate a German plain-language summary of a GitHub push for the admin wiki changelog.
-     */
-    public function generateChangelogSummary(array $commits, array $filesChanged): ?string
-    {
-        $commitLines = implode("\n", array_map(
-            fn ($c) => "- [{$c['id']}] {$c['message']} (von {$c['author']})",
-            array_slice($commits, 0, 10)
-        ));
-        $fileLines = implode(', ', array_slice($filesChanged, 0, 15));
-        if (count($filesChanged) > 15) {
-            $fileLines .= ' … (' . count($filesChanged) . ' Dateien gesamt)';
-        }
-
-        $prompt = <<<PROMPT
-Du bist der technische Dokumentations-Bot für Zone3, eine Laravel/Vue.js Lauf-Trainingsplattform.
-
-Fasse diese GitHub-Push-Zusammenfassung auf Deutsch zusammen:
-
-Commits:
-{$commitLines}
-
-Geänderte Dateien: {$fileLines}
-
-Schreibe eine kompakte, klare Zusammenfassung (3-5 Sätze) die erklärt:
-1. Was wurde geändert (technisch, aber verständlich)
-2. Was bedeutet das für den Nutzer / die Plattform
-3. Welche Bereiche des Systems sind betroffen
-
-Schreibe auf Deutsch, direkt und ohne Floskeln. Keine Überschrift, nur der Text.
-PROMPT;
-
-        return $this->ai->chat('changelog_summary', [
-            ['role' => 'system', 'content' => 'Du bist ein technischer Dokumentations-Assistent. Antworte nur mit der reinen Zusammenfassung auf Deutsch.'],
-            ['role' => 'user',   'content' => $prompt],
-        ], 0.4, 1200, 30, $this->ai->mini());
     }
 
 }

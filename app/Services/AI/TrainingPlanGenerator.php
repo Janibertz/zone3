@@ -675,7 +675,7 @@ PROMPT;
         $text = $this->ai->chat('event_plan', [
             ['role' => 'system', 'content' => $this->ai->systemPrompt('Antworte ausschließlich mit einem validen JSON-Array ohne zusätzlichen Text.')],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.6, 16000, 240);
+        ], 0.6, 16000, 240, background: true);
 
         $sessions = $this->ai->jsonArray($text);
 

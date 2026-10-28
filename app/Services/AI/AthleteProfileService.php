@@ -149,7 +149,7 @@ PROMPT;
         $text = $this->ai->chat('threshold_pace', [
             ['role' => 'system', 'content' => 'Du bist ein präziser Sportwissenschaftler. Antworte ausschließlich mit JSON.'],
             ['role' => 'user',   'content' => $prompt],
-        ], 0.1, 3000);
+        ], 0.1, 3000, model: $this->ai->mid(), background: true);
 
         $json = $this->ai->jsonObject($text);
         $pace = isset($json['threshold_pace']) ? $this->paceStringToFloat((string) $json['threshold_pace']) : null;
