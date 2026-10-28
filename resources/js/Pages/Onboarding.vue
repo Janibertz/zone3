@@ -1,11 +1,16 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
-import { Head, usePage, router } from '@inertiajs/vue3';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { Head, Link, usePage, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import TrainingModelFields from '@/Components/Settings/TrainingModelFields.vue';
 import BikeFields from '@/Components/Settings/BikeFields.vue';
+import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 
-const props = defineProps({ stravaConnectUrl: String, coaches: Array });
+const props = defineProps({
+    coaches:     Array,
+    resumeStep:  { type: String, default: null },
+    connections: { type: Object, default: () => ({ strava: null, garmin: null, garminAvailable: false, garminStatus: null, source: { current: 'strava', usable: [] } }) },
+});
 
 const page = usePage();
 const user = computed(() => page.props.auth.user);
@@ -14,7 +19,6 @@ const user = computed(() => page.props.auth.user);
 // Schritte über Schlüssel statt Nummern: mit Trainingsmodell und Rad kamen
 // zwei Schritte in die Mitte, und jede feste Nummer im Template hätte sich
 // verschoben.
-const currentStep = ref(1);
 const steps = [
     { key: 'welcome',      label: 'Willkommen'    },
     { key: 'coach',        label: 'Dein Coach'    },
@@ -24,8 +28,10 @@ const steps = [
     { key: 'strength',     label: 'Kraft & Core'  },
     { key: 'bike',         label: 'Rad / Zwift'   },
     { key: 'goal',         label: 'Dein Ziel'     },
-    { key: 'strava',       label: 'Strava'        },
+    { key: 'connect',      label: 'Verbindungen'  },
 ].map((s, i) => ({ ...s, number: i + 1 }));
+// Zurück von Strava oder Garmin geht es beim Verbinden weiter, nicht vorn.
+const currentStep = ref(steps.find(s => s.key === props.resumeStep)?.number ?? 1);
 const totalSteps = steps.length;
 const stepKey    = computed(() => steps[currentStep.value - 1].key);
 function nextStep() { if (currentStep.value < totalSteps) currentStep.value++; }
@@ -357,10 +363,56 @@ async function submitGoal() {
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// STEP 5 — Complete / Strava
+// Letzter Schritt — Verbindungen
 // ════════════════════════════════════════════════════════════════════════
+// Garmin und Strava gleichrangig, auch beide (Entscheidung von Jan,
+// 28.10.2026). Beide Wege führen zum Anbieter und zurück ins Onboarding;
+// abgeschlossen wird es erst mit „Fertig".
+const stravaLinked = computed(() => !!props.connections?.strava);
+const garminLinked = computed(() => !!props.connections?.garmin);
+const anyLinked    = computed(() => stravaLinked.value || garminLinked.value);
+const garminGranted = computed(() => {
+    const c = props.connections?.garmin;
+    if (!c) return '';
+    return [c.activities && 'Aktivitäten', c.health && 'Erholungswerte', c.workouts && 'Workouts'].filter(Boolean).join(', ');
+});
+
+function connectStrava() { window.location.href = route('strava.connect'); }
+
+const garminConsent = ref(false);
+const garminBusy    = ref(false);
+function connectGarmin() {
+    if (!garminConsent.value) return;
+    garminBusy.value = true;
+    router.post(route('garmin.connect'), { ai_consent: true }, {
+        onFinish: () => { garminBusy.value = false; },
+    });
+}
+
+// Aus der Homescreen-App öffnet iOS den Rückweg von Garmin in Safari. Wer
+// danach in die App zurückwechselt, sieht diese Seite im alten Stand —
+// beim Zurückkommen deshalb die Verbindungen neu laden.
+function refreshConnections() {
+    if (!document.hidden && stepKey.value === 'connect') router.reload({ only: ['connections'] });
+}
+onMounted(() => document.addEventListener('visibilitychange', refreshConnections));
+onBeforeUnmount(() => document.removeEventListener('visibilitychange', refreshConnections));
+
+// Eine Quelle pro Athlet; wählbar, sobald beide liefern können.
+const sourceOptions    = [{ value: 'strava', label: 'Strava' }, { value: 'garmin', label: 'Garmin' }];
+const sourceChoosable  = computed(() => (props.connections?.source?.usable ?? []).length > 1);
+const sourceValue      = ref(props.connections?.source?.current ?? 'strava');
+watch(() => props.connections?.source?.current, (current) => { if (current) sourceValue.value = current; });
+watch(sourceValue, (source, previous) => {
+    if (source === props.connections?.source?.current) return;
+    router.patch(route('profile.activity-source'), { source }, {
+        preserveScroll: true,
+        preserveState: true,
+        onError: () => { sourceValue.value = previous; },
+    });
+});
+
 function complete() { router.post(route('onboarding.complete')); }
-function completeAndConnectStrava() { router.post(route('onboarding.complete-strava')); }
 </script>
 
 <template>
@@ -1069,47 +1121,111 @@ function completeAndConnectStrava() { router.post(route('onboarding.complete-str
                 </div>
 
                 <!-- ══════════════════════════════════════════
-                     STEP 6 — Strava
+                     Letzter Schritt — Verbindungen (Garmin und Strava gleichrangig)
                      ══════════════════════════════════════════ -->
-                <div v-else-if="stepKey === 'strava'" class="space-y-6 text-center">
-                    <div class="w-20 h-20 mx-auto rounded-3xl bg-warn flex items-center justify-center shadow-lg">
-                        <svg class="w-10 h-10 text-white" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066l-2.084 4.116z"/>
-                            <path d="M11.094 13.828l.716 1.416.773-1.416H14.2L11.807 9l-2.39 4.828h1.677z"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h2 class="text-2xl font-bold text-ink">Strava verbinden</h2>
+                <div v-else-if="stepKey === 'connect'" class="space-y-6">
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold text-ink">Woher kommen deine Läufe?</h2>
                         <p class="mt-2 text-ink-3 leading-relaxed">
-                            Importiere deine Aktivitäten automatisch und verfolge deinen Fortschritt.
+                            Verbinde Garmin, Strava oder beides. Zone3 lernt aus deinen echten Läufen
+                            und gleicht sie mit dem Plan ab.
                         </p>
                     </div>
 
-                    <div class="bg-surface/50 border border-line rounded-card p-5 text-left space-y-3">
-                        <div v-for="benefit in [
-                            'Alle Laufaktivitäten werden automatisch importiert',
-                            'Herzfrequenz, Tempo und Höhenmeter direkt verfügbar',
-                            'Zone3 lernt aus deinen echten Daten'
-                        ]" :key="benefit" class="flex items-center gap-3">
-                            <div class="w-5 h-5 rounded-full bg-success-soft flex items-center justify-center shrink-0">
-                                <svg class="w-3 h-3 text-success-ink" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
-                                </svg>
+                    <div class="space-y-3">
+                        <!-- Garmin -->
+                        <div v-if="connections.garminAvailable" class="rounded-card bg-surface border border-line overflow-hidden">
+                            <div class="flex items-center gap-3 px-4 py-4">
+                                <div class="h-11 w-11 rounded-field flex items-center justify-center shrink-0 bg-info-soft">
+                                    <svg class="h-6 w-6 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                        <rect x="7" y="6" width="10" height="12" rx="2" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 6l.5-2.5h5L15 6M9 18l.5 2.5h5L15 18" />
+                                        <circle cx="12" cy="12" r="2.2" />
+                                    </svg>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="font-semibold text-ink">Garmin Connect</p>
+                                    <p v-if="garminLinked && garminGranted" class="text-xs text-success-ink mt-0.5">Verbunden · {{ garminGranted }}</p>
+                                    <p v-else-if="garminLinked" class="text-xs text-warn-ink mt-0.5">Verbunden · keine Daten freigegeben</p>
+                                    <p v-else class="text-xs text-ink-3 mt-0.5">Läufe, Schlaf, HRV und Ruhepuls von der Uhr</p>
+                                </div>
+                                <div v-if="garminLinked" class="w-5 h-5 rounded-full bg-success-soft flex items-center justify-center shrink-0">
+                                <svg class="w-3 h-3 text-success-ink" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
                             </div>
-                            <span class="text-sm text-ink-2">{{ benefit }}</span>
+                            </div>
+                            <div v-if="!garminLinked" class="border-t border-line p-4 space-y-3">
+                                <label class="flex items-start gap-3 text-xs leading-relaxed text-ink-2">
+                                    <input v-model="garminConsent" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 rounded border-line text-info focus:ring-info/40" />
+                                    <span>
+                                        Ich willige ein, dass Zone3 meine Garmin-Daten für Plan, Auswertungen und Coach
+                                        an OpenAI übermittelt. Die Daten werden nicht zum Training von KI-Modellen verwendet.
+                                        Widerruf jederzeit durch Trennen.
+                                        <Link :href="route('privacy')" class="text-accent">Datenschutz</Link>
+                                    </span>
+                                </label>
+                                <button @click="connectGarmin" :disabled="!garminConsent || garminBusy"
+                                    class="w-full rounded-field bg-info px-4 py-3 font-semibold text-white hover:opacity-90 active:scale-[0.98] disabled:opacity-50 transition">
+                                    {{ garminBusy ? 'Weiter zu Garmin…' : 'Mit Garmin verbinden' }}
+                                </button>
+                                <p class="text-xs text-ink-3 leading-relaxed">
+                                    Die Anmeldung läuft direkt bei Garmin. Aktiviere dort alle Freigaben, sonst kommen keine Daten an.
+                                    Kommst du in Safari zurück, wechsle einfach wieder in die App.
+                                </p>
+                            </div>
+                            <p v-if="connections.garminStatus?.type === 'error'" class="border-t border-line px-4 py-3 text-xs text-danger-ink">
+                                {{ connections.garminStatus.message }}
+                            </p>
+                        </div>
+
+                        <!-- Strava -->
+                        <div class="rounded-card bg-surface border border-line overflow-hidden">
+                            <div class="flex items-center gap-3 px-4 py-4">
+                                <div class="h-11 w-11 rounded-field flex items-center justify-center shrink-0 bg-warn">
+                                    <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066l-2.084 4.116z"/>
+                                        <path d="M11.094 13.828l.716 1.416.773-1.416H14.2L11.807 9l-2.39 4.828h1.677z"/>
+                                    </svg>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="font-semibold text-ink">Strava</p>
+                                    <p v-if="stravaLinked" class="text-xs text-success-ink mt-0.5">
+                                        Verbunden<template v-if="connections.strava.username"> · {{ connections.strava.username }}</template>
+                                    </p>
+                                    <p v-else class="text-xs text-ink-3 mt-0.5">Läufe von jeder Uhr und App, inklusive deiner bisherigen</p>
+                                </div>
+                                <div v-if="stravaLinked" class="w-5 h-5 rounded-full bg-success-soft flex items-center justify-center shrink-0">
+                                <svg class="w-3 h-3 text-success-ink" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+                            </div>
+                            </div>
+                            <div v-if="!stravaLinked" class="border-t border-line p-4">
+                                <button @click="connectStrava"
+                                    class="w-full rounded-field bg-warn px-4 py-3 font-semibold text-white hover:opacity-90 active:scale-[0.98] transition">
+                                    Mit Strava verbinden
+                                </button>
+                            </div>
                         </div>
                     </div>
 
+                    <!-- Nur Garmin: keine Historie (Backfill gibt es nur für Enterprise) -->
+                    <p v-if="garminLinked && !stravaLinked" class="rounded-card bg-surface-2 px-4 py-3 text-sm text-ink-2 leading-relaxed">
+                        Garmin schickt nur neue Läufe. Verbinde zusätzlich Strava, damit Zone3 auch deine bisherigen
+                        kennt — daraus kommen Schwellenpace, Wochenumfang und Bestzeiten vom ersten Tag an.
+                    </p>
+
+                    <div v-if="sourceChoosable" class="rounded-card bg-surface border border-line px-4 py-4 space-y-2">
+                        <p class="text-sm font-semibold text-ink">Neue Aktivitäten kommen von</p>
+                        <SegmentedControl v-model="sourceValue" :options="sourceOptions" />
+                        <p class="text-xs text-ink-3 leading-relaxed">
+                            Eine Quelle, damit kein Lauf doppelt zählt. Änderbar jederzeit im Profil.
+                        </p>
+                    </div>
+
                     <div class="flex flex-col gap-3">
-                        <button @click="completeAndConnectStrava"
-                            class="w-full py-3 px-6 bg-warn hover:opacity-90 text-white font-semibold rounded-field transition-colors shadow-card flex items-center justify-center gap-2">
-                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066l-2.084 4.116z"/>
-                                <path d="M11.094 13.828l.716 1.416.773-1.416H14.2L11.807 9l-2.39 4.828h1.677z"/>
-                            </svg>
-                            Mit Strava verbinden
+                        <button v-if="anyLinked" @click="complete"
+                            class="w-full py-3 px-6 bg-accent hover:opacity-90 text-white font-semibold rounded-field transition-colors">
+                            Fertig — Zum Dashboard
                         </button>
-                        <button @click="complete"
+                        <button v-else @click="complete"
                             class="w-full py-2.5 text-sm text-ink-3 hover:text-ink border border-line rounded-field transition-colors">
                             Später verbinden — Zum Dashboard
                         </button>

@@ -64,6 +64,7 @@ class ProfileController extends Controller
                 'available'  => app(\App\Services\Garmin\GarminClient::class)->configured(),
                 'connection' => $user->garminConnection?->summary(),
                 'status'     => session('garmin_status'),
+                'workoutSync'=> (bool) ($user->garmin_workout_sync ?? true),
             ],
             // Woher Aktivitäten kommen. Wählbar nur, wenn beide liefern können.
             'activitySource'   => [
@@ -171,7 +172,24 @@ class ProfileController extends Controller
 
         $user->update(['activity_source' => $request->source]);
 
-        return Redirect::route('profile.edit')->with('status', 'activity-source-updated');
+        // Zurueck, woher die Wahl kam: Profil oder der Verbinden-Schritt im Onboarding.
+        return Redirect::back()->with('status', 'activity-source-updated');
+    }
+
+    /**
+     * Plan automatisch auf die Uhr — an oder aus. Aus raeumt weg, was Zone3
+     * fuer die kommenden Tage in den Garmin-Kalender gelegt hat.
+     */
+    public function updateGarminWorkoutSync(Request $request): RedirectResponse
+    {
+        $request->validate(['enabled' => 'required|boolean']);
+
+        $user = $request->user();
+        $user->update(['garmin_workout_sync' => $request->boolean('enabled')]);
+
+        \App\Jobs\SyncGarminWorkoutsJob::dispatch($user->id);
+
+        return Redirect::back();
     }
 
     public function destroy(Request $request): RedirectResponse

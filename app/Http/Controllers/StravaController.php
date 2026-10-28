@@ -25,8 +25,10 @@ class StravaController extends Controller
         private readonly ActivityImportService $activities,
     ) {}
 
-    public function connect(StravaService $strava): RedirectResponse
+    public function connect(Request $request, StravaService $strava): RedirectResponse
     {
+        OnboardingController::rememberConnectStep($request);
+
         return redirect()->away($strava->getAuthorizationUrl());
     }
 
@@ -47,6 +49,12 @@ class StravaController extends Controller
                 'scope'            => isset($tokenData['scope']) ? explode(',', $tokenData['scope']) : null,
             ]
         );
+
+        // Aus dem Onboarding zurueck in den Verbinden-Schritt — dort kann
+        // noch Garmin dazukommen.
+        if (! $user->onboarding_completed_at) {
+            return redirect()->route('onboarding');
+        }
 
         return redirect()->route('dashboard')->with('success', 'Strava erfolgreich verbunden.');
     }

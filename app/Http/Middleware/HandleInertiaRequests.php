@@ -79,7 +79,11 @@ class HandleInertiaRequests extends Middleware
                 'user'           => $this->userProps($request->user()),
                 'isAdmin'        => (bool) $request->user()?->is_admin,
                 'garminEmail'    => $request->user()?->garmin_email,
-                'garminConnected'=> !empty($request->user()?->garmin_session),
+                // Einheiten koennen auf die Garmin-Uhr — ueber die Training
+                // API oder (bis Schritt 6) den alten Login. Ueber die API
+                // braucht das Senden-Fenster keine Anmeldedaten.
+                'garminConnected'=> (bool) $request->user()?->sendsWorkoutsToGarmin(),
+                'garminViaApi'   => (bool) $request->user()?->sendsWorkoutsViaGarminApi(),
                 // Laeuft gerade eine Uebernahme? Dann gehoert das sichtbar
                 // auf jede Seite — sonst haelt man fremde Daten fuer eigene
                 // und aendert im Zweifel etwas am falschen Account.
