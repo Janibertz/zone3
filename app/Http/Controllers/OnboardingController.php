@@ -13,6 +13,13 @@ use Inertia\Inertia;
 
 class OnboardingController extends Controller
 {
+    /**
+     * Der letzte Schritt verbindet Strava und/oder Garmin. Beide schicken den
+     * Athleten zu sich und wieder zurueck — das Onboarding muss danach beim
+     * Verbinden weitermachen, nicht bei „Willkommen".
+     */
+    public const RESUME_KEY = 'onboarding.resume_step';
+
     /** Was ein fester Wochentermin sein kann. */
     private const FIXED_TYPES = ['interval', 'tempo_run', 'easy_run', 'long_run'];
 
@@ -27,9 +34,39 @@ class OnboardingController extends Controller
         $coaches = Coach::all(['id', 'name', 'slug', 'specialty', 'tagline', 'description', 'avatar_color', 'avatar_initials']);
 
         return Inertia::render('Onboarding', [
-            'stravaConnectUrl' => route('strava.connect'),
-            'coaches'          => $coaches,
+            'coaches'     => $coaches,
+            'resumeStep'  => session(self::RESUME_KEY),
+            'connections' => fn () => $this->connections($user->fresh()),
         ]);
+    }
+
+    /**
+     * Wer gerade aus dem Onboarding zu Strava oder Garmin geht, soll beim
+     * Verbinden-Schritt wieder ankommen. In der Session der App, nicht im
+     * Rueckweg: bei Garmin oeffnet iOS den Rueckweg in Safari, und dort gibt
+     * es diese Session nicht — wohl aber, wenn der Athlet in die App
+     * zurueckwechselt.
+     */
+    public static function rememberConnectStep(Request $request): void
+    {
+        if ($request->user() && ! $request->user()->onboarding_completed_at) {
+            $request->session()->put(self::RESUME_KEY, 'connect');
+        }
+    }
+
+    /** Stand der beiden Verbindungen fuer den letzten Schritt. */
+    private function connections($user): array
+    {
+        return [
+            'strava'          => $user->stravaAccount ? ['username' => $user->stravaAccount->username] : null,
+            'garmin'          => $user->garminConnection?->summary(),
+            'garminAvailable' => app(\App\Services\Garmin\GarminClient::class)->configured(),
+            'garminStatus'    => session('garmin_status'),
+            'source'          => [
+                'current' => $user->activitySource(),
+                'usable'  => $user->usableActivitySources(),
+            ],
+        ];
     }
 
     /**
@@ -306,26 +343,8 @@ class OnboardingController extends Controller
         }
 
         $user->save();
+        $request->session()->forget(self::RESUME_KEY);
 
         return redirect()->route('dashboard');
-    }
-
-    public function completeAndConnectStrava(Request $request)
-    {
-        $user = Auth::user();
-        $user->onboarding_completed_at = now();
-
-        if (! $user->coach_id) {
-            $default = Coach::where('slug', 'max')->first();
-            if ($default) {
-                $user->coach_id = $default->id;
-            }
-        }
-
-        $user->save();
-
-        // Inertia::location() triggers a full browser navigation (window.location.href)
-        // instead of an XHR follow — required so the external Strava redirect works correctly.
-        return Inertia::location(route('strava.connect'));
     }
 }

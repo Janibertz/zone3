@@ -79,7 +79,14 @@ Route::middleware('auth')->group(function () {
     Route::post('/onboarding/goal', [OnboardingController::class, 'saveGoal'])->name('onboarding.goal');
     Route::post('/onboarding/reset', [OnboardingController::class, 'reset'])->name('onboarding.reset');
     Route::post('/onboarding/complete', [OnboardingController::class, 'complete'])->name('onboarding.complete');
-    Route::post('/onboarding/complete-strava', [OnboardingController::class, 'completeAndConnectStrava'])->name('onboarding.complete-strava');
+
+    // Verbinden geht schon im Onboarding (letzter Schritt), darum ohne die
+    // Onboarding-Pruefung. Der Rueckweg fuehrt dorthin zurueck, solange es
+    // nicht abgeschlossen ist.
+    Route::get('/strava/connect', [StravaController::class, 'connect'])->name('strava.connect');
+    Route::get('/strava/callback', [StravaController::class, 'callback'])->name('strava.callback');
+    Route::post('/garmin/connect', [\App\Http\Controllers\GarminController::class, 'connect'])->name('garmin.connect');
+    Route::patch('/profile/activity-source', [ProfileController::class, 'updateActivitySource'])->name('profile.activity-source');
 });
 
 Route::get('/dashboard', function (ProgressService $progressService, TrainingLoadService $trainingLoadService, ReturnToRunService $returnToRunService) {
@@ -442,7 +449,6 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar');
     Route::patch('/profile/coach', [ProfileController::class, 'updateCoach'])->name('profile.coach');
-    Route::patch('/profile/activity-source', [ProfileController::class, 'updateActivitySource'])->name('profile.activity-source');
     Route::post('/profile/telegram', [\App\Http\Controllers\TelegramLinkController::class, 'store'])->name('telegram.link');
     Route::delete('/profile/telegram', [\App\Http\Controllers\TelegramLinkController::class, 'destroy'])->name('telegram.unlink');
     Route::post('/profile/calendar', [\App\Http\Controllers\CalendarFeedController::class, 'store'])->name('calendar-feed.store');
@@ -457,14 +463,11 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::patch('/push/settings', [PushSubscriptionController::class, 'updateSettings'])->name('push.settings');
     Route::post('/push/test', [PushSubscriptionController::class, 'test'])->name('push.test');
 
-    Route::get('/strava/connect', [StravaController::class, 'connect'])->name('strava.connect');
-    Route::get('/strava/callback', [StravaController::class, 'callback'])->name('strava.callback');
     Route::post('/strava/sync', [StravaController::class, 'sync'])->name('strava.sync');
     Route::delete('/strava/disconnect', [StravaController::class, 'disconnect'])->name('strava.disconnect');
 
-    // Offizielle Garmin-Verbindung (OAuth2 mit PKCE). Der Callback steht
-    // weiter unten ausserhalb der Anmeldung.
-    Route::post('/garmin/connect', [\App\Http\Controllers\GarminController::class, 'connect'])->name('garmin.connect');
+    // Offizielle Garmin-Verbindung (OAuth2 mit PKCE). Verbinden steht beim
+    // Onboarding, der Callback weiter unten ausserhalb der Anmeldung.
     Route::delete('/garmin/connection', [\App\Http\Controllers\GarminController::class, 'disconnect'])->name('garmin.connection.destroy');
 
 

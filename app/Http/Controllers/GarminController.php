@@ -50,6 +50,8 @@ class GarminController extends Controller
         // (/privacy Abschnitt 7). Ohne Haken keine Verbindung.
         $request->validate(['ai_consent' => 'accepted']);
 
+        OnboardingController::rememberConnectStep($request);
+
         $state    = Str::random(40);
         $verifier = $this->client->makeVerifier();
 
@@ -124,7 +126,8 @@ class GarminController extends Controller
     }
 
     /**
-     * Wer angemeldet ist, landet wieder im Profil. Wer es nicht ist, kam in
+     * Wer angemeldet ist, landet wieder im Profil — oder im Onboarding, wenn
+     * er von dort kam. Wer es nicht ist, kam in
      * einem anderen Browser zurueck als dem, in dem er gestartet hat (Safari
      * statt Homescreen-App) — dorthin fuehrt kein Weg, also eine Seite, die
      * sagt, was passiert ist und wohin es weitergeht.
@@ -132,7 +135,7 @@ class GarminController extends Controller
     private function finish(Request $request, bool $ok, string $message): Response
     {
         if ($request->user()) {
-            return redirect()->route('profile.edit')
+            return redirect()->route($request->user()->onboarding_completed_at ? 'profile.edit' : 'onboarding')
                 ->with('garmin_status', ['type' => $ok ? 'success' : 'error', 'message' => $message]);
         }
 
