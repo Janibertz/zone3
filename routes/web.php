@@ -588,6 +588,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::put('/workouts/{workout}',              [\App\Http\Controllers\WorkoutController::class, 'update'])   ->name('workouts.update');
     Route::delete('/workouts/{workout}',           [\App\Http\Controllers\WorkoutController::class, 'destroy'])  ->name('workouts.destroy');
     Route::post('/workouts/{workout}/duplicate',   [\App\Http\Controllers\WorkoutController::class, 'duplicate'])->name('workouts.duplicate');
+    Route::post('/workouts/{workout}/schedule',       [\App\Http\Controllers\WorkoutController::class, 'schedule'])->name('workouts.schedule');
     Route::post('/workouts/{workout}/send-to-garmin', [\App\Http\Controllers\WorkoutController::class, 'sendToGarmin'])->name('workouts.send-to-garmin');
 
     // Runner Profile Routes (GET redirects to merged profile page)

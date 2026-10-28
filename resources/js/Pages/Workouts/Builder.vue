@@ -1,4 +1,5 @@
 <script setup>
+import { zoneRange } from '@/Composables/usePaceZones';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
@@ -140,7 +141,7 @@ function zonePaceLabel(zone) {
     if (!zone) return null;
     const z = props.paceZones?.['z' + zone];
     if (!z) return `Zone ${zone}`;
-    return z.max_pace === '∞' ? `Z${zone} > ${z.min_pace}` : `Z${zone} ${z.min_pace}–${z.max_pace}`;
+    return `Z${zone} ${zoneRange(z)}`;
 }
 
 const totalDistM = computed(() => {

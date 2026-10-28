@@ -112,9 +112,22 @@ export function stepAmount(step) {
         return `${km.toFixed(Number.isInteger(km) ? 0 : 1).replace('.', ',')} km`;
     }
 
-    return step?.duration_min ? `${step.duration_min} min` : null;
+    return step?.duration_min ? formatMinutes(step.duration_min) : null;
+}
+
+/**
+ * Minuten als Anzeige. Ein Builder-Abschnitt kann Sekunden tragen
+ * (0.5 = 30 s) — „0.5 min" liest niemand gern.
+ */
+export function formatMinutes(min) {
+    const sec = Math.round(Number(min) * 60);
+    if (!sec) return null;
+    if (sec % 60 === 0) return `${sec / 60} min`;
+    if (sec < 60) return `${sec} s`;
+
+    return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')} min`;
 }
 
 export function useSessionTypes() {
-    return { sessionType, SESSION_TYPES, paceWithUnit, paceValue, stepAmount };
+    return { sessionType, SESSION_TYPES, paceWithUnit, paceValue, stepAmount, formatMinutes };
 }

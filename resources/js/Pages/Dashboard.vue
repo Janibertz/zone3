@@ -1,4 +1,5 @@
 <script setup>
+import { zoneRangeShort } from '@/Composables/usePaceZones';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import WellbeingSheet from '@/Components/WellbeingSheet.vue';
 import UserAvatar from '@/Components/UserAvatar.vue';
@@ -2199,7 +2200,8 @@ async function saveWeek() {
                                 <div v-for="(zone, key) in props.paceZones" :key="key" class="rounded-field bg-surface-2 p-2 text-center">
                                     <p class="text-[11px] font-bold uppercase text-ink-2">{{ key }}</p>
                                     <p class="mt-0.5 font-mono text-[11px] leading-tight text-ink-3">
-                                        {{ zone.min_pace }}<br><span class="opacity-70">{{ zone.max_pace }}</span>
+                                        <template v-if="zone.max_pace === '∞' || zone.min_pace === '0:00'">{{ zoneRangeShort(zone) }}</template>
+                                        <template v-else>{{ zone.min_pace }}<br><span class="opacity-70">{{ zone.max_pace }}</span></template>
                                     </p>
                                 </div>
                             </div>

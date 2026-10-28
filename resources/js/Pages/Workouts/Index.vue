@@ -6,6 +6,8 @@ import { ref, computed } from 'vue';
 import axios from 'axios';
 import GarminSendSheet from '@/Components/UI/GarminSendSheet.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
+import AppSheet from '@/Components/UI/AppSheet.vue';
+import AppButton from '@/Components/UI/AppButton.vue';
 
 const props = defineProps({
     workouts:  Array,
@@ -154,6 +156,45 @@ async function duplicateWorkout(w) {
     workouts.value.unshift(data.workout);
 }
 
+// ── Einplanen ─────────────────────────────────────────────────────────────────
+// Das Workout wird eine Einheit in Zone3, zusaetzlich zum Plan. Wer Garmin
+// verbunden hat, bekommt sie von dort aus auf die Uhr — verschieben oder
+// loeschen in Zone3 erreicht sie dann auch.
+function localToday() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Nur der alte Garmin-Login sendet noch direkt; er faellt mit Schritt 6 weg.
+const legacyGarmin = computed(() => !!usePage().props.auth.garminConnected && !usePage().props.auth.garminViaApi);
+
+const scheduleWorkout = ref(null);
+const scheduleDate    = ref(localToday());
+const scheduling      = ref(false);
+const scheduleError   = ref('');
+const scheduleDone    = ref(null);
+
+function openSchedule(w) {
+    scheduleWorkout.value = w;
+    scheduleDate.value    = localToday();
+    scheduleError.value   = '';
+    scheduleDone.value    = null;
+}
+
+async function submitSchedule() {
+    scheduling.value    = true;
+    scheduleError.value = '';
+    try {
+        const { data } = await axios.post(route('workouts.schedule', scheduleWorkout.value.id), { date: scheduleDate.value });
+        scheduleDone.value = data;
+        setTimeout(() => { scheduleWorkout.value = null; }, 2500);
+    } catch (e) {
+        scheduleError.value = e.response?.data?.message || 'Einplanen hat nicht geklappt.';
+    } finally {
+        scheduling.value = false;
+    }
+}
+
 // ── Garmin ────────────────────────────────────────────────────────────────────
 const garminModal     = ref(false);
 const garminWorkout   = ref(null);
@@ -273,9 +314,10 @@ async function sendToGarmin({ email, password, date } = {}) {
                             <!-- 28 Pixel sind fuer einen Daumen zu wenig, erst recht
                                  fuer "Loeschen". Auf dem Telefon 44, ab sm wieder kompakt. -->
                             <div class="flex shrink-0 gap-1 self-end sm:self-auto">
-                                <button @click="openGarminModal(w)" title="Zu Garmin senden"
+                                <button @click="legacyGarmin ? openGarminModal(w) : openSchedule(w)" :title="legacyGarmin ? 'Zu Garmin senden' : 'Einplanen'"
                                     class="p-3.5 sm:p-1.5 rounded-lg text-ink-3 hover:text-accent hover:bg-accent-soft transition-colors">
-                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" /></svg>
+                                    <svg v-if="legacyGarmin" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" /></svg>
+                                    <svg v-else class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5M12 12.75v4.5m-2.25-2.25h4.5" /></svg>
                                 </button>
                                 <button @click="duplicateWorkout(w)" title="Duplizieren"
                                     class="p-3.5 sm:p-1.5 rounded-lg text-ink-3 hover:text-ink-2 hover:bg-surface-2 transition-colors">
@@ -348,7 +390,31 @@ async function sendToGarmin({ email, password, date } = {}) {
             @close="pendingDelete = null"
         />
 
-        <!-- Zu Garmin senden -->
+        <!-- Einplanen -->
+        <AppSheet :show="!!scheduleWorkout" title="Einplanen" :subtitle="scheduleWorkout?.name" @close="scheduleWorkout = null">
+            <div v-if="scheduleDone" class="rounded-card bg-success-soft p-5 text-center">
+                <p class="text-sm font-semibold text-success-ink">Eingeplant</p>
+                <p class="mt-1 text-xs text-success-ink/80">
+                    Steht jetzt im Kalender{{ scheduleDone.garmin ? ' und kommt in den nächsten Minuten auf deine Garmin-Uhr' : '' }}.
+                </p>
+            </div>
+            <template v-else>
+                <div v-if="scheduleError" class="mb-4 rounded-card bg-danger-soft p-3">
+                    <p class="text-sm text-danger-ink">{{ scheduleError }}</p>
+                </div>
+                <label class="z-label">Datum</label>
+                <input v-model="scheduleDate" type="date" :min="localToday()" class="z-input" />
+                <p class="z-hint mt-2">Kommt zusätzlich zu dem, was an dem Tag im Plan steht.</p>
+            </template>
+            <template v-if="!scheduleDone" #footer>
+                <div class="flex gap-3">
+                    <AppButton variant="secondary" block @click="scheduleWorkout = null">Abbrechen</AppButton>
+                    <AppButton block :loading="scheduling" :disabled="!scheduleDate" @click="submitSchedule">Einplanen</AppButton>
+                </div>
+            </template>
+        </AppSheet>
+
+        <!-- Zu Garmin senden (alter Login) -->
         <GarminSendSheet
             v-model:date="garminDate"
             :show="garminModal"

@@ -1622,7 +1622,7 @@ const lapHeightPct = computed(() => {
                         <p class="mt-0.5 text-[13px] font-medium text-ink-3">km</p>
                     </div>
                     <div v-if="totalStepDuration || detailSession.duration_min" class="rounded-card bg-surface-2 p-4">
-                        <p class="text-xl font-bold tabular-nums text-ink">{{ totalStepDuration || detailSession.duration_min }}</p>
+                        <p class="text-xl font-bold tabular-nums text-ink">{{ Math.round(totalStepDuration) || detailSession.duration_min }}</p>
                         <p class="mt-0.5 text-[13px] font-medium text-ink-3">min</p>
                     </div>
                     <div v-if="paceValue(detailSession.pace_target)" class="rounded-card bg-surface-2 p-4">

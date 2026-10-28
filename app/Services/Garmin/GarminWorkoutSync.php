@@ -182,14 +182,19 @@ class GarminWorkoutSync
         $plan  = $user->activeTrainingPlan;
         $today = today()->toDateString();
 
-        $window = $plan
-            ? TrainingSession::where('user_id', $user->id)
-                ->where('training_plan_id', $plan->id)
-                ->where('status', 'planned')
-                ->whereDate('planned_date', '>=', $today)
-                ->whereDate('planned_date', '<=', today()->addDays(self::DAYS_AHEAD - 1)->toDateString())
-                ->get()
-            : collect();
+        // Der aktive Plan und Einheiten ohne Plan — eingeplante Workouts aus
+        // dem Builder haengen an keinem (WorkoutController::schedule()).
+        $window = TrainingSession::where('user_id', $user->id)
+            ->where(function ($q) use ($plan) {
+                $q->whereNull('training_plan_id');
+                if ($plan) {
+                    $q->orWhere('training_plan_id', $plan->id);
+                }
+            })
+            ->where('status', 'planned')
+            ->whereDate('planned_date', '>=', $today)
+            ->whereDate('planned_date', '<=', today()->addDays(self::DAYS_AHEAD - 1)->toDateString())
+            ->get();
 
         // Per Knopf gesendete Einheiten pflegt der Abgleich weiter, auch
         // wenn sie hinter dem Fenster liegen.
