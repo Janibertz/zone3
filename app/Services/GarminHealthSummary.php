@@ -103,14 +103,6 @@ class GarminHealthSummary
             }
         }
 
-        $readiness = $this->average($recent, 'training_readiness');
-        if ($readiness !== null) {
-            $lines[] = sprintf('Training Readiness (Garmin): %d/100 im 7-Tage-Schnitt', round($readiness));
-            if ($readiness < 40) {
-                $flags[] = 'Garmin meldet anhaltend niedrige Trainingsbereitschaft';
-            }
-        }
-
         return [
             'has_data' => ! empty($lines),
             'days'     => $rows->count(),
@@ -137,7 +129,7 @@ class GarminHealthSummary
      * zu zeigen.
      *
      * @return array{
-     *     has_data: bool, lines: list<string>, flags: list<string>, readiness: int|null,
+     *     has_data: bool, lines: list<string>, flags: list<string>,
      *     values: array<string, array{value: float|int, pct?: float|null, score?: int|null}>,
      *     flagged: list<string>
      * }
@@ -151,7 +143,7 @@ class GarminHealthSummary
             ->first();
 
         if (! $today) {
-            return ['has_data' => false, 'lines' => [], 'flags' => [], 'readiness' => null, 'values' => [], 'flagged' => []];
+            return ['has_data' => false, 'lines' => [], 'flags' => [], 'values' => [], 'flagged' => []];
         }
 
         $baseline = GarminDailyMetric::where('user_id', $userId)
@@ -216,20 +208,10 @@ class GarminHealthSummary
             }
         }
 
-        if ($today->training_readiness !== null) {
-            $lines[] = sprintf('Training Readiness: %d/100', $today->training_readiness);
-
-            if ($today->training_readiness < 35) {
-                $flags[]   = sprintf('Garmin meldet Readiness %d/100', $today->training_readiness);
-                $flagged[] = 'readiness';
-            }
-        }
-
         return [
             'has_data'  => ! empty($lines),
             'lines'     => $lines,
             'flags'     => $flags,
-            'readiness' => $today->training_readiness,
             'values'    => $values,
             'flagged'   => $flagged,
         ];

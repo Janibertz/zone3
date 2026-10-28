@@ -65,7 +65,7 @@ class TrainingPlanController extends Controller
         }
 
         // Einmal je Anfrage: das Feld ist verschluesselt, formatSession laeuft pro Einheit.
-        $garminConnected = Auth::user()->sendsWorkoutsToGarmin();
+        $garminConnected = Auth::user()->sendsWorkoutsViaGarminApi();
 
         $sessions = $plan
             ? TrainingSession::where('training_plan_id', $plan->id)

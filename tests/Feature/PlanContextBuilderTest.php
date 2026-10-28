@@ -135,7 +135,11 @@ class PlanContextBuilderTest extends TestCase
     public function test_garmin_values_reach_the_context(): void
     {
         $user = $this->user();
-        $user->forceFill(['garmin_session' => 'token'])->save();
+        \App\Models\GarminConnection::create([
+            'user_id' => $user->id, 'garmin_user_id' => 'g-'.$user->id, 'access_token' => 'tok', 'refresh_token' => 'ref',
+            'access_token_expires_at' => now()->addHours(20), 'permissions' => [\App\Models\GarminConnection::HEALTH],
+            'ai_consent_at' => now(),
+        ]);
 
         foreach (range(0, 20) as $i) {
             GarminDailyMetric::create([
@@ -158,7 +162,11 @@ class PlanContextBuilderTest extends TestCase
     public function test_a_connected_watch_without_data_says_so(): void
     {
         $user = $this->user();
-        $user->forceFill(['garmin_session' => 'token'])->save();
+        \App\Models\GarminConnection::create([
+            'user_id' => $user->id, 'garmin_user_id' => 'g-'.$user->id, 'access_token' => 'tok', 'refresh_token' => 'ref',
+            'access_token_expires_at' => now()->addHours(20), 'permissions' => [\App\Models\GarminConnection::HEALTH],
+            'ai_consent_at' => now(),
+        ]);
 
         $text = $this->build($user->refresh(), $this->event($user))->garminText;
 

@@ -419,15 +419,6 @@ function onWellbeingSaved(data) {
     clearTimeout(wellbeingToastTimer);
     wellbeingToastTimer = setTimeout(() => { wellbeingToast.value = null; }, 5000);
 
-    // Der Check-in stoesst einen Garmin-Abruf an, wenn die heutigen Werte
-    // fehlen. Der laeuft in der Queue — deshalb kurz warten und dann die
-    // Kacheln nachladen, statt sie bis zum naechsten Oeffnen leer zu lassen.
-    if (data?.garmin_queued) {
-        setTimeout(() => {
-            router.reload({ only: ['garminMetrics', 'recoveryActivities'] });
-        }, 12000);
-    }
-
     // Immediately fetch the recommendation now that wellbeing is available
     getTodayRecommendation();
 }
@@ -448,7 +439,6 @@ const garminSending  = ref(false);
 const garminSuccess  = ref(false);
 const garminError    = ref('');
 const garminConnected  = computed(() => !!usePage().props.auth?.garminConnected);
-const garminSavedEmail = computed(() => usePage().props.auth?.garminEmail);
 
 function openGarminModal() {
     garminModal.value    = true;
@@ -456,29 +446,16 @@ function openGarminModal() {
     garminSuccess.value  = false;
 }
 
-async function sendToGarminConnect({ email, password } = {}) {
+async function sendToGarminConnect() {
     garminSending.value = true;
     garminError.value   = '';
     garminSuccess.value = false;
     try {
-        const payload = garminConnected.value ? {} : { email, password };
-        await axios.post(
-            route('training-sessions.send-to-garmin', props.todayRecommendationSession.id),
-            payload
-        );
+        await axios.post(route('training-sessions.send-to-garmin', props.todayRecommendationSession.id));
         garminSuccess.value = true;
         setTimeout(() => { garminModal.value = false; garminSuccess.value = false; }, 2500);
     } catch (err) {
-        const detail = err.response?.data?.error || '';
-        if (detail.startsWith('login_failed:')) {
-            garminError.value = 'Login fehlgeschlagen: ' + detail.replace('login_failed:', '').trim();
-        } else if (detail === 'session_expired') {
-            garminError.value = 'Sitzung abgelaufen. Bitte erneut einloggen.';
-        } else if (detail === '2fa_required') {
-            garminError.value = 'Zwei-Faktor-Authentifizierung aktiv. Bitte deaktiviere 2FA temporär in deinem Garmin-Account.';
-        } else {
-            garminError.value = detail || 'Verbindung fehlgeschlagen';
-        }
+        garminError.value = err.response?.data?.error || 'Verbindung fehlgeschlagen';
     } finally {
         garminSending.value = false;
     }
@@ -520,21 +497,6 @@ const streakDays = computed(() => {
     }
     return count;
 });
-
-// ── Garmin-Gesundheitsdaten nachladen ────────────────────────────────────────
-// Der Button in GarminRecovery hat bisher ein Event geworfen, das niemand
-// abgefangen hat — er tat schlicht nichts.
-const garminSyncing = ref(false);
-
-async function syncGarminHealth() {
-    garminSyncing.value = true;
-    try {
-        await axios.post(route('profile.garmin-sync-health'));
-        router.reload({ only: ['garminMetrics', 'recoveryActivities'] });
-    } finally {
-        garminSyncing.value = false;
-    }
-}
 
 // ── Kennzahl-Kacheln ganz oben ───────────────────────────────────────────────
 const checkinDone = computed(() => wellbeingEnteredToday.value);
@@ -2290,8 +2252,6 @@ async function resetLayout() {
                                 v-if="props.garminMetrics"
                                 :metrics="props.garminMetrics"
                                 :activities="props.recoveryActivities"
-                                :syncing="garminSyncing"
-                                @refresh="syncGarminHealth"
                             />
                         </div>
 
@@ -2576,12 +2536,9 @@ async function resetLayout() {
         <GarminSendSheet
             :show="garminModal"
             :connected="garminConnected"
-            :via-api="!!$page.props.auth.garminViaApi"
-            :saved-email="garminSavedEmail"
             :sending="garminSending"
             :error="garminError"
             :success="garminSuccess"
-            success-text="Es erscheint jetzt in Garmin Connect und ist im Kalender für heute eingetragen."
             @send="sendToGarminConnect"
             @close="garminModal = false"
         />

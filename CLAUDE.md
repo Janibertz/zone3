@@ -29,7 +29,8 @@ Laragon's MySQL is the local database. Import a Coolify dump into `zone3`, point
 
 ```sql
 UPDATE strava_accounts SET access_token='', refresh_token='';
-UPDATE users SET garmin_session=NULL, password='', remember_token=NULL;
+UPDATE users SET password='', remember_token=NULL;
+DELETE FROM garmin_connections;  -- verschluesselte Tokens; ein leerer String liesse sich nicht entschluesseln
 UPDATE push_subscriptions SET public_key='', auth_token='';
 ```
 
@@ -162,7 +163,7 @@ PlanRevisionRecorder           stores diff + corrections → visible in the plan
 - The long run's distance comes from the ladder, with a 10 % tolerance for round numbers.
 - Days outside the window, past the race, or already finalized are dropped.
 
-**A local copy of production makes this measurable.** Laragon's MySQL is already installed; import a Coolify dump into `zone3` and point `.env` at it. Null the live tokens right after import (`strava_accounts.access_token/refresh_token`, `users.garmin_session`, `push_subscriptions.*`) so nothing can hit the real accounts. Then `plan_revisions.corrections` and `ai_logs.full_prompt/full_response` answer what no amount of reading the prompt can: what the model actually does. Two bugs were found that way in minutes — the revision diff reporting untouched days as deleted, and the ladder prescribing a long run longer than the day it lands on.
+**A local copy of production makes this measurable.** Laragon's MySQL is already installed; import a Coolify dump into `zone3` and point `.env` at it. Null the live tokens right after import (`strava_accounts.access_token/refresh_token`, `garmin_connections`, `push_subscriptions.*`) so nothing can hit the real accounts. Then `plan_revisions.corrections` and `ai_logs.full_prompt/full_response` answer what no amount of reading the prompt can: what the model actually does. Two bugs were found that way in minutes — the revision diff reporting untouched days as deleted, and the ladder prescribing a long run longer than the day it lands on.
 
 **Where corrections show up:** `plan_revisions.corrections`, rendered in the plan page's "Verlauf" — the fastest way to judge whether prompt changes landed. `Log::info('Plan validator corrected the AI output')` carries the same list.
 
@@ -181,7 +182,7 @@ Seit 25.10.2026 heißt der tägliche Check-in in allem, was ein Mensch liest, **
 - **No card when nothing really changes.** The model rewrites the description almost every time; comparing only type, intensity, zone and the numbers (5 % tolerance) keeps a daily "nothing to see here" card off the dashboard. A warning that always shows is one nobody reads.
 - A second check-in the same day **expires** the open recommendation — two open decisions cannot both be answered.
 
-**The Garmin sync on save now always runs** when Garmin is connected, guarded only by a three-minute lock. It used to skip whenever *any* metric existed for today, which missed the common case: check in at breakfast, sync the watch afterwards, and the night's values never arrived — so the coach proposed on half the data.
+**Kein Garmin-Abruf mehr beim Speichern.** Der lief über den alten Login und ist mit ihm weggefallen (Schritt 6). Die Werte kommen per Push, sobald die Uhr synchronisiert; wer vorher eincheckt, bekommt den Vorschlag auf dem Stand, der da ist.
 
 ### Krank ist krank, Pause ist Pause
 
@@ -724,23 +725,21 @@ Gewünscht am 25.10.2026: Einheiten als strukturiertes Training auf die Watch. S
 
 - **`GET /training-sessions/{session}/apple.workout`** (`AppleWorkoutWriter`), Knopf „Auf die Apple Watch" auf dem Dashboard und in der Einheit auf der Planseite (`watch_url`). Nur Läufe, keine Rennen, keine Radeinheiten. **Wer Garmin verbunden hat, sieht den Knopf nicht** (`AppleWorkoutWriter::offered()`, Entscheidung von Jan) — dort geht die Einheit an die Garmin-Uhr; die Route selbst bleibt offen.
 - **Das Format ist von Apple nicht dokumentiert** — Protobuf, nachgebaut nach github.com/matjic/ios-workout-generator und an Jans iPhone geprüft. Der Autor lag bei Strecken falsch (Typ 2 in Metern); richtig ist Typ 3, Messwert in Feld 4, Einheit 1 = Meter — abgelesen aus einem echten Export. Für den Pace-Bereich gab es keine Vorlage; von drei Varianten importierte genau eine. `AppleWorkoutTest` hält die zwei importierten Dateien byte-genau fest. **Wer am Writer etwas ändert, prüft am Gerät**, nicht nur im Test; ein iOS-Update kann das Format jederzeit brechen.
-- Eine Strecke bleibt eine Strecke (`distance_m` → Meter), sonst Zeit. Pace-Alarm nur auf Belastungsabschnitten; eine einzelne Zielpace wird ±5 % Geschwindigkeit (`PACE_TOLERANCE`), dieselbe Breite wie im fit-service für Garmin.
+- Eine Strecke bleibt eine Strecke (`distance_m` → Meter), sonst Zeit. Pace-Alarm nur auf Belastungsabschnitten; eine einzelne Zielpace wird ±5 % Geschwindigkeit (`PACE_TOLERANCE`), dieselbe Breite wie bei Garmin.
 - Ohne gespeicherte Schritte wird die Einheit ein Abschnitt aus Strecke/Dauer/Pace — **kein Modellaufruf beim Herunterladen**, das wäre ein GET, der Geld kostet.
 - Offen: ob die Watch beim Laufen wirklich warnt, zeigt nur ein Lauf; die Vorschau beweist nur, dass die Datei gelesen wird.
 
 ## Garmin
 
-Two separate connection paths — do not confuse them:
-1. **Profile → Verbindungen → Garmin** calls `/profile/garmin-connect` → fit-service `/garmin-login`. Login only, stores the garth token (the password is never stored), triggers a 60-day health backfill.
-2. **Dashboard → "Zu Garmin Connect senden"** sends an actual workout to the watch and sets the token as a side effect on first use.
+**Es gibt nur noch einen Weg: die offizielle Verbindung** (OAuth2, Push-Webhooks, Training API). Der alte Login über den Python-Fit-Service (garth, E-Mail und Passwort im Formular, `users.garmin_session`) ist mit Schritt 6 am 28.10.2026 abgebaut worden (Entscheidung von Jan): Dienst, Spalten, Formulare, `SyncGarminHealthJob` / `garmin:sync-health`, der Knopf „Aktualisieren" unter Erholung und der Garmin-Abruf beim Tagesform-Speichern. Die nie gerouteten FIT-/TCX-Downloads im `TrainingSessionController` sind mit gegangen. **LiveTrack ist davon unabhängig** — es fragt `livetrack.garmin.com` direkt ab, `live_tracks.garmin_session_id` hat mit dem alten Login nichts zu tun.
 
-`SyncGarminHealthJob` / `garmin:sync-health` (daily 06:00) reads HRV, sleep, resting HR, body battery, stress, steps and training readiness into `garmin_daily_metrics` (all nullable — a missing value is "no data", never 0). `GarminHealthSummary::forUser()` gives 7-day averages against a 60-day baseline for the plan; `forDay()` gives today's values for the daily adjustment, because a weekly average is too slow to answer "what do I run today".
+Erholungswerte (HRV, Schlaf, Ruhepuls, Body Battery, Stress, Schritte, VO2max) stehen in `garmin_daily_metrics` (alles nullable — ein fehlender Wert ist „keine Daten", nie 0). `GarminHealthSummary::forUser()` gibt 7-Tage-Schnitte gegen eine 60-Tage-Grundlinie für den Plan; `forDay()` die heutigen Werte für den Tagesform-Vorschlag, weil ein Wochenschnitt zu träge ist für „was laufe ich heute".
 
-**FIT export** uses `@garmin/fitsdk` (npm) on the frontend; speed targets are stored as mm/s.
+**FIT export** im Builder nutzt `@garmin/fitsdk` (npm) im Frontend; Geschwindigkeiten stehen dort in mm/s.
 
 ### Offizielle Verbindung (OAuth2 PKCE, seit 27.10.2026)
 
-Zone3 ist im Garmin Connect Developer Program (Activity, Health, Training API). Der Plan steht im Projekt-Dokument „Garmin-Integration: Plan“; dies ist Schritt 1 von 6. Sobald `GARMIN_CLIENT_ID` gesetzt ist, startet „Verbinden“ auf der Garmin-Karte im Profil die offizielle Verbindung; das alte Login-Formular erscheint nur noch ohne konfigurierte App (Entscheidung von Jan). Code und Dashboard-Knopf des alten Wegs bleiben, bis Erholungswerte (Schritt 2) und Workouts (Schritt 5) über die API gehen; danach fallen `garmin_session` und der Fit-Service weg.
+Zone3 ist im Garmin Connect Developer Program (Activity, Health, Training API). Der Plan steht im Projekt-Dokument „Garmin-Integration: Plan“; dies ist Schritt 1 von 6. „Verbinden“ auf der Garmin-Karte im Profil startet die offizielle Verbindung. Ohne `GARMIN_CLIENT_ID` sagt die Karte „Auf diesem Server nicht eingerichtet“ — einen zweiten Weg gibt es seit Schritt 6 nicht mehr.
 
 - `GarminController` (connect, callback, Trennen, `/garmin/webhook/user`), `GarminClient` (Transport), `GarminDisconnector` (der eine Weg zum Trennen). Tokens in `garmin_connections`, verschlüsselt und `Hidden`.
 - **Redirect-URL im Portal: `https://zone3.run/garmin/callback`.** Die Token-URL steht in `config/services.php` (`GARMIN_TOKEN_URL`), weil zwei Quellen sich widersprachen.
@@ -750,13 +749,13 @@ Zone3 ist im Garmin Connect Developer Program (Activity, Health, Training API). 
 - **Garmin signiert keine Webhooks.** Aus dem Body zählt nur die User-ID: eine Deregistrierung gilt erst, wenn Garmin den Token wirklich abweist, die Freigaben kommen aus `user/permissions`. Ein Netzfehler trennt nie. Jeder Aufruf steht in `garmin_webhook_events`. `/garmin/webhook/*` braucht in Cloudflare eine WAF-Skip-Regel wie `/strava/webhook`.
 - **Trennen** löscht Zugang und Erholungswerte, Aktivitäten bleiben (Entscheidung von Jan). Konto löschen meldet vorher bei Garmin ab.
 
-**Erholungswerte per Push (Schritt 2).** `POST /garmin/webhook/health` nimmt alle Health-Typen an einer URL an (`dailies`, `sleeps`, `hrv`, `stressDetails`, `userMetrics`), `GarminHealthImporter` schreibt sie in dieselben Spalten von `garmin_daily_metrics` wie der alte Abruf. Jede Summary belegt nur ihre eigenen Spalten — ein Tag kommt in Teilen. `-1`/`0` bleiben null. Body Battery tief/hoch kommt aus dem Verlauf in `stressDetails` und wird über Teil-Pushs desselben Tages erweitert. `User::receivesGarminHealth()` (alter Login **oder** Health-Freigabe) entscheidet, ob Dashboard und Plan-Prompt die Werte zeigen.
+**Erholungswerte per Push (Schritt 2).** `POST /garmin/webhook/health` nimmt alle Health-Typen an einer URL an (`dailies`, `sleeps`, `hrv`, `stressDetails`, `userMetrics`), `GarminHealthImporter` schreibt sie in dieselben Spalten von `garmin_daily_metrics` wie der alte Abruf. Jede Summary belegt nur ihre eigenen Spalten — ein Tag kommt in Teilen. `-1`/`0` bleiben null. Body Battery tief/hoch kommt aus dem Verlauf in `stressDetails` und wird über Teil-Pushs desselben Tages erweitert. `User::receivesGarminHealth()` (Health-Freigabe) entscheidet, ob Dashboard und Plan-Prompt die Werte zeigen.
 
 - **Feldnamen nach der Health API Specification 1.2.2** (PDF im Garmin-Portal). Jeder Push behält trotzdem 14 Tage seine Rohdaten in `garmin_webhook_events.payload` (`garmin:prune-webhook-payloads`). Kommt ein Wert nicht an: dort nachsehen, nicht raten.
 - **200 vor der Verarbeitung** verlangt die Spezifikation (30 s Timeout), darum legt der Controller den Push nur als `ImportGarminHealthJob` in die Queue.
 - Backfill und Ping/Pull sind laut Spezifikation **Enterprise**; Zone3 hat nur Push und keine Historie.
 - **User Metrics** liefern `vo2max`, `vo2max_cycling` und `fitness_age` (nur ein Kalenderdatum, kommt bei Änderung). Die Lauf-VO2max zählt im VDOT mit und steht als Kachel unter „Erholung“, sobald im Zeitraum ein Wert da ist.
-- **Training Readiness gibt es in der Health API nicht** — die Spalte bleibt für offizielle Verbindungen leer. Die Oberfläche zeigt sie deshalb nicht mehr (Entscheidung von Jan): die Dashboard-Kachel ist jetzt Body Battery, Karte und Rohdaten unter „Erholung“ ohne Readiness. Spalte und Prompt-Zeile bleiben bis zum Abbau des alten Logins (Schritt 6).
+- **Training Readiness gibt es in der Health API nicht.** Die Oberfläche zeigt sie deshalb nicht mehr (Entscheidung von Jan): die Dashboard-Kachel ist jetzt Body Battery, Karte und Rohdaten unter „Erholung“ ohne Readiness. Spalte und Prompt-Zeile sind mit dem alten Login (Schritt 6) weggefallen.
 
 **Eine Einheit, eine Zeile (Schritt 3).** Aktivitäten kommen aus Strava **oder** Garmin — `User::activitySource()` (Spalte `activity_source`; ohne Wahl Garmin nur, wenn kein Strava verbunden ist und die Activity-Freigabe besteht). Strava-Webhook, manueller Abgleich und `strava:sync` legen für einen Garmin-Athleten nichts an (Webhook-Ergebnis `other_source`). Dieselbe Einheit kommt trotzdem doppelt — beim Quellenwechsel und bei Zwift, das zu beiden hochlädt:
 
@@ -783,7 +782,7 @@ Zone3 ist im Garmin Connect Developer Program (Activity, Health, Training API). 
 
 - `GarminWorkoutBuilder` übersetzt die Schritte so, wie `AppleWorkoutWriter` sie liest (Strecke vor Zeit, gleiche Wiederholungszahl = `WorkoutRepeatStep`, Pace nur auf Belastung, ±5 % bei einer einzelnen Pace, `targetType = PACE` in m/s). Zwei Uhren sollen eine Einheit nicht verschieden verstehen.
 - `GarminWorkoutSync` vergleicht **lokal** über `garmin_scheduled_workouts.payload_hash`; ein unveränderter Plan kostet keinen Aufruf. Geändert wird per Löschen + neu anlegen (Workout und Termin). Erledigte Einheiten bleiben stehen, Builder-Workouts (`workout_id`) fasst der Abgleich nie an, per Knopf gesendete (`manual`) pflegt er auch hinter dem Fenster.
-- **Builder-Workouts werden eingeplant, nicht gesendet** (Jan, 28.10.2026: „Zone3 ist die primäre App"). `WorkoutController::schedule()` legt eine echte Einheit an — **ohne Plan und ohne Rennen**, gepinnt, hinter allem, was an dem Tag steht. Ohne Plan heißt: eine Neuberechnung löscht sie nie, der Planer sieht den Tag nicht als belegt, und sie kommt **zusätzlich** zum geplanten Lauf (der Athlet darf bewusst zweimal laufen). Der Abgleich nimmt Einheiten ohne Plan mit; verschieben, ändern oder löschen erreicht so auch die Uhr. Nur der alte Login sendet noch direkt.
+- **Builder-Workouts werden eingeplant, nicht gesendet** (Jan, 28.10.2026: „Zone3 ist die primäre App"). `WorkoutController::schedule()` legt eine echte Einheit an — **ohne Plan und ohne Rennen**, gepinnt, hinter allem, was an dem Tag steht. Ohne Plan heißt: eine Neuberechnung löscht sie nie, der Planer sieht den Tag nicht als belegt, und sie kommt **zusätzlich** zum geplanten Lauf (der Athlet darf bewusst zweimal laufen). Der Abgleich nimmt Einheiten ohne Plan mit; verschieben, ändern oder löschen erreicht so auch die Uhr. Direkt „senden“ gibt es für Builder-Workouts nicht mehr.
 - Builder-Abschnitte sind **sekundengenau**: `WorkoutPaceResolver` schreibt 30 s als `duration_min = 0.5` (`stepAmount()` zeigt „30 s"). Vorher wurde auf die Minute gerundet, und 10 × 30 s kamen als 10 × 1 min auf der Uhr an.
 - Zone 5 ist nach oben offen und Zone 1 nach unten (`min_pace = '0:00'`, `max_pace = '∞'`) — die Klassifizierung der Runden braucht das. Angezeigt wird es über `usePaceZones.js` als „schneller als 4:15" (Entscheidung von Jan).
 - **Verschieben und Löschen per Geste** (Jan: „kein Fan von Knöpfen"): lange drücken und auf einen anderen Tag ziehen (Planseite: auf die Karte des Tages; Kalender: aus der Tagesansicht ins Raster), nach links wischen → „Löschen". Safari auf dem iPhone kann kein HTML-Drag-and-Drop, darum `useDragToDay.js` mit eigenen Touch-/Mausereignissen; Ziele tragen `data-drop-date`. Regeln in `SessionScheduleService`: nur geplant, kein Ruhetag, kein Rennen, nicht in die Vergangenheit. Der Zieltag wird **nicht** freigeräumt (anders als beim Coach), nur ein Ruhetag dort fällt weg. Ein geleerter **Plan**tag bekommt einen Ruhetag — `sealVacatedDay()` liegt jetzt dort, der Coach ruft es auf. **Am Desktop muss es genauso gehen** (Jan: „mobile first, aber es muss natürlich auch auf dem Desktop funktionieren"): mit der Maus beginnt das Ziehen **sofort** bei Bewegung, ohne langen Druck — der hatte am Desktop jeden Versuch abgebrochen, weil man mit der Maus gleich losbewegt. Knöpfe/Links in der Karte starten nichts, das native `dragstart` wird unterdrückt. Im Kalender zieht man am Desktop direkt den Eintrag im Raster. Löschen am Desktop: „Löschen" in der Karte (Planseite) bzw. Papierkorb (Kalender), mit Rückfrage — nur bei feinem Zeiger (`useFinePointer.js`), auf dem Telefon bleibt es beim Wischen.
@@ -793,7 +792,7 @@ Zone3 ist im Garmin Connect Developer Program (Activity, Health, Training API). 
 - **Der feste Termin ist nicht gespeichert**, nur sein Typ. `GarminWorkoutSync::isFixedAppointment()` nimmt dieselbe Regel wie das Gerüst: Termin an diesem Wochentag im Wochenraster, keine Tagesausnahme, gleicher Typ.
 - Der Anlege-Pfad heißt laut Spezifikation `POST /workoutportal/workout/v2`, alle anderen `…/training-api/…`. So steht es dort; erst ein echter Aufruf zeigt, ob es stimmt.
 - Kontingent (Starter): 200 Aufrufe pro Athlet und Tag. Eine neue Woche kostet 14, eine komplett geänderte 28. Ein 429 bricht den Lauf ab, der nächste macht weiter.
-- „Zu Garmin senden" (Einheit und Builder) geht mit offizieller Verbindung über dieselbe API; der alte Fit-Service-Weg bleibt bis Schritt 6 für den alten Login. Trennen nimmt vorher die bevorstehenden Workouts aus dem Garmin-Kalender.
+- „Zu Garmin senden" an einer Einheit geht über dieselbe API; ohne Verbindung verweist das Sheet ins Profil. Trennen nimmt vorher die bevorstehenden Workouts aus dem Garmin-Kalender.
 
 - Im Garmin-Endpunkt-Tool zeigen Dailies, Sleeps, HRV Summary, Stress und User Metrics auf `https://zone3.run/garmin/webhook/health`. Die Werte stehen ungeprüft im Body (Garmin signiert nicht); gespeichert wird nur für verbundene Athleten mit `HEALTH_EXPORT`.
 
@@ -942,18 +941,12 @@ STRAVA_CLIENT_ID=
 STRAVA_CLIENT_SECRET=
 STRAVA_WEBHOOK_VERIFY_TOKEN=
 
-# fit-service (Garmin). Der Token muss in BEIDEN Coolify-Diensten identisch
-# gesetzt sein — der fit-service weist ohne ihn jeden Aufruf mit 401 ab und
-# antwortet mit 503, solange er selbst keinen konfiguriert hat.
-FIT_SERVICE_URL=
-FIT_SERVICE_TOKEN=
-
 # Telegram-Bot (@BotFather). Das Geheimnis ist optional — ohne wird es aus APP_KEY abgeleitet.
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_WEBHOOK_SECRET=
 
-# Garmin Connect Developer Program (OAuth2 PKCE). Ohne ID/Secret erscheint
-# im Profil nur der alte Login.
+# Garmin Connect Developer Program (OAuth2 PKCE). Ohne ID/Secret gibt es
+# keine Garmin-Verbindung.
 GARMIN_CLIENT_ID=
 GARMIN_CLIENT_SECRET=
 
@@ -969,4 +962,4 @@ OBSERVABILITY_QUEUE_STALLED_MINUTES=15
 OBSERVABILITY_WEBHOOK_SILENCE_HOURS=48
 ```
 
-Die Variablen `OBSERVABILITY_SLOW_QUERY_MS`, `_SLOW_REQUEST_MS`, `_MANY_QUERIES`, `_SAMPLE_RATE`, `_RETENTION_DAYS` und `_SERVER_ERROR_BURST` sind mit der Anfrage-Messung weggefallen und können in Coolify gelöscht werden — sie werden nirgends mehr gelesen.
+`FIT_SERVICE_URL` und `FIT_SERVICE_TOKEN` sind mit dem alten Garmin-Login weggefallen (der `fit-service`-Dienst in Coolify kann gelöscht werden). Die Variablen `OBSERVABILITY_SLOW_QUERY_MS`, `_SLOW_REQUEST_MS`, `_MANY_QUERIES`, `_SAMPLE_RATE`, `_RETENTION_DAYS` und `_SERVER_ERROR_BURST` sind mit der Anfrage-Messung weggefallen und können in Coolify gelöscht werden — sie werden nirgends mehr gelesen.

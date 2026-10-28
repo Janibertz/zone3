@@ -10,7 +10,6 @@ use App\Models\RunnerProfile;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
-use App\Models\Workout;
 use App\Services\Garmin\GarminDisconnector;
 use App\Services\Garmin\GarminWorkoutBuilder;
 use App\Services\Garmin\GarminWorkoutSync;
@@ -348,25 +347,18 @@ class GarminWorkoutSyncTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_a_builder_workout_goes_to_the_chosen_day_and_is_left_alone(): void
+    /** Seit Schritt 6 gibt es ohne offizielle Verbindung keinen Weg auf die Uhr — auch kein Login-Formular. */
+    public function test_without_a_connection_the_button_points_to_the_profile(): void
     {
-        $workout = Workout::create([
-            'user_id' => $this->user->id, 'name' => '5×500 m', 'type' => 'interval',
-            'blocks'  => [['type' => 'repeat', 'repetitions' => 5, 'steps' => [
-                ['type' => 'work', 'distance_m' => 500, 'pace_zone' => 5],
-                ['type' => 'rest', 'duration_min' => 1.5],
-            ]]],
-        ]);
+        $session = $this->plannedSession();
+        $this->user->garminConnection->delete();
 
-        $this->actingAs($this->user)
-            ->postJson(route('workouts.send-to-garmin', $workout), ['date' => '2026-10-31'])
-            ->assertOk();
+        $this->actingAs($this->user->fresh())
+            ->postJson(route('training-sessions.send-to-garmin', $session), ['email' => 'a@b.de', 'password' => 'x'])
+            ->assertStatus(422)
+            ->assertJsonFragment(['error' => 'Garmin ist nicht verbunden. Bitte im Profil unter Verbindungen verbinden.']);
 
-        Http::assertSent(fn (Request $r) => str_contains($r->url(), '/training-api/schedule') && $r['date'] === '2026-10-31');
-
-        // Der Abgleich fasst es nicht an.
-        $this->assertSame(['created' => 0, 'removed' => 0, 'kept' => 0], $this->sync());
-        $this->assertSame(1, GarminScheduledWorkout::whereNotNull('workout_id')->count());
+        Http::assertNothingSent();
     }
 
     public function test_changing_a_session_queues_a_sync(): void
@@ -409,6 +401,6 @@ class GarminWorkoutSyncTest extends TestCase
 
     public function test_the_watch_button_is_hidden_for_a_garmin_athlete(): void
     {
-        $this->assertTrue($this->user->sendsWorkoutsToGarmin());
+        $this->assertTrue($this->user->sendsWorkoutsViaGarminApi());
     }
 }

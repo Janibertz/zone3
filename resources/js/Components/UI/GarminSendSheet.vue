@@ -1,54 +1,32 @@
 <script setup>
-import { ref, watch } from 'vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 
 /**
- * "Send to Garmin Connect" — one sheet for Dashboard, Plan and Workouts,
- * which each carried their own near-identical copy of this dialog.
+ * "Zu Garmin Connect senden" — ein Sheet für Dashboard und Planseite.
  *
- * The page owns the request; this component only collects credentials and
- * renders state.
+ * Gesendet wird über die Training API der offiziellen Verbindung. Der alte
+ * Login mit E-Mail und Passwort ist mit Schritt 6 der Garmin-Integration
+ * weggefallen; ohne Verbindung verweist das Sheet ins Profil.
+ *
+ * Die Seite stellt die Anfrage; das Sheet zeigt nur den Zustand.
  */
-const props = defineProps({
+defineProps({
     show:      { type: Boolean, default: false },
-    /** A stored session exists — no credentials needed. */
+    /** Offizielle Verbindung mit Workout-Freigabe. */
     connected: { type: Boolean, default: false },
-    /** Offizielle Verbindung (Training API): kein Login, kein Trennen hier — das steht im Profil. */
-    viaApi:    { type: Boolean, default: false },
-    savedEmail:{ type: String,  default: null },
     sending:   { type: Boolean, default: false },
     error:     { type: String,  default: null },
     success:   { type: Boolean, default: false },
-    subtitle:  { type: String,  default: 'Das Workout erscheint in deiner Garmin Connect Bibliothek' },
-    successText:{ type: String, default: 'Es erscheint jetzt in Garmin Connect und ist im Kalender eingetragen.' },
-    /** Offer a target date (Workouts page). */
-    withDate:  { type: Boolean, default: false },
-    /** Offer "Trennen" next to the connected badge (Plan page). */
-    withDisconnect: { type: Boolean, default: false },
-    date:      { type: String,  default: null },
+    subtitle:  { type: String,  default: 'Das Workout erscheint in deinem Garmin-Kalender' },
+    successText:{ type: String, default: 'Es steht jetzt im Garmin-Kalender und kommt mit der nächsten Synchronisierung auf die Uhr.' },
 });
 
-const emit = defineEmits(['close', 'send', 'disconnect', 'update:date']);
-
-const email    = ref('');
-const password = ref('');
-
-// A stale session forces the login fields back in.
-const sessionExpired = 'Sitzung abgelaufen. Bitte erneut einloggen.';
-
-watch(() => props.show, (open) => {
-    if (!open) password.value = '';
-    else if (props.savedEmail) email.value = props.savedEmail;
-});
-
-function submit() {
-    emit('send', { email: email.value, password: password.value, date: props.date });
-}
+const emit = defineEmits(['close', 'send']);
 </script>
 
 <template>
-    <AppSheet :show="show" title="Zu Garmin Connect senden" :subtitle="subtitle" @close="$emit('close')">
+    <AppSheet :show="show" title="Zu Garmin Connect senden" :subtitle="subtitle" @close="emit('close')">
         <!-- Success -->
         <div v-if="success" class="rounded-card bg-success-soft p-5 text-center">
             <svg class="mx-auto mb-2 h-8 w-8 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -63,70 +41,28 @@ function submit() {
                 <p class="text-sm text-danger-ink">{{ error }}</p>
             </div>
 
-            <!-- Target date -->
-            <div v-if="withDate" class="mb-4">
-                <label class="z-label">Datum</label>
-                <input
-                    :value="date"
-                    type="date"
-                    class="z-input"
-                    @input="$emit('update:date', $event.target.value)"
-                />
-            </div>
-
-            <!-- Connected badge -->
-            <div v-if="connected && error !== sessionExpired" class="mb-4 flex items-center gap-3 rounded-card bg-success-soft px-4 py-3">
+            <div v-if="connected" class="flex items-center gap-3 rounded-card bg-success-soft px-4 py-3">
                 <svg class="h-4 w-4 shrink-0 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                 </svg>
                 <div class="min-w-0 flex-1">
-                    <template v-if="viaApi">
-                        <p class="text-xs font-medium text-success-ink">Mit Garmin Connect verbunden</p>
-                        <p class="text-xs text-success-ink/80">Kommende Läufe legt Zone3 von selbst auf die Uhr.</p>
-                    </template>
-                    <template v-else>
-                        <p class="text-xs font-medium text-success-ink">Verbunden als</p>
-                        <p class="truncate text-xs text-success-ink/80">{{ savedEmail }}</p>
-                    </template>
+                    <p class="text-xs font-medium text-success-ink">Mit Garmin Connect verbunden</p>
+                    <p class="text-xs text-success-ink/80">Kommende Läufe legt Zone3 von selbst auf die Uhr.</p>
                 </div>
-                <button
-                    v-if="withDisconnect && !viaApi"
-                    type="button"
-                    class="shrink-0 text-xs text-success-ink transition-opacity duration-150 ease-out-strong hover:underline active:opacity-60"
-                    @click="$emit('disconnect')"
-                >
-                    Trennen
-                </button>
             </div>
 
-            <!-- Credentials -->
-            <div v-if="!connected || error === sessionExpired" class="space-y-3">
-                <div>
-                    <label class="z-label">Garmin Connect E-Mail</label>
-                    <input v-model="email" type="email" autocomplete="email" placeholder="deine@email.de" class="z-input" />
-                </div>
-                <div>
-                    <label class="z-label">Passwort</label>
-                    <input v-model="password" type="password" autocomplete="current-password" placeholder="••••••••" class="z-input" />
-                </div>
-                <p class="z-hint">
-                    Dein Passwort wird nicht gespeichert — nur ein verschlüsselter Login-Token.
-                    Beim nächsten Mal musst du dich nicht mehr einloggen.
-                </p>
-            </div>
+            <p v-else class="text-[15px] leading-relaxed text-ink-2">
+                Verbinde zuerst Garmin im Profil unter „Verbindungen“. Danach stehen deine Läufe von selbst im Garmin-Kalender.
+            </p>
         </template>
 
         <template v-if="!success" #footer>
             <div class="flex gap-3">
-                <AppButton variant="secondary" block @click="$emit('close')">Abbrechen</AppButton>
-                <AppButton
-                    block
-                    :loading="sending"
-                    :disabled="!connected && (!email || !password)"
-                    @click="submit"
-                >
+                <AppButton variant="secondary" block @click="emit('close')">Abbrechen</AppButton>
+                <AppButton v-if="connected" block :loading="sending" @click="emit('send')">
                     {{ sending ? 'Wird übertragen…' : 'Senden' }}
                 </AppButton>
+                <AppButton v-else block :href="route('profile.edit')">Zum Profil</AppButton>
             </div>
         </template>
     </AppSheet>

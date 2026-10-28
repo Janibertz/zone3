@@ -666,53 +666,15 @@ const copyCalendarUrl = async () => {
     }
 };
 
-// ── Garmin connection ─────────────────────────────────────────────────────────
-const garminConnected   = computed(() => !!page.props.auth.garminConnected);
-const garminSavedEmail  = computed(() => page.props.auth.garminEmail ?? '');
-const garminEmail       = ref('');
-const garminPassword    = ref('');
-const garminConnecting  = ref(false);
-const garminConnectError= ref('');
-const garminConnectOk   = ref(false);
-const garminDisconnecting = ref(false);
-const showGarminForm    = ref(false);
+// ── Garmin-Verbindung (OAuth) ────────────────────────────────────────────────
+const showGarminForm = ref(false);
 
-async function connectGarmin() {
-    if (!garminEmail.value || !garminPassword.value) return;
-    garminConnecting.value   = true;
-    garminConnectError.value = '';
-    garminConnectOk.value    = false;
-    try {
-        await axios.post(route('profile.garmin-connect'), {
-            email: garminEmail.value,
-            password: garminPassword.value,
-        });
-        garminConnectOk.value  = true;
-        showGarminForm.value   = false;
-        garminPassword.value   = '';
-        // Update shared Inertia props so the connected state reflects immediately
-        page.props.auth.garminConnected = true;
-        page.props.auth.garminEmail     = garminEmail.value;
-    } catch (e) {
-        const err = e.response?.data?.error ?? 'Verbindung fehlgeschlagen.';
-        garminConnectError.value = err === 'login_failed'
-            ? 'Falsche E-Mail oder Passwort.'
-            : err === 'mfa_required'
-                ? 'Zwei-Faktor-Authentifizierung aktiviert – derzeit nicht unterstützt.'
-                : err;
-    } finally {
-        garminConnecting.value = false;
-    }
-}
-
-// ── Offizielle Garmin-Verbindung (OAuth) ─────────────────────────────────────
-// Läuft neben dem alten Login, bis Erholungswerte und Workouts darüber gehen.
 // Die Einwilligung ist Pflicht: Garmin verlangt sie für die KI-Auswertung.
 const garminConsent        = ref(false);
 const garminOAuthBusy      = ref(false);
 
 const garminOfficialConnection = computed(() => props.garminOfficial?.connection ?? null);
-const garminLinked = computed(() => props.garminOfficial?.available ? !!garminOfficialConnection.value : garminConnected.value);
+const garminLinked = computed(() => !!garminOfficialConnection.value);
 const garminGranted = computed(() => {
     const c = garminOfficialConnection.value;
     if (!c) return '';
@@ -759,19 +721,6 @@ watch(activitySourceValue, (source, previous) => {
         onError: () => { activitySourceValue.value = previous; },
     });
 });
-
-async function disconnectGarmin() {
-    garminDisconnecting.value = true;
-    try {
-        await axios.delete(route('garmin.disconnect'));
-        page.props.auth.garminConnected = false;
-        page.props.auth.garminEmail     = null;
-        garminConnectOk.value           = false;
-        garminEmail.value               = '';
-    } catch { /* ignore */ } finally {
-        garminDisconnecting.value = false;
-    }
-}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 // Die Formularfelder der App liegen in app.css (.z-input) — hier nur der Verweis.
@@ -1559,10 +1508,7 @@ const inputClass = 'z-input';
                                             <p v-else-if="garminOfficialConnection" class="text-xs text-warn-ink mt-0.5">Verbunden · keine Daten freigegeben</p>
                                             <p v-else class="text-xs text-ink-3 mt-0.5">Nicht verbunden</p>
                                         </template>
-                                        <template v-else>
-                                            <p v-if="garminConnected" class="text-xs text-success-ink mt-0.5">Verbunden · {{ garminSavedEmail }}</p>
-                                            <p v-else class="text-xs text-ink-3 mt-0.5">Nicht verbunden</p>
-                                        </template>
+                                        <p v-else class="text-xs text-ink-3 mt-0.5">Auf diesem Server nicht eingerichtet</p>
                                     </div>
                                 </div>
                                 <div class="flex gap-2 shrink-0">
@@ -1573,16 +1519,6 @@ const inputClass = 'z-input';
                                         </button>
                                         <button v-else @click="showGarminForm = !showGarminForm"
                                             class="rounded-field bg-info px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 active:opacity-60 transition-colors">
-                                            Verbinden
-                                        </button>
-                                    </template>
-                                    <template v-else>
-                                        <button v-if="garminConnected" @click="disconnectGarmin" :disabled="garminDisconnecting"
-                                            class="rounded-field border border-danger/25 px-3 py-1.5 text-xs font-semibold text-danger-ink hover:bg-danger-soft transition-colors disabled:opacity-50">
-                                            {{ garminDisconnecting ? 'Trenne…' : 'Trennen' }}
-                                        </button>
-                                        <button v-else @click="showGarminForm = !showGarminForm"
-                                            class="rounded-field bg-info px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-colors">
                                             Verbinden
                                         </button>
                                     </template>
@@ -1647,39 +1583,6 @@ const inputClass = 'z-input';
                                 </div>
                             </template>
 
-                            <!-- Alter Login, nur solange keine offizielle App konfiguriert ist (kein Passwort wird gespeichert) -->
-                            <template v-else>
-                                <div v-if="showGarminForm && !garminConnected" class="border-t border-line p-4 space-y-3">
-                                    <div>
-                                        <label class="block text-xs font-medium text-ink-2 mb-1">Garmin Connect E-Mail</label>
-                                        <input v-model="garminEmail" type="email" autocomplete="username"
-                                            class="w-full rounded-field bg-surface px-3 py-2.5 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-info/40"
-                                            placeholder="deine@email.de" />
-                                    </div>
-                                    <div>
-                                        <label class="block text-xs font-medium text-ink-2 mb-1">Passwort</label>
-                                        <input v-model="garminPassword" type="password" autocomplete="current-password" @keyup.enter="connectGarmin"
-                                            class="w-full rounded-field bg-surface px-3 py-2.5 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-info/40"
-                                            placeholder="••••••••" />
-                                    </div>
-                                    <p v-if="garminConnectError" class="text-xs text-danger-ink">{{ garminConnectError }}</p>
-                                    <div class="flex items-center gap-3 pt-1">
-                                        <button @click="connectGarmin" :disabled="garminConnecting || !garminEmail || !garminPassword"
-                                            class="inline-flex items-center gap-2 rounded-field bg-info px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors">
-                                            <svg v-if="garminConnecting" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                            {{ garminConnecting ? 'Verbinde…' : 'Einmalig anmelden' }}
-                                        </button>
-                                        <button @click="showGarminForm = false" class="text-xs font-medium text-ink-3 hover:underline">Abbrechen</button>
-                                    </div>
-                                    <p class="text-xs text-ink-3 leading-relaxed">
-                                        Dein Passwort wird <strong class="text-ink-3">nicht gespeichert</strong>. Es dient nur der einmaligen Anmeldung — danach speichert Zone3 ausschließlich einen verschlüsselten Login-Token (hält ca. ein Jahr). Bei aktiver Zwei-Faktor-Authentifizierung ist der Login derzeit nicht möglich.
-                                    </p>
-                                </div>
-
-                                <div v-if="garminConnectOk && garminConnected" class="border-t border-line px-4 py-3">
-                                    <p class="text-xs text-success-ink">Verbunden! Die letzten 60 Tage Erholungsdaten werden im Hintergrund geladen und erscheinen dann im Dashboard.</p>
-                                </div>
-                            </template>
                         </div>
 
                         <!-- Aktivitäten kommen von: nur wenn beide liefern können -->

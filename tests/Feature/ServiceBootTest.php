@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Services\AI\OpenAIClient;
-use App\Services\FitClient;
 use Tests\TestCase;
 
 /**
@@ -48,12 +47,5 @@ class ServiceBootTest extends TestCase
         ] as $service) {
             $this->assertNotNull(app($service), $service . ' liess sich nicht erzeugen');
         }
-    }
-
-    public function test_the_fit_client_boots_without_configuration(): void
-    {
-        config(['services.fit.service_url' => null, 'services.fit.token' => null]);
-
-        $this->assertFalse(app(FitClient::class)->isConfigured());
     }
 }

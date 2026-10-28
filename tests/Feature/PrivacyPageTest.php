@@ -56,8 +56,15 @@ class PrivacyPageTest extends TestCase
     /** /privacy verspricht: Garmin trennen löscht Zugang und Erholungswerte, nicht die Aktivitäten. */
     public function test_disconnecting_garmin_removes_access_and_recovery_data(): void
     {
-        $user  = User::factory()->create(['garmin_email' => 'a@b.de', 'garmin_session' => 'token', 'onboarding_completed_at' => now()]);
-        $other = User::factory()->create(['garmin_session' => 'token']);
+        $user  = User::factory()->create(['onboarding_completed_at' => now()]);
+        $other = User::factory()->create();
+        foreach ([$user, $other] as $u) {
+            \App\Models\GarminConnection::create([
+                'user_id' => $u->id, 'garmin_user_id' => 'g-'.$u->id, 'access_token' => 'tok', 'refresh_token' => 'ref',
+                'access_token_expires_at' => now()->addHours(20), 'permissions' => [\App\Models\GarminConnection::HEALTH],
+                'ai_consent_at' => now(),
+            ]);
+        }
         GarminDailyMetric::create(['user_id' => $user->id, 'date' => '2026-10-26', 'hrv' => 55]);
         GarminDailyMetric::create(['user_id' => $other->id, 'date' => '2026-10-26', 'hrv' => 60]);
         $activity = Activity::create([
@@ -66,11 +73,10 @@ class PrivacyPageTest extends TestCase
             'moving_time' => 3000, 'elapsed_time' => 3000, 'average_speed' => 10000 / 3000,
         ]);
 
-        $this->actingAs($user)->deleteJson(route('garmin.disconnect'))->assertOk();
+        // Ohne Abmeldung bei Garmin — hier zaehlt, was lokal bleibt.
+        app(\App\Services\Garmin\GarminDisconnector::class)->disconnect($user, false);
 
-        $user->refresh();
-        $this->assertNull($user->garmin_session);
-        $this->assertNull($user->garmin_email);
+        $this->assertNull($user->fresh()->garminConnection);
         $this->assertSame(0, GarminDailyMetric::where('user_id', $user->id)->count());
         $this->assertSame(1, GarminDailyMetric::where('user_id', $other->id)->count());
         $this->assertNotNull($activity->fresh());

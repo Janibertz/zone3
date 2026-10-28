@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\GarminConnection;
 use App\Models\GarminDailyMetric;
 use App\Models\PushSubscription;
 use App\Models\User;
@@ -45,10 +46,15 @@ class MorningCheckInTest extends TestCase
         $user = User::factory()->create(['onboarding_completed_at' => now(), 'name' => 'Jan Tester']);
         $user->runnerProfile()->create(['threshold_speed' => 4.5]);
 
-        $user->forceFill(array_filter([
-            'telegram_chat_id' => $telegram ? self::CHAT : null,
-            'garmin_session'   => $garmin ? 'token' : null,
-        ]))->save();
+        $user->forceFill(['telegram_chat_id' => $telegram ? self::CHAT : null])->save();
+
+        if ($garmin) {
+            GarminConnection::create([
+                'user_id' => $user->id, 'garmin_user_id' => 'g-'.$user->id, 'access_token' => 'tok', 'refresh_token' => 'ref',
+                'access_token_expires_at' => now()->addHours(20), 'permissions' => [GarminConnection::HEALTH],
+                'ai_consent_at' => now(),
+            ]);
+        }
 
         return $user->refresh();
     }
@@ -63,7 +69,6 @@ class MorningCheckInTest extends TestCase
             'sleep_hours'        => $sleep,
             'sleep_score'        => $sleep !== null ? 82 : null,
             'body_battery_high'  => $battery,
-            'training_readiness' => 70,
         ]);
     }
 

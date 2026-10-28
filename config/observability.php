@@ -56,7 +56,6 @@ return [
         'schedule:run'             => 10,
         'strava:sync'              => 45,
         'push:wellbeing-reminders' => 30,
-        'garmin:sync-health'       => 1560,
         'garmin:refresh-tokens'    => 1560,
         'garmin:prune-webhook-payloads' => 1560,
         'garmin:sync-workouts'     => 150,

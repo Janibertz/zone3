@@ -1,16 +1,13 @@
 <script setup>
 import { ref, computed } from 'vue';
 import AppCard from '@/Components/UI/AppCard.vue';
-import AppButton from '@/Components/UI/AppButton.vue';
 import SectionHeader from '@/Components/UI/SectionHeader.vue';
 import { SLEEP_SCORE_ZONES, TONE_COLOR, zoneOf } from '@/Composables/useRecoveryGauges.js';
 
 const props = defineProps({
     metrics:    { type: Object,  default: null },     // { latest, series: [...] } bis zu 60 Tage
     activities: { type: Array,   default: () => [] }, // Erholungsaktivitäten (letzte 60 Tage)
-    syncing:    { type: Boolean, default: false },
 });
-const emit = defineEmits(['refresh']);
 
 /**
  * Farben kommen aus den Design-Tokens, damit Hell und Dunkel automatisch
@@ -224,17 +221,13 @@ function nf(v, digits = 0) {
 
 <template>
     <section v-if="metrics">
-        <SectionHeader title="Erholung">
-            <template #action>
-                <AppButton size="sm" variant="secondary" :loading="syncing" @click="emit('refresh')">
-                    {{ syncing ? 'Sync…' : 'Aktualisieren' }}
-                </AppButton>
-            </template>
-        </SectionHeader>
+        <!-- Kein „Aktualisieren“ mehr: die Werte schickt Garmin von selbst,
+             sobald die Uhr synchronisiert. Der Knopf rief den alten Login ab. -->
+        <SectionHeader title="Erholung" />
 
         <AppCard v-if="!hasData">
             <p class="text-[15px] text-ink-3">
-                Noch keine Garmin-Daten. Verbinde dich im Profil und tippe auf „Aktualisieren".
+                Noch keine Garmin-Daten. Sie kommen von selbst, sobald deine Uhr mit Garmin Connect synchronisiert.
             </p>
         </AppCard>
 

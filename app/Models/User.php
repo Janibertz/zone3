@@ -20,11 +20,11 @@ use Illuminate\Notifications\Notifiable;
     'push_notifications_enabled', 'wellbeing_reminder_time', 'notify_threshold_pace', 'notify_plan_updated',
     'notify_monthly_review',
     'avatar', 'bio', 'location', 'birth_year', 'favorite_distance', 'coach_id',
-    'garmin_email', 'garmin_session', 'ai_daily_limit', 'activity_source', 'garmin_workout_sync',
+    'ai_daily_limit', 'activity_source', 'garmin_workout_sync',
     'newsletter_opt_in', 'unsubscribe_token',
     'telegram_chat_id', 'telegram_link_token', 'telegram_linked_at', 'calendar_token',
     'dashboard_layout'])]
-#[Hidden(['password', 'remember_token', 'garmin_session', 'garmin_email', 'unsubscribe_token',
+#[Hidden(['password', 'remember_token', 'unsubscribe_token',
     'telegram_chat_id', 'telegram_link_token', 'calendar_token'])]
 class User extends Authenticatable
 {
@@ -65,7 +65,6 @@ class User extends Authenticatable
             'notify_threshold_pace'         => 'boolean',
             'notify_plan_updated'           => 'boolean',
             'notify_monthly_review'         => 'boolean',
-            'garmin_session'                => 'encrypted',
             'newsletter_opt_in'             => 'boolean',
             'telegram_linked_at'            => 'datetime',
             'dashboard_layout'              => 'array',
@@ -127,29 +126,16 @@ class User extends Authenticatable
         ]));
     }
 
-    /**
-     * Kommen Erholungswerte von Garmin an — per Push ueber die offizielle
-     * Verbindung (mit Health-Freigabe) oder ueber den alten Login.
-     */
+    /** Kommen Erholungswerte von Garmin an — per Push, mit Health-Freigabe. */
     public function receivesGarminHealth(): bool
     {
-        return ! empty($this->garmin_session)
-            || (bool) $this->garminConnection?->allows(GarminConnection::HEALTH);
+        return (bool) $this->garminConnection?->allows(GarminConnection::HEALTH);
     }
 
     /** Workouts gehen ueber die Training API — offizielle Verbindung mit Workout-Freigabe. */
     public function sendsWorkoutsViaGarminApi(): bool
     {
         return (bool) $this->garminConnection?->allows(GarminConnection::WORKOUTS);
-    }
-
-    /**
-     * Gibt es einen Weg, Einheiten auf die Garmin-Uhr zu schicken — die
-     * Training API oder, bis Schritt 6, der alte Login.
-     */
-    public function sendsWorkoutsToGarmin(): bool
-    {
-        return $this->sendsWorkoutsViaGarminApi() || ! empty($this->garmin_session);
     }
 
     /** Haelt Zone3 die naechsten Plantage selbst im Garmin-Kalender aktuell? */

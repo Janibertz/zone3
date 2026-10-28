@@ -105,17 +105,21 @@ class DashboardRenderTest extends TestCase
     }
 
     /** The decrypted Garmin token must never reach the frontend. */
-    public function test_dashboard_payload_does_not_leak_the_garmin_session(): void
+    public function test_dashboard_payload_does_not_leak_the_garmin_token(): void
     {
         $user = $this->runner();
-        $user->forceFill([
-            'garmin_email'   => 'runner@example.com',
-            'garmin_session' => 'SECRET-GARMIN-TOKEN-XYZ',
-        ])->save();
+        \App\Models\GarminConnection::create([
+            'user_id' => $user->id, 'garmin_user_id' => 'g-1',
+            'access_token' => 'SECRET-GARMIN-TOKEN-XYZ', 'refresh_token' => 'SECRET-GARMIN-REFRESH-XYZ',
+            'access_token_expires_at' => now()->addHours(20),
+            'permissions' => [\App\Models\GarminConnection::HEALTH, \App\Models\GarminConnection::WORKOUTS],
+            'ai_consent_at' => now(),
+        ]);
 
         $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertDontSee('SECRET-GARMIN-TOKEN-XYZ');
+            ->assertDontSee('SECRET-GARMIN-TOKEN-XYZ')
+            ->assertDontSee('SECRET-GARMIN-REFRESH-XYZ');
     }
 }

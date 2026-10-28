@@ -187,7 +187,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 'session_date' => $s->planned_date->format('Y-m-d'),
                 'is_today'     => $s->planned_date->toDateString() === $todayStr,
                 'zwo_url'      => $s->hasBikeSteps() ? route('training-sessions.zwo', $s) : null,
-                'watch_url'    => \App\Services\Watch\AppleWorkoutWriter::offered($s, $user->sendsWorkoutsToGarmin()) ? route('training-sessions.apple-workout', $s) : null,
+                'watch_url'    => \App\Services\Watch\AppleWorkoutWriter::offered($s, $user->sendsWorkoutsViaGarminApi()) ? route('training-sessions.apple-workout', $s) : null,
             ];
         }
     }
@@ -393,7 +393,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         })(),
 
         // Garmin recovery data (HRV, sleep, RHR, Body Battery, stress, steps).
-        // Per Push ueber die Health API oder, mit dem alten Login, via SyncGarminHealthJob. Missing values stay null ("keine Daten").
+        // Per Push ueber die Health API. Missing values stay null ("keine Daten").
         'garminMetrics' => (function () use ($user) {
             if (! $user->receivesGarminHealth()) return null;
 
@@ -465,8 +465,6 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::delete('/profile/telegram', [\App\Http\Controllers\TelegramLinkController::class, 'destroy'])->name('telegram.unlink');
     Route::post('/profile/calendar', [\App\Http\Controllers\CalendarFeedController::class, 'store'])->name('calendar-feed.store');
     Route::delete('/profile/calendar', [\App\Http\Controllers\CalendarFeedController::class, 'destroy'])->name('calendar-feed.destroy');
-    Route::post('/profile/garmin-connect', [ProfileController::class, 'garminConnect'])->name('profile.garmin-connect');
-    Route::post('/profile/garmin-sync-health', [ProfileController::class, 'garminSyncHealth'])->name('profile.garmin-sync-health');
     Route::patch('/profile/garmin-workout-sync', [ProfileController::class, 'updateGarminWorkoutSync'])->name('profile.garmin-workout-sync');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
@@ -573,7 +571,6 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::post('/training-sessions/{session}/adjust', [TrainingSessionController::class, 'adjust'])->name('training-sessions.adjust');
     Route::post('/training-sessions/{session}/adjust-intensity', [TrainingSessionController::class, 'adjustIntensity'])->name('training-sessions.adjust-intensity');
     Route::post('/training-sessions/{session}/send-to-garmin', [TrainingSessionController::class, 'sendToGarmin'])->name('training-sessions.send-to-garmin');
-    Route::delete('/garmin/disconnect', [TrainingSessionController::class, 'garminDisconnect'])->name('garmin.disconnect');
     Route::get('/training-sessions/{session}/nutrition-tips', [TrainingSessionController::class, 'nutritionTips'])->name('training-sessions.nutrition-tips');
     Route::get('/training-sessions/{session}/steps', [TrainingSessionController::class, 'sessionSteps'])->name('training-sessions.steps');
     Route::get('/training-sessions/{session}/zwift.zwo', [TrainingSessionController::class, 'zwo'])->name('training-sessions.zwo');
@@ -603,7 +600,6 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::delete('/workouts/{workout}',           [\App\Http\Controllers\WorkoutController::class, 'destroy'])  ->name('workouts.destroy');
     Route::post('/workouts/{workout}/duplicate',   [\App\Http\Controllers\WorkoutController::class, 'duplicate'])->name('workouts.duplicate');
     Route::post('/workouts/{workout}/schedule',       [\App\Http\Controllers\WorkoutController::class, 'schedule'])->name('workouts.schedule');
-    Route::post('/workouts/{workout}/send-to-garmin', [\App\Http\Controllers\WorkoutController::class, 'sendToGarmin'])->name('workouts.send-to-garmin');
 
     // Runner Profile Routes (GET redirects to merged profile page)
     Route::get('/profile/runner', fn() => redirect()->route('profile.edit'))->name('runner.profile.show');

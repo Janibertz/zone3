@@ -9,8 +9,8 @@ use App\Models\GarminWebhookEvent;
 /**
  * Erholungswerte aus einem Health-Push in `garmin_daily_metrics`.
  *
- * Dieselben Spalten wie der alte Abruf ueber den fit-service, damit
- * Dashboard, Plan und Tagesform-Vorschlag nichts davon merken. Ein Tag setzt
+ * Dieselben Spalten, die frueher der alte Login ueber den Fit-Service
+ * fuellte, damit Dashboard, Plan und Tagesform-Vorschlag gleich blieben. Ein Tag setzt
  * sich aus mehreren Summaries zusammen (Dailies, Sleeps, HRV, Stress), die
  * einzeln und zu verschiedenen Zeiten ankommen — darum schreibt jede nur ihre
  * eigenen Spalten und laesst die anderen stehen. Ein fehlender Wert bleibt

@@ -152,7 +152,7 @@ class TelegramBriefing
 
         $text = "**Deine Nacht**\n" . implode("\n", $lines);
 
-        if (array_diff($day['flagged'], ['readiness'])) {
+        if ($day['flagged']) {
             $text .= "\nDeine Werte weichen heute deutlich von deinem Normalbereich ab. Hör beim Training besonders auf dich.";
         }
 
