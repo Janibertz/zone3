@@ -179,7 +179,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 'session_date' => $s->planned_date->format('Y-m-d'),
                 'is_today'     => $s->planned_date->toDateString() === $todayStr,
                 'zwo_url'      => $s->hasBikeSteps() ? route('training-sessions.zwo', $s) : null,
-                'watch_url'    => \App\Services\Watch\AppleWorkoutWriter::offered($s, ! empty($user->garmin_session)) ? route('training-sessions.apple-workout', $s) : null,
+                'watch_url'    => \App\Services\Watch\AppleWorkoutWriter::offered($s, $user->sendsWorkoutsToGarmin()) ? route('training-sessions.apple-workout', $s) : null,
             ];
         }
     }
@@ -455,6 +455,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::delete('/profile/calendar', [\App\Http\Controllers\CalendarFeedController::class, 'destroy'])->name('calendar-feed.destroy');
     Route::post('/profile/garmin-connect', [ProfileController::class, 'garminConnect'])->name('profile.garmin-connect');
     Route::post('/profile/garmin-sync-health', [ProfileController::class, 'garminSyncHealth'])->name('profile.garmin-sync-health');
+    Route::patch('/profile/garmin-workout-sync', [ProfileController::class, 'updateGarminWorkoutSync'])->name('profile.garmin-workout-sync');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // Push Notifications

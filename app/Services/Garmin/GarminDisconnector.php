@@ -3,6 +3,7 @@
 namespace App\Services\Garmin;
 
 use App\Models\GarminDailyMetric;
+use App\Models\GarminScheduledWorkout;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -18,7 +19,10 @@ use Throwable;
  */
 class GarminDisconnector
 {
-    public function __construct(private readonly GarminClient $client) {}
+    public function __construct(
+        private readonly GarminClient $client,
+        private readonly GarminWorkoutSync $workouts,
+    ) {}
 
     /**
      * @param bool $atGarmin  false, wenn Garmin die Trennung selbst gemeldet
@@ -29,6 +33,10 @@ class GarminDisconnector
         $connection = $user->garminConnection;
 
         if ($connection && $atGarmin) {
+            // Bevorstehende Workouts aus dem Garmin-Kalender nehmen, solange
+            // der Token noch gilt — danach kommt Zone3 dort nicht mehr hin.
+            $this->workouts->removeAll($user);
+
             try {
                 $this->client->deregister($connection);
             } catch (Throwable $e) {
@@ -41,6 +49,7 @@ class GarminDisconnector
             }
         }
 
+        GarminScheduledWorkout::where('user_id', $user->id)->delete();
         $connection?->delete();
         $user->update(['garmin_email' => null, 'garmin_session' => null]);
         GarminDailyMetric::where('user_id', $user->id)->delete();

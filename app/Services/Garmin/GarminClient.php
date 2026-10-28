@@ -166,6 +166,61 @@ class GarminClient
         $this->api($this->accessToken($connection))->delete('/wellness-api/rest/user/registration')->throw();
     }
 
+    // ── Training API V2 (Spezifikation 2.0, Abschnitt 3 und 4) ───────────
+
+    /**
+     * Ein Workout anlegen; gibt Garmins `workoutId` zurueck.
+     *
+     * Der Pfad weicht von den anderen ab — `workoutportal/` statt
+     * `training-api/` — und steht so in der Spezifikation. Lesen, Aendern
+     * und Loeschen laufen unter `training-api/`.
+     */
+    public function createWorkout(GarminConnection $connection, array $workout): int
+    {
+        $id = $this->api($this->accessToken($connection))
+            ->post('/workoutportal/workout/v2', $workout)->throw()->json('workoutId');
+
+        if (! $id) {
+            throw new RuntimeException('Garmin lieferte keine workoutId.');
+        }
+
+        return (int) $id;
+    }
+
+    /** Ein Workout loeschen. Ist es bei Garmin schon weg, ist das kein Fehler. */
+    public function deleteWorkout(GarminConnection $connection, int $workoutId): void
+    {
+        $this->deleteTolerant($connection, "/training-api/workout/v2/{$workoutId}");
+    }
+
+    /**
+     * Ein Workout an einem Tag in den Kalender legen. Die Spezifikation nennt
+     * keinen Antwortkoerper — darum wird die ID genommen, wenn eine kommt.
+     */
+    public function scheduleWorkout(GarminConnection $connection, int $workoutId, string $date): ?int
+    {
+        $json = $this->api($this->accessToken($connection))
+            ->post('/training-api/schedule/', ['workoutId' => $workoutId, 'date' => $date])->throw()->json();
+
+        $id = is_array($json) ? ($json['scheduleId'] ?? null) : $json;
+
+        return is_numeric($id) ? (int) $id : null;
+    }
+
+    public function deleteSchedule(GarminConnection $connection, int $scheduleId): void
+    {
+        $this->deleteTolerant($connection, "/training-api/schedule/{$scheduleId}");
+    }
+
+    private function deleteTolerant(GarminConnection $connection, string $path): void
+    {
+        $response = $this->api($this->accessToken($connection))->delete($path);
+
+        if ($response->status() !== 404) {
+            $response->throw();
+        }
+    }
+
     private function expiresSoon(GarminConnection $connection): bool
     {
         return ! $connection->access_token_expires_at

@@ -26,5 +26,6 @@ class AppServiceProvider extends ServiceProvider
 
         // Vorschlaege des Coaches gehen mit Knoepfen nach Telegram.
         \App\Models\SessionRecommendation::observe(\App\Observers\SessionRecommendationObserver::class);
+        \App\Models\TrainingSession::observe(\App\Observers\TrainingSessionObserver::class);
     }
 }

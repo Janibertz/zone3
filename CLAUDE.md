@@ -777,6 +777,17 @@ Zone3 ist im Garmin Connect Developer Program (Activity, Health, Training API). 
 - Die Aktivitätsseite nennt das Gerät und verlinkt Garmin Connect (Garmin verlangt die Herkunftsangabe).
 - Im Garmin-Endpunkt-Tool zeigen Activities, Activity Details und Manually Updated Activities auf `https://zone3.run/garmin/webhook/activities`.
 
+**Der Plan auf der Uhr (Schritt 5, Training API V2).** Jans Regeln vom 28.10.2026: die **nächsten 7 Tage automatisch** in den Garmin-Kalender, für jeden mit Workout-Freigabe (`WORKOUT_IMPORT`), abschaltbar im Profil (`users.garmin_workout_sync`, Standard an). **Läufe ja; Vereinstermine, Rennen und Radeinheiten nicht** — den Laufclub gibt der Trainer vor Ort vor, Rad geht zu Zwift.
+
+- `GarminWorkoutBuilder` übersetzt die Schritte so, wie `AppleWorkoutWriter` sie liest (Strecke vor Zeit, gleiche Wiederholungszahl = `WorkoutRepeatStep`, Pace nur auf Belastung, ±5 % bei einer einzelnen Pace, `targetType = PACE` in m/s). Zwei Uhren sollen eine Einheit nicht verschieden verstehen.
+- `GarminWorkoutSync` vergleicht **lokal** über `garmin_scheduled_workouts.payload_hash`; ein unveränderter Plan kostet keinen Aufruf. Geändert wird per Löschen + neu anlegen (Workout und Termin). Erledigte Einheiten bleiben stehen, Builder-Workouts (`workout_id`) fasst der Abgleich nie an, per Knopf gesendete (`manual`) pflegt er auch hinter dem Fenster.
+- **Eigene Tabelle statt Spalten an der Einheit:** eine Neuberechnung löscht Einheiten, und mit ihnen wären die Garmin-IDs weg — die Workouts stünden für immer im Kalender.
+- Auslöser: `TrainingSessionObserver` (jede Änderung, `SyncGarminWorkoutsJob` einmalig pro Athlet, 60 s verzögert) und `garmin:sync-workouts` stündlich als Netz für Massen-Updates, die an Beobachtern vorbeilaufen.
+- **Der feste Termin ist nicht gespeichert**, nur sein Typ. `GarminWorkoutSync::isFixedAppointment()` nimmt dieselbe Regel wie das Gerüst: Termin an diesem Wochentag im Wochenraster, keine Tagesausnahme, gleicher Typ.
+- Der Anlege-Pfad heißt laut Spezifikation `POST /workoutportal/workout/v2`, alle anderen `…/training-api/…`. So steht es dort; erst ein echter Aufruf zeigt, ob es stimmt.
+- Kontingent (Starter): 200 Aufrufe pro Athlet und Tag. Eine neue Woche kostet 14, eine komplett geänderte 28. Ein 429 bricht den Lauf ab, der nächste macht weiter.
+- „Zu Garmin senden" (Einheit und Builder) geht mit offizieller Verbindung über dieselbe API; der alte Fit-Service-Weg bleibt bis Schritt 6 für den alten Login. Trennen nimmt vorher die bevorstehenden Workouts aus dem Garmin-Kalender.
+
 - Im Garmin-Endpunkt-Tool zeigen Dailies, Sleeps, HRV Summary, Stress und User Metrics auf `https://zone3.run/garmin/webhook/health`. Die Werte stehen ungeprüft im Body (Garmin signiert nicht); gespeichert wird nur für verbundene Athleten mit `HEALTH_EXPORT`.
 
 ## Admin Panel

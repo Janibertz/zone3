@@ -252,6 +252,28 @@ class WorkoutController extends Controller
         abort_if($workout->user_id !== Auth::id(), 403);
 
         $user            = Auth::user();
+
+        // Offizielle Verbindung: ueber die Training API, ohne Fit-Service.
+        if ($user->sendsWorkoutsViaGarminApi()) {
+            $request->validate(['date' => 'nullable|date']);
+
+            try {
+                app(\App\Services\Garmin\GarminWorkoutSync::class)
+                    ->pushWorkout($user, $workout, $request->input('date', now()->toDateString()));
+            } catch (\Illuminate\Http\Client\RequestException $e) {
+                return response()->json(['error' => TrainingSessionController::garminApiError($e->response->status())], 422);
+            } catch (\Throwable $e) {
+                Log::warning('Garmin Training API: Workout nicht gesendet', ['workout_id' => $workout->id, 'error' => $e->getMessage()]);
+
+                return response()->json(['error' => 'Garmin hat das Workout nicht angenommen. Bitte später noch einmal versuchen.'], 503);
+            }
+
+            $workout->increment('times_used');
+            $workout->update(['last_used_at' => now()]);
+
+            return response()->json(['success' => true]);
+        }
+
         $hasSavedSession = !empty($user->garmin_session);
 
         if (! $hasSavedSession) {

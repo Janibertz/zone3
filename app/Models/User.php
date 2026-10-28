@@ -20,7 +20,7 @@ use Illuminate\Notifications\Notifiable;
     'push_notifications_enabled', 'wellbeing_reminder_time', 'notify_threshold_pace', 'notify_plan_updated',
     'notify_monthly_review',
     'avatar', 'bio', 'location', 'birth_year', 'favorite_distance', 'coach_id',
-    'garmin_email', 'garmin_session', 'ai_daily_limit', 'activity_source',
+    'garmin_email', 'garmin_session', 'ai_daily_limit', 'activity_source', 'garmin_workout_sync',
     'newsletter_opt_in', 'unsubscribe_token',
     'telegram_chat_id', 'telegram_link_token', 'telegram_linked_at', 'calendar_token'])]
 #[Hidden(['password', 'remember_token', 'garmin_session', 'garmin_email', 'unsubscribe_token',
@@ -67,6 +67,7 @@ class User extends Authenticatable
             'garmin_session'                => 'encrypted',
             'newsletter_opt_in'             => 'boolean',
             'telegram_linked_at'            => 'datetime',
+            'garmin_workout_sync'           => 'boolean',
         ];
     }
 
@@ -132,6 +133,28 @@ class User extends Authenticatable
     {
         return ! empty($this->garmin_session)
             || (bool) $this->garminConnection?->allows(GarminConnection::HEALTH);
+    }
+
+    /** Workouts gehen ueber die Training API — offizielle Verbindung mit Workout-Freigabe. */
+    public function sendsWorkoutsViaGarminApi(): bool
+    {
+        return (bool) $this->garminConnection?->allows(GarminConnection::WORKOUTS);
+    }
+
+    /**
+     * Gibt es einen Weg, Einheiten auf die Garmin-Uhr zu schicken — die
+     * Training API oder, bis Schritt 6, der alte Login.
+     */
+    public function sendsWorkoutsToGarmin(): bool
+    {
+        return $this->sendsWorkoutsViaGarminApi() || ! empty($this->garmin_session);
+    }
+
+    /** Haelt Zone3 die naechsten Plantage selbst im Garmin-Kalender aktuell? */
+    public function syncsPlanToGarmin(): bool
+    {
+        // Ein frisch angelegtes Modell kennt den Datenbank-Standard (an) noch nicht.
+        return ($this->garmin_workout_sync ?? true) && $this->sendsWorkoutsViaGarminApi();
     }
 
     public function goals()

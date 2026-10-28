@@ -353,6 +353,7 @@ async function sendToGarmin({ email, password, date } = {}) {
             v-model:date="garminDate"
             :show="garminModal"
             :connected="garminConnected"
+            :via-api="!!$page.props.auth.garminViaApi"
             :saved-email="garminSavedEmail"
             :sending="garminSending"
             :error="garminError"
