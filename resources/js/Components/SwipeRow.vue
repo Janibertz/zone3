@@ -36,6 +36,8 @@ function onStart(e) {
 }
 function onMove(e) {
     if (!dragging.value) return;
+    // Waehrend die Einheit per langem Druck gezogen wird, wischt nichts.
+    if (props.disabled) { dragging.value = false; offset.value = 0; return; }
     const t = e.touches ? e.touches[0] : e;
     const dx = t.clientX - startX;
     const dy = t.clientY - startY;

@@ -636,6 +636,12 @@ class CoachChatService
         return in_array($type, \App\Services\TrainingPlanValidator::RUN_TYPES, true);
     }
 
+    /** Siehe {@see \App\Services\SessionScheduleService::sealVacatedDay()} — eine Regel fuer Coach und Gesten. */
+    private function sealVacatedDay(\App\Models\User $user, string $date, string $why): void
+    {
+        app(\App\Services\SessionScheduleService::class)->sealVacatedDay($user, $date, $why);
+    }
+
     /**
      * Eine neue Einheit, die im aktiven Plan landet.
      *
@@ -643,51 +649,6 @@ class CoachChatService
      * ausschließlich Einheiten des Plans. Der Athlet bekäme dann eine Zusage
      * im Chat und einen unveränderten Plan.
      */
-    /**
-     * Ein Tag, dem der Coach die letzte Einheit genommen hat, bekommt einen
-     * Ruhetag.
-     *
-     * Genau hier entstand das Loch im Plan, und der Hergang ist banal: Jan
-     * hatte das Mittwochstraining aus Zeitgruenden abgesagt, die Neuberechnung
-     * legte es auf Donnerstag, und dann sagte er dem Coach, er schaffe es
-     * doch noch am Mittwoch. Der Coach schob die Einheit zurueck — und
-     * `move_training_session` setzt nur `planned_date` um. Der Donnerstag
-     * blieb leer zurueck, ohne dass irgendjemand nachsah.
-     *
-     * Die Kontrolle in `RegeneratePlanJob::sealGaps()` faengt das nicht: sie
-     * laeuft in der Neuberechnung, und hier wird keine ausgeloest. Der Tag
-     * muss dort geschlossen werden, wo er geleert wird.
-     *
-     * Ein Ruhetag ist die ehrliche Darstellung — an dem Tag steht jetzt kein
-     * Training. Ein Loch behauptet dagegen gar nichts und sieht in der App
-     * aus wie ein Fehler, was es ja auch war.
-     */
-    private function sealVacatedDay(\App\Models\User $user, string $date, string $why): void
-    {
-        $stillThere = \App\Models\TrainingSession::where('user_id', $user->id)
-            ->whereDate('planned_date', $date)
-            ->exists();
-
-        if ($stillThere) {
-            return;
-        }
-
-        // Ohne aktiven Plan haette der Ruhetag keinen, an dem er haengt — die
-        // Planseite laedt nur Einheiten des aktiven Plans, er waere unsichtbar.
-        $hasPlan = \App\Models\TrainingPlan::where('user_id', $user->id)
-            ->where('is_active', true)
-            ->exists();
-
-        if (! $hasPlan) {
-            return;
-        }
-
-        $session = $this->newSessionFor($user, $date, 'rest');
-        $session->description = "Die Einheit dieses Tages wurde {$why}.";
-        $session->sort_order  = 0;
-        $session->save();
-    }
-
     private function newSessionFor(\App\Models\User $user, string $date, string $type): \App\Models\TrainingSession
     {
         $plan = \App\Models\TrainingPlan::where('user_id', $user->id)

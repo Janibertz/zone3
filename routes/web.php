@@ -560,6 +560,8 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     // Training Sessions
     Route::patch('/training-sessions/{session}/complete', [TrainingSessionController::class, 'complete'])->name('training-sessions.complete');
     Route::patch('/training-sessions/{session}/skip', [TrainingSessionController::class, 'skip'])->name('training-sessions.skip');
+    Route::patch('/training-sessions/{session}/move', [TrainingSessionController::class, 'move'])->name('training-sessions.move');
+    Route::delete('/training-sessions/{session}', [TrainingSessionController::class, 'destroy'])->name('training-sessions.destroy');
     Route::post('/training-sessions/{session}/adjust', [TrainingSessionController::class, 'adjust'])->name('training-sessions.adjust');
     Route::post('/training-sessions/{session}/adjust-intensity', [TrainingSessionController::class, 'adjustIntensity'])->name('training-sessions.adjust-intensity');
     Route::post('/training-sessions/{session}/send-to-garmin', [TrainingSessionController::class, 'sendToGarmin'])->name('training-sessions.send-to-garmin');

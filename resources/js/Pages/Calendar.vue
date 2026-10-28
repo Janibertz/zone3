@@ -1,9 +1,13 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
+import axios from 'axios';
 import { paceWithUnit } from '@/Composables/useSessionTypes';
+import SwipeRow from '@/Components/SwipeRow.vue';
+import DragGhost from '@/Components/UI/DragGhost.vue';
+import { useDragToDay } from '@/Composables/useDragToDay';
 
 const props = defineProps({
     activities:       { type: Array, default: () => [] },
@@ -188,6 +192,55 @@ function selectToday() {
 
 onMounted(selectToday);
 
+// ── Verschieben und Loeschen per Geste ────────────────────────────────────────
+// Lange druecken auf eine Einheit in der Tagesansicht und nach oben ins
+// Raster ziehen; nach links wischen loescht. Regel wie
+// SessionScheduleService::canChange(): geplant, kein Ruhetag, kein Rennen.
+const pad = (n) => String(n).padStart(2, '0');
+const todayKey = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+
+/** Ein Tag im Raster ist ein Ziel, wenn er in diesem Monat liegt und nicht vorbei ist. */
+function dropDate(d) {
+    if (!d.currentMonth) return null;
+    const key = `${calYear.value}-${pad(calMonth.value + 1)}-${pad(d.day)}`;
+    return key >= todayKey ? key : null;
+}
+
+const canChange = (s) => s.status === 'planned' && !['rest', 'race_prep'].includes(s.type) && s.planned_date >= todayKey;
+const actionError = ref('');
+
+function reloadSessions() {
+    const day = selected.value?.day;
+    router.reload({
+        only: ['trainingSessions'],
+        preserveScroll: true,
+        onSuccess: () => {
+            const d = calendarWeeks.value.flat().find(x => x.currentMonth && x.day === day);
+            if (d) selectDay(d);
+        },
+    });
+}
+
+const { drag, start: startDrag } = useDragToDay(async (session, date) => {
+    actionError.value = '';
+    try {
+        await axios.patch(route('training-sessions.move', session.id), { date });
+        reloadSessions();
+    } catch (e) {
+        actionError.value = e?.response?.data?.error ?? 'Verschieben hat nicht geklappt.';
+    }
+});
+
+async function deleteSession(session) {
+    actionError.value = '';
+    try {
+        await axios.delete(route('training-sessions.destroy', session.id));
+        reloadSessions();
+    } catch (e) {
+        actionError.value = e?.response?.data?.error ?? 'Löschen hat nicht geklappt.';
+    }
+}
+
 const sessionTypeLabels = {
     rest: 'Ruhetag', easy_run: 'Lockerer Lauf', tempo_run: 'Tempolauf',
     interval: 'Intervall', long_run: 'Langer Lauf', race_prep: 'Rennvorbereitung',
@@ -274,8 +327,10 @@ const sessionDotColors = {
                                 Tagesliste. Ab sm bleibt alles wie gehabt.
                             -->
                             <div v-for="(d, di) in week" :key="di"
+                                :data-drop-date="dropDate(d)"
                                 class="min-h-[56px] border-r border-line p-1 transition-colors last:border-r-0 sm:min-h-[110px] sm:p-2"
                                 :class="{
+                                    'bg-accent-soft ring-2 ring-inset ring-accent': drag.overDate && drag.overDate === dropDate(d),
                                     'bg-accent-soft/50': d.isToday,
                                     'opacity-40': !d.currentMonth,
                                     'cursor-pointer hover:bg-surface-2/50': d.currentMonth,
@@ -401,8 +456,25 @@ const sessionDotColors = {
                         <!-- Training Sessions -->
                         <div v-if="selected.sessions?.length > 0" class="p-4 border-b border-line">
                             <h5 class="text-[13px] font-semibold text-ink-3 mb-3">Trainingsplan</h5>
-                            <div v-for="s in selected.sessions" :key="s.id" class="mb-4 last:mb-0">
-                                <div class="flex items-start gap-2">
+                            <p v-if="actionError" class="mb-3 rounded-field bg-danger-soft px-3 py-2 text-[13px] text-danger-ink">{{ actionError }}</p>
+                            <SwipeRow v-for="s in selected.sessions" :key="s.id"
+                                class="mb-4 last:mb-0 rounded-field"
+                                content-class="bg-surface"
+                                :right-width="canChange(s) ? 88 : 0"
+                                :disabled="!canChange(s) || drag.active">
+                                <template #right="{ close }">
+                                    <button @click="deleteSession(s); close()"
+                                        class="flex w-full flex-col items-center justify-center gap-1 bg-danger text-[11px] font-semibold text-white">
+                                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
+                                        Löschen
+                                    </button>
+                                </template>
+                                <div class="flex items-start gap-2 py-1 select-none"
+                                    :class="drag.active && drag.item?.id === s.id ? 'opacity-40' : ''"
+                                    :style="canChange(s) ? '-webkit-touch-callout: none' : null"
+                                    @touchstart="canChange(s) && startDrag($event, s, s.planned_date, s.title)"
+                                    @mousedown="canChange(s) && startDrag($event, s, s.planned_date, s.title)"
+                                    @contextmenu="canChange(s) && $event.preventDefault()">
                                     <span class="shrink-0 mt-0.5 h-4 w-4 rounded-full flex items-center justify-center text-xs"
                                         :class="s.status === 'completed' ? 'bg-success' : s.status === 'skipped' ? 'bg-ink-3' : (sessionDotColors[s.type] || 'bg-accent')">
                                     </span>
@@ -435,7 +507,7 @@ const sessionDotColors = {
                                         </a>
                                     </div>
                                 </div>
-                            </div>
+                            </SwipeRow>
                         </div>
 
                         <!-- Aktivitäten -->
@@ -546,5 +618,6 @@ const sessionDotColors = {
 
             </div>
         </div>
+        <DragGhost :drag="drag" />
     </AuthenticatedLayout>
 </template>

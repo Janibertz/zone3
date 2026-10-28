@@ -56,6 +56,39 @@ class TrainingSessionController extends Controller
     /**
      * Mark a session as skipped and let the coach adapt the remaining plan.
      */
+    /**
+     * Per Geste verschieben: lange druecken, auf einen anderen Tag ziehen.
+     * Die Regeln stehen in {@see \App\Services\SessionScheduleService}.
+     */
+    public function move(Request $request, TrainingSession $session, \App\Services\SessionScheduleService $schedule)
+    {
+        abort_if($session->user_id !== Auth::id(), 403);
+
+        $data = $request->validate(['date' => 'required|date_format:Y-m-d']);
+
+        try {
+            $schedule->move($session, $data['date']);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    /** Per Wischen loeschen. Ein geleerter Plantag bekommt einen Ruhetag. */
+    public function destroy(TrainingSession $session, \App\Services\SessionScheduleService $schedule)
+    {
+        abort_if($session->user_id !== Auth::id(), 403);
+
+        try {
+            $schedule->delete($session);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
     public function skip(Request $request, TrainingSession $session)
     {
         abort_if($session->user_id !== Auth::id(), 403);
