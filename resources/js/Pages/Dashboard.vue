@@ -113,6 +113,10 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    dashboardLayout: {
+        type: Array,
+        default: () => [],
+    },
     garminMetrics: {
         type: Object,
         default: null,
@@ -1380,6 +1384,80 @@ async function saveWeek() {
         weekSaving.value = false;
     }
 }
+
+// ── Übersicht anpassen ───────────────────────────────────────────────────────
+// Reihenfolge und Sichtbarkeit der Module unter „Heute". Die Liste kommt
+// vollständig vom Server (App\Services\DashboardLayout) — auch Module, die
+// gerade nichts zu zeigen haben, damit man sie im Sheet findet.
+const layout       = ref(props.dashboardLayout);
+const layoutSheet  = ref(false);
+const layoutDraft  = ref([]);
+const layoutSaving = ref(false);
+const layoutError  = ref('');
+
+// Ein Modul ohne Daten bleibt weg, statt eine leere Zelle ins Raster zu legen.
+const moduleHasData = computed(() => ({
+    form:        !!props.trainingLoad,
+    intensitaet: !!props.intensityDistribution,
+    rueckblick:  !!props.weeklyReview,
+    erholung:    !!props.garminMetrics,
+}));
+
+const visibleModules = computed(() =>
+    layout.value.filter(m => !m.hidden && moduleHasData.value[m.key] !== false));
+
+function moduleClass(m) {
+    return m.wide ? 'min-w-0 lg:col-span-full' : 'min-w-0';
+}
+
+function moduleHint(m) {
+    if (moduleHasData.value[m.key] !== false) return null;
+    return { form: 'erscheint mit genug Trainingsdaten', intensitaet: 'erscheint mit genug Läufen',
+        rueckblick: 'erscheint montags', erholung: 'nur mit Garmin' }[m.key];
+}
+
+function openLayoutSheet() {
+    layoutDraft.value = layout.value.map(m => ({ ...m }));
+    layoutError.value = '';
+    layoutSheet.value = true;
+}
+
+function moveModule(index, delta) {
+    const to = index + delta;
+    if (to < 0 || to >= layoutDraft.value.length) return;
+    const list = [...layoutDraft.value];
+    [list[index], list[to]] = [list[to], list[index]];
+    layoutDraft.value = list;
+}
+
+async function saveLayout() {
+    layoutSaving.value = true;
+    try {
+        const { data } = await axios.put(route('dashboard.layout'), {
+            order:  layoutDraft.value.map(m => m.key),
+            hidden: layoutDraft.value.filter(m => m.hidden).map(m => m.key),
+        });
+        layout.value = data.layout;
+        layoutSheet.value = false;
+    } catch (e) {
+        layoutError.value = 'Speichern fehlgeschlagen.';
+    } finally {
+        layoutSaving.value = false;
+    }
+}
+
+async function resetLayout() {
+    layoutSaving.value = true;
+    try {
+        const { data } = await axios.delete(route('dashboard.layout.reset'));
+        layout.value = data.layout;
+        layoutDraft.value = data.layout.map(m => ({ ...m }));
+    } catch (e) {
+        layoutError.value = 'Zurücksetzen fehlgeschlagen.';
+    } finally {
+        layoutSaving.value = false;
+    }
+}
 </script>
 
 <template>
@@ -1915,606 +1993,637 @@ async function saveWeek() {
                     </AppCard>
                 </section>
 
-                <!-- ══════════════════════════════════════════════════
-                     DEINE WOCHE
-                     ══════════════════════════════════════════════════ -->
-                <section>
-                    <SectionHeader title="Woche">
-                        <template #action>
-                            <AppButton variant="plain" href="/statistics">Statistik</AppButton>
-                        </template>
-                    </SectionHeader>
-
-                    <AppCard>
-                        <!--
-                            Der Filter steht ueber dem Streifen und nicht in der
-                            Kopfzeile: dort teilt er sich den Platz mit der
-                            Schaltflaeche und wird auf dem Telefon zum Gedraenge.
-                            Er erscheint nur, wenn es ueberhaupt mehr als eine
-                            Sportart zu unterscheiden gibt.
-                        -->
-                        <SegmentedControl
-                            v-if="sportChoices.length"
-                            v-model="sportFilter"
-                            :options="sportChoices"
-                            class="mb-4"
-                        />
-
-                        <!--
-                            Wochenstreifen als echtes Balkendiagramm.
-
-                            Heute wird ueber das LABEL markiert, nicht ueber
-                            eine zweite Balkenfarbe: eine Information, eine
-                            Codierung. Vorher trug der Balken die Farbe
-                            „gelaufen" und der Tageskreis die Farbe „heute" —
-                            zwei Signale, die sich im Blick ueberlagerten.
-                        -->
-                        <div class="grid grid-cols-7 gap-1.5" role="img"
-                            :aria-label="`Woche: ${weekStrip.map(d => `${d.label} ${d.km} Kilometer`).join(', ')}`">
-                            <div v-for="d in weekStrip" :key="d.key" class="flex flex-col items-center gap-2.5">
-                                <div class="flex h-14 w-full items-end justify-center" :title="d.km > 0 ? `${d.km} km` : 'kein Lauf'">
-                                    <span
-                                        class="block w-[11px] rounded-full transition-[height] duration-300 ease-out-strong"
-                                        :class="d.km > 0 ? 'bg-accent' : 'bg-surface-2'"
-                                        :style="{ height: weekBarHeight(d.km) + 'px' }"
-                                    />
-                                </div>
-                                <span class="text-[12px] leading-none"
-                                    :class="d.isToday ? 'font-bold text-ink' : 'text-ink-3'">{{ d.label }}</span>
-                            </div>
-                        </div>
-
-                        <!-- Fusszeile -->
-                        <div class="mt-4 grid grid-cols-3 gap-4 border-t border-line pt-4">
-                            <div>
-                                <p class="text-[13px] text-ink-3">Einheiten</p>
-                                <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ weekSessionCount }}</p>
-                            </div>
-                            <div>
-                                <p class="text-[13px] text-ink-3">Kilometer</p>
-                                <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ weekStats.km }}</p>
-                                <p v-if="weekTrend !== null" class="text-[13px] font-semibold"
-                                    :class="weekTrend >= 0 ? 'text-success' : 'text-ink-3'">
-                                    {{ weekTrend >= 0 ? '↗' : '↘' }} {{ Math.abs(weekTrend) }} % zur Vorwoche
-                                </p>
-                            </div>
-                            <div>
-                                <!--
-                                    Die Kilometer daneben summieren alles, was aus
-                                    Strava kommt — auch Radfahren. Die Pace kann das
-                                    nicht: sie ergibt nur ueber Laeufe einen Sinn.
-                                    Also steht jetzt dran, worauf sie sich bezieht.
-                                -->
-                                <p class="text-[13px] text-ink-3">Ø Pace · Läufe</p>
-                                <!--
-                                    Ohne Lauf stand hier ein Gedankenstrich mitten in
-                                    einer Kennzahlenreihe — das sieht nach Fehler aus,
-                                    nicht nach „noch nichts da". Jetzt sagt die Zeile,
-                                    was fehlt, und nimmt sich dabei zurueck.
-                                -->
-                                <p v-if="weekStats.avgPace !== '—'" class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ weekStats.avgPace }}</p>
-                                <p v-else class="mt-1.5 text-[15px] text-ink-3">noch kein Lauf</p>
-                            </div>
-                        </div>
-
-                        <p class="mt-3 flex flex-wrap gap-x-4 text-[13px] text-ink-3">
-                            <span>Monat <span class="font-semibold tabular-nums text-ink-2">{{ monthStats.km }} km</span> · {{ monthStats.runs }} Einheiten</span>
-                            <span>Gesamt <span class="font-semibold tabular-nums text-ink-2">{{ totalDistanceKm }} km</span></span>
-                        </p>
-                    </AppCard>
-                </section>
-
-                <!-- ══════════════════════════════════════════════════
-                     KÖRPERWERTE — Garmin, sonst der Check-in
-                     ══════════════════════════════════════════════════ -->
                 <!--
-                    Stand frueher ganz oben, vor dem Training. Was heute
-                    ansteht, ist die erste Frage beim Oeffnen; die Koerperwerte
-                    sind die zweite — sie erklaeren das Training, sie ersetzen
-                    es nicht.
+                    Ab hier ordnet jeder Athlet selbst: Reihenfolge und Sichtbarkeit
+                    kommen aus `dashboardLayout` (App\Services\DashboardLayout). Alles
+                    darueber bleibt fest — Heute, und die Karten, die eine Antwort
+                    verlangen. Ein ausgeblendeter Coach-Vorschlag waere eine
+                    Entscheidung, die nie getroffen wird.
+
+                    Die Bloecke stehen im DOM in der gewaehlten Reihenfolge (v-for
+                    statt CSS `order`), damit Vorlesen und Tabulator dieselbe Folge
+                    sehen wie das Auge. Halbe Module liegen ab lg nebeneinander.
                 -->
-                <section v-if="metricTiles.length">
-                    <SectionHeader title="Körper">
-                        <template #action>
-                            <span class="text-[15px] text-ink-3">{{ metricSource }}</span>
-                        </template>
-                    </SectionHeader>
-                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                        <MetricTile v-for="t in metricTiles" :key="t.label" v-bind="t" />
-                    </div>
-                </section>
+                <div class="grid grid-cols-1 gap-x-5 gap-y-7 lg:grid-cols-2 2xl:grid-cols-3">
+                    <template v-for="m in visibleModules" :key="m.key">
+                        <div v-if="m.key === 'woche'" :class="moduleClass(m)">
+                            <!-- ══════════════════════════════════════════════════
+                                 DEINE WOCHE
+                                 ══════════════════════════════════════════════════ -->
+                            <section>
+                                <SectionHeader title="Woche">
+                                    <template #action>
+                                        <AppButton variant="plain" href="/statistics">Statistik</AppButton>
+                                    </template>
+                                </SectionHeader>
 
-                <!-- Ohne Garmin und ohne Check-in bleibt nur die Aufforderung -->
-                <button v-else type="button" class="w-full text-left" @click="showWellbeingModal = true">
-                    <AppCard>
-                        <div class="flex items-center gap-4">
-                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-3"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m3.75-9.75H6.75A2.25 2.25 0 0 0 4.5 6v13.5A2.25 2.25 0 0 0 6.75 21h10.5A2.25 2.25 0 0 0 19.5 19.5V6a2.25 2.25 0 0 0-2.25-2.25H12.75Z" /></svg></div>
-                            <div class="min-w-0 flex-1">
-                                <p class="text-[15px] font-bold text-ink">Wie fühlst du dich heute?</p>
-                                <p class="mt-0.5 text-[13px] text-ink-3">Trag deine Tagesform ein — dauert 30 Sekunden.</p>
-                            </div>
-                            <svg class="h-5 w-5 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                            </svg>
+                                <AppCard>
+                                    <!--
+                                        Der Filter steht ueber dem Streifen und nicht in der
+                                        Kopfzeile: dort teilt er sich den Platz mit der
+                                        Schaltflaeche und wird auf dem Telefon zum Gedraenge.
+                                        Er erscheint nur, wenn es ueberhaupt mehr als eine
+                                        Sportart zu unterscheiden gibt.
+                                    -->
+                                    <SegmentedControl
+                                        v-if="sportChoices.length"
+                                        v-model="sportFilter"
+                                        :options="sportChoices"
+                                        class="mb-4"
+                                    />
+
+                                    <!--
+                                        Wochenstreifen als echtes Balkendiagramm.
+
+                                        Heute wird ueber das LABEL markiert, nicht ueber
+                                        eine zweite Balkenfarbe: eine Information, eine
+                                        Codierung. Vorher trug der Balken die Farbe
+                                        „gelaufen" und der Tageskreis die Farbe „heute" —
+                                        zwei Signale, die sich im Blick ueberlagerten.
+                                    -->
+                                    <div class="grid grid-cols-7 gap-1.5" role="img"
+                                        :aria-label="`Woche: ${weekStrip.map(d => `${d.label} ${d.km} Kilometer`).join(', ')}`">
+                                        <div v-for="d in weekStrip" :key="d.key" class="flex flex-col items-center gap-2.5">
+                                            <div class="flex h-14 w-full items-end justify-center" :title="d.km > 0 ? `${d.km} km` : 'kein Lauf'">
+                                                <span
+                                                    class="block w-[11px] rounded-full transition-[height] duration-300 ease-out-strong"
+                                                    :class="d.km > 0 ? 'bg-accent' : 'bg-surface-2'"
+                                                    :style="{ height: weekBarHeight(d.km) + 'px' }"
+                                                />
+                                            </div>
+                                            <span class="text-[12px] leading-none"
+                                                :class="d.isToday ? 'font-bold text-ink' : 'text-ink-3'">{{ d.label }}</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Fusszeile -->
+                                    <div class="mt-4 grid grid-cols-3 gap-4 border-t border-line pt-4">
+                                        <div>
+                                            <p class="text-[13px] text-ink-3">Einheiten</p>
+                                            <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ weekSessionCount }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-[13px] text-ink-3">Kilometer</p>
+                                            <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ weekStats.km }}</p>
+                                            <p v-if="weekTrend !== null" class="text-[13px] font-semibold"
+                                                :class="weekTrend >= 0 ? 'text-success' : 'text-ink-3'">
+                                                {{ weekTrend >= 0 ? '↗' : '↘' }} {{ Math.abs(weekTrend) }} % zur Vorwoche
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <!--
+                                                Die Kilometer daneben summieren alles, was aus
+                                                Strava kommt — auch Radfahren. Die Pace kann das
+                                                nicht: sie ergibt nur ueber Laeufe einen Sinn.
+                                                Also steht jetzt dran, worauf sie sich bezieht.
+                                            -->
+                                            <p class="text-[13px] text-ink-3">Ø Pace · Läufe</p>
+                                            <!--
+                                                Ohne Lauf stand hier ein Gedankenstrich mitten in
+                                                einer Kennzahlenreihe — das sieht nach Fehler aus,
+                                                nicht nach „noch nichts da". Jetzt sagt die Zeile,
+                                                was fehlt, und nimmt sich dabei zurueck.
+                                            -->
+                                            <p v-if="weekStats.avgPace !== '—'" class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ weekStats.avgPace }}</p>
+                                            <p v-else class="mt-1.5 text-[15px] text-ink-3">noch kein Lauf</p>
+                                        </div>
+                                    </div>
+
+                                    <p class="mt-3 flex flex-wrap gap-x-4 text-[13px] text-ink-3">
+                                        <span>Monat <span class="font-semibold tabular-nums text-ink-2">{{ monthStats.km }} km</span> · {{ monthStats.runs }} Einheiten</span>
+                                        <span>Gesamt <span class="font-semibold tabular-nums text-ink-2">{{ totalDistanceKm }} km</span></span>
+                                    </p>
+                                </AppCard>
+                            </section>
                         </div>
-                    </AppCard>
-                </button>
 
-                <!-- Streak · Form · Check-in als schmale Zeile darunter -->
-                <div class="grid grid-cols-3 gap-3">
-                    <StatChip label="Streak">
-                        <template #icon><svg class="h-4 w-4 text-warn" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.36 5.21c.38 1.56-.3 3.2-1.5 4.06 0-1.63-.52-3.2-1.5-4.5-.96-1.27-2.3-2.2-3.86-2.52.4 1.9-.26 3.86-1.6 5.2C5.6 8.74 4.5 10.6 4.5 13.5a7.5 7.5 0 0 0 15 0c0-3.6-1.7-6.8-4.14-8.29Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 19.5a3 3 0 0 1-3-3c0-1.3.9-2.4 1.8-3.3.5.9 1.2 1.5 2.2 1.8a3 3 0 0 1-1 4.5Z" /></svg></template>
-                        {{ streakDays }}
-                    </StatChip>
-
-                    <StatChip label="Form" :tone="statusChip.tone">
-                        <span class="truncate text-[15px]">{{ statusChip.label }}</span>
-                    </StatChip>
-
-                    <button type="button" class="min-w-0 text-left" @click="showWellbeingModal = true">
-                        <StatChip label="Tagesform" :tone="checkinDone ? 'success' : 'warn'">
-                            <span class="text-[15px]">{{ checkinDone ? 'Erledigt' : 'Offen' }}</span>
-                        </StatChip>
-                    </button>
-                </div>
-
-                <!-- ══════════════════════════════════════════════════
-                     FORM · TEMPO  (nebeneinander ab lg)
-                     ══════════════════════════════════════════════════ -->
-                <div class="grid grid-cols-1 gap-5 lg:grid-cols-2 2xl:grid-cols-3">
-
-                    <!-- Form -->
-                    <section v-if="props.trainingLoad" class="min-w-0">
-                        <SectionHeader title="Form">
-                            <template #action>
-                                <span class="rounded-full px-3 py-1.5 text-[13px] font-semibold"
-                                    :class="{
-                                        'bg-danger-soft text-danger-ink':   props.trainingLoad.form_color === 'red',
-                                        'bg-warn-soft text-warn-ink':       props.trainingLoad.form_color === 'orange',
-                                        'bg-success-soft text-success-ink': props.trainingLoad.form_color === 'green',
-                                        'bg-info-soft text-info-ink':       props.trainingLoad.form_color === 'blue',
-                                        'bg-surface-2 text-ink-2':          props.trainingLoad.form_color === 'gray',
-                                    }">{{ props.trainingLoad.form_label }}</span>
-                            </template>
-                        </SectionHeader>
-
-                        <AppCard>
-                            <!-- Je Kennzahl eine Farbe, wie in Health — dieselbe
-                                 Farbe traegt die Linie im Verlauf darunter. -->
-                            <div class="grid grid-cols-3 gap-4">
-                                <div>
-                                    <p class="text-[15px] font-semibold text-fitness">Fitness</p>
-                                    <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ props.trainingLoad.ctl }}</p>
+                        <div v-if="m.key === 'koerper'" :class="moduleClass(m)">
+                            <!-- ══════════════════════════════════════════════════
+                                 KÖRPERWERTE — Garmin, sonst der Check-in
+                                 ══════════════════════════════════════════════════ -->
+                            <!--
+                                Stand frueher ganz oben, vor dem Training. Was heute
+                                ansteht, ist die erste Frage beim Oeffnen; die Koerperwerte
+                                sind die zweite — sie erklaeren das Training, sie ersetzen
+                                es nicht.
+                            -->
+                            <section v-if="metricTiles.length">
+                                <SectionHeader title="Körper">
+                                    <template #action>
+                                        <span class="text-[15px] text-ink-3">{{ metricSource }}</span>
+                                    </template>
+                                </SectionHeader>
+                                <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                    <MetricTile v-for="t in metricTiles" :key="t.label" v-bind="t" />
                                 </div>
-                                <div>
-                                    <p class="text-[15px] font-semibold text-warn">Ermüdung</p>
-                                    <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ props.trainingLoad.atl }}</p>
-                                </div>
-                                <div>
-                                    <p class="text-[15px] font-semibold text-form">Form</p>
-                                    <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ props.trainingLoad.tsb > 0 ? '+' : '' }}{{ props.trainingLoad.tsb }}</p>
-                                </div>
-                            </div>
+                            </section>
 
-                            <div v-if="loadChartData" class="mt-4 overflow-hidden">
-                                <svg :viewBox="`0 0 ${loadChartData.W} ${loadChartData.H}`" class="w-full" preserveAspectRatio="none">
-                                    <path :d="loadChartData.atlPath" fill="none" stroke="rgb(var(--z-warn))" stroke-width="1.5" stroke-linecap="round" opacity="0.85" />
-                                    <path :d="loadChartData.ctlPath" fill="none" stroke="rgb(var(--z-fitness))" stroke-width="2" stroke-linecap="round" />
-                                </svg>
-                                <div class="flex items-center gap-3 px-1 pb-2 pt-1.5">
-                                    <span class="flex items-center gap-1.5 text-[12px] text-ink-3">
-                                        <span class="inline-block h-0.5 w-4 rounded bg-fitness" /> Fitness
-                                    </span>
-                                    <span class="flex items-center gap-1.5 text-[12px] text-ink-3">
-                                        <span class="inline-block h-0.5 w-4 rounded bg-warn" /> Ermüdung
-                                    </span>
-                                </div>
-                            </div>
-
-                            <p class="mt-3 text-[13px] leading-relaxed text-ink-3">
-                                Form ist Fitness minus Ermüdung. −10 bis +5 heißt wettkampfbereit,
-                                darunter steckst du in einem Trainingsblock.
-                            </p>
-                        </AppCard>
-                    </section>
-
-                    <!-- 80/20 — was tatsächlich gelaufen wurde -->
-                    <section v-if="props.intensityDistribution" class="min-w-0">
-                        <SectionHeader title="Locker / Hart">
-                            <template #action>
-                                <span class="rounded-full px-3 py-1.5 text-[13px] font-semibold"
-                                    :class="props.intensityDistribution.hard_pct > (props.intensityDistribution.limit_pct ?? 25)
-                                        ? 'bg-warn-soft text-warn-ink'
-                                        : 'bg-success-soft text-success-ink'">
-                                    {{ props.intensityDistribution.hard_pct > (props.intensityDistribution.limit_pct ?? 25)
-                                        ? 'Zu viel hart'
-                                        : (props.intensityDistribution.model === 'norwegian' ? 'Passt zum Modell' : 'Passt zu 80/20') }}
-                                </span>
-                            </template>
-                        </SectionHeader>
-
-                        <AppCard>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <p class="text-[15px] font-semibold text-success">Locker</p>
-                                    <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">
-                                        {{ 100 - props.intensityDistribution.hard_pct }}<span class="ml-0.5 text-[15px] font-semibold text-ink-3">%</span>
-                                    </p>
-                                </div>
-                                <div>
-                                    <p class="text-[15px] font-semibold text-warn">Hart</p>
-                                    <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">
-                                        {{ props.intensityDistribution.hard_pct }}<span class="ml-0.5 text-[15px] font-semibold text-ink-3">%</span>
-                                    </p>
-                                </div>
-                            </div>
-
-                            <!-- Je Woche ein Balken, der harte Anteil vorn. -->
-                            <div class="mt-4 space-y-2">
-                                <div v-for="w in props.intensityDistribution.weeks" :key="w.label" class="flex items-center gap-3">
-                                    <span class="w-12 shrink-0 text-[13px] tabular-nums text-ink-3">{{ w.label }}</span>
-                                    <div class="flex h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
-                                        <template v-if="w.hard_pct !== null">
-                                            <div class="h-full bg-warn" :style="{ width: w.hard_pct + '%' }" />
-                                            <div class="h-full bg-success" :style="{ width: (100 - w.hard_pct) + '%' }" />
-                                        </template>
-                                    </div>
-                                    <span class="w-10 shrink-0 text-right text-[13px] tabular-nums text-ink-3">{{ w.hard_pct !== null ? w.hard_pct + ' %' : '–' }}</span>
-                                </div>
-                            </div>
-
-                            <p class="mt-3 text-[13px] leading-relaxed text-ink-3">
-                                Laufzeit der letzten vier Wochen nach Pace, Runde für Runde.
-                                Hart ist alles ab Zone 3. Höchstens 20 % sollten es sein, sonst
-                                sind meist die lockeren Läufe zu schnell.
-                            </p>
-                        </AppCard>
-                    </section>
-
-                    <!-- Tempo -->
-                    <section class="min-w-0">
-                        <SectionHeader title="Tempo">
-                            <template #action>
-                                <AppButton v-if="props.stravaConnected" variant="plain"
-                                    :loading="syncing" :disabled="props.thresholdPaceCalculating" @click="syncStrava">
-                                    {{ syncing ? 'Sync…' : 'Sync' }}
-                                </AppButton>
-                            </template>
-                        </SectionHeader>
-
-                        <AppCard>
-                            <p class="text-[15px] font-semibold text-accent">Schwellenpace</p>
-                            <p v-if="props.thresholdPace" class="mt-0.5 flex items-baseline gap-1.5">
-                                <span class="font-rounded text-[40px] font-bold leading-[44px] tabular-nums tracking-tight text-ink">{{ props.thresholdPace }}</span>
-                                <span class="text-[17px] font-semibold text-ink-3">/km</span>
-                            </p>
-                            <p v-else class="mt-1 text-xl font-bold text-ink-3">Noch nicht berechnet</p>
-                            <p class="mt-1 text-[13px] text-ink-3">
-                                <span v-if="props.thresholdPaceCalculating">Analyse läuft im Hintergrund…</span>
-                                <span v-else-if="props.thresholdPaceCalculatedAt">{{ props.thresholdPaceCalculatedAt }} · letzte 20 Läufe</span>
-                                <span v-else>Wird nach dem nächsten Strava-Sync berechnet</span>
-                            </p>
-
-                            <div v-if="props.paceZones" class="mt-4 grid grid-cols-5 gap-1.5">
-                                <div v-for="(zone, key) in props.paceZones" :key="key" class="rounded-field bg-surface-2 p-2 text-center">
-                                    <p class="text-[11px] font-bold uppercase text-ink-2">{{ key }}</p>
-                                    <p class="mt-0.5 font-mono text-[11px] leading-tight text-ink-3">
-                                        {{ zone.min_pace }}<br><span class="opacity-70">{{ zone.max_pace }}</span>
-                                    </p>
-                                </div>
-                            </div>
-
-                            <button @click="showPaceDetails = !showPaceDetails"
-                                class="mt-4 flex items-center gap-1.5 text-[13px] font-semibold text-ink-2 transition-colors hover:text-ink">
-                                <svg class="h-4 w-4 transition-transform duration-200 ease-in-out-strong" :class="showPaceDetails ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                                </svg>
-                                {{ showPaceDetails ? 'Weniger' : 'Prognosen & Verlauf' }}
-                            </button>
-
-                            <div v-if="showPaceDetails">
-                                <div v-if="props.racePredictions" class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                                    <div v-for="(pred, key) in props.racePredictions" :key="key" class="rounded-field bg-surface-2 px-3 py-2.5">
-                                        <p class="text-[12px] text-ink-3">{{ pred.label }}</p>
-                                        <p class="mt-0.5 font-rounded text-[20px] font-bold tabular-nums text-ink">{{ pred.total_time }}</p>
-                                        <p class="font-mono text-[11px] text-ink-3">{{ pred.pace }} /km</p>
-                                    </div>
-                                </div>
-
-                                <div v-if="chartData" class="mt-4">
-                                    <div class="w-full overflow-hidden rounded-field bg-surface-2" style="aspect-ratio: 560 / 120;">
-                                        <svg :viewBox="`0 0 ${chartData.W} ${chartData.H}`" class="h-full w-full" preserveAspectRatio="none">
-                                            <path :d="chartData.fillD" fill="rgb(var(--z-accent) / 0.12)" />
-                                            <path :d="chartData.pathD" fill="none" stroke="rgb(var(--z-accent))" stroke-width="2" stroke-linecap="round" />
-                                            <g v-for="(p, i) in chartData.points" :key="i">
-                                                <circle :cx="p.x" :cy="p.y" r="4" fill="rgb(var(--z-accent))" />
-                                                <text v-if="i === 0 || i === chartData.points.length - 1 || i % chartData.labelStep === 0"
-                                                    :x="p.x" :y="p.y - 8" text-anchor="middle" font-size="9"
-                                                    fill="rgb(var(--z-ink-2))" font-family="monospace">{{ p.pace }}</text>
-                                            </g>
+                            <!-- Ohne Garmin und ohne Check-in bleibt nur die Aufforderung -->
+                            <button v-else type="button" class="w-full text-left" @click="showWellbeingModal = true">
+                                <AppCard>
+                                    <div class="flex items-center gap-4">
+                                        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-3"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m3.75-9.75H6.75A2.25 2.25 0 0 0 4.5 6v13.5A2.25 2.25 0 0 0 6.75 21h10.5A2.25 2.25 0 0 0 19.5 19.5V6a2.25 2.25 0 0 0-2.25-2.25H12.75Z" /></svg></div>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-[15px] font-bold text-ink">Wie fühlst du dich heute?</p>
+                                            <p class="mt-0.5 text-[13px] text-ink-3">Trag deine Tagesform ein — dauert 30 Sekunden.</p>
+                                        </div>
+                                        <svg class="h-5 w-5 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
                                         </svg>
                                     </div>
-                                    <p class="mt-1.5 text-center text-[12px] text-ink-3">{{ props.thresholdPaceHistory.length }} Messpunkte · oben = schneller</p>
-                                </div>
-                                <p v-else-if="props.thresholdPace" class="mt-3 text-[13px] text-ink-3">
-                                    Der Verlauf erscheint, sobald Daten über mehr als 7 Tage vorliegen.
-                                </p>
-                            </div>
-                        </AppCard>
-                    </section>
+                                </AppCard>
+                            </button>
+                        </div>
 
-                    <!-- Wochenrückblick -->
-                    <section v-if="props.weeklyReview" class="min-w-0">
-                        <SectionHeader title="Wochenrückblick" />
-                        <AppCard>
-                            <div class="mb-3 flex items-center gap-3">
-                                <div v-if="coach" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-white"
-                                    :style="`background-color: ${coach.avatar_color}`">{{ coach.avatar_initials }}</div>
-                                <div v-else class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-3"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.1a7.5 7.5 0 0 1 15 0v.15a24 24 0 0 1-15 0v-.15Z" /></svg></div>
-                                <div>
-                                    <p class="text-[15px] font-bold text-ink">{{ coach ? coach.name : 'Dein Coach' }}</p>
-                                    <p class="text-[13px] text-ink-3">ab {{ new Date(props.weeklyReview.week_start).toLocaleDateString('de-DE', {day:'2-digit', month:'short'}) }}</p>
-                                </div>
-                            </div>
-                            <p class="text-[15px] leading-relaxed text-ink-2">{{ props.weeklyReview.content }}</p>
-                        </AppCard>
-                    </section>
-                </div>
+                        <div v-if="m.key === 'kurzinfo'" :class="moduleClass(m)">
+                            <!-- Streak · Form · Check-in als schmale Zeile darunter -->
+                            <div class="grid grid-cols-3 gap-3">
+                                <StatChip label="Streak">
+                                    <template #icon><svg class="h-4 w-4 text-warn" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.36 5.21c.38 1.56-.3 3.2-1.5 4.06 0-1.63-.52-3.2-1.5-4.5-.96-1.27-2.3-2.2-3.86-2.52.4 1.9-.26 3.86-1.6 5.2C5.6 8.74 4.5 10.6 4.5 13.5a7.5 7.5 0 0 0 15 0c0-3.6-1.7-6.8-4.14-8.29Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 19.5a3 3 0 0 1-3-3c0-1.3.9-2.4 1.8-3.3.5.9 1.2 1.5 2.2 1.8a3 3 0 0 1-1 4.5Z" /></svg></template>
+                                    {{ streakDays }}
+                                </StatChip>
 
-                <!-- Garmin-Erholung -->
-                <GarminRecovery
-                    v-if="props.garminMetrics"
-                    :metrics="props.garminMetrics"
-                    :activities="props.recoveryActivities"
-                    :syncing="garminSyncing"
-                    @refresh="syncGarminHealth"
-                />
+                                <StatChip label="Form" :tone="statusChip.tone">
+                                    <span class="truncate text-[15px]">{{ statusChip.label }}</span>
+                                </StatChip>
 
-                <!-- ══════════════════════════════════════════════════
-                     ZULETZT GELAUFEN
-                     ══════════════════════════════════════════════════ -->
-                <section>
-                    <SectionHeader title="Aktivitäten">
-                        <template #action>
-                            <AppButton variant="plain" href="/activities">Alle</AppButton>
-                        </template>
-                    </SectionHeader>
-
-                    <AppCard v-if="props.recentActivities.length === 0">
-                        <EmptyState title="Noch keine Aktivitäten" description="Verbinde Strava und synchronisiere, dann erscheinen deine Einheiten hier.">
-                            <AppButton v-if="!props.stravaConnected" href="/strava/connect">Strava verbinden</AppButton>
-                            <AppButton v-else :loading="syncing" @click="syncStrava">Jetzt synchronisieren</AppButton>
-                        </EmptyState>
-                    </AppCard>
-
-                    <!-- min-w-0 auf dem Grid-Item: sonst steht dessen min-width auf auto,
-                         ein langer Name wird nicht gekuerzt und sprengt die Spalte. -->
-                    <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                        <button
-                            v-for="activity in props.recentActivities.slice(0, 8)"
-                            :key="activity.id"
-                            @click="openActivityDetail(activity)"
-                            class="min-w-0 rounded-card bg-surface p-4 text-left transition-transform duration-150 ease-out-strong active:scale-[0.98]"
-                        >
-                            <div class="mb-2.5 flex items-start justify-between gap-2">
-                                <div class="flex min-w-0 items-center gap-2">
-                                    <svg class="h-5 w-5 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true" v-html="activityIcon(activity.type)" />
-                                    <p class="truncate text-[15px] font-semibold leading-tight text-ink">{{ activity.name }}</p>
-                                </div>
-                                <span class="shrink-0 text-[12px] text-ink-3">{{ relativeDate(activity.start_date) }}</span>
-                            </div>
-
-                            <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[15px] text-ink-3">
-                                <span v-if="activity.distance > 0" class="font-rounded text-[20px] font-bold tabular-nums text-ink">
-                                    {{ round2(formatDistance(activity.distance)) }} km
-                                </span>
-                                <span v-else-if="['WeightTraining','Workout'].includes(activity.type)" class="font-bold text-ink">Kraft</span>
-                                <span class="tabular-nums">{{ formatTime(activity.moving_time) }}</span>
-                                <span v-if="activity.average_speed > 0"
-                                    class="rounded-full px-2 py-0.5 text-[12px] font-bold tabular-nums"
-                                    :class="['Ride','VirtualRide'].includes(activity.type)
-                                        ? 'bg-success-soft text-success-ink'
-                                        : activity.type === 'Swim'
-                                            ? 'bg-info-soft text-info-ink'
-                                            : paceColor(activity.average_speed)">
-                                    {{ activityPaceLabel(activity) }}
-                                </span>
-                                <span v-if="activity.average_heartrate" class="text-[13px]"><span class="text-ink-3">Puls</span> {{ Math.round(activity.average_heartrate) }}</span>
-                                <span v-if="activity.total_elevation_gain > 0" class="text-[13px]">↑ {{ Math.round(activity.total_elevation_gain) }} m</span>
-                            </div>
-                        </button>
-                    </div>
-                </section>
-
-                <!-- ══════════════════════════════════════════════════
-                     MONAT · EVENTS · NEUES ZIEL
-                     ══════════════════════════════════════════════════ -->
-                <div class="grid grid-cols-1 gap-5 lg:grid-cols-2 2xl:grid-cols-3">
-
-                    <section class="min-w-0">
-                        <SectionHeader title="Monat">
-                            <template #action>
-                                <AppButton variant="plain" href="/calendar">Kalender</AppButton>
-                            </template>
-                        </SectionHeader>
-
-                        <AppCard>
-                            <div class="mb-4 flex items-center justify-center gap-2">
-                                <button @click="prevMonth" class="flex h-11 w-11 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink sm:h-9 sm:w-9">‹</button>
-                                <h4 class="min-w-[150px] text-center text-[15px] font-semibold text-ink">{{ currentMonthLabel }}</h4>
-                                <button @click="nextMonth" class="flex h-11 w-11 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink sm:h-9 sm:w-9">›</button>
-                            </div>
-
-                            <div class="mb-2 grid grid-cols-7 gap-1 text-center text-[12px] font-semibold text-ink-3">
-                                <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
-                            </div>
-                            <div class="grid grid-cols-7 gap-1 text-center">
-                                <div v-for="(d, i) in calendarDays" :key="i"
-                                    class="relative mx-auto flex h-9 w-9 items-center justify-center rounded-full text-[13px] transition-colors"
-                                    :class="{
-                                        'bg-accent font-bold text-white': d.isToday && !d.hasEvent,
-                                        'bg-warn font-bold text-canvas': d.hasEvent,
-                                        'text-ink-3 opacity-40':        !d.currentMonth,
-                                        'text-ink hover:bg-surface-2':  d.currentMonth && !d.isToday && !d.hasEvent,
-                                        'cursor-pointer':               d.hasActivity || d.hasEvent,
-                                    }"
-                                    :title="d.hasEvent ? d.event.name : ''"
-                                    @click="openCalendarDay(d)">
-                                    {{ d.day }}
-                                    <span v-if="d.hasActivity && !d.isToday && !d.hasEvent" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-success" />
-                                    <!-- Auf gefuellten Zellen muss der Punkt gegen die Fuellung kontrastieren:
-                                         Heute ist bg-accent, das Event bg-warn — beide dunkel genug fuer einen hellen Punkt. -->
-                                    <span v-if="d.hasActivity && d.hasEvent" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-surface/80" />
-                                    <span v-else-if="d.hasActivity && d.isToday" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-white/80" />
-                                </div>
-                            </div>
-
-                            <!-- Mehrere Aktivitäten an einem Tag: als Liste unter dem Raster.
-                                 Als schwebende Sprechblase ragte sie an den Randspalten aus dem
-                                 Bildschirm und liess die ganze Seite seitlich scrollen. -->
-                            <div v-if="calendarPickerDay && activeDaysInMonth.get(calendarPickerDay)?.length"
-                                class="mt-4 rounded-field bg-surface-2 p-1.5">
-                                <div class="flex items-center justify-between px-3 py-1.5">
-                                    <p class="text-[13px] font-semibold text-ink-3">
-                                        {{ calendarPickerDay }}. {{ currentMonthLabel.split(' ')[0] }} · {{ activeDaysInMonth.get(calendarPickerDay).length }} Aktivitäten
-                                    </p>
-                                    <button class="text-lg leading-none text-ink-3 hover:text-ink" @click="calendarPickerDay = null"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg></button>
-                                </div>
-                                <button v-for="act in activeDaysInMonth.get(calendarPickerDay)" :key="act.id"
-                                    @click="pickCalendarActivity(act)"
-                                    class="w-full rounded-field px-3 py-2.5 text-left transition-colors hover:bg-surface">
-                                    <p class="truncate text-[13px] font-semibold text-ink">{{ act.name }}</p>
-                                    <p class="text-[12px] text-ink-3"><template v-if="act.distance > 0">{{ formatDistance(act.distance) }} km · </template>{{ formatTime(act.moving_time) }}</p>
+                                <button type="button" class="min-w-0 text-left" @click="showWellbeingModal = true">
+                                    <StatChip label="Tagesform" :tone="checkinDone ? 'success' : 'warn'">
+                                        <span class="text-[15px]">{{ checkinDone ? 'Erledigt' : 'Offen' }}</span>
+                                    </StatChip>
                                 </button>
                             </div>
-                        </AppCard>
-                    </section>
+                        </div>
 
-                    <section class="min-w-0">
-                        <SectionHeader title="Events">
-                            <template #action>
-                                <AppButton variant="plain" href="/events">Alle</AppButton>
-                            </template>
-                        </SectionHeader>
+                        <div v-if="m.key === 'form'" :class="moduleClass(m)">
+                            <!-- Form -->
+                            <section v-if="props.trainingLoad" class="min-w-0">
+                                <SectionHeader title="Form">
+                                    <template #action>
+                                        <span class="rounded-full px-3 py-1.5 text-[13px] font-semibold"
+                                            :class="{
+                                                'bg-danger-soft text-danger-ink':   props.trainingLoad.form_color === 'red',
+                                                'bg-warn-soft text-warn-ink':       props.trainingLoad.form_color === 'orange',
+                                                'bg-success-soft text-success-ink': props.trainingLoad.form_color === 'green',
+                                                'bg-info-soft text-info-ink':       props.trainingLoad.form_color === 'blue',
+                                                'bg-surface-2 text-ink-2':          props.trainingLoad.form_color === 'gray',
+                                            }">{{ props.trainingLoad.form_label }}</span>
+                                    </template>
+                                </SectionHeader>
 
-                        <AppCard v-if="props.events.length === 0">
-                            <EmptyState title="Kein Event geplant" description="Ein Ziel im Kalender macht jedes Training konkreter.">
-                                <AppButton href="/events">Event anlegen</AppButton>
-                            </EmptyState>
-                        </AppCard>
+                                <AppCard>
+                                    <!-- Je Kennzahl eine Farbe, wie in Health — dieselbe
+                                         Farbe traegt die Linie im Verlauf darunter. -->
+                                    <div class="grid grid-cols-3 gap-4">
+                                        <div>
+                                            <p class="text-[15px] font-semibold text-fitness">Fitness</p>
+                                            <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ props.trainingLoad.ctl }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-[15px] font-semibold text-warn">Ermüdung</p>
+                                            <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ props.trainingLoad.atl }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-[15px] font-semibold text-form">Form</p>
+                                            <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ props.trainingLoad.tsb > 0 ? '+' : '' }}{{ props.trainingLoad.tsb }}</p>
+                                        </div>
+                                    </div>
 
-                        <AppCard v-else flush>
-                            <div class="divide-y divide-line">
-                                <a v-for="event in props.events.slice(0, 4)" :key="event.id" href="/events"
-                                    class="flex items-center gap-3.5 px-5 py-4 transition-colors hover:bg-surface-2">
-                                    <div class="relative h-11 w-11 shrink-0">
-                                        <svg viewBox="0 0 36 36" class="h-11 w-11 -rotate-90">
-                                            <circle cx="18" cy="18" r="14" fill="none" stroke="rgb(var(--z-surface-3))" stroke-width="3" />
-                                            <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
-                                                :stroke-dasharray="eventRingProps(event.days_until).circumference"
-                                                :stroke-dashoffset="eventRingProps(event.days_until).dashOffset"
-                                                :class="eventRingProps(event.days_until).ringClass" />
+                                    <div v-if="loadChartData" class="mt-4 overflow-hidden">
+                                        <svg :viewBox="`0 0 ${loadChartData.W} ${loadChartData.H}`" class="w-full" preserveAspectRatio="none">
+                                            <path :d="loadChartData.atlPath" fill="none" stroke="rgb(var(--z-warn))" stroke-width="1.5" stroke-linecap="round" opacity="0.85" />
+                                            <path :d="loadChartData.ctlPath" fill="none" stroke="rgb(var(--z-fitness))" stroke-width="2" stroke-linecap="round" />
                                         </svg>
-                                        <div class="absolute inset-0 flex items-center justify-center">
-                                            <span class="text-[12px] font-black"
-                                                :class="{
-                                                    'text-danger': event.priority === 'A',
-                                                    'text-warn':   event.priority === 'B',
-                                                    'text-ink-3':  event.priority === 'C',
-                                                }">{{ event.priority }}</span>
+                                        <div class="flex items-center gap-3 px-1 pb-2 pt-1.5">
+                                            <span class="flex items-center gap-1.5 text-[12px] text-ink-3">
+                                                <span class="inline-block h-0.5 w-4 rounded bg-fitness" /> Fitness
+                                            </span>
+                                            <span class="flex items-center gap-1.5 text-[12px] text-ink-3">
+                                                <span class="inline-block h-0.5 w-4 rounded bg-warn" /> Ermüdung
+                                            </span>
                                         </div>
                                     </div>
-                                    <div class="min-w-0 flex-1">
-                                        <p class="truncate text-[15px] font-semibold text-ink">{{ event.name }}</p>
-                                        <div class="mt-0.5 flex items-center gap-2">
-                                            <span class="text-[13px] text-ink-3">{{ new Date(event.event_date).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' }) }}</span>
-                                            <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                                                :class="{
-                                                    'bg-danger-soft text-danger-ink':   event.training_phase.key === 'race_week',
-                                                    'bg-warn-soft text-warn-ink':       event.training_phase.key === 'taper' || event.training_phase.key === 'peak',
-                                                    'bg-info-soft text-info-ink':       event.training_phase.key === 'build',
-                                                    'bg-success-soft text-success-ink': event.training_phase.key === 'base',
-                                                }">{{ event.training_phase.label }}</span>
+
+                                    <p class="mt-3 text-[13px] leading-relaxed text-ink-3">
+                                        Form ist Fitness minus Ermüdung. −10 bis +5 heißt wettkampfbereit,
+                                        darunter steckst du in einem Trainingsblock.
+                                    </p>
+                                </AppCard>
+                            </section>
+                        </div>
+
+                        <div v-if="m.key === 'intensitaet'" :class="moduleClass(m)">
+                            <!-- 80/20 — was tatsächlich gelaufen wurde -->
+                            <section v-if="props.intensityDistribution" class="min-w-0">
+                                <SectionHeader title="Locker / Hart">
+                                    <template #action>
+                                        <span class="rounded-full px-3 py-1.5 text-[13px] font-semibold"
+                                            :class="props.intensityDistribution.hard_pct > (props.intensityDistribution.limit_pct ?? 25)
+                                                ? 'bg-warn-soft text-warn-ink'
+                                                : 'bg-success-soft text-success-ink'">
+                                            {{ props.intensityDistribution.hard_pct > (props.intensityDistribution.limit_pct ?? 25)
+                                                ? 'Zu viel hart'
+                                                : (props.intensityDistribution.model === 'norwegian' ? 'Passt zum Modell' : 'Passt zu 80/20') }}
+                                        </span>
+                                    </template>
+                                </SectionHeader>
+
+                                <AppCard>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <p class="text-[15px] font-semibold text-success">Locker</p>
+                                            <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">
+                                                {{ 100 - props.intensityDistribution.hard_pct }}<span class="ml-0.5 text-[15px] font-semibold text-ink-3">%</span>
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p class="text-[15px] font-semibold text-warn">Hart</p>
+                                            <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">
+                                                {{ props.intensityDistribution.hard_pct }}<span class="ml-0.5 text-[15px] font-semibold text-ink-3">%</span>
+                                            </p>
                                         </div>
                                     </div>
-                                    <div class="shrink-0 text-right">
-                                        <p class="font-rounded text-[22px] font-bold tabular-nums leading-none text-ink">{{ event.days_until }}</p>
-                                        <p class="text-[12px] text-ink-3">Tage</p>
+
+                                    <!-- Je Woche ein Balken, der harte Anteil vorn. -->
+                                    <div class="mt-4 space-y-2">
+                                        <div v-for="w in props.intensityDistribution.weeks" :key="w.label" class="flex items-center gap-3">
+                                            <span class="w-12 shrink-0 text-[13px] tabular-nums text-ink-3">{{ w.label }}</span>
+                                            <div class="flex h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
+                                                <template v-if="w.hard_pct !== null">
+                                                    <div class="h-full bg-warn" :style="{ width: w.hard_pct + '%' }" />
+                                                    <div class="h-full bg-success" :style="{ width: (100 - w.hard_pct) + '%' }" />
+                                                </template>
+                                            </div>
+                                            <span class="w-10 shrink-0 text-right text-[13px] tabular-nums text-ink-3">{{ w.hard_pct !== null ? w.hard_pct + ' %' : '–' }}</span>
+                                        </div>
                                     </div>
-                                </a>
-                            </div>
-                        </AppCard>
-                    </section>
 
-                    <section class="min-w-0">
-                        <SectionHeader title="Neues Ziel" />
+                                    <p class="mt-3 text-[13px] leading-relaxed text-ink-3">
+                                        Laufzeit der letzten vier Wochen nach Pace, Runde für Runde.
+                                        Hart ist alles ab Zone 3. Höchstens 20 % sollten es sein, sonst
+                                        sind meist die lockeren Läufe zu schnell.
+                                    </p>
+                                </AppCard>
+                            </section>
+                        </div>
 
-                        <AppCard>
-                            <div v-if="quickEventSuccess" class="mb-4 rounded-field bg-success-soft px-4 py-3">
-                                <p class="text-[15px] font-semibold text-success-ink">Event gespeichert</p>
-                            </div>
+                        <div v-if="m.key === 'tempo'" :class="moduleClass(m)">
+                            <!-- Tempo -->
+                            <section class="min-w-0">
+                                <SectionHeader title="Tempo">
+                                    <template #action>
+                                        <AppButton v-if="props.stravaConnected" variant="plain"
+                                            :loading="syncing" :disabled="props.thresholdPaceCalculating" @click="syncStrava">
+                                            {{ syncing ? 'Sync…' : 'Sync' }}
+                                        </AppButton>
+                                    </template>
+                                </SectionHeader>
 
-                            <div class="space-y-4">
-                                <div>
-                                    <label class="z-label">Distanz</label>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <button v-for="opt in raceOptions" :key="opt.value"
-                                            @click="quickEventForm.race_distance = opt.value"
-                                            class="rounded-full px-3 py-2.5 text-[13px] font-semibold transition active:scale-[0.97]"
-                                            :class="quickEventForm.race_distance === opt.value
-                                                ? 'bg-accent text-white'
-                                                : 'bg-surface-2 text-ink-2 hover:bg-surface-3'">
-                                            {{ opt.label }}
+                                <AppCard>
+                                    <p class="text-[15px] font-semibold text-accent">Schwellenpace</p>
+                                    <p v-if="props.thresholdPace" class="mt-0.5 flex items-baseline gap-1.5">
+                                        <span class="font-rounded text-[40px] font-bold leading-[44px] tabular-nums tracking-tight text-ink">{{ props.thresholdPace }}</span>
+                                        <span class="text-[17px] font-semibold text-ink-3">/km</span>
+                                    </p>
+                                    <p v-else class="mt-1 text-xl font-bold text-ink-3">Noch nicht berechnet</p>
+                                    <p class="mt-1 text-[13px] text-ink-3">
+                                        <span v-if="props.thresholdPaceCalculating">Analyse läuft im Hintergrund…</span>
+                                        <span v-else-if="props.thresholdPaceCalculatedAt">{{ props.thresholdPaceCalculatedAt }} · letzte 20 Läufe</span>
+                                        <span v-else>Wird nach dem nächsten Strava-Sync berechnet</span>
+                                    </p>
+
+                                    <div v-if="props.paceZones" class="mt-4 grid grid-cols-5 gap-1.5">
+                                        <div v-for="(zone, key) in props.paceZones" :key="key" class="rounded-field bg-surface-2 p-2 text-center">
+                                            <p class="text-[11px] font-bold uppercase text-ink-2">{{ key }}</p>
+                                            <p class="mt-0.5 font-mono text-[11px] leading-tight text-ink-3">
+                                                {{ zone.min_pace }}<br><span class="opacity-70">{{ zone.max_pace }}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <button @click="showPaceDetails = !showPaceDetails"
+                                        class="mt-4 flex items-center gap-1.5 text-[13px] font-semibold text-ink-2 transition-colors hover:text-ink">
+                                        <svg class="h-4 w-4 transition-transform duration-200 ease-in-out-strong" :class="showPaceDetails ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                                        </svg>
+                                        {{ showPaceDetails ? 'Weniger' : 'Prognosen & Verlauf' }}
+                                    </button>
+
+                                    <div v-if="showPaceDetails">
+                                        <div v-if="props.racePredictions" class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                            <div v-for="(pred, key) in props.racePredictions" :key="key" class="rounded-field bg-surface-2 px-3 py-2.5">
+                                                <p class="text-[12px] text-ink-3">{{ pred.label }}</p>
+                                                <p class="mt-0.5 font-rounded text-[20px] font-bold tabular-nums text-ink">{{ pred.total_time }}</p>
+                                                <p class="font-mono text-[11px] text-ink-3">{{ pred.pace }} /km</p>
+                                            </div>
+                                        </div>
+
+                                        <div v-if="chartData" class="mt-4">
+                                            <div class="w-full overflow-hidden rounded-field bg-surface-2" style="aspect-ratio: 560 / 120;">
+                                                <svg :viewBox="`0 0 ${chartData.W} ${chartData.H}`" class="h-full w-full" preserveAspectRatio="none">
+                                                    <path :d="chartData.fillD" fill="rgb(var(--z-accent) / 0.12)" />
+                                                    <path :d="chartData.pathD" fill="none" stroke="rgb(var(--z-accent))" stroke-width="2" stroke-linecap="round" />
+                                                    <g v-for="(p, i) in chartData.points" :key="i">
+                                                        <circle :cx="p.x" :cy="p.y" r="4" fill="rgb(var(--z-accent))" />
+                                                        <text v-if="i === 0 || i === chartData.points.length - 1 || i % chartData.labelStep === 0"
+                                                            :x="p.x" :y="p.y - 8" text-anchor="middle" font-size="9"
+                                                            fill="rgb(var(--z-ink-2))" font-family="monospace">{{ p.pace }}</text>
+                                                    </g>
+                                                </svg>
+                                            </div>
+                                            <p class="mt-1.5 text-center text-[12px] text-ink-3">{{ props.thresholdPaceHistory.length }} Messpunkte · oben = schneller</p>
+                                        </div>
+                                        <p v-else-if="props.thresholdPace" class="mt-3 text-[13px] text-ink-3">
+                                            Der Verlauf erscheint, sobald Daten über mehr als 7 Tage vorliegen.
+                                        </p>
+                                    </div>
+                                </AppCard>
+                            </section>
+                        </div>
+
+                        <div v-if="m.key === 'rueckblick'" :class="moduleClass(m)">
+                            <!-- Wochenrückblick -->
+                            <section v-if="props.weeklyReview" class="min-w-0">
+                                <SectionHeader title="Wochenrückblick" />
+                                <AppCard>
+                                    <div class="mb-3 flex items-center gap-3">
+                                        <div v-if="coach" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-white"
+                                            :style="`background-color: ${coach.avatar_color}`">{{ coach.avatar_initials }}</div>
+                                        <div v-else class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-3"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.1a7.5 7.5 0 0 1 15 0v.15a24 24 0 0 1-15 0v-.15Z" /></svg></div>
+                                        <div>
+                                            <p class="text-[15px] font-bold text-ink">{{ coach ? coach.name : 'Dein Coach' }}</p>
+                                            <p class="text-[13px] text-ink-3">ab {{ new Date(props.weeklyReview.week_start).toLocaleDateString('de-DE', {day:'2-digit', month:'short'}) }}</p>
+                                        </div>
+                                    </div>
+                                    <p class="text-[15px] leading-relaxed text-ink-2">{{ props.weeklyReview.content }}</p>
+                                </AppCard>
+                            </section>
+                        </div>
+
+                        <div v-if="m.key === 'erholung'" :class="moduleClass(m)">
+                            <!-- Garmin-Erholung -->
+                            <GarminRecovery
+                                v-if="props.garminMetrics"
+                                :metrics="props.garminMetrics"
+                                :activities="props.recoveryActivities"
+                                :syncing="garminSyncing"
+                                @refresh="syncGarminHealth"
+                            />
+                        </div>
+
+                        <div v-if="m.key === 'aktivitaeten'" :class="moduleClass(m)">
+                            <!-- ══════════════════════════════════════════════════
+                                 ZULETZT GELAUFEN
+                                 ══════════════════════════════════════════════════ -->
+                            <section>
+                                <SectionHeader title="Aktivitäten">
+                                    <template #action>
+                                        <AppButton variant="plain" href="/activities">Alle</AppButton>
+                                    </template>
+                                </SectionHeader>
+
+                                <AppCard v-if="props.recentActivities.length === 0">
+                                    <EmptyState title="Noch keine Aktivitäten" description="Verbinde Strava und synchronisiere, dann erscheinen deine Einheiten hier.">
+                                        <AppButton v-if="!props.stravaConnected" href="/strava/connect">Strava verbinden</AppButton>
+                                        <AppButton v-else :loading="syncing" @click="syncStrava">Jetzt synchronisieren</AppButton>
+                                    </EmptyState>
+                                </AppCard>
+
+                                <!-- min-w-0 auf dem Grid-Item: sonst steht dessen min-width auf auto,
+                                     ein langer Name wird nicht gekuerzt und sprengt die Spalte. -->
+                                <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                                    <button
+                                        v-for="activity in props.recentActivities.slice(0, 8)"
+                                        :key="activity.id"
+                                        @click="openActivityDetail(activity)"
+                                        class="min-w-0 rounded-card bg-surface p-4 text-left transition-transform duration-150 ease-out-strong active:scale-[0.98]"
+                                    >
+                                        <div class="mb-2.5 flex items-start justify-between gap-2">
+                                            <div class="flex min-w-0 items-center gap-2">
+                                                <svg class="h-5 w-5 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true" v-html="activityIcon(activity.type)" />
+                                                <p class="truncate text-[15px] font-semibold leading-tight text-ink">{{ activity.name }}</p>
+                                            </div>
+                                            <span class="shrink-0 text-[12px] text-ink-3">{{ relativeDate(activity.start_date) }}</span>
+                                        </div>
+
+                                        <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[15px] text-ink-3">
+                                            <span v-if="activity.distance > 0" class="font-rounded text-[20px] font-bold tabular-nums text-ink">
+                                                {{ round2(formatDistance(activity.distance)) }} km
+                                            </span>
+                                            <span v-else-if="['WeightTraining','Workout'].includes(activity.type)" class="font-bold text-ink">Kraft</span>
+                                            <span class="tabular-nums">{{ formatTime(activity.moving_time) }}</span>
+                                            <span v-if="activity.average_speed > 0"
+                                                class="rounded-full px-2 py-0.5 text-[12px] font-bold tabular-nums"
+                                                :class="['Ride','VirtualRide'].includes(activity.type)
+                                                    ? 'bg-success-soft text-success-ink'
+                                                    : activity.type === 'Swim'
+                                                        ? 'bg-info-soft text-info-ink'
+                                                        : paceColor(activity.average_speed)">
+                                                {{ activityPaceLabel(activity) }}
+                                            </span>
+                                            <span v-if="activity.average_heartrate" class="text-[13px]"><span class="text-ink-3">Puls</span> {{ Math.round(activity.average_heartrate) }}</span>
+                                            <span v-if="activity.total_elevation_gain > 0" class="text-[13px]">↑ {{ Math.round(activity.total_elevation_gain) }} m</span>
+                                        </div>
+                                    </button>
+                                </div>
+                            </section>
+                        </div>
+
+                        <div v-if="m.key === 'monat'" :class="moduleClass(m)">
+                            <section class="min-w-0">
+                                <SectionHeader title="Monat">
+                                    <template #action>
+                                        <AppButton variant="plain" href="/calendar">Kalender</AppButton>
+                                    </template>
+                                </SectionHeader>
+
+                                <AppCard>
+                                    <div class="mb-4 flex items-center justify-center gap-2">
+                                        <button @click="prevMonth" class="flex h-11 w-11 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink sm:h-9 sm:w-9">‹</button>
+                                        <h4 class="min-w-[150px] text-center text-[15px] font-semibold text-ink">{{ currentMonthLabel }}</h4>
+                                        <button @click="nextMonth" class="flex h-11 w-11 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink sm:h-9 sm:w-9">›</button>
+                                    </div>
+
+                                    <div class="mb-2 grid grid-cols-7 gap-1 text-center text-[12px] font-semibold text-ink-3">
+                                        <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
+                                    </div>
+                                    <div class="grid grid-cols-7 gap-1 text-center">
+                                        <div v-for="(d, i) in calendarDays" :key="i"
+                                            class="relative mx-auto flex h-9 w-9 items-center justify-center rounded-full text-[13px] transition-colors"
+                                            :class="{
+                                                'bg-accent font-bold text-white': d.isToday && !d.hasEvent,
+                                                'bg-warn font-bold text-canvas': d.hasEvent,
+                                                'text-ink-3 opacity-40':        !d.currentMonth,
+                                                'text-ink hover:bg-surface-2':  d.currentMonth && !d.isToday && !d.hasEvent,
+                                                'cursor-pointer':               d.hasActivity || d.hasEvent,
+                                            }"
+                                            :title="d.hasEvent ? d.event.name : ''"
+                                            @click="openCalendarDay(d)">
+                                            {{ d.day }}
+                                            <span v-if="d.hasActivity && !d.isToday && !d.hasEvent" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-success" />
+                                            <!-- Auf gefuellten Zellen muss der Punkt gegen die Fuellung kontrastieren:
+                                                 Heute ist bg-accent, das Event bg-warn — beide dunkel genug fuer einen hellen Punkt. -->
+                                            <span v-if="d.hasActivity && d.hasEvent" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-surface/80" />
+                                            <span v-else-if="d.hasActivity && d.isToday" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-white/80" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Mehrere Aktivitäten an einem Tag: als Liste unter dem Raster.
+                                         Als schwebende Sprechblase ragte sie an den Randspalten aus dem
+                                         Bildschirm und liess die ganze Seite seitlich scrollen. -->
+                                    <div v-if="calendarPickerDay && activeDaysInMonth.get(calendarPickerDay)?.length"
+                                        class="mt-4 rounded-field bg-surface-2 p-1.5">
+                                        <div class="flex items-center justify-between px-3 py-1.5">
+                                            <p class="text-[13px] font-semibold text-ink-3">
+                                                {{ calendarPickerDay }}. {{ currentMonthLabel.split(' ')[0] }} · {{ activeDaysInMonth.get(calendarPickerDay).length }} Aktivitäten
+                                            </p>
+                                            <button class="text-lg leading-none text-ink-3 hover:text-ink" @click="calendarPickerDay = null"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg></button>
+                                        </div>
+                                        <button v-for="act in activeDaysInMonth.get(calendarPickerDay)" :key="act.id"
+                                            @click="pickCalendarActivity(act)"
+                                            class="w-full rounded-field px-3 py-2.5 text-left transition-colors hover:bg-surface">
+                                            <p class="truncate text-[13px] font-semibold text-ink">{{ act.name }}</p>
+                                            <p class="text-[12px] text-ink-3"><template v-if="act.distance > 0">{{ formatDistance(act.distance) }} km · </template>{{ formatTime(act.moving_time) }}</p>
                                         </button>
                                     </div>
-                                </div>
+                                </AppCard>
+                            </section>
+                        </div>
 
-                                <div>
-                                    <label class="z-label">Renndatum</label>
-                                    <input type="date" v-model="quickEventForm.event_date" class="z-input" />
-                                </div>
+                        <div v-if="m.key === 'events'" :class="moduleClass(m)">
+                            <section class="min-w-0">
+                                <SectionHeader title="Events">
+                                    <template #action>
+                                        <AppButton variant="plain" href="/events">Alle</AppButton>
+                                    </template>
+                                </SectionHeader>
 
-                                <div>
-                                    <label class="z-label">Zielzeit</label>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <div class="relative">
-                                            <input type="number" v-model="quickEventForm.target_time_hours" min="0" max="23" class="z-input pr-9" />
-                                            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[13px] text-ink-3">h</span>
-                                        </div>
-                                        <div class="relative">
-                                            <input type="number" v-model="quickEventForm.target_time_minutes" min="0" max="59" class="z-input pr-12" />
-                                            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[13px] text-ink-3">min</span>
-                                        </div>
+                                <AppCard v-if="props.events.length === 0">
+                                    <EmptyState title="Kein Event geplant" description="Ein Ziel im Kalender macht jedes Training konkreter.">
+                                        <AppButton href="/events">Event anlegen</AppButton>
+                                    </EmptyState>
+                                </AppCard>
+
+                                <AppCard v-else flush>
+                                    <div class="divide-y divide-line">
+                                        <a v-for="event in props.events.slice(0, 4)" :key="event.id" href="/events"
+                                            class="flex items-center gap-3.5 px-5 py-4 transition-colors hover:bg-surface-2">
+                                            <div class="relative h-11 w-11 shrink-0">
+                                                <svg viewBox="0 0 36 36" class="h-11 w-11 -rotate-90">
+                                                    <circle cx="18" cy="18" r="14" fill="none" stroke="rgb(var(--z-surface-3))" stroke-width="3" />
+                                                    <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                                                        :stroke-dasharray="eventRingProps(event.days_until).circumference"
+                                                        :stroke-dashoffset="eventRingProps(event.days_until).dashOffset"
+                                                        :class="eventRingProps(event.days_until).ringClass" />
+                                                </svg>
+                                                <div class="absolute inset-0 flex items-center justify-center">
+                                                    <span class="text-[12px] font-black"
+                                                        :class="{
+                                                            'text-danger': event.priority === 'A',
+                                                            'text-warn':   event.priority === 'B',
+                                                            'text-ink-3':  event.priority === 'C',
+                                                        }">{{ event.priority }}</span>
+                                                </div>
+                                            </div>
+                                            <div class="min-w-0 flex-1">
+                                                <p class="truncate text-[15px] font-semibold text-ink">{{ event.name }}</p>
+                                                <div class="mt-0.5 flex items-center gap-2">
+                                                    <span class="text-[13px] text-ink-3">{{ new Date(event.event_date).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' }) }}</span>
+                                                    <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                                                        :class="{
+                                                            'bg-danger-soft text-danger-ink':   event.training_phase.key === 'race_week',
+                                                            'bg-warn-soft text-warn-ink':       event.training_phase.key === 'taper' || event.training_phase.key === 'peak',
+                                                            'bg-info-soft text-info-ink':       event.training_phase.key === 'build',
+                                                            'bg-success-soft text-success-ink': event.training_phase.key === 'base',
+                                                        }">{{ event.training_phase.label }}</span>
+                                                </div>
+                                            </div>
+                                            <div class="shrink-0 text-right">
+                                                <p class="font-rounded text-[22px] font-bold tabular-nums leading-none text-ink">{{ event.days_until }}</p>
+                                                <p class="text-[12px] text-ink-3">Tage</p>
+                                            </div>
+                                        </a>
                                     </div>
-                                </div>
+                                </AppCard>
+                            </section>
+                        </div>
 
-                                <div>
-                                    <label class="z-label">Priorität</label>
-                                    <div class="flex gap-2">
-                                        <button v-for="p in ['A','B','C']" :key="p"
-                                            @click="quickEventForm.priority = p"
-                                            class="flex-1 rounded-full py-2.5 text-[13px] font-bold transition active:scale-[0.97]"
-                                            :class="quickEventForm.priority === p
-                                                ? p === 'A' ? 'bg-danger text-white'
-                                                  : p === 'B' ? 'bg-warn text-white'
-                                                  : 'bg-accent text-white'
-                                                : 'bg-surface-2 text-ink-3 hover:bg-surface-3'">
-                                            {{ p }}
-                                        </button>
+                        <div v-if="m.key === 'ziel'" :class="moduleClass(m)">
+                            <section class="min-w-0">
+                                <SectionHeader title="Neues Ziel" />
+
+                                <AppCard>
+                                    <div v-if="quickEventSuccess" class="mb-4 rounded-field bg-success-soft px-4 py-3">
+                                        <p class="text-[15px] font-semibold text-success-ink">Event gespeichert</p>
                                     </div>
-                                </div>
 
-                                <AppButton block :disabled="!quickEventForm.event_date" :loading="quickEventSaving" @click="saveQuickEvent">
-                                    Event erstellen
-                                </AppButton>
+                                    <div class="space-y-4">
+                                        <div>
+                                            <label class="z-label">Distanz</label>
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <button v-for="opt in raceOptions" :key="opt.value"
+                                                    @click="quickEventForm.race_distance = opt.value"
+                                                    class="rounded-full px-3 py-2.5 text-[13px] font-semibold transition active:scale-[0.97]"
+                                                    :class="quickEventForm.race_distance === opt.value
+                                                        ? 'bg-accent text-white'
+                                                        : 'bg-surface-2 text-ink-2 hover:bg-surface-3'">
+                                                    {{ opt.label }}
+                                                </button>
+                                            </div>
+                                        </div>
 
-                                <p class="text-[13px] leading-relaxed text-ink-3">
-                                    Sobald das Event steht, baut {{ coach ? coach.name : 'dein Coach' }} dir einen
-                                    Trainingsplan — abgestimmt auf Schwellenpace, Zielzeit und die Zeit bis zum Rennen.
-                                </p>
-                            </div>
-                        </AppCard>
-                    </section>
+                                        <div>
+                                            <label class="z-label">Renndatum</label>
+                                            <input type="date" v-model="quickEventForm.event_date" class="z-input" />
+                                        </div>
+
+                                        <div>
+                                            <label class="z-label">Zielzeit</label>
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <div class="relative">
+                                                    <input type="number" v-model="quickEventForm.target_time_hours" min="0" max="23" class="z-input pr-9" />
+                                                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[13px] text-ink-3">h</span>
+                                                </div>
+                                                <div class="relative">
+                                                    <input type="number" v-model="quickEventForm.target_time_minutes" min="0" max="59" class="z-input pr-12" />
+                                                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[13px] text-ink-3">min</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label class="z-label">Priorität</label>
+                                            <div class="flex gap-2">
+                                                <button v-for="p in ['A','B','C']" :key="p"
+                                                    @click="quickEventForm.priority = p"
+                                                    class="flex-1 rounded-full py-2.5 text-[13px] font-bold transition active:scale-[0.97]"
+                                                    :class="quickEventForm.priority === p
+                                                        ? p === 'A' ? 'bg-danger text-white'
+                                                          : p === 'B' ? 'bg-warn text-white'
+                                                          : 'bg-accent text-white'
+                                                        : 'bg-surface-2 text-ink-3 hover:bg-surface-3'">
+                                                    {{ p }}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <AppButton block :disabled="!quickEventForm.event_date" :loading="quickEventSaving" @click="saveQuickEvent">
+                                            Event erstellen
+                                        </AppButton>
+
+                                        <p class="text-[13px] leading-relaxed text-ink-3">
+                                            Sobald das Event steht, baut {{ coach ? coach.name : 'dein Coach' }} dir einen
+                                            Trainingsplan — abgestimmt auf Schwellenpace, Zielzeit und die Zeit bis zum Rennen.
+                                        </p>
+                                    </div>
+                                </AppCard>
+                            </section>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="flex justify-center">
+                    <AppButton variant="plain" @click="openLayoutSheet">Übersicht anpassen</AppButton>
                 </div>
 
             </div>
@@ -2551,6 +2660,62 @@ async function saveWeek() {
             @send="sendToGarminConnect"
             @close="garminModal = false"
         />
+        <!-- ══════════════════════════════════════════════════
+             ÜBERSICHT ANPASSEN
+             ══════════════════════════════════════════════════
+             Pfeile statt Ziehen: im Sheet kollidiert Ziehen mit dem
+             Wischen, das das Sheet schliesst, und mit dem Scrollen. -->
+        <AppSheet :show="layoutSheet" title="Übersicht anpassen" subtitle="Gilt auf allen deinen Geräten" @close="layoutSheet = false">
+            <p class="z-hint mb-4">
+                „Heute“ und Hinweise, die eine Antwort brauchen, stehen immer oben.
+            </p>
+
+            <div class="divide-y divide-line rounded-card bg-surface-2">
+                <div v-for="(m, i) in layoutDraft" :key="m.key" class="flex min-h-[52px] items-center gap-2 py-1.5 pl-4 pr-2">
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate text-[17px]" :class="m.hidden ? 'text-ink-3' : 'text-ink'">{{ m.label }}</p>
+                        <p v-if="moduleHint(m)" class="text-[13px] text-ink-3">{{ moduleHint(m) }}</p>
+                    </div>
+
+                    <button type="button" :aria-label="`${m.label} nach oben`" :disabled="i === 0"
+                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-2 transition active:bg-surface-3 disabled:opacity-30"
+                        @click="moveModule(i, -1)">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" /></svg>
+                    </button>
+                    <button type="button" :aria-label="`${m.label} nach unten`" :disabled="i === layoutDraft.length - 1"
+                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-2 transition active:bg-surface-3 disabled:opacity-30"
+                        @click="moveModule(i, 1)">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+                    </button>
+
+                    <button
+                        type="button"
+                        role="switch"
+                        :aria-checked="!m.hidden"
+                        :aria-label="`${m.label} anzeigen`"
+                        class="relative ml-1 inline-flex h-[31px] w-[51px] shrink-0 rounded-full p-0.5 transition-colors duration-200 ease-out-strong"
+                        :class="m.hidden ? 'bg-surface-3' : 'bg-success'"
+                        @click="m.hidden = !m.hidden"
+                    >
+                        <span
+                            class="h-[27px] w-[27px] rounded-full bg-white shadow-[0_2px_4px_rgb(0_0_0/0.2)] transition-transform duration-200 ease-out-strong"
+                            :class="m.hidden ? 'translate-x-0' : 'translate-x-5'"
+                        />
+                    </button>
+                </div>
+            </div>
+
+            <p v-if="layoutError" class="z-error">{{ layoutError }}</p>
+
+            <template #footer>
+                <div class="space-y-2">
+                    <AppButton block :loading="layoutSaving" @click="saveLayout">Fertig</AppButton>
+                    <AppButton block variant="plain" :disabled="layoutSaving" @click="resetLayout">Standard wiederherstellen</AppButton>
+                </div>
+            </template>
+        </AppSheet>
+
+
         <!-- ══════════════════════════════════════════════════
              WOCHE ANPASSEN
              ══════════════════════════════════════════════════ -->

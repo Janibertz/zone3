@@ -251,6 +251,8 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         'todayRecommendationSession' => $todayRecommendationSession,
         'coachRecommendation'        => $coachRecommendation,
         'hasActivePlan' => (bool) $activePlan,
+        // Reihenfolge und Sichtbarkeit der Module, siehe App\Services\DashboardLayout.
+        'dashboardLayout' => \App\Services\DashboardLayout::resolve($user->dashboard_layout),
         'returnToRun' => $returnToRunService->statusFor($user),
         // whereDate statt where: die Spalte ist ein DATE, kommt je nach
         // Treiber aber als "Y-m-d H:i:s" zurueck — ein Stringvergleich
@@ -443,6 +445,8 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar');
     Route::patch('/profile/coach', [ProfileController::class, 'updateCoach'])->name('profile.coach');
     Route::patch('/profile/activity-source', [ProfileController::class, 'updateActivitySource'])->name('profile.activity-source');
+    Route::put('/dashboard/layout', [\App\Http\Controllers\DashboardLayoutController::class, 'update'])->name('dashboard.layout');
+    Route::delete('/dashboard/layout', [\App\Http\Controllers\DashboardLayoutController::class, 'destroy'])->name('dashboard.layout.reset');
     Route::post('/profile/telegram', [\App\Http\Controllers\TelegramLinkController::class, 'store'])->name('telegram.link');
     Route::delete('/profile/telegram', [\App\Http\Controllers\TelegramLinkController::class, 'destroy'])->name('telegram.unlink');
     Route::post('/profile/calendar', [\App\Http\Controllers\CalendarFeedController::class, 'store'])->name('calendar-feed.store');
