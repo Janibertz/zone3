@@ -24,8 +24,12 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
  * sind Beispiele, keine echten Trainingsdaten.
  */
 
-// TODO(Jan): Kontaktweg für „Schreib mir einfach" — Instagram-Profil und/oder E-Mail.
-const KONTAKT = { href: 'https://instagram.com/', label: 'Auf Instagram schreiben' };
+// „Schreib mir einfach" — eine E-Mail, kein Formular (Jan, 28.10.2026).
+const KONTAKT = {
+    href: 'mailto:jan.anders@zone3.run?subject=' + encodeURIComponent('Zone3 mittesten'),
+    label: 'E-Mail schreiben',
+    adresse: 'jan.anders@zone3.run',
+};
 
 const heuteSchritte = [
     { name: 'Einlaufen',           wert: '15 min',    farbe: 'bg-success' },
@@ -309,7 +313,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                 <p class="mt-4 text-[17px] text-ink-3">Web-App fürs Handy, ohne App Store.</p>
 
                 <div class="mt-8 flex flex-col gap-3 sm:flex-row">
-                    <a :href="KONTAKT.href" target="_blank" rel="noopener"
+                    <a :href="KONTAKT.href"
                         class="inline-flex h-12 items-center justify-center rounded-full bg-accent px-8 font-semibold text-white transition hover:opacity-90 active:scale-[0.98]">
                         {{ KONTAKT.label }}
                     </a>
@@ -318,6 +322,9 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                         Ich habe schon ein Konto
                     </Link>
                 </div>
+
+                <!-- Die Adresse ausgeschrieben: ohne Mail-App am Rechner führt der Knopf ins Leere. -->
+                <p class="mt-4 select-text text-[15px] text-ink-3">{{ KONTAKT.adresse }}</p>
 
                 <p class="mt-14 text-[15px] font-semibold text-ink-3">Garmin · Strava · Apple Watch · Zwift</p>
             </div>
