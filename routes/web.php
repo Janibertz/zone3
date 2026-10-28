@@ -533,8 +533,9 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
                 // Standalone recommendation sessions (no plan)
                 $q->orWhereNull('training_plan_id');
             })
-            // Completed sessions are already represented by Strava activities – don't show twice
-            ->where('status', '!=', 'completed')
+            // Erledigte Einheiten kommen mit: sie geben dem Tag im Raster
+            // seine Farbe. Doppelt erscheinen sie nicht — an einem Tag mit
+            // Aktivität zeigt die Tagesansicht die Aktivität.
             ->orderBy('planned_date');
 
         $trainingSessions = $sessionQuery->get()->map(fn ($s) => [
@@ -553,6 +554,8 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
             'rating'       => $s->rating,
             'event_id'     => $s->event_id,
             'activity_id'  => $s->activity_id,
+            'sport_type'   => $s->sport_type,
+            'steps'        => $s->steps,
         ])->toArray();
 
         return Inertia::render('Calendar', [
@@ -571,6 +574,11 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
                 'training_phase'        => $e->training_phase,
             ]),
             'trainingSessions' => $trainingSessions,
+            // Die Phasen bis zum Rennen des aktiven Plans, ab heute — der
+            // Streifen unter dem Raster.
+            'phaseSegments' => $activePlan?->event
+                ? app(\App\Services\PeriodizationService::class)->segments($activePlan->event)
+                : [],
         ]);
     })->name('calendar');
 

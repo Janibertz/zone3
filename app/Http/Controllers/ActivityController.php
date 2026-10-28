@@ -82,41 +82,82 @@ class ActivityController extends Controller
                 'rating'           => $linkedSession->rating,
                 'effort_perceived' => $linkedSession->effort_perceived,
                 'feeling_notes'    => $linkedSession->feeling_notes,
+                'coach_review'     => $linkedSession->coach_review,
+                'reviewed_at'      => $linkedSession->reviewed_at?->toIso8601String(),
                 // Entscheidet, was die Loesch-Rueckfrage ueber den Plan sagt.
                 'was_unplanned'    => (bool) $linkedSession->was_unplanned,
             ] : null,
         ]);
     }
 
+    /**
+     * Die Liste, nach Wochen gruppiert (Redesign 28.10.2026).
+     *
+     * Gefiltert wird nach Sportart-Gruppe wie in der Statistik — der alte
+     * Filter `type=Run` traf weder Trail- noch Laufbandläufe. Die Seiten
+     * werden angehängt („Ältere laden"), nicht umgeblättert; deshalb kommen
+     * die Wochensummen vom Server: eine Woche, die über zwei Seiten läuft,
+     * hätte im Browser sonst eine halbe Summe.
+     */
     public function index(Request $request)
     {
         $user = $request->user();
 
-        $query = Activity::where('user_id', $user->id)->orderByDesc('start_date');
+        $sport = $request->string('sport')->toString() ?: 'all';
+        if ($sport !== 'all' && ! isset(StatisticsController::SPORT_TYPES[$sport])) {
+            $sport = 'all';
+        }
+        $search = trim($request->string('search')->toString());
 
-        if ($request->filled('type')) {
-            // "Ride" filter covers both outdoor and virtual rides
-            if ($request->type === 'Ride') {
-                $query->whereIn('type', ['Ride', 'VirtualRide']);
-            } else {
-                $query->where('type', $request->type);
+        $filtered = function () use ($user, $sport, $search) {
+            $query = Activity::where('user_id', $user->id);
+            if ($sport !== 'all') {
+                $query->whereIn('type', StatisticsController::SPORT_TYPES[$sport]);
             }
-        }
+            if ($search !== '') {
+                $query->where('name', 'like', '%' . $search . '%');
+            }
 
-        if ($request->filled('month')) {
-            [$year, $month] = explode('-', $request->month);
-            $query->whereYear('start_date', $year)->whereMonth('start_date', $month);
-        }
+            return $query;
+        };
 
-        if ($request->filled('search')) {
-            $query->where('name', 'like', '%' . $request->search . '%');
-        }
-
-        $activities = $query->paginate(20, Activity::SUMMARY_COLUMNS)->withQueryString();
+        $page = $filtered()->orderByDesc('start_date')->paginate(30, Activity::SUMMARY_COLUMNS)->withQueryString();
 
         return Inertia::render('Activities', [
-            'activities' => $activities,
-            'filters' => $request->only(['type', 'month', 'search']),
+            'activities' => Inertia::merge(fn () => $page->items()),
+            'weekTotals' => Inertia::deepMerge(fn () => $this->weekTotals($filtered(), collect($page->items()))),
+            'pagination' => [
+                'current_page' => $page->currentPage(),
+                'last_page'    => $page->lastPage(),
+                'total'        => $page->total(),
+            ],
+            'filters' => ['sport' => $sport, 'search' => $search],
         ]);
+    }
+
+    /**
+     * Anzahl und Kilometer je Woche (Montag als Schlüssel) für die Wochen,
+     * die auf dieser Seite vorkommen — über alle Aktivitäten der Woche, nicht
+     * nur die geladenen.
+     *
+     * @return array<string, array{count: int, km: float}>
+     */
+    private function weekTotals($query, $items): array
+    {
+        if ($items->isEmpty()) {
+            return [];
+        }
+
+        $from = $items->min('start_date')->copy()->startOfWeek();
+        $to   = $items->max('start_date')->copy()->endOfWeek();
+
+        return $query->whereBetween('start_date', [$from, $to])
+            ->get(['start_date', 'distance'])
+            ->groupBy(fn ($a) => $a->start_date->copy()->startOfWeek()->format('Y-m-d'))
+            ->map(fn ($week) => [
+                'count' => $week->count(),
+                'km'    => round($week->sum('distance') / 1000, 1),
+            ])
+            ->all();
     }
 }
