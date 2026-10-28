@@ -607,6 +607,7 @@ Ergebnis lokal: `{"vorher":68,"angehaengt":63,"geloescht":5,"bleibt_offen":0}` �
 Inertia.js — no API calls, all data passed as props from Laravel controllers.
 
 - `Dashboard.vue` — hub with metrics, today's session, week block (sport filter), form, threshold history, calendar
+  - **Übersicht anpassen** (seit 28.10.2026, Wunsch von Jan): unter „Heute" ordnet jeder Athlet die Module selbst — ein-/ausblenden und Reihenfolge, **keine Größe** (mobile first: auf dem iPhone gibt es nur eine Spalte). `App\Services\DashboardLayout::MODULES` ist Vorgabe und Liste zugleich; gespeichert in `users.dashboard_layout` (am Konto, auf allen Geräten gleich). Fest oben bleiben Heute und alles, was eine Antwort verlangt (Zielprüfung, Wochenfrage, Coach-Vorschlag, Wiedereinstieg, „Wie lief's?") — ein ausgeblendeter Vorschlag wäre eine Entscheidung, die nie fällt. Ein **neues Modul** braucht einen Eintrag in `MODULES` und einen `m.key`-Block in `Dashboard.vue`; es erscheint dann bei allen hinter seinem Vorgänger, auch bei gespeicherter Anordnung. Sortiert wird mit Pfeilen, nicht per Ziehen (im Sheet kollidiert Ziehen mit dem Wischen zum Schließen).
 - `Events/Plan.vue` — plan view, session list, revisions ("Verlauf"), race strategy/analysis
 - `Calendar.vue` — month grid; on mobile the grid shows only markers and the day's content sits below it
 - `Profile/Edit.vue` — settings list on mobile, tab bar from `lg`
