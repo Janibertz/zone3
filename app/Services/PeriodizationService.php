@@ -100,6 +100,44 @@ class PeriodizationService
     }
 
     /**
+     * Die Phasen von heute bis zum Rennen als Abschnitte in Tagen — für den
+     * Phasenbalken oben auf der Planseite. Vergangene Phasen fallen weg, die
+     * laufende ist auf den Rest gekürzt. Dieselben Grenzen wie {@see phaseOn()}.
+     *
+     * @return list<array{key: string, days: int}>
+     */
+    public function segments(Event $event, ?CarbonImmutable $day = null): array
+    {
+        $day   = ($day ?? CarbonImmutable::today())->startOfDay();
+        $left  = (int) round($day->diffInDays(CarbonImmutable::parse($event->event_date)->startOfDay(), false));
+        if ($left < 0) {
+            return [];
+        }
+
+        $taper = LongRunPlanService::taperDays($event->race_distance);
+        // Obergrenze je Phase in Tagen vor dem Rennen, vom Rennen aus gezählt.
+        $bounds = [
+            'race_week' => self::RACE_WEEK_DAYS,
+            'taper'     => $taper,
+            'peak'      => $taper + self::PEAK_PHASE_DAYS,
+            'build'     => $taper + self::PEAK_PHASE_DAYS + self::BUILD_PHASE_DAYS,
+            'base'      => PHP_INT_MAX,
+        ];
+
+        $out   = [];
+        $start = 0;
+        foreach ($bounds as $key => $end) {
+            $days = max(0, min($end, $left + 1) - $start);
+            if ($days > 0) {
+                $out[] = ['key' => $key, 'days' => $days];
+            }
+            $start = max($start, $end);
+        }
+
+        return array_reverse($out);
+    }
+
+    /**
      * Alle Wochen eines Planungsfensters, nach ISO-Woche (`2026-W44`).
      *
      * @return array<string, array>

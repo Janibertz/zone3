@@ -193,6 +193,32 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         }
     }
 
+    // Die Woche als Leiste: je Tag die Einheit des Plans (Mo–So), damit die
+    // Übersicht zeigt, was ansteht und was erledigt ist — nicht nur, was
+    // gelaufen wurde. Geplante Kilometer kommen aus dem Plan, gelaufene aus
+    // den Aktivitäten im Frontend.
+    $weekPlan = [];
+    if ($activePlan) {
+        $monday = now()->startOfWeek();
+        $weekPlan = TrainingSession::where(fn ($q) => $q
+                ->where('training_plan_id', $activePlan->id)
+                ->orWhere(fn ($q) => $q->whereNull('training_plan_id')->where('user_id', $user->id)))
+            ->whereDate('planned_date', '>=', $monday->toDateString())
+            ->whereDate('planned_date', '<=', $monday->copy()->endOfWeek()->toDateString())
+            ->orderBy('planned_date')
+            ->orderBy('sort_order')
+            ->get(['planned_date', 'type', 'sport_type', 'distance_km', 'status'])
+            ->map(fn ($t) => [
+                'date'        => $t->planned_date->format('Y-m-d'),
+                'type'        => $t->type,
+                'sport_type'  => $t->sport_type,
+                'distance_km' => $t->distance_km ? (float) $t->distance_km : null,
+                'status'      => $t->status,
+            ])
+            ->values()
+            ->all();
+    }
+
     // Ein offener Vorschlag des Coaches zur heutigen Einheit.
     //
     // Er ersetzt die frühere Automatik: bis hierher hat der Wellbeing-Job die
@@ -267,6 +293,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         'todayRecommendationSession' => $todayRecommendationSession,
         'coachRecommendation'        => $coachRecommendation,
         'hasActivePlan' => (bool) $activePlan,
+        'weekPlan' => $weekPlan,
         // Reihenfolge und Sichtbarkeit der Module, siehe App\Services\DashboardLayout.
         'dashboardLayout' => \App\Services\DashboardLayout::resolve($user->dashboard_layout),
         'returnToRun' => $returnToRunService->statusFor($user),

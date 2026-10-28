@@ -8,9 +8,8 @@ import AppButton from '@/Components/UI/AppButton.vue';
 import GarminSendSheet from '@/Components/UI/GarminSendSheet.vue';
 import GarminRecovery from '@/Components/GarminRecovery.vue';
 import { Head, usePage } from '@inertiajs/vue3';
-import { activityType, matchesSport, sportOptions } from '@/Composables/useActivityTypes';
+import { activityType, matchesSport } from '@/Composables/useActivityTypes';
 import { useCoachChat } from '@/Composables/useCoachChat';
-import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 import { Inertia } from '@inertiajs/inertia';
 import { router } from '@inertiajs/vue3';
 import { ref, watch, computed, onMounted } from 'vue';
@@ -78,6 +77,10 @@ const props = defineProps({
     hasActivePlan: {
         type: Boolean,
         default: false,
+    },
+    weekPlan: {
+        type: Array,
+        default: () => [],
     },
     hasWellbeingToday: {
         type: Boolean,
@@ -290,16 +293,31 @@ const recommendationChanges = computed(() => {
 });
 
 /** Die Kennzahlen aus `recommendationChanges` — Art und Titel stehen schon in der Zeile darüber. */
+/** Wohin „Details" an der Trainingskarte führt: die Einheit auf der Planseite. */
+const todaySessionHref = computed(() => {
+    const s = props.todayPlanSession;
+    if (!s) return null;
+
+    return s.event_id ? `/events/${s.event_id}/plan?open=${s.id}` : route('calendar');
+});
+
 const recommendationNumbers = computed(() => {
-    const units = { Distanz: ' km', Dauer: ' min' };
+    const units = { Distanz: 'km', Dauer: 'min', Pace: '/km' };
+    const fmt = (label, v) => (v === '—' || v == null ? '—'
+        : label === 'Pace' ? paceValue(v) ?? '—'
+        : String(v).replace('.', ','));
+
+    // Wie die Story-Karte: neuer Wert groß, der alte klein durchgestrichen
+    // am Label. Höchstens drei Spalten — mehr passen auf 390 Pixel nicht.
     return recommendationChanges.value
         .filter((c) => ['Distanz', 'Dauer', 'Pace', 'Zone'].includes(c.label))
-        .map((c) => {
-            const fmt = (v) => (v === '—' ? '—'
-                : c.label === 'Pace' ? paceValue(v) ?? '—'
-                : String(v).replace('.', ',') + (units[c.label] ?? ''));
-            return { label: c.label, from: fmt(c.from), to: fmt(c.to) };
-        });
+        .slice(0, 3)
+        .map((c) => ({
+            label: c.label,
+            from:  fmt(c.label, c.from),
+            to:    fmt(c.label, c.to),
+            unit:  units[c.label] ?? null,
+        }));
 });
 
 // Flash-Meldungen blenden sich nach ein paar Sekunden selbst aus.
@@ -317,50 +335,6 @@ watch(
     },
     { immediate: true }
 );
-
-const raceOptions = [
-    { value: '5km',           label: '5 km',          hours: 0, minutes: 25 },
-    { value: '10km',          label: '10 km',         hours: 0, minutes: 50 },
-    { value: 'half_marathon', label: 'Halbmarathon',  hours: 1, minutes: 45 },
-    { value: 'marathon',      label: 'Marathon',      hours: 3, minutes: 30 },
-];
-
-const quickEventForm = ref({
-    race_distance:       'half_marathon',
-    event_date:          '',
-    target_time_hours:   1,
-    target_time_minutes: 45,
-    priority:            'A',
-    name:                '',
-});
-const quickEventSaving  = ref(false);
-const quickEventSuccess = ref(false);
-
-watch([() => quickEventForm.value.race_distance, () => quickEventForm.value.event_date], () => {
-    const opt = raceOptions.find(r => r.value === quickEventForm.value.race_distance);
-    if (opt) {
-        quickEventForm.value.target_time_hours   = opt.hours;
-        quickEventForm.value.target_time_minutes = opt.minutes;
-    }
-    const dateLabel = quickEventForm.value.event_date
-        ? new Date(quickEventForm.value.event_date).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
-        : '';
-    quickEventForm.value.name = opt && dateLabel ? `${opt.label} ${dateLabel}` : (opt?.label ?? '');
-});
-
-async function saveQuickEvent() {
-    quickEventSaving.value = true;
-    try {
-        await axios.post(route('events.store'), quickEventForm.value);
-        quickEventSuccess.value = true;
-        router.reload({ only: ['events'] });
-        setTimeout(() => { quickEventSuccess.value = false; }, 3000);
-        quickEventForm.value.event_date = '';
-        quickEventForm.value.name = '';
-    } finally {
-        quickEventSaving.value = false;
-    }
-}
 
 const showPaceDetails = ref(false);
 
@@ -465,38 +439,16 @@ async function sendToGarminConnect() {
 // ── Begrüßung ────────────────────────────────────────────────────────────────
 const firstName = computed(() => (page.props.auth?.user?.name ?? '').split(' ')[0] || 'Athlet');
 
-const greeting = computed(() => {
-    const h = new Date().getHours();
-    if (h < 5)  return 'Noch wach';
-    if (h < 11) return 'Guten Morgen';
-    if (h < 14) return 'Mahlzeit';
-    if (h < 18) return 'Guten Tag';
-    return 'Guten Abend';
-});
-
 const todayLabel = computed(() =>
     new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })
 );
 
-// ── Streak: aufeinanderfolgende Tage mit Aktivität, ab heute oder gestern ────
-// Startet bei gestern, damit ein noch nicht gelaufener Tag die Serie nicht bricht.
-const streakDays = computed(() => {
-    const days = new Set(
-        props.recentActivities
-            .filter(a => a.start_date)
-            .map(a => dayKey(new Date(a.start_date)))
-    );
-    if (!days.size) return 0;
+/** Datumszeile über „Heute", mit dem Wetter am Trainingsort, sobald es da ist. */
+const headerLine = computed(() => {
+    const w = weather.value;
+    if (!w || w.temp_c == null) return todayLabel.value;
 
-    const cursor = new Date();
-    if (!days.has(dayKey(cursor))) cursor.setDate(cursor.getDate() - 1);
-
-    let count = 0;
-    while (days.has(dayKey(cursor)) && count < 400) {
-        count++;
-        cursor.setDate(cursor.getDate() - 1);
-    }
-    return count;
+    return `${todayLabel.value} · ${Math.round(w.temp_c)}° ${w.description ?? ''}`.trim();
 });
 
 // ── Kennzahl-Kacheln ganz oben ───────────────────────────────────────────────
@@ -518,22 +470,6 @@ const metricSource = computed(() => {
     if (garminLatest.value) return 'Garmin';
     if (props.wellbeingToday) return 'Tagesform';
     return null;
-});
-
-/** Trainingsstatus aus der Belastungsrechnung, kurz gefasst. */
-const statusChip = computed(() => {
-    const load = props.trainingLoad;
-    if (!load) return { label: 'Noch keine Daten', tone: 'neutral' };
-
-    const tone = {
-        green:  'success',
-        blue:   'success',
-        orange: 'warn',
-        red:    'danger',
-        gray:   'neutral',
-    }[load.form_color] ?? 'neutral';
-
-    return { label: load.form_label, tone };
 });
 
 // ── Wochenstreifen ───────────────────────────────────────────────────────────
@@ -603,7 +539,6 @@ async function goalDiscuss() {
 }
 
 const sportFilter  = ref('all');
-const sportChoices = sportOptions();
 const sportedActivities = computed(
     () => props.recentActivities.filter(a => matchesSport(a, sportFilter.value)),
 );
@@ -633,30 +568,72 @@ const weekStrip = computed(() => {
     });
 });
 
-const weekSessionCount = computed(() => weekStrip.value.filter(d => d.km > 0).length);
+/** Eine Zahl auf deutsch: 10,5 statt 10.5, 1.160 statt 1160. */
+const fmtNum = (v, digits = 1) => Number(v || 0).toLocaleString('de-DE', { maximumFractionDigits: digits });
 
 /**
- * Balkenhoehe in Pixeln, proportional zum laengsten Lauf der Woche.
- *
- * Vorher waren alle Tage gleich hohe gruene Pillen — 0,7 km und 19,8 km sahen
- * identisch aus. Das liest sich wie ein Diagramm und trug keine einzige
- * Information. Jetzt traegt die Hoehe die Kilometer.
- *
- * Die 4px Mindesthoehe sind kein Rundungsfehler: ein Tag mit 0,7 km waere
- * sonst 2px hoch und von einem Ruhetag nicht zu unterscheiden. Ruhetage
- * bekommen denselben Stummel in Grau — die Woche behaelt ihre Grundlinie,
- * ohne einen Lauf vorzutaeuschen.
+ * Die Woche als Leiste wie im Mockup: je Tag ein Punkt in der Farbe der
+ * geplanten Einheit — voll, wenn erledigt, blass, wenn sie noch kommt, als
+ * Ring für heute. Darunter die Kilometer: gelaufene, wenn es sie gibt,
+ * sonst geplante. Ohne Plan zeigen die Punkte nur, an welchen Tagen
+ * gelaufen wurde.
  */
-const WEEK_BAR_MAX_PX = 56;
-const weekBarHeight = (km) => {
-    const peak = Math.max(...weekStrip.value.map(d => d.km), 0);
+const weekDots = computed(() => {
+    const labels = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    const plan = new Map();
+    (props.weekPlan || []).forEach((p) => {
+        // Pro Tag zählt die erste Einheit, die kein Kraft-/Ruhe-Beiwerk ist.
+        const prev = plan.get(p.date);
+        if (!prev || (prev.type === 'rest' && p.type !== 'rest')) plan.set(p.date, p);
+    });
 
-    if (!(km > 0) || peak <= 0) {
-        return 4;
-    }
+    return weekStrip.value.map((d, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - ((date.getDay() + 6) % 7) + i);
+        const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const p = plan.get(iso);
+        const isRest = p?.type === 'rest';
+        const done = d.km > 0 || p?.status === 'completed';
 
-    return Math.max(4, Math.round((km / peak) * WEEK_BAR_MAX_PX));
+        return {
+            key: d.key,
+            label: labels[i],
+            isToday: d.isToday,
+            dot: p ? sessionType(p.type).dot : (d.km > 0 ? 'bg-accent' : null),
+            rest: isRest,
+            state: d.isToday && !done ? 'today' : done ? 'done' : p?.status === 'skipped' ? 'skipped' : 'open',
+            km: d.km > 0 ? fmtNum(d.km) : (p?.distance_km && !isRest ? fmtNum(p.distance_km) : null),
+        };
+    });
+});
+
+/** Ring für „heute" in derselben Farbe — ausgeschrieben, damit Tailwind die Klassen findet. */
+const RING = {
+    'bg-success': 'border-success', 'bg-warn': 'border-warn', 'bg-danger': 'border-danger',
+    'bg-info': 'border-info', 'bg-accent': 'border-accent', 'bg-ink-3': 'border-ink-3',
 };
+
+/** Geplante Laufkilometer dieser Woche — die Zahl, an der die gelaufenen sich messen. */
+/** Gelaufene Kilometer dieser Woche — nur Läufe, denn der Plan zählt nur Läufe. */
+const weekRunKm = computed(() => {
+    const monday = new Date();
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    monday.setHours(0, 0, 0, 0);
+
+    return props.recentActivities
+        .filter((a) => a.start_date && new Date(a.start_date) >= monday && ['Run', 'TrailRun', 'VirtualRun'].includes(a.type))
+        .reduce((s, a) => s + (a.distance || 0), 0) / 1000;
+});
+
+const weekPlannedKm = computed(() => (props.weekPlan || [])
+    .filter((p) => p.type !== 'rest' && p.status !== 'skipped' && !p.sport_type)
+    .reduce((s, p) => s + (p.distance_km || 0), 0));
+
+const weekProgressPct = computed(() => {
+    if (!weekPlannedKm.value) return 0;
+
+    return Math.min(100, Math.round(weekRunKm.value / weekPlannedKm.value * 100));
+});
 
 // ── Vergleich zur Vorwoche ───────────────────────────────────────────────────
 /**
@@ -701,12 +678,6 @@ const weekTrend = computed(() => {
     return Math.round(diff);
 });
 
-// Computed: total distance across all activities
-const totalDistanceKm = computed(() => {
-    const total = sportedActivities.value.reduce((sum, a) => sum + (a.distance || 0), 0);
-    return (total / 1000).toFixed(1);
-});
-
 // Helper: date key YYYY-M-D
 function dayKey(d) { return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
 
@@ -728,141 +699,25 @@ const weekStats = computed(() => {
     return { km, runs, avgPace };
 });
 
-// This month stats
-const monthStats = computed(() => {
-    const now = new Date();
-    const acts = sportedActivities.value.filter(a => {
-        if (!a.start_date) return false;
-        const d = new Date(a.start_date);
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-    });
-    return {
-        km: (acts.reduce((s, a) => s + (a.distance || 0), 0) / 1000).toFixed(1),
-        // Gezaehlt wird, was der Filter durchlaesst — sonst stuende neben
-        // Radkilometern eine Zahl, die nur Laeufe meint.
-        runs: acts.length,
-    };
-});
-
-// Calendar state — navigable month
-const today = new Date();
-const calYear  = ref(today.getFullYear());
-const calMonth = ref(today.getMonth()); // 0-indexed
-
-function prevMonth() {
-    if (calMonth.value === 0) { calMonth.value = 11; calYear.value--; }
-    else calMonth.value--;
-    calendarPickerDay.value = null;
-}
-function nextMonth() {
-    if (calMonth.value === 11) { calMonth.value = 0; calYear.value++; }
-    else calMonth.value++;
-    calendarPickerDay.value = null;
-}
-
-// Map: day-number → array of activities for the displayed month
-const activeDaysInMonth = computed(() => {
-    const map = new Map();
-    (props.recentActivities ?? []).forEach(a => {
-        const d = new Date(a.start_date);
-        if (d.getFullYear() === calYear.value && d.getMonth() === calMonth.value) {
-            const day = d.getDate();
-            if (!map.has(day)) map.set(day, []);
-            map.get(day).push(a);
-        }
-    });
-    return map;
-});
-
-// Events that fall in the displayed month
-const eventsInMonth = computed(() => {
-    const map = new Map();
-    (props.events ?? []).forEach(e => {
-        const d = new Date(e.event_date);
-        if (d.getFullYear() === calYear.value && d.getMonth() === calMonth.value) {
-            map.set(d.getDate(), e);
-        }
-    });
-    return map;
-});
-
-const calendarPickerDay = ref(null);
-
-function openCalendarDay(d) {
-    // Ein Renntag ist im Raster orange hervorgehoben, war aber nur ueber das
-    // title-Attribut zu identifizieren — und das gibt es auf einem Telefon
-    // nicht. Man sah einen markierten Tag und kam nicht heran. Ohne eigene
-    // Aktivitaet fuehrt der Tag jetzt zum Event.
-    if (d.hasEvent && !d.hasActivity) {
-        router.visit(route('events.plan.show', d.event.id));
-        return;
-    }
-
-    if (!d.hasActivity) return;
-
-    const activities = activeDaysInMonth.value.get(d.day);
-    if (activities.length === 1) {
-        openActivityDetail(activities[0]);
-    } else {
-        calendarPickerDay.value = calendarPickerDay.value === d.day ? null : d.day;
-    }
-}
-
-function pickCalendarActivity(activity) {
-    calendarPickerDay.value = null;
-    openActivityDetail(activity);
-}
-
-// Monday-first calendar grid
-const calendarDays = computed(() => {
-    const firstDow = new Date(calYear.value, calMonth.value, 1).getDay(); // 0=Sun
-    const leadingBlanks = (firstDow + 6) % 7; // Mon=0, Tue=1, ... Sun=6
-    const daysInMonth = new Date(calYear.value, calMonth.value + 1, 0).getDate();
-    const daysInPrevMonth = new Date(calYear.value, calMonth.value, 0).getDate();
-    const isCurrentMonth = calYear.value === today.getFullYear() && calMonth.value === today.getMonth();
-    const days = [];
-
-    for (let i = leadingBlanks - 1; i >= 0; i--) {
-        days.push({ day: daysInPrevMonth - i, currentMonth: false, isToday: false, hasActivity: false, hasEvent: false });
-    }
-    for (let i = 1; i <= daysInMonth; i++) {
-        days.push({
-            day: i,
-            currentMonth: true,
-            isToday: isCurrentMonth && i === today.getDate(),
-            hasActivity: activeDaysInMonth.value.has(i),
-            hasEvent: eventsInMonth.value.has(i),
-            event: eventsInMonth.value.get(i) ?? null,
-        });
-    }
-    const total = days.length;
-    const remaining = total <= 35 ? 35 - total : 42 - total;
-    for (let i = 1; i <= remaining; i++) {
-        days.push({ day: i, currentMonth: false, isToday: false, hasActivity: false, hasEvent: false });
-    }
-    return days;
-});
-
-const currentMonthLabel = computed(() =>
-    new Date(calYear.value, calMonth.value, 1).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
-);
 
 function openActivityDetail(activity) {
     router.visit(route('activities.show', activity.id));
 }
 
 
+/** 10,5 statt 10.50 — eine Nachkommastelle reicht für eine Liste. */
 function formatDistance(meters) {
-    const km = meters / 1000;
-    return km.toFixed(2);
+    return fmtNum(meters / 1000, 1);
 }
 
 function formatTime(seconds) {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m ${secs}s`;
+    // Wie eine Uhr: 46:22 oder 1:02:10 statt „46m 22s".
+    const pad = (n) => String(n).padStart(2, '0');
+    if (hours > 0) return `${hours}:${pad(minutes)}:${pad(secs)}`;
+    return `${minutes}:${pad(secs)}`;
 }
 
 // ── Workout-Struktur für angenommene Empfehlung ──────────────────────────────
@@ -1002,9 +857,9 @@ function formatSwimPace(metersPerSecond) {
 
 function activityPaceLabel(activity) {
     if (!activity.average_speed || activity.average_speed <= 0) return null;
-    if (activity.type === 'Swim') return `${formatSwimPace(activity.average_speed)}/100m`;
-    if (['Ride', 'VirtualRide'].includes(activity.type)) return `${(activity.average_speed * 3.6).toFixed(1)} km/h`;
-    return `${formatPaceFromSpeed(activity.average_speed)}/km`;
+    if (activity.type === 'Swim') return `${formatSwimPace(activity.average_speed)} /100 m`;
+    if (['Ride', 'VirtualRide'].includes(activity.type)) return `${fmtNum(activity.average_speed * 3.6)} km/h`;
+    return `${formatPaceFromSpeed(activity.average_speed)} /km`;
 }
 
 // Relative date: "Heute", "Gestern", "vor 3 Tagen", etc.
@@ -1025,19 +880,7 @@ function relativeDate(dateString) {
 }
 
 // Pace color: schnell = grün, langsam = orange
-function paceColor(mps) {
-    if (!mps || mps <= 0) return 'bg-surface-2 text-ink-3';
-    const secPerKm = 1000 / mps;
-    if (secPerKm < 270) return 'bg-success-soft text-success-ink'; // < 4:30
-    if (secPerKm < 330) return 'bg-info-soft text-info-ink';       // < 5:30
-    if (secPerKm < 390) return 'bg-warn-soft text-warn-ink';       // < 6:30
-    return 'bg-danger-soft text-danger-ink';
-}
 
-function round2(value) {
-    if (typeof value !== 'number') return value;
-    return Math.round(value * 100) / 100;
-}
 
 function formatDate(dateString) {
     if (!dateString) return '—';
@@ -1184,25 +1027,8 @@ const loadChartData = computed(() => {
     return { ctlPath: smooth(ctlPoints), atlPath: smooth(atlPoints), W, H };
 });
 
-const dailyMessage = ref(null);
-const dailyMessageLoading = ref(false);
-
-async function fetchDailyMessage() {
-    if (!coach.value) return;
-    dailyMessageLoading.value = true;
-    try {
-        const res = await axios.get('/api/ai/daily-message');
-        dailyMessage.value = res.data.message ?? null;
-    } catch {
-        // fallback to tagline
-    } finally {
-        dailyMessageLoading.value = false;
-    }
-}
-
 onMounted(() => {
     getTodayRecommendation();
-    fetchDailyMessage();
 
     // Telegram-Knopf und Push öffnen /dashboard?tagesform=1 — direkt der
     // Check-in, sofern er noch fehlt. Der Parameter fliegt wieder raus,
@@ -1354,7 +1180,7 @@ async function resetLayout() {
             noch dort, wo sie etwas bedeutet.
         -->
         <div class="min-h-screen">
-            <PageHeader :eyebrow="todayLabel" title="Heute" />
+            <PageHeader :eyebrow="headerLine" title="Heute" />
 
             <div class="space-y-7 px-4 pb-8 pt-2 lg:px-8">
 
@@ -1444,43 +1270,27 @@ async function resetLayout() {
                     </div>
                 </AppCard>
 
-                <!-- ══════════════════════════════════════════════════
-                     BEGRÜSSUNG
-                     ══════════════════════════════════════════════════ -->
-                <AppCard>
-                    <p class="text-[15px] text-ink-3">{{ greeting }},</p>
-                    <h2 class="mt-0.5 text-[22px] font-bold leading-7 text-ink">
-                        <template v-if="coachPrMessage && !prDismissed">Stark gelaufen, {{ firstName }}!</template>
-                        <template v-else-if="!checkinDone">Wie fühlst du dich heute?</template>
-                        <template v-else-if="props.todayPlanSession || props.todayRecommendationSession">Viel Spaß bei deinem Training</template>
-                        <template v-else>Schön, dass du da bist, {{ firstName }}</template>
-                    </h2>
-
-                    <p class="mt-2.5 text-[15px] leading-relaxed text-ink-3">
-                        <span v-if="coachPrMessage && !prDismissed">{{ coachPrMessage }}</span>
-                        <span v-else-if="dailyMessageLoading" class="animate-pulse">…</span>
-                        <span v-else-if="dailyMessage">{{ dailyMessage }}</span>
-                        <span v-else-if="!checkinDone">
-                            Trag kurz deine Tagesform ein — danach passt {{ coach ? coach.name : 'dein Coach' }} das
-                            heutige Training daran an.
-                        </span>
-                        <span v-else>{{ coach?.tagline ?? 'Heute ist ein guter Tag zum Laufen.' }}</span>
-                    </p>
-
-                    <!-- Wetter am Trainingsort -->
-                    <div v-if="weather" class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-3">
-                        <span class="flex items-center gap-1.5">
-                            <span class="text-base">{{ weather.emoji }}</span>
-                            <span class="font-semibold tabular-nums text-ink">{{ weather.temp_c }}°</span>
-                            {{ weather.description }}
-                        </span>
-                        <span v-if="weather.precip_prob != null && weather.precip_prob >= 30">💧 {{ weather.precip_prob }} %</span>
-                        <span v-if="weather.wind_kmh != null && weather.wind_kmh >= 25">💨 {{ weather.wind_kmh }} km/h</span>
-                    </div>
-
-                    <div v-if="coachPrMessage && !prDismissed" class="mt-4">
-                        <AppButton size="sm" variant="secondary" @click="dismissPr">Danke, gesehen</AppButton>
-                    </div>
+                <!--
+                    Hier stand eine Begrüßungskarte („Guten Abend, Viel Spaß bei
+                    deinem Training" plus ein KI-Spruch auf Englisch). Sie kostete
+                    jeden Tag einen Modellaufruf und sagte nichts, was die Seite
+                    nicht ohnehin zeigt. Geblieben ist sie nur dort, wo sie etwas
+                    will: eine neue Bestzeit feiern oder nach der Tagesform fragen.
+                    Das Wetter steht in der Datumszeile darüber.
+                -->
+                <AppCard v-if="(coachPrMessage && !prDismissed) || !checkinDone">
+                    <template v-if="coachPrMessage && !prDismissed">
+                        <h2 class="text-[22px] font-bold leading-7 tracking-tight text-ink">Stark gelaufen, {{ firstName }}!</h2>
+                        <p class="mt-2 text-[15px] leading-relaxed text-ink-2">{{ coachPrMessage }}</p>
+                        <AppButton size="md" variant="secondary" class="mt-4" @click="dismissPr">Danke, gesehen</AppButton>
+                    </template>
+                    <template v-else>
+                        <h2 class="text-[22px] font-bold leading-7 tracking-tight text-ink">Wie geht's dir heute?</h2>
+                        <p class="mt-2 text-[15px] leading-relaxed text-ink-2">
+                            Trag kurz deine Tagesform ein, danach prüft {{ coach ? coach.name : 'dein Coach' }} das heutige Training.
+                        </p>
+                        <AppButton size="md" class="mt-4" @click="showWellbeingModal = true">Tagesform eintragen</AppButton>
+                    </template>
                 </AppCard>
 
                 <!-- Meldungen -->
@@ -1519,25 +1329,31 @@ async function resetLayout() {
                         <span class="text-[20px] font-bold leading-7 tracking-tight text-ink">{{ props.coachRecommendation.after?.title }}</span>
                     </div>
 
-                    <!-- Nur die Zahlen, die sich ändern -->
-                    <div v-if="recommendationNumbers.length" class="mt-3 flex flex-wrap gap-x-5 gap-y-1">
-                        <p v-for="c in recommendationNumbers" :key="c.label" class="text-[13px] text-ink-3">
-                            {{ c.label }}
-                            <span class="tabular-nums line-through">{{ c.from }}</span>
-                            <span class="font-rounded text-[17px] font-bold tabular-nums text-ink"> {{ c.to }}</span>
-                        </p>
+                    <!-- Nur die Zahlen, die sich ändern: neu groß, alt am Label -->
+                    <div v-if="recommendationNumbers.length" class="mt-4 grid gap-2"
+                        :class="recommendationNumbers.length === 3 ? 'grid-cols-[1fr_1fr_1.4fr]' : 'grid-cols-2'">
+                        <div v-for="c in recommendationNumbers" :key="c.label" class="min-w-0">
+                            <p class="text-[13px] text-ink-3">
+                                {{ c.label }} <span class="tabular-nums line-through">{{ c.from }}</span>
+                            </p>
+                            <p class="whitespace-nowrap">
+                                <span class="font-rounded font-bold tabular-nums tracking-tight text-ink"
+                                    :class="c.to.length > 6 ? 'text-[20px] leading-8' : 'text-[30px] leading-9'">{{ c.to }}</span>
+                                <span v-if="c.unit && c.to !== '—'" class="ml-0.5 text-[15px] font-semibold text-ink-3">{{ c.unit }}</span>
+                            </p>
+                        </div>
                     </div>
 
-                    <p v-if="props.coachRecommendation.reason" class="mt-2 text-[15px] leading-snug text-ink-2">
+                    <p v-if="props.coachRecommendation.reason" class="mt-3 text-[15px] leading-snug text-ink-2">
                         {{ props.coachRecommendation.reason }}
                     </p>
 
                     <div class="mt-4 grid grid-cols-2 gap-2">
                         <AppButton variant="secondary" block :disabled="recommendationBusy" @click="decideRecommendation('reject')">
-                            Beim Plan bleiben
+                            Ablehnen
                         </AppButton>
                         <AppButton block :disabled="recommendationBusy" @click="decideRecommendation('accept')">
-                            Übernehmen
+                            Annehmen
                         </AppButton>
                     </div>
                 </div>
@@ -1572,30 +1388,37 @@ async function resetLayout() {
 
                     <!-- ── Mit aktivem Plan ─────────────────────────── -->
                     <template v-if="props.hasActivePlan">
+                        <!--
+                            Die Aktionen stehen in der Karte (Story-Look): „Details"
+                            breit, der Download zur Uhr bzw. zu Zwift als kleiner
+                            Knopf daneben. Vorher stand darunter ein zweiter, gleich
+                            breiter Knopf, der die Karte optisch verdoppelte.
+                            Downloads sind echte <a>, keine Inertia-Links.
+                        -->
                         <SessionCard v-if="props.todayPlanSession"
                             :session="props.todayPlanSession"
                             :badge="props.todayPlanSession.status === 'completed' ? 'Erledigt'
                                 : props.todayPlanSession.is_today ? 'Heute'
                                 : new Date(props.todayPlanSession.session_date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' })"
                             :badge-tone="props.todayPlanSession.status === 'completed' ? 'success' : props.todayPlanSession.is_today ? 'accent' : 'neutral'"
-                            :href="props.todayPlanSession.event_id ? `/events/${props.todayPlanSession.event_id}/plan?open=${props.todayPlanSession.id}` : route('calendar')"
-                        />
-                        <!--
-                            Downloads, keine Inertia-Links: die .zwo-Datei für Zwift
-                            oder die .workout-Datei für die Apple Watch. Sie hängen an
-                            der Einheit, nicht am v-else darunter — sonst stand unter
-                            jedem Lauf „Heute steht nichts an".
-                        -->
-                        <template v-if="props.todayPlanSession">
-                            <AppButton v-if="props.todayPlanSession.zwo_url && props.todayPlanSession.status === 'planned'"
-                                :href="props.todayPlanSession.zwo_url" external download variant="secondary" block class="mt-3">
-                                Für Zwift herunterladen
-                            </AppButton>
-                            <AppButton v-else-if="props.todayPlanSession.watch_url && props.todayPlanSession.status === 'planned'"
-                                :href="props.todayPlanSession.watch_url" external download variant="secondary" block class="mt-3">
-                                Auf die Apple Watch
-                            </AppButton>
-                        </template>
+                        >
+                            <div class="mt-5 flex gap-2">
+                                <AppButton variant="secondary" class="flex-1"
+                                    :href="todaySessionHref">
+                                    Details
+                                </AppButton>
+                                <AppButton v-if="props.todayPlanSession.zwo_url && props.todayPlanSession.status === 'planned'"
+                                    :href="props.todayPlanSession.zwo_url" external download variant="secondary"
+                                    class="!px-4" aria-label="Für Zwift herunterladen" title="Für Zwift herunterladen">
+                                    Zwift
+                                </AppButton>
+                                <AppButton v-else-if="props.todayPlanSession.watch_url && props.todayPlanSession.status === 'planned'"
+                                    :href="props.todayPlanSession.watch_url" external download variant="secondary"
+                                    class="!w-12 !px-0" aria-label="Auf die Apple Watch" title="Auf die Apple Watch">
+                                    <svg class="h-[22px] w-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="3" /><path d="M9 6l.6-3h4.8L15 6M9 18l.6 3h4.8l.6-3" /></svg>
+                                </AppButton>
+                            </div>
+                        </SessionCard>
                         <AppCard v-else>
                             <EmptyState title="Heute steht nichts an" description="Erholung gehört zum Training. Genieß den freien Tag.">
                                 <AppButton href="/events" variant="secondary">Zum Plan</AppButton>
@@ -1902,82 +1725,40 @@ async function resetLayout() {
                                     </template>
                                 </SectionHeader>
 
+                                <!--
+                                    Seit dem Mockup vom 28.10.2026: oben die Kilometer
+                                    gegen den Plan, darunter die Woche als Punktleiste
+                                    in den Farben der Einheiten. Der Sportfilter ist zur
+                                    Statistik gezogen — auf „Heute" geht es um diese Woche.
+                                -->
                                 <AppCard>
-                                    <!--
-                                        Der Filter steht ueber dem Streifen und nicht in der
-                                        Kopfzeile: dort teilt er sich den Platz mit der
-                                        Schaltflaeche und wird auf dem Telefon zum Gedraenge.
-                                        Er erscheint nur, wenn es ueberhaupt mehr als eine
-                                        Sportart zu unterscheiden gibt.
-                                    -->
-                                    <SegmentedControl
-                                        v-if="sportChoices.length"
-                                        v-model="sportFilter"
-                                        :options="sportChoices"
-                                        class="mb-4"
-                                    />
-
-                                    <!--
-                                        Wochenstreifen als echtes Balkendiagramm.
-
-                                        Heute wird ueber das LABEL markiert, nicht ueber
-                                        eine zweite Balkenfarbe: eine Information, eine
-                                        Codierung. Vorher trug der Balken die Farbe
-                                        „gelaufen" und der Tageskreis die Farbe „heute" —
-                                        zwei Signale, die sich im Blick ueberlagerten.
-                                    -->
-                                    <div class="grid grid-cols-7 gap-1.5" role="img"
-                                        :aria-label="`Woche: ${weekStrip.map(d => `${d.label} ${d.km} Kilometer`).join(', ')}`">
-                                        <div v-for="d in weekStrip" :key="d.key" class="flex flex-col items-center gap-2.5">
-                                            <div class="flex h-14 w-full items-end justify-center" :title="d.km > 0 ? `${d.km} km` : 'kein Lauf'">
-                                                <span
-                                                    class="block w-[11px] rounded-full transition-[height] duration-300 ease-out-strong"
-                                                    :class="d.km > 0 ? 'bg-accent' : 'bg-surface-2'"
-                                                    :style="{ height: weekBarHeight(d.km) + 'px' }"
-                                                />
-                                            </div>
-                                            <span class="text-[12px] leading-none"
-                                                :class="d.isToday ? 'font-bold text-ink' : 'text-ink-3'">{{ d.label }}</span>
-                                        </div>
+                                    <div class="flex items-baseline justify-between gap-3">
+                                        <p class="whitespace-nowrap">
+                                            <span class="font-rounded text-[36px] font-extrabold leading-10 tracking-[-0.035em] tabular-nums text-ink">{{ fmtNum(weekPlannedKm ? weekRunKm : weekStats.km) }}</span>
+                                            <span class="ml-1 text-[17px] font-semibold text-ink-3">km</span>
+                                        </p>
+                                        <p v-if="weekPlannedKm" class="text-[13px] text-ink-3">von {{ fmtNum(weekPlannedKm) }} km geplant</p>
+                                        <p v-else-if="weekTrend !== null" class="text-[13px] font-semibold"
+                                            :class="weekTrend >= 0 ? 'text-success' : 'text-ink-3'">
+                                            {{ weekTrend >= 0 ? '+' : '−' }}{{ Math.abs(weekTrend) }} % zur Vorwoche
+                                        </p>
+                                    </div>
+                                    <div v-if="weekPlannedKm" class="mt-2.5 h-2 overflow-hidden rounded-full bg-surface-2">
+                                        <div class="h-full rounded-full bg-accent transition-[width] duration-500 ease-out-strong" :style="{ width: weekProgressPct + '%' }" />
                                     </div>
 
-                                    <!-- Fusszeile -->
-                                    <div class="mt-4 grid grid-cols-3 gap-4 border-t border-line pt-4">
-                                        <div>
-                                            <p class="text-[13px] text-ink-3">Einheiten</p>
-                                            <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ weekSessionCount }}</p>
-                                        </div>
-                                        <div>
-                                            <p class="text-[13px] text-ink-3">Kilometer</p>
-                                            <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ weekStats.km }}</p>
-                                            <p v-if="weekTrend !== null" class="text-[13px] font-semibold"
-                                                :class="weekTrend >= 0 ? 'text-success' : 'text-ink-3'">
-                                                {{ weekTrend >= 0 ? '↗' : '↘' }} {{ Math.abs(weekTrend) }} % zur Vorwoche
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <!--
-                                                Die Kilometer daneben summieren alles, was aus
-                                                Strava kommt — auch Radfahren. Die Pace kann das
-                                                nicht: sie ergibt nur ueber Laeufe einen Sinn.
-                                                Also steht jetzt dran, worauf sie sich bezieht.
-                                            -->
-                                            <p class="text-[13px] text-ink-3">Ø Pace · Läufe</p>
-                                            <!--
-                                                Ohne Lauf stand hier ein Gedankenstrich mitten in
-                                                einer Kennzahlenreihe — das sieht nach Fehler aus,
-                                                nicht nach „noch nichts da". Jetzt sagt die Zeile,
-                                                was fehlt, und nimmt sich dabei zurueck.
-                                            -->
-                                            <p v-if="weekStats.avgPace !== '—'" class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ weekStats.avgPace }}</p>
-                                            <p v-else class="mt-1.5 text-[15px] text-ink-3">noch kein Lauf</p>
+                                    <div class="mt-5 grid grid-cols-7 gap-1 text-center" role="list" aria-label="Diese Woche">
+                                        <div v-for="d in weekDots" :key="d.key" role="listitem" class="flex flex-col items-center">
+                                            <span class="text-[13px] leading-4" :class="d.isToday ? 'font-bold text-ink' : 'text-ink-3'">{{ d.label }}</span>
+                                            <span class="flex h-8 items-center justify-center">
+                                                <span v-if="!d.dot || d.rest" class="h-1.5 w-1.5 rounded-full bg-ink-3/50" />
+                                                <span v-else-if="d.state === 'today'" class="h-3.5 w-3.5 rounded-full border-[3px]"
+                                                    :class="RING[d.dot] ?? 'border-accent'" />
+                                                <span v-else class="h-3 w-3 rounded-full" :class="[d.dot, d.state === 'done' ? '' : 'opacity-40']" />
+                                            </span>
+                                            <span class="text-[12px] leading-4 tabular-nums" :class="d.state === 'done' ? 'font-semibold text-ink' : 'text-ink-3'">{{ d.km ?? '–' }}</span>
                                         </div>
                                     </div>
-
-                                    <p class="mt-3 flex flex-wrap gap-x-4 text-[13px] text-ink-3">
-                                        <span>Monat <span class="font-semibold tabular-nums text-ink-2">{{ monthStats.km }} km</span> · {{ monthStats.runs }} Einheiten</span>
-                                        <span>Gesamt <span class="font-semibold tabular-nums text-ink-2">{{ totalDistanceKm }} km</span></span>
-                                    </p>
                                 </AppCard>
                             </section>
                         </div>
@@ -2023,26 +1804,6 @@ async function resetLayout() {
                             </button>
                         </div>
 
-                        <div v-if="m.key === 'kurzinfo'" :class="moduleClass(m)">
-                            <!-- Streak · Form · Check-in als schmale Zeile darunter -->
-                            <div class="grid grid-cols-3 gap-3">
-                                <StatChip label="Streak">
-                                    <template #icon><svg class="h-4 w-4 text-warn" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.36 5.21c.38 1.56-.3 3.2-1.5 4.06 0-1.63-.52-3.2-1.5-4.5-.96-1.27-2.3-2.2-3.86-2.52.4 1.9-.26 3.86-1.6 5.2C5.6 8.74 4.5 10.6 4.5 13.5a7.5 7.5 0 0 0 15 0c0-3.6-1.7-6.8-4.14-8.29Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 19.5a3 3 0 0 1-3-3c0-1.3.9-2.4 1.8-3.3.5.9 1.2 1.5 2.2 1.8a3 3 0 0 1-1 4.5Z" /></svg></template>
-                                    {{ streakDays }}
-                                </StatChip>
-
-                                <StatChip label="Form" :tone="statusChip.tone">
-                                    <span class="truncate text-[15px]">{{ statusChip.label }}</span>
-                                </StatChip>
-
-                                <button type="button" class="min-w-0 text-left" @click="showWellbeingModal = true">
-                                    <StatChip label="Tagesform" :tone="checkinDone ? 'success' : 'warn'">
-                                        <span class="text-[15px]">{{ checkinDone ? 'Erledigt' : 'Offen' }}</span>
-                                    </StatChip>
-                                </button>
-                            </div>
-                        </div>
-
                         <div v-if="m.key === 'form'" :class="moduleClass(m)">
                             <!-- Form -->
                             <section v-if="props.trainingLoad" class="min-w-0">
@@ -2065,15 +1826,15 @@ async function resetLayout() {
                                     <div class="grid grid-cols-3 gap-4">
                                         <div>
                                             <p class="text-[15px] font-semibold text-fitness">Fitness</p>
-                                            <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ props.trainingLoad.ctl }}</p>
+                                            <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ fmtNum(props.trainingLoad.ctl, 0) }}</p>
                                         </div>
                                         <div>
                                             <p class="text-[15px] font-semibold text-warn">Ermüdung</p>
-                                            <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ props.trainingLoad.atl }}</p>
+                                            <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ fmtNum(props.trainingLoad.atl, 0) }}</p>
                                         </div>
                                         <div>
                                             <p class="text-[15px] font-semibold text-form">Form</p>
-                                            <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ props.trainingLoad.tsb > 0 ? '+' : '' }}{{ props.trainingLoad.tsb }}</p>
+                                            <p class="font-rounded text-[28px] font-bold leading-8 tabular-nums text-ink">{{ props.trainingLoad.tsb > 0 ? '+' : props.trainingLoad.tsb < 0 ? '−' : '' }}{{ fmtNum(Math.abs(props.trainingLoad.tsb), 0) }}</p>
                                         </div>
                                     </div>
 
@@ -2142,7 +1903,7 @@ async function resetLayout() {
                                                     <div class="h-full bg-success" :style="{ width: (100 - w.hard_pct) + '%' }" />
                                                 </template>
                                             </div>
-                                            <span class="w-10 shrink-0 text-right text-[13px] tabular-nums text-ink-3">{{ w.hard_pct !== null ? w.hard_pct + ' %' : '–' }}</span>
+                                            <span class="w-12 shrink-0 whitespace-nowrap text-right text-[13px] tabular-nums text-ink-3">{{ w.hard_pct !== null ? w.hard_pct + ' %' : '–' }}</span>
                                         </div>
                                     </div>
 
@@ -2276,104 +2037,37 @@ async function resetLayout() {
                                     </EmptyState>
                                 </AppCard>
 
-                                <!-- min-w-0 auf dem Grid-Item: sonst steht dessen min-width auf auto,
-                                     ein langer Name wird nicht gekuerzt und sprengt die Spalte. -->
-                                <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                                <!--
+                                    Eine gruppierte Liste wie in Health statt acht einzelner
+                                    Karten: links Name und Tag, rechts die eine Zahl groß
+                                    und die Pace darunter. Puls, Höhenmeter und Pillen
+                                    stehen in der Aktivität selbst.
+                                -->
+                                <div v-else class="divide-y divide-line overflow-hidden rounded-card bg-surface">
                                     <button
-                                        v-for="activity in props.recentActivities.slice(0, 8)"
+                                        v-for="activity in props.recentActivities.slice(0, 5)"
                                         :key="activity.id"
+                                        type="button"
                                         @click="openActivityDetail(activity)"
-                                        class="min-w-0 rounded-card bg-surface p-4 text-left transition-transform duration-150 ease-out-strong active:scale-[0.98]"
+                                        class="flex w-full min-w-0 items-center gap-3 px-4 py-3 text-left transition-colors duration-150 active:bg-surface-2"
                                     >
-                                        <div class="mb-2.5 flex items-start justify-between gap-2">
-                                            <div class="flex min-w-0 items-center gap-2">
-                                                <svg class="h-5 w-5 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true" v-html="activityIcon(activity.type)" />
-                                                <p class="truncate text-[15px] font-semibold leading-tight text-ink">{{ activity.name }}</p>
-                                            </div>
-                                            <span class="shrink-0 text-[12px] text-ink-3">{{ relativeDate(activity.start_date) }}</span>
-                                        </div>
-
-                                        <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[15px] text-ink-3">
-                                            <span v-if="activity.distance > 0" class="font-rounded text-[20px] font-bold tabular-nums text-ink">
-                                                {{ round2(formatDistance(activity.distance)) }} km
+                                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-2">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true" v-html="activityIcon(activity.type)" />
+                                        </span>
+                                        <span class="min-w-0 flex-1">
+                                            <span class="block truncate text-[17px] text-ink">{{ activity.name }}</span>
+                                            <span class="block text-[13px] text-ink-3">{{ relativeDate(activity.start_date) }}</span>
+                                        </span>
+                                        <span class="shrink-0 text-right">
+                                            <span class="block font-rounded text-[17px] font-bold tabular-nums text-ink">
+                                                <template v-if="activity.distance > 0">{{ formatDistance(activity.distance) }} km</template>
+                                                <template v-else>{{ formatTime(activity.moving_time) }}</template>
                                             </span>
-                                            <span v-else-if="['WeightTraining','Workout'].includes(activity.type)" class="font-bold text-ink">Kraft</span>
-                                            <span class="tabular-nums">{{ formatTime(activity.moving_time) }}</span>
-                                            <span v-if="activity.average_speed > 0"
-                                                class="rounded-full px-2 py-0.5 text-[12px] font-bold tabular-nums"
-                                                :class="['Ride','VirtualRide'].includes(activity.type)
-                                                    ? 'bg-success-soft text-success-ink'
-                                                    : activity.type === 'Swim'
-                                                        ? 'bg-info-soft text-info-ink'
-                                                        : paceColor(activity.average_speed)">
-                                                {{ activityPaceLabel(activity) }}
-                                            </span>
-                                            <span v-if="activity.average_heartrate" class="text-[13px]"><span class="text-ink-3">Puls</span> {{ Math.round(activity.average_heartrate) }}</span>
-                                            <span v-if="activity.total_elevation_gain > 0" class="text-[13px]">↑ {{ Math.round(activity.total_elevation_gain) }} m</span>
-                                        </div>
+                                            <span v-if="activity.average_speed > 0 && activity.distance > 0" class="block text-[13px] tabular-nums text-ink-3">{{ activityPaceLabel(activity) }}</span>
+                                            <span v-else-if="activity.distance > 0" class="block text-[13px] tabular-nums text-ink-3">{{ formatTime(activity.moving_time) }}</span>
+                                        </span>
                                     </button>
                                 </div>
-                            </section>
-                        </div>
-
-                        <div v-if="m.key === 'monat'" :class="moduleClass(m)">
-                            <section class="min-w-0">
-                                <SectionHeader title="Monat">
-                                    <template #action>
-                                        <AppButton variant="plain" href="/calendar">Kalender</AppButton>
-                                    </template>
-                                </SectionHeader>
-
-                                <AppCard>
-                                    <div class="mb-4 flex items-center justify-center gap-2">
-                                        <button @click="prevMonth" class="flex h-11 w-11 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink sm:h-9 sm:w-9">‹</button>
-                                        <h4 class="min-w-[150px] text-center text-[15px] font-semibold text-ink">{{ currentMonthLabel }}</h4>
-                                        <button @click="nextMonth" class="flex h-11 w-11 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink sm:h-9 sm:w-9">›</button>
-                                    </div>
-
-                                    <div class="mb-2 grid grid-cols-7 gap-1 text-center text-[12px] font-semibold text-ink-3">
-                                        <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
-                                    </div>
-                                    <div class="grid grid-cols-7 gap-1 text-center">
-                                        <div v-for="(d, i) in calendarDays" :key="i"
-                                            class="relative mx-auto flex h-9 w-9 items-center justify-center rounded-full text-[13px] transition-colors"
-                                            :class="{
-                                                'bg-accent font-bold text-white': d.isToday && !d.hasEvent,
-                                                'bg-warn font-bold text-canvas': d.hasEvent,
-                                                'text-ink-3 opacity-40':        !d.currentMonth,
-                                                'text-ink hover:bg-surface-2':  d.currentMonth && !d.isToday && !d.hasEvent,
-                                                'cursor-pointer':               d.hasActivity || d.hasEvent,
-                                            }"
-                                            :title="d.hasEvent ? d.event.name : ''"
-                                            @click="openCalendarDay(d)">
-                                            {{ d.day }}
-                                            <span v-if="d.hasActivity && !d.isToday && !d.hasEvent" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-success" />
-                                            <!-- Auf gefuellten Zellen muss der Punkt gegen die Fuellung kontrastieren:
-                                                 Heute ist bg-accent, das Event bg-warn — beide dunkel genug fuer einen hellen Punkt. -->
-                                            <span v-if="d.hasActivity && d.hasEvent" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-surface/80" />
-                                            <span v-else-if="d.hasActivity && d.isToday" class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-white/80" />
-                                        </div>
-                                    </div>
-
-                                    <!-- Mehrere Aktivitäten an einem Tag: als Liste unter dem Raster.
-                                         Als schwebende Sprechblase ragte sie an den Randspalten aus dem
-                                         Bildschirm und liess die ganze Seite seitlich scrollen. -->
-                                    <div v-if="calendarPickerDay && activeDaysInMonth.get(calendarPickerDay)?.length"
-                                        class="mt-4 rounded-field bg-surface-2 p-1.5">
-                                        <div class="flex items-center justify-between px-3 py-1.5">
-                                            <p class="text-[13px] font-semibold text-ink-3">
-                                                {{ calendarPickerDay }}. {{ currentMonthLabel.split(' ')[0] }} · {{ activeDaysInMonth.get(calendarPickerDay).length }} Aktivitäten
-                                            </p>
-                                            <button class="text-lg leading-none text-ink-3 hover:text-ink" @click="calendarPickerDay = null"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg></button>
-                                        </div>
-                                        <button v-for="act in activeDaysInMonth.get(calendarPickerDay)" :key="act.id"
-                                            @click="pickCalendarActivity(act)"
-                                            class="w-full rounded-field px-3 py-2.5 text-left transition-colors hover:bg-surface">
-                                            <p class="truncate text-[13px] font-semibold text-ink">{{ act.name }}</p>
-                                            <p class="text-[12px] text-ink-3"><template v-if="act.distance > 0">{{ formatDistance(act.distance) }} km · </template>{{ formatTime(act.moving_time) }}</p>
-                                        </button>
-                                    </div>
-                                </AppCard>
                             </section>
                         </div>
 
@@ -2435,77 +2129,6 @@ async function resetLayout() {
                             </section>
                         </div>
 
-                        <div v-if="m.key === 'ziel'" :class="moduleClass(m)">
-                            <section class="min-w-0">
-                                <SectionHeader title="Neues Ziel" />
-
-                                <AppCard>
-                                    <div v-if="quickEventSuccess" class="mb-4 rounded-field bg-success-soft px-4 py-3">
-                                        <p class="text-[15px] font-semibold text-success-ink">Event gespeichert</p>
-                                    </div>
-
-                                    <div class="space-y-4">
-                                        <div>
-                                            <label class="z-label">Distanz</label>
-                                            <div class="grid grid-cols-2 gap-2">
-                                                <button v-for="opt in raceOptions" :key="opt.value"
-                                                    @click="quickEventForm.race_distance = opt.value"
-                                                    class="rounded-full px-3 py-2.5 text-[13px] font-semibold transition active:scale-[0.97]"
-                                                    :class="quickEventForm.race_distance === opt.value
-                                                        ? 'bg-accent text-white'
-                                                        : 'bg-surface-2 text-ink-2 hover:bg-surface-3'">
-                                                    {{ opt.label }}
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <label class="z-label">Renndatum</label>
-                                            <input type="date" v-model="quickEventForm.event_date" class="z-input" />
-                                        </div>
-
-                                        <div>
-                                            <label class="z-label">Zielzeit</label>
-                                            <div class="grid grid-cols-2 gap-2">
-                                                <div class="relative">
-                                                    <input type="number" v-model="quickEventForm.target_time_hours" min="0" max="23" class="z-input pr-9" />
-                                                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[13px] text-ink-3">h</span>
-                                                </div>
-                                                <div class="relative">
-                                                    <input type="number" v-model="quickEventForm.target_time_minutes" min="0" max="59" class="z-input pr-12" />
-                                                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[13px] text-ink-3">min</span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <label class="z-label">Priorität</label>
-                                            <div class="flex gap-2">
-                                                <button v-for="p in ['A','B','C']" :key="p"
-                                                    @click="quickEventForm.priority = p"
-                                                    class="flex-1 rounded-full py-2.5 text-[13px] font-bold transition active:scale-[0.97]"
-                                                    :class="quickEventForm.priority === p
-                                                        ? p === 'A' ? 'bg-danger text-white'
-                                                          : p === 'B' ? 'bg-warn text-white'
-                                                          : 'bg-accent text-white'
-                                                        : 'bg-surface-2 text-ink-3 hover:bg-surface-3'">
-                                                    {{ p }}
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <AppButton block :disabled="!quickEventForm.event_date" :loading="quickEventSaving" @click="saveQuickEvent">
-                                            Event erstellen
-                                        </AppButton>
-
-                                        <p class="text-[13px] leading-relaxed text-ink-3">
-                                            Sobald das Event steht, baut {{ coach ? coach.name : 'dein Coach' }} dir einen
-                                            Trainingsplan — abgestimmt auf Schwellenpace, Zielzeit und die Zeit bis zum Rennen.
-                                        </p>
-                                    </div>
-                                </AppCard>
-                            </section>
-                        </div>
                     </template>
                 </div>
 

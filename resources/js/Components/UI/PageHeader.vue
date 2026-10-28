@@ -51,7 +51,7 @@ defineProps({
                     die Headlines — Inter schaltet bei der Groesse auf den
                     Display-Schnitt.
                 -->
-                <h1 class="truncate text-[34px] font-extrabold leading-[41px] tracking-[-0.035em] text-ink">{{ title }}</h1>
+                <h1 class="line-clamp-2 break-words text-[34px] font-extrabold leading-[41px] tracking-[-0.035em] text-ink">{{ title }}</h1>
                 <p v-if="subtitle" class="mt-0.5 text-[15px] text-ink-3">{{ subtitle }}</p>
             </div>
             <div v-if="$slots.action" class="shrink-0 pb-1">
