@@ -29,10 +29,10 @@ defineProps({
             <p class="text-ink-3 text-[15px] leading-relaxed">
                 <template v-if="ok">
                     Du kannst dieses Fenster schließen und zurück zur Zone3-App wechseln.
-                    Im Profil steht die Verbindung, sobald du es neu öffnest.
+                    Dort steht die Verbindung, sobald du zurückwechselst.
                 </template>
                 <template v-else>
-                    Wechsle zurück zur Zone3-App und starte die Verbindung im Profil noch einmal.
+                    Wechsle zurück zur Zone3-App und starte die Verbindung noch einmal.
                 </template>
             </p>
         </div>

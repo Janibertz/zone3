@@ -171,7 +171,8 @@ class ProfileController extends Controller
 
         $user->update(['activity_source' => $request->source]);
 
-        return Redirect::route('profile.edit')->with('status', 'activity-source-updated');
+        // Zurueck, woher die Wahl kam: Profil oder der Verbinden-Schritt im Onboarding.
+        return Redirect::back()->with('status', 'activity-source-updated');
     }
 
     public function destroy(Request $request): RedirectResponse
