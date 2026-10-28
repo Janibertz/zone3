@@ -56,6 +56,11 @@ Schedule::command('garmin:sync-health --days=2')->dailyAt('09:00');
 Schedule::command('garmin:refresh-tokens')->dailyAt('04:30');
 Schedule::command('garmin:prune-webhook-payloads')->dailyAt('04:40');
 
+// Plan automatisch auf die Uhr (Training API): die naechsten 7 Tage. Der
+// Beobachter auf den Einheiten ist der schnelle Weg; stuendlich ist das Netz
+// darunter. Ein unveraenderter Plan kostet keinen Aufruf bei Garmin.
+Schedule::command('garmin:sync-workouts')->hourly()->withoutOverlapping();
+
 // Jede Minute: laufende LiveTrack-Sitzungen abfragen. Der Command prueft
 // selbst, ob ueberhaupt eine Sitzung im Zeitfenster liegt.
 Schedule::command('livetrack:poll')->everyMinute()->withoutOverlapping();

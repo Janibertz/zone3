@@ -726,6 +726,17 @@ function connectGarminOfficial() {
     });
 }
 
+// Plan automatisch auf die Uhr (Training API, die nächsten 7 Tage).
+const garminWorkoutSync = ref(props.garminOfficial?.workoutSync ?? true);
+function toggleGarminWorkoutSync() {
+    const enabled = !garminWorkoutSync.value;
+    garminWorkoutSync.value = enabled;
+    router.patch(route('profile.garmin-workout-sync'), { enabled }, {
+        preserveScroll: true,
+        onError: () => { garminWorkoutSync.value = !enabled; },
+    });
+}
+
 function disconnectGarminOfficial() {
     garminOAuthBusy.value = true;
     router.delete(route('garmin.connection.destroy'), {
@@ -1600,6 +1611,21 @@ const inputClass = 'z-input';
                                         Die Anmeldung läuft direkt bei Garmin, Zone3 sieht dein Passwort nie.
                                         Aktiviere dort alle Freigaben, sonst kommen keine Daten an.
                                     </p>
+                                </div>
+
+                                <div v-if="garminOfficialConnection?.workouts" class="border-t border-line px-4 py-3 flex items-center justify-between gap-4">
+                                    <div>
+                                        <p class="text-sm font-medium text-ink">Plan automatisch auf die Uhr</p>
+                                        <p class="text-xs text-ink-3 mt-0.5 leading-relaxed">
+                                            Die Läufe der nächsten 7 Tage stehen im Garmin-Kalender und ziehen nach, wenn sich der Plan ändert.
+                                            Vereinstermine und Radeinheiten nicht.
+                                        </p>
+                                    </div>
+                                    <button @click="toggleGarminWorkoutSync" role="switch" :aria-checked="garminWorkoutSync"
+                                        class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none"
+                                        :class="garminWorkoutSync ? 'bg-accent' : 'bg-surface-3'">
+                                        <span class="inline-block h-5 w-5 transform rounded-full bg-surface shadow transition duration-200" :class="garminWorkoutSync ? 'translate-x-5' : 'translate-x-0'" />
+                                    </button>
                                 </div>
 
                                 <div v-if="garminOfficialConnection && (!garminGranted || garminOfficialConnection.refresh_error)" class="border-t border-line px-4 py-3">

@@ -14,6 +14,8 @@ const props = defineProps({
     show:      { type: Boolean, default: false },
     /** A stored session exists — no credentials needed. */
     connected: { type: Boolean, default: false },
+    /** Offizielle Verbindung (Training API): kein Login, kein Trennen hier — das steht im Profil. */
+    viaApi:    { type: Boolean, default: false },
     savedEmail:{ type: String,  default: null },
     sending:   { type: Boolean, default: false },
     error:     { type: String,  default: null },
@@ -78,11 +80,17 @@ function submit() {
                     <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                 </svg>
                 <div class="min-w-0 flex-1">
-                    <p class="text-xs font-medium text-success-ink">Verbunden als</p>
-                    <p class="truncate text-xs text-success-ink/80">{{ savedEmail }}</p>
+                    <template v-if="viaApi">
+                        <p class="text-xs font-medium text-success-ink">Mit Garmin Connect verbunden</p>
+                        <p class="text-xs text-success-ink/80">Kommende Läufe legt Zone3 von selbst auf die Uhr.</p>
+                    </template>
+                    <template v-else>
+                        <p class="text-xs font-medium text-success-ink">Verbunden als</p>
+                        <p class="truncate text-xs text-success-ink/80">{{ savedEmail }}</p>
+                    </template>
                 </div>
                 <button
-                    v-if="withDisconnect"
+                    v-if="withDisconnect && !viaApi"
                     type="button"
                     class="shrink-0 text-xs text-success-ink transition-opacity duration-150 ease-out-strong hover:underline active:opacity-60"
                     @click="$emit('disconnect')"

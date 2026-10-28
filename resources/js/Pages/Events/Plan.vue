@@ -1939,6 +1939,7 @@ const lapHeightPct = computed(() => {
         <GarminSendSheet
             :show="garminModal"
             :connected="garminConnected"
+            :via-api="!!$page.props.auth.garminViaApi"
             :saved-email="garminSavedEmail"
             :sending="garminSending"
             :error="garminError"

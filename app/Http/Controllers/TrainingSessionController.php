@@ -11,6 +11,7 @@ use App\Services\Garmin\GarminDisconnector;
 use App\Services\AI\SessionContentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Services\PaceFormat;
 use App\Services\WorkoutPaceResolver;
@@ -460,6 +461,12 @@ class TrainingSessionController extends Controller
         abort_if($session->user_id !== Auth::id(), 403);
 
         $user             = Auth::user();
+
+        // Offizielle Verbindung: ueber die Training API, ohne Fit-Service.
+        if ($user->sendsWorkoutsViaGarminApi()) {
+            return $this->sendViaTrainingApi($session);
+        }
+
         $hasSavedSession  = !empty($user->garmin_session);
 
         if (! $hasSavedSession) {
@@ -502,6 +509,40 @@ class TrainingSessionController extends Controller
         unset($result['session']);
 
         return response()->json($result);
+    }
+
+    /**
+     * Eine Einheit per Knopf in den Garmin-Kalender. Danach pflegt der
+     * Abgleich sie mit — aendert der Coach sie, zieht die Uhr nach.
+     */
+    private function sendViaTrainingApi(TrainingSession $session)
+    {
+        if (! \App\Services\Watch\AppleWorkoutWriter::supports($session)) {
+            return response()->json(['error' => 'Auf die Garmin-Uhr gehen nur Läufe. Radeinheiten gehen zu Zwift.'], 422);
+        }
+
+        try {
+            app(\App\Services\Garmin\GarminWorkoutSync::class)->push($session);
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            return response()->json(['error' => self::garminApiError($e->response->status())], 422);
+        } catch (\Throwable $e) {
+            Log::warning('Garmin Training API: Senden fehlgeschlagen', ['session_id' => $session->id, 'error' => $e->getMessage()]);
+
+            return response()->json(['error' => 'Garmin hat das Workout nicht angenommen. Bitte später noch einmal versuchen.'], 503);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    /** Was ein Fehler der Training API fuer den Athleten heisst (Spezifikation 3.7). */
+    public static function garminApiError(int $status): string
+    {
+        return match ($status) {
+            401     => 'Garmin kennt die Verbindung nicht mehr. Bitte im Profil neu verbinden.',
+            403, 412 => 'Zone3 darf keine Workouts an Garmin senden. Bitte in Garmin Connect die Freigabe „Workouts“ einschalten.',
+            429     => 'Garmin nimmt heute keine weiteren Workouts an. Bitte morgen noch einmal versuchen.',
+            default => 'Garmin hat das Workout nicht angenommen (HTTP ' . $status . ').',
+        };
     }
 
     /**
