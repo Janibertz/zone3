@@ -1,4 +1,5 @@
 <script setup>
+import { zoneRange } from '@/Composables/usePaceZones';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { Link, Head } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -548,7 +549,7 @@ onUnmounted(() => {
                                 >
                                     <div class="h-2 w-2 shrink-0 rounded-full" :class="zoneColors[key]?.bg" />
                                     <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-ink-2">{{ paceZones[key]?.name }}</span>
-                                    <span class="shrink-0 text-[12px] tabular-nums text-ink-3">{{ paceZones[key]?.min_pace }}–{{ paceZones[key]?.max_pace }}</span>
+                                    <span class="shrink-0 text-[12px] tabular-nums text-ink-3">{{ zoneRange(paceZones[key]) }}</span>
                                 </div>
                             </div>
                         </AppCard>

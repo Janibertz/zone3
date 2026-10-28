@@ -28,7 +28,7 @@ class WorkoutPaceResolver
     public function resolve(Workout $workout, ?RunnerProfile $profile): array
     {
         $steps    = [];
-        $totalMin = 0;
+        $totalMin = 0.0;
         $totalKm  = 0.0;
 
         foreach ($workout->blocks ?? [] as $block) {
@@ -55,7 +55,7 @@ class WorkoutPaceResolver
 
         return [
             'steps'        => $steps,
-            'duration_min' => $totalMin,
+            'duration_min' => (int) round($totalMin),
             'distance_km'  => $totalKm > 0 ? round($totalKm, 1) : null,
             'pace_target'  => $work['pace_target'] ?? null,
             'zone'         => $work['zone'] ?? null,
@@ -69,7 +69,7 @@ class WorkoutPaceResolver
      * @param  array<string, mixed>  $parent
      * @return array<string, mixed>
      */
-    private function step(array $raw, ?RunnerProfile $profile, int $reps, int &$totalMin, float &$totalKm, array $parent): array
+    private function step(array $raw, ?RunnerProfile $profile, int $reps, float &$totalMin, float &$totalKm, array $parent): array
     {
         // Der Builder ist hier uneinheitlich: Wiederholungsschritte tragen
         // `pace_zone`, Progressionsschritte `zone`. Beides gilt.
@@ -91,7 +91,9 @@ class WorkoutPaceResolver
             // schaetzen — dann steht dort nichts statt einer erfundenen Zahl.
             $minutes = $paceSec ? max(1, (int) round(($meters / 1000) * $paceSec / 60)) : null;
         } else {
-            $minutes = max(1, (int) round(((int) ($raw['duration_sec'] ?? 600)) / 60));
+            // Sekundengenau: aus „30 s Zone 5" wurde frueher „1 min" — die
+            // Uhr lief dann doppelt so lange, wie der Ersteller wollte.
+            $minutes = self::minutes((int) ($raw['duration_sec'] ?? 600));
         }
 
         $stepType = $this->stepType($raw['type'] ?? $parent['type'] ?? 'active');
@@ -117,6 +119,18 @@ class WorkoutPaceResolver
             'zone'         => $isRest ? 1 : $zone,
             'repetitions'  => $reps > 1 ? $reps : null,
         ];
+    }
+
+    /**
+     * Sekunden als Minuten: ganze Minuten als int, alles andere mit der
+     * Sekunde als Bruch (30 s = 0.5). Die Schritte tragen nur `duration_min`,
+     * und eine Rundung auf die Minute ist bei kurzen Intervallen falsch.
+     */
+    private static function minutes(int $seconds): int|float
+    {
+        $seconds = max(1, $seconds);
+
+        return $seconds % 60 === 0 ? intdiv($seconds, 60) : round($seconds / 60, 4);
     }
 
     /** Die Blocktypen des Builders auf die vier der Einheit abbilden. */

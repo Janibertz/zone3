@@ -247,6 +247,71 @@ class WorkoutController extends Controller
         return back()->with('success', "„{$workout->name}\u{201C} steht jetzt f\u{00FC}r diesen Tag.");
     }
 
+    /**
+     * Ein Workout an einem Tag einplanen — als echte Einheit in Zone3.
+     *
+     * Zone3 ist die Wahrheit, die Uhr folgt (Entscheidung von Jan,
+     * 28.10.2026). Vorher legte „Senden" das Workout nur bei Garmin an; in
+     * Zone3 stand es nirgends, und verschieben oder loeschen erreichte die Uhr
+     * nie. Jetzt entsteht eine Einheit, und der Garmin-Abgleich nimmt sie mit
+     * wie jede andere.
+     *
+     * Sie kommt **zusaetzlich**, nicht statt des geplanten Laufs: wer an
+     * einem Tag bewusst zweimal laeuft, wird nicht eingeschraenkt (Jan). Darum
+     * haengt sie an keinem Plan und keinem Rennen — eine Neuberechnung loescht
+     * nur Einheiten ihrer Plaene, und der Planer sieht den Tag nicht als
+     * belegt. Ohne laufenden Plan geht es genauso.
+     */
+    public function schedule(Request $request, Workout $workout, \App\Services\WorkoutPaceResolver $resolver)
+    {
+        abort_unless($workout->is_public || $workout->user_id === Auth::id(), 403);
+
+        $data = $request->validate([
+            'date' => ['required', 'date', 'after_or_equal:today'],
+        ]);
+
+        $user     = $request->user();
+        $resolved = $resolver->resolve($workout, $user->runnerProfile);
+
+        $session = \App\Models\TrainingSession::create([
+            'user_id'          => $user->id,
+            'training_plan_id' => null,
+            'event_id'         => null,
+            'planned_date'     => $data['date'],
+            'type'             => $workout->type,
+            'title'            => $workout->name,
+            'description'      => $workout->description ?? '',
+            'duration_min'     => $resolved['duration_min'] ?: null,
+            'distance_km'      => $resolved['distance_km'],
+            'pace_target'      => $resolved['pace_target'],
+            'zone'             => $resolved['zone'],
+            'steps'            => $resolved['steps'],
+            'intensity'        => match (true) {
+                in_array($workout->type, ['interval', 'tempo_run'], true) => 'high',
+                ($resolved['zone'] ?? 2) >= 3                             => 'medium',
+                default                                                   => 'low',
+            },
+            'status'           => 'planned',
+            'pinned_at'        => now(),
+            // Hinter alles, was an dem Tag schon steht.
+            'sort_order'       => (int) \App\Models\TrainingSession::where('user_id', $user->id)
+                ->whereDate('planned_date', $data['date'])->max('sort_order') + 1,
+        ]);
+
+        $workout->increment('times_used');
+        $workout->forceFill(['last_used_at' => now()])->save();
+
+        Log::info('Workout eingeplant', [
+            'user_id' => $user->id, 'workout_id' => $workout->id, 'session_id' => $session->id, 'date' => $data['date'],
+        ]);
+
+        return response()->json([
+            'success'    => true,
+            'session_id' => $session->id,
+            'garmin'     => $user->syncsPlanToGarmin(),
+        ]);
+    }
+
     public function sendToGarmin(Request $request, Workout $workout)
     {
         abort_if($workout->user_id !== Auth::id(), 403);

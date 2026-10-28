@@ -209,6 +209,9 @@ class AIController extends Controller
                 'user_id'          => $user->id,
                 'planned_date'     => $today,
                 'training_plan_id' => null,
+                // Ein eingeplantes Builder-Workout ist gepinnt und bleibt
+                // stehen; die Empfehlung kommt daneben.
+                'pinned_at'        => null,
             ],
             array_merge($data, [
                 'status'     => 'planned',

@@ -1,4 +1,5 @@
 <script setup>
+import { zoneRange } from '@/Composables/usePaceZones';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm, usePage, Link, router } from '@inertiajs/vue3';
 import InputError from '@/Components/InputError.vue';
@@ -1175,7 +1176,7 @@ const inputClass = 'z-input';
                                         <span class="text-xs font-bold opacity-60">Z{{ idx + 1 }}</span>
                                         <span class="text-sm font-semibold">{{ zone.name }}</span>
                                     </div>
-                                    <span class="text-sm font-mono tabular-nums">{{ zone.min_pace }} – {{ zone.max_pace }} min/km</span>
+                                    <span class="text-sm font-mono tabular-nums">{{ zoneRange(zone) }} min/km</span>
                                 </div>
                             </div>
                         </div>
