@@ -1240,6 +1240,16 @@ async function fetchDailyMessage() {
 onMounted(() => {
     getTodayRecommendation();
     fetchDailyMessage();
+
+    // Telegram-Knopf und Push öffnen /dashboard?tagesform=1 — direkt der
+    // Check-in, sofern er noch fehlt. Der Parameter fliegt wieder raus,
+    // sonst öffnet ein Neuladen das Sheet erneut.
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('tagesform')) {
+        if (!wellbeingEnteredToday.value) showWellbeingModal.value = true;
+        url.searchParams.delete('tagesform');
+        window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+    }
 });
 
 function syncStrava() {
