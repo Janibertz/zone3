@@ -900,7 +900,7 @@ Gewünscht: *"Der Coach Chat ist zu wenig interaktiv. Es sollte WhatsApp, Telegr
 
 Was der Bot schickt:
 
-- **Morgen-Briefing** (`telegram:briefing`, jede Minute, feuert zur `wellbeing_reminder_time`, einmal pro Tag per Cache-Sperre) — die Einheit des Tages **ohne KI-Aufruf** aus `TelegramBriefing`. `/heute` zeigt dasselbe.
+- **Morgen-Briefing** (`telegram:briefing`, jede Minute, feuert zur `wellbeing_reminder_time`, einmal pro Tag per Cache-Sperre) — die Einheit des Tages **ohne KI-Aufruf** aus `TelegramBriefing`. `/heute` zeigt dieselbe Einheit. Morgens kommt dazu, **an jedem Tag** (auch Ruhetag, Pause, ohne Plan), die Frage nach der Tagesform mit Knopf auf `/dashboard?tagesform=1` (öffnet den Check-in) — beides entfällt, sobald eingetragen ist. Mit Garmin stehen die Werte der Nacht darüber (HRV, Ruhepuls, Schlaf, Body Battery gegen die eigene Grundlinie, aus `GarminHealthSummary::forDay()`), ebenfalls ohne KI; was noch nicht angekommen ist, fehlt einfach. Ohne Telegram übernimmt `push:wellbeing-reminders`, ohne eingestellte Uhrzeit beide um 08:00.
 - **Reviews** nach jedem Lauf — über den Observer, ohne eigenen Code.
 - **Wellbeing-Vorschläge** mit Annehmen/Ablehnen.
 - Jede andere Nachricht geht an den Coach, mit denselben Werkzeugen und demselben Tageskontingent wie im Web.

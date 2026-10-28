@@ -16,19 +16,17 @@ class SendWellbeingReminders extends Command
         $now   = now()->format('H:i');
         $today = now()->toDateString();
 
-        // Users who:
-        // - have push enabled
-        // - have a reminder time set that matches the current minute
-        // - have NOT entered wellbeing today
+        // Ohne eingestellte Uhrzeit gilt dieselbe wie beim Telegram-Briefing
+        // und im Profil (08:00) — vorher kam dann gar nichts. Wenige
+        // Athleten: der Vergleich in PHP spart eine MySQL-eigene TIME_FORMAT-Abfrage.
         $users = User::where('push_notifications_enabled', true)
-            ->whereNotNull('wellbeing_reminder_time')
-            ->whereRaw("TIME_FORMAT(wellbeing_reminder_time, '%H:%i') = ?", [$now])
-            ->whereDoesntHave('wellbeingEntries', fn ($q) => $q->where('date', $today))
+            ->whereDoesntHave('wellbeingEntries', fn ($q) => $q->whereDate('date', $today))
             // Wer Telegram verbunden hat, bekommt stattdessen das Briefing
             // (telegram:briefing) — zur selben Minute.
             ->whereNull('telegram_chat_id')
             ->with(['pushSubscriptions', 'coach'])
-            ->get();
+            ->get()
+            ->filter(fn (User $u) => substr((string) ($u->wellbeing_reminder_time ?? SendTelegramBriefings::DEFAULT_TIME), 0, 5) === $now);
 
         foreach ($users as $user) {
             if ($user->pushSubscriptions->isEmpty()) continue;
@@ -40,7 +38,7 @@ class SendWellbeingReminders extends Command
                 default      => ["Wie geht es dir heute? 💪", "Trage jetzt deine Tagesform ein — dein Plan passt sich automatisch an."],
             };
 
-            $webPush->sendToUser($user, $title, $body, '/dashboard');
+            $webPush->sendToUser($user, $title, $body, '/dashboard?tagesform=1');
 
             $this->line("Sent wellbeing reminder to user #{$user->id}");
         }

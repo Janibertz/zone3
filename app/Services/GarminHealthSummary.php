@@ -132,7 +132,15 @@ class GarminHealthSummary
      * Verglichen wird trotzdem gegen die eigene Grundlinie: 45 ms HRV sind
      * für den einen ein Bestwert und für den anderen ein Warnsignal.
      *
-     * @return array{has_data: bool, lines: list<string>, flags: list<string>, readiness: int|null}
+     * `values` und `flagged` sind dieselben Werte als Zahlen — für das
+     * Morgen-Briefing, das sie selbst formuliert, statt die Prompt-Zeilen
+     * zu zeigen.
+     *
+     * @return array{
+     *     has_data: bool, lines: list<string>, flags: list<string>, readiness: int|null,
+     *     values: array<string, array{value: float|int, pct?: float|null, score?: int|null}>,
+     *     flagged: list<string>
+     * }
      */
     public function forDay(int $userId, ?CarbonImmutable $day = null): array
     {
@@ -143,7 +151,7 @@ class GarminHealthSummary
             ->first();
 
         if (! $today) {
-            return ['has_data' => false, 'lines' => [], 'flags' => [], 'readiness' => null];
+            return ['has_data' => false, 'lines' => [], 'flags' => [], 'readiness' => null, 'values' => [], 'flagged' => []];
         }
 
         $baseline = GarminDailyMetric::where('user_id', $userId)
@@ -151,8 +159,10 @@ class GarminHealthSummary
             ->where('date', '<', $day->toDateString())
             ->get();
 
-        $lines = [];
-        $flags = [];
+        $lines   = [];
+        $flags   = [];
+        $values  = [];
+        $flagged = [];
 
         $against = function (string $field, ?float $value) use ($baseline): ?float {
             $avg = $this->average($baseline, $field);
@@ -162,39 +172,47 @@ class GarminHealthSummary
 
         if ($today->hrv !== null) {
             $pct = $against('hrv', $today->hrv);
+            $values['hrv'] = ['value' => $today->hrv, 'pct' => $pct];
             $lines[] = sprintf('HRV heute Nacht: %.0f ms%s', $today->hrv,
-                $pct === null ? '' : sprintf(' (%s zur Grundlinie)', $this->deltaLabel($pct)));
+                $pct === null ? '' : sprintf(' (%s)', $this->deltaLabel($pct)));
 
             // Unter −10 % ist keine Tagesschwankung mehr.
             if ($pct !== null && $pct <= -10) {
-                $flags[] = sprintf('HRV %.0f %% unter der Grundlinie', abs($pct));
+                $flags[]   = sprintf('HRV %.0f %% unter der Grundlinie', abs($pct));
+                $flagged[] = 'hrv';
             }
         }
 
         if ($today->resting_hr !== null) {
             $pct = $against('resting_hr', $today->resting_hr);
+            $values['resting_hr'] = ['value' => $today->resting_hr, 'pct' => $pct];
             $lines[] = sprintf('Ruhepuls heute: %d bpm%s', $today->resting_hr,
-                $pct === null ? '' : sprintf(' (%s zur Grundlinie)', $this->deltaLabel($pct)));
+                $pct === null ? '' : sprintf(' (%s)', $this->deltaLabel($pct)));
 
             if ($pct !== null && $pct >= 7) {
-                $flags[] = sprintf('Ruhepuls %.0f %% über der Grundlinie', $pct);
+                $flags[]   = sprintf('Ruhepuls %.0f %% über der Grundlinie', $pct);
+                $flagged[] = 'resting_hr';
             }
         }
 
         if ($today->sleep_hours !== null) {
+            $values['sleep'] = ['value' => $today->sleep_hours, 'score' => $today->sleep_score];
             $lines[] = sprintf('Schlaf letzte Nacht: %.1f h%s', $today->sleep_hours,
                 $today->sleep_score !== null ? sprintf(' (Score %d/100)', $today->sleep_score) : '');
 
             if ($today->sleep_hours < 5.5) {
-                $flags[] = sprintf('nur %.1f h Schlaf', $today->sleep_hours);
+                $flags[]   = sprintf('nur %.1f h Schlaf', $today->sleep_hours);
+                $flagged[] = 'sleep';
             }
         }
 
         if ($today->body_battery_high !== null) {
+            $values['body_battery'] = ['value' => $today->body_battery_high];
             $lines[] = sprintf('Body Battery: auf %d geladen', $today->body_battery_high);
 
             if ($today->body_battery_high < 50) {
-                $flags[] = sprintf('Body Battery nur bei %d', $today->body_battery_high);
+                $flags[]   = sprintf('Body Battery nur bei %d', $today->body_battery_high);
+                $flagged[] = 'body_battery';
             }
         }
 
@@ -202,7 +220,8 @@ class GarminHealthSummary
             $lines[] = sprintf('Training Readiness: %d/100', $today->training_readiness);
 
             if ($today->training_readiness < 35) {
-                $flags[] = sprintf('Garmin meldet Readiness %d/100', $today->training_readiness);
+                $flags[]   = sprintf('Garmin meldet Readiness %d/100', $today->training_readiness);
+                $flagged[] = 'readiness';
             }
         }
 
@@ -211,6 +230,8 @@ class GarminHealthSummary
             'lines'     => $lines,
             'flags'     => $flags,
             'readiness' => $today->training_readiness,
+            'values'    => $values,
+            'flagged'   => $flagged,
         ];
     }
 

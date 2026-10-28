@@ -23,7 +23,7 @@ class SendTelegramBriefings extends Command
     protected $description = 'Schickt Athleten mit Telegram zu ihrer Erinnerungszeit die Einheit des Tages.';
 
     /** Wer keine Uhrzeit eingestellt hat, bekommt dieselbe wie im Profil vorgeschlagen. */
-    private const DEFAULT_TIME = '08:00';
+    public const DEFAULT_TIME = '08:00';
 
     public function handle(TelegramClient $telegram, TelegramBriefing $briefing): int
     {
@@ -48,7 +48,7 @@ class SendTelegramBriefings extends Command
                 continue;
             }
 
-            $telegram->sendMessage((int) $user->telegram_chat_id, $briefing->today($user, morning: true));
+            $telegram->sendMessage((int) $user->telegram_chat_id, $briefing->today($user, morning: true), $briefing->morningButtons($user));
             $this->line("Briefing an #{$user->id}");
         }
 
