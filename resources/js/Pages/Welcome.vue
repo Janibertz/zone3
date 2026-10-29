@@ -23,7 +23,12 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
  * Die Ausschnitte sind nachgebaute Oberfläche, keine Bildschirmfotos: auf
  * einer öffentlichen Seite stünden sonst echte Namen und Werte, Bilder
  * veralten still, und ein halbes Megabyte PNG kostet Ladezeit. Die Zahlen
- * sind Beispiele, keine echten Trainingsdaten.
+ * sind Beispiele, keine echten Trainingsdaten — auf dem Niveau eines
+ * Halbmarathons unter zwei Stunden, denn das ist das Ziel der Mehrheit.
+ *
+ * Strava wird nicht genannt (29.10.2026): Stravas API-Richtlinie verbietet
+ * Werbung mit Strava-Bezug ohne schriftliche Zustimmung, und Strava-Daten
+ * dürfen nicht in KI. Angesprochen werden Garmin-Läufer.
  */
 
 // „Schreib mir einfach" — eine E-Mail, kein Formular (Jan, 28.10.2026).
@@ -35,7 +40,7 @@ const KONTAKT = {
 
 const heuteSchritte = [
     { name: 'Einlaufen',           wert: '15 min',    farbe: 'bg-success' },
-    { name: '3 × 10 min Schwelle', wert: '4:09–4:15', farbe: 'bg-warn' },
+    { name: '3 × 8 min Schwelle',  wert: '5:22–5:28', farbe: 'bg-warn' },
     { name: 'Auslaufen',           wert: '10 min',    farbe: 'bg-success' },
 ];
 
@@ -57,12 +62,12 @@ const boegen = [
 
 const woche = [
     { tag: 'Mo', art: 'rest',  text: 'Ruhetag',               km: null },
-    { tag: 'Di', art: 'tempo', text: 'Schwelle 3 × 10 min',   km: '10,5' },
-    { tag: 'Mi', art: 'easy',  text: 'Locker',                km: '8', heute: true },
-    { tag: 'Do', art: 'int',   text: 'Intervalle 5 × 1000 m', km: '11' },
-    { tag: 'Fr', art: 'easy',  text: 'Locker + Steigerungen', km: '7' },
-    { tag: 'Sa', art: 'easy',  text: 'Locker',                km: '6' },
-    { tag: 'So', art: 'long',  text: 'Langer Lauf',           km: '19' },
+    { tag: 'Di', art: 'tempo', text: 'Schwelle 3 × 8 min',    km: '8,5' },
+    { tag: 'Mi', art: 'easy',  text: 'Locker',                km: '6', heute: true },
+    { tag: 'Do', art: 'int',   text: 'Intervalle 5 × 800 m',  km: '8' },
+    { tag: 'Fr', art: 'rest',  text: 'Ruhetag',               km: null },
+    { tag: 'Sa', art: 'easy',  text: 'Locker + Steigerungen', km: '5' },
+    { tag: 'So', art: 'long',  text: 'Langer Lauf',           km: '15' },
 ];
 const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg-danger', long: 'bg-info' };
 </script>
@@ -104,23 +109,24 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
         <section class="px-5 pb-20 pt-28 sm:pt-36">
             <div class="mx-auto grid max-w-5xl items-center gap-12 lg:grid-cols-2 lg:gap-16">
                 <div>
-                    <p class="text-[17px] font-semibold text-ink-3">Mein Ziel</p>
+                    <p class="text-[17px] font-semibold text-ink-3">Der Coach, der mitläuft.</p>
                     <!--
                         Zwei Blöcke statt <br>: Vue faltet den Zeilenumbruch im
                         Quelltext weg, und ein ausgeblendetes <br> klebte Wörter
                         aneinander.
                     -->
-                    <h1 class="mt-2 text-[3.4rem] font-extrabold leading-[0.98] tracking-[-0.04em] sm:text-7xl">
+                    <h1 class="mt-2 text-[2.45rem] font-extrabold leading-[0.98] tracking-[-0.04em] sm:text-6xl lg:text-[3.5rem]">
+                        <span class="block">Dein erster</span>
                         <span class="block">Halbmarathon</span>
-                        <span class="block">unter <span class="text-accent">90.</span></span>
+                        <span class="block whitespace-nowrap">unter <span class="text-accent">2 Stunden.</span></span>
                     </h1>
                     <p class="mt-6 max-w-md text-[20px] font-medium leading-snug text-ink-2">
-                        Den Coach dafür habe ich mir selbst gebaut.
+                        Zone3 plant jeden Tag mit dir. Du musst nur laufen.
                     </p>
                     <p class="mt-3 max-w-md text-[15px] leading-relaxed text-ink-3">
-                        Zone3 liest deine Läufe aus Strava oder Garmin, rechnet daraus deine
-                        Tempi und baut einen Plan bis zum Renntag. Ändert sich etwas, merkt
-                        es jemand — und sagt es dir.
+                        Zone3 liest deine Läufe von deiner Garmin, rechnet daraus deine Tempi
+                        und baut einen Plan bis zum Renntag. Jede Einheit liegt morgens schon
+                        auf deiner Uhr.
                     </p>
 
                     <div class="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -152,15 +158,15 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                     <div class="mt-5 grid grid-cols-[1fr_1fr_1.2fr] gap-3">
                         <div>
                             <p class="text-[13px] text-ink-3">Distanz</p>
-                            <p><span class="font-rounded text-[30px] font-bold tabular-nums tracking-[-0.02em] sm:text-[34px]">10,5</span><span class="ml-1 text-[15px] font-semibold text-ink-3">km</span></p>
+                            <p><span class="font-rounded text-[30px] font-bold tabular-nums tracking-[-0.02em] sm:text-[34px]">8,5</span><span class="ml-1 text-[15px] font-semibold text-ink-3">km</span></p>
                         </div>
                         <div>
                             <p class="text-[13px] text-ink-3">Dauer</p>
-                            <p><span class="font-rounded text-[30px] font-bold tabular-nums tracking-[-0.02em] sm:text-[34px]">52</span><span class="ml-1 text-[15px] font-semibold text-ink-3">min</span></p>
+                            <p><span class="font-rounded text-[30px] font-bold tabular-nums tracking-[-0.02em] sm:text-[34px]">50</span><span class="ml-1 text-[15px] font-semibold text-ink-3">min</span></p>
                         </div>
                         <div>
                             <p class="text-[13px] text-ink-3">Tempo</p>
-                            <p><span class="font-rounded text-[30px] font-bold tabular-nums tracking-[-0.02em] sm:text-[34px]">4:12</span><span class="ml-1 text-[15px] font-semibold text-ink-3">/km</span></p>
+                            <p><span class="font-rounded text-[30px] font-bold tabular-nums tracking-[-0.02em] sm:text-[34px]">5:25</span><span class="ml-1 text-[15px] font-semibold text-ink-3">/km</span></p>
                         </div>
                     </div>
 
@@ -170,6 +176,13 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                             <span class="flex-1 text-ink-2">{{ s.name }}</span>
                             <b class="font-semibold tabular-nums">{{ s.wert }}</b>
                         </div>
+                    </div>
+
+                    <div class="mt-4 flex items-center gap-2 border-t border-line pt-4 text-[15px] font-semibold text-success-ink">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="6" y="6" width="12" height="12" rx="3" /><path d="M9 6V3h6v3M9 18v3h6v-3M10 12l1.5 1.5L14.5 10" />
+                        </svg>
+                        Liegt schon auf deiner Garmin
                     </div>
                 </div>
             </div>
@@ -182,7 +195,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                 <!-- 1 — Körper -->
                 <div class="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
                     <div>
-                        <p class="text-[17px] font-semibold text-ink-3">Heute, 06:42</p>
+                        <p class="text-[17px] font-semibold text-ink-3">Von deiner Garmin, heute 06:42</p>
                         <h2 class="mt-2 text-[2.5rem] font-extrabold leading-[1.02] tracking-[-0.035em] sm:text-5xl">
                             <span class="block">Schlecht geschlafen?</span>
                             <span class="block text-ink-3">Er sieht es.</span>
@@ -210,9 +223,9 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                                 Vorschlag vom Coach
                             </span>
                             <div class="mt-3 flex flex-wrap items-center gap-x-3 text-[20px]">
-                                <span class="text-ink-3 line-through decoration-2">6 × 800 m</span>
+                                <span class="text-ink-3 line-through decoration-2">5 × 800 m</span>
                                 <span class="text-ink-3" aria-hidden="true">→</span>
-                                <span class="font-bold">40 min locker</span>
+                                <span class="font-bold">35 min locker</span>
                             </div>
                             <p class="mt-2 text-[15px] leading-relaxed text-ink-2">
                                 HRV unter deinem Normalbereich, nur 5:40 h Schlaf. Die Intervalle
@@ -229,10 +242,10 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                 <!-- 2 — Die Woche -->
                 <div class="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
                     <div class="lg:order-2">
-                        <p class="text-[17px] font-semibold text-ink-3">Diese Woche</p>
+                        <p class="text-[17px] font-semibold text-ink-3">Diese Woche · 80 % locker, 20 % hart</p>
                         <h2 class="mt-2 text-[2.5rem] font-extrabold leading-[1.02] tracking-[-0.035em] sm:text-5xl">
-                            <span class="block">80 % locker.</span>
-                            <span class="block text-ink-3">20 % hart.</span>
+                            <span class="block">Langsam laufen.</span>
+                            <span class="block text-ink-3">Schneller werden.</span>
                         </h2>
                         <p class="mt-5 max-w-md text-[15px] leading-relaxed text-ink-2">
                             Gezählt in Minuten, nicht nur in Einheiten. Der lange Lauf wird vom
@@ -304,7 +317,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                     Beta · kostenlos · auf Einladung
                 </span>
                 <h2 class="mt-5 text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.035em] sm:text-6xl">
-                    <span class="block">Lust mitzutesten?</span>
+                    <span class="block">Läufst du mit Garmin?</span>
                     <span class="block">Schreib mir einfach.</span>
                 </h2>
                 <p class="mt-4 text-[17px] text-ink-3">Web-App fürs Handy, ohne App Store.</p>
@@ -323,7 +336,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                 <!-- Die Adresse ausgeschrieben: ohne Mail-App am Rechner führt der Knopf ins Leere. -->
                 <p class="mt-4 select-text text-[15px] text-ink-3">{{ KONTAKT.adresse }}</p>
 
-                <p class="mt-14 text-[15px] font-semibold text-ink-3">Garmin · Strava · Apple Watch · Zwift</p>
+                <p class="mt-14 text-[15px] font-semibold text-ink-3">Für Garmin-Läufer</p>
             </div>
         </section>
 
