@@ -237,6 +237,7 @@ class OnboardingController extends Controller
             'training_model'           => ['required', Rule::in(RunnerProfile::TRAINING_MODELS)],
             'running_experience_years' => 'nullable|integer|min:0|max:60',
             'has_lactate_meter'        => 'required|boolean',
+            'hills_available'          => 'sometimes|boolean',
         ]);
 
         $user    = Auth::user();

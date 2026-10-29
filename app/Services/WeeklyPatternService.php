@@ -203,12 +203,23 @@ class WeeklyPatternService
             // überhaupt bekommt — in der Grundlage keine Intervalle, in einer
             // Entlastungswoche nur eine.
             $period       = $periods[$weekKey] ?? null;
+            $quality      = $period['quality'] ?? [];
+            // Grundlage: die eine harte Einheit wechselt wochenweise zwischen
+            // Schwelle und Intervall — dort nur Fahrtspiel und Bergintervalle,
+            // keine Bahn (RunWorkouts::PHASES, Entscheidung von Jan 29.10.2026).
+            $baseSwap     = ($period['phase'] ?? null) === 'base' && (int) substr($weekKey, -2) % 2 === 0;
+            if (($period['phase'] ?? null) === 'base') {
+                $quality[] = 'interval';
+            }
             $weekPriority = $period
                 ? array_values(array_filter(
                     $priority,
-                    fn ($t) => ! in_array($t, self::HARD_TYPES, true) || in_array($t, $period['quality'], true),
+                    fn ($t) => ! in_array($t, self::HARD_TYPES, true) || in_array($t, $quality, true),
                 ))
                 : $priority;
+            if ($baseSwap) {
+                $weekPriority = $this->intervalFirst($weekPriority);
+            }
             $weekMaxHard  = $period ? min($maxHard, $period['max_hard']) : $maxHard;
 
             $weeks[$weekKey] = match (true) {
@@ -221,6 +232,14 @@ class WeeklyPatternService
             // Was danach noch frei ist, wird HIER entschieden — nicht vom
             // Modell. Siehe assignFreeDays().
             $this->assignFreeDays($days, $dates);
+
+            // Die Phase reist am Slot mit: sie entscheidet, welche Bausteine
+            // der Katalog anbietet.
+            foreach ($dates as $d) {
+                foreach ($days[$d]['slots'] as $i => $slot) {
+                    $days[$d]['slots'][$i]['phase'] = $period['phase'] ?? null;
+                }
+            }
         }
 
         // Der lange Lauf bekommt seine Zieldistanz aus der Leiter — sie ist
@@ -1574,6 +1593,19 @@ class WeeklyPatternService
         return $budget === 0 || $budget >= self::MIN_USEFUL_RUN_MINUTES;
     }
 
+    /** Intervall vor Schwelle, die übrige Reihenfolge bleibt. */
+    private function intervalFirst(array $priority): array
+    {
+        $t = array_search('tempo_run', $priority, true);
+        $i = array_search('interval', $priority, true);
+
+        if ($t !== false && $i !== false && $i > $t) {
+            [$priority[$t], $priority[$i]] = ['interval', 'tempo_run'];
+        }
+
+        return $priority;
+    }
+
     /** Die Regeln des norwegischen Modells — ersetzen 80/20 und „ein Lauf pro Tag". */
     private function norwegianRules(array $model): string
     {
@@ -1593,9 +1625,16 @@ class WeeklyPatternService
     }
 
     /** „ — workout: \"a\" (…) | \"b\" (…)" fuer den Prompt. */
-    private function workoutChoices(array $slot): string
+    private function workoutChoices(array $slot, string $date, array $skeleton): string
     {
-        $variants = \App\Services\Run\RunWorkouts::variantsFor($slot);
+        // Nur was in der Phase passt, einen Hang hat (sofern noetig) und in
+        // den letzten drei Wochen nicht lief. Innerhalb des Fensters setzt
+        // der Validator die Rotation durch.
+        $variants = \App\Services\Run\RunWorkouts::fresh(
+            \App\Services\Run\RunWorkouts::variantsFor($slot + ['hills' => $skeleton['hills'] ?? true]),
+            $skeleton['workout_history'] ?? [],
+            $date,
+        );
 
         if ($variants === []) {
             return '';
@@ -1725,11 +1764,11 @@ class WeeklyPatternService
 
                 // Welche Bausteine an diesem Slot erlaubt sind — das Modell
                 // waehlt einen, den Ablauf baut der Validator (RunWorkouts).
-                $workouts = $this->workoutChoices($slot);
+                $workouts = $this->workoutChoices($slot, (string) $date, $skeleton);
 
                 // Beim langen Lauf steht die Distanz fest, nicht nur der Typ.
                 if ($slot['type'] === 'long_run' && isset($slot['target_km'])) {
-                    $race     = ($slot['race_km'] ?? 0) > 0 ? ", davon {$slot['race_km']} km im Zielrenntempo am Ende" : '';
+                    $race     = ($slot['race_km'] ?? 0) > 0 ? ", davon {$slot['race_km']} km im Zielrenntempo" : '';
                     $shortened = ! empty($slot['shortened'])
                         ? ' — auf das Zeitbudget dieses Tages gekuerzt, die Leiter haette mehr vorgesehen'
                         : '';

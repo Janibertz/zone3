@@ -256,7 +256,7 @@ class TrainingPlanGenerator
         // Modell waehlt nur den Baustein. Vorher schrieb es die Struktur als
         // Text, und ein zweiter Aufruf las sie beim Oeffnen der Details
         // wieder heraus; dabei gingen Minuten verloren (aus 12:30 wurden 12).
-        $workoutRule = '- ABLAUF: Den Ablauf jeder Laufeinheit (Einlaufen, Hauptteil, Pausen, Auslaufen, Paces, Distanz) baut das System aus dem Baustein, den du in "workout" waehlst — die erlaubten Bausteine stehen im Gerüst bei jedem Tag. Waehle abwechslungsreich und passend zur Phase. '
+        $workoutRule = '- ABLAUF: Den Ablauf jeder Laufeinheit (Einlaufen, Hauptteil, Pausen, Auslaufen, Paces, Distanz) baut das System aus dem Baustein, den du in "workout" waehlst — die erlaubten Bausteine stehen im Gerüst bei jedem Tag. Waehle abwechslungsreich und passend zur Phase; im selben Plan denselben Baustein nicht zweimal (ausser locker und lang_locker). '
             . 'Die description sagt Zweck und Gefühl der Einheit, aber KEINE Minuten, Wiederholungen, Distanzen oder Paces: der Athlet sieht den Ablauf direkt darunter, und eine zweite Zahl wuerde ihm widersprechen. Der title darf den Baustein benennen ("Schwelle in Blöcken"), aber ohne Zahlen. '
             . 'Ab 90 Minuten Laufzeit gehört ein Satz zur Verpflegung in die description.';
 

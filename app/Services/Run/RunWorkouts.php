@@ -30,13 +30,59 @@ class RunWorkouts
 {
     /** Die Varianten je Typ. Die erste ist die Vorgabe. */
     public const VARIANTS = [
-        'easy_run'        => ['locker', 'locker_steigerungen'],
-        'tempo_run'       => ['schwelle_bloecke', 'schwelle_dauer', 'cruise_km'],
-        'interval'        => ['vo2_1000', 'vo2_3min', 'vo2_800'],
-        'progressive_run' => ['progressiv'],
-        'test_run'        => ['test_5k'],
-        'long_run'        => ['lang_locker', 'lang_renntempo'],
+        'easy_run'        => ['locker', 'locker_steigerungen', 'locker_bergsprints', 'locker_lauf_abc'],
+        'tempo_run'       => ['schwelle_bloecke', 'schwelle_dauer', 'cruise_km', 'schwelle_pyramide', 'over_under', 'wechseltempo', 'renntempo_bloecke'],
+        'interval'        => ['vo2_1000', 'vo2_3min', 'vo2_800', 'vo2_400', 'vo2_1200', 'vo2_pyramide', 'vo2_30_30', 'vo2_4x4', 'fahrtspiel_pyramide', 'fahrtspiel_1_1', 'bergintervalle'],
+        'progressive_run' => ['progressiv', 'progressiv_km', 'endbeschleunigung'],
+        'test_run'        => ['test_5k', 'test_30min'],
+        'long_run'        => ['lang_locker', 'lang_renntempo', 'lang_steigerungen', 'lang_renntempo_bloecke', 'lang_progressiv'],
     ];
+
+    /**
+     * In welchen Phasen ein Baustein vorkommt (Katalog „Workout-Katalog
+     * erweitern", von Jan abgenommen am 29.10.2026). Fehlt ein Eintrag, gilt
+     * er in jeder Phase. In der Grundlage gibt es statt Bahn-Intervallen nur
+     * Fahrtspiel und Bergintervalle, im Taper nur kurze Reize.
+     */
+    public const PHASES = [
+        'locker_bergsprints'     => ['base', 'build', 'peak'],
+        'locker_lauf_abc'        => ['base', 'build'],
+        'cruise_km'              => ['build', 'peak'],
+        'schwelle_pyramide'      => ['build', 'peak'],
+        'over_under'             => ['build', 'peak'],
+        'wechseltempo'           => ['build', 'peak'],
+        'renntempo_bloecke'      => ['peak', 'taper', 'race_week'],
+        'vo2_1000'               => ['build', 'peak'],
+        'vo2_800'                => ['build', 'peak'],
+        'vo2_3min'               => ['build', 'peak'],
+        'vo2_400'                => ['build', 'peak', 'taper', 'race_week'],
+        'vo2_1200'               => ['build', 'peak'],
+        'vo2_pyramide'           => ['build', 'peak'],
+        'vo2_30_30'              => ['build', 'peak', 'taper', 'race_week'],
+        'vo2_4x4'                => ['build', 'peak'],
+        'fahrtspiel_pyramide'    => ['base', 'build', 'peak'],
+        'fahrtspiel_1_1'         => ['base', 'build', 'peak'],
+        'bergintervalle'         => ['base', 'build'],
+        'progressiv_km'          => ['build', 'peak'],
+        'endbeschleunigung'      => ['base', 'build'],
+        'test_5k'                => ['base', 'build'],
+        'test_30min'             => ['base', 'build'],
+        'lang_steigerungen'      => ['base', 'build'],
+        'lang_renntempo_bloecke' => ['build', 'peak'],
+        'lang_progressiv'        => ['base', 'build'],
+    ];
+
+    /** Brauchen einen Hang — ohne „Hügel erreichbar" im Profil nicht im Plan. */
+    public const HILL_VARIANTS = ['locker_bergsprints', 'bergintervalle'];
+
+    /**
+     * Die Grundform, die nie aus der Rotation fällt: die meisten lockeren
+     * und langen Läufe sollen schlicht bleiben.
+     */
+    public const PLAIN_VARIANTS = ['locker', 'lang_locker', 'steady'];
+
+    /** So lange sperrt ein gelaufener Baustein sich selbst (Entscheidung von Jan). */
+    public const ROTATION_DAYS = 21;
 
     /** Norwegisches Modell: die Varianten hängen an der Rolle im Gerüst. */
     public const NORWEGIAN_VARIANTS = [
@@ -63,6 +109,26 @@ class RunWorkouts
         'test_5k'             => '5-km-Zeitversuch',
         'lang_locker'         => 'lang und locker',
         'lang_renntempo'      => 'lang, am Ende im Zielrenntempo',
+        'locker_bergsprints'  => 'locker, am Ende 6×10 s Bergsprint (braucht einen Hang)',
+        'locker_lauf_abc'     => 'locker mit 10 min Lauf-ABC',
+        'schwelle_pyramide'   => 'Schwellen-Pyramide, z. B. 4-6-8-6-4 min',
+        'over_under'          => 'Over-Under: 2 min knapp unter / 1 min knapp über der Schwelle im Wechsel',
+        'wechseltempo'        => 'Wechseltempo: 3 min Schwelle / 2 min Marathontempo ohne Pause',
+        'renntempo_bloecke'   => 'Blöcke im Zielrenntempo mit Trabpause',
+        'vo2_400'             => '400-m-Intervalle mit 200 m Trabpause',
+        'vo2_1200'            => '1200-m-Intervalle mit 400 m Trabpause',
+        'vo2_pyramide'        => 'Bahn-Pyramide 400-800-1200-800-400 m',
+        'vo2_30_30'           => '30 s schnell / 30 s Traben im Wechsel',
+        'vo2_4x4'             => '4-min-Intervalle mit 3 min Trabpause',
+        'fahrtspiel_pyramide' => 'Fahrtspiel 1-2-3-4-3-2-1 min hart',
+        'fahrtspiel_1_1'      => 'Fahrtspiel 1 min zügig / 1 min locker',
+        'bergintervalle'      => 'Bergintervalle 75 s bergauf (braucht einen Hang)',
+        'progressiv_km'       => 'jeder Kilometer etwas schneller, bis zur Schwelle',
+        'endbeschleunigung'   => 'locker, am Ende Marathontempo bis Schwelle',
+        'test_30min'          => '30-min-Test (Schwelle)',
+        'lang_steigerungen'   => 'lang und locker, mittendrin 6×20 s Steigerungen',
+        'lang_renntempo_bloecke' => 'lang, Zielrenntempo in Blöcken mittendrin',
+        'lang_progressiv'     => 'lang, letzter Teil stufenweise bis Marathontempo',
         'sub_6min'            => '6-min-Blöcke knapp unter der Schwelle',
         'sub_1000'            => '1000-m-Blöcke knapp unter der Schwelle',
         'sub_10min'           => '10-min-Blöcke knapp unter der Schwelle',
@@ -88,6 +154,26 @@ class RunWorkouts
         'test_5k'             => 'Zeitversuch: gut einlaufen, dann gleichmäßig an die Grenze. Das Ergebnis schärft deine Tempi.',
         'lang_locker'         => 'Langer Lauf, durchgehend locker. Er baut Ausdauer und Fettstoffwechsel auf; lieber zu langsam als zu schnell.',
         'lang_renntempo'      => 'Langer Lauf, die letzten Kilometer im Zielrenntempo. So lernt der Körper, das Renntempo auch müde zu halten.',
+        'locker_bergsprints'  => 'Locker laufen, am Ende kurze Bergsprints mit voller Erholung: explosiv bergauf, dann ruhig zurückgehen. Das baut Kraft und Laufökonomie auf, ohne zu ermüden.',
+        'locker_lauf_abc'     => 'Locker laufen mit Lauf-ABC dazwischen: Skippings, Anfersen, Hopserlauf. Sauber statt schnell, das verbessert deinen Laufstil.',
+        'schwelle_pyramide'   => 'Schwellen-Pyramide: die Blöcke werden länger und wieder kürzer, das Tempo bleibt gleich. Kontrolliert hart, die längsten Blöcke in der Mitte.',
+        'over_under'          => 'Over-Under: knapp unter und knapp über der Schwelle im Wechsel. Der Körper lernt, Laktat beim Weiterlaufen abzubauen.',
+        'wechseltempo'        => 'Wechseltempo ohne Pause: Schwelle und Marathontempo im Wechsel. Im ruhigeren Teil erholst du dich laufend, nicht stehend.',
+        'renntempo_bloecke'   => 'Blöcke im Zielrenntempo: genau das Tempo, das du im Rennen laufen willst. So wird es vertraut und fühlt sich am Renntag kontrolliert an.',
+        'vo2_400'             => 'Kurze, schnelle Intervalle: flüssig und locker in den Schultern, alle gleich schnell. Das schärft Tempo und Laufökonomie.',
+        'vo2_1200'            => 'Lange Intervalle im 5-km-Tempo: hart, aber gleichmäßig. Die Länge macht sie zur harten Prüfung für die Sauerstoffaufnahme.',
+        'vo2_pyramide'        => 'Bahn-Pyramide: die Strecken werden länger und wieder kürzer. Halte das Tempo auch auf dem langen Stück in der Mitte.',
+        'vo2_30_30'           => 'Kurze schnelle Abschnitte mit gleich langem Traben: zügig, nie sprinten. Viel Zeit nahe der maximalen Sauerstoffaufnahme, ohne lange zu leiden.',
+        'vo2_4x4'             => 'Lange, harte Intervalle mit lockerem Traben: hart, aber gleichmäßig über alle Wiederholungen. Klassiker für die maximale Sauerstoffaufnahme.',
+        'fahrtspiel_pyramide' => 'Fahrtspiel: die harten Abschnitte werden länger und wieder kürzer, dazwischen locker traben. Lauf nach Gefühl, kurz schneller, lang kontrollierter.',
+        'fahrtspiel_1_1'      => 'Fahrtspiel im Wechsel: kurz zügig, kurz locker. Spielerisch und rhythmisch, nie bis an die Grenze.',
+        'bergintervalle'      => 'Bergintervalle: kräftig bergauf, aufrecht und mit aktivem Armeinsatz, locker wieder hinunter. Das baut Kraft und Tempohärte auf.',
+        'progressiv_km'       => 'Jeder Kilometer ein Stück schneller: locker beginnen, kontrolliert hart enden. Das schult Tempogefühl.',
+        'endbeschleunigung'   => 'Locker laufen und zum Schluss beschleunigen: erst Marathontempo, dann Schwelle. Ein starker Schluss auf müden Beinen.',
+        'test_30min'          => 'Schwellentest: gut einlaufen, dann so schnell, wie du gleichmäßig durchhalten kannst. Der Schnitt am Ende zeigt deine Schwelle.',
+        'lang_steigerungen'   => 'Langer Lauf, locker, mittendrin ein paar kurze Steigerungen. Sie lockern die Beine und halten den Laufstil frisch.',
+        'lang_renntempo_bloecke' => 'Langer Lauf mit Blöcken im Zielrenntempo mittendrin. Zwischen den Blöcken locker, so trainierst du Renntempo und Erholung im Lauf.',
+        'lang_progressiv'     => 'Langer Lauf, im letzten Teil stufenweise schneller bis ins Marathontempo. Lieber zu ruhig anfangen als zu schnell.',
         'sub_6min'            => 'Blöcke knapp unter der Schwelle: kontrolliert, nie hart. Puls und Atmung bleiben ruhig genug für viele Wiederholungen.',
         'sub_1000'            => 'Kilometer knapp unter der Schwelle: kontrolliert, nie hart. Puls und Atmung bleiben ruhig genug für viele Wiederholungen.',
         'sub_10min'           => 'Lange Blöcke knapp unter der Schwelle: kontrolliert, nie hart. Der Puls bleibt unter der Grenze.',
@@ -142,8 +228,11 @@ class RunWorkouts
 
         // Der lange Lauf hat keine Wahl: ob ein Renntempo-Abschnitt dazugehört,
         // hat die Leiter entschieden.
+        // Neu ist nur die Wahl, wie er aussieht.
         if ($type === 'long_run') {
-            return [($slot['race_km'] ?? 0) > 0 ? 'lang_renntempo' : 'lang_locker'];
+            return self::filter(($slot['race_km'] ?? 0) > 0
+                ? ['lang_renntempo', 'lang_renntempo_bloecke', 'lang_progressiv']
+                : ['lang_locker', 'lang_steigerungen'], $slot);
         }
 
         // Wiedereinstieg: die Stufe entscheidet, nicht das Modell.
@@ -155,7 +244,52 @@ class RunWorkouts
             };
         }
 
-        return self::VARIANTS[$type] ?? [];
+        return self::filter(self::VARIANTS[$type] ?? [], $slot);
+    }
+
+    /**
+     * Phase (`phase`) und Hang (`hills` = false) aus dem Slot anwenden.
+     * Bleibt nichts übrig, gilt die ungefilterte Liste — ein Ablauf ist
+     * besser als keiner.
+     */
+    private static function filter(array $variants, array $slot): array
+    {
+        $phase = $slot['phase'] ?? null;
+
+        $kept = array_values(array_filter($variants, fn ($v) =>
+            ($phase === null || ! isset(self::PHASES[$v]) || in_array($phase, self::PHASES[$v], true))
+            && (($slot['hills'] ?? true) || ! in_array($v, self::HILL_VARIANTS, true))
+        ));
+
+        return $kept ?: $variants;
+    }
+
+    /**
+     * Was beim selben Typ in den letzten {@see ROTATION_DAYS} Tagen lief,
+     * fällt aus der Liste — außer der Grundform. Bleibt nichts, gilt der am
+     * längsten nicht gelaufene Baustein.
+     *
+     * @param  array<string,string>  $history  Baustein → letztes Datum (Y-m-d)
+     */
+    public static function fresh(array $allowed, array $history, ?string $date): array
+    {
+        if ($date === null || $history === []) {
+            return $allowed;
+        }
+
+        $since = date('Y-m-d', strtotime($date . ' -' . self::ROTATION_DAYS . ' days'));
+
+        $fresh = array_values(array_filter($allowed, fn ($v) =>
+            in_array($v, self::PLAIN_VARIANTS, true) || ! isset($history[$v]) || $history[$v] <= $since
+        ));
+
+        if ($fresh !== []) {
+            return $fresh;
+        }
+
+        usort($allowed, fn ($a, $b) => strcmp($history[$a] ?? '', $history[$b] ?? ''));
+
+        return [$allowed[0]];
     }
 
     /**
@@ -180,10 +314,14 @@ class RunWorkouts
     }
 
     /**
-     * Die gewählte Variante, wenn sie erlaubt ist — sonst eine aus der Liste,
-     * nach Kalenderwoche wechselnd, damit nicht jede Woche dasselbe kommt.
+     * Die gewählte Variante, wenn sie erlaubt ist. Sonst die Grundform, wo es
+     * eine gibt (ein lockerer Lauf bleibt schlicht), und ohne Grundform der
+     * am längsten nicht gelaufene Baustein; unter Gleichstand wechselt die
+     * Kalenderwoche.
+     *
+     * @param  array<string,string>  $history  Baustein → letztes Datum (Y-m-d)
      */
-    public static function pick(array $allowed, ?string $wanted, ?string $date = null): ?string
+    public static function pick(array $allowed, ?string $wanted, ?string $date = null, array $history = []): ?string
     {
         if ($allowed === []) {
             return null;
@@ -193,9 +331,17 @@ class RunWorkouts
             return $wanted;
         }
 
-        $week = $date ? (int) date('W', strtotime($date)) : 0;
+        foreach ($allowed as $v) {
+            if (in_array($v, self::PLAIN_VARIANTS, true)) {
+                return $v;
+            }
+        }
 
-        return $allowed[$week % count($allowed)];
+        $oldest = min(array_map(fn ($v) => $history[$v] ?? '', $allowed));
+        $tied   = array_values(array_filter($allowed, fn ($v) => ($history[$v] ?? '') === $oldest));
+        $week   = $date ? (int) date('W', strtotime($date)) : 0;
+
+        return $tied[$week % count($tied)];
     }
 
     /**
@@ -207,11 +353,13 @@ class RunWorkouts
      * (`workout`); fehlt sie oder ist sie nicht erlaubt, springt
      * {@see pick()} ein.
      */
-    public function forSlot(array $session, array $slot, ?array $paces): ?array
+    public function forSlot(array $session, array $slot, ?array $paces, array $history = []): ?array
     {
         $type    = $session['type'] ?? ($slot['type'] ?? '');
         $slot   += ['type' => $type];
-        $variant = self::pick(self::variantsFor($slot), $session['workout'] ?? null, $session['date'] ?? null);
+        $date    = $session['date'] ?? null;
+        $allowed = self::fresh(self::variantsFor($slot), $history, $date);
+        $variant = self::pick($allowed, $session['workout'] ?? null, $date, $history);
 
         if ($variant === null) {
             return null;
@@ -264,6 +412,26 @@ class RunWorkouts
             'test_5k'             => $this->hard($minutes, $paces, $this->test5k($paces), 15),
             'lang_locker'         => $this->long((float) ($o['km'] ?? 0), $minutes, 0.0, $paces),
             'lang_renntempo'      => $this->long((float) ($o['km'] ?? 0), $minutes, (float) ($o['race_km'] ?? 0), $paces),
+            'lang_steigerungen'   => $this->longStrides((float) ($o['km'] ?? 0), $minutes, $paces),
+            'lang_renntempo_bloecke' => $this->longRaceBlocks((float) ($o['km'] ?? 0), $minutes, (float) ($o['race_km'] ?? 0), $paces),
+            'lang_progressiv'     => $this->longProgressive((float) ($o['km'] ?? 0), $minutes, (float) ($o['race_km'] ?? 0), $paces),
+            'locker_bergsprints'  => $this->easyHillSprints($minutes ?: 45, $paces),
+            'locker_lauf_abc'     => $this->easyDrills($minutes ?: 45, $paces),
+            'schwelle_pyramide'   => $this->hard($minutes, $paces, $this->thresholdPyramid($hard, $paces)),
+            'over_under'          => $this->hard($minutes, $paces, $this->overUnder($hard, $paces)),
+            'wechseltempo'        => $this->hard($minutes, $paces, $this->floatTempo($hard, $paces)),
+            'renntempo_bloecke'   => $this->hard($minutes, $paces, $this->raceBlocks($hard, $paces)),
+            'vo2_400'             => $this->hard($minutes, $paces, $this->vo2Distance($hard, $paces, 400, 8, 16, 200)),
+            'vo2_1200'            => $this->hard($minutes, $paces, $this->vo2Distance($hard, $paces, 1200, 3, 6)),
+            'vo2_pyramide'        => $this->hard($minutes, $paces, $this->vo2Pyramid($hard, $paces)),
+            'vo2_30_30'           => $this->hard($minutes, $paces, $this->thirtyThirty($hard, $paces)),
+            'vo2_4x4'             => $this->hard($minutes, $paces, $this->fourByFour($hard, $paces)),
+            'fahrtspiel_pyramide' => $this->hard($minutes, $paces, $this->fartlekPyramid($hard, $paces)),
+            'fahrtspiel_1_1'      => $this->hard($minutes, $paces, $this->fartlekOneOne($hard, $paces)),
+            'bergintervalle'      => $this->hard($minutes, $paces, $this->hillRepeats($hard)),
+            'progressiv_km'       => $this->progressiveKm($minutes ?: 50, $paces),
+            'endbeschleunigung'   => $this->strongFinish($minutes ?: 50, $hard, $paces),
+            'test_30min'          => $this->hard($minutes, $paces, $this->test30($paces), 15),
             'sub_6min'            => $this->hard($minutes, $paces, $this->subTime($hard, $paces, 6, 1, 3, 6), self::WARMUP_MIN, self::SUB_COOLDOWN_MIN),
             'sub_10min'           => $this->hard($minutes, $paces, $this->subTime($hard, $paces, 10, 2, 2, 4), self::WARMUP_MIN, self::SUB_COOLDOWN_MIN),
             'sub_1000'            => $this->hard($minutes, $paces, $this->subKm($hard, $paces), self::WARMUP_MIN, self::SUB_COOLDOWN_MIN),
@@ -289,8 +457,8 @@ class RunWorkouts
             'pace_target'  => $main['pace_target'] ?? null,
             'zone'         => (int) ($main['zone'] ?? 2),
             'intensity'    => match (true) {
-                in_array($variant, ['locker', 'locker_steigerungen', 'lang_locker', 'steady'], true) => 'low',
-                in_array($variant, ['lang_renntempo', 'progressiv', 'sub_6min', 'sub_10min', 'sub_1000'], true) => 'medium',
+                in_array($variant, ['locker', 'locker_steigerungen', 'locker_bergsprints', 'locker_lauf_abc', 'lang_locker', 'lang_steigerungen', 'steady'], true) => 'low',
+                in_array($variant, ['lang_renntempo', 'lang_renntempo_bloecke', 'lang_progressiv', 'progressiv', 'progressiv_km', 'endbeschleunigung', 'sub_6min', 'sub_10min', 'sub_1000'], true) => 'medium',
                 default => 'high',
             },
             'summary'      => $summary,
@@ -396,13 +564,13 @@ class RunWorkouts
         ], "{$reps}×1000 m Schwelle"];
     }
 
-    private function vo2Distance(int $hard, array $p, int $meters, int $min, int $max): array
+    private function vo2Distance(int $hard, array $p, int $meters, int $min, int $max, int $rest = 400): array
     {
         $reps = $this->clamp((int) round($hard * 60 / ($meters / 1000 * $this->sec($p, 'interval'))), $min, $max);
 
         return [[
             $this->distanceStep('work', "{$meters} m Intervall", $meters, $p, 'interval', 5, $reps),
-            $this->distanceStep('rest', '400 m Traben', 400, $p, 'easy', 1, $reps, false),
+            $this->distanceStep('rest', "{$rest} m Traben", $rest, $p, 'easy', 1, $reps, false),
         ], "{$reps}×{$meters} m"];
     }
 
@@ -491,6 +659,283 @@ class RunWorkouts
             $this->distanceStep('work', '200 m schnell', 200, $p, 'repetition', 5, $reps),
             $this->distanceStep('rest', '200 m Traben', 200, $p, 'easy', 1, $reps, false),
         ], "{$reps}×200 m schnell"];
+    }
+
+
+    // ── Erweiterung vom 29.10.2026 ───────────────────────────────────────
+
+    /** Locker, am Ende 6 × (10 s Bergsprint + 1:30 zurückgehen). Ohne Pace: am Hang sagt sie nichts. */
+    private function easyHillSprints(int $minutes, array $p): array
+    {
+        $steady = max(10, (int) round($minutes - 6 * (10 / 60 + 1.5)));
+
+        return [[
+            $this->step('work', 'Lockerer Lauf', $steady, $p['easy'] ?? null, 2),
+            $this->step('work', 'Bergsprint', 10 / 60, null, 5, 6),
+            $this->step('rest', 'Zurückgehen', 1.5, null, 1, 6),
+        ], "{$steady} min locker + 6×10 s Bergsprint"];
+    }
+
+    private function easyDrills(int $minutes, array $p): array
+    {
+        $rest = max(10, $minutes - 20);
+
+        return [[
+            $this->step('warmup', 'Locker', 10, $p['easy'] ?? null, 2),
+            $this->step('work', 'Lauf-ABC (Skippings, Anfersen, Hopserlauf)', 10, null, 2),
+            $this->step('work', 'Lockerer Lauf', $rest, $p['easy'] ?? null, 2),
+        ], "{$minutes} min locker mit Lauf-ABC"];
+    }
+
+    /** Die größte Pyramide, die in die Hartzeit passt. */
+    private function thresholdPyramid(int $hard, array $p): array
+    {
+        $shapes = [[2, 4, 6, 4, 2], [3, 5, 7, 5, 3], [4, 6, 8, 6, 4], [5, 7, 9, 7, 5]];
+        $shape  = $shapes[0];
+        foreach ($shapes as $s) {
+            if (array_sum($s) <= $hard) {
+                $shape = $s;
+            }
+        }
+
+        $steps = [];
+        foreach ($shape as $i => $len) {
+            $steps[] = $this->step('work', "{$len} min Schwelle", $len, $p['threshold'] ?? null, 4);
+            if ($i < count($shape) - 1) {
+                $steps[] = $this->step('rest', 'Traben', 2, null, 1);
+            }
+        }
+
+        return [$steps, implode('-', $shape) . ' min Schwelle'];
+    }
+
+    /** 2 min knapp unter, 1 min knapp über der Schwelle, ohne Pause. */
+    private function overUnder(int $hard, array $p): array
+    {
+        $reps = $this->clamp((int) round($hard / 3), 4, 10);
+        $t    = $this->sec($p, 'threshold');
+
+        return [[
+            $this->step('work', 'Knapp unter der Schwelle', 2, isset($p['threshold']) ? PaceFormat::fromSeconds($t + 10) : null, 4, $reps),
+            $this->step('work', 'Knapp über der Schwelle', 1, isset($p['threshold']) ? PaceFormat::target($t - 8) : null, 4, $reps),
+        ], "{$reps}× (2 min unter / 1 min über der Schwelle)"];
+    }
+
+    /** 3 min Schwelle / 2 min Marathontempo, ohne Pause. */
+    private function floatTempo(int $hard, array $p): array
+    {
+        $reps = $this->clamp((int) round($hard / 5), 3, 6);
+
+        return [[
+            $this->step('work', '3 min Schwelle', 3, $p['threshold'] ?? null, 4, $reps),
+            $this->step('work', '2 min Marathontempo', 2, $p['marathon'] ?? null, 3, $reps),
+        ], "{$reps}× (3 min Schwelle / 2 min Marathontempo)"];
+    }
+
+    private function raceBlocks(int $hard, array $p): array
+    {
+        $len  = $hard >= 30 ? 10 : 8;
+        $reps = $this->clamp((int) round($hard / $len), 2, 4);
+        $pace = $p['target_pace'] ?? $p['marathon'] ?? null;
+
+        return [[
+            $this->step('work', "{$len} min Zielrenntempo", $len, $pace, 4, $reps),
+            $this->step('rest', 'Traben', 2, null, 1, $reps),
+        ], "{$reps}×{$len} min Zielrenntempo"];
+    }
+
+    /** Die Pyramide, deren Belastung der Hartzeit am nächsten kommt. Traben: halbe Strecke. */
+    private function vo2Pyramid(int $hard, array $p): array
+    {
+        $sec    = $this->sec($p, 'interval');
+        $shapes = [[400, 800, 400], [400, 800, 1200, 800, 400], [400, 800, 1200, 1600, 1200, 800, 400]];
+        $best   = $shapes[1];
+        $diff   = PHP_FLOAT_MAX;
+        foreach ($shapes as $s) {
+            $d = abs(array_sum($s) / 1000 * $sec / 60 - $hard);
+            if ($d < $diff) {
+                [$best, $diff] = [$s, $d];
+            }
+        }
+
+        $steps = [];
+        foreach ($best as $i => $m) {
+            $steps[] = $this->distanceStep('work', "{$m} m Intervall", $m, $p, 'interval', 5);
+            if ($i < count($best) - 1) {
+                $steps[] = $this->distanceStep('rest', ($m / 2) . ' m Traben', (int) ($m / 2), $p, 'easy', 1, 1, false);
+            }
+        }
+
+        return [$steps, 'Pyramide ' . implode('-', $best) . ' m'];
+    }
+
+    private function thirtyThirty(int $hard, array $p): array
+    {
+        $reps = $this->clamp($hard, 12, 24);
+
+        return [[
+            $this->step('work', '30 s schnell', 0.5, $p['interval'] ?? null, 5, $reps),
+            $this->step('rest', '30 s Traben', 0.5, null, 1, $reps),
+        ], "{$reps}× 30/30"];
+    }
+
+    private function fourByFour(int $hard, array $p): array
+    {
+        $reps = $this->clamp((int) round($hard / 5), 3, 5);
+
+        return [[
+            $this->step('work', '4 min Intervall', 4, $p['interval'] ?? null, 5, $reps),
+            $this->step('rest', 'Traben', 3, null, 1, $reps),
+        ], "{$reps}×4 min"];
+    }
+
+    /** Kurze Abschnitte im Intervalltempo, ab drei Minuten an der Schwelle. */
+    private function fartlekPyramid(int $hard, array $p): array
+    {
+        $shape = match (true) {
+            $hard < 14  => [1, 2, 3, 2, 1],
+            $hard >= 24 => [1, 2, 3, 4, 5, 4, 3, 2, 1],
+            default     => [1, 2, 3, 4, 3, 2, 1],
+        };
+
+        $steps = [];
+        foreach ($shape as $i => $len) {
+            $steps[] = $len >= 3
+                ? $this->step('work', "{$len} min zügig", $len, $p['threshold'] ?? null, 4)
+                : $this->step('work', "{$len} min schnell", $len, $p['interval'] ?? null, 5);
+            if ($i < count($shape) - 1) {
+                $steps[] = $this->step('rest', 'Traben', $len / 2, null, 1);
+            }
+        }
+
+        return [$steps, 'Fahrtspiel ' . implode('-', $shape) . ' min'];
+    }
+
+    private function fartlekOneOne(int $hard, array $p): array
+    {
+        $reps = $this->clamp((int) round($hard / 2), 8, 12);
+
+        return [[
+            $this->step('work', '1 min zügig', 1, $p['interval'] ?? null, 5, $reps),
+            $this->step('rest', '1 min locker', 1, null, 1, $reps),
+        ], "Fahrtspiel {$reps}× 1/1 min"];
+    }
+
+    /** Ohne Pace: bergauf zählt die Anstrengung, nicht die Uhr. */
+    private function hillRepeats(int $hard): array
+    {
+        $reps = $this->clamp((int) round($hard / 3), 6, 10);
+
+        return [[
+            $this->step('work', '75 s bergauf', 1.25, null, 5, $reps),
+            $this->step('rest', 'Locker zurück', 2, null, 1, $reps),
+        ], "{$reps}×75 s bergauf"];
+    }
+
+    /** Jeder Kilometer etwas schneller, von locker bis zur Schwelle. */
+    private function progressiveKm(int $minutes, array $p): array
+    {
+        $from = $this->sec($p, 'easy');
+        $to   = $this->sec($p, 'threshold');
+        $n    = $this->clamp((int) round($minutes * 60 / (($from + $to) / 2)), 5, 14);
+
+        $steps = [];
+        for ($i = 0; $i < $n; $i++) {
+            $sec     = $from + ($to - $from) * $i / ($n - 1);
+            $zone    = $i < $n / 3 ? 2 : ($i < 2 * $n / 3 ? 3 : 4);
+            $pace    = isset($p['easy'], $p['threshold']) ? PaceFormat::fromSeconds($sec) : null;
+            $steps[] = $this->distanceStep('work', 'Kilometer ' . ($i + 1), 1000, ['k' => $pace ?? PaceFormat::fromSeconds($sec)], 'k', $zone);
+            if ($pace === null) {
+                $steps[$i]['pace_target'] = null;
+            }
+        }
+
+        return [$steps, "{$n} km, jeder etwas schneller"];
+    }
+
+    private function strongFinish(int $minutes, int $hard, array $p): array
+    {
+        $finish = $this->clamp($hard, 10, 15);
+        $mp     = (int) ceil($finish / 2);
+        $easy   = max(15, $minutes - $finish);
+
+        return [[
+            $this->step('warmup', 'Locker', $easy, $p['easy'] ?? null, 2),
+            $this->step('work', 'Marathontempo', $mp, $p['marathon'] ?? null, 3),
+            $this->step('work', 'Schwelle', $finish - $mp, $p['threshold'] ?? null, 4),
+        ], "{$easy} min locker, {$finish} min Endbeschleunigung"];
+    }
+
+    private function test30(array $p): array
+    {
+        return [[
+            $this->step('work', 'Steigerung', 20 / 60, $p['repetition'] ?? null, 5, 4),
+            $this->step('rest', 'Traben', 1, null, 1, 4),
+            $this->step('work', '30 min Test', 30, $p['threshold'] ?? null, 4),
+        ], '30-min-Schwellentest'];
+    }
+
+    /** Die km des langen Laufs, wie in long(). */
+    private function longKm(float $km, int $minutes, array $p): float
+    {
+        return $km > 0 ? $km : ($minutes > 0 ? round($minutes * 60 / $this->sec($p, 'long'), 1) : 15.0);
+    }
+
+    /** Locker, in der Mitte 6 × (20 s Steigerung + 1 min Traben). Die Steigerungen zählen nicht zur Strecke. */
+    private function longStrides(float $km, int $minutes, array $p): array
+    {
+        $km    = $this->longKm($km, $minutes, $p);
+        // Steigerungen und Traben laufen mit: ihre Meter gehen von den
+        // lockeren Teilen ab, damit die Strecke der Leiter stimmt.
+        $extra = 6 * (20 / $this->sec($p, 'repetition') + 60 / $this->sec($p, 'long'));
+        $first = round(($km - $extra) / 2, 1);
+
+        return [[
+            $this->distanceStep('warmup', 'Locker', (int) round($first * 1000), $p, 'long', 2),
+            $this->step('work', 'Steigerung', 20 / 60, $p['repetition'] ?? null, 5, 6),
+            $this->step('rest', 'Traben', 1, null, 1, 6),
+            $this->distanceStep('cooldown', 'Locker', (int) round(($km - $extra - $first) * 1000), $p, 'long', 2),
+        ], $this->km($km) . ' km locker mit Steigerungen'];
+    }
+
+    /** Die Renntempo-km der Leiter in zwei bis drei Blöcken, 1 km locker dazwischen, 2 km locker zum Schluss. */
+    private function longRaceBlocks(float $km, int $minutes, float $raceKm, array $p): array
+    {
+        $km     = $this->longKm($km, $minutes, $p);
+        $blocks = $raceKm >= 6 ? 3 : 2;
+        $raceKm = max(0.0, min($raceKm, $km - 3 - ($blocks - 1) - 2));
+
+        if ($raceKm < 2) {
+            return $this->long($km, $minutes, $raceKm, $p);
+        }
+
+        $block = (int) round($raceKm / $blocks * 1000);
+        $key   = isset($p['target_pace']) ? 'target_pace' : 'marathon';
+        $lead  = $km - $raceKm - ($blocks - 1) - 2;
+
+        return [[
+            $this->distanceStep('work', 'Locker', (int) round($lead * 1000), $p, 'long', 2),
+            $this->distanceStep('work', 'Zielrenntempo', $block, $p, $key, 3, $blocks),
+            $this->distanceStep('rest', '1 km locker', 1000, $p, 'long', 1, $blocks),
+            $this->distanceStep('cooldown', 'Locker', 1000, $p, 'long', 1),
+        ], $this->km($km) . " km, {$blocks} Blöcke im Zielrenntempo"];
+    }
+
+    /** Das letzte Stück (die Renntempo-km der Leiter) in zwei Stufen bis Marathontempo. */
+    private function longProgressive(float $km, int $minutes, float $raceKm, array $p): array
+    {
+        $km     = $this->longKm($km, $minutes, $p);
+        $finish = max(2.0, min($raceKm ?: $km / 3, $km - 3));
+        $half   = (int) round($finish / 2 * 1000);
+        $mid    = isset($p['long'], $p['marathon'])
+            ? PaceFormat::fromSeconds(($this->sec($p, 'long') + $this->sec($p, 'marathon')) / 2)
+            : null;
+
+        return [[
+            $this->distanceStep('work', 'Locker', (int) round(($km - $finish) * 1000), $p, 'long', 2),
+            $this->distanceStep('work', 'Zügiger', $half, ['m' => $mid], 'm', 3, 1, $mid !== null),
+            $this->distanceStep('work', 'Marathontempo', (int) round($finish * 1000) - $half, $p, 'marathon', 3),
+        ], $this->km($km) . ' km, am Ende bis Marathontempo'];
     }
 
     // ── Hilfen ───────────────────────────────────────────────────────────

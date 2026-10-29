@@ -130,8 +130,8 @@ class RunWorkoutsTest extends TestCase
     /** Der lange Lauf hat keine Wahl — die Leiter hat entschieden. */
     public function test_the_slot_decides_where_the_model_has_no_choice(): void
     {
-        $this->assertSame(['lang_renntempo'], RunWorkouts::variantsFor(['type' => 'long_run', 'race_km' => 3]));
-        $this->assertSame(['lang_locker'], RunWorkouts::variantsFor(['type' => 'long_run']));
+        $this->assertSame(['lang_renntempo', 'lang_renntempo_bloecke'], RunWorkouts::variantsFor(['type' => 'long_run', 'race_km' => 3, 'phase' => 'peak']));
+        $this->assertSame(['lang_locker'], RunWorkouts::variantsFor(['type' => 'long_run', 'phase' => 'peak']));
         $this->assertSame(['locker'], RunWorkouts::variantsFor(['type' => 'easy_run', 'comeback' => 1]));
         $this->assertSame(['sub_6min'], RunWorkouts::variantsFor(['type' => 'tempo_run', 'controlled' => true, 'double' => 'am']));
         $this->assertSame(['fast_200'], RunWorkouts::variantsFor(['type' => 'interval', 'fast' => true]));

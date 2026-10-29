@@ -1,6 +1,6 @@
 <script setup>
 /**
- * Trainingsmodell, Lauferfahrung und Laktatmessgerät — im Onboarding und im
+ * Trainingsmodell, Lauferfahrung, Laktatmessgerät und Hügel — im Onboarding und im
  * Profil dieselben Felder. Speichern macht die Seite, die es einbindet.
  *
  * readiness: { recommended, reasons[] } aus TrainingModelService. Zone3
@@ -68,6 +68,12 @@ const models = [
             </FormRow>
             <FormRow label="Laktatmessgerät">
                 <Toggle v-model="model.has_lactate_meter" label="Laktatmessgerät vorhanden" />
+            </FormRow>
+        </FormGroup>
+
+        <FormGroup footer="Ohne Hang in der Nähe plant Zone3 keine Bergsprints und Bergintervalle.">
+            <FormRow label="Hügel erreichbar">
+                <Toggle v-model="model.hills_available" label="Hügel erreichbar" />
             </FormRow>
         </FormGroup>
     </div>
