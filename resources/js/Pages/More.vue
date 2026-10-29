@@ -100,7 +100,7 @@ const groups = computed(() => [
 
     <AuthenticatedLayout>
         <div class="min-h-screen bg-canvas">
-            <PageHeader title="Mehr" />
+            <PageHeader width="max-w-2xl" title="Mehr" />
 
             <div class="mx-auto max-w-2xl space-y-7 px-4 pb-8 pt-3 lg:px-8">
                 <!-- Profil -->

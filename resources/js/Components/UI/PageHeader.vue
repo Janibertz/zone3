@@ -13,11 +13,17 @@ defineProps({
     eyebrow:  { type: String, default: null },
     /** Route URL for the back chevron. Omit for top-level pages. */
     back:     { type: String, default: null },
+    /**
+     * Dieselbe Breite wie der Inhalt darunter (z. B. 'max-w-3xl'). Am
+     * Desktop stand der Titel sonst am linken Rand und die Liste mittig
+     * daneben (29.10.2026).
+     */
+    width:    { type: String, default: null },
 });
 </script>
 
 <template>
-    <header class="px-4 pb-2 pt-2 lg:px-8 lg:pt-8">
+    <header class="px-4 pb-2 pt-2 lg:px-8 lg:pt-8" :class="width ? ['mx-auto', width] : null">
         <!--
             `active:scale` ist hier kein Zierrat: der Hover-Zustand liegt seit
             dem 09.10. hinter `@media (hover: hover)`, auf dem iPhone bleibt

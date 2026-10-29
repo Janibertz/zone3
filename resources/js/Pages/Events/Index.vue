@@ -190,7 +190,7 @@ watch(() => form.race_distance, (val) => {
 
     <AuthenticatedLayout>
         <div class="min-h-screen bg-canvas">
-            <PageHeader title="Rennen" :eyebrow="upcomingEvents.length ? `${upcomingEvents.length} geplant` : null">
+            <PageHeader width="max-w-3xl" title="Rennen" :eyebrow="upcomingEvents.length ? `${upcomingEvents.length} geplant` : null">
                 <template #action>
                     <button type="button" aria-label="Rennen hinzufügen"
                         class="flex h-11 w-11 items-center justify-center rounded-full text-accent transition-transform active:scale-90"

@@ -969,7 +969,7 @@ const lapHeightPct = computed(() => {
                     rechts statt eines Knopfs, der auf dem Telefon umbrach.
                     „Abbrechen" steht unten in der Liste unter dem Plan.
                 -->
-                <div class="-mx-4 -mt-4 lg:-mx-6 lg:-mt-6">
+                <div class="-mx-4 -mt-4 lg:-mx-8 lg:-mt-6">
                     <PageHeader :back="route('events.index')" :eyebrow="headerEyebrow" :title="event.name">
                         <template v-if="!isPastEvent && currentPlan?.is_active" #action>
                             <button type="button" :disabled="generating" @click="generatePlan()"
@@ -1074,7 +1074,15 @@ const lapHeightPct = computed(() => {
                         Zählkacheln (Kilometer, Einheiten, Erledigt,
                         Ausgelassen) sind weg — die Wochen sagen das genauer.
                     -->
-                    <section v-if="!isPastEvent && (event.phase_segments?.length || prediction)" class="rounded-card bg-surface p-5">
+                    <!--
+                        Am Desktop steht Phase und Prognose rechts neben den
+                        Wochen statt als volle Breite darüber — sonst war die
+                        Seitenspalte bei einem gewöhnlichen Plan leer, und die
+                        Karte oben lief über eine Breite, an der die Liste
+                        darunter nicht ankam (29.10.2026).
+                    -->
+                    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_1fr]">
+                    <section v-if="!isPastEvent && (event.phase_segments?.length || prediction)" class="rounded-card bg-surface p-5 lg:col-start-2 lg:row-start-1 lg:self-start">
                         <div class="flex items-baseline justify-between gap-4">
                             <div>
                                 <p class="text-[13px] text-ink-3">Phase</p>
@@ -1117,10 +1125,9 @@ const lapHeightPct = computed(() => {
                         <p v-if="prediction?.text && !backyard" class="mt-3 text-[15px] leading-snug text-ink-2">{{ prediction.text }}</p>
                     </section>
 
-                    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
 
                         <!-- ── Einheiten ───────────────────────────── -->
-                        <section class="min-w-0">
+                        <section class="min-w-0 lg:col-start-1 lg:row-span-2 lg:row-start-1">
                             <SectionHeader v-if="isPastEvent" title="Trainings-Auswertung" />
                             <div class="space-y-6">
                               <div v-for="week in sessionWeeks" :key="week.key">
@@ -1236,7 +1243,7 @@ const lapHeightPct = computed(() => {
                         </section>
 
                         <!-- ── Seitenspalte ────────────────────────── -->
-                        <aside class="min-w-0 space-y-4 lg:sticky lg:top-4 lg:self-start">
+                        <aside class="min-w-0 space-y-4 lg:sticky lg:top-4 lg:col-start-2 lg:self-start">
 
                             <!-- Backyard: Yard-Readiness -->
                             <AppCard v-if="backyard && !isPastEvent" title="Yard-Readiness">

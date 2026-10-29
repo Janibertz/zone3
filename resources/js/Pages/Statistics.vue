@@ -113,7 +113,7 @@ const dateLabel = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('de-DE
 
     <AuthenticatedLayout>
         <div class="min-h-screen bg-canvas">
-            <PageHeader title="Statistik" :eyebrow="eyebrow">
+            <PageHeader width="max-w-3xl" title="Statistik" :eyebrow="eyebrow">
                 <template #action>
                     <AppButton :href="route('wrapped.index')" variant="plain" size="sm">Rückblick</AppButton>
                 </template>

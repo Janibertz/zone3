@@ -22,6 +22,13 @@ const props = defineProps({
     badge:   { type: String, default: null },
     badgeTone: { type: String, default: 'accent' },
     href:    { type: String, default: null },
+    /**
+     * Ab lg zweispaltig: links Titel, Zahlen und Knöpfe, rechts die
+     * Abschnitte. Auf dem Dashboard läuft die Karte über die ganze Breite,
+     * und einspaltig standen Abschnitt und Wert dort 1.000 Pixel
+     * auseinander (29.10.2026).
+     */
+    wide:    { type: Boolean, default: false },
 });
 
 const meta = computed(() => sessionType(props.session?.type));
@@ -48,6 +55,7 @@ const metrics = computed(() => {
 });
 
 const rows = computed(() => stepRows(props.session?.steps));
+const split = computed(() => props.wide && rows.value.length > 0);
 const barClass = (kind) => ({
     warmup:   'bg-success',
     cooldown: 'bg-success',
@@ -63,6 +71,9 @@ const barClass = (kind) => ({
         class="block rounded-card bg-surface p-5"
         :class="href ? 'transition-transform duration-150 ease-out-strong active:scale-[0.98]' : ''"
     >
+        <!-- Mobil Block-Fluss (Kopf, Abschnitte, Knöpfe); breit ein Raster mit den Abschnitten rechts. -->
+        <div :class="split ? 'lg:grid lg:grid-cols-2 lg:grid-rows-[auto_1fr] lg:gap-x-10' : ''">
+        <div class="min-w-0" :class="split ? 'lg:col-start-1 lg:row-start-1' : ''">
         <div class="flex items-center justify-between gap-3">
             <span class="flex min-w-0 items-center gap-1.5 text-[15px] font-semibold" :class="meta.text">
                 <svg class="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true" v-html="meta.icon" />
@@ -89,7 +100,10 @@ const barClass = (kind) => ({
             </div>
         </div>
 
-        <div v-if="rows.length" class="mt-4 space-y-2 border-t border-line pt-3">
+        </div>
+
+        <div v-if="rows.length" class="mt-4 space-y-2 border-t border-line pt-3"
+            :class="split ? 'lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0 lg:self-center lg:border-l lg:border-t-0 lg:pl-10 lg:pt-0' : ''">
             <div v-for="(r, i) in rows" :key="i" class="flex items-center gap-3 text-[15px] leading-5">
                 <i class="h-[18px] w-1 shrink-0 rounded-full" :class="barClass(r.kind)" />
                 <span class="min-w-0 flex-1 truncate text-ink-2">{{ r.name }}</span>
@@ -97,6 +111,9 @@ const barClass = (kind) => ({
             </div>
         </div>
 
-        <slot />
+        <div :class="split ? 'lg:col-start-1 lg:row-start-2' : ''">
+            <slot />
+        </div>
+        </div>
     </component>
 </template>

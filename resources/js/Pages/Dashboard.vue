@@ -1401,7 +1401,7 @@ async function resetLayout() {
                             breiter Knopf, der die Karte optisch verdoppelte.
                             Downloads sind echte <a>, keine Inertia-Links.
                         -->
-                        <SessionCard v-if="props.todayPlanSession"
+                        <SessionCard v-if="props.todayPlanSession" wide
                             :session="props.todayPlanSession"
                             :badge="props.todayPlanSession.status === 'completed' ? 'Erledigt'
                                 : props.todayPlanSession.is_today ? 'Heute'
@@ -1718,7 +1718,7 @@ async function resetLayout() {
                     statt CSS `order`), damit Vorlesen und Tabulator dieselbe Folge
                     sehen wie das Auge. Halbe Module liegen ab lg nebeneinander.
                 -->
-                <div class="grid grid-cols-1 gap-x-5 gap-y-7 lg:grid-cols-2 2xl:grid-cols-3">
+                <div class="grid grid-cols-1 gap-x-5 gap-y-7 lg:grid-flow-row-dense lg:grid-cols-2 2xl:grid-cols-3">
                     <template v-for="m in visibleModules" :key="m.key">
                         <div v-if="m.key === 'woche'" :class="moduleClass(m)">
                             <!-- ══════════════════════════════════════════════════

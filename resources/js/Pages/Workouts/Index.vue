@@ -213,7 +213,7 @@ async function submitSchedule() {
     <Head title="Workouts" />
     <AuthenticatedLayout>
         <div class="min-h-screen bg-canvas">
-            <PageHeader title="Workouts" :eyebrow="workouts.length ? `${workouts.length} gespeichert` : null">
+            <PageHeader width="max-w-3xl" title="Workouts" :eyebrow="workouts.length ? `${workouts.length} gespeichert` : null">
                 <template #action>
                     <Link :href="route('workouts.create')" aria-label="Neues Workout"
                         class="flex h-11 w-11 items-center justify-center rounded-full text-accent transition-transform active:scale-90">

@@ -52,8 +52,8 @@ const activeTab = ref(startSection ?? 'personal');
 // und nicht "Aktivitäten": Radtouren und Schwimmen zaehlen nicht mit.
 const heroStats = computed(() => [
     { label: 'Läufe',        value: props.athleteStats?.total_runs ?? 0 },
-    { label: 'Kilometer',    value: props.athleteStats?.total_km   ?? 0 },
-    { label: 'Längster',     value: props.athleteStats?.longest_km ?? 0, unit: 'km' },
+    { label: 'Kilometer',    value: Number(props.athleteStats?.total_km ?? 0).toLocaleString('de-DE', { maximumFractionDigits: 0 }) },
+    { label: 'Längster',     value: Number(props.athleteStats?.longest_km ?? 0).toLocaleString('de-DE', { maximumFractionDigits: 1 }), unit: 'km' },
     { label: 'Ø Pace',       value: props.athleteStats?.avg_pace   ?? '–' },
 ]);
 
@@ -350,7 +350,10 @@ const athleteForm = useForm({
 });
 
 const submitAthlete = () => { athleteForm.post(route('runner.profile.store'), { preserveScroll: true }); };
-const paceZones   = computed(() => props.runnerProfile?.pace_zones ?? []);
+// Der Accessor liefert die Zonen als Objekt (z1 … z5), nicht als Liste —
+// `.length` war darum undefined, und das Profil zeigte trotz VDOT „Speichere
+// dein Profil um deine Laufzonen zu berechnen" (gefunden 29.10.2026).
+const paceZones   = computed(() => Object.values(props.runnerProfile?.pace_zones ?? {}));
 const athleteSaved = computed(() => props.status === 'athlete-saved');
 
 // ── Persönliche Rekorde ─────────────────────────────────────────────────────
@@ -743,7 +746,7 @@ const inputClass = 'z-input';
             ueberhaupt irgendwohin zu kommen. Per order steht sie jetzt oben;
             ab lg bleibt die bisherige Reihenfolge.
         -->
-        <div class="flex flex-col gap-5 px-4 py-4 lg:px-6 lg:py-6">
+        <div class="mx-auto flex w-full max-w-4xl flex-col gap-5 px-4 py-4 lg:px-8 lg:py-8">
 
             <!-- ══ PROFILE HERO ══ -->
             <!-- Mit offenem Abschnitt steht auf dem Telefon nur der Abschnitt da, wie eine Unterseite in iOS. -->

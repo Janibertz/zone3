@@ -39,7 +39,7 @@ function submit() {
 <template>
     <Head title="Support & Feedback" />
     <AuthenticatedLayout>
-        <div class="px-4 py-6 space-y-5">
+        <div class="mx-auto max-w-3xl space-y-5 px-4 py-6 lg:px-8 lg:pt-8">
 
             <div class="flex items-center justify-between">
                 <h1 class="text-[34px] font-bold leading-[41px] text-ink">Support & Feedback</h1>
