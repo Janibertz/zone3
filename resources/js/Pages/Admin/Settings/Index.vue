@@ -1,5 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
@@ -72,10 +73,10 @@ function modelInfo(id) {
 
     <AdminLayout>
         <template #header>
-            <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Einstellungen</h1>
+            <PageHeader title="Einstellungen" />
         </template>
 
-        <div class="px-4 py-4 lg:px-6 lg:py-6 space-y-6">
+        <div class="px-4 py-4 lg:px-8 lg:py-6 space-y-6">
 
             <!-- Flash -->
             <div v-if="flash.success" class="flex items-center gap-3 px-4 py-3 bg-success-soft border border-success/25 rounded-field text-sm text-success-ink">

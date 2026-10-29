@@ -1,5 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
@@ -46,31 +47,18 @@ const categoryColors = {
     <AdminLayout>
         <Head title="Admin – Wiki" />
 
-        <div class="px-4 lg:px-6 py-8">
+        <template #header>
+            <PageHeader title="Wiki" subtitle="Dokumentation und Entscheidungen">
+                <template #action>
+                    <div class="flex items-center gap-4">
+                        <AppButton variant="plain" :href="route('admin.wiki.changelog')">Changelog</AppButton>
+                        <AppButton variant="plain" @click="showNewPage = true">Neue Seite</AppButton>
+                    </div>
+                </template>
+            </PageHeader>
+        </template>
 
-            <!-- Header -->
-            <div class="flex items-center justify-between mb-8">
-                <div>
-                    <h1 class="text-2xl font-bold text-ink">Projekt-Wiki</h1>
-                    <p class="mt-1 text-sm text-ink-3">Dokumentation, Architektur-Entscheidungen und API-Referenz</p>
-                </div>
-                <div class="flex gap-3">
-                    <Link :href="route('admin.wiki.changelog')"
-                        class="inline-flex items-center gap-2 px-4 py-2 rounded-field bg-surface text-sm font-medium text-ink-2 hover:bg-surface-2 transition-colors">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                        </svg>
-                        Changelog
-                    </Link>
-                    <button @click="showNewPage = true"
-                        class="inline-flex items-center gap-2 px-4 py-2 rounded-field bg-accent hover:opacity-90 text-white text-sm font-semibold transition-colors shadow-card">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                        </svg>
-                        Neue Seite
-                    </button>
-                </div>
-            </div>
+        <div class="px-4 py-4 lg:px-8 lg:py-6">
 
             <!-- Neue Seite -->
             <AppSheet :show="showNewPage" title="Neue Wiki-Seite" @close="showNewPage = false">

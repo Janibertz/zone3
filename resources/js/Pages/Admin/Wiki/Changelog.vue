@@ -1,5 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
@@ -35,20 +36,11 @@ function guessType(message) {
     <AdminLayout>
         <Head title="Admin – Wiki Changelog" />
 
-        <div class="px-4 lg:px-6 py-8">
+        <template #header>
+            <PageHeader title="Changelog" subtitle="Automatisch nach jedem GitHub-Push" :back="route('admin.wiki.index')" />
+        </template>
 
-            <!-- Header -->
-            <div class="flex items-center justify-between mb-8">
-                <div>
-                    <div class="flex items-center gap-2 text-sm text-ink-3 mb-1">
-                        <Link :href="route('admin.wiki.index')" class="hover:text-accent transition-colors">Wiki</Link>
-                        <span>/</span>
-                        <span>Changelog</span>
-                    </div>
-                    <h1 class="text-2xl font-bold text-ink">Changelog</h1>
-                    <p class="mt-1 text-sm text-ink-3">Automatisch nach jedem GitHub-Push mit KI-Zusammenfassung</p>
-                </div>
-            </div>
+        <div class="px-4 py-4 lg:px-8 lg:py-6">
 
             <!-- Empty state -->
             <div v-if="!entries.data.length" class="text-center py-20">
@@ -152,14 +144,14 @@ function guessType(message) {
                 <!-- Pagination -->
                 <div v-if="entries.last_page > 1" class="mt-8 flex justify-center gap-2">
                     <Link v-if="entries.prev_page_url" :href="entries.prev_page_url"
-                        class="px-4 py-2 rounded-field border border-line text-sm text-ink-2 hover:bg-surface-2 transition-colors">
+                        class="px-4 py-2 rounded-full bg-surface text-[15px] text-accent hover:bg-surface-2 transition-colors">
                         ← Neuere
                     </Link>
                     <span class="px-4 py-2 text-sm text-ink-3">
                         Seite {{ entries.current_page }} / {{ entries.last_page }}
                     </span>
                     <Link v-if="entries.next_page_url" :href="entries.next_page_url"
-                        class="px-4 py-2 rounded-field border border-line text-sm text-ink-2 hover:bg-surface-2 transition-colors">
+                        class="px-4 py-2 rounded-full bg-surface text-[15px] text-accent hover:bg-surface-2 transition-colors">
                         Ältere →
                     </Link>
                 </div>

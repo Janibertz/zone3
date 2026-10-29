@@ -1,5 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 
@@ -93,10 +94,10 @@ const maxTypeCalls = computed(() => Math.max(...(props.byType?.map(t => t.count)
 
     <AdminLayout>
         <template #header>
-            <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">AI Logs</h1>
+            <PageHeader title="AI Logs" />
         </template>
 
-        <div class="p-4 sm:p-6 space-y-6">
+        <div class="p-4 lg:px-8 lg:py-6 space-y-6">
 
             <!-- ── KPI Row ── -->
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -194,21 +195,21 @@ const maxTypeCalls = computed(() => Math.max(...(props.byType?.map(t => t.count)
             <!-- ── Filters ── -->
             <div class="bg-surface rounded-card p-5 shadow-card">
                 <div class="flex flex-wrap gap-3">
-                    <select v-model="filterUserId" class="text-sm border border-line rounded-field px-3 py-2 bg-surface text-ink-2 focus:outline-none focus:ring-2 focus:ring-danger/40">
+                    <select v-model="filterUserId" class="text-sm border-0 rounded-field px-3 py-2 bg-surface text-ink-2 focus:outline-none focus:ring-2 focus:ring-danger/40">
                         <option value="">Alle Nutzer</option>
                         <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
                     </select>
-                    <select v-model="filterCallType" class="text-sm border border-line rounded-field px-3 py-2 bg-surface text-ink-2 focus:outline-none focus:ring-2 focus:ring-danger/40">
+                    <select v-model="filterCallType" class="text-sm border-0 rounded-field px-3 py-2 bg-surface text-ink-2 focus:outline-none focus:ring-2 focus:ring-danger/40">
                         <option value="">Alle Typen</option>
                         <option v-for="t in callTypes" :key="t" :value="t">{{ callTypeLabel(t) }}</option>
                     </select>
-                    <select v-model="filterStatus" class="text-sm border border-line rounded-field px-3 py-2 bg-surface text-ink-2 focus:outline-none focus:ring-2 focus:ring-danger/40">
+                    <select v-model="filterStatus" class="text-sm border-0 rounded-field px-3 py-2 bg-surface text-ink-2 focus:outline-none focus:ring-2 focus:ring-danger/40">
                         <option value="">Alle Status</option>
                         <option value="success">Erfolgreich</option>
                         <option value="error">Fehler</option>
                     </select>
-                    <input v-model="filterDateFrom" type="date" placeholder="Von" class="text-sm border border-line rounded-field px-3 py-2 bg-surface text-ink-2 focus:outline-none focus:ring-2 focus:ring-danger/40" />
-                    <input v-model="filterDateTo" type="date" placeholder="Bis" class="text-sm border border-line rounded-field px-3 py-2 bg-surface text-ink-2 focus:outline-none focus:ring-2 focus:ring-danger/40" />
+                    <input v-model="filterDateFrom" type="date" placeholder="Von" class="text-sm border-0 rounded-field px-3 py-2 bg-surface text-ink-2 focus:outline-none focus:ring-2 focus:ring-danger/40" />
+                    <input v-model="filterDateTo" type="date" placeholder="Bis" class="text-sm border-0 rounded-field px-3 py-2 bg-surface text-ink-2 focus:outline-none focus:ring-2 focus:ring-danger/40" />
                 </div>
             </div>
 

@@ -1,5 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 
@@ -69,14 +70,10 @@ const promptCharCount = computed(() => form.value.personality_prompt?.length ?? 
 
     <AdminLayout>
         <template #header>
-            <div class="flex items-center gap-2 text-sm text-ink-3">
-                <Link :href="route('admin.coaches.index')" class="hover:text-ink">Coaches</Link>
-                <span>/</span>
-                <span class="text-ink font-medium">{{ coach.name }}</span>
-            </div>
+            <PageHeader :title="coach.name" :back="route('admin.coaches.index')" />
         </template>
 
-        <div class="px-4 py-4 lg:px-6 lg:py-6 space-y-6">
+        <div class="px-4 py-4 lg:px-8 lg:py-6 space-y-6">
 
             <!-- Flash -->
             <div v-if="flash.success" class="flex items-center gap-3 px-4 py-3 bg-success-soft border border-success/25 rounded-field text-sm text-success-ink">

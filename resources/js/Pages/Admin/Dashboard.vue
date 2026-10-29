@@ -1,5 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import AppCard from '@/Components/UI/AppCard.vue';
 import StatTile from '@/Components/UI/StatTile.vue';
 import SectionHeader from '@/Components/UI/SectionHeader.vue';
@@ -78,7 +79,7 @@ const maxCoach  = computed(() => Math.max(...(props.coachDistribution?.map(c => 
 
     <AdminLayout>
         <template #header>
-            <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Übersicht</h1>
+            <PageHeader title="Übersicht" />
         </template>
 
         <div class="space-y-8 px-4 py-4 sm:px-6 lg:py-6">
