@@ -242,43 +242,6 @@ class TrainingSessionController extends Controller
     }
 
     /**
-     * Return AI nutrition tips for a session — served from DB cache, generated on first request.
-     */
-    public function nutritionTips(TrainingSession $session, SessionContentService $sessions)
-    {
-        abort_if($session->user_id !== Auth::id(), 403);
-        // Completed sessions show real Strava splits — no nutrition tips generated.
-        abort_if($session->status === 'completed', 422);
-
-        // Return cached tips if available
-        if ($session->nutrition_tips) {
-            return response()->json($session->nutrition_tips);
-        }
-
-        $sessions->withCoach(Auth::user()->coach?->personality_prompt)->forUser(Auth::id());
-        $tips = $sessions->generateNutritionTips([
-            'type'         => $session->type,
-            'title'        => $session->title,
-            'distance_km'  => $session->distance_km,
-            'duration_min' => $session->duration_min,
-            'pace_target'  => $session->pace_target,
-            'intensity'    => $session->intensity,
-            'is_race'      => $session->type === 'race_prep' ? 'Ja' : 'Nein',
-            'is_strength'  => in_array($session->type, ['strength', 'core', 'mobility']),
-            'exercises'    => $session->exercises,
-        ]);
-
-        if (! $tips) {
-            return response()->json(['error' => 'Tipps konnten nicht geladen werden.'], 500);
-        }
-
-        // Cache to DB for future requests
-        $session->update(['nutrition_tips' => $tips]);
-
-        return response()->json($tips);
-    }
-
-    /**
      * Return structured workout steps for a session — served from DB cache, generated on first request.
      * Only for non-rest, non-race sessions.
      */
@@ -334,10 +297,11 @@ class TrainingSessionController extends Controller
         abort_if($session->status === 'completed', 422);
 
         if ($session->steps) {
-            return response()->json([
-                'steps'       => $session->steps,
-                'description' => $session->description,
-            ]);
+            // Aeltere Einheiten tragen noch die Zahl aus dem Wochenbudget —
+            // beim ersten Oeffnen wird sie an die Struktur angeglichen.
+            $this->syncDistanceWithSteps($session, $session->steps);
+
+            return $this->stepsResponse($session);
         }
 
         $sessions->withCoach(Auth::user()->coach?->personality_prompt)->forUser(Auth::id());
@@ -351,7 +315,7 @@ class TrainingSessionController extends Controller
         // already shown separately in the "Trainingsstruktur" visualization. (Previously
         // this rebuilt the description from the steps and overwrote the coaching text,
         // so loading the structure replaced the athlete-facing prose with "9 min einlaufen…".)
-        $update = ['steps' => $steps];
+        $session->steps = $steps;
 
         // Die Struktur folgt der Beschreibung. Ergibt sie eine andere Dauer als
         // die Einheit, war die Zahl daneben falsch — nicht die Struktur. Vorher
@@ -360,20 +324,51 @@ class TrainingSessionController extends Controller
         $stepMinutes = SessionContentService::stepsTotalMinutes($steps);
 
         if ($stepMinutes > 0 && $stepMinutes !== (int) $session->duration_min) {
-            $update['duration_min'] = $stepMinutes;
-
             // Distanz mitziehen, sonst behauptet die Einheit eine Pace, die
-            // niemand laeuft.
+            // niemand laeuft. Ohne Pace in den Schritten bleibt das die
+            // einzige Schaetzung.
             if ($session->duration_min > 0 && $session->distance_km > 0) {
-                $update['distance_km'] = round($session->distance_km * $stepMinutes / $session->duration_min, 1);
+                $session->distance_km = round($session->distance_km * $stepMinutes / $session->duration_min, 1);
             }
+
+            $session->duration_min = $stepMinutes;
         }
 
-        $session->update($update);
+        $this->syncDistanceWithSteps($session, $steps);
 
+        return $this->stepsResponse($session);
+    }
+
+    /**
+     * Die Distanz der Einheit kommt aus ihren Abschnitten, sobald es welche gibt.
+     *
+     * Gemeldet: in der Liste „Tempolauf 10,7 km", in den Details 12 km. Die
+     * 10,7 sind das Wochenbudget — Minuten mal eine Durchschnittspace, die
+     * fuer einen lockeren Lauf stimmt, fuer 25 Minuten an der Schwelle aber
+     * nicht. Die Details rechneten im Browser aus den Abschnitten nach und
+     * speicherten nichts. Jetzt rechnet der Server einmal, speichert, und
+     * Liste, Details, Uhr und Wochensumme lesen dieselbe Zahl.
+     */
+    private function syncDistanceWithSteps(TrainingSession $session, array $steps): void
+    {
+        $km = SessionContentService::stepsTotalKm($steps);
+
+        if ($km !== null && abs($km - (float) $session->distance_km) >= 0.1) {
+            $session->distance_km = $km;
+        }
+
+        if ($session->isDirty()) {
+            $session->save();
+        }
+    }
+
+    private function stepsResponse(TrainingSession $session)
+    {
         return response()->json([
-            'steps'       => $steps,
-            'description' => $session->description,
+            'steps'        => $session->steps,
+            'description'  => $session->description,
+            'distance_km'  => $session->distance_km,
+            'duration_min' => $session->duration_min,
         ]);
     }
 

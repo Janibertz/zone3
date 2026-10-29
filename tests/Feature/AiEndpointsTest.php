@@ -183,32 +183,6 @@ class AiEndpointsTest extends TestCase
         ]);
     }
 
-    public function test_the_nutrition_endpoint_answers(): void
-    {
-        $this->fakeReply(json_encode([
-            'before' => [['icon' => '🍝', 'text' => 'Zwei Stunden vorher Haferflocken.']],
-            'during' => [['icon' => '💧', 'text' => 'Alle 20 Minuten trinken.']],
-            'after'  => [['icon' => '🥩', 'text' => 'Innerhalb 30 Minuten Protein.']],
-        ]));
-
-        $user = $this->athlete();
-        $session = TrainingSession::create([
-            'user_id'      => $user->id,
-            'planned_date' => now()->toDateString(),
-            'type'         => 'long_run',
-            'title'        => 'Langer Lauf',
-            'intensity'    => 'medium',
-            'distance_km'  => 20,
-            'duration_min' => 120,
-            'status'       => 'planned',
-        ]);
-
-        $this->actingAs($user)
-            ->getJson(route('training-sessions.nutrition-tips', $session->id))
-            ->assertOk()
-            ->assertJsonStructure(['before', 'during', 'after']);
-    }
-
     public function test_the_session_steps_endpoint_answers(): void
     {
         $this->fakeReply(json_encode([

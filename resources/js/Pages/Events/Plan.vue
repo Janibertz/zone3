@@ -225,17 +225,15 @@ async function completeSession(session) {
     }
 }
 
-// ── Admin: reset steps/nutrition cache ────────────────────────────────────────
+// ── Admin: reset steps cache ────────────────────────────────────────
 async function resetSessionCache(session) {
     try {
         const { data } = await axios.post(route('training-sessions.reset-cache', session.id));
         // Reflect the reset (and a possibly rebuilt strength description) in local state
         if (data?.session) updateSessionInList(data.session);
         const s = currentSessions.value?.find(x => x.id === session.id) ?? session;
-        s.steps          = null;
-        s.nutrition_tips = null;
+        s.steps = null;
         delete stepsCache[session.id];
-        delete nutritionCache[session.id];
     } catch {
         errorMsg.value = 'Fehler beim Zurücksetzen des Caches.';
     }
@@ -546,10 +544,6 @@ const detailSession      = ref(null);
 // Radeinheit: Watt, wenn die FTP bekannt ist, sonst der Anteil der FTP.
 const stepPower = (step) => step.watts
     ?? (step.power_low != null ? `${Math.round(step.power_low * 100)}–${Math.round(step.power_high * 100)} % FTP` : null);
-const aiNutritionTips    = ref(null);
-const nutritionLoading   = ref(false);
-const nutritionError     = ref('');
-const nutritionCache     = {};
 
 const aiSteps        = ref(null);
 const stepsLoading   = ref(false);
@@ -644,12 +638,21 @@ const isRaceSession = computed(() => {
 
 const detailIsStrength = computed(() => isStrengthType(detailSession.value?.type));
 
+/** Oben groß: die Pace des Hauptteils, sonst die schnellste aus pace_target. */
+const detailPace = computed(() => {
+    const s = detailSession.value;
+    if (!s) return null;
+    if (s.status !== 'completed') {
+        const work = (aiSteps.value ?? []).find((x) => x.type === 'work' && paceValue(x.pace_target));
+        if (work) return paceValue(work.pace_target);
+    }
+    return paceValue(s.pace_target);
+});
+
 async function openDetail(session) {
     if (session.type === 'rest') return;
     detailSession.value   = session;
-    aiNutritionTips.value = null;
     aiSteps.value         = null;
-    nutritionError.value  = '';
     stepsError.value      = '';
     ratingValue.value     = session.rating          || 0;
     effortValue.value     = session.effort_perceived || 0;
@@ -657,46 +660,21 @@ async function openDetail(session) {
     ratingSaved.value     = false;
     reviewFeedbackText.value = '';
 
-    // Completed sessions show the real Strava splits instead of planned
-    // structure/nutrition — skip all AI generation for them.
+    // Completed sessions show the real Strava splits instead of the planned
+    // structure — skip all AI generation for them.
     if (session.status === 'completed') return;
-
-    // Load nutrition tips
-    if (nutritionCache[session.id]) {
-        aiNutritionTips.value = nutritionCache[session.id];
-    } else {
-        nutritionLoading.value = true;
-        try {
-            const { data } = await axios.get(route('training-sessions.nutrition-tips', session.id));
-            nutritionCache[session.id] = data;
-            aiNutritionTips.value = data;
-        } catch {
-            nutritionError.value = 'Ernährungstipps konnten nicht geladen werden.';
-        } finally {
-            nutritionLoading.value = false;
-        }
-    }
 
     // Load workout steps (not for race_prep or strength/core/mobility — those
     // have their own exercise list, not a run structure).
     if (session.type !== 'race_prep' && !isStrengthType(session.type)) {
         if (stepsCache[session.id]) {
-            const cached = stepsCache[session.id];
-            aiSteps.value = cached.steps ?? cached;
-            if (cached.description) detailSession.value.description = cached.description;
+            applySteps(session, stepsCache[session.id]);
         } else {
             stepsLoading.value = true;
             try {
                 const { data } = await axios.get(route('training-sessions.steps', session.id));
                 stepsCache[session.id] = data;
-                // Backend returns { steps, description }; update both local state and session list
-                const steps = data.steps ?? data;
-                aiSteps.value = steps;
-                if (data.description) {
-                    detailSession.value.description = data.description;
-                    const s = currentSessions.value?.find(x => x.id === session.id);
-                    if (s) s.description = data.description;
-                }
+                applySteps(session, data);
             } catch {
                 stepsError.value = '';
             } finally {
@@ -704,6 +682,25 @@ async function openDetail(session) {
             }
         }
     }
+}
+
+/**
+ * Die Struktur und was der Server daraus abgeleitet hat. Distanz und Dauer
+ * kommen mit, damit Liste und Details dieselbe Zahl zeigen — vorher rechnete
+ * nur die Detailansicht aus den Abschnitten nach (10,7 km in der Liste,
+ * 12 km im Detail).
+ */
+function applySteps(session, data) {
+    aiSteps.value = data.steps ?? data;
+
+    const fields = {};
+    for (const key of ['description', 'distance_km', 'duration_min']) {
+        if (data[key] != null) fields[key] = data[key];
+    }
+
+    if (detailSession.value?.id === session.id) Object.assign(detailSession.value, fields);
+    const s = currentSessions.value?.find(x => x.id === session.id);
+    if (s) Object.assign(s, fields);
 }
 
 // ── Workout Picker ────────────────────────────────────────────────────────────
@@ -856,28 +853,6 @@ function stepWidthPct(step) {
 
     return ((step.duration_min || 0) / totalStepDuration.value * 100).toFixed(1);
 }
-
-/**
- * Gesamtstrecke. Ein Abschnitt mit vorgegebener Strecke zaehlt mit genau
- * dieser — nur wo keine steht, wird aus Dauer und Pace geschaetzt. Sonst
- * liefe die Rechnung ueber die schon gerundeten Minuten zurueck und ein
- * 5×1000 m ergaebe 4,8 km.
- */
-const totalStepDistanceKm = computed(() => {
-    if (!stepsWithReps.value.length) return null;
-    let km = 0;
-    for (const s of stepsWithReps.value) {
-        if (s.distance_m > 0) { km += s.distance_m / 1000; continue; }
-        if (!s.pace_target || !s.duration_min) continue;
-        const paceStr = String(s.pace_target);
-        // Handle range like "5:30-6:00" → take midpoint
-        const parts = paceStr.includes('-') ? paceStr.split('-') : [paceStr, paceStr];
-        const toMin = p => { const [m, sec] = p.trim().split(':').map(Number); return m + (sec || 0) / 60; };
-        const paceMin = (toMin(parts[0]) + toMin(parts[1])) / 2;
-        if (paceMin > 0) km += s.duration_min / paceMin;
-    }
-    return km > 0 ? Math.round(km * 10) / 10 : null;
-});
 
 // Grouped steps for list display (collapse repetitions)
 const groupedSteps = computed(() => {
@@ -1548,7 +1523,7 @@ const lapHeightPct = computed(() => {
         <!-- ══════════════════════════════════════════════════════
              EINHEIT IM DETAIL
              ══════════════════════════════════════════════════════ -->
-        <AppSheet :show="!!detailSession" tall max-width="2xl" @close="detailSession = null">
+        <AppSheet :show="!!detailSession" tall max-width="4xl" @close="detailSession = null">
             <template #header>
                 <!-- Wie die Karte: Typ farbig, großer Titel, Datum. Keine Pillen. -->
                 <div v-if="detailSession">
@@ -1564,29 +1539,40 @@ const lapHeightPct = computed(() => {
 
             <div v-if="detailSession" class="space-y-6">
 
-                <!-- Eckdaten: drei große Zahlen wie auf der Karte statt grauer Kacheln -->
-                <div class="grid grid-cols-[1fr_1fr_1.4fr] gap-2">
-                    <div v-if="totalStepDistanceKm || detailSession.distance_km" class="min-w-0">
+                <!--
+                    Eckdaten: drei große Zahlen wie im Mockup. Die Pace ist
+                    EINE Zahl — die des Hauptteils (paceValue); welche Pace
+                    für Ein- und Auslaufen gilt, steht im Ablauf. Vorher
+                    stand hier der ganze Text („E 4:59–5:58 min/km; T 4:20")
+                    und lief am iPhone aus dem Bild.
+                -->
+                <div class="grid grid-cols-3 gap-3 sm:max-w-lg">
+                    <div v-if="detailSession.distance_km" class="min-w-0">
                         <p class="text-[13px] text-ink-3">Distanz</p>
-                        <p class="whitespace-nowrap"><span class="font-rounded text-[30px] font-bold leading-9 tracking-tight tabular-nums text-ink">{{ String(totalStepDistanceKm ?? detailSession.distance_km).replace('.', ',') }}</span><span class="ml-1 text-[15px] font-semibold text-ink-3">km</span></p>
+                        <p class="truncate"><span class="font-rounded text-[30px] font-bold leading-9 tracking-tight tabular-nums text-ink">{{ fmtNum(detailSession.distance_km) }}</span><span class="ml-1 text-[15px] font-semibold text-ink-3">km</span></p>
                     </div>
-                    <div v-if="totalStepDuration || detailSession.duration_min" class="min-w-0">
+                    <div v-if="detailSession.duration_min" class="min-w-0">
                         <p class="text-[13px] text-ink-3">Dauer</p>
-                        <p class="whitespace-nowrap"><span class="font-rounded text-[30px] font-bold leading-9 tracking-tight tabular-nums text-ink">{{ Math.round(totalStepDuration) || detailSession.duration_min }}</span><span class="ml-1 text-[15px] font-semibold text-ink-3">min</span></p>
+                        <p class="truncate"><span class="font-rounded text-[30px] font-bold leading-9 tracking-tight tabular-nums text-ink">{{ detailSession.duration_min }}</span><span class="ml-1 text-[15px] font-semibold text-ink-3">min</span></p>
                     </div>
-                    <div v-if="paceValue(detailSession.pace_target)" class="min-w-0">
+                    <div v-if="detailPace" class="min-w-0">
                         <p class="text-[13px] text-ink-3">Pace</p>
-                        <p class="whitespace-nowrap"><span class="font-rounded font-bold tracking-tight tabular-nums text-ink"
-                            :class="paceValue(detailSession.pace_target).length > 6 ? 'text-[20px] leading-9' : 'text-[30px] leading-9'">{{ paceValue(detailSession.pace_target) }}</span><span class="ml-1 text-[15px] font-semibold text-ink-3">/km</span></p>
+                        <p class="truncate"><span class="font-rounded font-bold tracking-tight tabular-nums text-ink"
+                            :class="detailPace.length > 5 ? 'text-[22px] leading-9' : 'text-[30px] leading-9'">{{ detailPace }}</span><span class="ml-1 text-[15px] font-semibold text-ink-3">/km</span></p>
                     </div>
                 </div>
 
-                <p v-if="detailSession.description" class="text-[17px] leading-[25px] text-ink-2">
-                    {{ detailSession.description }}
-                </p>
+                <!--
+                    Ab lg zweispaltig: links der Text des Coaches, rechts der
+                    Ablauf. Die Verpflegung ist am 29.10.2026 weggefallen (Jan:
+                    „überflüssig").
+                -->
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
 
-                <!-- Ab lg zweispaltig: Struktur links, Verpflegung rechts -->
-                <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    <p v-if="detailSession.description" class="text-[17px] leading-[25px] text-ink-2"
+                        :class="{ 'lg:col-span-2': isCompletedSession || isRaceSession || detailIsStrength }">
+                        {{ detailSession.description }}
+                    </p>
 
                     <!-- Übungen -->
                     <section v-if="detailIsStrength && detailSession.exercises && detailSession.exercises.length" class="lg:col-span-2">
@@ -1613,7 +1599,8 @@ const lapHeightPct = computed(() => {
                     </section>
 
                     <!-- Trainingsstruktur -->
-                    <section v-if="!isRaceSession && !isCompletedSession && !detailIsStrength">
+                    <section v-if="!isRaceSession && !isCompletedSession && !detailIsStrength"
+                        :class="{ 'lg:col-span-2': !detailSession.description }">
                         <h3 class="mb-3 text-[22px] font-bold tracking-tight text-ink">Ablauf</h3>
 
                         <div v-if="stepsLoading" class="flex items-center gap-2 py-4 text-[13px] text-ink-3">
@@ -1648,16 +1635,16 @@ const lapHeightPct = computed(() => {
                                         <div class="space-y-2 pl-1">
                                             <div class="flex items-center gap-2.5">
                                                 <span class="h-2 w-2 shrink-0 rounded-full" :class="stepBarColor.work" />
-                                                <span class="text-[13px] font-medium text-ink-2">{{ step.label }}</span>
-                                                <span class="ml-auto text-[13px] tabular-nums text-ink-3">{{ stepAmount(step) }}</span>
+                                                <span class="min-w-0 truncate text-[13px] font-medium text-ink-2">{{ step.label }}</span>
+                                                <span class="ml-auto shrink-0 whitespace-nowrap text-[13px] tabular-nums text-ink-3">{{ stepAmount(step) }}</span>
                                                 <span v-if="step.pace_target || stepPower(step)" class="min-w-16 whitespace-nowrap text-right text-[13px] font-semibold tabular-nums text-ink">
-                                                    {{ step.pace_target || stepPower(step) }}
+                                                    {{ paceValue(step.pace_target) || stepPower(step) }}
                                                 </span>
                                             </div>
                                             <div v-if="step.pairedRest" class="flex items-center gap-2.5">
                                                 <span class="h-2 w-2 shrink-0 rounded-full bg-surface-3" />
-                                                <span class="text-[13px] text-ink-3">{{ step.pairedRest.label }}</span>
-                                                <span class="ml-auto text-[13px] tabular-nums text-ink-3">{{ stepAmount(step.pairedRest) }}</span>
+                                                <span class="min-w-0 truncate text-[13px] text-ink-3">{{ step.pairedRest.label }}</span>
+                                                <span class="ml-auto shrink-0 whitespace-nowrap text-[13px] tabular-nums text-ink-3">{{ stepAmount(step.pairedRest) }}</span>
                                                 <span class="w-16" />
                                             </div>
                                         </div>
@@ -1672,47 +1659,13 @@ const lapHeightPct = computed(() => {
                                                 </p>
                                                 <p class="text-[13px] font-medium text-ink">{{ step.label }}</p>
                                             </div>
-                                            <span class="shrink-0 text-[13px] tabular-nums text-ink-3">{{ stepAmount(step) }}</span>
+                                            <span class="shrink-0 whitespace-nowrap text-[13px] tabular-nums text-ink-3">{{ stepAmount(step) }}</span>
                                             <span v-if="step.pace_target || stepPower(step)" class="min-w-16 shrink-0 whitespace-nowrap text-right text-[13px] font-semibold tabular-nums text-ink">
-                                                {{ step.pace_target || stepPower(step) }}
+                                                {{ paceValue(step.pace_target) || stepPower(step) }}
                                             </span>
                                         </div>
                                     </template>
                                 </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <!-- Verpflegung -->
-                    <section v-if="!isCompletedSession">
-                        <h3 class="mb-3 text-[22px] font-bold tracking-tight text-ink">Verpflegung</h3>
-
-                        <div v-if="nutritionLoading" class="flex items-center gap-2 py-4 text-[13px] text-ink-3">
-                            <svg class="h-4 w-4 shrink-0 animate-spin text-accent" viewBox="0 0 24 24" fill="none">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                            </svg>
-                            {{ coachName }} stellt die Verpflegung zusammen…
-                        </div>
-
-                        <p v-else-if="nutritionError" class="text-[13px] text-danger">{{ nutritionError }}</p>
-
-                        <div v-else-if="aiNutritionTips" class="space-y-3">
-                            <div v-for="block in [
-                                { key: 'before', icon: `<path stroke-linecap='round' stroke-linejoin='round' d='M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7.5V12l3 1.5' />`, label: isRaceSession ? 'Vor dem Rennen'      : 'Vorher', tips: aiNutritionTips.before },
-                                { key: 'during', icon: `<path stroke-linecap='round' stroke-linejoin='round' d='M9 3.75v16.5M15 3.75v16.5M6 8.25h3M15 8.25h3' />`, label: isRaceSession ? 'Während des Rennens' : 'Unterwegs', tips: aiNutritionTips.during },
-                                { key: 'after',  icon: `<path stroke-linecap='round' stroke-linejoin='round' d='m4.5 12.75 6 6 9-13.5' />`, label: isRaceSession ? 'Nach dem Rennen'     : 'Danach',  tips: aiNutritionTips.after },
-                            ]" :key="block.key" class="rounded-card bg-surface-2 p-4">
-                                <div class="mb-2.5 flex items-center gap-2">
-                                    <svg class="h-4 w-4 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true" v-html="block.icon" />
-                                    <span class="text-[13px] font-semibold text-ink-3">{{ block.label }}</span>
-                                </div>
-                                <ul class="space-y-2">
-                                    <li v-for="tip in block.tips" :key="tip.text" class="flex items-start gap-2.5">
-                                        <span class="shrink-0 leading-relaxed">{{ tip.icon }}</span>
-                                        <span class="text-[13px] leading-relaxed text-ink-2">{{ tip.text }}</span>
-                                    </li>
-                                </ul>
                             </div>
                         </div>
                     </section>
