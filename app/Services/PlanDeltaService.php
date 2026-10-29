@@ -88,6 +88,15 @@ class PlanDeltaService
      */
     private function matches(array $day, Collection $sessions): bool
     {
+        // Ein Lauf, dessen Beschreibung noch eigene Minuten oder Paces nennt,
+        // stammt von vor dem Katalog und widerspricht seinem Ablauf — er wird
+        // neu geschrieben. Gepinnte bleiben: die hat der Athlet gewählt.
+        if ($sessions->contains(fn ($s) => $s->pinned_at === null
+            && ! in_array($s->type, ['rest', 'strength', 'core', 'mobility', 'race_prep', 'cross_training'], true)
+            && \App\Services\Run\SessionText::hasStructure($s->description))) {
+            return false;
+        }
+
         $actual = $sessions->pluck('type')->sort()->values()->all();
 
         // Gesperrter Tag: genau ein Ruhetag.

@@ -131,6 +131,8 @@ class TrainingPlanValidator
             $s['pace_target']  = $built['pace_target'] ?? ($s['pace_target'] ?? null);
             $s['zone']         = $built['zone'];
             $s['intensity']    = $built['intensity'];
+            // Der Prompt verbietet Zahlen in der Beschreibung; hier gilt es.
+            $s['description']  = \App\Services\Run\SessionText::clean($s['description'] ?? null, $built['workout']);
         }
         unset($s);
 
@@ -693,7 +695,6 @@ class TrainingPlanValidator
             if ($planned !== null && empty($slot['fixed']) && $hard > $planned + self::HARD_TOLERANCE_MIN) {
                 $this->note("{$date}: {$type} mit {$hard} min Hauptteil, das Gerüst erlaubt {$planned} (80/20) → gekürzt");
                 $hard = $planned;
-                $sessions[$i]['description'] = $this->withMainSetNote($s['description'] ?? '', $hard);
             }
 
             $sessions[$i]['hard_min'] = $hard;
@@ -725,7 +726,6 @@ class TrainingPlanValidator
 
                 if ($new >= WeeklyPatternService::MIN_HARD_MAIN_MINUTES) {
                     $sessions[$i]['hard_min']    = $new;
-                    $sessions[$i]['description'] = $this->withMainSetNote($sessions[$i]['description'] ?? '', $new);
                     continue;
                 }
 
@@ -798,7 +798,6 @@ class TrainingPlanValidator
             if ($planned !== null && empty($slot['fixed']) && $hard > $planned + self::HARD_TOLERANCE_MIN) {
                 $this->note("{$date}: {$type} mit {$hard} min Hauptteil, das Gerüst erlaubt {$planned} ({$rules[$kind]['label']}) → gekürzt");
                 $hard = $planned;
-                $sessions[$i]['description'] = $this->withMainSetNote($s['description'] ?? '', $hard, $rules[$kind]['label']);
             }
 
             $sessions[$i]['hard_min'] = $hard;
@@ -835,7 +834,6 @@ class TrainingPlanValidator
 
                     if ($new >= $rule['min']) {
                         $sessions[$i]['hard_min']    = $new;
-                        $sessions[$i]['description'] = $this->withMainSetNote($sessions[$i]['description'] ?? '', $new, $rule['label']);
                         continue;
                     }
 
@@ -856,15 +854,6 @@ class TrainingPlanValidator
         }
 
         return $sessions;
-    }
-
-    private function withMainSetNote(string $description, int $minutes, string $rule = '80/20'): string
-    {
-        // Wird ein Hauptteil zweimal gekürzt (Einheit, dann Woche), gilt nur
-        // der letzte Satz.
-        $description = preg_replace('/\s*Hauptteil höchstens \d+ min \([^)]*\)[^.]*\./u', '', $description);
-
-        return trim($description . " Hauptteil höchstens {$minutes} min ({$rule}) — den Rest locker ein- und auslaufen.");
     }
 
     /**

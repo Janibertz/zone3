@@ -329,7 +329,8 @@ class NorwegianModelTest extends TestCase
         );
 
         $am = collect($result['sessions'])->where('date', '2026-10-27')->firstWhere('part', 'am');
-        $this->assertStringContainsString('(Schwellenanteil 25 %)', $am['description']);
+        $this->assertFalse(\App\Services\Run\SessionText::hasStructure($am['description']));
+        $this->assertTrue(collect($result['report'])->contains(fn ($r) => str_contains($r, 'Schwellenanteil')));
         $this->assertFalse(collect($result['report'])->contains(fn ($r) => str_contains($r, '80/20')));
     }
 
