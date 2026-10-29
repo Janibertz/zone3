@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\SessionRecommendation;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -18,29 +19,42 @@ use Illuminate\Http\Request;
 class SessionRecommendationController extends Controller
 {
     /** Den Vorschlag annehmen — siehe {@see SessionRecommendation::accept()}. */
-    public function accept(Request $request, SessionRecommendation $recommendation): RedirectResponse
+    public function accept(Request $request, SessionRecommendation $recommendation): RedirectResponse|JsonResponse
     {
         $this->mine($request, $recommendation);
 
         if (! $recommendation->isOpen()) {
-            return back();
+            return $this->done($request, $recommendation);
         }
 
         if (! $recommendation->accept()) {
-            return back()->with('error', 'Die Einheit gibt es nicht mehr.');
+            return $this->done($request, $recommendation, 'Die Einheit gibt es nicht mehr.', 'error');
         }
 
-        return back()->with('success', 'Die Einheit wurde angepasst.');
+        return $this->done($request, $recommendation, 'Die Einheit wurde angepasst.');
     }
 
     /** Den Vorschlag ablehnen — der Plan bleibt, wie er ist. */
-    public function reject(Request $request, SessionRecommendation $recommendation): RedirectResponse
+    public function reject(Request $request, SessionRecommendation $recommendation): RedirectResponse|JsonResponse
     {
         $this->mine($request, $recommendation);
 
         $recommendation->reject();
 
-        return back()->with('success', 'Alles bleibt wie geplant.');
+        return $this->done($request, $recommendation, 'Alles bleibt wie geplant.');
+    }
+
+    /**
+     * Der Coach-Chat entscheidet per JSON: ein Inertia-Besuch würde die Seite
+     * hinter dem Chat neu aufbauen und das Gespräch abreißen lassen.
+     */
+    private function done(Request $request, SessionRecommendation $recommendation, ?string $message = null, string $level = 'success'): RedirectResponse|JsonResponse
+    {
+        if ($request->wantsJson()) {
+            return response()->json(['status' => $recommendation->fresh()->status, 'message' => $message]);
+        }
+
+        return $message ? back()->with($level, $message) : back();
     }
 
     /** Fremde Empfehlungen gehen niemanden etwas an. */

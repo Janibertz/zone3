@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Models\CoachMessage;
+use App\Models\SessionRecommendation;
 use App\Services\TelegramClient;
 use App\Services\WebPushService;
 use Illuminate\Support\Facades\Log;
@@ -37,6 +38,13 @@ class CoachMessageObserver
         // wartet der Athlet gerade auf sie.
         if ($user->hasTelegram() && $message->channel !== CoachMessage::CHANNEL_WEB) {
             app(TelegramClient::class)->sendMessage((int) $user->telegram_chat_id, $message->content);
+
+            // Eigene Vorschläge des Coaches folgen der Antwort, mit Knöpfen.
+            foreach ($message->actions ?? [] as $action) {
+                if (($action['type'] ?? null) === 'proposal' && ($rec = SessionRecommendation::find($action['recommendation_id'] ?? 0))) {
+                    SessionRecommendationObserver::send($rec);
+                }
+            }
 
             return;
         }

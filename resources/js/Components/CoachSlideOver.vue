@@ -232,6 +232,51 @@ function actionClass(type) {
     }[type] ?? 'bg-surface-2 text-ink-2';
 }
 
+/* ── Vorschläge ────────────────────────────────────────────────────────────
+ * Eigene Ideen des Coaches ändern nichts, sie kommen als Karte mit zwei
+ * Knöpfen (Entscheidung von Jan, 29.10.2026). Bestellte Änderungen bleiben
+ * in „Vom Coach geändert". */
+const changesOf   = (msg) => (msg.actions ?? []).filter(a => a.type !== 'proposal');
+const proposalsOf = (msg) => (msg.actions ?? []).filter(a => a.type === 'proposal');
+
+/** Nur was sich ändert, alt → neu. Titel und Art stehen schon in der Zeile darüber. */
+function proposalRows(a) {
+    const fields = [
+        ['distance_km', 'Distanz', 'km'], ['duration_min', 'Dauer', 'min'],
+        ['pace_target', 'Pace', '/km'], ['zone', 'Zone', ''],
+    ];
+    // Das Modell schreibt „min/km" gern selbst in die Pace — die Einheit steht daneben.
+    const fmt = (v) => (v == null || v === '' ? '—' : String(v).replace(/\s*(min)?\/km$/, '').replace('.', ','));
+
+    return fields
+        .filter(([k]) => String(a.before?.[k] ?? '') !== String(a.after?.[k] ?? ''))
+        .map(([k, label, unit]) => ({ label, from: fmt(a.before?.[k]), to: fmt(a.after?.[k]), unit }));
+}
+
+const deciding = ref(null);
+
+async function decideProposal(action, decision) {
+    if (deciding.value) return;
+    deciding.value = action.recommendation_id;
+    try {
+        const res = await axios.post(route(`recommendations.${decision}`, action.recommendation_id), {}, {
+            headers: { Accept: 'application/json' },
+        });
+        action.status = res.data.status;
+        if (action.status === 'accepted') pendingReload.value = true;
+    } catch {
+        action.status = 'expired';
+    } finally {
+        deciding.value = null;
+    }
+}
+
+const proposalState = {
+    accepted: 'Angenommen — die Einheit ist angepasst.',
+    rejected: 'Abgelehnt — alles bleibt wie geplant.',
+    expired:  'Nicht mehr offen.',
+};
+
 /** Schließen — und nachziehen, falls der Coach etwas geändert hat. */
 function closePanel() {
     close();
@@ -408,42 +453,62 @@ watch(isOpen, async (val) => {
                             <span class="h-px flex-1 bg-line" />
                         </div>
 
-                        <div class="flex gap-2" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
-                            <span
-                                v-if="msg.role === 'assistant'"
-                                class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                                :class="coachAvatar"
-                            >
-                                {{ coach?.avatar_initials ?? 'CO' }}
-                            </span>
-
-                            <div class="max-w-[82%] min-w-0">
+                        <div class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
+                            <!-- Blasen wie in Nachrichten: 17 pt, kein Schatten, kein Avatar je Nachricht -->
+                            <div class="min-w-0" :class="msg.actions?.length ? 'w-full' : 'max-w-[82%]'">
                                 <div
-                                    class="rounded-card px-3.5 py-2.5 text-sm leading-relaxed"
-                                    :class="msg.role === 'user'
-                                        ? 'whitespace-pre-wrap rounded-br-sm bg-accent text-white'
-                                        : msg.isError
-                                            ? 'whitespace-pre-wrap rounded-bl-sm bg-danger-soft text-danger-ink'
-                                            : 'rounded-bl-sm bg-surface text-ink shadow-card'"
+                                    class="w-fit max-w-full rounded-[20px] px-4 py-2.5 text-[17px] leading-snug"
+                                    :class="[
+                                        msg.role === 'user'
+                                            ? 'ml-auto whitespace-pre-wrap bg-accent text-white'
+                                            : msg.isError
+                                                ? 'whitespace-pre-wrap bg-danger-soft text-danger-ink'
+                                                : 'bg-surface text-ink',
+                                        msg.actions?.length ? 'max-w-[82%]' : '',
+                                    ]"
                                     v-html="msg.role === 'assistant' && !msg.isError ? renderMarkdown(msg.content) : msg.content"
                                 />
 
-                                <!-- Was der Coach tatsächlich geändert hat -->
-                                <div v-if="msg.actions && msg.actions.length" class="mt-1.5 space-y-1">
-                                    <div
-                                        v-for="(action, ai) in msg.actions"
-                                        :key="ai"
-                                        class="flex items-center gap-2 rounded-field px-3 py-2 text-[13px] font-medium"
-                                        :class="actionClass(action.type)"
-                                    >
-                                        <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" :d="actionIcons[action.type] ?? 'm4.5 12.75 6 6 9-13.5'" /></svg>
+                                <!-- Was der Coach tatsächlich geändert hat: als Karte, wie auf „Heute“ -->
+                                <article v-for="p in proposalsOf(msg)" :key="'p' + p.recommendation_id" class="mt-2 rounded-card bg-surface p-4">
+                                    <p class="text-[13px] font-semibold text-accent">Vorschlag · {{ p.when }}</p>
+                                    <div class="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                                        <span class="text-[15px] text-ink-3 line-through decoration-[1.5px]">{{ p.before?.title }}</span>
+                                        <span class="text-ink-3" aria-hidden="true">→</span>
+                                        <span class="text-[17px] font-semibold text-ink">{{ p.after?.title }}</span>
+                                    </div>
+                                    <div v-if="proposalRows(p).length" class="mt-2.5 space-y-1">
+                                        <p v-for="r in proposalRows(p)" :key="r.label" class="flex items-baseline justify-between gap-3 text-[15px]">
+                                            <span class="text-ink-3">{{ r.label }}</span>
+                                            <span class="tabular-nums text-ink">
+                                                <span class="text-ink-3 line-through">{{ r.from }}</span>
+                                                <span class="mx-1 text-ink-3" aria-hidden="true">→</span>
+                                                <span class="font-semibold">{{ r.to }}</span><span v-if="r.unit && r.to !== '—'" class="ml-0.5 text-ink-3">{{ r.unit }}</span>
+                                            </span>
+                                        </p>
+                                    </div>
+                                    <p v-if="p.reason" class="mt-2.5 text-[15px] leading-snug text-ink-2">{{ p.reason }}</p>
+                                    <div v-if="!p.status || p.status === 'pending'" class="mt-3 grid grid-cols-2 gap-2">
+                                        <AppButton variant="secondary" block :disabled="deciding === p.recommendation_id" @click="decideProposal(p, 'reject')">Ablehnen</AppButton>
+                                        <AppButton block :disabled="deciding === p.recommendation_id" @click="decideProposal(p, 'accept')">Annehmen</AppButton>
+                                    </div>
+                                    <p v-else class="mt-3 text-[15px]" :class="p.status === 'accepted' ? 'text-success-ink' : 'text-ink-3'">{{ proposalState[p.status] }}</p>
+                                </article>
+
+                                <article v-if="changesOf(msg).length" class="mt-2 rounded-card bg-surface p-4">
+                                    <p class="text-[13px] font-semibold text-accent">Vom Coach geändert</p>
+                                    <div v-for="(action, ai) in changesOf(msg)" :key="ai"
+                                        class="flex items-start gap-2.5 pt-2.5 text-[15px] text-ink" :class="ai > 0 ? 'mt-2.5 border-t border-line' : ''">
+                                        <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full" :class="actionClass(action.type)">
+                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" :d="actionIcons[action.type] ?? 'm4.5 12.75 6 6 9-13.5'" /></svg>
+                                        </span>
                                         <span class="min-w-0">{{ action.label }}</span>
                                     </div>
-                                </div>
+                                </article>
 
                                 <p
                                     v-if="msg.created_at"
-                                    class="mt-1 text-[11px] text-ink-3"
+                                    class="mt-1 px-1 text-[12px] text-ink-3"
                                     :class="msg.role === 'user' ? 'text-right' : 'text-left'"
                                 >
                                     {{ formatTime(msg.created_at) }}
@@ -453,12 +518,8 @@ watch(isOpen, async (val) => {
                     </template>
 
                     <!-- Der Coach tippt -->
-                    <div v-if="isLoading" class="flex justify-start gap-2">
-                        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                            :class="coachAvatar">
-                            {{ coach?.avatar_initials ?? 'CO' }}
-                        </span>
-                        <div class="flex items-center gap-1 rounded-card rounded-bl-sm bg-surface px-4 py-3 shadow-card">
+                    <div v-if="isLoading" class="flex justify-start">
+                        <div class="flex items-center gap-1 rounded-[20px] bg-surface px-4 py-3.5">
                             <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3" style="animation-delay:0ms" />
                             <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3" style="animation-delay:150ms" />
                             <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3" style="animation-delay:300ms" />
@@ -474,7 +535,7 @@ watch(isOpen, async (val) => {
                     <button
                         v-for="prompt in quickPrompts"
                         :key="prompt"
-                        class="shrink-0 whitespace-nowrap rounded-full bg-surface px-3.5 py-2 text-[13px] font-medium text-ink-2 shadow-card transition-colors hover:text-ink active:scale-[0.98]"
+                        class="shrink-0 whitespace-nowrap rounded-full bg-surface px-4 py-2 text-[15px] text-accent transition-colors active:scale-[0.98] active:bg-surface-2"
                         @click="sendMessage(prompt)"
                     >
                         {{ prompt }}
@@ -482,26 +543,25 @@ watch(isOpen, async (val) => {
                 </div>
 
                 <!-- ── Eingabe ────────────────────────────────────── -->
-                <div class="flex shrink-0 items-end gap-2 bg-surface p-3"
-                    style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom))">
+                <div class="flex shrink-0 items-end gap-2.5 border-t border-line bg-surface/85 px-4 pt-2.5 backdrop-blur-xl"
+                    style="padding-bottom: calc(0.625rem + env(safe-area-inset-bottom))">
                     <textarea
                         ref="inputEl"
                         v-model="inputText"
                         rows="1"
-                        placeholder="Schreib deinem Coach…"
-                        class="z-input max-h-32 flex-1 resize-none"
+                        :placeholder="`Nachricht an ${coach?.name ?? 'deinen Coach'}`"
+                        aria-label="Nachricht"
+                        class="max-h-32 min-h-[40px] flex-1 resize-none rounded-[20px] border border-line bg-canvas px-4 py-[7px] text-[17px] leading-snug text-ink placeholder:text-ink-3 focus:border-accent focus:ring-0"
                         style="field-sizing: content;"
                         @keydown="handleKeydown"
                     />
                     <button
                         :disabled="!inputText.trim() || isLoading"
                         aria-label="Senden"
-                        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-white transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+                        class="mb-[2px] flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-white transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
                         @click="sendMessage()"
                     >
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-                        </svg>
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
                     </button>
                 </div>
             </div>

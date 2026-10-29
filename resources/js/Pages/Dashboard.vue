@@ -1039,6 +1039,12 @@ onMounted(() => {
         url.searchParams.delete('tagesform');
         window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
     }
+    // „Übersicht anpassen" auf der Mehr-Seite.
+    if (url.searchParams.has('layout')) {
+        openLayoutSheet();
+        url.searchParams.delete('layout');
+        window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+    }
 });
 
 function syncStrava() {

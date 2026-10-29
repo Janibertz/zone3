@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Event;
 use App\Models\TrainingPlan;
+use App\Services\PaceFormat;
+use App\Services\RacePredictionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -18,11 +20,15 @@ class EventController extends Controller
             ->whereHas('event', fn ($q) => $q->where('event_date', '<', now()->toDateString()))
             ->update(['is_active' => false]);
 
+        // Für die Prognose am nächsten Rennen — dieselbe Rechnung wie auf
+        // Dashboard und Planseite, ohne Modellaufruf.
+        $vdot = Auth::user()->runnerProfile?->vdot();
+
         $events = Auth::user()->events()
             ->orderByRaw("CASE priority WHEN 'A' THEN 1 WHEN 'B' THEN 2 WHEN 'C' THEN 3 ELSE 4 END")
             ->orderBy('event_date')
             ->get()
-            ->map(fn (Event $e) => $this->formatEvent($e));
+            ->map(fn (Event $e) => $this->formatEvent($e, $vdot));
 
         $activePlan = TrainingPlan::where('user_id', Auth::id())
             ->where('is_active', true)
@@ -85,9 +91,17 @@ class EventController extends Controller
         return redirect()->route('events.index');
     }
 
-    private function formatEvent(Event $e): array
+    private function formatEvent(Event $e, ?float $vdot = null): array
     {
         $plan = $e->latestPlan;
+
+        // Alles in Sekunden — die Seite schreibt es wie eine Uhr (1:29:59).
+        $prediction = ($vdot && $e->days_until >= 0 && ! $e->isBackyard())
+            ? app(RacePredictionService::class)->forVdot($vdot, $e->race_distance, $e->distance_km)
+            : null;
+        $resultMin = $plan && ($plan->actual_time_hours || $plan->actual_time_minutes)
+            ? (int) $plan->actual_time_hours * 60 + (int) $plan->actual_time_minutes
+            : null;
 
         return [
             'id'                     => $e->id,
@@ -105,6 +119,11 @@ class EventController extends Controller
             'days_until'             => $e->days_until,
             'plan_is_active'         => (bool) $plan?->is_active && $e->days_until >= 0,
             'plan_generated_at'      => $plan?->created_at?->format('d.m.Y H:i'),
+            'race_km'                => $e->race_km,
+            'target_seconds'         => $e->target_minutes ? $e->target_minutes * 60 : null,
+            'target_pace'            => $e->target_pace_seconds ? PaceFormat::target($e->target_pace_seconds) : null,
+            'predicted_seconds'      => $prediction['total_sec'] ?? null,
+            'result_seconds'         => $resultMin ? $resultMin * 60 : null,
         ];
     }
 }

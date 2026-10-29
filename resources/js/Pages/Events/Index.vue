@@ -6,13 +6,10 @@ import AppButton from '@/Components/UI/AppButton.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import AppCard from '@/Components/UI/AppCard.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
-import SectionHeader from '@/Components/UI/SectionHeader.vue';
-import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
-import SwipeRow from '@/Components/SwipeRow.vue';
-import { Head, useForm, router, usePage } from '@inertiajs/vue3';
+import ListRow from '@/Components/UI/ListRow.vue';
+import { fmtNum, clock } from '@/Composables/useFormat';
+import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
-
-const coachName = computed(() => usePage().props.coach?.name ?? 'Dein Coach');
 
 const props = defineProps({
     events: Array,
@@ -20,16 +17,18 @@ const props = defineProps({
     active_plan_event_id: { type: Number, default: null },
 });
 
-// ── Filters ─────────────────────────────────────────────────────────────────
-const filterPriority = ref('all');
+// ── Gliederung wie im Mockup: das nächste Rennen groß, dann „Danach“ und „Gelaufen“ ──
+const upcomingEvents = computed(() => props.events
+    .filter(e => e.days_until >= 0)
+    .sort((x, y) => x.event_date.localeCompare(y.event_date)));
+const pastEvents = computed(() => props.events
+    .filter(e => e.days_until < 0)
+    .sort((x, y) => y.event_date.localeCompare(x.event_date)));
 
-const filteredEvents = computed(() => {
-    if (filterPriority.value === 'all') return props.events;
-    return props.events.filter(e => e.priority === filterPriority.value);
-});
-
-const upcomingEvents = computed(() => filteredEvents.value.filter(e => e.days_until >= 0));
-const pastEvents     = computed(() => filteredEvents.value.filter(e => e.days_until < 0));
+/** Groß steht das Rennen, auf das der Plan hinläuft — ohne Plan das nächste. */
+const featured = computed(() =>
+    upcomingEvents.value.find(e => e.id === props.active_plan_event_id) ?? upcomingEvents.value[0] ?? null);
+const later = computed(() => upcomingEvents.value.filter(e => e.id !== featured.value?.id));
 
 // ── Modal state ──────────────────────────────────────────────────────────────
 const showModal   = ref(false);
@@ -103,7 +102,7 @@ const confirmingDelete = ref(null);
 
 function deleteEvent(event) {
     router.delete(route('events.destroy', event.id), {
-        onSuccess: () => { confirmingDelete.value = null; },
+        onSuccess: () => { confirmingDelete.value = null; detail.value = null; },
     });
 }
 
@@ -124,39 +123,53 @@ const backyardTargetKm = computed(() =>
     form.target_yards ? (Number(form.target_yards) * BACKYARD_LAP_KM).toFixed(1).replace('.', ',') : null
 );
 
-// Die Prioritaet traegt nur noch eine kleine Pille. Vorher lag ueber jeder
-// Karte ein farbiger Streifen mit fest verdrahteten Hexwerten (#ef4444 …),
-// die am Designsystem vorbeigingen und im dunklen Modus nicht mitzogen.
-const priorityConfig = {
-    A: { pill: 'bg-danger-soft text-danger-ink', desc: 'Hauptrennen'      },
-    B: { pill: 'bg-warn-soft text-warn-ink',     desc: 'Wichtiges Rennen' },
-    C: { pill: 'bg-surface-2 text-ink-2',        desc: 'Trainingsrennen'  },
-};
+const PRIORITY_LABEL = { A: 'Hauptrennen', B: 'Wichtiges Rennen', C: 'Trainingsrennen' };
 
-// Kommende und vergangene Events teilen sich dieselbe Karte — vorher stand
-// deren Markup zweimal im Template, knapp sechzig Zeilen fast gleich.
-const sections = computed(() => [
-    { key: 'upcoming', title: null,                events: upcomingEvents.value },
-    { key: 'past',     title: 'Vergangene Events', events: pastEvents.value     },
-].filter(s => s.events.length > 0));
-
-const filterOptions = [
-    { value: 'all', label: 'Alle' },
-    { value: 'A',   label: 'A' },
-    { value: 'B',   label: 'B' },
-    { value: 'C',   label: 'C' },
-];
-
-function daysLabel(days) {
-    if (days < 0) return 'Vorbei';
-    if (days === 0) return 'Heute!';
-    if (days === 1) return 'Morgen';
-    return `in ${days} Tagen`;
+function featuredLabel(e) {
+    return e.id === props.active_plan_event_id ? 'Zielrennen' : PRIORITY_LABEL[e.priority];
 }
 
-function formatDate(dateStr) {
-    return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' });
+function longDate(d) {
+    return new Date(d + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
+const monthShort = (d) => new Date(d + 'T00:00:00').toLocaleDateString('de-DE', { month: 'short' }).replace('.', '');
+const dayNum = (d) => new Date(d + 'T00:00:00').getDate();
+
+function countdown(days) {
+    if (days === 0) return { value: 'Heute', unit: '' };
+    if (days === 1) return { value: 'Morgen', unit: '' };
+    return { value: fmtNum(days, 0), unit: 'Tage' };
+}
+
+function distance(e) {
+    return e.race_km ? `${fmtNum(e.race_km)} km` : e.distance_label;
+}
+
+/** „21,1 km · Ziel 1:30:00" — die Zeile unter dem Namen. */
+function foot(e) {
+    const parts = [distance(e)];
+    if (e.target_seconds) parts.push(`Ziel ${clock(e.target_seconds)}`);
+    else if (e.target_yards) parts.push(`Ziel ${e.target_yards} Yards`);
+    else parts.push('ohne Zielzeit');
+    return parts.join(' · ');
+}
+
+/** Abstand zum Ziel: +1:05 heißt langsamer. */
+function delta(e) {
+    if (!e.result_seconds || !e.target_seconds) return null;
+    const d = e.result_seconds - e.target_seconds;
+    return (d > 0 ? '+' : d < 0 ? '−' : '±') + clock(Math.abs(d));
+}
+
+function planHref(e) {
+    return e.plan_generated_at
+        ? route('events.plan.show', e.id)
+        : route('plan-interview.show', { event: e.id });
+}
+
+// ── Details als Sheet: hier stehen Plan, Bearbeiten und Löschen ─────────────
+const detail = ref(null);
+const openDetail = (e) => { detail.value = e; };
 
 const hoursOptions = Array.from({ length: 24 }, (_, i) => i);
 const minutesOptions = Array.from({ length: 60 }, (_, i) => i);
@@ -173,200 +186,143 @@ watch(() => form.race_distance, (val) => {
 </script>
 
 <template>
-    <Head title="Events" />
+    <Head title="Rennen" />
 
     <AuthenticatedLayout>
         <div class="min-h-screen bg-canvas">
-            <!--
-                Das Plus steht als Glyphe in der Titelzeile, wie in iOS. Eine
-                beschriftete Schaltflaeche daneben draengte den Titel bei
-                390px ab; darunter ueber die volle Breite nahm sie dem Large
-                Title den Platz, der ihn erst gross macht.
-            -->
-            <PageHeader
-                title="Events &amp; Rennen"
-                :subtitle="`Plane deine Wettkämpfe — ${coachName} baut den Plan dazu.`"
-            >
+            <PageHeader title="Rennen" :eyebrow="upcomingEvents.length ? `${upcomingEvents.length} geplant` : null">
                 <template #action>
-                    <AppButton variant="plain" size="sm" aria-label="Event hinzufügen" @click="openCreate">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                        </svg>
-                    </AppButton>
+                    <button type="button" aria-label="Rennen hinzufügen"
+                        class="flex h-11 w-11 items-center justify-center rounded-full text-accent transition-transform active:scale-90"
+                        @click="openCreate">
+                        <svg class="h-[22px] w-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                    </button>
                 </template>
             </PageHeader>
 
-            <div class="space-y-5 px-4 pb-8 pt-2 lg:px-8">
-
+            <div class="mx-auto max-w-3xl space-y-7 px-4 pb-8 pt-3 lg:px-8">
                 <div v-if="status === 'event-created' || status === 'event-updated'"
-                    class="rounded-card bg-success-soft px-4 py-3 text-sm text-success-ink shadow-card">
-                    Event {{ status === 'event-created' ? 'hinzugefügt' : 'gespeichert' }}.
+                    class="rounded-card bg-success-soft px-4 py-3 text-[15px] text-success-ink">
+                    Rennen {{ status === 'event-created' ? 'eingetragen' : 'gespeichert' }}.
                 </div>
 
-                <div class="max-w-xs">
-                    <SegmentedControl v-model="filterPriority" :options="filterOptions" />
-                </div>
-
-                <!-- ══ NICHTS DA ═════════════════════════════════════ -->
-                <AppCard v-if="filteredEvents.length === 0">
-                    <EmptyState
-                        title="Keine Events"
-                        description="Trag dein nächstes Rennen ein — daraus entsteht dein Trainingsplan."
-                    >
-                        <template #icon>
-                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5" />
-                            </svg>
-                        </template>
-                        <AppButton @click="openCreate">Event hinzufügen</AppButton>
+                <AppCard v-if="events.length === 0">
+                    <EmptyState title="Noch kein Rennen"
+                        description="Trag dein nächstes Rennen ein, daraus entsteht dein Trainingsplan.">
+                        <AppButton @click="openCreate">Rennen eintragen</AppButton>
                     </EmptyState>
                 </AppCard>
 
-                <!-- ══ EVENTS ════════════════════════════════════════ -->
-                <section v-for="section in sections" :key="section.key" class="min-w-0">
-                    <SectionHeader v-if="section.title" :title="section.title" />
+                <!-- ══ Das nächste Rennen ══════════════════════════════════ -->
+                <section v-if="featured" class="rounded-card bg-surface p-5">
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="flex items-center gap-1.5 text-[15px] font-semibold text-danger">
+                            <span class="h-2 w-2 rounded-full bg-danger" />{{ featuredLabel(featured) }}
+                        </span>
+                        <span v-if="featured.plan_is_active" class="rounded-full bg-accent/15 px-2.5 py-1 text-[13px] font-semibold text-accent">Plan aktiv</span>
+                    </div>
+                    <h2 class="mt-2 text-[28px] font-extrabold leading-tight tracking-[-0.03em] text-ink">{{ featured.name }}</h2>
+                    <p class="mt-0.5 text-[15px] text-ink-3">{{ longDate(featured.event_date) }} · {{ distance(featured) }}</p>
 
-                    <div class="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                        <SwipeRow
-                            v-for="event in section.events"
-                            :key="event.id"
-                            class="rounded-card"
-                            content-class="bg-surface-2 rounded-card"
-                            :left-width="event.days_until < 0 ? 0 : 80"
-                            :right-width="80"
-                            :disabled="event.days_until < 0"
-                        >
-                            <template #left="{ close }">
-                                <button
-                                    class="flex w-full flex-col items-center justify-center gap-1 bg-accent text-[11px] font-semibold text-white"
-                                    @click="openEdit(event); close()"
-                                >
-                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
-                                    </svg>
-                                    Bearbeiten
-                                </button>
-                            </template>
+                    <p class="mt-5 flex items-baseline gap-2.5">
+                        <span class="font-rounded text-[64px] font-extrabold leading-none tracking-[-0.04em] text-ink">{{ countdown(featured.days_until).value }}</span>
+                        <span class="text-[20px] font-semibold text-ink-2">{{ countdown(featured.days_until).unit }}</span>
+                    </p>
 
-                            <template #right="{ close }">
-                                <button
-                                    class="flex w-full flex-col items-center justify-center gap-1 bg-danger text-[11px] font-semibold text-white"
-                                    @click="confirmingDelete = event; close()"
-                                >
-                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                                    </svg>
-                                    Löschen
-                                </button>
-                            </template>
+                    <div v-if="featured.target_seconds || featured.predicted_seconds"
+                        class="mt-5 grid grid-cols-3 gap-2 border-t border-line pt-4">
+                        <div>
+                            <p class="text-[13px] font-semibold text-ink-3">Ziel</p>
+                            <p class="font-rounded text-[22px] font-bold tabular-nums text-ink">{{ featured.target_seconds ? clock(featured.target_seconds) : '–' }}</p>
+                        </div>
+                        <div>
+                            <p class="text-[13px] font-semibold text-ink-3">Prognose</p>
+                            <p class="font-rounded text-[22px] font-bold tabular-nums text-ink">{{ featured.predicted_seconds ? clock(featured.predicted_seconds) : '–' }}</p>
+                        </div>
+                        <div>
+                            <p class="text-[13px] font-semibold text-ink-3">Pace</p>
+                            <p class="font-rounded text-[22px] font-bold tabular-nums text-ink">{{ featured.target_pace ?? '–' }}</p>
+                        </div>
+                    </div>
 
-                            <article class="h-full rounded-card bg-surface p-5 shadow-card"
-                                :class="event.days_until < 0 ? 'opacity-60' : ''">
-
-                                <!-- Kopfzeile -->
-                                <div class="flex items-start justify-between gap-3">
-                                    <div class="flex min-w-0 flex-wrap items-center gap-2">
-                                        <span class="inline-flex h-6 items-center rounded-full px-2.5 text-xs font-bold"
-                                            :class="priorityConfig[event.priority].pill"
-                                            :title="priorityConfig[event.priority].desc">
-                                            {{ event.priority }}
-                                        </span>
-                                        <span v-if="event.plan_is_active"
-                                            class="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-2.5 py-1 text-[11px] font-semibold text-success-ink">
-                                            <span class="h-1.5 w-1.5 rounded-full bg-success" />
-                                            Aktiver Plan
-                                        </span>
-                                    </div>
-
-                                    <span class="shrink-0 text-[13px] font-semibold"
-                                        :class="event.days_until < 0 ? 'text-ink-3'
-                                              : event.days_until <= 7 ? 'text-danger'
-                                              : event.days_until <= 30 ? 'text-warn' : 'text-ink-3'">
-                                        {{ daysLabel(event.days_until) }}
-                                    </span>
-                                </div>
-
-                                <h3 class="mt-2.5 truncate text-lg font-bold tracking-tight text-ink">{{ event.name }}</h3>
-
-                                <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-3">
-                                    <span>{{ formatDate(event.event_date) }}</span>
-                                    <span aria-hidden="true">·</span>
-                                    <span class="font-medium text-ink-2">{{ event.distance_label }}</span>
-                                    <template v-if="event.target_time_formatted">
-                                        <span aria-hidden="true">·</span>
-                                        <span>Ziel {{ event.target_time_formatted }}</span>
-                                    </template>
-                                </div>
-
-                                <p v-if="event.notes" class="mt-2 line-clamp-2 text-[13px] leading-relaxed text-ink-3">
-                                    {{ event.notes }}
-                                </p>
-
-                                <!-- Aktionen -->
-                                <div class="mt-4 flex flex-wrap items-center gap-2">
-                                    <template v-if="event.days_until < 0">
-                                        <AppButton v-if="event.plan_generated_at" variant="secondary" size="sm"
-                                            :href="route('events.plan.show', event.id)">
-                                            Auswertung
-                                        </AppButton>
-                                        <span v-else class="text-[13px] text-ink-3">Kein Plan erstellt</span>
-                                    </template>
-
-                                    <template v-else>
-                                        <!--
-                                            Ein neuer Plan beginnt mit dem kurzen Gespräch: fünf
-                                            Fragen zu dem, was in keiner Zahl steht. Wer es
-                                            kürzlich geführt hat, wird serverseitig
-                                            durchgewunken und landet direkt auf der Planseite.
-                                            Ein bestehender Plan geht ohnehin direkt dorthin.
-                                        -->
-                                        <AppButton
-                                            v-if="!anotherEventHasPlan(event)"
-                                            :variant="event.plan_generated_at ? 'secondary' : 'primary'"
-                                            size="sm"
-                                            :href="event.plan_generated_at
-                                                ? route('events.plan.show', event.id)
-                                                : route('plan-interview.show', { event: event.id })"
-                                        >
-                                            {{ event.plan_generated_at ? 'Plan ansehen' : 'Plan erstellen' }}
-                                        </AppButton>
-
-                                        <span v-else
-                                            class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-[13px] font-medium text-ink-3"
-                                            title="Ein anderes Event hat bereits den aktiven Plan">
-                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25z" />
-                                            </svg>
-                                            Plan gesperrt
-                                        </span>
-
-                                        <AppButton variant="ghost" size="sm" @click="openEdit(event)">Bearbeiten</AppButton>
-                                    </template>
-
-                                    <!-- Löschen bleibt bewusst zurückhaltend: es stand vorher als
-                                         rot gefüllter Knopf auf jeder Karte. -->
-                                    <button type="button"
-                                        class="ml-auto rounded-full px-2.5 py-1.5 text-[13px] font-medium text-ink-3 transition-colors hover:bg-danger-soft hover:text-danger-ink"
-                                        @click="confirmingDelete = event">
-                                        Löschen
-                                    </button>
-                                </div>
-
-                                <p v-if="event.plan_generated_at" class="mt-3 border-t border-line pt-3 text-[12px] text-ink-3">
-                                    Plan vom {{ event.plan_generated_at }}
-                                </p>
-                            </article>
-                        </SwipeRow>
+                    <div class="mt-5 grid grid-cols-2 gap-3">
+                        <AppButton variant="secondary" block @click="openDetail(featured)">Details</AppButton>
+                        <AppButton v-if="!anotherEventHasPlan(featured)" block :href="planHref(featured)">
+                            {{ featured.plan_generated_at ? 'Zum Plan' : 'Plan erstellen' }}
+                        </AppButton>
+                        <AppButton v-else variant="secondary" block disabled>Plan gesperrt</AppButton>
                     </div>
                 </section>
 
+                <!-- ══ Danach ═══════════════════════════════════════════════ -->
+                <section v-if="later.length">
+                    <h2 class="mx-1 mb-2 text-[22px] font-bold text-ink">Danach</h2>
+                    <div class="divide-y divide-line overflow-hidden rounded-card bg-surface">
+                        <button v-for="e in later" :key="e.id" type="button"
+                            class="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors active:bg-surface-2"
+                            @click="openDetail(e)">
+                            <span class="w-11 shrink-0 text-center">
+                                <span class="block text-[13px] font-semibold text-ink-3">{{ monthShort(e.event_date) }}</span>
+                                <span class="block font-rounded text-[22px] font-extrabold leading-tight text-ink">{{ dayNum(e.event_date) }}</span>
+                            </span>
+                            <span class="min-w-0 flex-1">
+                                <span class="block truncate text-[17px] text-ink">{{ e.name }}</span>
+                                <span class="block truncate text-[13px] text-ink-3">{{ foot(e) }}</span>
+                            </span>
+                            <svg class="h-4 w-4 shrink-0 text-ink-3/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                        </button>
+                    </div>
+                </section>
+
+                <!-- ══ Gelaufen ═════════════════════════════════════════════ -->
+                <section v-if="pastEvents.length">
+                    <h2 class="mx-1 mb-2 text-[22px] font-bold text-ink">Gelaufen</h2>
+                    <div class="divide-y divide-line overflow-hidden rounded-card bg-surface">
+                        <button v-for="e in pastEvents" :key="e.id" type="button"
+                            class="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors active:bg-surface-2"
+                            @click="openDetail(e)">
+                            <span class="w-11 shrink-0 text-center">
+                                <span class="block text-[13px] font-semibold text-ink-3">{{ monthShort(e.event_date) }}</span>
+                                <span class="block font-rounded text-[22px] font-extrabold leading-tight text-ink">{{ dayNum(e.event_date) }}</span>
+                            </span>
+                            <span class="min-w-0 flex-1">
+                                <span class="block truncate text-[17px] text-ink">{{ e.name }}</span>
+                                <span class="block truncate text-[13px] text-ink-3">{{ foot(e) }}</span>
+                            </span>
+                            <span v-if="e.result_seconds" class="shrink-0 text-right">
+                                <span class="block font-rounded text-[17px] font-bold tabular-nums text-ink">{{ clock(e.result_seconds) }}</span>
+                                <span v-if="delta(e)" class="block text-[13px] tabular-nums text-ink-3">{{ delta(e) }}</span>
+                            </span>
+                            <svg v-else class="h-4 w-4 shrink-0 text-ink-3/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                        </button>
+                    </div>
+                </section>
             </div>
         </div>
+
+        <!-- ── Details ───────────────────────────────────────────────────── -->
+        <AppSheet :show="!!detail" :title="detail?.name ?? ''" max-width="lg" @close="detail = null">
+            <template v-if="detail">
+                <p class="text-[15px] text-ink-3">{{ longDate(detail.event_date) }} · {{ foot(detail) }}</p>
+                <p class="mt-1 text-[15px] text-ink-3">{{ PRIORITY_LABEL[detail.priority] }} ({{ detail.priority }})</p>
+                <p v-if="detail.notes" class="mt-3 whitespace-pre-line text-[15px] text-ink-2">{{ detail.notes }}</p>
+
+                <div class="mt-5 divide-y divide-line overflow-hidden rounded-card bg-surface-2/60">
+                    <ListRow v-if="detail.days_until < 0 && detail.plan_generated_at" title="Auswertung" :href="route('events.plan.show', detail.id)" />
+                    <ListRow v-else-if="detail.days_until >= 0 && !anotherEventHasPlan(detail)"
+                        :title="detail.plan_generated_at ? 'Zum Plan' : 'Plan erstellen'" :href="planHref(detail)" />
+                    <ListRow v-else-if="detail.days_until >= 0" title="Plan gesperrt" subtitle="Ein anderes Rennen hat schon den aktiven Plan." />
+                    <ListRow v-if="detail.days_until >= 0" title="Bearbeiten" chevron @click="openEdit(detail); detail = null" />
+                    <ListRow title="Löschen" danger @click="confirmingDelete = detail" />
+                </div>
+                <p v-if="detail.plan_generated_at" class="mt-3 text-[13px] text-ink-3">Plan vom {{ detail.plan_generated_at }}</p>
+            </template>
+        </AppSheet>
 
         <!-- ── Create/Edit Sheet ─────────────────────────────────────────── -->
         <AppSheet
             :show="showModal"
-            :title="editingEvent ? 'Event bearbeiten' : 'Neues Event'"
+            :title="editingEvent ? 'Rennen bearbeiten' : 'Neues Rennen'"
             max-width="lg"
             @close="closeModal"
         >
@@ -454,7 +410,7 @@ watch(() => form.race_distance, (val) => {
                 <div class="flex gap-3">
                     <AppButton variant="secondary" block @click="closeModal">Abbrechen</AppButton>
                     <AppButton type="submit" form="event-form" block :loading="form.processing">
-                        {{ editingEvent ? 'Speichern' : 'Event erstellen' }}
+                        {{ editingEvent ? 'Speichern' : 'Eintragen' }}
                     </AppButton>
                 </div>
             </template>
@@ -463,7 +419,7 @@ watch(() => form.race_distance, (val) => {
         <!-- ── Delete confirm ────────────────────────────────────────────── -->
         <ConfirmSheet
             :show="!!confirmingDelete"
-            title="Event löschen?"
+            title="Rennen löschen?"
             :message="`${confirmingDelete?.name} und der zugehörige Trainingsplan werden dauerhaft gelöscht.`"
             confirm-label="Ja, löschen"
             @confirm="deleteEvent(confirmingDelete)"

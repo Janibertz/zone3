@@ -4,6 +4,10 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import axios from 'axios';
+import AppButton from '@/Components/UI/AppButton.vue';
+import AppSheet from '@/Components/UI/AppSheet.vue';
+import { sessionType } from '@/Composables/useSessionTypes';
+import { fmtNum } from '@/Composables/useFormat';
 
 const props = defineProps({
     workout:   Object,
@@ -69,14 +73,6 @@ const BLOCK_DEFS = [
     },
 ];
 
-const BLOCK_COLOR_CLASSES = {
-    sky:     { stripe: 'bg-info',     btn: 'bg-info-soft text-info-ink border-info/25' },
-    amber:   { stripe: 'bg-warn',   btn: 'bg-warn-soft text-warn-ink border-warn/25' },
-    orange:  { stripe: 'bg-warn',  btn: 'bg-warn-soft text-warn-ink border-warn/25' },
-    red:     { stripe: 'bg-danger',     btn: 'bg-danger-soft text-danger-ink border-danger/25' },
-    emerald: { stripe: 'bg-success', btn: 'bg-success-soft text-success-ink border-success/25' },
-    gray:    { stripe: 'bg-surface-3', btn: 'bg-surface-2 text-ink-2 border-line' },
-};
 
 function defFor(t) { return BLOCK_DEFS.find(d => d.type === t) ?? BLOCK_DEFS[2]; }
 
@@ -125,7 +121,7 @@ function fmtDur(sec) {
     const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
     return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
 }
-function fmtDist(m) { return m >= 1000 ? (m / 1000).toFixed(2) + ' km' : m + ' m'; }
+function fmtDist(m) { return m >= 1000 ? `${fmtNum(m / 1000, 2)} km` : `${fmtNum(m, 0)} m`; }
 function secToHms(sec) {
     if (!sec) return '00:00';
     const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
@@ -173,7 +169,7 @@ const barSegments = computed(() => {
     let totalW = 0;
     function addSeg(zone, w) {
         if (w <= 0) return;
-        const color = ZONE_COLORS[zone]?.bar ?? '#94a3b8';
+        const color = ZONE_BG[zone] ?? ZONE_BG[0];
         if (segs.length && segs.at(-1).color === color) { segs.at(-1).weight += w; }
         else segs.push({ color, weight: w });
         totalW += w;
@@ -184,46 +180,80 @@ const barSegments = computed(() => {
             const reps = b.repetitions ?? 1;
             for (let i = 0; i < reps; i++) {
                 for (const s of b.steps ?? []) {
-                    addSeg(s.pace_zone ?? 0, s.duration_mode === 'distance' ? (s.distance_m || 0) : (s.duration_sec || 0));
+                    addSeg(s.pace_zone ?? 0, s.duration_mode === 'distance' ? (s.distance_m || 0) * 0.3 : (s.duration_sec || 0));
                 }
             }
         } else if (b.type === 'ramp_up' || b.type === 'ramp_down') {
             for (const step of b.steps ?? []) {
-                addSeg(step.zone ?? 1, step.duration_mode === 'distance' ? (step.distance_m || 0) : (step.duration_sec ?? 120));
+                addSeg(step.zone ?? 1, step.duration_mode === 'distance' ? (step.distance_m || 0) * 0.3 : (step.duration_sec ?? 120));
             }
         } else {
-            addSeg(b.pace_zone ?? def.zone, b.duration_mode === 'distance' ? (b.distance_m || 0) : (b.duration_sec || 0));
+            addSeg(b.pace_zone ?? def.zone, b.duration_mode === 'distance' ? (b.distance_m || 0) * 0.3 : (b.duration_sec || 0));
         }
     }
     if (!totalW) return [];
-    return segs.map(s => ({ ...s, pct: Math.round(s.weight / totalW * 100) })).filter(s => s.pct > 0);
+    // Meter zählen als Sekunden bei 5:00/km, sonst wiegen Strecken das Zehnfache von Zeiten.
+    return segs;
 });
 
-const previewSteps = computed(() => blocks.value.map((b, idx) => {
-    const def = defFor(b.type);
+// ── Redesign (Paket 3, 28.10.2026): Zeilen statt Kacheln ──────────────────
+
+/** Dieselben Zonenfarben wie die Runden einer Aktivität und das Band in der Bibliothek. */
+const ZONE_BG = { 0: 'bg-ink-3/40', 1: 'bg-ink-3/70', 2: 'bg-success', 3: 'bg-accent', 4: 'bg-warn', 5: 'bg-danger' };
+
+const TEXT = { success: 'text-success', warn: 'text-warn', danger: 'text-danger', info: 'text-info', accent: 'text-accent' };
+const typeText = computed(() => TEXT[sessionType(type.value).accent] ?? 'text-ink-3');
+
+const paletteOpen = ref(false);
+
+const BLOCK_HINT = {
+    warmup:    'Locker einlaufen, Zone 2',
+    ramp_up:   'Stufenweise schneller',
+    active:    'Ein Abschnitt in einer Zone',
+    repeat:    'Belastung und Pause im Wechsel',
+    ramp_down: 'Stufenweise langsamer',
+    recovery:  'Traben zwischen zwei Blöcken',
+    cooldown:  'Locker auslaufen',
+    rest:      'Stehen oder gehen',
+};
+
+function amountOf(x) {
+    return (x.duration_mode ?? 'time') === 'distance' && x.distance_m ? fmtDist(x.distance_m) : (x.duration_sec ? fmtDur(x.duration_sec) : '');
+}
+
+function rowColor(b) {
     if (b.type === 'repeat') {
-        const reps = b.repetitions ?? 1;
-        const w = b.steps?.find(s => s.type === 'work') ?? b.steps?.[0];
-        const r = b.steps?.find(s => s.type === 'rest') ?? b.steps?.[1];
-        const wLabel = w ? (w.duration_mode === 'distance' ? fmtDist(w.distance_m) : fmtDur(w.duration_sec)) + ` Z${w.pace_zone}` : '?';
-        const rLabel = r ? (r.duration_mode === 'distance' ? fmtDist(r.distance_m) : fmtDur(r.duration_sec)) + ` Z${r.pace_zone}` : '?';
-        return { key: b._id ?? idx, label: b.label, sublabel: `${reps}× · ${wLabel} + ${rLabel}`, dot: ZONE_COLORS[4].dot, isRepeat: true, reps };
+        const work = b.steps?.find(st => st.type === 'work') ?? b.steps?.[0];
+        return ZONE_BG[work?.pace_zone ?? 4];
     }
     if (b.type === 'ramp_up' || b.type === 'ramp_down') {
-        const zones = (b.steps ?? []).map(s => s.zone);
-        const zMin = Math.min(...zones), zMax = Math.max(...zones);
-        const totalSec  = (b.steps ?? []).reduce((a, s) => a + (s.duration_mode !== 'distance' ? (s.duration_sec ?? 120) : 0), 0);
-        const totalDist = (b.steps ?? []).reduce((a, s) => a + (s.duration_mode === 'distance' ? (s.distance_m ?? 0) : 0), 0);
-        const durLabel = totalDist ? fmtDist(totalDist) : (totalSec ? fmtDur(totalSec) : '');
-        return { key: b._id ?? idx, label: b.label, sublabel: `Z${zMin}→Z${zMax} · ${b.steps?.length} Stufen` + (durLabel ? ` · ${durLabel}` : ''), dot: ZONE_COLORS[def.zone]?.dot ?? 'bg-warn', isRamp: true };
+        return ZONE_BG[Math.max(...(b.steps ?? []).map(st => st.zone ?? 1))];
     }
-    const zone = b.pace_zone ?? def.zone;
-    let durLabel = '';
-    if (b.duration_mode === 'distance' && b.distance_m) durLabel = fmtDist(b.distance_m);
-    else if (b.duration_sec) durLabel = fmtDur(b.duration_sec);
-    const zoneStr = zone > 0 ? zonePaceLabel(zone) : null;
-    return { key: b._id ?? idx, label: b.label, sublabel: [durLabel, zoneStr].filter(Boolean).join(' · '), dot: ZONE_COLORS[zone]?.dot ?? 'bg-ink-3', lapButton: !!b.lap_button };
-}));
+    return ZONE_BG[b.pace_zone ?? defFor(b.type).zone] ?? ZONE_BG[0];
+}
+
+/** „800 m · Zone 5 + 400 m · Zone 1" — was ein Durchgang ist. */
+function rowFoot(b) {
+    if (b.type === 'repeat') {
+        return (b.steps ?? []).map(st => [amountOf(st), st.pace_zone ? `Zone ${st.pace_zone}` : null].filter(Boolean).join(' · ')).join(' + ');
+    }
+    if (b.type === 'ramp_up' || b.type === 'ramp_down') {
+        const zones = (b.steps ?? []).map(st => st.zone);
+        return `${b.steps?.length ?? 0} Stufen · Zone ${zones[0]} bis ${zones[zones.length - 1]}`;
+    }
+    const zone = b.pace_zone ?? defFor(b.type).zone;
+    return zone > 0 ? (zonePaceLabel(zone) ?? `Zone ${zone}`) : 'ohne Zone';
+}
+
+function rowAmount(b) {
+    if (b.type === 'repeat') return `${b.repetitions ?? 1} ×`;
+    if (b.type === 'ramp_up' || b.type === 'ramp_down') {
+        const sec = (b.steps ?? []).reduce((a, st) => a + ((st.duration_mode ?? 'time') !== 'distance' ? (st.duration_sec ?? 0) : 0), 0);
+        const m = (b.steps ?? []).reduce((a, st) => a + (st.duration_mode === 'distance' ? (st.distance_m ?? 0) : 0), 0);
+        return m ? fmtDist(m) : fmtDur(sec);
+    }
+    return amountOf(b);
+}
 
 async function save() {
     if (!name.value.trim()) { saveError.value = 'Name ist erforderlich.'; return; }
@@ -243,192 +273,92 @@ async function save() {
 <template>
     <Head :title="isEdit ? 'Workout bearbeiten' : 'Neues Workout'" />
     <AuthenticatedLayout>
-        <div class="px-4 sm:px-6 py-6">
-
-            <!-- Header -->
-            <div class="flex items-center gap-3 mb-6 flex-wrap">
-                <Link :href="route('workouts.index')" class="text-ink-3 hover:text-ink-2 transition-colors">
-                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
-                </Link>
-                <h1 class="flex-1 text-[28px] font-bold leading-[34px] text-ink">{{ isEdit ? 'Workout bearbeiten' : 'Neues Workout' }}</h1>
-                <button @click="save" :disabled="saving"
-                    class="inline-flex items-center gap-2 rounded-field bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-card">
-                    <svg v-if="saving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                    {{ saving ? 'Speichern…' : 'Speichern' }}
+        <div class="min-h-screen bg-canvas">
+            <!-- Navigationsleiste wie ein iOS-Editor: Abbrechen · Titel · Sichern -->
+            <div class="flex h-[52px] items-center justify-between gap-3 px-4 lg:px-8">
+                <Link :href="route('workouts.index')" class="text-[17px] text-accent active:opacity-60">Abbrechen</Link>
+                <span class="truncate text-[17px] font-semibold text-ink">{{ isEdit ? 'Workout bearbeiten' : 'Neues Workout' }}</span>
+                <button type="button" class="text-[17px] font-semibold text-accent active:opacity-60 disabled:opacity-40" :disabled="saving" @click="save">
+                    {{ saving ? 'Sichert…' : 'Sichern' }}
                 </button>
             </div>
 
-            <div v-if="saveError" class="mb-4 rounded-field bg-danger-soft border border-danger/25 px-4 py-3 text-sm text-danger-ink">{{ saveError }}</div>
+            <div class="mx-auto max-w-2xl space-y-6 px-4 pb-10 pt-2 lg:px-8">
+                <div v-if="saveError" class="rounded-card bg-danger-soft px-4 py-3 text-[15px] text-danger-ink">{{ saveError }}</div>
 
-            <div class="grid lg:grid-cols-[280px_1fr] gap-5 items-start">
+                <div>
+                    <label for="wname" class="mx-1 mb-1.5 block text-[13px] text-ink-3">Name</label>
+                    <input id="wname" v-model="name" type="text" placeholder="z. B. 6 × 800 m"
+                        class="h-[54px] w-full rounded-card border-0 bg-surface px-4 text-[22px] font-bold text-ink placeholder:font-normal placeholder:text-ink-3 focus:ring-2 focus:ring-accent" />
+                </div>
 
-                <!-- ── LEFT: Metadata + Palette ───────────────────────── -->
-                <div class="space-y-4">
-
-                    <!-- Metadata -->
-                    <div class="bg-surface rounded-card border border-line p-4 space-y-3">
-                        <div>
-                            <label class="block text-[13px] font-semibold text-ink-3 mb-1">Name</label>
-                            <input v-model="name" type="text" placeholder="z.B. 5×1km Intervall"
-                                class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
-                        </div>
-                        <div>
-                            <label class="block text-[13px] font-semibold text-ink-3 mb-1">Typ</label>
-                            <select v-model="type"
-                                class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
+                <!-- Zusammenfassung: Typ, drei Zahlen, das Band -->
+                <section class="rounded-card bg-surface p-5">
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="flex items-center gap-1.5 text-[15px] font-semibold" :class="typeText">
+                            <span class="h-2 w-2 rounded-full" :class="sessionType(type).dot" />{{ sessionType(type).label }}
+                        </span>
+                        <label class="relative text-[15px] text-accent">
+                            Typ ändern
+                            <select v-model="type" class="absolute inset-0 cursor-pointer opacity-0" aria-label="Typ">
                                 <option value="easy_run">Lockerer Lauf</option>
                                 <option value="tempo_run">Tempolauf</option>
                                 <option value="interval">Intervall</option>
                                 <option value="long_run">Langer Lauf</option>
                             </select>
+                        </label>
+                    </div>
+                    <div class="mt-3 grid grid-cols-3 gap-2">
+                        <div>
+                            <p class="text-[13px] font-semibold text-ink-3">Distanz</p>
+                            <p class="font-rounded text-[28px] font-bold leading-tight tabular-nums text-ink">{{ totalDistM ? fmtNum(totalDistM / 1000) : '–' }}<span class="ml-1 text-[15px] font-semibold text-ink-3">km</span></p>
                         </div>
                         <div>
-                            <label class="block text-[13px] font-semibold text-ink-3 mb-1">Notiz</label>
-                            <textarea v-model="description" rows="2" placeholder="Optional…"
-                                class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 resize-none" />
+                            <p class="text-[13px] font-semibold text-ink-3">Dauer</p>
+                            <p class="font-rounded text-[28px] font-bold leading-tight tabular-nums text-ink">{{ totalDurSec ? fmtDur(totalDurSec) : '–' }}</p>
                         </div>
                         <div>
-                            <label class="block text-[13px] font-semibold text-ink-3 mb-1">Tags <span class="font-normal normal-case">(mit Leerzeichen trennen)</span></label>
-                            <input v-model="tags" type="text" placeholder="#intervall #tempo"
-                                class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
+                            <p class="text-[13px] font-semibold text-ink-3">Abschnitte</p>
+                            <p class="font-rounded text-[28px] font-bold leading-tight tabular-nums text-ink">{{ blocks.length }}</p>
                         </div>
                     </div>
-
-                    <!-- Palette (2-col) -->
-                    <div class="bg-surface rounded-card border border-line p-4">
-                        <p class="text-[13px] font-semibold text-ink-3 mb-3">Segment hinzufügen</p>
-                        <div class="grid grid-cols-2 gap-2">
-                            <button v-for="def in BLOCK_DEFS" :key="def.type"
-                                @click="addBlock(def)"
-                                class="flex items-center gap-2 rounded-field border px-2.5 py-2 text-xs font-semibold transition-colors hover:shadow-card text-left"
-                                :class="BLOCK_COLOR_CLASSES[def.color].btn">
-                                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="def.icon" />
-                                <span class="truncate">{{ def.label }}</span>
-                            </button>
-                        </div>
+                    <div class="mt-4 flex h-3 gap-[2px] overflow-hidden rounded-full bg-surface-2">
+                        <i v-for="(seg, i) in barSegments" :key="i" class="block h-full transition-[flex-grow] duration-300" :class="seg.color" :style="{ flex: seg.weight }" />
                     </div>
-                </div>
+                    <p v-if="totalDistM && totalDurSec" class="mt-2 text-[13px] text-ink-3">Strecke und Zeit zählen getrennt: Abschnitte nach Strecke stecken in der Distanz, Abschnitte nach Zeit in der Dauer.</p>
+                </section>
 
-                <!-- ── RIGHT: Live Preview + Block Editor ──────────────── -->
-                <div class="space-y-4 min-w-0">
-
-                    <!-- Live Preview -->
-                    <div class="bg-surface rounded-card border border-line overflow-hidden">
-                        <!-- Big colored bar -->
-                        <div class="h-10 flex bg-surface-2">
-                            <template v-if="barSegments.length">
-                                <div v-for="(seg, i) in barSegments" :key="i"
-                                    :style="{ width: seg.pct + '%', backgroundColor: seg.color }"
-                                    class="transition-[width,background-color] duration-300" />
-                            </template>
-                            <div v-else class="w-full flex items-center justify-center">
-                                <span class="text-[11px] text-ink-3">Noch keine Segmente</span>
-                            </div>
-                        </div>
-
-                        <!-- Step list -->
-                        <div class="p-4">
-                            <div v-if="previewSteps.length === 0" class="text-xs text-ink-3 text-center py-1">
-                                Segmente links hinzufügen
-                            </div>
-                            <div v-else class="space-y-2.5">
-                                <div v-for="step in previewSteps" :key="step.key" class="flex items-center gap-3">
-                                    <span class="h-2.5 w-2.5 rounded-full shrink-0" :class="step.dot" />
-                                    <div class="flex-1 min-w-0">
-                                        <span class="text-[13px] font-semibold text-ink">{{ step.label }}</span>
-                                        <span v-if="step.sublabel" class="text-xs text-ink-3 ml-2">{{ step.sublabel }}</span>
-                                    </div>
-                                    <span v-if="step.isRepeat"
-                                        class="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-danger-soft text-danger-ink">
-                                        {{ step.reps }}×
-                                    </span>
-                                    <span v-if="step.lapButton"
-                                        class="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-info-soft text-info-ink tracking-wide">
-                                        LAP
-                                    </span>
-                                </div>
-                            </div>
-
-                            <!-- Totals -->
-                            <div v-if="previewSteps.length > 0" class="mt-3 pt-3 border-t border-line flex gap-5">
-                                <div>
-                                    <span class="text-base font-bold text-ink">{{ totalDistM ? fmtDist(totalDistM) : '—' }}</span>
-                                    <span class="text-[11px] text-ink-3 ml-1">gesamt</span>
-                                </div>
-                                <div>
-                                    <span class="text-base font-bold text-ink">{{ totalDurSec ? fmtDur(totalDurSec) : '—' }}</span>
-                                    <span class="text-[11px] text-ink-3 ml-1">Zeit</span>
-                                </div>
-                                <div class="ml-auto self-center text-[11px] text-ink-3">{{ blocks.length }} Segment{{ blocks.length !== 1 ? 'e' : '' }}</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Empty state -->
-                    <div v-if="blocks.length === 0"
-                        class="bg-surface rounded-card border border-dashed border-line p-10 text-center">
-                        <p class="text-sm text-ink-3">Klicke links auf ein Segment, um es hinzuzufügen</p>
-                    </div>
+                <section>
+                    <h2 class="mx-1 mb-2 text-[22px] font-bold text-ink">Abschnitte</h2>
+                    <p v-if="blocks.length === 0" class="rounded-card bg-surface px-5 py-8 text-center text-[15px] text-ink-3">
+                        Noch leer. Füg unten den ersten Abschnitt hinzu, zum Beispiel „Aufwärmen“.
+                    </p>
 
                     <!-- Block list -->
-                    <div class="space-y-2">
-                        <div v-for="(block, idx) in blocks" :key="block._id ?? idx"
-                            class="bg-surface rounded-card border overflow-hidden transition"
-                            :class="ZONE_COLORS[block.pace_zone ?? defFor(block.type).zone]?.border ?? 'border-line'">
+                    <div v-if="blocks.length" class="divide-y divide-line overflow-hidden rounded-card bg-surface">
+                        <div v-for="(block, idx) in blocks" :key="block._id ?? idx">
 
-                            <!-- Block header (click to expand) -->
-                            <div class="flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none"
+                            <!-- Zeile: Farbbalken, Name, Zone, Umfang. Ein Tipp klappt den Editor auf. -->
+                            <button type="button" class="grid w-full grid-cols-[4px_1fr_auto_16px] items-center gap-3 px-4 py-3 text-left transition-colors active:bg-surface-2"
                                 @click="toggleExpand(block._id ?? idx)">
-                                <div class="h-8 w-1 rounded-full shrink-0" :class="BLOCK_COLOR_CLASSES[defFor(block.type).color]?.stripe ?? 'bg-surface-3'" />
-                                <div class="h-7 w-7 rounded-lg flex items-center justify-center shrink-0"
-                                    :class="BLOCK_COLOR_CLASSES[defFor(block.type).color]?.btn ?? ''">
-                                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="defFor(block.type).icon" />
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <span class="text-sm font-semibold text-ink">{{ block.label }}</span>
-                                    <span v-if="block.lap_button"
-                                        class="text-[10px] font-bold ml-2 px-1.5 py-0.5 rounded-full bg-info-soft text-info-ink tracking-wide">
-                                        LAP
-                                    </span>
-                                    <span class="text-xs text-ink-3 ml-2">
-                                        <template v-if="block.type === 'repeat'">{{ block.repetitions }}× · {{ block.steps?.length }} Schritte</template>
-                                        <template v-else-if="block.type === 'ramp_up' || block.type === 'ramp_down'">{{ block.steps?.length }} Stufen</template>
-                                        <template v-else-if="block.duration_mode === 'distance' && block.distance_m">{{ fmtDist(block.distance_m) }}</template>
-                                        <template v-else-if="block.duration_sec">{{ fmtDur(block.duration_sec) }}</template>
-                                    </span>
-                                    <span v-if="(block.pace_zone ?? 0) > 0" class="text-[11px] ml-2 px-1.5 py-0.5 rounded-full"
-                                        :class="ZONE_COLORS[block.pace_zone]?.badge ?? ''">
-                                        {{ zonePaceLabel(block.pace_zone) }}
-                                    </span>
-                                </div>
-                                <div class="flex gap-0.5 shrink-0" @click.stop>
-                                    <button @click="moveUp(idx)" :disabled="idx === 0" title="Nach oben"
-                                        class="p-1 rounded text-ink-3 hover:text-ink-3 disabled:opacity-20 transition-colors">
-                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" /></svg>
-                                    </button>
-                                    <button @click="moveDown(idx)" :disabled="idx === blocks.length - 1" title="Nach unten"
-                                        class="p-1 rounded text-ink-3 hover:text-ink-3 disabled:opacity-20 transition-colors">
-                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
-                                    </button>
-                                    <button @click="duplicateBlock(idx)" title="Duplizieren"
-                                        class="p-1 rounded text-ink-3 hover:text-ink-3 transition-colors">
-                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" /></svg>
-                                    </button>
-                                    <button @click="removeBlock(idx)" title="Löschen"
-                                        class="p-1 rounded text-ink-3 hover:text-danger transition-colors">
-                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-                                    </button>
-                                    <svg class="h-4 w-4 text-ink-3 ml-0.5 transition-transform"
-                                        :class="expandedId === (block._id ?? idx) ? 'rotate-180' : ''"
-                                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                                    </svg>
-                                </div>
-                            </div>
+                                <i class="block h-10 w-1 rounded-full" :class="rowColor(block)" />
+                                <span class="min-w-0">
+                                    <span class="block truncate text-[17px] text-ink">{{ block.label }}<span v-if="block.lap_button" class="ml-2 text-[13px] font-semibold text-info">LAP</span></span>
+                                    <span class="block truncate text-[13px] text-ink-3">{{ rowFoot(block) }}</span>
+                                </span>
+                                <span class="font-rounded text-[17px] font-bold tabular-nums text-ink">{{ rowAmount(block) }}</span>
+                                <svg class="h-4 w-4 text-ink-3/60 transition-transform duration-200 ease-in-out-strong" :class="expandedId === (block._id ?? idx) ? 'rotate-90' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                            </button>
 
                             <!-- Expanded editor -->
                             <div v-if="expandedId === (block._id ?? idx)"
-                                class="border-t border-line px-4 py-4 space-y-3">
+                                class="space-y-3 bg-surface-2/40 px-4 py-4">
+                                <div class="flex flex-wrap gap-2">
+                                    <button type="button" class="h-9 rounded-full bg-surface px-3.5 text-[15px] text-accent disabled:opacity-30" :disabled="idx === 0" @click="moveUp(idx)">Nach oben</button>
+                                    <button type="button" class="h-9 rounded-full bg-surface px-3.5 text-[15px] text-accent disabled:opacity-30" :disabled="idx === blocks.length - 1" @click="moveDown(idx)">Nach unten</button>
+                                    <button type="button" class="h-9 rounded-full bg-surface px-3.5 text-[15px] text-accent" @click="duplicateBlock(idx)">Duplizieren</button>
+                                    <button type="button" class="h-9 rounded-full bg-surface px-3.5 text-[15px] text-danger" @click="removeBlock(idx)">Löschen</button>
+                                </div>
 
                                 <!-- Label -->
                                 <div>
@@ -606,8 +536,44 @@ async function save() {
                             </div>
                         </div>
                     </div>
-                </div>
+                </section>
+
+                <AppButton variant="secondary" block @click="paletteOpen = true">
+                    <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                    Abschnitt hinzufügen
+                </AppButton>
+
+                <!-- Notiz und Tags -->
+                <section class="space-y-3">
+                    <div>
+                        <label for="wdesc" class="mx-1 mb-1.5 block text-[13px] text-ink-3">Notiz</label>
+                        <textarea id="wdesc" v-model="description" rows="2" placeholder="Optional"
+                            class="w-full resize-none rounded-card border-0 bg-surface px-4 py-3 text-[17px] text-ink placeholder:text-ink-3 focus:ring-2 focus:ring-accent" />
+                    </div>
+                    <div>
+                        <label for="wtags" class="mx-1 mb-1.5 block text-[13px] text-ink-3">Tags, mit Leerzeichen getrennt</label>
+                        <input id="wtags" v-model="tags" type="text" placeholder="#intervall #bahn"
+                            class="h-11 w-full rounded-card border-0 bg-surface px-4 text-[17px] text-ink placeholder:text-ink-3 focus:ring-2 focus:ring-accent" />
+                    </div>
+                </section>
             </div>
         </div>
+
+        <!-- Abschnitt wählen: eine Liste statt acht bunter Kacheln -->
+        <AppSheet :show="paletteOpen" title="Abschnitt hinzufügen" @close="paletteOpen = false">
+            <div class="divide-y divide-line overflow-hidden rounded-card bg-surface-2/60">
+                <button v-for="def in BLOCK_DEFS" :key="def.type" type="button"
+                    class="flex min-h-[52px] w-full items-center gap-3 px-4 py-2 text-left transition-colors active:bg-surface-3"
+                    @click="addBlock(def); paletteOpen = false">
+                    <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] text-white" :class="ZONE_BG[def.zone] ?? 'bg-ink-3'">
+                        <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" v-html="def.icon" />
+                    </span>
+                    <span class="min-w-0 flex-1">
+                        <span class="block text-[17px] text-ink">{{ def.label }}</span>
+                        <span class="block text-[13px] text-ink-3">{{ BLOCK_HINT[def.type] }}</span>
+                    </span>
+                </button>
+            </div>
+        </AppSheet>
     </AuthenticatedLayout>
 </template>

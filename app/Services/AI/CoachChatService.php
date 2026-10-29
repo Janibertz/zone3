@@ -347,7 +347,11 @@ class CoachChatService
             "Du bist {$coachName}, der persönliche Lauf-Coach von {$user->name}. ".
             "Du kennst alle Trainingsdaten und antwortest wie ein echter Coach der seinen Athleten kennt. ".
             "Du kannst den Trainingsplan wirklich verändern. Deine Werkzeuge: Einheiten anlegen (create_training_session), ändern (modify_training_session, an JEDEM Tag – nicht nur heute), verschieben (move_training_session), löschen (delete_training_session), bei Krankheit/Urlaub überspringen (skip_training_sessions), eine mehrtägige Pause festlegen (pause_training) oder beenden (end_training_pause), Zielzeiten anpassen (update_event_target), einen Lauf aufs Rad legen (switch_to_bike, z. B. „heute lieber Zwift“) und Infos dauerhaft merken (remember_user_fact). ".
-            "Nutze Tools proaktiv: Athlet sagt er ist krank, verletzt, hatte eine OP oder pausiert mehrere Tage → pause_training bis zum letzten Pausentag. Einzelne Einheit fällt aus → skip_training_sessions. 'Zu leicht' → ändere Einheit. Präferenz geäußert → merke sie dir. ".
+            "Nutze Tools proaktiv: Athlet sagt er ist krank, verletzt, hatte eine OP oder pausiert mehrere Tage → pause_training bis zum letzten Pausentag. Einzelne Einheit fällt aus → skip_training_sessions. Präferenz geäußert → merke sie dir. ".
+            // Entscheidung von Jan (29.10.2026): was der Athlet bestellt,
+            // setzt der Coach um; was der Coach selbst fuer richtig haelt,
+            // schlaegt er vor — wie beim Tagesform-Vorschlag.
+            "VORSCHLAGEN STATT ÄNDERN: Verlangt der Athlet eine Änderung ausdrücklich („mach Sonntag 25 km“, „verschieb den langen Lauf auf Samstag“, „heute lieber Zwift“), setze sie direkt mit dem passenden Werkzeug um. Kommt die Idee von DIR — eine Einheit wirkt dir zu hart oder zu leicht, der Athlet gibt nur Rückmeldung („war zu leicht“, „bin müde“) ohne etwas zu verlangen — dann rufe propose_session_change auf und ändere NICHTS direkt; der Athlet entscheidet per Knopf. Verschieben oder Löschen aus eigener Idee: frage im Text nach und warte auf seine Antwort. Krankheit, Verletzung und Pausen setzt du weiter direkt um. ".
             // Der Coach hatte lange nur ein Werkzeug fuer HEUTE. Bat der
             // Athlet um eine Aenderung am Sonntag, passte kein Werkzeug — und
             // das Modell beschrieb die Aenderung einfach, statt sie
@@ -433,6 +437,22 @@ class CoachChatService
                     'zone'         => ['type' => 'integer', 'minimum' => 1, 'maximum' => 5, 'description' => 'Herzfrequenzzone'],
                     'part'         => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit Doppel-Schwelle: morgens (am) oder abends (pm)'],
                 ]],
+            ]],
+            ['type' => 'function', 'function' => [
+                'name'        => 'propose_session_change',
+                'description' => 'Schlage eine Änderung an einer geplanten Einheit VOR, statt sie vorzunehmen — für alles, was von DIR ausgeht: du hältst eine Einheit für zu hart oder zu leicht, willst nach einem Lauf oder einer Rückmeldung nachsteuern. Der Athlet sieht Vorher und Nachher und entscheidet per Knopf; bis dahin bleibt der Plan unverändert. Felder wie bei modify_training_session. Hat der Athlet die Änderung ausdrücklich verlangt, nimm modify_training_session.',
+                'parameters'  => ['type' => 'object', 'properties' => [
+                    'date'         => ['type' => 'string', 'description' => 'Tag der Einheit als YYYY-MM-DD. Weglassen für heute.'],
+                    'reason'       => ['type' => 'string', 'description' => 'Ein Satz, warum — steht neben dem Vorschlag'],
+                    'type'         => ['type' => 'string', 'enum' => ['easy_run','tempo_run','interval','long_run','progressive_run','test_run','race_prep','strength','core','mobility','rest'], 'description' => 'Trainingstyp'],
+                    'title'        => ['type' => 'string', 'description' => 'Titel der Einheit'],
+                    'description'  => ['type' => 'string', 'description' => 'Detaillierte Beschreibung des Workouts inkl. Intervallstruktur'],
+                    'distance_km'  => ['type' => 'number', 'description' => 'Zieldistanz in km'],
+                    'duration_min' => ['type' => 'integer', 'description' => 'Zieldauer in Minuten'],
+                    'pace_target'  => ['type' => 'string', 'description' => 'Zielpace im Format M:SS'],
+                    'zone'         => ['type' => 'integer', 'minimum' => 1, 'maximum' => 5, 'description' => 'Herzfrequenzzone'],
+                    'part'         => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit Doppel-Schwelle: morgens (am) oder abends (pm)'],
+                ], 'required' => ['reason']],
             ]],
             ['type' => 'function', 'function' => [
                 'name'        => 'create_training_session',
@@ -843,6 +863,9 @@ class CoachChatService
                 ];
             }
 
+            case 'propose_session_change':
+                return $this->proposeSessionChange($user, $args);
+
             case 'create_training_session': {
                 $date = $this->toolDate($args['date'] ?? null);
                 if (! $date) {
@@ -1095,6 +1118,78 @@ class CoachChatService
      * lockeres Rad um den Dauerfaktor länger, Intervalle → VO2max auf dem
      * Rad. Was keinen Radersatz hat, bleibt Laufen, und der Coach sagt es.
      */
+    /**
+     * Ein Vorschlag statt einer Änderung (Entscheidung von Jan, 29.10.2026).
+     *
+     * Bittet der Athlet ausdrücklich um eine Änderung, setzt der Coach sie
+     * weiter direkt um. Kommt die Idee vom Coach selbst, entscheidet der
+     * Athlet — mit demselben Mechanismus wie beim Tagesform-Vorschlag
+     * ({@see \App\Models\SessionRecommendation}): `after` wird erst beim
+     * Annehmen geschrieben, und auch dann gepinnt.
+     *
+     * Gerechnet wird an einer Kopie der Einheit, damit Distanz, Dauer und
+     * Pace im Vorschlag genauso zueinander passen wie bei einer direkten
+     * Änderung.
+     */
+    private function proposeSessionChange(\App\Models\User $user, array $args): array
+    {
+        $date = $this->toolDate($args['date'] ?? null);
+        if (! $date) {
+            return ['message' => 'Das Datum liegt in der Vergangenheit — dafür gibt es keinen Vorschlag mehr.', 'action' => null];
+        }
+
+        $session = $this->runHalf($this->plannedRunsOn($user, $date), $args['part'] ?? null)
+            ?? $this->plannedSessionOn($user, $date, $args['type'] ?? null)
+            ?? $this->plannedSessionOn($user, $date);
+
+        if (! $session) {
+            return ['message' => "Am {$date} steht keine geplante Einheit. Frag den Athleten, ob du dort etwas anlegen sollst, statt es vorzuschlagen.", 'action' => null];
+        }
+        if ($session->status === 'completed') {
+            return ['message' => 'Diese Einheit ist bereits absolviert und bleibt, wie sie ist.', 'action' => null];
+        }
+
+        $fields = \App\Models\SessionRecommendation::FIELDS;
+        $before = collect($fields)->mapWithKeys(fn ($f) => [$f => $session->{$f}])->all();
+
+        $draft = $session->replicate();
+        $this->applySessionFields($draft, $args, $user);
+        $after = collect($fields)->mapWithKeys(fn ($f) => [$f => $draft->{$f}])->all();
+
+        // Ein neuer Vorschlag zur selben Einheit ersetzt den alten — zwei
+        // offene Entscheidungen zu einer Einheit kann niemand beantworten.
+        \App\Models\SessionRecommendation::where('training_session_id', $session->id)
+            ->where('status', \App\Models\SessionRecommendation::STATUS_PENDING)
+            ->update(['status' => \App\Models\SessionRecommendation::STATUS_EXPIRED, 'responded_at' => now()]);
+
+        $reason = trim((string) ($args['reason'] ?? '')) ?: null;
+
+        $recommendation = \App\Models\SessionRecommendation::create([
+            'user_id'             => $user->id,
+            'training_session_id' => $session->id,
+            'source'              => \App\Models\SessionRecommendation::SOURCE_COACH,
+            'reason'              => $reason,
+            'before'              => $before,
+            'after'               => $after,
+        ]);
+
+        $when = $this->dayLabel($date);
+
+        return [
+            'message' => "Vorschlag für {$date} angelegt: {$after['title']}. Der Plan bleibt unverändert, bis der Athlet annimmt — sag ihm, dass es ein Vorschlag ist, und behaupte nicht, du hättest etwas geändert.",
+            'action'  => [
+                'type'              => 'proposal',
+                'label'             => "Vorschlag ({$when}): {$after['title']}",
+                'recommendation_id' => $recommendation->id,
+                'date'              => $date,
+                'when'              => $when,
+                'before'            => $before,
+                'after'             => $after,
+                'reason'            => $reason,
+            ],
+        ];
+    }
+
     private function switchToBike(\App\Models\User $user, array $args): array
     {
         $date = $this->toolDate($args['date'] ?? null);
