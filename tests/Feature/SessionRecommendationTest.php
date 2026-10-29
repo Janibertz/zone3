@@ -127,11 +127,12 @@ class SessionRecommendationTest extends TestCase
     }
 
     /**
-     * Steps und Verpflegungstipps beschrieben die alte Einheit — sie neben
-     * einer anderen stehen zu lassen, wäre der Fehler, den wir bei
-     * Beschreibung und Trainingsstruktur schon einmal hatten.
+     * Die Steps beschrieben die alte Einheit — sie neben einer anderen
+     * stehen zu lassen, wäre der Fehler, den wir bei Beschreibung und
+     * Trainingsstruktur schon einmal hatten. Seit dem Katalog kommt der
+     * neue Ablauf gleich mit.
      */
-    public function test_accepting_clears_the_old_steps(): void
+    public function test_accepting_replaces_the_old_steps(): void
     {
         [$user, $session] = $this->athleteWithSession();
         $session->update([
@@ -144,8 +145,9 @@ class SessionRecommendationTest extends TestCase
 
         $session->refresh();
 
-        $this->assertNull($session->steps);
-        $this->assertNull($session->nutrition_tips);
+        $this->assertNotEquals([['duration_min' => 10, 'label' => 'Einlaufen']], $session->steps);
+        $this->assertSame('locker', $session->workout_variant);
+        $this->assertSame((int) $session->duration_min, (int) round(app(\App\Services\Run\RunWorkouts::class)->totalMinutes($session->steps)));
     }
 
     public function test_rejecting_leaves_everything_alone(): void

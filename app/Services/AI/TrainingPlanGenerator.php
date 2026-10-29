@@ -252,6 +252,14 @@ class TrainingPlanGenerator
             ? 'Ein zweiter Eintrag mit demselben "date" ist nur erlaubt, wenn das Wochengerüst dort eine Doppel-Schwelle (part="pm") oder eine strength-, core- oder mobility-Einheit vorsieht.'
             : 'Ein zweiter Eintrag mit demselben "date" ist nur erlaubt, wenn das Wochengerüst dort eine strength-, core- oder mobility-Einheit vorsieht — niemals ein zweiter Lauf.';
 
+        // Den Ablauf baut das System aus dem Katalog (RunWorkouts) — das
+        // Modell waehlt nur den Baustein. Vorher schrieb es die Struktur als
+        // Text, und ein zweiter Aufruf las sie beim Oeffnen der Details
+        // wieder heraus; dabei gingen Minuten verloren (aus 12:30 wurden 12).
+        $workoutRule = '- ABLAUF: Den Ablauf jeder Laufeinheit (Einlaufen, Hauptteil, Pausen, Auslaufen, Paces, Distanz) baut das System aus dem Baustein, den du in "workout" waehlst — die erlaubten Bausteine stehen im Gerüst bei jedem Tag. Waehle abwechslungsreich und passend zur Phase. '
+            . 'Die description sagt Zweck und Gefühl der Einheit, aber KEINE Minuten, Wiederholungen, Distanzen oder Paces: der Athlet sieht den Ablauf direkt darunter, und eine zweite Zahl wuerde ihm widersprechen. Der title darf den Baustein benennen ("Schwelle in Blöcken"), aber ohne Zahlen. '
+            . 'Ab 90 Minuten Laufzeit gehört ein Satz zur Verpflegung in die description.';
+
         // Liegt ein Wochengerüst vor, ersetzt es die reine Verfügbarkeitsliste:
         // es enthält dieselbe Information und zusätzlich die feste Belegung.
         if ($skeleton) {
@@ -570,6 +578,7 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 - Berücksichtige Tagesform & Trainingsbelastung: schlechter Schlaf/hoher Stress oder TSB < −30 → leichtere Einheiten / mehr Ruhe.
 - Mindestens ein Ruhetag pro Woche.
 - VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die GESAMTE Trainingsdauer eines Tages (bei zwei Einheiten die Summe) darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
+{$workoutRule}
 {$oneRunRule}
 - ZWEITE EINHEIT: Nur strength, core oder mobility duerfen als zweiter Eintrag zu einem Tag dazukommen, und nur wenn das Wochengeruest sie dort vorsieht. Bei zwei Eintraegen am selben "date": Tageszeit im title kennzeichnen ("Morgens: ...", "Abends: ..."), Laufeinheit zuerst, Summe beider duration_min <= Tages-Maximum.
 - ANDERE RENNEVENTS: An Tagen mit anderen Rennevents im Planungszeitraum IMMER type="rest".
@@ -579,19 +588,17 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
   {
     "date": "YYYY-MM-DD",
     "type": "rest|easy_run|tempo_run|interval|long_run|back_to_back_long|time_on_feet|yard_simulation|night_run|progressive_run|strength|core|mobility|race_prep",
+    "workout": "Baustein aus dem Gerüst, z. B. lang_locker — nur bei Laufeinheiten",
     "title": "Kurzer Titel (max 40 Zeichen)",
-    "description": "Beschreibung der Einheit (2-3 Sätze, konkrete Anweisungen inkl. Verpflegungshinweis bei langen Läufen)",
+    "description": "Zweck und Gefühl der Einheit (1-2 Sätze, KEINE Minuten, Wiederholungen oder Paces; Verpflegungshinweis bei langen Läufen)",
     "distance_km": 0,
     "duration_min": 0,
-    "pace_target": "6:30-7:30 oder null bei Ruhetag",
-    "zone": 2,
     "intensity": "rest|low|medium|high",
-    "hard_min": 0,
     "part": null,
     "exercises": [{ "name": "Kettlebell Swing", "sets": 4, "reps": "15", "load": "16 kg", "note": "explosiv" }]
   }
 ]
-Für Ruhetage: distance_km=0, duration_min=0, pace_target=null, zone=null.
+Für Ruhetage: distance_km=0, duration_min=0.
 Nur bei strength/core/mobility das "exercises"-Array füllen; bei allen Lauf-Einheiten weglassen oder leer lassen.
 PROMPT;
         } else {
@@ -633,11 +640,9 @@ Reduziere im Zweifel die Intensität einer Einheit, nicht ihre Existenz — ein 
 - {$endRuleStandard}
 - Halte dich an die Trainingsphase und an die Umfangsregeln oben. Beides ist ausgerechnet, nicht geschätzt.
 - Mindestens ein Ruhetag pro Woche.
-- WOCHENMUSTER: Die Wochenstruktur ist im Gerüst oben festgelegt und nicht verhandelbar. Deine Aufgabe ist, jede vorgegebene Einheit inhaltlich auszugestalten: beim easy_run konsequent Zone 2 (Unterhaltungstempo, kein „flotter" Dauerlauf), beim tempo_run einen klaren Schwellenabschnitt mit konkreten Minutenangaben, beim interval konkrete Wiederholungen mit Länge und Trabpause (z.B. „5×1000 m mit 400 m Trabpause"). Schreibe diese Angaben ausdrücklich in die description — daraus wird später die Schritteliste gebaut.
-- AUFBAU EINER HARTEN EINHEIT: 10–15 min locker einlaufen, dann der Hauptteil, dann 10 min auslaufen — die duration_min des Tages schließt beides ein. Der harte Anteil selbst überschreitet 40 min (Schwelle) bzw. 25 min reine Belastung (Intervalle) nicht. Aus „Tempolauf, 90 min" wird also nicht 90 min Schwellentempo.
-- JEDE EINHEIT BRAUCHT EINEN ZWECK: Schreibe in die description in einem Halbsatz, worauf die Einheit hinarbeitet (z.B. „hält die Schwelle für das Renntempo 4:58"). Eine Einheit, für die sich kein Zweck formulieren lässt, gehört nicht in den Plan.
-- KONKRETE ZAHLEN: pace_target kommt aus der Tempotabelle oben, nicht aus dem Bauch. distance_km und duration_min müssen zueinander und zur angegebenen Pace passen — rechne das nach, bevor du sie schreibst.
-- DIE BESCHREIBUNG MUSS AUFGEHEN: Nennst du in der description Minuten (Einlaufen, Wiederholungen, Trabpausen, Auslaufen), muss ihre Summe duration_min ERGEBEN. Aus "15 min einlaufen, 3×8 min Schwelle mit je 3 min traben, 10 min auslaufen" folgt duration_min = 15 + 24 + 9 + 10 = 58. Rechne es aus. Passt es nicht ins Zeitbudget, kürze die Beschreibung — nicht die Zahl daneben. Aus dieser Beschreibung wird die Trainingsstruktur gebaut; weichen beide voneinander ab, sieht der Athlet den Widerspruch.
+- WOCHENMUSTER: Die Wochenstruktur ist im Gerüst oben festgelegt und nicht verhandelbar.
+{$workoutRule}
+- JEDE EINHEIT BRAUCHT EINEN ZWECK: Schreibe in die description in einem Halbsatz, worauf die Einheit hinarbeitet (z.B. „hält die Schwelle für das Renntempo"). Eine Einheit, für die sich kein Zweck formulieren lässt, gehört nicht in den Plan.
 - A-Events: max. Leistungsoptimierung; C-Events: Trainingsrennen, moderate Belastung.
 - Lerne aus den Athleten-Bewertungen: niedrige Bewertungen (1-2⭐) oder hohe RPE (≥8) bei bestimmten Typen → weniger davon oder leichter planen; hohe Bewertungen (4-5⭐) → mehr davon.
 - Lerne aus vergangenen Rennergebnissen: Ziel verfehlt → mehr spezifisches Tempotraining für diese Distanz; Ziel erreicht/übertroffen → Plan funktioniert, ähnliche Struktur beibehalten.
@@ -652,19 +657,17 @@ Reduziere im Zweifel die Intensität einer Einheit, nicht ihre Existenz — ein 
   {
     "date": "YYYY-MM-DD",
     "type": "rest|easy_run|tempo_run|interval|long_run|progressive_run|test_run|strength|core|mobility|race_prep",
+    "workout": "Baustein aus dem Gerüst, z. B. schwelle_bloecke — nur bei Laufeinheiten",
     "title": "Kurzer Titel (max 40 Zeichen)",
-    "description": "Beschreibung der Einheit (2-3 Sätze, konkrete Anweisungen)",
+    "description": "Zweck und Gefühl der Einheit (1-2 Sätze, KEINE Minuten, Wiederholungen oder Paces)",
     "distance_km": 0,
     "duration_min": 0,
-    "pace_target": "5:30-6:00 oder null bei Ruhetag",
-    "zone": 2,
     "intensity": "rest|low|medium|high",
-    "hard_min": 0,
     "part": null,
     "exercises": [{ "name": "Goblet Squat", "sets": 3, "reps": "10", "load": "20 kg", "note": "" }]
   }
 ]
-Für Ruhetage: distance_km=0, duration_min=0, pace_target=null, zone=null.
+Für Ruhetage: distance_km=0, duration_min=0.
 Nur bei strength/core/mobility das "exercises"-Array füllen; bei allen Lauf-Einheiten weglassen oder leer lassen.
 PROMPT;
         }

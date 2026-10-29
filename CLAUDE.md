@@ -159,7 +159,8 @@ PlanContextBuilder            gathers everything, in one place for both jobs
         ↓
 TrainingPlanGenerator          fills the skeleton in; the skeleton itself is binding
         ↓
-TrainingPlanValidator          enforces the rules against whatever the model returned
+TrainingPlanValidator          enforces the rules against whatever the model returned,
+                               then builds each run's steps from RunWorkouts
         ↓
 PlanRevisionRecorder           stores diff + corrections → visible in the plan page's "Verlauf"
 ```
@@ -175,6 +176,20 @@ PlanRevisionRecorder           stores diff + corrections → visible in the plan
 **A local copy of production makes this measurable.** Laragon's MySQL is already installed; import a Coolify dump into `zone3` and point `.env` at it. Null the live tokens right after import (`strava_accounts.access_token/refresh_token`, `garmin_connections`, `push_subscriptions.*`) so nothing can hit the real accounts. Then `plan_revisions.corrections` and `ai_logs.full_prompt/full_response` answer what no amount of reading the prompt can: what the model actually does. Two bugs were found that way in minutes — the revision diff reporting untouched days as deleted, and the ladder prescribing a long run longer than the day it lands on.
 
 **Where corrections show up:** `plan_revisions.corrections`, rendered in the plan page's "Verlauf" — the fastest way to judge whether prompt changes landed. `Log::info('Plan validator corrected the AI output')` carries the same list.
+
+### Der Ablauf kommt aus dem Katalog, nicht vom Modell (seit 29.10.2026)
+
+Gemeldet: in der Planliste „Tempolauf 10,7 km", in den Details 12 km. Die Abschnitte entstanden erst beim Öffnen der Details in einem zweiten KI-Aufruf (`session_steps`), der die Struktur aus der Beschreibung las — nur ganze Minuten, aufgefülltes Auslaufen, und die Uhr bekam einen einzigen Block, solange niemand die Details geöffnet hatte. Entscheidung von Jan: **der Ablauf ist PHP, die KI wählt nur den Baustein und schreibt Titel und Begründung.**
+
+- `App\Services\Run\RunWorkouts` ist der Katalog (`VARIANTS` je Typ, `NORWEGIAN_VARIANTS` je Rolle am/pm/single/fast). Bausteine statt Freitext, wie bei `BikeWorkouts`. Schritte in derselben Form wie Builder und Rad, mit `distance_m` bei einer Strecke.
+- **Das Gerüst sagt, was erlaubt ist** (`variantsFor()`): der lange Lauf hat keine Wahl (Leiter: mit oder ohne Renntempo-Abschnitt), der Wiedereinstieg auch nicht. Wo es eine Wahl gibt, listet der Prompt sie am Slot; das Modell gibt `workout` zurück. Fehlt die Wahl oder ist sie nicht erlaubt, wechselt `pick()` nach Kalenderwoche.
+- **Der Hauptteil ist `hard_min`** aus dem Gerüst (80/20 bzw. norwegische Anteile) und passt in die Dauer — die Einheit wird nie länger, Ein- und Auslaufen schrumpfen zuerst (bis 5 min). Pausen bei Strecken-Intervallen sind Strecken (400 m), bei Zeit-Intervallen Zeiten.
+- `TrainingPlanValidator::buildStructures()` baut den Ablauf am Ende der Prüfung; Dauer, Distanz, Pace und Zone der Einheit kommen **aus den Abschnitten**. `PlanContextBuilder` legt dafür die Paces ins Gerüst. Gespeichert wird die Variante als `training_sessions.workout_variant`.
+- **Die Beschreibung trägt Zweck und Gefühl, keine Zahlen** — die stehen in den Abschnitten. Ab 90 min ein Satz zur Verpflegung.
+- **Außerhalb des Plans** baut `SessionStructure::apply()` denselben Ablauf: Coach-Chat (Werkzeuge nehmen `workout` statt `pace_target`/`zone`; eine eigene Struktur wie „8×400 m" gibt es nur über den Builder), Tagesform-Vorschlag und Coach-Vorschlag (der Vorschlag zeigt schon die Zahlen, die nach dem Annehmen gelten), „härter/leichter". Verschieben behält den Ablauf.
+- `GET /training-sessions/{id}/steps` ruft **kein Modell** mehr: einer älteren Einheit ohne Schritte baut der Katalog sie beim Öffnen. Der Admin-Knopf „KI-Inhalte neu erzeugen" ist weg.
+- **`php artisan sessions:rebuild-steps`** (`--user`, `--dry-run`) baut den Bestand einmal nach, ohne KI. Gepinnte Einheiten bleiben — dahinter kann ein geteiltes Workout mit eigener Struktur stehen, und das sieht man der Zeile nicht an.
+- Ohne VDOT haben die Abschnitte keine Pace; dann bleibt die Distanz, die da war.
 
 ### „Tagesform", nicht „Wellbeing"
 
@@ -533,7 +548,7 @@ Daran hängt alles, was ein Tempo nennt: `RacePredictionService::forVdot()` (Das
 | `OpenAIClient` | transport only: model choice, timeout, `ai_logs` entry, error handling |
 | `TrainingPlanGenerator` | `event_plan` — the big prompt, standard and backyard variants |
 | `CoachChatService` | chat + the tools the coach may use on the plan |
-| `SessionContentService` | session steps, nutrition tips, wellbeing adjustment |
+| `SessionContentService` | session review, wellbeing adjustment, backyard steps (run steps come from `Run\RunWorkouts`) |
 | `CoachingTextService` | daily message, reviews, race texts |
 | `AthleteProfileService` | threshold pace, pace zones, profile estimation |
 | `TalksToOpenAI` | trait that injects the client |

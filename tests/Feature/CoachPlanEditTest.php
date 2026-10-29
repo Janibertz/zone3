@@ -293,9 +293,31 @@ class CoachPlanEditTest extends TestCase
             'date' => $date, 'type' => 'long_run', 'distance_km' => 25, 'duration_min' => 145,
         ]);
 
+        // Die Strecke steht; die Dauer folgt seit dem Katalog (29.10.2026)
+        // aus den Abschnitten in der Pace des langen Laufs, sonst stimmten
+        // Liste und Details wieder nicht ueberein.
         $session = TrainingSession::find($id);
         $this->assertEquals(25, $session->distance_km);
-        $this->assertSame(145, $session->duration_min);
+        $this->assertSame((int) round(app(\App\Services\Run\RunWorkouts::class)->totalMinutes($session->steps)), $session->duration_min);
+        $this->assertSame('lang_locker', $session->workout_variant);
+    }
+
+    /** Der Coach waehlt einen Baustein; den Ablauf baut der Katalog. */
+    public function test_the_coach_picks_a_catalog_variant(): void
+    {
+        [$user, $plan] = $this->athlete();
+        $user->runnerProfile()->create(['threshold_speed' => 4 + 22 / 60]);
+        $date = now()->addDays(3)->toDateString();
+        $id   = $this->plannedSession($user, $plan, $date);
+
+        $this->runTool($user, 'modify_training_session', [
+            'date' => $date, 'type' => 'interval', 'duration_min' => 55, 'workout' => 'vo2_800',
+        ]);
+
+        $session = TrainingSession::find($id);
+        $this->assertSame('vo2_800', $session->workout_variant);
+        $this->assertSame(800, collect($session->steps)->firstWhere('type', 'work')['distance_m']);
+        $this->assertEqualsWithDelta(55, $session->duration_min, 1);
     }
 
     /** Bei Kraft und Core wird nichts gerechnet — die haben keine Distanz. */

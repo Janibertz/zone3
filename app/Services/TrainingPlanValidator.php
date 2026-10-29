@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Services\Run\RunWorkouts;
+
 /**
  * Prüft die KI-Antwort gegen das Wochengerüst und repariert sie.
  *
@@ -74,6 +76,8 @@ class TrainingPlanValidator
             : $this->enforceEightyTwenty($sessions, $days);
         $sessions = $this->enforceMinimumUsefulRunDuration($sessions);
         $sessions = $this->fillMissingDays($sessions, $days);
+        // Zuletzt der Ablauf: aus den Zahlen, die jetzt feststehen.
+        $sessions = $this->buildStructures($sessions, $days, $skeleton['paces'] ?? null);
 
         // Morgens vor abends, sonst die harte Einheit zuerst. Die Reihenfolge
         // wird als sort_order gespeichert.
@@ -87,6 +91,50 @@ class TrainingPlanValidator
         }
 
         return ['sessions' => array_values($sessions), 'report' => $this->report];
+    }
+
+    /**
+     * Jede Laufeinheit bekommt ihren Ablauf aus dem Katalog
+     * ({@see RunWorkouts}) — Schritte, Dauer, Distanz und Pace aus einer
+     * Rechnung. Vorher schrieb das Modell die Struktur als Text, und ein
+     * zweiter Aufruf las sie beim Öffnen der Details heraus.
+     *
+     * Ausgenommen: Rennen, feste Termine (der Inhalt wird vor Ort
+     * vorgegeben), Rad und die Yard-Simulation (eigener Baustein).
+     */
+    private function buildStructures(array $sessions, array $days, ?array $paces): array
+    {
+        $catalog = app(RunWorkouts::class);
+
+        foreach ($sessions as &$s) {
+            $type = $s['type'] ?? '';
+
+            if (! in_array($type, self::RUN_TYPES, true) || in_array($type, ['race_prep', 'yard_simulation'], true)
+                || ! empty($s['steps']) || ! empty($s['sport_type'])) {
+                continue;
+            }
+
+            $slot = $this->slotFor($days[$s['date'] ?? ''] ?? [], $s);
+            if (! empty($slot['fixed']) || ! empty($slot['race'])) {
+                continue;
+            }
+
+            $built = $catalog->forSlot($s, $slot, $paces);
+            if ($built === null) {
+                continue;
+            }
+
+            $s['workout']      = $built['workout'];
+            $s['steps']        = $built['steps'];
+            $s['duration_min'] = $built['duration_min'];
+            $s['distance_km']  = $built['distance_km'] ?? ($s['distance_km'] ?? null);
+            $s['pace_target']  = $built['pace_target'] ?? ($s['pace_target'] ?? null);
+            $s['zone']         = $built['zone'];
+            $s['intensity']    = $built['intensity'];
+        }
+        unset($s);
+
+        return $sessions;
     }
 
     /**

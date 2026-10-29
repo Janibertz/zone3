@@ -1585,11 +1585,30 @@ class WeeklyPatternService
             : '';
 
         return "- NORWEGISCHES MODELL (vom Athleten gewaehlt): Statt 80/20 gilt — hoechstens 25 % der Laufminuten Sub-Schwelle, hoechstens 5 % schneller als die Schwelle, alles andere locker (Zone 1–2). Einlaufen, Trabpausen und Auslaufen zaehlen als locker.\n"
-            . "- SUB-SCHWELLE heisst kontrolliert knapp UNTER der Schwelle: Pace {$pace}{$hr}. Der Athlet hat kein Laktatmessgeraet — nenne in jeder Sub-Schwellen-Einheit Pace UND Pulsdeckel und sage, dass er langsamer wird, wenn der Puls darueber steigt. Die Einheit soll sich am Ende so anfuehlen, als ginge noch mehr; nie bis zur Erschoepfung.\n"
-            . "- Gib bei jeder Qualitaetseinheit \"hard_min\" an (Minuten des Hauptteils) und halte die Obergrenze aus dem Geruest ein. Bei allen anderen hard_min=0.\n"
-            . "- DOPPEL-SCHWELLE: An Tagen mit \"part=am\" und \"part=pm\" stehen ZWEI Laufeinheiten — morgens und abends, beide type=\"tempo_run\". Gib jeder das Feld \"part\" mit (\"am\" bzw. \"pm\") und beginne den title mit \"Morgens:\" bzw. \"Abends:\". Morgens laengere Abschnitte (z. B. 5×6 min), abends kuerzere (z. B. 10×1000 m), jeweils 1 min Trabpause.\n"
+            . "- SUB-SCHWELLE heisst kontrolliert knapp UNTER der Schwelle: Pace {$pace}{$hr}. Der Athlet hat kein Laktatmessgeraet — die Pace steht im Ablauf; nenne in der description den Pulsdeckel und sage, dass er langsamer wird, wenn der Puls darueber steigt. Die Einheit soll sich am Ende so anfuehlen, als ginge noch mehr; nie bis zur Erschoepfung.\n"
+            . "- Die Minuten des Hauptteils (hard_min) stehen im Geruest; das System baut den Ablauf danach.\n"
+            . "- DOPPEL-SCHWELLE: An Tagen mit \"part=am\" und \"part=pm\" stehen ZWEI Laufeinheiten — morgens und abends, beide type=\"tempo_run\". Gib jeder das Feld \"part\" mit (\"am\" bzw. \"pm\") und beginne den title mit \"Morgens:\" bzw. \"Abends:\". Die Abschnitte kommen aus dem Baustein (workout).\n"
             . "- Außer an Doppel-Schwellen-Tagen HÖCHSTENS EINE LAUFEINHEIT PRO TAG. Ein Tag bekommt genau so viele Einträge, wie oben Slots stehen — nie mehr. Ein weiterer Eintrag darf nur strength, core oder mobility sein.\n"
             . "- Der lange Lauf bleibt komplett locker — kein Renntempo-Abschnitt.\n";
+    }
+
+    /** „ — workout: \"a\" (…) | \"b\" (…)" fuer den Prompt. */
+    private function workoutChoices(array $slot): string
+    {
+        $variants = \App\Services\Run\RunWorkouts::variantsFor($slot);
+
+        if ($variants === []) {
+            return '';
+        }
+
+        $list = array_map(
+            fn ($v) => "\"{$v}\" (" . (\App\Services\Run\RunWorkouts::DESCRIPTIONS[$v] ?? $v) . ')',
+            $variants,
+        );
+
+        return count($list) === 1
+            ? " — workout={$list[0]}"
+            : ' — workout waehlen: ' . implode(' | ', $list);
     }
 
     /**
@@ -1704,13 +1723,17 @@ class WeeklyPatternService
                     continue;
                 }
 
+                // Welche Bausteine an diesem Slot erlaubt sind — das Modell
+                // waehlt einen, den Ablauf baut der Validator (RunWorkouts).
+                $workouts = $this->workoutChoices($slot);
+
                 // Beim langen Lauf steht die Distanz fest, nicht nur der Typ.
                 if ($slot['type'] === 'long_run' && isset($slot['target_km'])) {
                     $race     = ($slot['race_km'] ?? 0) > 0 ? ", davon {$slot['race_km']} km im Zielrenntempo am Ende" : '';
                     $shortened = ! empty($slot['shortened'])
                         ? ' — auf das Zeitbudget dieses Tages gekuerzt, die Leiter haette mehr vorgesehen'
                         : '';
-                    $parts[] = "type=\"long_run\" — {$slot['target_km']} km (~{$slot['target_min']} min){$race}{$shortened}";
+                    $parts[] = "type=\"long_run\" — {$slot['target_km']} km (~{$slot['target_min']} min){$race}{$shortened}{$workouts}";
                     continue;
                 }
 
@@ -1730,15 +1753,15 @@ class WeeklyPatternService
                 // und hat andere Grenzen als ein harter Tempolauf.
                 if (! empty($slot['controlled'])) {
                     $label = match ($slot['double'] ?? null) {
-                        'am'    => 'DOPPEL-SCHWELLE MORGENS, part="am" — z. B. 5×6 min',
-                        'pm'    => 'DOPPEL-SCHWELLE ABENDS, part="pm" — z. B. 10×1000 m',
-                        default => 'EINZEL-SCHWELLE — z. B. 5×6 min',
+                        'am'    => 'DOPPEL-SCHWELLE MORGENS, part="am"',
+                        'pm'    => 'DOPPEL-SCHWELLE ABENDS, part="pm"',
+                        default => 'EINZEL-SCHWELLE',
                     } . ', knapp UNTER der Schwelle';
                     $hard = isset($slot['hard_min'])
                         ? " — Hauptteil Sub-Schwelle hoechstens {$slot['hard_min']} min, hard_min={$slot['hard_min']}"
                         : '';
                 } elseif (! empty($slot['fast'])) {
-                    $label = 'KURZ UND SCHNELL — z. B. 10×200 m oder kurze Bergsprints, schneller als die Schwelle';
+                    $label = 'KURZ UND SCHNELL, schneller als die Schwelle';
                     $hard  = isset($slot['hard_min'])
                         ? " — schnelle Abschnitte zusammen hoechstens {$slot['hard_min']} min, hard_min={$slot['hard_min']}"
                         : '';
@@ -1753,11 +1776,11 @@ class WeeklyPatternService
                 // planen.
                 if (isset($slot['target_km'])) {
                     $parts[] = "type=\"{$slot['type']}\" ({$label}) — Ziel {$slot['target_km']} km"
-                        . " (~{$slot['target_min']} min){$slotCap}{$hard}{$optional}";
+                        . " (~{$slot['target_min']} min){$slotCap}{$hard}{$optional}{$workouts}";
                     continue;
                 }
 
-                $parts[]  = "type=\"{$slot['type']}\" ({$label}{$slotCap}){$hard}{$optional}";
+                $parts[]  = "type=\"{$slot['type']}\" ({$label}{$slotCap}){$hard}{$optional}{$workouts}";
             }
 
             $lines[] = "- {$date} ({$wd}): hoechstens {$cap} → " . implode(' + ', $parts);
@@ -1824,8 +1847,8 @@ class WeeklyPatternService
             . "\n\nWochenübersicht:\n" . implode("\n", $planned)
             . $comeback
             . "\n\nRegeln zum Gerüst:\n"
-            . "- Der vorgegebene \"type\" jedes Tages ist BINDEND. Du füllst nur title, description, distance_km, duration_min, pace_target, zone und intensity aus.\n"
-            . ($norwegian ? $this->norwegianRules($model) : "- 80/20 NACH ZEIT: Hoechstens 20 % der Laufminuten einer Woche sind hart (Zone 4–5 und Renntempo-Abschnitte). Einlaufen, Trabpausen und Auslaufen zaehlen als locker. Gib bei jeder harten Einheit \"hard_min\" an — die Minuten ihres Hauptteils — und halte die Obergrenze aus dem Geruest ein. Bei allen anderen Einheiten hard_min=0.\n"
+            . "- Der vorgegebene \"type\" jedes Tages ist BINDEND. Du füllst nur workout, title, description und intensity aus; distance_km und duration_min übernimmst du aus dem Gerüst. Den Ablauf, die Paces und die genaue Distanz setzt das System.\n"
+            . ($norwegian ? $this->norwegianRules($model) : "- 80/20 NACH ZEIT: Hoechstens 20 % der Laufminuten einer Woche sind hart (Zone 4–5 und Renntempo-Abschnitte). Einlaufen, Trabpausen und Auslaufen zaehlen als locker. Die Minuten des Hauptteils (hard_min) stehen im Geruest; das System baut den Ablauf danach.\n"
             . "- HÖCHSTENS EINE LAUFEINHEIT PRO TAG. Ein Tag bekommt genau so viele Einträge, wie oben Slots stehen — nie mehr. Ein zweiter Eintrag am selben Tag darf ausschließlich strength, core oder mobility sein, niemals ein weiterer Lauf.\n")
             . "- Tage mit zwei Einträgen bekommen ZWEI Objekte mit demselben \"date\"; die Summe beider duration_min darf das Tages-Maximum nicht überschreiten.\n"
             . "- Steht bei einer Einheit \"max. N min\", ist das ihre Obergrenze — nicht die des Tages. Sie zu überschreiten oder die fehlende Zeit mit einer zweiten Einheit aufzufüllen, ist beides falsch.\n"

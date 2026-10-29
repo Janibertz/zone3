@@ -617,7 +617,6 @@ Zentrale Klasse für alle KI-Aufrufe. Alle Calls werden in `ai_logs` protokollie
 |---------|-------|----------|
 | `generateRecommendation()` | Tages-Trainingsempfehlung | `recommendation` |
 | `generateEventTrainingPlan()` | Kompletter Plan bis Renntag | `event_plan` |
-| `generateSessionSteps()` | Schritt-für-Schritt-Workout | `session_steps` |
 | `generateWeeklyReview()` | Wochenrückblick | `weekly_review` |
 | `generateDailyMessage()` | Coach-Spruch Dashboard | `daily_message` |
 | `generatePrMessage()` | PR-Glückwunsch | `pr_message` |

@@ -425,16 +425,15 @@ class CoachChatService
             ]],
             ['type' => 'function', 'function' => [
                 'name'        => 'modify_training_session',
-                'description' => 'Ändere eine geplante Trainingseinheit — an einem beliebigen Tag, nicht nur heute. Nutze dies bei "zu leicht", "mach es schwerer", "am Sonntag lieber 25 km". Ohne "date" gilt heute. Steht an dem Tag noch nichts, wird die Einheit angelegt. WICHTIG: Änderst du Typ oder Umfang eines Laufs, gib IMMER distance_km UND duration_min mit — sonst bleiben die Zahlen der alten Einheit stehen und widersprechen dem Titel.',
+                'description' => 'Ändere eine geplante Trainingseinheit — an einem beliebigen Tag, nicht nur heute. Nutze dies bei "zu leicht", "mach es schwerer", "am Sonntag lieber 25 km". Ohne "date" gilt heute. Steht an dem Tag noch nichts, wird die Einheit angelegt. WICHTIG: Änderst du Typ oder Umfang eines Laufs, gib duration_min (beim langen Lauf distance_km) und den Baustein (workout) mit — Abschnitte, Paces und Distanz rechnet das System daraus. Eine eigene Struktur wie \"8×400 m\" gibt es nur über den Workout-Builder.',
                 'parameters'  => ['type' => 'object', 'properties' => [
                     'date'         => ['type' => 'string', 'description' => 'Tag der Einheit als YYYY-MM-DD. Weglassen für heute.'],
                     'type'         => ['type' => 'string', 'enum' => ['easy_run','tempo_run','interval','long_run','progressive_run','test_run','race_prep','strength','core','mobility','rest'], 'description' => 'Trainingstyp'],
                     'title'        => ['type' => 'string', 'description' => 'Titel der Einheit'],
-                    'description'  => ['type' => 'string', 'description' => 'Detaillierte Beschreibung des Workouts inkl. Intervallstruktur'],
+                    'description'  => ['type' => 'string', 'description' => 'Zweck und Gefühl der Einheit in 1–2 Sätzen — ohne Intervallstruktur, Minuten oder Paces; den Ablauf zeigt das System'],
                     'distance_km'  => ['type' => 'number', 'description' => 'Zieldistanz in km'],
                     'duration_min' => ['type' => 'integer', 'description' => 'Zieldauer in Minuten'],
-                    'pace_target'  => ['type' => 'string', 'description' => 'Zielpace im Format M:SS'],
-                    'zone'         => ['type' => 'integer', 'minimum' => 1, 'maximum' => 5, 'description' => 'Herzfrequenzzone'],
+                    'workout'      => ['type' => 'string', 'enum' => self::workoutEnum(), 'description' => 'Baustein für den Ablauf eines Laufs (Varianten: ' . self::workoutHint() . '). Den Ablauf mit Abschnitten, Paces und Distanz baut das System daraus.'],
                     'part'         => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit Doppel-Schwelle: morgens (am) oder abends (pm)'],
                 ]],
             ]],
@@ -446,11 +445,10 @@ class CoachChatService
                     'reason'       => ['type' => 'string', 'description' => 'Ein Satz, warum — steht neben dem Vorschlag'],
                     'type'         => ['type' => 'string', 'enum' => ['easy_run','tempo_run','interval','long_run','progressive_run','test_run','race_prep','strength','core','mobility','rest'], 'description' => 'Trainingstyp'],
                     'title'        => ['type' => 'string', 'description' => 'Titel der Einheit'],
-                    'description'  => ['type' => 'string', 'description' => 'Detaillierte Beschreibung des Workouts inkl. Intervallstruktur'],
+                    'description'  => ['type' => 'string', 'description' => 'Zweck und Gefühl der Einheit in 1–2 Sätzen — ohne Intervallstruktur, Minuten oder Paces; den Ablauf zeigt das System'],
                     'distance_km'  => ['type' => 'number', 'description' => 'Zieldistanz in km'],
                     'duration_min' => ['type' => 'integer', 'description' => 'Zieldauer in Minuten'],
-                    'pace_target'  => ['type' => 'string', 'description' => 'Zielpace im Format M:SS'],
-                    'zone'         => ['type' => 'integer', 'minimum' => 1, 'maximum' => 5, 'description' => 'Herzfrequenzzone'],
+                    'workout'      => ['type' => 'string', 'enum' => self::workoutEnum(), 'description' => 'Baustein für den Ablauf eines Laufs (Varianten: ' . self::workoutHint() . '). Den Ablauf mit Abschnitten, Paces und Distanz baut das System daraus.'],
                     'part'         => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit Doppel-Schwelle: morgens (am) oder abends (pm)'],
                 ], 'required' => ['reason']],
             ]],
@@ -461,11 +459,10 @@ class CoachChatService
                     'date'         => ['type' => 'string', 'description' => 'Tag der Einheit als YYYY-MM-DD'],
                     'type'         => ['type' => 'string', 'enum' => ['easy_run','tempo_run','interval','long_run','progressive_run','test_run','race_prep','strength','core','mobility'], 'description' => 'Trainingstyp'],
                     'title'        => ['type' => 'string', 'description' => 'Titel der Einheit'],
-                    'description'  => ['type' => 'string', 'description' => 'Detaillierte Beschreibung des Workouts'],
+                    'description'  => ['type' => 'string', 'description' => 'Zweck und Gefühl der Einheit in 1–2 Sätzen — ohne Intervallstruktur, Minuten oder Paces; den Ablauf zeigt das System'],
                     'distance_km'  => ['type' => 'number', 'description' => 'Zieldistanz in km'],
                     'duration_min' => ['type' => 'integer', 'description' => 'Zieldauer in Minuten'],
-                    'pace_target'  => ['type' => 'string', 'description' => 'Zielpace im Format M:SS'],
-                    'zone'         => ['type' => 'integer', 'minimum' => 1, 'maximum' => 5, 'description' => 'Herzfrequenzzone'],
+                    'workout'      => ['type' => 'string', 'enum' => self::workoutEnum(), 'description' => 'Baustein für den Ablauf eines Laufs (Varianten: ' . self::workoutHint() . '). Den Ablauf mit Abschnitten, Paces und Distanz baut das System daraus.'],
                     'part'         => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit Doppel-Schwelle: morgens (am) oder abends (pm)'],
                 ], 'required' => ['date', 'type']],
             ]],
@@ -732,9 +729,24 @@ class CoachChatService
         // laufen" beim naechsten Durchlauf still wieder weg.
         $session->pinned_at = now();
 
-        // Schritteliste und Verpflegungshinweise gehören zur alten Vorgabe.
-        $session->steps          = null;
-        $session->nutrition_tips = null;
+        // Der Ablauf kommt aus dem Katalog — derselbe wie im Plan, damit
+        // der Coach keine Struktur erfindet, die sonst nirgends gilt.
+        $session->steps = null;
+        app(\App\Services\Run\SessionStructure::class)->apply($session, $args['workout'] ?? null);
+    }
+
+    /** Alle Bausteine des Katalogs, für das Werkzeug-Schema. */
+    private static function workoutEnum(): array
+    {
+        return array_keys(\App\Services\Run\RunWorkouts::DESCRIPTIONS);
+    }
+
+    /** „easy_run: locker, locker_steigerungen; tempo_run: …" */
+    private static function workoutHint(): string
+    {
+        return collect(\App\Services\Run\RunWorkouts::VARIANTS)
+            ->map(fn ($v, $type) => $type . ': ' . implode(', ', $v))
+            ->implode('; ');
     }
 
     /**
@@ -981,9 +993,8 @@ class CoachChatService
                 }
 
                 foreach ($moving as $m) {
+                    // Der Ablauf haengt nicht am Datum — er wandert mit.
                     $m->planned_date   = $to;
-                    $m->steps          = null;
-                    $m->nutrition_tips = null;
                     $m->pinned_at      = now();
                     $m->save();
                 }
