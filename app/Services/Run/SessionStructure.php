@@ -48,7 +48,11 @@ class SessionStructure
 
         $slot    = ['type' => $session->type];
         $allowed = RunWorkouts::VARIANTS[$session->type] ?? RunWorkouts::variantsFor($slot);
-        $variant = RunWorkouts::pick($allowed, $variant ?? $session->workout_variant, $session->planned_date?->format('Y-m-d'));
+        $variant = RunWorkouts::pick(
+            $allowed,
+            $variant ?? $session->workout_variant ?? RunWorkouts::guessVariant($session->type, $session->description, $allowed),
+            $session->planned_date?->format('Y-m-d'),
+        );
 
         $built = $this->catalog->build($session->type, $variant, [
             'minutes' => (int) $session->duration_min,
@@ -68,6 +72,8 @@ class SessionStructure
         $session->distance_km     = $built['distance_km'] ?? $session->distance_km;
         $session->pace_target     = $built['pace_target'] ?? $session->pace_target;
         $session->zone            = $built['zone'];
+        // Zahlen stehen im Ablauf, nicht im Text — sonst widersprechen sich die beiden.
+        $session->description     = SessionText::clean($session->description, $built['workout']);
 
         return true;
     }

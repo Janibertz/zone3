@@ -70,6 +70,31 @@ class RunWorkouts
         'steady'              => 'locker am Stück',
     ];
 
+    /**
+     * Zweck und Gefühl je Baustein — die Beschreibung, wenn die KI keine
+     * ohne Zahlen geliefert hat ({@see SessionText}). Keine Zahlen hier:
+     * die stehen im Ablauf.
+     */
+    public const PURPOSE = [
+        'locker'              => 'Locker und entspannt laufen, du könntest dich dabei unterhalten. Das baut Grundlage auf, ohne zu ermüden.',
+        'locker_steigerungen' => 'Locker laufen und am Ende ein paar kurze Steigerungen: zügig, aber nie verkrampft. Sie halten die Beine schnell, ohne zu ermüden.',
+        'schwelle_bloecke'    => 'Schwelle in Blöcken: kontrolliert hart, die Atmung hörbar, aber ruhig. Die Trabpausen halten die Qualität bis zum letzten Block.',
+        'schwelle_dauer'      => 'Tempodauerlauf an der Schwelle: gleichmäßig und kontrolliert hart, nicht all-out. Das hebt das Tempo, das du lange halten kannst.',
+        'cruise_km'           => 'Kilometer an der Schwelle mit kurzen Trabpausen: gleichmäßig laufen, jeder Abschnitt so schnell wie der erste.',
+        'vo2_1000'            => 'Intervalle im 5-km-Tempo: hart, aber gleichmäßig über alle Wiederholungen. Das trainiert die maximale Sauerstoffaufnahme.',
+        'vo2_800'             => 'Intervalle im 5-km-Tempo: hart, aber gleichmäßig über alle Wiederholungen. Das trainiert die maximale Sauerstoffaufnahme.',
+        'vo2_3min'            => 'Harte Intervalle mit lockerem Traben dazwischen: jede Wiederholung gleich schnell, die letzte nicht langsamer als die erste.',
+        'progressiv'          => 'Progressiver Lauf: locker beginnen und Abschnitt für Abschnitt schneller werden. Das schult Tempogefühl und einen starken Schluss.',
+        'test_5k'             => 'Zeitversuch: gut einlaufen, dann gleichmäßig an die Grenze. Das Ergebnis schärft deine Tempi.',
+        'lang_locker'         => 'Langer Lauf, durchgehend locker. Er baut Ausdauer und Fettstoffwechsel auf; lieber zu langsam als zu schnell.',
+        'lang_renntempo'      => 'Langer Lauf, die letzten Kilometer im Zielrenntempo. So lernt der Körper, das Renntempo auch müde zu halten.',
+        'sub_6min'            => 'Blöcke knapp unter der Schwelle: kontrolliert, nie hart. Puls und Atmung bleiben ruhig genug für viele Wiederholungen.',
+        'sub_1000'            => 'Kilometer knapp unter der Schwelle: kontrolliert, nie hart. Puls und Atmung bleiben ruhig genug für viele Wiederholungen.',
+        'sub_10min'           => 'Lange Blöcke knapp unter der Schwelle: kontrolliert, nie hart. Der Puls bleibt unter der Grenze.',
+        'fast_200'            => 'Kurz und schnell mit lockerem Traben: flüssig und locker in den Schultern, nicht sprinten.',
+        'steady'              => 'Gleichmäßig und locker am Stück, Zeit auf den Beinen zählt mehr als Tempo.',
+    ];
+
     /** Ein- und Auslaufen einer harten Einheit, bevor Restzeit dazukommt. */
     public const WARMUP_MIN   = 10;
     public const COOLDOWN_MIN = 10;
@@ -131,6 +156,27 @@ class RunWorkouts
         }
 
         return self::VARIANTS[$type] ?? [];
+    }
+
+    /**
+     * Den Baustein aus einer alten Beschreibung lesen — für Einheiten von
+     * vor dem Katalog, deren Text schon „2×12:30" oder „6×800 m" sagt.
+     * Nur ein Treffer, der erlaubt ist, zählt.
+     */
+    public static function guessVariant(string $type, ?string $text, array $allowed): ?string
+    {
+        $t = mb_strtolower((string) $text);
+
+        $guess = match (true) {
+            $t === ''                                                  => null,
+            (bool) preg_match('/\d+\s*[×x]\s*800\s*m/u', $t)           => 'vo2_800',
+            (bool) preg_match('/\d+\s*[×x]\s*1000\s*m|\d+\s*[×x]\s*1\s*km/u', $t) => $type === 'interval' ? 'vo2_1000' : 'cruise_km',
+            (bool) preg_match('/\d+\s*[×x]\s*\d+(:\d{2})?\s*min/u', $t) => $type === 'interval' ? 'vo2_3min' : 'schwelle_bloecke',
+            str_contains($t, 'steigerung')                             => 'locker_steigerungen',
+            default                                                    => null,
+        };
+
+        return in_array($guess, $allowed, true) ? $guess : null;
     }
 
     /**

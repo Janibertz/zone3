@@ -249,7 +249,8 @@ class PeriodizationTest extends TestCase
         $slot  = collect($this->runSlots($skeleton))->firstWhere('type', 'tempo_run');
 
         $this->assertSame($slot['hard_min'], $tempo['hard_min']);
-        $this->assertStringContainsString("Hauptteil höchstens {$slot['hard_min']} min (80/20)", $tempo['description']);
+        // Der gekuerzte Hauptteil steht im Ablauf, nicht als Satz im Text.
+        $this->assertFalse(\App\Services\Run\SessionText::hasStructure($tempo['description']));
         $this->assertTrue(collect($result['report'])->contains(fn ($r) => str_contains($r, '80/20')));
     }
 

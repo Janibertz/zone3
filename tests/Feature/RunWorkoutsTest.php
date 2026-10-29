@@ -137,6 +137,53 @@ class RunWorkoutsTest extends TestCase
         $this->assertSame(['fast_200'], RunWorkouts::variantsFor(['type' => 'interval', 'fast' => true]));
     }
 
+    // ── Der Text ─────────────────────────────────────────────────────────
+
+    /**
+     * Gemeldet nach dem Umbau: links „2×12:30 min bei exakt 4:20", rechts
+     * 25 min am Stück. Saetze mit Zahlen fallen weg; die stehen im Ablauf.
+     */
+    public function test_sentences_with_numbers_are_removed_from_the_description(): void
+    {
+        $old = '10 min locker bei 4:59–5:58 min/km einlaufen, dann 2×12:30 min bei exakt 4:20 min/km. '
+            . 'Die 25 Schwellenminuten schließen gezielt die Lücke. Kontrolliert hart, nicht all-out.';
+
+        $this->assertSame('Kontrolliert hart, nicht all-out.', \App\Services\Run\SessionText::clean($old, 'schwelle_bloecke'));
+    }
+
+    /** Die Zielzeit ist keine Vorgabe fuer die Einheit — der Satz bleibt. */
+    public function test_a_goal_time_is_not_structure(): void
+    {
+        $text = 'Genau hier beginnt dein Weg zur 1:25!';
+
+        $this->assertSame($text, \App\Services\Run\SessionText::clean($text, 'schwelle_dauer'));
+    }
+
+    public function test_without_any_clean_sentence_the_purpose_of_the_variant_stands(): void
+    {
+        $text = \App\Services\Run\SessionText::clean('6×800 m in 3:10 mit 400 m Trabpause.', 'vo2_800');
+
+        $this->assertSame(RunWorkouts::PURPOSE['vo2_800'], $text);
+        $this->assertFalse(\App\Services\Run\SessionText::hasStructure($text));
+    }
+
+    /** Kein Zweck-Text des Katalogs darf selbst Zahlen tragen. */
+    public function test_no_purpose_text_carries_numbers(): void
+    {
+        foreach (RunWorkouts::PURPOSE as $variant => $text) {
+            $this->assertFalse(\App\Services\Run\SessionText::hasStructure($text), $variant);
+        }
+    }
+
+    /** Eine alte Einheit behaelt die Form, die ihr Text beschrieb. */
+    public function test_the_variant_is_read_from_an_old_description(): void
+    {
+        $this->assertSame('schwelle_bloecke', RunWorkouts::guessVariant('tempo_run', 'dann 2×12:30 min bei 4:20', RunWorkouts::VARIANTS['tempo_run']));
+        $this->assertSame('vo2_800', RunWorkouts::guessVariant('interval', '6x800 m mit Trabpause', RunWorkouts::VARIANTS['interval']));
+        $this->assertSame('locker_steigerungen', RunWorkouts::guessVariant('easy_run', 'Am Ende Steigerungen.', RunWorkouts::VARIANTS['easy_run']));
+        $this->assertNull(RunWorkouts::guessVariant('easy_run', '2×12 min', RunWorkouts::VARIANTS['easy_run']));
+    }
+
     // ── Im Plan ──────────────────────────────────────────────────────────
 
     /** Der Validator baut den Ablauf aus dem Slot — die Zahlen des Modells zählen nicht. */
@@ -226,6 +273,19 @@ class RunWorkoutsTest extends TestCase
         $this->assertNotEquals($old, $session->fresh()->steps);
         $this->assertSame('Einlaufen', $session->fresh()->steps[0]['label']);
         $this->assertEquals($old, $pinned->fresh()->steps);
+    }
+
+    public function test_the_rebuild_follows_the_old_text_and_cleans_it(): void
+    {
+        [$user, $session] = $this->athleteWithSession([
+            'description' => '10 min einlaufen, dann 2×12:30 min bei exakt 4:20 min/km. Kontrolliert hart, nicht all-out.',
+        ]);
+
+        Artisan::call('sessions:rebuild-steps');
+
+        $session->refresh();
+        $this->assertSame('schwelle_bloecke', $session->workout_variant);
+        $this->assertSame('Kontrolliert hart, nicht all-out.', $session->description);
     }
 
     public function test_the_dry_run_changes_nothing(): void
