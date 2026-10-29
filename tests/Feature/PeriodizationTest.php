@@ -145,13 +145,27 @@ class PeriodizationTest extends TestCase
 
     // ── Das Gerüst setzt die Phase um ────────────────────────────────────
 
-    public function test_the_base_phase_plans_no_intervals(): void
+    /**
+     * Grundlage: eine harte Einheit, wochenweise Schwelle oder Intervall —
+     * und das Intervall ist dann Fahrtspiel oder Bergintervalle, keine Bahn
+     * (Katalog-Erweiterung vom 29.10.2026).
+     */
+    public function test_the_base_phase_alternates_threshold_and_fartlek(): void
     {
-        $skeleton = $this->week($this->event(), '2026-08-17');
-        $types    = array_column($this->runSlots($skeleton), 'type');
+        $event = $this->event();
+        $even  = array_column($this->runSlots($this->week($event, '2026-08-17')), null, 'type'); // W34
+        $odd   = array_column($this->runSlots($this->week($event, '2026-08-10')), null, 'type'); // W33
 
-        $this->assertNotContains('interval', $types);
-        $this->assertLessThanOrEqual(1, count(array_intersect($types, WeeklyPatternService::HARD_TYPES)));
+        $this->assertArrayHasKey('interval', $even);
+        $this->assertArrayNotHasKey('tempo_run', $even);
+        $this->assertArrayHasKey('tempo_run', $odd);
+        $this->assertArrayNotHasKey('interval', $odd);
+
+        $this->assertSame(['fahrtspiel_pyramide', 'fahrtspiel_1_1', 'bergintervalle'], \App\Services\Run\RunWorkouts::variantsFor($even['interval']));
+
+        foreach ([$even, $odd] as $slots) {
+            $this->assertLessThanOrEqual(1, count(array_intersect(array_keys($slots), WeeklyPatternService::HARD_TYPES)));
+        }
     }
 
     public function test_a_recovery_week_has_less_volume_and_one_hard_session(): void

@@ -199,7 +199,7 @@ function toggleSecond(key) {
 // ════════════════════════════════════════════════════════════════════════
 // Trainingsmodell
 // ════════════════════════════════════════════════════════════════════════
-const modelForm    = ref({ training_model: 'polarized', running_experience_years: null, has_lactate_meter: false });
+const modelForm    = ref({ training_model: 'polarized', running_experience_years: null, has_lactate_meter: false, hills_available: true });
 const modelLoading = ref(false);
 const modelError   = ref(null);
 

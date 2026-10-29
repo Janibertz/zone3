@@ -84,7 +84,8 @@ class BikeSchedule
 
             $candidates = fn (callable $fits) => $this->candidates($days, $dates, $settings, $preferred, $fits);
 
-            if ($intervals && ! in_array($phase, ['taper', 'race_week', 'past'], true)) {
+            // Grundlage: dort gibt es nur Fahrtspiel und Bergintervalle, keine VO2-Blöcke.
+            if ($intervals && ! in_array($phase, ['base', 'taper', 'race_week', 'past'], true)) {
                 foreach ($candidates(fn ($slot) => $slot['type'] === 'interval') as [$date, $i]) {
                     // Die kurze schnelle Einheit des norwegischen Modells wird
                     // auf dem Rad wieder kurz und schnell, kein VO2-Block.

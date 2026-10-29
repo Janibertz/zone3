@@ -77,7 +77,7 @@ class TrainingPlanValidator
         $sessions = $this->enforceMinimumUsefulRunDuration($sessions);
         $sessions = $this->fillMissingDays($sessions, $days);
         // Zuletzt der Ablauf: aus den Zahlen, die jetzt feststehen.
-        $sessions = $this->buildStructures($sessions, $days, $skeleton['paces'] ?? null);
+        $sessions = $this->buildStructures($sessions, $days, $skeleton['paces'] ?? null, $skeleton['workout_history'] ?? [], (bool) ($skeleton['hills'] ?? true));
 
         // Morgens vor abends, sonst die harte Einheit zuerst. Die Reihenfolge
         // wird als sort_order gespeichert.
@@ -102,11 +102,17 @@ class TrainingPlanValidator
      * Ausgenommen: Rennen, feste Termine (der Inhalt wird vor Ort
      * vorgegeben), Rad und die Yard-Simulation (eigener Baustein).
      */
-    private function buildStructures(array $sessions, array $days, ?array $paces): array
+    private function buildStructures(array $sessions, array $days, ?array $paces, array $history = [], bool $hills = true): array
     {
         $catalog = app(RunWorkouts::class);
 
-        foreach ($sessions as &$s) {
+        // Nach Datum, damit die Rotation im Fenster vorwärts läuft: was in
+        // Woche 1 gewählt wurde, sperrt sich für Woche 2.
+        $order = array_keys($sessions);
+        usort($order, fn ($a, $b) => strcmp($sessions[$a]['date'] ?? '', $sessions[$b]['date'] ?? '') ?: $a <=> $b);
+
+        foreach ($order as $k) {
+            $s = &$sessions[$k];
             $type = $s['type'] ?? '';
 
             if (! in_array($type, self::RUN_TYPES, true) || in_array($type, ['race_prep', 'yard_simulation'], true)
@@ -119,10 +125,12 @@ class TrainingPlanValidator
                 continue;
             }
 
-            $built = $catalog->forSlot($s, $slot, $paces);
+            $built = $catalog->forSlot($s, $slot + ['hills' => $hills], $paces, $history);
             if ($built === null) {
                 continue;
             }
+
+            $history[$built['workout']] = max($history[$built['workout']] ?? '', (string) ($s['date'] ?? ''));
 
             $s['workout']      = $built['workout'];
             $s['steps']        = $built['steps'];

@@ -48,6 +48,10 @@ class SessionStructure
 
         $slot    = ['type' => $session->type];
         $allowed = RunWorkouts::VARIANTS[$session->type] ?? RunWorkouts::variantsFor($slot);
+        // Ohne Hang keine Bergeinheit — außer der Athlet verlangt sie ausdrücklich.
+        if ($variant === null && $session->user?->runnerProfile?->hills_available === false) {
+            $allowed = array_values(array_diff($allowed, RunWorkouts::HILL_VARIANTS));
+        }
         $variant = RunWorkouts::pick(
             $allowed,
             $variant ?? $session->workout_variant ?? RunWorkouts::guessVariant($session->type, $session->description, $allowed),

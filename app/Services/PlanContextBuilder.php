@@ -9,6 +9,7 @@ use App\Models\TrainingSession;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use App\Services\PaceFormat;
+use App\Services\Run\RunWorkouts;
 
 /**
  * Sammelt den Kontext für die Planerstellung.
@@ -166,6 +167,10 @@ class PlanContextBuilder
         // Die Paces reisen mit dem Gerüst in den Validator: dort entsteht der
         // Ablauf jeder Einheit aus dem Katalog (RunWorkouts).
         $skeleton['paces'] = $paces;
+        // Rotation und Hang: was zuletzt lief, faellt aus der Auswahl, und
+        // ohne Hang gibt es keine Bergeinheiten (RunWorkouts::fresh/filter).
+        $skeleton['workout_history'] = $this->workoutHistory($user, $windowFrom);
+        $skeleton['hills']           = (bool) ($user->runnerProfile?->hills_available ?? true);
 
         return $context->with(
             skeleton:   $skeleton,
@@ -173,6 +178,25 @@ class PlanContextBuilder
                 ? null
                 : $this->garmin->toPromptSection($this->garmin->forUser($user->id, $windowFrom)),
         );
+    }
+
+    /**
+     * Baustein → letztes Datum, aus den drei Wochen vor dem Fenster. Was
+     * ausgelassen wurde, zählt nicht: es lief ja nicht.
+     *
+     * @return array<string,string>
+     */
+    private function workoutHistory(User $user, CarbonImmutable $windowFrom): array
+    {
+        return TrainingSession::where('user_id', $user->id)
+            ->whereNotNull('workout_variant')
+            ->where('status', '!=', 'skipped')
+            ->whereDate('planned_date', '>=', $windowFrom->subDays(RunWorkouts::ROTATION_DAYS)->toDateString())
+            ->whereDate('planned_date', '<', $windowFrom->toDateString())
+            ->get(['workout_variant', 'planned_date'])
+            ->groupBy('workout_variant')
+            ->map(fn ($rows) => $rows->max(fn ($r) => $r->planned_date->toDateString()))
+            ->all();
     }
 
     /** Pulsdeckel der Sub-Schwelle: so viele Schläge unter der Schwellen-HF. */

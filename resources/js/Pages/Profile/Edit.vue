@@ -532,6 +532,7 @@ const modelForm = ref({
     training_model:           props.runnerProfile?.training_model_next ?? props.runnerProfile?.training_model ?? 'polarized',
     running_experience_years: props.runnerProfile?.running_experience_years ?? null,
     has_lactate_meter:        props.runnerProfile?.has_lactate_meter ?? false,
+    hills_available:          props.runnerProfile?.hills_available ?? true,
 });
 const modelSaving = ref(false);
 const modelSaved  = ref(false);
