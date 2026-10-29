@@ -44,6 +44,17 @@ class SessionContentService
             }
         }
 
+        // Ohne Ein-/Auslaufen (lockerer Lauf mit Steigerungen) trabt die
+        // Pause im langsamsten Tempo eines Zeitabschnitts — sonst zaehlten
+        // 5 min Traben als 0 km. Eine Streckenvorgabe sagt darueber nichts.
+        if ($easy === null) {
+            foreach ($steps as $s) {
+                if (empty($s['distance_m']) && ($p = $paceOf($s['pace_target'] ?? null))) {
+                    $easy = max($easy ?? 0, $p);
+                }
+            }
+        }
+
         $km = 0.0;
         foreach ($steps as $s) {
             $reps = max(1, (int) ($s['repetitions'] ?? 1));

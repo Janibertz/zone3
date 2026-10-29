@@ -63,6 +63,19 @@ class RunWorkoutsTest extends TestCase
         }
     }
 
+    /**
+     * Gemeldet nach dem Deploy: 30 min locker mit Steigerungen ergaben
+     * 4,6 km, weil die 5 min Traben ohne Ein-/Auslaufen als 0 km zaehlten.
+     */
+    public function test_the_trot_between_strides_counts_towards_the_distance(): void
+    {
+        $built = $this->catalog()->build('easy_run', 'locker_steigerungen', ['minutes' => 30, 'paces' => self::PACES]);
+
+        // 23,3 min bei 5:30 = 4,24 km, 5 × 20 s bei 3:45 = 0,44 km,
+        // 5 × 1 min Traben bei 5:50 = 0,86 km.
+        $this->assertSame(5.5, $built['distance_km']);
+    }
+
     public function test_threshold_blocks_follow_the_hard_minutes(): void
     {
         $built = $this->catalog()->build('tempo_run', 'schwelle_bloecke', ['minutes' => 60, 'hard_min' => 25, 'paces' => self::PACES]);
