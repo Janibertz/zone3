@@ -75,9 +75,32 @@ export function sessionType(type) {
 export function paceValue(paceTarget) {
     if (!paceTarget || paceTarget === 'null') return null;
 
-    const clean = String(paceTarget).replace(/\s*(min)?\s*\/\s*km\.?\s*$/i, '').trim();
+    const strip = (p) => p.replace(/\s*(min)?\s*\/\s*km\.?\s*$/i, '').trim();
+    const parts = String(paceTarget).split(';').map(strip).filter(Boolean);
 
-    return clean || null;
+    if (parts.length > 1) return mainPace(parts);
+
+    return parts[0] || null;
+}
+
+/**
+ * Mehrere Paces in einem Feld — „E 4:59–5:58 min/km; T 4:20 /km" — sind die
+ * Ansage für jeden Abschnitt, nicht eine Zahl. Gross oben gehört die
+ * schnellste hin, also die des Hauptteils; der Rest steht im Ablauf. Vorher
+ * stand der ganze Text in einer Zeile und lief am iPhone aus dem Bild.
+ */
+function mainPace(parts) {
+    const toSec = (m) => Number(m[1]) * 60 + Number(m[2]);
+    let best = null;
+
+    for (const part of parts) {
+        const range = part.match(/\d+:\d{2}(?:\s*[–-]\s*\d+:\d{2})?/);
+        if (!range) continue;
+        const fastest = Math.min(...[...range[0].matchAll(/(\d+):(\d{2})/g)].map(toSec));
+        if (!best || fastest < best.sec) best = { sec: fastest, text: range[0].replace(/\s*[–-]\s*/, '–') };
+    }
+
+    return best?.text ?? parts[0];
 }
 
 export function paceWithUnit(paceTarget) {
