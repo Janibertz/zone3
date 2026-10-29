@@ -1,6 +1,8 @@
 <script setup>
 import { router } from '@inertiajs/vue3';
 import { ref } from 'vue';
+import Wordmark from '@/Components/Brand/Wordmark.vue';
+import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
 
 const props = defineProps({
     alreadyUnsubscribed: Boolean,
@@ -25,10 +27,8 @@ function resubscribe() {
         <div class="bg-surface rounded-card max-w-md w-full p-6 text-center">
             <!-- Logo -->
             <div class="flex items-center justify-center gap-2 mb-6">
-                <div class="h-10 w-10 rounded-[10px] bg-accent flex items-center justify-center">
-                    <span class="text-white text-sm font-bold">Z3</span>
-                </div>
-                <span class="text-xl font-bold text-ink">Zone3</span>
+                <ZoneIcon class="h-10 w-10" />
+                <Wordmark class="h-[22px] text-ink" />
             </div>
 
             <template v-if="resubscribed">

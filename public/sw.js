@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zone3-v2';
+const CACHE_NAME = 'zone3-v3';
 
 // ── Push Notifications ────────────────────────────────────────────────────────
 
@@ -10,7 +10,7 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(data.title, {
       body: data.body,
       icon: '/icons/icon-192.png',
-      badge: '/icons/icon-72.png',
+      badge: '/icons/badge-72.png',
       data: { url: data.url },
       vibrate: [100, 50, 100],
     })

@@ -612,7 +612,6 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::post('/training-sessions/{session}/adjust', [TrainingSessionController::class, 'adjust'])->name('training-sessions.adjust');
     Route::post('/training-sessions/{session}/adjust-intensity', [TrainingSessionController::class, 'adjustIntensity'])->name('training-sessions.adjust-intensity');
     Route::post('/training-sessions/{session}/send-to-garmin', [TrainingSessionController::class, 'sendToGarmin'])->name('training-sessions.send-to-garmin');
-    Route::get('/training-sessions/{session}/nutrition-tips', [TrainingSessionController::class, 'nutritionTips'])->name('training-sessions.nutrition-tips');
     Route::get('/training-sessions/{session}/steps', [TrainingSessionController::class, 'sessionSteps'])->name('training-sessions.steps');
     Route::get('/training-sessions/{session}/zwift.zwo', [TrainingSessionController::class, 'zwo'])->name('training-sessions.zwo');
     Route::get('/training-sessions/{session}/apple.workout', [TrainingSessionController::class, 'appleWorkout'])->name('training-sessions.apple-workout');

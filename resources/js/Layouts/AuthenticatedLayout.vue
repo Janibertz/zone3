@@ -9,6 +9,8 @@ import { usePullToRefresh } from '@/Composables/usePullToRefresh';
 import UserAvatar from '@/Components/UserAvatar.vue';
 import CoachSlideOver from '@/Components/CoachSlideOver.vue';
 import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
+import Wordmark from '@/Components/Brand/Wordmark.vue';
+import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
 
 const { updateReady, startVersionPolling, reload } = useVersionCheck();
 onMounted(() => startVersionPolling());
@@ -253,10 +255,8 @@ const moreActive = computed(() =>
         <aside class="hidden flex-col border-r border-line bg-canvas lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-64">
             <!-- Logo -->
             <div class="flex h-16 shrink-0 items-center gap-3 px-5">
-                <div class="flex h-8 w-8 items-center justify-center rounded-[9px] bg-accent">
-                    <span class="text-sm font-bold text-white">Z3</span>
-                </div>
-                <span class="text-[20px] font-bold text-ink">Zone3</span>
+                <ZoneIcon class="h-8 w-8" />
+                <Wordmark class="h-5 text-ink" />
             </div>
 
             <!-- Navigation -->
@@ -370,7 +370,7 @@ const moreActive = computed(() =>
             aus Versehen getroffen wird.
         -->
         <header class="fixed inset-x-0 top-0 z-20 flex h-mobile-header items-end justify-between border-b border-line/70 bg-canvas/80 px-4 pb-2 pt-safe backdrop-blur-xl backdrop-saturate-150 lg:hidden">
-            <span class="pb-1.5 text-[17px] font-semibold text-ink">Zone3</span>
+            <Wordmark class="mb-2 h-[17px] text-ink" />
             <div class="flex items-center gap-2">
                 <!-- Coach chat button (mobile) -->
                 <button

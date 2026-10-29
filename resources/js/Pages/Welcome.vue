@@ -2,6 +2,8 @@
 import { Head, Link } from '@inertiajs/vue3';
 import { ref, onMounted, onUnmounted } from 'vue';
 import GaugeTile from '@/Components/UI/GaugeTile.vue';
+import Wordmark from '@/Components/Brand/Wordmark.vue';
+import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
 
 defineProps({
     canLogin: { type: Boolean },
@@ -79,13 +81,8 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                       scrolled ? 'bg-canvas/80 backdrop-blur-xl' : '']">
             <div class="mx-auto flex h-16 max-w-5xl items-center justify-between px-5">
                 <div class="flex items-center gap-2.5">
-                    <!-- Das Logo aus der Story: drei steigende Balken -->
-                    <div class="flex h-8 w-8 items-end justify-center gap-[3px] rounded-[8px] bg-[#0071e3] pb-[8px]" aria-hidden="true">
-                        <i class="block h-[7px] w-[5px] rounded-full bg-white" />
-                        <i class="block h-[11px] w-[5px] rounded-full bg-white" />
-                        <i class="block h-[15px] w-[5px] rounded-full bg-white" />
-                    </div>
-                    <span class="text-lg font-bold tracking-tight">Zone3</span>
+                    <ZoneIcon class="h-8 w-8" />
+                    <Wordmark class="h-[19px] text-ink" />
                 </div>
 
                 <!-- whitespace-nowrap: sonst bricht der Knopftext auf dem Telefon um. -->

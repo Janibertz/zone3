@@ -9,6 +9,7 @@ import AppButton from '@/Components/UI/AppButton.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
 import FormRow from '@/Components/UI/FormRow.vue';
 import Toggle from '@/Components/UI/Toggle.vue';
+import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
 
 const props = defineProps({
     coaches:     Array,
@@ -492,7 +493,7 @@ const bar = computed(() => {
             <!-- ── Willkommen ── -->
             <template v-if="stepKey === 'welcome'">
                 <header>
-                    <div class="flex h-14 w-14 items-center justify-center rounded-[14px] bg-accent text-[20px] font-bold text-white">Z3</div>
+                    <ZoneIcon class="h-14 w-14" />
                     <h1 class="mt-6 text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Willkommen, {{ user?.name?.split(' ')[0] }}</h1>
                     <p class="mt-2 text-[17px] leading-snug text-ink-3">Ein paar Fragen, dann baut dein Coach den ersten Plan. Alles lässt sich später im Profil ändern.</p>
                 </header>

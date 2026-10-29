@@ -6,170 +6,12 @@ use Illuminate\Support\Facades\Log;
 use App\Services\PaceFormat;
 
 /**
- * Inhalte einer einzelnen Einheit: Schritteliste, Verpflegung und das
- * Coach-Review danach.
+ * Inhalte einer einzelnen Einheit: Schritteliste und das Coach-Review
+ * danach. Die Verpflegungstipps sind am 29.10.2026 weggefallen (Jan).
  */
 class SessionContentService
 {
     use TalksToOpenAI;
-
-    /**
-     * Generate personalised nutrition tips for a training session.
-     * Returns array with keys: before[], during[], after[]
-     */
-    public function generateNutritionTips(array $session): ?array
-    {
-        $isRace = ($session['type'] ?? '') === 'race';
-
-        $distKm  = (float) ($session['distance_km']  ?? 0);
-        $durMin  = (int)   ($session['duration_min'] ?? 0);
-        $type    = $session['type']      ?? 'easy_run';
-        $intens  = $session['intensity'] ?? 'medium';
-        $pace    = $session['pace_target'] ?? 'keine Angabe';
-
-        // Strength / core / mobility sessions need a completely different protocol
-        // (muscle protein synthesis, no race fueling) — handle them separately.
-        if (! empty($session['is_strength'])) {
-            return $this->generateStrengthNutritionTips($session);
-        }
-
-        $prompt = <<<PROMPT
-Du bist Ernährungsberater für Leistungssportler. Gib die WENIGEN Hinweise, die für diese Laufeinheit wirklich zählen — knapp, mit Menge und Zeitpunkt. Der Athlet kennt die Grundlagen; alles Selbstverständliche bleibt weg.
-
-**Einheit:**
-- Typ: {$type}
-- Distanz: {$distKm} km
-- Dauer: {$durMin} min
-- Pace-Ziel: {$pace}
-- Intensität: {$intens}
-- Renntag: {$session['is_race']}
-
-**Referenz (NICHT abschreiben — daraus das eine Wesentliche ziehen):**
-
-Unter 45 min / lockeres Lauftempo:
-- Vorher: Nüchtern oder 1-2h nach letzter Mahlzeit, kein extra Snack nötig
-- Während: nur Wasser (0,5–1L je nach Hitze), keine Gels
-- Nachher: Protein innerhalb 30 min (25–30g Whey oder 500ml fettarme Milch), Carbs in der Folgestunde
-
-45–75 min / moderat:
-- Vorher: 2–3h vorher kohlenhydratreiche Mahlzeit (Haferflocken + Beeren, Reis, Brot); 30–60 min vorher maximal 1 Energy-Gel oder 30g Datteln
-- Während: alle 30 min 150–200ml Wasser, bei Hitze Elektrolyttablette (z.B. Nuun, SaltStick)
-- Nachher: Recovery Shake (25g Whey + 50g Carbs) oder Quark + Obst
-
-Über 75 min / langer Lauf / Renntag:
-- Vorher: 3h vorher Pasta/Reis (80–100g trocken), 2h vorher nichts Festes mehr; 15 min vor Start 1 Gel (z.B. Maurten 160, SiS Beta Fuel)
-- Während: Gel alle 40–45 min (z.B. GU Original, Maurten 100), Elektrolytgetränk oder Wasser mit Salztablette; ab 90 min isotonisches Getränk (400–600ml/h)
-- Nachher: innerhalb 30 min Recovery Shake (4:1 Carb-Protein-Verhältnis), dann vollständige Mahlzeit nach 1–2h
-
-Intervall / Tempo:
-- Vorher: 3h vorher leichte kohlenhydratreiche Mahlzeit (kein Fett/Ballaststoffe); 30 min vorher optional Koffein (3–5mg/kg KG)
-- Während: Wasser + Elektrolyte, bei >60 min ein Gel in der Pause
-- Nachher: Proteinshake unmittelbar danach (30g Whey), innerhalb 2h vollständige Erholungsmahlzeit
-
-Antworte ausschließlich mit JSON (kein anderer Text):
-{
-  "before": [{"icon": "🍝", "text": "..."}],
-  "during": [{"icon": "💧", "text": "..."}],
-  "after":  [{"icon": "🥩", "text": "..."}]
-}
-
-SO KURZ WIE MÖGLICH. Der Athlet will einen Blick, keine Lektüre:
-- HÖCHSTENS ZWEI Punkte je Abschnitt, lieber einer.
-- Jeder Punkt HÖCHSTENS 70 Zeichen. Ein Halbsatz, kein Satzgefüge.
-- Nur was für DIESE Einheit zählt. Gibt es nichts zu sagen, gib eine leere Liste zurück — besonders bei "during" unter 60 Minuten.
-- Menge und Zeitpunkt ja, Markennamen und Erklärungen nein.
-- Beispiel für die Länge: "30 g Whey innerhalb 30 min" oder "Alle 40 min ein Gel".
-Alle Texte auf Deutsch.
-PROMPT;
-
-        $text = $this->ai->chat('nutrition', [
-            ['role' => 'system', 'content' => 'Du bist ein Ernährungs- und Laufexperte. Antworte ausschließlich mit validem JSON. Alle Texte im JSON müssen auf Deutsch sein.'],
-            ['role' => 'user',   'content' => $prompt],
-        ], 0.5, 1500, 30, $this->ai->mini());
-
-        return $this->ai->jsonObject($text);
-    }
-
-    /**
-     * Nutrition tips tailored to strength / core / mobility sessions.
-     * Focus: pre-workout fuel, intra-workout hydration, post-workout muscle recovery.
-     */
-    private function generateStrengthNutritionTips(array $session): ?array
-    {
-        $type   = $session['type']         ?? 'strength';
-        $durMin = (int) ($session['duration_min'] ?? 0);
-        $intens = $session['intensity']    ?? 'medium';
-
-        $typeLabel = [
-            'strength' => 'Krafttraining',
-            'core'     => 'Core-/Rumpftraining',
-            'mobility' => 'Mobility-/Beweglichkeitstraining',
-        ][$type] ?? 'Krafttraining';
-
-        // Compact list of the planned exercises so tips can reference the load.
-        $exerciseLines = '';
-        if (! empty($session['exercises']) && is_array($session['exercises'])) {
-            $lines = [];
-            foreach ($session['exercises'] as $ex) {
-                $name = $ex['name'] ?? null;
-                if (! $name) continue;
-                $setsReps = trim(implode('×', array_filter([$ex['sets'] ?? null, $ex['reps'] ?? null])));
-                $load     = ! empty($ex['load']) ? " @ {$ex['load']}" : '';
-                $lines[]  = "- {$name}" . ($setsReps ? " ({$setsReps})" : '') . $load;
-            }
-            if ($lines) {
-                $exerciseLines = "\n\n**Übungen:**\n" . implode("\n", $lines);
-            }
-        }
-
-        $prompt = <<<PROMPT
-Du bist Ernährungsberater für Kraft- und Athletiktraining von Ausdauersportlern. Gib die WENIGEN Hinweise, die für diese Kraft-/Core-Einheit zählen — knapp, mit Menge und Zeitpunkt. KEINE Lauf-/Renn-Ernährung (keine Gels). Worauf es ankommt: Protein danach.
-
-**Einheit:**
-- Typ: {$typeLabel}
-- Dauer: {$durMin} min
-- Intensität: {$intens}{$exerciseLines}
-
-**Referenz (NICHT abschreiben — daraus das eine Wesentliche ziehen):**
-
-Vorher (vor dem Training):
-- 1,5–2h vorher ausgewogene Mahlzeit mit Kohlenhydraten + Protein (z.B. Reis/Kartoffeln + Hähnchen/Tofu, oder Haferflocken + Skyr)
-- Bei Low-Intervall/nüchtern: 1–2h nach einer normalen Mahlzeit starten reicht; alternativ kleiner Snack (Banane, Handvoll Nüsse)
-- Optional 30 min vorher Koffein (3–5 mg/kg KG) für Maximalkraft
-
-Während (während des Trainings):
-- Hauptsächlich Wasser (150–300 ml über die Einheit), bei Hitze Elektrolyte
-- KEINE Gels, kein Sportgetränk nötig bei <60 min
-- Bei sehr langen/intensiven Einheiten: EAA/BCAA optional, aber nicht zwingend
-
-Nachher (nach dem Training):
-- Innerhalb von 30–60 min 25–35 g hochwertiges Protein (Whey-Shake, Skyr 300–400 g, oder 500 ml fettarme Milch) für die Muskelproteinsynthese
-- Dazu Kohlenhydrate zur Glykogen-Auffüllung (30–60 g, z.B. Banane, Toast, Reis)
-- Ausreichend trinken; ggf. 3 g Kreatin-Monohydrat als tägliche Routine
-
-Antworte ausschließlich mit JSON (kein anderer Text):
-{
-  "before": [{"icon": "🍚", "text": "..."}],
-  "during": [{"icon": "💧", "text": "..."}],
-  "after":  [{"icon": "🥩", "text": "..."}]
-}
-
-SO KURZ WIE MÖGLICH. Der Athlet will einen Blick, keine Lektüre:
-- HÖCHSTENS ZWEI Punkte je Abschnitt, lieber einer.
-- Jeder Punkt HÖCHSTENS 70 Zeichen. Ein Halbsatz, kein Satzgefüge.
-- Nur was für DIESE Einheit zählt. Gibt es nichts zu sagen, gib eine leere Liste zurück — besonders bei "during" unter 60 Minuten.
-- Menge und Zeitpunkt ja, Markennamen und Erklärungen nein.
-- Beispiel für die Länge: "30 g Whey innerhalb 30 min" oder "Alle 40 min ein Gel".
-Alle Texte auf Deutsch.
-PROMPT;
-
-        $text = $this->ai->chat('nutrition', [
-            ['role' => 'system', 'content' => 'Du bist ein Ernährungsexperte für Kraft- und Athletiktraining. Antworte ausschließlich mit validem JSON. Alle Texte im JSON müssen auf Deutsch sein.'],
-            ['role' => 'user',   'content' => $prompt],
-        ], 0.5, 1500, 30, $this->ai->mini());
-
-        return $this->ai->jsonObject($text);
-    }
 
     /**
      * Bis zu so vielen Minuten Abweichung gilt als Rundung und wird in der
@@ -185,6 +27,57 @@ PROMPT;
             fn ($s) => (int) ($s['duration_min'] ?? 0) * max(1, (int) ($s['repetitions'] ?? 1)),
             $steps,
         ));
+    }
+
+    /**
+     * Die Strecke einer Schritteliste in km, Wiederholungen eingerechnet.
+     *
+     * Eine vorgegebene Strecke (distance_m) zaehlt genau; sonst Dauer durch
+     * Pace (bei einem Bereich die Mitte). Ein Abschnitt ohne Pace — die
+     * Trabpause — laeuft im Tempo des Ein-/Auslaufens, denn getrabt wird
+     * auch dort. Ohne jede Pace gibt es keine Zahl (null).
+     *
+     * Vorher rechnete nur das Frontend so, und nur in der Detailansicht:
+     * die Liste zeigte die Zahl aus dem Wochenbudget (Minuten mal eine
+     * Durchschnittspace, 10,7 km), die Details die Schaetzung aus den
+     * Abschnitten (12 km). Jetzt gibt es eine Zahl, und sie steht in der
+     * Datenbank.
+     */
+    public static function stepsTotalKm(array $steps): ?float
+    {
+        $paceOf = function ($pace): ?float {
+            if (! $pace || $pace === 'null') return null;
+            if (! preg_match_all('/(\d+):(\d{1,2})/', (string) $pace, $mm, PREG_SET_ORDER)) return null;
+            $vals = array_map(fn ($p) => (int) $p[1] + (int) $p[2] / 60, $mm);
+
+            return array_sum($vals) / count($vals);
+        };
+
+        $easy = null;
+        foreach ($steps as $s) {
+            if (in_array($s['type'] ?? '', ['warmup', 'cooldown'], true) && ($p = $paceOf($s['pace_target'] ?? null))) {
+                $easy = max($easy ?? 0, $p);
+            }
+        }
+
+        $km = 0.0;
+        foreach ($steps as $s) {
+            $reps = max(1, (int) ($s['repetitions'] ?? 1));
+
+            if (($s['distance_m'] ?? 0) > 0) {
+                $km += $reps * $s['distance_m'] / 1000;
+                continue;
+            }
+
+            $pace = $paceOf($s['pace_target'] ?? null) ?? (($s['type'] ?? '') === 'rest' ? $easy : null);
+            $min  = (float) ($s['duration_min'] ?? 0);
+
+            if ($pace > 0 && $min > 0) {
+                $km += $reps * $min / $pace;
+            }
+        }
+
+        return $km > 0 ? round($km, 1) : null;
     }
 
     /**

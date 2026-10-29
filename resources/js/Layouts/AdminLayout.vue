@@ -2,6 +2,8 @@
 import { ref, computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useDarkMode } from '@/Composables/useDarkMode';
+import Wordmark from '@/Components/Brand/Wordmark.vue';
+import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
 
 const page = usePage();
 const user = computed(() => page.props.auth.user);
@@ -87,10 +89,11 @@ const allNavItems = [...navItems, ...moreNavItems];
         <aside class="hidden flex-col border-r border-line bg-canvas lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-64">
             <!-- Logo -->
             <div class="flex h-16 shrink-0 items-center gap-3 px-5">
-                <div class="flex h-8 w-8 items-center justify-center rounded-[9px] bg-danger">
-                    <span class="text-sm font-bold text-white">Z3</span>
+                <ZoneIcon tone="admin" class="h-8 w-8" />
+                <div class="flex flex-col gap-1">
+                    <Wordmark class="h-4 text-ink" />
+                    <span class="text-[13px] font-semibold leading-tight text-danger">Admin</span>
                 </div>
-                <span class="text-[20px] font-bold text-ink">Admin</span>
             </div>
 
             <!-- Navigation -->
@@ -171,10 +174,11 @@ const allNavItems = [...navItems, ...moreNavItems];
                     </svg>
                 </Link>
                 <div class="flex items-center gap-2">
-                    <div class="flex h-7 w-7 items-center justify-center rounded-[8px] bg-danger">
-                        <span class="text-xs font-bold text-white">Z3</span>
+                    <ZoneIcon tone="admin" class="h-7 w-7" />
+                    <div class="flex flex-col gap-0.5">
+                        <Wordmark class="h-3.5 text-ink" />
+                        <span class="text-[11px] font-semibold leading-tight text-danger">Admin</span>
                     </div>
-                    <span class="text-[17px] font-semibold text-ink">Admin</span>
                 </div>
             </div>
 

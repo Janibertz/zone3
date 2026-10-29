@@ -721,10 +721,6 @@ function formatTime(seconds) {
 }
 
 // ── Workout-Struktur für angenommene Empfehlung ──────────────────────────────
-const recNutritionTips    = ref(null);
-const recNutritionLoading = ref(false);
-const recNutritionError   = ref('');
-
 const recSteps        = ref(null);
 const recStepsLoading = ref(false);
 const recStepsError   = ref('');
@@ -803,12 +799,6 @@ onMounted(() => {
 
     const rec = props.todayRecommendationSession;
     if (rec && rec.type !== 'rest') {
-        recNutritionLoading.value = true;
-        axios.get(route('training-sessions.nutrition-tips', rec.id))
-            .then(({ data }) => { recNutritionTips.value = data; })
-            .catch(() => { recNutritionError.value = 'Verpflegungstipps konnten nicht geladen werden.'; })
-            .finally(() => { recNutritionLoading.value = false; });
-
         if (rec.type !== 'race_prep') {
             recStepsLoading.value = true;
             axios.get(route('training-sessions.steps', rec.id))
@@ -1501,33 +1491,6 @@ async function resetLayout() {
                                             <span class="shrink-0 text-[13px] tabular-nums text-ink-3">{{ stepAmount(step) }}</span>
                                             <span v-if="step.pace_target" class="shrink-0 text-[13px] font-semibold tabular-nums text-ink">{{ step.pace_target }}</span>
                                         </div>
-                                    </div>
-                                </div>
-                            </AppCard>
-
-                            <!-- Verpflegung -->
-                            <AppCard v-if="props.todayRecommendationSession.type !== 'rest'" title="Verpflegung">
-                                <div v-if="recNutritionLoading" class="flex items-center gap-3 py-2 text-[15px] text-ink-3">
-                                    <svg class="h-4 w-4 shrink-0 animate-spin text-accent" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                    {{ coach ? coach.name : 'Dein Coach' }} stellt Tipps zusammen…
-                                </div>
-                                <p v-else-if="recNutritionError" class="text-[13px] text-danger">{{ recNutritionError }}</p>
-                                <div v-else-if="recNutritionTips" class="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                                    <div v-for="block in [
-                                            { key: 'before', icon: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7.5V12l3 1.5', title: 'Vorher' },
-                                            { key: 'during', icon: 'M9 3.75v16.5M15 3.75v16.5M6 8.25h3M15 8.25h3', title: 'Währenddessen' },
-                                            { key: 'after',  icon: 'm4.5 12.75 6 6 9-13.5', title: 'Danach' },
-                                        ]" :key="block.key"
-                                        class="rounded-field bg-surface-2 p-3.5">
-                                        <p class="mb-2 flex items-center gap-1.5 text-[13px] font-bold text-ink">
-                                            <svg class="h-4 w-4 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" :d="block.icon" /></svg>{{ block.title }}
-                                        </p>
-                                        <ul class="space-y-1.5">
-                                            <li v-for="tip in recNutritionTips[block.key]" :key="tip.text" class="flex items-start gap-2 text-[13px] leading-relaxed text-ink-3">
-                                                <span class="shrink-0">{{ tip.icon }}</span>
-                                                <span>{{ tip.text }}</span>
-                                            </li>
-                                        </ul>
                                     </div>
                                 </div>
                             </AppCard>

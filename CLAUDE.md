@@ -14,9 +14,6 @@ npm run build
 # Run tests
 composer test          # clears config cache, then PHPUnit
 php artisan test --filter TestName   # single test
-
-# Generate PWA icons (runs automatically on deploy)
-php artisan pwa:icons
 ```
 
 **Ein Test mit festen Daten braucht eine feste Gegenwart.** `LongRunLadderTest` rechnete mit `RACE_DAY = 2026-09-27` und reichte `TODAY` an den Dienst durch — die Prüfung „liegt das Rennen in der Zukunft" fragte aber weiter die echte Uhr. Am 02.10.2026 war der Renntag vorbei, `LongRunPlanService::forEvent()` lieferte `null`, und **elf Tests fielen auf einmal um, ohne dass jemand Code angefasst hatte**. `Carbon::setTestNow()` in `setUp()`, zurückgesetzt in `tearDown()`. Wer feste Daten verwendet und die Uhr laufen lässt, schreibt eine Zeitbombe mit Datumsstempel.
@@ -42,7 +39,7 @@ Develop and verify against the local copy, then push to `main`. Two things only 
 
 ## Deployment
 
-Deploy via **GitHub → Coolify** (push to `main` branch triggers deploy, ~2 minutes). No local dev server and no local database — `startup.sh` is the container entry point and handles migrations, seeding, cache, queue worker, scheduler, and PWA icon generation automatically.
+Deploy via **GitHub → Coolify** (push to `main` branch triggers deploy, ~2 minutes). No local dev server and no local database — `startup.sh` is the container entry point and handles migrations, seeding, cache, queue worker and scheduler automatically.
 
 **One queue worker**, consuming `default,imports`. Everything that talks to OpenAI runs there — plan generation (30-70 s, sometimes minutes), reviews, threshold pace, predictions — with `--timeout=1800`. `imports` is in the list only to drain anything left over from the reverted webhook rework; nothing writes to it any more.
 
@@ -87,6 +84,14 @@ Die enduco-Richtung (weiße Karten, Indigo, Ambient-Wash) ist nach zwei Monaten 
 - **Paket 2 von 3 (28.10.2026):** Zahlen formatiert jetzt `Composables/useFormat.js` (`fmtNum`, `clock`, `speedOf`, `distanceOf`) — neue Seiten benutzen das statt eigener Formatierer. **Aktivitäten** nach Wochen gruppiert, Filter nach Sportart-Gruppe (`StatisticsController::SPORT_TYPES`, der alte `type=Run` traf keine Trail-/Laufbandläufe), Seiten werden angehängt (`Inertia::merge`), die Wochensumme rechnet der Server über die ganze Woche. **Aktivität:** Karte oben, drei große Zahlen, Coach-Review, Runden als Balken in Zonenfarbe (Z1 grau, Z2 grün, Z3 blau, Z4 orange, Z5 rot), Zeit je Zone als Band. **Kalender:** ein Punkt je Tag in Typfarbe (voll = erledigt), Phasenstreifen aus `segments()`, ein Tagesbereich statt zwei; erledigte Einheiten kommen jetzt mit (sie färben den Tag), an Tagen mit Aktivität zeigt der Tag die Aktivität. **Statistik:** Woche/Monat/Jahr, Hauptzahl gegen den vorigen Zeitraum **bis zum selben Tag**, Pace unter „Alle“ nur über Läufe, Locker/Hart aus `IntensityDistributionService`, Bestzeiten über alle Zeit. Pace-Trend und „Höhepunkte“ sind dabei weggefallen.
 - **Paket 3 von 3 (28.10.2026):** **Mehr** ist eine Seite (`/mehr`, `MoreController`) statt eines Sheets: iOS-Einstellungsliste, rechts grau der Stand (VDOT, verbunden/aus, Erinnerungszeit), die Zeilen führen per `/profile?section=…` direkt in den Abschnitt (Zurück führt dann nach Mehr) bzw. per `/dashboard?layout=1` in „Übersicht anpassen". Der Mehr-Tab bleibt auf allem aktiv, was von dort aus erreicht wird (`MORE_ROUTES` im Layout). **Rennen:** das Rennen des aktiven Plans (sonst das nächste) groß mit Countdown, Ziel, Prognose (`RacePredictionService::forVdot`, ohne Modellaufruf) und Zielpace, darunter „Danach" und „Gelaufen" (mit Ergebnis gegen Ziel); Bearbeiten und Löschen nur noch im Detail-Sheet, der A/B/C-Filter ist weg. **Workouts:** Karte mit Typ, zwei Zahlen und Strukturband in Zonenfarben, Aktionen per Tipp im Sheet; im Band zählen Strecken mit 5:00/km als Zeit, sonst drückten Meter die Minuten weg. **Builder:** Abbrechen · Titel · Sichern, Zusammenfassung mit Band oben, Abschnitte als Zeilen (Tipp klappt den Editor auf), „Abschnitt hinzufügen" als Liste. **Interview** als Vollbild ohne Tab-Leiste, Weiter unten fest. **Tagesform:** zehn Segmente je Skala statt Schieberegler — die Skala bleibt 1–10, so steht sie in der Datenbank und in den Prompts. **Coach-Chat:** Blasen in 17 pt ohne Avatar je Nachricht, Planänderungen des Coaches als Karte „Vom Coach geändert". Was der Coach von sich aus ändern will, schlägt er vor (siehe „Eigene Ideen sind Vorschläge“).
 - `theme-color` steht weiterhin an drei Stellen (Blade-Meta, Blade-Skript, `useDarkMode.js`) plus `public/manifest.json` — alle vier auf `#f2f2f7` / `#000000`.
+
+### Logo „Zone3." (seit 29.10.2026)
+
+Von Jan aus drei Richtungen gewählt: eine **3 aus zwei Laufbahn-Kurven** mit **blauem Punkt** — derselbe Punkt wie in „unter 90." auf der Startseite. Die Wortmarke ist „Zone3." in Inter Display ExtraBold, Punkt in Akzentblau. **Das Logo steht immer allein**; „Der Coach, der mitläuft." ist der Slogan für Posts und Stories, kein Claim am Logo (Entscheidung von Jan).
+
+- `Components/Brand/ZoneIcon.vue` (Kachel, `tone="admin"` = rot) und `Components/Brand/Wordmark.vue` (Pfade, Buchstaben `currentColor`, Punkt `fill-accent`). Größe über die Höhe. Keine „Z3"-Kacheln mehr nachbauen.
+- `resources/brand/` hält die SVG-Quellen (Icons schwarz/blau/hell, randlos und gerundet, Zeichen, Wortmarke, Querversion). Die Wortmarke ist **in Pfade umgewandelt** — nicht als `<text>` zurückbauen, sonst hängt sie an der geladenen Schrift.
+- **Die PNGs in `public/` sind fest eingecheckt**, nicht mehr erzeugt: `icons/icon-192|512.png` (Manifest, `any` und `maskable` — das Zeichen liegt in der 80-%-Sicherheitszone), `icons/apple-touch-icon.png` (180), `icons/badge-72.png` (nur weiße Form auf Transparenz — Android wertet beim Badge nur den Alphakanal aus), `favicon.svg` + `favicon.ico`, `brand/zone3-wortmarke-weiss@2x.png` (Mail-Kopf; Mail-Programme können kein SVG). Das frühere `pwa:icons` zeichnete mit GD Balken und hätte die Dateien bei jedem Deploy überschrieben; es ist weg. Wer das Icon ändert, rendert die PNGs aus `resources/brand/` neu (Chromium, randlos, ohne Transparenz) und erhöht `CACHE_NAME` in `public/sw.js`.
 
 ### Bewegung — drei Kurven, und wann welche gilt
 
