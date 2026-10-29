@@ -1121,8 +1121,27 @@ const moduleHasData = computed(() => ({
 const visibleModules = computed(() =>
     layout.value.filter(m => !m.hidden && moduleHasData.value[m.key] !== false));
 
+/**
+ * Die halben Module stehen ab lg zu zweit, ab 2xl zu dritt nebeneinander,
+ * und `grid-flow-row-dense` zieht sie über die breiten hinweg zusammen.
+ * Geht die Zahl nicht auf, blieb am Ende ein Loch neben einer einzelnen
+ * kleinen Karte (Jan, 29.10.2026: „kleine Boxen, die das Design auf dem
+ * Desktop brechen"). Das letzte halbe Modul nimmt deshalb den Rest der
+ * Zeile ein.
+ */
+const lastHalfSpan = computed(() => {
+    const halves = visibleModules.value.filter(m => !m.wide);
+    const last = halves.at(-1)?.key ?? null;
+    // Volle Klassennamen, damit Tailwind sie findet. Ab 2xl muss die
+    // lg-Spanne gegebenenfalls zurückgesetzt werden (col-span-1).
+    const lg = halves.length % 2 === 1 ? 'lg:col-span-2' : '';
+    const xl = ['2xl:col-span-1', '2xl:col-span-3', '2xl:col-span-2'][halves.length % 3];
+    return { key: last, cls: `${lg} ${xl}` };
+});
+
 function moduleClass(m) {
-    return m.wide ? 'min-w-0 lg:col-span-full' : 'min-w-0';
+    if (m.wide) return 'min-w-0 lg:col-span-full';
+    return m.key === lastHalfSpan.value.key ? `min-w-0 ${lastHalfSpan.value.cls}` : 'min-w-0';
 }
 
 function moduleHint(m) {

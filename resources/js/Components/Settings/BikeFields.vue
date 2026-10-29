@@ -7,6 +7,9 @@
  * Fahrt darüber, schlägt das Profil einen höheren Wert vor (`FtpCheck`).
  */
 import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
+import FormGroup from '@/Components/UI/FormGroup.vue';
+import FormRow from '@/Components/UI/FormRow.vue';
+import Toggle from '@/Components/UI/Toggle.vue';
 
 const model = defineModel({ type: Object, required: true });
 
@@ -25,74 +28,58 @@ function toggleDay(key) {
 </script>
 
 <template>
-    <div class="space-y-4">
-        <div class="flex items-center justify-between rounded-card border border-line bg-surface p-4">
-            <div>
-                <p class="text-[15px] font-semibold text-ink">Rad einplanen</p>
-                <p class="mt-0.5 text-[13px] text-ink-3">Indoor auf Zwift oder draußen</p>
-            </div>
-            <button type="button" :aria-pressed="model.bike_enabled"
-                class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors"
-                :class="model.bike_enabled ? 'bg-accent' : 'bg-surface-3'"
-                @click="model.bike_enabled = !model.bike_enabled">
-                <span class="inline-block h-4 w-4 rounded-full bg-surface transition-transform"
-                    :class="model.bike_enabled ? 'translate-x-6' : 'translate-x-1'" />
-            </button>
-        </div>
+    <div class="space-y-6">
+        <FormGroup>
+            <FormRow label="Rad einplanen" hint="Indoor auf Zwift oder draußen">
+                <Toggle v-model="model.bike_enabled" label="Rad einplanen" />
+            </FormRow>
+        </FormGroup>
 
         <template v-if="model.bike_enabled">
-            <div class="space-y-1.5">
-                <p class="text-[13px] font-medium text-ink-2">Wann</p>
+            <FormGroup title="Wann" footer="Winter heißt November bis März." plain>
                 <SegmentedControl v-model="model.bike_season" :options="seasons" />
-                <p class="text-[13px] text-ink-3">Winter heißt November bis März.</p>
-            </div>
+            </FormGroup>
 
-            <div class="space-y-1.5">
-                <p class="text-[13px] font-medium text-ink-2">Wofür</p>
+            <FormGroup title="Wofür" plain>
                 <SegmentedControl v-model="model.bike_purpose" :options="purposes" />
-                <p class="text-[13px] text-ink-3">
+                <template #footer>
                     {{ model.bike_purpose === 'easy'
                         ? 'Eine Radeinheit ersetzt einen lockeren Lauf.'
                         : model.bike_purpose === 'intervals'
                             ? 'Eigene harte Radeinheiten, als .zwo-Datei für Zwift.'
                             : 'Lockere Läufe ersetzen und eigene Radintervalle.' }}
                     Der lange Lauf wird nie ersetzt.
-                </p>
-            </div>
+                </template>
+            </FormGroup>
 
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="mb-1.5 block text-[13px] font-medium text-ink-2">Höchstens pro Woche</label>
-                    <select v-model.number="model.bike_max_per_week" class="z-input">
+            <FormGroup>
+                <FormRow as="label" label="Höchstens pro Woche">
+                    <select v-model.number="model.bike_max_per_week" class="z-inline appearance-none pr-1 text-ink-3">
                         <option v-for="n in 4" :key="n" :value="n">{{ n }}×</option>
                     </select>
-                </div>
-                <div>
-                    <label class="mb-1.5 block text-[13px] font-medium text-ink-2">FTP</label>
-                    <div class="relative">
-                        <input v-model.number="model.ftp" type="number" min="50" max="600" inputmode="numeric"
-                            placeholder="z. B. 250" class="z-input pr-12" />
-                        <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] text-ink-3">Watt</span>
-                    </div>
-                </div>
-            </div>
-            <p v-if="model.bike_purpose !== 'easy' && !model.ftp" class="text-[13px] text-warn-ink">
-                Ohne FTP kann Zone3 keine Radintervalle in % FTP schreiben. Den Wert findest du in Zwift unter deinem Profil.
-            </p>
+                </FormRow>
+                <FormRow as="label" label="FTP">
+                    <input v-model.number="model.ftp" type="number" min="50" max="600" inputmode="numeric"
+                        placeholder="250" class="z-inline w-20" />
+                    <span class="text-[17px] text-ink-3">W</span>
+                </FormRow>
+                <template v-if="model.bike_purpose !== 'easy' && !model.ftp" #footer>
+                    <span class="text-warn-ink">Ohne FTP kann Zone3 keine Radintervalle in % FTP schreiben. Den Wert findest du in Zwift unter deinem Profil.</span>
+                </template>
+            </FormGroup>
 
-            <div class="space-y-1.5">
-                <p class="text-[13px] font-medium text-ink-2">Bevorzugte Tage <span class="font-normal text-ink-3">(optional)</span></p>
+            <FormGroup title="Bevorzugte Tage (optional)" plain>
                 <div class="grid grid-cols-7 gap-1.5">
                     <button v-for="d in days" :key="d.key" type="button"
-                        class="rounded-field border py-2 text-[13px] font-semibold transition active:scale-95"
+                        class="h-9 rounded-full text-[15px] font-semibold transition active:scale-95"
                         :class="(model.bike_preferred_days ?? []).includes(d.key)
-                            ? 'border-accent bg-accent text-white'
-                            : 'border-line bg-surface-2 text-ink-3'"
+                            ? 'bg-accent text-white'
+                            : 'bg-surface-2 text-ink-2'"
                         @click="toggleDay(d.key)">
                         {{ d.label }}
                     </button>
                 </div>
-            </div>
+            </FormGroup>
         </template>
     </div>
 </template>

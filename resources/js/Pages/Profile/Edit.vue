@@ -9,6 +9,10 @@ import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import TrainingModelFields from '@/Components/Settings/TrainingModelFields.vue';
 import BikeFields from '@/Components/Settings/BikeFields.vue';
 import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
+import FormGroup from '@/Components/UI/FormGroup.vue';
+import FormRow from '@/Components/UI/FormRow.vue';
+import Toggle from '@/Components/UI/Toggle.vue';
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import axios from 'axios';
 
@@ -59,9 +63,9 @@ const heroStats = computed(() => [
 
 const tabs = [
     { key: 'personal',      label: 'Persönlich',         hint: () => user.value?.name },
-    { key: 'coach',         label: 'Mein Coach',         hint: () => savedCoachName.value },
-    { key: 'athlete',       label: 'Athletenprofil',     hint: () => (props.runnerProfile?.threshold_speed ? 'Schwellenpace hinterlegt' : 'Noch unvollständig') },
-    { key: 'notifications', label: 'Benachrichtigungen', hint: () => null },
+    { key: 'coach',         label: 'Mein Coach',         short: 'Coach',         hint: () => savedCoachName.value },
+    { key: 'athlete',       label: 'Athletenprofil',     short: 'Athlet',     hint: () => (props.runnerProfile?.threshold_speed ? 'Schwellenpace hinterlegt' : 'Noch unvollständig') },
+    { key: 'notifications', label: 'Benachrichtigungen', short: 'Mitteilungen', hint: () => null },
     { key: 'connections',   label: 'Verbindungen',       hint: () => (props.stravaConnected ? 'Strava verbunden' : 'Strava nicht verbunden') },
     { key: 'security',      label: 'Sicherheit',         hint: () => null },
     { key: 'account',       label: 'Konto',              hint: () => null },
@@ -105,6 +109,13 @@ const coachColors = {
     purple: { bg: 'bg-accent', ring: 'ring-accent', light: 'bg-accent-soft', border: 'border-accent', badge: 'bg-accent-soft text-accent-ink' },
 };
 const specialtyLabels = { motivator: 'Motivator', strategist: 'Stratege', companion: 'Begleiter' };
+
+// Wie in den iOS-Einstellungen: antippen heißt auswählen, ohne Sichern-Knopf.
+function chooseCoach(id) {
+    if (id === selectedCoachId.value && savedCoachName.value) return;
+    selectedCoachId.value = id;
+    saveCoach();
+}
 
 async function saveCoach() {
     if (!selectedCoachId.value) return;
@@ -301,6 +312,12 @@ async function unsubscribePush() {
 async function sendTestPush() {
     try { await axios.post(route('push.test')); pushTestSent.value = true; setTimeout(() => { pushTestSent.value = false; }, 3000); }
     catch (e) { pushError.value = e?.response?.data?.error ?? 'Test fehlgeschlagen.'; }
+}
+
+// Schalter wirken sofort, wie überall auf iOS.
+function setNotif(key, value) {
+    notifSettings.value[key] = value;
+    saveNotifSettings();
 }
 
 async function saveNotifSettings() {
@@ -620,6 +637,9 @@ async function saveStrength() {
     }
 }
 
+// Dieselben Farben wie die Runden auf der Aktivitätsseite.
+const zoneDots  = ['bg-ink-3', 'bg-success', 'bg-accent', 'bg-warn', 'bg-danger'];
+const zoneNames = ['Zone 1 · Erholung', 'Zone 2 · Locker', 'Zone 3 · Tempo', 'Zone 4 · Schwelle', 'Zone 5 · VO2max'];
 const zoneColors = [
     'bg-info-soft border-info/25 text-info',
     'bg-success-soft border-success/25 text-success',
@@ -740,1087 +760,510 @@ const inputClass = 'z-input';
     <Head title="Profil" />
     <AuthenticatedLayout>
         <!--
-            flex-col statt space-y: auf dem Telefon stand die Abschnittsliste
-            hinter rund 1200 Pixeln Bestzeiten. Die Liste ist aber die
-            Navigation dieser Seite — man scrollte an allem vorbei, um
-            ueberhaupt irgendwohin zu kommen. Per order steht sie jetzt oben;
-            ab lg bleibt die bisherige Reihenfolge.
+            Redesign 29.10.2026: das Profil war die letzte Seite in der alten
+            Optik — Karten mit eigener Kopfzeile, graue Kästen darin, kleine
+            Schrift, selbstgebaute Schalter. Jetzt gruppierte Listen wie in den
+            iOS-Einstellungen (FormGroup/FormRow/Toggle), dieselben wie auf „Mehr“.
+            Auf dem Telefon ist ein Abschnitt eine Unterseite; ab lg wechselt
+            eine Segmentleiste zwischen den Abschnitten.
         -->
-        <div class="mx-auto flex w-full max-w-4xl flex-col gap-5 px-4 py-4 lg:px-8 lg:py-8">
+        <div class="min-h-screen bg-canvas">
+            <!-- Kopf: Telefon im Abschnitt mit Zurück, sonst „Profil" -->
+            <header v-if="sectionOpen" class="px-4 pb-2 pt-2 lg:hidden">
+                <button type="button"
+                    class="-ml-2 mb-1 inline-flex items-center gap-0.5 rounded-field px-2 py-1 text-[17px] text-accent transition-[opacity,transform] duration-150 ease-out-strong active:scale-[0.97]"
+                    @click="requestedSection ? router.visit(route('more')) : (sectionOpen = false)">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
+                    {{ requestedSection ? 'Mehr' : 'Profil' }}
+                </button>
+                <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em] text-ink">{{ activeTabLabel }}</h1>
+            </header>
+            <PageHeader width="max-w-3xl" title="Profil" :class="sectionOpen ? 'hidden lg:block' : ''" />
 
-            <!-- ══ PROFILE HERO ══ -->
-            <!-- Mit offenem Abschnitt steht auf dem Telefon nur der Abschnitt da, wie eine Unterseite in iOS. -->
-            <div class="bg-surface rounded-card shadow-card p-5 sm:p-6" :class="sectionOpen ? 'hidden lg:block' : ''">
-                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="mx-auto max-w-3xl space-y-7 px-4 pb-10 pt-3 lg:px-8">
 
-                    <div class="flex min-w-0 flex-1 items-center gap-4">
-
-                        <!-- Avatar -->
-                        <div class="relative shrink-0">
-                            <button
-                                @click="triggerAvatarUpload"
-                                class="group relative h-20 w-20 sm:h-24 sm:w-24 rounded-full overflow-hidden bg-accent flex items-center justify-center transition hover:ring-2 hover:ring-accent hover:ring-offset-2 hover:ring-offset-surface"
-                            >
-                                <img v-if="avatarUrl" :src="avatarUrl" alt="Profilbild" class="absolute inset-0 h-full w-full object-cover" @error="avatarImgError = true" />
-                                <span v-else class="text-2xl sm:text-3xl font-bold text-white select-none">{{ initials }}</span>
-                                <!--
-                                    Auf dem Telefon gibt es kein Hover: dort war das
-                                    Kamerasymbol unsichtbar und mit ihm der Hinweis,
-                                    dass man das Bild ueberhaupt wechseln kann. Es
-                                    steht jetzt dauerhaft da und blendet sich erst am
-                                    Desktop auf Hover ein.
-                                -->
-                                <div class="absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                                    <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
-                                    </svg>
-                                </div>
-                                <!-- Loading spinner -->
-                                <div v-if="avatarUploading" class="absolute inset-0 bg-black/50 flex items-center justify-center">
-                                    <svg class="h-6 w-6 text-white animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                </div>
+                <!-- ══ Athlet ══ -->
+                <section :class="sectionOpen ? 'hidden lg:block' : ''">
+                    <div class="rounded-card bg-surface p-4">
+                        <div class="flex items-center gap-4">
+                            <button type="button" @click="triggerAvatarUpload"
+                                class="group relative flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent transition active:scale-[0.97]"
+                                aria-label="Profilbild ändern">
+                                <img v-if="avatarUrl" :src="avatarUrl" alt="" class="absolute inset-0 h-full w-full object-cover" @error="avatarImgError = true" />
+                                <span v-else class="select-none text-[26px] font-bold text-white">{{ initials }}</span>
+                                <span v-if="avatarUploading" class="absolute inset-0 flex items-center justify-center bg-black/50">
+                                    <svg class="h-6 w-6 animate-spin text-white" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                </span>
                             </button>
                             <input ref="avatarInput" type="file" accept="image/*" class="hidden" @change="onAvatarChange" />
-                        </div>
-
-                        <!-- Name + meta -->
-                        <div class="flex-1 min-w-0">
-                            <h1 class="text-[28px] font-bold leading-[34px] tracking-[-0.4px] text-ink">{{ user.name }}</h1>
-                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
-                                <span v-if="user.location" class="flex items-center gap-1 text-sm text-ink-3">
-                                    <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
-                                    {{ user.location }}
-                                </span>
-                                <span v-if="user.favorite_distance" class="flex items-center gap-1 text-sm text-ink-3">
-                                    <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
-                                    {{ user.favorite_distance }}
-                                </span>
-                                <span v-if="user.birth_year" class="text-sm text-ink-3">
-                                    {{ new Date().getFullYear() - user.birth_year }} Jahre
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Edit button -->
-                    <AppButton variant="secondary" size="sm" class="shrink-0 self-start sm:self-auto" @click="openSection('personal')">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                        </svg>
-                        Bearbeiten
-                    </AppButton>
-                </div>
-
-                <p v-if="user.bio" class="mt-4 max-w-2xl text-[15px] leading-relaxed text-ink-2">{{ user.bio }}</p>
-
-                <!-- Stats row -->
-                <div class="mt-5 grid grid-cols-2 gap-y-4 border-t border-line pt-5 sm:grid-cols-4">
-                    <div v-for="stat in heroStats" :key="stat.label" class="min-w-0">
-                        <p class="text-2xl font-bold tabular-nums tracking-tight text-ink">
-                            {{ stat.value }}<span v-if="stat.unit" class="ml-0.5 text-sm font-medium text-ink-3">{{ stat.unit }}</span>
-                        </p>
-                        <p class="mt-0.5 truncate text-[13px] font-medium text-ink-3">{{ stat.label }}</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ══ PERSÖNLICHE REKORDE ══ -->
-            <!-- Waehrend ein Abschnitt offen ist, haben die Rekorde darunter nichts zu suchen. -->
-            <div v-if="hasAnyPr" class="order-3 rounded-card bg-surface p-5 shadow-card sm:p-6 lg:order-none"
-                :class="sectionOpen ? 'hidden lg:block' : ''">
-                <div class="flex items-center gap-3">
-                    <svg class="h-5 w-5 shrink-0 text-warn" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0" /></svg>
-                    <div>
-                        <h2 class="text-[15px] font-semibold text-ink">Persönliche Rekorde</h2>
-                        <p class="mt-0.5 text-[13px] text-ink-3">Deine schnellsten Zeiten je Distanz – aus deinen Läufen</p>
-                    </div>
-                </div>
-                <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    <div
-                        v-for="dist in prDistances"
-                        :key="dist.key"
-                        class="rounded-card bg-surface-2 p-4"
-                    >
-                        <!--
-                            Die Linie braucht eine Beschriftung, sonst ist sie
-                            Dekoration: darunter steht, wie viel die Bestzeit
-                            seit wann gewonnen hat. preserveAspectRatio="none"
-                            ist raus — es zog die Kurve in die Breite.
-                        -->
-                        <div class="mb-3 flex items-start justify-between gap-3">
-                            <h3 class="text-sm font-bold text-ink">{{ dist.label }}</h3>
-                            <div v-if="prTrend(dist.key)" class="shrink-0 text-right">
-                                <svg :viewBox="`0 0 ${prTrend(dist.key).w} ${prTrend(dist.key).h}`"
-                                    class="h-6 w-24 text-accent" role="img"
-                                    :aria-label="`Verlauf der Bestzeit: ${prTrend(dist.key).label}`">
-                                    <path :d="prTrend(dist.key).path" fill="none" stroke="currentColor"
-                                        stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" />
-                                    <circle :cx="prTrend(dist.key).endX - 2" :cy="prTrend(dist.key).endY"
-                                        r="2.25" fill="currentColor" />
-                                </svg>
-                                <p class="mt-0.5 text-[11px] tabular-nums"
-                                    :class="prTrend(dist.key).gained > 0 ? 'text-success' : 'text-ink-3'">
-                                    {{ prTrend(dist.key).label }}
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-[22px] font-bold leading-7 text-ink">{{ user.name }}</p>
+                                <p class="truncate text-[15px] text-ink-3">
+                                    {{ [user.location, user.favorite_distance, user.birth_year ? `${new Date().getFullYear() - user.birth_year} Jahre` : null].filter(Boolean).join(' · ') || user.email }}
                                 </p>
+                                <button type="button" class="mt-0.5 text-[15px] text-accent active:opacity-60" @click="triggerAvatarUpload">Foto ändern</button>
                             </div>
                         </div>
-                        <ul class="space-y-1">
-                            <li v-for="entry in dist.entries" :key="entry.rank">
-                                <Link
-                                    :href="`/activities/${entry.activity_id}`"
-                                    class="flex items-center gap-3 rounded-field px-2 py-2 transition-colors hover:bg-surface"
-                                >
-                                    <!-- Rang als Ziffer: Platz 1 traegt die Betonung, der Rest ordnet sich unter. -->
-                                    <span class="w-6 shrink-0 text-center font-rounded text-[15px] tabular-nums"
-                                        :class="entry.rank === 1 ? 'font-bold text-ink' : 'text-ink-3'">{{ medal(entry.rank) }}</span>
-                                    <span class="font-bold tabular-nums text-ink">{{ entry.time_formatted }}</span>
-                                    <span class="text-xs text-ink-3">{{ entry.pace }}/km</span>
-                                    <span class="ml-auto text-xs text-ink-3 shrink-0">{{ entry.date }}</span>
-                                </Link>
-                            </li>
-                        </ul>
+                        <p v-if="user.bio" class="mt-3 text-[15px] leading-snug text-ink-2">{{ user.bio }}</p>
                     </div>
-                </div>
-            </div>
 
-            <!-- ══ ABSCHNITTE — Telefon: Liste ══ -->
-            <div v-if="!sectionOpen" class="order-2 overflow-hidden rounded-card bg-surface shadow-card lg:order-none lg:hidden">
-                <button
-                    v-for="(tab, i) in tabs"
-                    :key="tab.key"
-                    type="button"
-                    class="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors active:bg-surface-2"
-                    :class="i < tabs.length - 1 ? 'border-b border-line' : ''"
-                    @click="openSection(tab.key)"
-                >
-                    <span class="min-w-0 flex-1">
-                        <span class="block text-[15px] font-medium text-ink">{{ tab.label }}</span>
-                        <span v-if="tab.hint()" class="mt-0.5 block truncate text-[13px] text-ink-3">{{ tab.hint() }}</span>
-                    </span>
-                    <svg class="h-4 w-4 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                    </svg>
-                </button>
-            </div>
-
-            <!-- Zurück aus einem Abschnitt — nur auf dem Telefon nötig -->
-            <button
-                v-if="sectionOpen"
-                type="button"
-                class="order-1 -ml-2 inline-flex h-11 items-center gap-0.5 rounded-field px-2 text-[17px] text-accent transition-opacity active:opacity-60 lg:order-none lg:hidden"
-                @click="requestedSection ? router.visit(route('more')) : (sectionOpen = false)"
-            >
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-                </svg>
-                {{ requestedSection ? 'Mehr' : 'Profil' }}
-            </button>
-            <h1 v-if="sectionOpen" class="order-1 -mt-4 text-[34px] font-extrabold leading-tight tracking-[-0.035em] text-ink lg:hidden">{{ activeTabLabel }}</h1>
-
-            <!-- ══ REITER — ab lg ══ -->
-            <div class="order-2 hidden gap-1 rounded-full bg-surface-2 p-1 lg:order-none lg:flex" role="tablist">
-                <button
-                    v-for="tab in tabs"
-                    :key="tab.key"
-                    type="button"
-                    role="tab"
-                    :aria-selected="activeTab === tab.key"
-                    @click="activeTab = tab.key"
-                    class="shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition duration-150 active:scale-[0.98]"
-                    :class="activeTab === tab.key
-                        ? 'bg-surface text-ink shadow-card'
-                        : 'text-ink-3 hover:text-ink-2'"
-                >
-                    {{ tab.label }}
-                </button>
-            </div>
-
-            <!-- ══ TAB CONTENT ══ -->
-            <div class="order-2 overflow-hidden rounded-card bg-surface shadow-card lg:order-none"
-                :class="sectionOpen ? 'block' : 'hidden lg:block'">
-
-                <!-- ── PERSÖNLICH ── -->
-                <template v-if="activeTab === 'personal'">
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line">
-                        <h2 class="text-base font-semibold text-ink">Persönliche Daten</h2>
-                        <p class="mt-0.5 text-sm text-ink-3">Name, E-Mail und öffentliche Profilinformationen</p>
-                    </div>
-                    <div class="p-4 sm:p-6">
-                        <div v-if="props.status === 'profile-information-updated' || props.status === 'avatar-updated'" class="mb-5 flex items-center gap-2 rounded-field bg-success-soft border border-success/25 px-4 py-3 text-sm text-success-ink">
-                            <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            Profil erfolgreich gespeichert.
-                        </div>
-
-                        <form @submit.prevent="profileForm.patch(route('profile.update'))" class="space-y-5">
-                            <!-- Name + Email -->
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                                <div>
-                                    <label class="block text-sm font-medium text-ink-2 mb-1.5">Name</label>
-                                    <input v-model="profileForm.name" type="text" required autofocus autocomplete="name" :class="inputClass" />
-                                    <InputError class="mt-1.5" :message="profileForm.errors.name" />
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-ink-2 mb-1.5">E-Mail</label>
-                                    <input v-model="profileForm.email" type="email" required autocomplete="username" :class="inputClass" />
-                                    <InputError class="mt-1.5" :message="profileForm.errors.email" />
-                                </div>
-                            </div>
-
-                            <!-- Location + Birth year -->
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                                <div>
-                                    <label class="block text-sm font-medium text-ink-2 mb-1.5">Standort</label>
-                                    <input v-model="profileForm.location" type="text" placeholder="z.B. München" :class="inputClass" />
-                                    <InputError class="mt-1.5" :message="profileForm.errors.location" />
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-ink-2 mb-1.5">Geburtsjahr</label>
-                                    <input v-model="profileForm.birth_year" type="number" placeholder="z.B. 1992" min="1940" :max="new Date().getFullYear() - 10" :class="inputClass" />
-                                    <InputError class="mt-1.5" :message="profileForm.errors.birth_year" />
-                                </div>
-                            </div>
-
-                            <!-- Favorite distance -->
-                            <div>
-                                <label class="block text-sm font-medium text-ink-2 mb-1.5">Lieblingsdistanz</label>
-                                <div class="flex flex-wrap gap-2">
-                                    <button
-                                        v-for="d in distanceOptions"
-                                        :key="d"
-                                        type="button"
-                                        @click="profileForm.favorite_distance = (profileForm.favorite_distance === d ? '' : d)"
-                                        class="px-3 py-1.5 rounded-field text-sm font-medium border transition-colors"
-                                        :class="profileForm.favorite_distance === d
-                                            ? 'bg-accent border-accent text-white'
-                                            : 'bg-surface border-line text-ink-2 hover:border-accent'"
-                                    >
-                                        {{ d }}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Bio -->
-                            <div>
-                                <label class="block text-sm font-medium text-ink-2 mb-1.5">
-                                    Über mich
-                                    <span class="font-normal text-ink-3 ml-1">{{ (profileForm.bio ?? '').length }}/300</span>
-                                </label>
-                                <textarea
-                                    v-model="profileForm.bio"
-                                    rows="3"
-                                    maxlength="300"
-                                    placeholder="Erzähl etwas über dich als Athlet..."
-                                    :class="inputClass + ' resize-none'"
-                                />
-                                <InputError class="mt-1.5" :message="profileForm.errors.bio" />
-                            </div>
-
-                            <div v-if="mustVerifyEmail && user.email_verified_at === null" class="rounded-field bg-warn-soft border border-warn/25 px-4 py-3 text-sm text-warn">
-                                E-Mail noch nicht verifiziert.
-                                <Link :href="route('verification.send')" method="post" as="button" class="underline ml-1">Erneut senden</Link>
-                            </div>
-
-                            <div class="flex items-center justify-end pt-2">
-                                <button type="submit" :disabled="profileForm.processing" class="inline-flex items-center gap-2 rounded-field bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-card">
-                                    <svg v-if="profileForm.processing" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                    Speichern
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </template>
-
-                <!-- ── MEIN COACH ── -->
-                <template v-else-if="activeTab === 'coach'">
-                    <div class="space-y-4">
-                        <div>
-                            <h3 class="text-base font-bold text-ink">Mein Coach</h3>
-                            <p class="text-sm text-ink-3 mt-1">Dein Coach beeinflusst wie Trainingsempfehlungen und Pläne kommuniziert werden.</p>
-                        </div>
-
-                        <div class="space-y-3">
-                            <button
-                                v-for="coach in coaches" :key="coach.id"
-                                type="button"
-                                @click="selectedCoachId = coach.id"
-                                class="w-full flex items-start gap-4 p-5 rounded-card border-2 text-left transition duration-200"
-                                :class="selectedCoachId === coach.id
-                                    ? [coachColors[coach.avatar_color]?.light, coachColors[coach.avatar_color]?.border, 'shadow-card']
-                                    : 'bg-surface/50 border-line hover:border-line-strong'"
-                            >
-                                <div class="shrink-0 w-12 h-12 rounded-field flex items-center justify-center text-white font-bold text-base"
-                                    :class="[coachColors[coach.avatar_color]?.bg, selectedCoachId === coach.id ? 'ring-2 ring-offset-2 ' + coachColors[coach.avatar_color]?.ring : '']">
-                                    {{ coach.avatar_initials }}
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <div class="flex items-center gap-2 mb-0.5">
-                                        <span class="font-bold text-ink">{{ coach.name }}</span>
-                                        <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="coachColors[coach.avatar_color]?.badge">{{ specialtyLabels[coach.specialty] }}</span>
-                                    </div>
-                                    <p class="text-xs italic text-ink-3 mb-1">„{{ coach.tagline }}"</p>
-                                    <p class="text-sm text-ink-2">{{ coach.description }}</p>
-                                </div>
-                                <div class="shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5"
-                                    :class="selectedCoachId === coach.id ? [coachColors[coach.avatar_color]?.bg, 'border-transparent'] : 'border-line-strong'">
-                                    <svg v-if="selectedCoachId === coach.id" class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
-                                    </svg>
-                                </div>
-                            </button>
-                        </div>
-
-                        <div class="flex items-center gap-3 flex-wrap">
-                            <button @click="saveCoach" :disabled="coachSaving || !selectedCoachId"
-                                class="px-5 py-2.5 bg-accent hover:opacity-90 disabled:opacity-50 text-white text-sm font-semibold rounded-field transition-colors">
-                                {{ coachSaving ? 'Speichern…' : 'Coach speichern' }}
-                            </button>
-                            <Transition enter-active-class="transition duration-300 ease-out-strong" enter-from-class="opacity-0 translate-y-1" leave-active-class="transition duration-200" leave-to-class="opacity-0">
-                                <div v-if="coachSaved && savedCoachName" class="flex items-center gap-2 rounded-field px-3 py-2 border"
-                                    :class="coachColors[savedCoachColor]?.light + ' ' + coachColors[savedCoachColor]?.border">
-                                    <div class="h-6 w-6 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0" :class="coachColors[savedCoachColor]?.bg">{{ savedCoachInitials }}</div>
-                                    <p class="text-sm font-semibold" :class="coachColors[savedCoachColor]?.badge?.split(' ')[2]">{{ savedCoachName }} ist jetzt dein Coach!</p>
-                                </div>
-                            </Transition>
-                        </div>
-                    </div>
-                </template>
-
-                <!-- ── ATHLETENPROFIL ── -->
-                <template v-else-if="activeTab === 'athlete'">
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line">
-                        <h2 class="text-base font-semibold text-ink">Athletenprofil</h2>
-                        <p class="mt-0.5 text-sm text-ink-3">Herzfrequenz- und Schwellenwerte für deine Trainingszonen</p>
-                    </div>
-                    <div class="p-4 sm:p-6 space-y-5">
-                        <div v-if="athleteSaved" class="flex items-center gap-2 rounded-field bg-success-soft border border-success/25 px-4 py-3 text-sm text-success">
-                            <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            Athletenprofil gespeichert. Zonen wurden neu berechnet.
-                        </div>
-                        <form @submit.prevent="submitAthlete" class="space-y-5">
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                                <div>
-                                    <label class="block text-sm font-medium text-ink-2 mb-1.5">Schwellen-HF <span class="text-ink-3 font-normal">(LTHR, bpm)</span></label>
-                                    <input v-model="athleteForm.threshold_heart_rate" type="number" min="100" max="220" placeholder="z.B. 165" required :class="inputClass" />
-                                    <InputError class="mt-1" :message="athleteForm.errors.threshold_heart_rate" />
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-ink-2 mb-1.5">Maximale HF <span class="text-ink-3 font-normal">(bpm)</span></label>
-                                    <input v-model="athleteForm.max_heart_rate" type="number" min="100" max="220" placeholder="z.B. 195" required :class="inputClass" />
-                                    <InputError class="mt-1" :message="athleteForm.errors.max_heart_rate" />
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-ink-2 mb-1.5">Schwellen-Pace <span class="text-ink-3 font-normal">(min:sek/km)</span></label>
-                                <input v-model="athleteForm.threshold_speed" type="text" placeholder="z.B. 5:30" pattern="[0-9]{1,2}:[0-9]{2}" required :class="inputClass" />
-                                <p class="mt-1 text-xs text-ink-3">Die Pace, die du für ~60 min halten kannst</p>
-                                <InputError class="mt-1" :message="athleteForm.errors.threshold_speed" />
-                            </div>
-                            <div class="flex justify-end">
-                                <button type="submit" :disabled="athleteForm.processing" class="inline-flex items-center gap-2 rounded-field bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-card">
-                                    <svg v-if="athleteForm.processing" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                    Speichern & Zonen berechnen
-                                </button>
-                            </div>
-                        </form>
-
-                        <div v-if="paceZones.length > 0" class="border-t border-line pt-5">
-                            <h3 class="text-sm font-semibold text-ink-2">Deine Laufzonen</h3>
-                            <p v-if="vdot" class="mt-0.5 mb-3 text-[13px] text-ink-3">
-                                Nach Daniels aus VDOT <span class="font-semibold text-ink tabular-nums">{{ vdot.value.toFixed(1).replace('.', ',') }}</span>, {{ vdot.label }}
+                    <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div v-for="stat in heroStats" :key="stat.label" class="rounded-card bg-surface px-4 py-3">
+                            <p class="text-[13px] text-ink-3">{{ stat.label }}</p>
+                            <p class="mt-0.5 font-rounded text-[28px] font-bold leading-8 tracking-[-0.02em] text-ink">
+                                {{ stat.value }}<span v-if="stat.unit" class="ml-1 text-[15px] font-semibold text-ink-3">{{ stat.unit }}</span>
                             </p>
-                            <div v-else class="mb-3" />
-                            <div class="space-y-2">
-                                <div v-for="(zone, idx) in paceZones" :key="idx" class="flex items-center justify-between rounded-field border px-4 py-3" :class="zoneColors[idx]">
-                                    <div class="flex items-center gap-3">
-                                        <span class="text-xs font-bold opacity-60">Z{{ idx + 1 }}</span>
-                                        <span class="text-sm font-semibold">{{ zone.name }}</span>
-                                    </div>
-                                    <span class="text-sm font-mono tabular-nums">{{ zoneRange(zone) }} min/km</span>
-                                </div>
-                            </div>
                         </div>
-                        <div v-else class="border-t border-line pt-5">
-                            <div class="rounded-field bg-surface-2 border border-dashed border-line px-5 py-6 text-center">
-                                <p class="text-sm text-ink-3">Speichere dein Profil um deine Laufzonen zu berechnen.</p>
-                            </div>
-                        </div>
+                    </div>
+                </section>
 
-                        <!-- Trainingsmodell -->
-                        <div class="border-t border-line pt-5 space-y-4">
-                            <div>
-                                <h3 class="text-sm font-semibold text-ink-2">Trainingsmodell</h3>
-                                <p class="text-xs text-ink-3 mt-0.5">Gilt ab dem nächsten Wochenplan (Sonntagabend).</p>
+                <!-- ══ Bestzeiten ══ -->
+                <FormGroup v-if="hasAnyPr" title="Bestzeiten" footer="Aus deinen Läufen. Tippe auf eine Zeit für den Lauf."
+                    :class="sectionOpen ? 'hidden lg:block' : ''">
+                    <Link v-for="dist in prDistances" :key="dist.key"
+                        :href="`/activities/${dist.entries[0].activity_id}`"
+                        class="flex items-center gap-3 px-4 py-3 transition-colors active:bg-surface-2">
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-[17px] text-ink">{{ dist.label }}</span>
+                            <span class="block truncate text-[13px] text-ink-3">
+                                {{ dist.entries[0].pace }} /km · {{ dist.entries[0].date }}<template v-if="dist.entries.length > 1"> · danach {{ dist.entries.slice(1).map(e => e.time_formatted).join(', ') }}</template>
+                            </span>
+                        </span>
+                        <span v-if="prTrend(dist.key)" class="hidden shrink-0 text-right sm:block">
+                            <svg :viewBox="`0 0 ${prTrend(dist.key).w} ${prTrend(dist.key).h}`" class="h-6 w-20 text-accent" role="img"
+                                :aria-label="`Verlauf der Bestzeit: ${prTrend(dist.key).label}`">
+                                <path :d="prTrend(dist.key).path" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" />
+                                <circle :cx="prTrend(dist.key).endX - 2" :cy="prTrend(dist.key).endY" r="2.25" fill="currentColor" />
+                            </svg>
+                            <span class="block text-[11px] tabular-nums" :class="prTrend(dist.key).gained > 0 ? 'text-success' : 'text-ink-3'">{{ prTrend(dist.key).label }}</span>
+                        </span>
+                        <span class="shrink-0 font-rounded text-[22px] font-bold text-ink">{{ dist.entries[0].time_formatted }}</span>
+                        <svg class="h-4 w-4 shrink-0 text-ink-3/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                    </Link>
+                </FormGroup>
+
+                <!-- ══ Abschnitte — Telefon: Liste ══ -->
+                <FormGroup v-if="!sectionOpen" title="Einstellungen" class="lg:hidden">
+                    <button v-for="tab in tabs" :key="tab.key" type="button"
+                        class="flex min-h-[48px] w-full items-center gap-3 px-4 py-2 text-left transition-colors active:bg-surface-2"
+                        @click="openSection(tab.key)">
+                        <span class="min-w-0 flex-1 truncate text-[17px] text-ink">{{ tab.label }}</span>
+                        <span v-if="tab.hint()" class="max-w-[45%] shrink-0 truncate text-[15px] text-ink-3">{{ tab.hint() }}</span>
+                        <svg class="h-4 w-4 shrink-0 text-ink-3/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                    </button>
+                </FormGroup>
+
+                <!-- ══ Abschnitte — ab lg: Segmentleiste ══ -->
+                <div class="hidden lg:block">
+                    <SegmentedControl v-model="activeTab" :options="tabs.map(t => ({ value: t.key, label: t.short ?? t.label }))" />
+                </div>
+
+                <!-- ══ Inhalt des Abschnitts ══ -->
+                <div class="space-y-7" :class="sectionOpen ? 'block' : 'hidden lg:block'">
+
+                    <!-- ── PERSÖNLICH ── -->
+                    <form v-if="activeTab === 'personal'" class="space-y-7" @submit.prevent="profileForm.patch(route('profile.update'), { preserveScroll: true })">
+                        <p v-if="props.status === 'profile-information-updated' || props.status === 'avatar-updated'"
+                            class="rounded-card bg-success-soft px-4 py-3 text-[15px] text-success-ink">Profil gespeichert.</p>
+
+                        <FormGroup>
+                            <FormRow as="label" label="Name">
+                                <input v-model="profileForm.name" type="text" required autocomplete="name" class="z-inline w-1/2" />
+                            </FormRow>
+                            <FormRow as="label" label="E-Mail">
+                                <input v-model="profileForm.email" type="email" required autocomplete="username" class="z-inline w-2/3" />
+                            </FormRow>
+                            <FormRow as="label" label="Wohnort">
+                                <input v-model="profileForm.location" type="text" placeholder="München" class="z-inline w-1/2" />
+                            </FormRow>
+                            <FormRow as="label" label="Geburtsjahr">
+                                <input v-model="profileForm.birth_year" type="number" inputmode="numeric" placeholder="1992" min="1940" :max="new Date().getFullYear() - 10" class="z-inline w-24" />
+                            </FormRow>
+                            <FormRow as="label" label="Lieblingsdistanz">
+                                <select v-model="profileForm.favorite_distance" class="z-inline appearance-none text-ink-3">
+                                    <option value="">Keine</option>
+                                    <option v-for="d in distanceOptions" :key="d" :value="d">{{ d }}</option>
+                                </select>
+                            </FormRow>
+                            <template #footer>
+                                <InputError :message="profileForm.errors.name || profileForm.errors.email || profileForm.errors.location || profileForm.errors.birth_year" />
+                            </template>
+                        </FormGroup>
+
+                        <FormGroup title="Über mich" :footer="`${(profileForm.bio ?? '').length} von 300 Zeichen`">
+                            <textarea v-model="profileForm.bio" rows="3" maxlength="300" placeholder="Erzähl etwas über dich als Athlet …"
+                                class="block w-full resize-none border-0 bg-transparent px-4 py-3 text-[17px] text-ink placeholder-ink-3 focus:outline-none focus:ring-0" />
+                        </FormGroup>
+                        <InputError :message="profileForm.errors.bio" />
+
+                        <p v-if="mustVerifyEmail && user.email_verified_at === null" class="rounded-card bg-warn-soft px-4 py-3 text-[15px] text-warn-ink">
+                            E-Mail noch nicht bestätigt.
+                            <Link :href="route('verification.send')" method="post" as="button" class="font-semibold underline">Erneut senden</Link>
+                        </p>
+
+                        <AppButton type="submit" block :loading="profileForm.processing">Sichern</AppButton>
+                    </form>
+
+                    <!-- ── MEIN COACH ── -->
+                    <template v-else-if="activeTab === 'coach'">
+                        <FormGroup title="Dein Coach" :footer="selectedCoach?.description">
+                            <button v-for="coach in coaches" :key="coach.id" type="button" role="radio"
+                                :aria-checked="selectedCoachId === coach.id" :disabled="coachSaving"
+                                class="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors active:bg-surface-2"
+                                @click="chooseCoach(coach.id)">
+                                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[15px] font-bold text-white"
+                                    :class="coachColors[coach.avatar_color]?.bg ?? 'bg-accent'">{{ coach.avatar_initials }}</span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-[17px] text-ink">{{ coach.name }} <span class="text-ink-3">· {{ specialtyLabels[coach.specialty] ?? coach.specialty }}</span></span>
+                                    <span class="block text-[13px] leading-snug text-ink-3">„{{ coach.tagline }}“</span>
+                                </span>
+                                <svg class="h-5 w-5 shrink-0 text-accent" :class="selectedCoachId === coach.id ? '' : 'invisible'"
+                                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                            </button>
+                        </FormGroup>
+                        <p v-if="coachSaved && savedCoachName" class="mx-4 -mt-5 text-[13px] text-success-ink">{{ savedCoachName }} ist jetzt dein Coach.</p>
+                    </template>
+
+                    <!-- ── ATHLETENPROFIL ── -->
+                    <template v-else-if="activeTab === 'athlete'">
+                        <form class="space-y-3" @submit.prevent="submitAthlete">
+                            <FormGroup title="Schwelle und Puls" footer="Schwellenpace: das Tempo, das du etwa 60 Minuten halten kannst.">
+                                <FormRow as="label" label="Schwellen-HF">
+                                    <input v-model="athleteForm.threshold_heart_rate" type="number" inputmode="numeric" min="100" max="220" placeholder="165" required class="z-inline w-16" />
+                                    <span class="text-[17px] text-ink-3">bpm</span>
+                                </FormRow>
+                                <FormRow as="label" label="Maximale HF">
+                                    <input v-model="athleteForm.max_heart_rate" type="number" inputmode="numeric" min="100" max="220" placeholder="195" required class="z-inline w-16" />
+                                    <span class="text-[17px] text-ink-3">bpm</span>
+                                </FormRow>
+                                <FormRow as="label" label="Schwellenpace">
+                                    <input v-model="athleteForm.threshold_speed" type="text" inputmode="numeric" placeholder="5:30" pattern="[0-9]{1,2}:[0-9]{2}" required class="z-inline w-16" />
+                                    <span class="text-[17px] text-ink-3">/km</span>
+                                </FormRow>
+                            </FormGroup>
+                            <InputError :message="athleteForm.errors.threshold_heart_rate || athleteForm.errors.max_heart_rate || athleteForm.errors.threshold_speed" />
+                            <p v-if="athleteSaved" class="mx-4 text-[13px] text-success-ink">Gespeichert, Zonen neu berechnet.</p>
+                            <AppButton type="submit" block :loading="athleteForm.processing">Sichern und Zonen berechnen</AppButton>
+                        </form>
+
+                        <FormGroup v-if="paceZones.length > 0" title="Laufzonen">
+                            <div v-for="(zone, idx) in paceZones" :key="idx" class="flex min-h-[48px] items-center gap-3 px-4 py-2">
+                                <span class="h-3 w-3 shrink-0 rounded-full" :class="zoneDots[idx]" />
+                                <span class="min-w-0 flex-1 truncate text-[17px] text-ink">{{ zoneNames[idx] }}</span>
+                                <span class="shrink-0 text-[17px] tabular-nums text-ink-3">{{ zoneRange(zone) }}</span>
                             </div>
+                            <template v-if="vdot" #footer>
+                                Nach Daniels aus VDOT {{ vdot.value.toFixed(1).replace('.', ',') }}, {{ vdot.label }}. Pace in min/km.
+                            </template>
+                        </FormGroup>
+                        <FormGroup v-else title="Laufzonen" plain>
+                            <p class="text-[15px] text-ink-3">Sichere Puls und Schwellenpace, dann berechnet Zone3 deine Zonen.</p>
+                        </FormGroup>
+
+                        <section class="space-y-3">
+                            <h2 class="mx-4 -mb-1.5 text-[13px] text-ink-3">Trainingsmodell · gilt ab dem nächsten Wochenplan</h2>
                             <TrainingModelFields v-model="modelForm" :readiness="props.norwegianReadiness" />
-                            <p v-if="modelNextLabel" class="rounded-field bg-accent-soft px-4 py-3 text-[13px] leading-relaxed text-accent-ink">
+                            <p v-if="modelNextLabel" class="rounded-card bg-accent-soft px-4 py-3 text-[15px] leading-snug text-accent-ink">
                                 Der Wechsel gilt ab {{ modelNextLabel }}. Bis dahin plant Zone3 die laufende Woche mit dem bisherigen Modell weiter.
                             </p>
-                            <p v-if="modelError" class="z-error">{{ modelError }}</p>
-                            <div class="flex items-center justify-end gap-3">
-                                <span v-if="modelSaved" class="inline-flex items-center gap-1 text-[13px] text-success-ink"><svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>Gespeichert</span>
-                                <button type="button" @click="saveModel" :disabled="modelSaving"
-                                    class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90 active:opacity-80 disabled:opacity-50 transition-colors">
-                                    <svg v-if="modelSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                    Modell speichern
-                                </button>
-                            </div>
-                        </div>
+                            <p v-if="modelError" class="z-error mx-4">{{ modelError }}</p>
+                            <p v-if="modelSaved" class="mx-4 text-[13px] text-success-ink">Gespeichert.</p>
+                            <AppButton block :loading="modelSaving" @click="saveModel">Modell sichern</AppButton>
+                        </section>
 
-                        <!-- Weekly availability -->
-                        <div class="border-t border-line pt-5 space-y-4">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <h3 class="text-sm font-semibold text-ink-2">Wöchentliche Verfügbarkeit</h3>
-                                    <p class="text-xs text-ink-3 mt-0.5">An welchen Tagen kannst du trainieren? Der KI-Plan respektiert diese Zeiten.</p>
-                                </div>
-                                <div v-if="availSaved" class="flex items-center gap-1.5 text-sm text-success-ink font-medium">
-                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                    Gespeichert
-                                </div>
-                            </div>
-
-                            <!-- Day toggles -->
-                            <div class="grid grid-cols-7 gap-1.5">
-                                <button
-                                    v-for="day in availabilityDays"
-                                    :key="day.key"
-                                    type="button"
-                                    @click="toggleAvailDay(day.key)"
-                                    class="flex flex-col items-center gap-1 rounded-field py-2.5 text-xs font-semibold transition-colors border"
-                                    :class="availability[day.key].available
-                                        ? 'bg-accent border-accent text-white'
-                                        : 'bg-surface-2 border-line text-ink-3'"
-                                >
-                                    {{ day.label }}
-                                </button>
-                            </div>
-
-                            <!-- Duration for active days -->
-                            <div class="space-y-2">
-                                <div
-                                    v-for="day in availabilityDays.filter(d => availability[d.key].available)"
-                                    :key="day.key"
-                                    class="space-y-2"
-                                >
-                                    <div class="flex items-center gap-3">
-                                    <span class="w-24 text-sm text-ink-2 shrink-0">{{ day.full }}</span>
-                                    <div class="flex flex-wrap gap-1.5">
-                                        <button
-                                            v-for="dur in durationOptions"
-                                            :key="dur"
-                                            type="button"
-                                            @click="availability[day.key].duration_min = dur"
-                                            class="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors border"
-                                            :class="availability[day.key].duration_min === dur
-                                                ? 'bg-accent border-accent text-white'
-                                                : 'bg-surface-2 border-line text-ink-3 hover:border-accent'"
-                                        >
-                                            {{ dur }} min
-                                        </button>
+                        <!-- Wochenraster -->
+                        <section class="space-y-3">
+                            <FormGroup title="Wann du trainieren kannst" :footer="`${availabilityDays.filter(d => availability[d.key].available).length} Tage · ${availabilityDays.reduce((s, d) => s + (availability[d.key].available ? (Number(availability[d.key].duration_min) || 0) : 0), 0)} min pro Woche. Der Plan hält sich an diese Zeiten.`">
+                                <template v-for="day in availabilityDays" :key="day.key">
+                                    <div class="px-4 py-2">
+                                        <div class="flex min-h-[32px] items-center gap-3">
+                                            <span class="flex-1 text-[17px]" :class="availability[day.key].available ? 'text-ink' : 'text-ink-3'">{{ day.full }}</span>
+                                            <span v-if="availability[day.key].fixed" class="truncate text-[15px] text-accent">{{ availability[day.key].fixed.label || 'Fester Termin' }}</span>
+                                            <Toggle :model-value="availability[day.key].available" :label="`${day.full} verfügbar`" @update:model-value="toggleAvailDay(day.key)" />
+                                        </div>
+                                        <div v-if="availability[day.key].available" class="mt-2 space-y-2 pb-1">
+                                            <SegmentedControl v-model="availability[day.key].duration_min"
+                                                :options="durationOptions.map(d => ({ value: d, label: d < 60 ? `${d}′` : `${d / 60 % 1 ? (d / 60).toLocaleString('de-DE') : d / 60} h` }))" />
+                                            <div class="flex flex-wrap gap-2">
+                                                <button type="button" @click="toggleFixed(day.key)"
+                                                    class="h-8 rounded-full px-3 text-[13px] font-semibold transition active:scale-[0.97]"
+                                                    :class="availability[day.key].fixed ? 'bg-accent-soft text-accent-ink' : 'bg-surface-2 text-ink-2'">
+                                                    {{ availability[day.key].fixed ? 'Fester Termin ✓' : '+ Fester Termin' }}
+                                                </button>
+                                                <button v-if="modelForm.training_model === 'norwegian'" type="button" @click="toggleSecond(day.key)"
+                                                    class="h-8 rounded-full px-3 text-[13px] font-semibold transition active:scale-[0.97]"
+                                                    :class="availability[day.key].second_min ? 'bg-accent-soft text-accent-ink' : 'bg-surface-2 text-ink-2'">
+                                                    {{ availability[day.key].second_min ? 'Abends ✓' : '+ Abends' }}
+                                                </button>
+                                            </div>
+                                            <SegmentedControl v-if="modelForm.training_model === 'norwegian' && availability[day.key].second_min"
+                                                v-model="availability[day.key].second_min"
+                                                :options="secondOptions.map(m => ({ value: m, label: `abends ${m}′` }))" />
+                                            <div v-if="availability[day.key].fixed" class="space-y-2 rounded-field bg-surface-2 p-3">
+                                                <div class="flex gap-2">
+                                                    <input v-model="availability[day.key].fixed.label" type="text" maxlength="40" placeholder="z. B. Laufclub"
+                                                        class="z-input min-w-0 flex-1 bg-surface py-2" />
+                                                    <select v-model="availability[day.key].fixed.type" class="z-input w-36 bg-surface py-2">
+                                                        <option v-for="t in fixedTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
+                                                    </select>
+                                                </div>
+                                                <p class="text-[13px] leading-snug text-ink-3">
+                                                    Dieser Tag wird nicht verplant. Die Einheit zählt als deine Qualitätseinheit der Woche, der Coach legt keine zweite daneben.
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
+                                </template>
+                            </FormGroup>
+                            <p v-if="availError" class="z-error mx-4">{{ availError }}</p>
+                            <p v-if="availSaved" class="mx-4 text-[13px] text-success-ink">Gespeichert.</p>
+                            <AppButton block :loading="availSaving" @click="saveAvailability">Zeiten sichern</AppButton>
+                        </section>
 
-                                    <button type="button" @click="toggleFixed(day.key)"
-                                        class="ml-auto shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors"
-                                        :class="availability[day.key].fixed
-                                            ? 'bg-accent-soft text-accent-ink'
-                                            : 'bg-surface-2 text-ink-3 hover:text-ink-2'">
-                                        {{ availability[day.key].fixed ? 'Fester Termin' : '+ Fester Termin' }}
-                                    </button>
-                                    </div>
-
-                                    <!-- Zweites Zeitfenster: nur im norwegischen Modell -->
-                                    <div v-if="modelForm.training_model === 'norwegian'" class="ml-24 flex flex-wrap items-center gap-1.5">
-                                        <button type="button" @click="toggleSecond(day.key)"
-                                            class="rounded-full px-3 py-1 text-xs font-medium transition-colors"
-                                            :class="availability[day.key].second_min ? 'bg-accent-soft text-accent-ink' : 'bg-surface-2 text-ink-3'">
-                                            {{ availability[day.key].second_min ? 'Abends' : '+ Abends' }}
-                                        </button>
-                                        <template v-if="availability[day.key].second_min">
-                                            <button v-for="m in secondOptions" :key="m" type="button"
-                                                @click="availability[day.key].second_min = m"
-                                                class="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors border"
-                                                :class="availability[day.key].second_min === m
-                                                    ? 'bg-accent border-accent text-white'
-                                                    : 'bg-surface-2 border-line text-ink-3'">
-                                                {{ m }} min
-                                            </button>
-                                        </template>
-                                    </div>
-
-                                    <!-- Fester Termin: der Tag ist belegt, der Inhalt kommt von außen -->
-                                    <div v-if="availability[day.key].fixed"
-                                        class="ml-24 flex flex-wrap items-center gap-2 rounded-field bg-surface-2 p-3">
-                                        <input
-                                            v-model="availability[day.key].fixed.label"
-                                            type="text"
-                                            maxlength="40"
-                                            placeholder="z.B. Laufclub"
-                                            class="z-input h-9 w-40 py-0 text-xs"
-                                        />
-                                        <select v-model="availability[day.key].fixed.type" class="z-input h-9 w-40 py-0 text-xs">
-                                            <option v-for="t in fixedTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
-                                        </select>
-                                        <button type="button" class="text-xs font-medium text-danger hover:underline"
-                                            @click="toggleFixed(day.key)">entfernen</button>
-                                        <p class="w-full text-[11px] leading-relaxed text-ink-3">
-                                            Dieser Tag wird nicht verplant. Die Einheit zählt als deine wöchentliche
-                                            Qualitätseinheit — der Coach legt dann keine zweite daneben.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <p v-if="availError" class="z-error">{{ availError }}</p>
-
-                            <!-- Summary + save -->
-                            <div class="flex items-center justify-between pt-1">
-                                <p class="text-xs text-ink-3">
-                                    {{ availabilityDays.filter(d => availability[d.key].available).length }} Tage ·
-                                    {{ availabilityDays.reduce((s, d) => s + (availability[d.key].available ? availability[d.key].duration_min : 0), 0) }} Min/Woche
-                                </p>
-                                <button
-                                    type="button"
-                                    @click="saveAvailability"
-                                    :disabled="availSaving"
-                                    class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-card"
-                                >
-                                    <svg v-if="availSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                    Verfügbarkeit speichern
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Strength & core -->
-                        <div class="border-t border-line pt-5">
-                            <div class="flex items-center justify-between mb-3">
-                                <div>
-                                    <h3 class="text-sm font-semibold text-ink-2">Kraft & Core</h3>
-                                    <p class="text-xs text-ink-3 mt-0.5">Ergänzendes Kraft-/Rumpftraining im Plan</p>
-                                </div>
-                                <button type="button" @click="strength.strength_enabled = !strength.strength_enabled"
-                                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0"
-                                    :class="strength.strength_enabled ? 'bg-danger' : 'bg-surface-3'">
-                                    <span class="inline-block h-4 w-4 transform rounded-full bg-surface transition-transform"
-                                        :class="strength.strength_enabled ? 'translate-x-6' : 'translate-x-1'"></span>
-                                </button>
-                            </div>
-
-                            <template v-if="strength.strength_enabled">
-                                <label class="block text-xs font-medium text-ink-3 mb-1.5">Equipment <span class="text-ink-3 font-normal">(Mehrfachauswahl)</span></label>
-                                <div class="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
-                                    <button v-for="opt in equipmentOptions" :key="opt.value" type="button" @click="toggleStrengthEquipment(opt.value)"
-                                        class="py-2.5 px-2 rounded-field border-2 transition text-center"
-                                        :class="strength.strength_equipment.includes(opt.value)
-                                            ? 'bg-accent-soft border-danger text-danger-ink'
-                                            : 'border-line text-ink-2 hover:border-danger'">
-                                        <div class="text-lg mb-0.5">{{ opt.icon }}</div>
-                                        <div class="text-[11px] font-semibold">{{ opt.label }}</div>
-                                    </button>
-                                </div>
-                                <div class="grid grid-cols-2 gap-3 mb-4">
-                                    <div>
-                                        <label class="block text-xs font-medium text-ink-3 mb-1.5">Einheiten / Woche</label>
-                                        <select v-model.number="strength.strength_days_per_week" :class="inputClass">
+                        <!-- Kraft & Core -->
+                        <section class="space-y-3">
+                            <FormGroup title="Kraft und Rumpf">
+                                <FormRow label="Im Plan" hint="Ergänzendes Kraft- und Rumpftraining">
+                                    <Toggle v-model="strength.strength_enabled" label="Kraft und Rumpf im Plan" />
+                                </FormRow>
+                                <template v-if="strength.strength_enabled">
+                                    <FormRow as="label" label="Pro Woche">
+                                        <select v-model.number="strength.strength_days_per_week" class="z-inline appearance-none text-ink-3">
                                             <option v-for="n in 4" :key="n" :value="n">{{ n }}×</option>
                                         </select>
-                                    </div>
-                                    <div>
-                                        <label class="block text-xs font-medium text-ink-3 mb-1.5">Erfahrung</label>
-                                        <select v-model="strength.strength_experience" :class="inputClass">
+                                    </FormRow>
+                                    <FormRow as="label" label="Erfahrung">
+                                        <select v-model="strength.strength_experience" class="z-inline appearance-none text-ink-3">
                                             <option value="beginner">Anfänger</option>
                                             <option value="intermediate">Mittel</option>
                                             <option value="advanced">Fortgeschritten</option>
                                         </select>
-                                    </div>
-                                </div>
+                                    </FormRow>
+                                    <FormRow label="Ausrüstung" stacked>
+                                        <div class="flex flex-wrap gap-2">
+                                            <button v-for="opt in equipmentOptions" :key="opt.value" type="button" @click="toggleStrengthEquipment(opt.value)"
+                                                class="h-8 rounded-full px-3 text-[15px] font-semibold transition active:scale-[0.97]"
+                                                :class="strength.strength_equipment.includes(opt.value) ? 'bg-accent text-white' : 'bg-surface-2 text-ink-2'">
+                                                {{ opt.label }}
+                                            </button>
+                                        </div>
+                                    </FormRow>
+                                </template>
+                            </FormGroup>
+                            <p v-if="strengthSaved" class="mx-4 text-[13px] text-success-ink">Gespeichert.</p>
+                            <AppButton block :loading="strengthSaving" @click="saveStrength">Kraft sichern</AppButton>
+                        </section>
+                    </template>
+
+                    <!-- ── BENACHRICHTIGUNGEN ── -->
+                    <template v-else-if="activeTab === 'notifications'">
+                        <FormGroup title="Auf diesem Gerät">
+                            <FormRow v-if="!pushSupported" label="Push" hint="Dieser Browser unterstützt keine Mitteilungen. Auf dem iPhone geht es nur aus der Homescreen-App." />
+                            <template v-else>
+                                <FormRow label="Mitteilungen" :hint="pushPermission === 'denied' ? 'Im Browser blockiert' : (pushSubscribed ? 'Aktiv auf diesem Gerät' : 'Aus')">
+                                    <svg v-if="pushLoading" class="h-5 w-5 animate-spin text-ink-3" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                    <Toggle :model-value="pushSubscribed" label="Mitteilungen auf diesem Gerät" :disabled="pushLoading || pushPermission === 'denied'"
+                                        @update:model-value="v => v ? subscribePush() : unsubscribePush()" />
+                                </FormRow>
+                                <button v-if="pushSubscribed" type="button" class="flex min-h-[48px] w-full items-center px-4 text-[17px] text-accent active:bg-surface-2" @click="sendTestPush">
+                                    {{ pushTestSent ? 'Gesendet' : 'Test-Mitteilung senden' }}
+                                </button>
                             </template>
+                            <template v-if="pushError" #footer><span class="text-danger">{{ pushError }}</span></template>
+                        </FormGroup>
 
-                            <div class="flex items-center justify-end gap-3">
-                                <span v-if="strengthSaved" class="inline-flex items-center gap-1 text-[13px] text-success-ink"><svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>Gespeichert</span>
-                                <button type="button" @click="saveStrength" :disabled="strengthSaving"
-                                    class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-card">
-                                    <svg v-if="strengthSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                    Kraft speichern
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </template>
+                        <FormGroup title="Was Zone3 meldet" :footer="notifSaved ? 'Gespeichert.' : null">
+                            <FormRow as="label" label="Tagesform-Erinnerung">
+                                <input v-model="notifSettings.wellbeing_reminder_time" type="time" class="z-inline w-28" @change="saveNotifSettings" />
+                            </FormRow>
+                            <FormRow label="Schwellenpace neu berechnet">
+                                <Toggle :model-value="notifSettings.notify_threshold_pace" label="Schwellenpace neu berechnet" @update:model-value="v => setNotif('notify_threshold_pace', v)" />
+                            </FormRow>
+                            <FormRow label="Plan aktualisiert">
+                                <Toggle :model-value="notifSettings.notify_plan_updated" label="Plan aktualisiert" @update:model-value="v => setNotif('notify_plan_updated', v)" />
+                            </FormRow>
+                            <FormRow label="Monatsrückblick" hint="Am Monatsanfang per Push und E-Mail">
+                                <Toggle :model-value="notifSettings.notify_monthly_review" label="Monatsrückblick" @update:model-value="v => setNotif('notify_monthly_review', v)" />
+                            </FormRow>
+                        </FormGroup>
 
-                <!-- ── BENACHRICHTIGUNGEN ── -->
-                <template v-else-if="activeTab === 'notifications'">
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line">
-                        <h2 class="text-base font-semibold text-ink">Web Push Benachrichtigungen</h2>
-                        <p class="mt-0.5 text-sm text-ink-3">Erhalte Hinweise direkt im Browser — auch wenn die App nicht geöffnet ist</p>
-                    </div>
-                    <div class="p-4 sm:p-6 space-y-5">
-                        <div v-if="!pushSupported" class="rounded-field bg-surface-2 px-4 py-3 text-sm text-ink-3">Dein Browser unterstützt keine Push-Benachrichtigungen.</div>
-                        <template v-else>
-                            <div v-if="pushPermission === 'denied'" class="rounded-field bg-danger-soft border border-danger/25 px-4 py-3 text-sm text-danger-ink">Benachrichtigungen sind in deinem Browser blockiert.</div>
-                            <div class="flex items-center justify-between gap-4 p-4 rounded-card bg-surface-2">
-                                <div>
-                                    <p class="text-sm font-semibold text-ink">{{ pushSubscribed ? 'Push aktiv' : 'Push deaktiviert' }}</p>
-                                    <p class="text-xs text-ink-3 mt-0.5">{{ pushSubscribed ? 'Du erhältst Benachrichtigungen auf diesem Gerät' : 'Noch keine Benachrichtigungen auf diesem Gerät' }}</p>
-                                </div>
-                                <button @click="pushSubscribed ? unsubscribePush() : subscribePush()" :disabled="pushLoading || pushPermission === 'denied'" class="shrink-0 inline-flex items-center gap-2 rounded-field px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50" :class="pushSubscribed ? 'bg-surface-3 text-ink-2 hover:bg-danger-soft hover:text-danger' : 'bg-accent text-white hover:opacity-90'">
-                                    <svg v-if="pushLoading" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                    {{ pushSubscribed ? 'Deaktivieren' : 'Aktivieren' }}
-                                </button>
-                            </div>
-                            <div v-if="pushSubscribed" class="flex items-center gap-3">
-                                <button @click="sendTestPush" class="inline-flex items-center gap-2 rounded-field bg-surface-2 text-ink-2 hover:bg-surface-3 px-3 py-2 text-sm font-medium transition-colors">
-                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" /></svg>
-                                    Test-Benachrichtigung
-                                </button>
-                                <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
-                                    <span v-if="pushTestSent" class="text-sm text-success-ink font-medium">Gesendet</span>
-                                </Transition>
-                            </div>
-                            <p v-if="pushError" class="text-sm text-danger-ink">{{ pushError }}</p>
-                        </template>
-                    </div>
+                        <FormGroup title="Newsletter" :footer="newsletterSaved ? 'Gespeichert.' : `Gelegentlich Neuigkeiten und Trainingstipps an ${user.email}.`">
+                            <FormRow label="Newsletter">
+                                <Toggle :model-value="newsletterOptIn" label="Newsletter" :disabled="newsletterSaving"
+                                    @update:model-value="v => { newsletterOptIn = v; toggleNewsletter(); }" />
+                            </FormRow>
+                        </FormGroup>
+                    </template>
 
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-t border-b border-line">
-                        <h2 class="text-base font-semibold text-ink">Einstellungen</h2>
-                    </div>
-                    <div class="p-4 sm:p-6 space-y-5">
-                        <div class="flex items-start justify-between gap-4">
-                            <div class="flex-1">
-                                <p class="text-sm font-medium text-ink">Tagesform-Erinnerung</p>
-                                <p class="text-xs text-ink-3 mt-0.5">Uhrzeit für die tägliche Erinnerung</p>
-                            </div>
-                            <input v-model="notifSettings.wellbeing_reminder_time" type="time" class="shrink-0 rounded-field bg-surface px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
-                        </div>
-                        <div class="flex items-center justify-between gap-4">
-                            <div class="flex-1">
-                                <p class="text-sm font-medium text-ink">Schwellenpace aktualisiert</p>
-                                <p class="text-xs text-ink-3 mt-0.5">Bei KI-Neuberechnung deiner Pace</p>
-                            </div>
-                            <button @click="notifSettings.notify_threshold_pace = !notifSettings.notify_threshold_pace" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none" :class="notifSettings.notify_threshold_pace ? 'bg-accent' : 'bg-surface-3'">
-                                <span class="inline-block h-5 w-5 transform rounded-full bg-surface shadow transition duration-200" :class="notifSettings.notify_threshold_pace ? 'translate-x-5' : 'translate-x-0'" />
-                            </button>
-                        </div>
-                        <div class="flex items-center justify-between gap-4">
-                            <div class="flex-1">
-                                <p class="text-sm font-medium text-ink">KI-Plan aktualisiert</p>
-                                <p class="text-xs text-ink-3 mt-0.5">Wenn dein Trainingsplan neu berechnet wurde</p>
-                            </div>
-                            <button @click="notifSettings.notify_plan_updated = !notifSettings.notify_plan_updated" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none" :class="notifSettings.notify_plan_updated ? 'bg-accent' : 'bg-surface-3'">
-                                <span class="inline-block h-5 w-5 transform rounded-full bg-surface shadow transition duration-200" :class="notifSettings.notify_plan_updated ? 'translate-x-5' : 'translate-x-0'" />
-                            </button>
-                        </div>
-                        <div class="flex items-center justify-between gap-4">
-                            <div class="flex-1">
-                                <p class="text-sm font-medium text-ink">Monatsrückblick</p>
-                                <p class="text-xs text-ink-3 mt-0.5">Am Monatsanfang per Push &amp; E-Mail mit deinen Fakten</p>
-                            </div>
-                            <button @click="notifSettings.notify_monthly_review = !notifSettings.notify_monthly_review" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none" :class="notifSettings.notify_monthly_review ? 'bg-accent' : 'bg-surface-3'">
-                                <span class="inline-block h-5 w-5 transform rounded-full bg-surface shadow transition duration-200" :class="notifSettings.notify_monthly_review ? 'translate-x-5' : 'translate-x-0'" />
-                            </button>
-                        </div>
-                        <div class="flex items-center gap-3 pt-2">
-                            <button @click="saveNotifSettings" :disabled="notifSaving" class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors">
-                                <svg v-if="notifSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                Einstellungen speichern
-                            </button>
-                            <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
-                                <span v-if="notifSaved" class="text-sm text-success-ink font-medium">Gespeichert</span>
-                            </Transition>
-                        </div>
-                    </div>
-
-                    <!-- Newsletter -->
-                    <div class="px-4 sm:px-6 pt-5 pb-5 border-t border-line space-y-3">
-                        <div>
-                            <h3 class="text-sm font-semibold text-ink">Newsletter</h3>
-                            <p class="text-xs text-ink-3 mt-0.5">
-                                Gelegentliche Updates, Trainingstipps und Zone3-Neuigkeiten per E-Mail.
-                            </p>
-                        </div>
-                        <div class="flex items-center justify-between gap-4">
-                            <div class="flex-1">
-                                <p class="text-sm font-medium text-ink">Newsletter abonnieren</p>
-                                <p class="text-xs text-ink-3 mt-0.5">
-                                    An <span class="font-medium">{{ user.email }}</span>
-                                </p>
-                            </div>
-                            <div class="flex items-center gap-3">
-                                <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
-                                    <span v-if="newsletterSaved" class="text-xs text-success-ink font-medium">Gespeichert</span>
-                                </Transition>
-                                <button
-                                    @click="newsletterOptIn = !newsletterOptIn; toggleNewsletter()"
-                                    :disabled="newsletterSaving"
-                                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50"
-                                    :class="newsletterOptIn ? 'bg-accent' : 'bg-surface-3'"
-                                >
-                                    <span class="inline-block h-5 w-5 transform rounded-full bg-surface shadow transition duration-200"
-                                        :class="newsletterOptIn ? 'translate-x-5' : 'translate-x-0'" />
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </template>
-
-                <!-- ── VERBINDUNGEN ── -->
-                <template v-else-if="activeTab === 'connections'">
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line">
-                        <h2 class="text-base font-semibold text-ink">Verbindungen</h2>
-                        <p class="mt-0.5 text-sm text-ink-3">Drittanbieter-Dienste mit Zone3 verbinden</p>
-                    </div>
-                    <div class="p-4 sm:p-6 space-y-4">
-
-                        <!-- Strava Card (umgezogen von Security) -->
-                        <div class="rounded-card bg-surface-2 overflow-hidden">
-                            <div class="flex items-center justify-between gap-4 px-4 py-4">
-                                <div class="flex items-center gap-3">
-                                    <div class="h-10 w-10 rounded-field flex items-center justify-center shrink-0"
-                                        :class="props.stravaConnected ? 'bg-warn-soft' : 'bg-surface-2'">
-                                        <svg class="h-6 w-6" :class="props.stravaConnected ? 'text-warn' : 'text-ink-3'" viewBox="0 0 24 24" fill="currentColor">
-                                            <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <p class="text-sm font-semibold text-ink">Strava</p>
-                                        <p v-if="props.stravaConnected" class="text-xs text-success-ink mt-0.5">Verbunden · {{ props.stravaAccount?.username }}</p>
-                                        <p v-else class="text-xs text-ink-3 mt-0.5">Nicht verbunden</p>
-                                    </div>
-                                </div>
-                                <div class="flex gap-2 shrink-0">
-                                    <button v-if="props.stravaConnected" @click="confirmStravaDisconnect = true"
-                                        class="rounded-field border border-danger/25 px-3 py-1.5 text-xs font-semibold text-danger-ink hover:bg-danger-soft transition-colors">
-                                        Trennen
-                                    </button>
-                                    <Link v-else href="/strava/connect"
-                                        class="rounded-field bg-warn px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-colors">
-                                        Verbinden
-                                    </Link>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Garmin Connect Card -->
-                        <div class="rounded-card bg-surface-2 overflow-hidden">
-                            <div class="flex items-center justify-between gap-4 px-4 py-4">
-                                <div class="flex items-center gap-3">
-                                    <div class="h-10 w-10 rounded-field flex items-center justify-center shrink-0"
-                                        :class="garminLinked ? 'bg-info-soft' : 'bg-surface-2'">
-                                        <svg class="h-6 w-6" :class="garminLinked ? 'text-info' : 'text-ink-3'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                            <rect x="7" y="6" width="10" height="12" rx="2" />
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 6l.5-2.5h5L15 6M9 18l.5 2.5h5L15 18" />
-                                            <circle cx="12" cy="12" r="2.2" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <p class="text-sm font-semibold text-ink">Garmin Connect</p>
-                                        <template v-if="props.garminOfficial.available">
-                                            <p v-if="garminOfficialConnection && garminGranted" class="text-xs text-success-ink mt-0.5">Verbunden · {{ garminGranted }}</p>
-                                            <p v-else-if="garminOfficialConnection" class="text-xs text-warn-ink mt-0.5">Verbunden · keine Daten freigegeben</p>
-                                            <p v-else class="text-xs text-ink-3 mt-0.5">Nicht verbunden</p>
-                                        </template>
-                                        <p v-else class="text-xs text-ink-3 mt-0.5">Auf diesem Server nicht eingerichtet</p>
-                                    </div>
-                                </div>
-                                <div class="flex gap-2 shrink-0">
-                                    <template v-if="props.garminOfficial.available">
-                                        <button v-if="garminOfficialConnection" @click="disconnectGarminOfficial" :disabled="garminOAuthBusy"
-                                            class="rounded-field border border-danger/25 px-3 py-1.5 text-xs font-semibold text-danger-ink hover:bg-danger-soft active:opacity-60 transition-colors disabled:opacity-50">
-                                            {{ garminOAuthBusy ? 'Trenne…' : 'Trennen' }}
-                                        </button>
-                                        <button v-else @click="showGarminForm = !showGarminForm"
-                                            class="rounded-field bg-info px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 active:opacity-60 transition-colors">
-                                            Verbinden
-                                        </button>
-                                    </template>
-                                </div>
+                    <!-- ── VERBINDUNGEN ── -->
+                    <template v-else-if="activeTab === 'connections'">
+                        <FormGroup title="Dienste">
+                            <!-- Strava -->
+                            <div class="flex min-h-[60px] items-center gap-3 px-4 py-2">
+                                <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-warn text-white">
+                                    <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" /></svg>
+                                </span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-[17px] text-ink">Strava</span>
+                                    <span class="block truncate text-[13px] text-ink-3">{{ props.stravaConnected ? `Verbunden als ${props.stravaAccount?.username ?? '–'}` : 'Nicht verbunden' }}</span>
+                                </span>
+                                <button v-if="props.stravaConnected" type="button" class="shrink-0 text-[17px] text-danger active:opacity-60" @click="confirmStravaDisconnect = true">Trennen</button>
+                                <Link v-else href="/strava/connect" class="shrink-0 text-[17px] text-accent active:opacity-60">Verbinden</Link>
                             </div>
 
-                            <!-- Offizielle Verbindung: Einwilligung, dann weiter zu Garmin -->
-                            <template v-if="props.garminOfficial.available">
-                                <div v-if="showGarminForm && !garminOfficialConnection" class="border-t border-line p-4 space-y-3">
-                                    <label class="flex items-start gap-3 text-xs leading-relaxed text-ink-2">
-                                        <input v-model="garminConsent" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 rounded border-line text-info focus:ring-info/40" />
-                                        <span>
-                                            Ich willige ein, dass Zone3 meine Garmin-Daten für Plan, Auswertungen und Coach
-                                            an OpenAI übermittelt. Die Daten werden nicht zum Training von KI-Modellen verwendet.
-                                            Widerruf jederzeit durch Trennen.
-                                            <Link :href="route('privacy')" class="text-accent">Datenschutz</Link>
-                                        </span>
-                                    </label>
-                                    <div class="flex items-center gap-3">
-                                        <button @click="connectGarminOfficial" :disabled="!garminConsent || garminOAuthBusy"
-                                            class="rounded-field bg-info px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 active:scale-[0.98] disabled:opacity-50 transition">
-                                            Weiter zu Garmin
-                                        </button>
-                                        <button @click="showGarminForm = false" class="text-xs font-medium text-ink-3 hover:underline active:opacity-60">Abbrechen</button>
-                                    </div>
-                                    <p class="text-xs text-ink-3 leading-relaxed">
-                                        Die Anmeldung läuft direkt bei Garmin, Zone3 sieht dein Passwort nie.
-                                        Aktiviere dort alle Freigaben, sonst kommen keine Daten an.
-                                    </p>
-                                </div>
-
-                                <div v-if="garminOfficialConnection?.workouts" class="border-t border-line px-4 py-3 flex items-center justify-between gap-4">
-                                    <div>
-                                        <p class="text-sm font-medium text-ink">Plan automatisch auf die Uhr</p>
-                                        <p class="text-xs text-ink-3 mt-0.5 leading-relaxed">
-                                            Die Läufe der nächsten 7 Tage stehen im Garmin-Kalender und ziehen nach, wenn sich der Plan ändert.
-                                            Vereinstermine und Radeinheiten nicht.
-                                        </p>
-                                    </div>
-                                    <button @click="toggleGarminWorkoutSync" role="switch" :aria-checked="garminWorkoutSync"
-                                        class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none"
-                                        :class="garminWorkoutSync ? 'bg-accent' : 'bg-surface-3'">
-                                        <span class="inline-block h-5 w-5 transform rounded-full bg-surface shadow transition duration-200" :class="garminWorkoutSync ? 'translate-x-5' : 'translate-x-0'" />
-                                    </button>
-                                </div>
-
-                                <div v-if="garminOfficialConnection && (!garminGranted || garminOfficialConnection.refresh_error)" class="border-t border-line px-4 py-3">
-                                    <p v-if="garminOfficialConnection.refresh_error" class="text-xs text-danger-ink">
-                                        Garmin nimmt die Verbindung nicht mehr an. Bitte trennen und neu verbinden.
-                                    </p>
-                                    <p v-else class="text-xs text-ink-3 leading-relaxed">
-                                        Garmin hat Zone3 keine Daten freigegeben. In der Garmin Connect App unter
-                                        Einstellungen → Verbundene Apps → Zone3 die Schalter einschalten, oder hier trennen
-                                        und beim erneuten Verbinden alle Freigaben aktivieren.
-                                    </p>
-                                </div>
-
-                                <div v-if="props.garminOfficial.status" class="border-t border-line px-4 py-3">
-                                    <p class="text-xs" :class="props.garminOfficial.status.type === 'error' ? 'text-danger-ink' : 'text-success-ink'">
-                                        {{ props.garminOfficial.status.message }}
-                                    </p>
-                                </div>
-                            </template>
-
-                        </div>
-
-                        <!-- Aktivitäten kommen von: nur wenn beide liefern können -->
-                        <div v-if="activitySourceChoosable" class="rounded-card bg-surface-2 px-4 py-4 space-y-2">
-                            <p class="text-sm font-semibold text-ink">Aktivitäten kommen von</p>
-                            <SegmentedControl v-model="activitySourceValue" :options="activitySourceOptions" />
-                            <p class="text-[13px] text-ink-3 leading-relaxed">
-                                Neue Läufe kommen nur aus dieser Quelle, damit nichts doppelt im Plan steht.
-                                Lädt die Uhr zu beiden hoch, wird dieselbe Einheit zusammengeführt.
-                                Bisherige Aktivitäten bleiben, wie sie sind.
-                            </p>
-                        </div>
-
-                        <!-- Telegram: der Coach meldet sich dort -->
-                        <div v-if="props.telegram.available" class="rounded-card bg-surface-2 overflow-hidden">
-                            <div class="flex items-center justify-between gap-4 px-4 py-4">
-                                <div class="flex items-center gap-3">
-                                    <div class="h-10 w-10 rounded-field flex items-center justify-center shrink-0"
-                                        :class="props.telegram.linked ? 'bg-info-soft' : 'bg-surface-2'">
-                                        <svg class="h-6 w-6" :class="props.telegram.linked ? 'text-info' : 'text-ink-3'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 4L3 11l6 2.5M21 4l-3.5 16-8.5-6.5M21 4L9 13.5v5.5l3-3.5" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <p class="text-sm font-semibold text-ink">Telegram</p>
-                                        <p v-if="props.telegram.linked" class="text-xs text-success-ink mt-0.5">Verbunden · dein Coach schreibt dir dort</p>
-                                        <p v-else class="text-xs text-ink-3 mt-0.5">Briefing, Reviews und Vorschläge direkt im Chat</p>
-                                    </div>
-                                </div>
-                                <div class="flex gap-2 shrink-0">
-                                    <button v-if="props.telegram.linked" @click="unlinkTelegram" :disabled="telegramForm.processing"
-                                        class="rounded-field border border-danger/25 px-3 py-1.5 text-xs font-semibold text-danger-ink hover:bg-danger-soft active:bg-danger-soft transition-colors disabled:opacity-50">
-                                        Trennen
-                                    </button>
-                                    <button v-else @click="linkTelegram" :disabled="telegramForm.processing"
-                                        class="rounded-field bg-info px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 active:opacity-80 transition-colors disabled:opacity-50">
-                                        Verbinden
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Kalender-Abo: Plan und Rennen im iPhone-/Google-Kalender -->
-                        <div class="rounded-card bg-surface-2 overflow-hidden">
-                            <div class="flex items-center justify-between gap-4 px-4 py-4">
-                                <div class="flex items-center gap-3">
-                                    <div class="h-10 w-10 rounded-field flex items-center justify-center shrink-0"
-                                        :class="props.calendarFeed ? 'bg-info-soft' : 'bg-surface-2'">
-                                        <svg class="h-6 w-6" :class="props.calendarFeed ? 'text-info' : 'text-ink-3'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <p class="text-sm font-semibold text-ink">Kalender</p>
-                                        <p v-if="props.calendarFeed" class="text-xs text-success-ink mt-0.5">Abo aktiv · Einheiten und Rennen</p>
-                                        <p v-else class="text-xs text-ink-3 mt-0.5">Plan und Rennen im iPhone- oder Google-Kalender</p>
-                                    </div>
-                                </div>
-                                <div class="flex gap-2 shrink-0">
-                                    <button v-if="props.calendarFeed" @click="removeCalendarFeed" :disabled="calendarForm.processing"
-                                        class="rounded-field border border-danger/25 px-3 py-1.5 text-xs font-semibold text-danger-ink hover:bg-danger-soft active:bg-danger-soft transition-colors disabled:opacity-50">
-                                        Abschalten
-                                    </button>
-                                    <button v-else @click="createCalendarFeed" :disabled="calendarForm.processing"
-                                        class="rounded-field bg-info px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 active:opacity-80 transition-colors disabled:opacity-50">
-                                        Einrichten
-                                    </button>
-                                </div>
-                            </div>
-                            <div v-if="props.calendarFeed" class="border-t border-line px-4 py-3 space-y-3">
-                                <div class="flex flex-wrap gap-2">
-                                    <a :href="props.calendarFeed.webcal"
-                                        class="rounded-field bg-info px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 active:opacity-80 transition-colors">
-                                        Im Kalender abonnieren
-                                    </a>
-                                    <button type="button" @click="copyCalendarUrl"
-                                        class="rounded-field bg-surface px-3 py-1.5 text-xs font-semibold text-ink hover:opacity-90 active:opacity-70 transition-colors">
-                                        {{ calendarCopied ? 'Kopiert' : 'Adresse kopieren' }}
-                                    </button>
-                                </div>
-                                <p class="text-xs text-ink-3">
-                                    Ganztägige Termine, ohne Ruhetage. Google Kalender: „Andere Kalender → Per URL" und die Adresse einfügen; Google aktualisiert nur alle paar Stunden.
-                                    Wer die Adresse hat, sieht deinen Plan.
-                                </p>
-                                <div class="text-xs">
-                                    <button v-if="!confirmCalendarRenew" type="button" @click="confirmCalendarRenew = true"
-                                        class="font-semibold text-accent active:opacity-60">Neue Adresse erzeugen</button>
-                                    <span v-else class="inline-flex flex-wrap items-center gap-3">
-                                        <span class="text-ink-2">Die alte Adresse funktioniert danach nicht mehr.</span>
-                                        <button type="button" @click="createCalendarFeed" :disabled="calendarForm.processing"
-                                            class="font-semibold text-danger-ink active:opacity-60 disabled:opacity-50">Erzeugen</button>
-                                        <button type="button" @click="confirmCalendarRenew = false"
-                                            class="font-semibold text-ink-3 active:opacity-60">Abbrechen</button>
+                            <!-- Garmin -->
+                            <div class="flex min-h-[60px] items-center gap-3 px-4 py-2">
+                                <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-ink text-canvas">
+                                    <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="7" y="6" width="10" height="12" rx="2" /><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l.5-2.5h5L15 6M9 18l.5 2.5h5L15 18" /></svg>
+                                </span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-[17px] text-ink">Garmin Connect</span>
+                                    <span class="block text-[13px] leading-snug"
+                                        :class="garminOfficialConnection && !garminGranted ? 'text-warn-ink' : 'text-ink-3'">
+                                        <template v-if="!props.garminOfficial.available">Auf diesem Server nicht eingerichtet</template>
+                                        <template v-else-if="garminOfficialConnection && garminGranted">Verbunden · {{ garminGranted }}</template>
+                                        <template v-else-if="garminOfficialConnection">Verbunden, aber keine Daten freigegeben</template>
+                                        <template v-else>Nicht verbunden</template>
                                     </span>
-                                </div>
+                                </span>
+                                <template v-if="props.garminOfficial.available">
+                                    <button v-if="garminOfficialConnection" type="button" :disabled="garminOAuthBusy" class="shrink-0 text-[17px] text-danger active:opacity-60 disabled:opacity-40" @click="disconnectGarminOfficial">
+                                        {{ garminOAuthBusy ? 'Trenne …' : 'Trennen' }}
+                                    </button>
+                                    <button v-else type="button" class="shrink-0 text-[17px] text-accent active:opacity-60" @click="showGarminForm = !showGarminForm">Verbinden</button>
+                                </template>
                             </div>
-                        </div>
+                            <div v-if="props.garminOfficial.available && showGarminForm && !garminOfficialConnection" class="space-y-3 px-4 py-3">
+                                <label class="flex items-start gap-3 text-[15px] leading-snug text-ink-2">
+                                    <input v-model="garminConsent" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 rounded-md border-line-strong text-accent focus:ring-accent/40" />
+                                    <span>
+                                        Ich willige ein, dass Zone3 meine Garmin-Daten für Plan, Auswertungen und Coach an OpenAI übermittelt.
+                                        Die Daten werden nicht zum Training von KI-Modellen verwendet. Widerruf jederzeit durch Trennen.
+                                        <Link :href="route('privacy')" class="text-accent">Datenschutz</Link>
+                                    </span>
+                                </label>
+                                <AppButton block :disabled="!garminConsent" :loading="garminOAuthBusy" @click="connectGarminOfficial">Weiter zu Garmin</AppButton>
+                                <p class="text-[13px] leading-snug text-ink-3">
+                                    Die Anmeldung läuft direkt bei Garmin, Zone3 sieht dein Passwort nie. Aktiviere dort alle Freigaben, sonst kommen keine Daten an.
+                                </p>
+                            </div>
+                            <FormRow v-if="garminOfficialConnection?.workouts" label="Plan auf die Uhr"
+                                hint="Die Läufe der nächsten 7 Tage stehen im Garmin-Kalender und ziehen nach, wenn sich der Plan ändert. Vereinstermine und Rad nicht.">
+                                <Toggle :model-value="garminWorkoutSync" label="Plan automatisch auf die Uhr" @update:model-value="toggleGarminWorkoutSync" />
+                            </FormRow>
+                            <p v-if="garminOfficialConnection && (!garminGranted || garminOfficialConnection.refresh_error)" class="px-4 py-3 text-[13px] leading-snug"
+                                :class="garminOfficialConnection.refresh_error ? 'text-danger' : 'text-ink-3'">
+                                <template v-if="garminOfficialConnection.refresh_error">Garmin nimmt die Verbindung nicht mehr an. Bitte trennen und neu verbinden.</template>
+                                <template v-else>Garmin hat Zone3 keine Daten freigegeben. In der Garmin Connect App unter Einstellungen → Verbundene Apps → Zone3 die Schalter einschalten, oder hier trennen und beim erneuten Verbinden alle Freigaben aktivieren.</template>
+                            </p>
+                            <p v-if="props.garminOfficial.status" class="px-4 py-3 text-[13px]"
+                                :class="props.garminOfficial.status.type === 'error' ? 'text-danger' : 'text-success-ink'">{{ props.garminOfficial.status.message }}</p>
 
-                        <!-- Rad / Zwift: lockere Läufe ersetzen, eigene Radintervalle -->
-                        <div class="rounded-card bg-surface-2 p-4 space-y-4">
-                            <div>
-                                <p class="text-sm font-semibold text-ink">Rad / Zwift</p>
-                                <p class="text-xs text-ink-3 mt-0.5">Zwift-Fahrten kommen über Strava. Hier legst du fest, ob der Plan Radeinheiten vorsieht.</p>
+                            <!-- Telegram -->
+                            <div v-if="props.telegram.available" class="flex min-h-[60px] items-center gap-3 px-4 py-2">
+                                <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-info text-white">
+                                    <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 4L3 11l6 2.5M21 4l-3.5 16-8.5-6.5M21 4L9 13.5v5.5l3-3.5" /></svg>
+                                </span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-[17px] text-ink">Telegram</span>
+                                    <span class="block text-[13px] leading-snug text-ink-3">{{ props.telegram.linked ? 'Verbunden · dein Coach schreibt dir dort' : 'Briefing, Reviews und Vorschläge im Chat' }}</span>
+                                </span>
+                                <button v-if="props.telegram.linked" type="button" :disabled="telegramForm.processing" class="shrink-0 text-[17px] text-danger active:opacity-60 disabled:opacity-40" @click="unlinkTelegram">Trennen</button>
+                                <button v-else type="button" :disabled="telegramForm.processing" class="shrink-0 text-[17px] text-accent active:opacity-60 disabled:opacity-40" @click="linkTelegram">Verbinden</button>
                             </div>
+
+                            <!-- Kalender-Abo -->
+                            <div class="flex min-h-[60px] items-center gap-3 px-4 py-2">
+                                <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-danger text-white">
+                                    <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16v14H4zM4 10h16M9 3v4M15 3v4" /></svg>
+                                </span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-[17px] text-ink">Kalender-Abo</span>
+                                    <span class="block text-[13px] leading-snug text-ink-3">{{ props.calendarFeed ? 'Aktiv · Einheiten und Rennen' : 'Plan und Rennen im iPhone- oder Google-Kalender' }}</span>
+                                </span>
+                                <button v-if="props.calendarFeed" type="button" :disabled="calendarForm.processing" class="shrink-0 text-[17px] text-danger active:opacity-60 disabled:opacity-40" @click="removeCalendarFeed">Aus</button>
+                                <button v-else type="button" :disabled="calendarForm.processing" class="shrink-0 text-[17px] text-accent active:opacity-60 disabled:opacity-40" @click="createCalendarFeed">Einrichten</button>
+                            </div>
+                            <template v-if="props.calendarFeed">
+                                <a :href="props.calendarFeed.webcal" class="flex min-h-[48px] items-center px-4 text-[17px] text-accent active:bg-surface-2">Im Kalender abonnieren</a>
+                                <button type="button" class="flex min-h-[48px] w-full items-center px-4 text-[17px] text-accent active:bg-surface-2" @click="copyCalendarUrl">{{ calendarCopied ? 'Kopiert' : 'Adresse kopieren' }}</button>
+                                <button v-if="!confirmCalendarRenew" type="button" class="flex min-h-[48px] w-full items-center px-4 text-[17px] text-accent active:bg-surface-2" @click="confirmCalendarRenew = true">Neue Adresse erzeugen</button>
+                                <div v-else class="flex min-h-[48px] flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-[15px]">
+                                    <span class="flex-1 text-ink-2">Die alte Adresse geht danach nicht mehr.</span>
+                                    <button type="button" :disabled="calendarForm.processing" class="font-semibold text-danger active:opacity-60" @click="createCalendarFeed">Erzeugen</button>
+                                    <button type="button" class="text-ink-3 active:opacity-60" @click="confirmCalendarRenew = false">Abbrechen</button>
+                                </div>
+                            </template>
+                            <template v-if="props.calendarFeed" #footer>
+                                Ganztägige Termine ohne Ruhetage. Google Kalender: „Andere Kalender → Per URL“ und die Adresse einfügen; Google aktualisiert nur alle paar Stunden. Wer die Adresse hat, sieht deinen Plan.
+                            </template>
+                        </FormGroup>
+
+                        <FormGroup v-if="activitySourceChoosable" title="Aktivitäten kommen von" plain
+                            footer="Neue Läufe kommen nur aus dieser Quelle, damit nichts doppelt im Plan steht. Lädt die Uhr zu beiden hoch, wird dieselbe Einheit zusammengeführt.">
+                            <SegmentedControl v-model="activitySourceValue" :options="activitySourceOptions" />
+                        </FormGroup>
+
+                        <section class="space-y-3">
+                            <h2 class="mx-4 -mb-1.5 text-[13px] text-ink-3">Rad / Zwift · Fahrten kommen über Strava</h2>
                             <BikeFields v-model="bikeForm" />
-                            <div v-if="ftpSuggestion && !ftpTaken" class="rounded-card bg-warn-soft p-4">
-                                <p class="text-[15px] font-semibold text-warn-ink">FTP wirkt zu niedrig</p>
-                                <p class="mt-1 text-[13px] text-ink-2">
+                            <div v-if="ftpSuggestion && !ftpTaken" class="rounded-card bg-warn-soft px-4 py-3">
+                                <p class="text-[17px] font-semibold text-warn-ink">FTP wirkt zu niedrig</p>
+                                <p class="mt-1 text-[15px] leading-snug text-ink-2">
                                     „{{ ftpSuggestion.activity_name }}“ am {{ ftpSuggestion.date }} spricht für mindestens
                                     <span class="font-semibold tabular-nums">{{ ftpSuggestion.estimate }} W</span><template v-if="ftpSuggestion.current">, eingetragen sind {{ ftpSuggestion.current }} W</template>.
                                 </p>
-                                <button type="button" @click="takeFtpSuggestion" :disabled="bikeSaving"
-                                    class="mt-2 text-[13px] font-semibold text-accent active:opacity-60 disabled:opacity-50">
+                                <button type="button" :disabled="bikeSaving" class="mt-2 text-[15px] font-semibold text-accent active:opacity-60 disabled:opacity-50" @click="takeFtpSuggestion">
                                     {{ ftpSuggestion.estimate }} W übernehmen
                                 </button>
                             </div>
-                            <p v-if="bikeError" class="z-error">{{ bikeError }}</p>
-                            <div class="flex items-center justify-end gap-3">
-                                <span v-if="bikeSaved" class="inline-flex items-center gap-1 text-[13px] text-success-ink"><svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>Gespeichert</span>
-                                <button type="button" @click="saveBike" :disabled="bikeSaving"
-                                    class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90 active:opacity-80 disabled:opacity-50 transition-colors">
-                                    <svg v-if="bikeSaving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                    Rad speichern
-                                </button>
-                            </div>
-                        </div>
+                            <p v-if="bikeError" class="z-error mx-4">{{ bikeError }}</p>
+                            <p v-if="bikeSaved" class="mx-4 text-[13px] text-success-ink">Gespeichert.</p>
+                            <AppButton block :loading="bikeSaving" @click="saveBike">Rad sichern</AppButton>
+                        </section>
+                    </template>
 
-                    </div>
-                </template>
+                    <!-- ── SICHERHEIT ── -->
+                    <form v-else-if="activeTab === 'security'" class="space-y-3" @submit.prevent="updatePassword">
+                        <FormGroup title="Passwort ändern" footer="Nutze ein sicheres Passwort, das du nirgends sonst verwendest.">
+                            <FormRow as="label" label="Aktuell">
+                                <input ref="currentPasswordInput" v-model="passwordForm.current_password" type="password" autocomplete="current-password" placeholder="erforderlich" class="z-inline w-1/2" />
+                            </FormRow>
+                            <FormRow as="label" label="Neu">
+                                <input ref="passwordInput" v-model="passwordForm.password" type="password" autocomplete="new-password" placeholder="mindestens 8 Zeichen" class="z-inline w-1/2" />
+                            </FormRow>
+                            <FormRow as="label" label="Bestätigen">
+                                <input v-model="passwordForm.password_confirmation" type="password" autocomplete="new-password" placeholder="wiederholen" class="z-inline w-1/2" />
+                            </FormRow>
+                        </FormGroup>
+                        <InputError class="mx-4" :message="passwordForm.errors.current_password || passwordForm.errors.password || passwordForm.errors.password_confirmation" />
+                        <p v-if="passwordForm.recentlySuccessful" class="mx-4 text-[13px] text-success-ink">Passwort gespeichert.</p>
+                        <AppButton type="submit" block :loading="passwordForm.processing">Passwort ändern</AppButton>
+                    </form>
 
-                <!-- ── SICHERHEIT ── -->
-                <template v-else-if="activeTab === 'security'">
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line">
-                        <h2 class="text-base font-semibold text-ink">Passwort ändern</h2>
-                        <p class="mt-0.5 text-sm text-ink-3">Nutze ein sicheres, einzigartiges Passwort</p>
-                    </div>
-                    <div class="p-4 sm:p-6">
-                        <form @submit.prevent="updatePassword" class="space-y-5">
-                            <div>
-                                <label class="block text-sm font-medium text-ink-2 mb-1.5">Aktuelles Passwort</label>
-                                <input ref="currentPasswordInput" v-model="passwordForm.current_password" type="password" autocomplete="current-password" :class="inputClass" />
-                                <InputError class="mt-1.5" :message="passwordForm.errors.current_password" />
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-ink-2 mb-1.5">Neues Passwort</label>
-                                <input ref="passwordInput" v-model="passwordForm.password" type="password" autocomplete="new-password" :class="inputClass" />
-                                <InputError class="mt-1.5" :message="passwordForm.errors.password" />
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-ink-2 mb-1.5">Passwort bestätigen</label>
-                                <input v-model="passwordForm.password_confirmation" type="password" autocomplete="new-password" :class="inputClass" />
-                                <InputError class="mt-1.5" :message="passwordForm.errors.password_confirmation" />
-                            </div>
-                            <div class="flex items-center gap-4 pt-1">
-                                <button type="submit" :disabled="passwordForm.processing" class="inline-flex items-center gap-2 rounded-field bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-card">
-                                    <svg v-if="passwordForm.processing" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                                    Passwort ändern
-                                </button>
-                                <Transition enter-active-class="transition ease-in-out" enter-from-class="opacity-0" leave-to-class="opacity-0">
-                                    <span v-if="passwordForm.recentlySuccessful" class="text-sm text-success-ink">Passwort gespeichert.</span>
-                                </Transition>
-                            </div>
-                        </form>
-                    </div>
-                </template>
+                    <!-- ── KONTO ── -->
+                    <template v-else-if="activeTab === 'account'">
+                        <FormGroup title="Strava" :footer="props.stravaConnected ? 'Beim Trennen bleiben deine bisherigen Aktivitäten in Zone3. Neue kommen erst wieder, wenn du neu verbindest.' : 'Verbinde Strava, um deine Aktivitäten zu übernehmen.'">
+                            <FormRow v-if="props.stravaConnected" :label="props.stravaAccount?.username ?? 'Verbunden'" :hint="`Zuletzt abgeglichen: ${props.stravaAccount?.last_synced_at ?? 'noch nie'}`">
+                                <span class="text-[15px] text-success-ink">Aktiv</span>
+                            </FormRow>
+                            <Link href="/strava/connect" class="flex min-h-[48px] items-center px-4 text-[17px] text-accent active:bg-surface-2">
+                                {{ props.stravaConnected ? 'Konto wechseln' : 'Mit Strava verbinden' }}
+                            </Link>
+                            <button v-if="props.stravaConnected" type="button" class="flex min-h-[48px] w-full items-center px-4 text-[17px] text-danger active:bg-surface-2" @click="confirmStravaDisconnect = true">Strava trennen</button>
+                        </FormGroup>
 
-                <!-- ── KONTO ── -->
-                <template v-else-if="activeTab === 'account'">
-                    <!-- Strava -->
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line">
-                        <h2 class="text-base font-semibold text-ink">Strava Verbindung</h2>
-                    </div>
-                    <div class="p-4 sm:p-6 border-b border-line">
-                        <div v-if="props.stravaConnected" class="flex items-start justify-between gap-4">
-                            <div class="flex items-center gap-3">
-                                <div class="h-10 w-10 rounded-field bg-warn-soft flex items-center justify-center text-warn shrink-0"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" /></svg></div>
-                                <div>
-                                    <p class="text-sm font-semibold text-ink">Verbunden als <span class="text-warn-ink">{{ props.stravaAccount?.username }}</span></p>
-                                    <p class="text-xs text-ink-3 mt-0.5">Zuletzt: {{ props.stravaAccount?.last_synced_at ?? 'Noch nie' }}</p>
-                                </div>
-                            </div>
-                            <span class="inline-flex items-center gap-1 rounded-full bg-success-soft px-2.5 py-1 text-xs font-medium text-success-ink shrink-0">
-                                <span class="h-1.5 w-1.5 rounded-full bg-success"></span> Aktiv
-                            </span>
-                        </div>
-                        <div v-else class="flex items-center gap-3">
-                            <div class="h-10 w-10 rounded-field bg-surface-2 flex items-center justify-center text-ink-3 shrink-0"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3ZM3 3l18 18" /></svg></div>
-                            <div>
-                                <p class="text-sm font-semibold text-ink">Nicht verbunden</p>
-                                <p class="text-xs text-ink-3 mt-0.5">Verbinde Strava um deine Aktivitäten zu importieren</p>
-                            </div>
-                        </div>
-                        <div class="mt-4 flex flex-wrap gap-3">
-                            <Link v-if="!props.stravaConnected" href="/strava/connect" class="inline-flex items-center gap-2 rounded-field bg-warn px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-colors shadow-card">Mit Strava verbinden</Link>
-                            <template v-else>
-                                <Link href="/strava/connect" class="inline-flex items-center gap-2 rounded-field bg-surface-2 px-5 py-2.5 text-sm font-semibold text-ink-2 hover:bg-surface-3 transition-colors">Konto wechseln</Link>
-                                <button type="button" @click="confirmStravaDisconnect = true" class="inline-flex items-center gap-2 rounded-field bg-danger-soft border border-danger/25 px-5 py-2.5 text-sm font-semibold text-danger-ink hover:opacity-90 transition-colors">Strava trennen</button>
-                            </template>
-                        </div>
-                        <p v-if="props.stravaConnected" class="mt-3 text-xs text-ink-3">Beim Trennen bleiben deine bisherigen Aktivitäten in Zone3 erhalten. Neue kommen erst wieder, wenn du neu verbindest.</p>
-                    </div>
+                        <FormGroup footer="Athletenprofil und Ziel noch einmal Schritt für Schritt einrichten.">
+                            <Link :href="route('onboarding.reset')" method="post" as="button" class="flex min-h-[48px] w-full items-center px-4 text-[17px] text-accent active:bg-surface-2">
+                                Einrichtung neu starten
+                            </Link>
+                        </FormGroup>
 
-                    <!-- Onboarding reset -->
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line">
-                        <h2 class="text-base font-semibold text-ink">Onboarding wiederholen</h2>
-                        <p class="mt-0.5 text-sm text-ink-3">Athletenprofil und Ziel erneut einrichten</p>
-                    </div>
-                    <div class="p-4 sm:p-6 border-b border-line">
-                        <Link :href="route('onboarding.reset')" method="post" as="button" class="inline-flex items-center gap-2 rounded-field bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-colors shadow-card">
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
-                            Onboarding neu starten
-                        </Link>
-                    </div>
-
-                    <!-- Account deletion -->
-                    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-line">
-                        <h2 class="text-base font-semibold text-ink">Konto löschen</h2>
-                        <p class="mt-0.5 text-sm text-ink-3">Alle Daten werden unwiderruflich gelöscht</p>
-                    </div>
-                    <div class="p-4 sm:p-6">
-                        <div class="rounded-field bg-danger-soft border border-danger/25 px-5 py-4 mb-5">
-                            <p class="text-sm text-danger-ink">Sobald dein Konto gelöscht wird, werden alle Daten unwiderruflich entfernt.</p>
-                        </div>
-                        <button @click="confirmDeletion" class="inline-flex items-center gap-2 rounded-field bg-danger px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-colors shadow-card">Konto löschen</button>
-                    </div>
-                </template>
-
+                        <FormGroup footer="Alle Daten werden unwiderruflich gelöscht.">
+                            <button type="button" class="flex min-h-[48px] w-full items-center justify-center px-4 text-[17px] text-danger active:bg-surface-2" @click="confirmDeletion">Konto löschen</button>
+                        </FormGroup>
+                    </template>
+                </div>
             </div>
         </div>
 
@@ -1871,13 +1314,13 @@ const inputClass = 'z-input';
                 style="max-height: 340px;"
             />
         </div>
-        <p class="py-3 text-center text-xs text-ink-3">Verschieben und zoomen um den Ausschnitt anzupassen</p>
+        <p class="py-3 text-center text-[13px] text-ink-3">Verschieben und zoomen, um den Ausschnitt anzupassen</p>
 
         <template #footer>
             <div class="flex gap-3">
                 <AppButton variant="secondary" block @click="closeCropModal">Abbrechen</AppButton>
                 <AppButton block :loading="avatarUploading" @click="confirmCrop">
-                    {{ avatarUploading ? 'Wird hochgeladen…' : 'Zuschneiden & Speichern' }}
+                    {{ avatarUploading ? 'Wird hochgeladen …' : 'Sichern' }}
                 </AppButton>
             </div>
         </template>

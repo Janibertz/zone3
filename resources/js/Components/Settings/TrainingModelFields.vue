@@ -6,6 +6,10 @@
  * readiness: { recommended, reasons[] } aus TrainingModelService. Zone3
  * sperrt Norwegisch nicht, sagt aber, wenn die Voraussetzungen fehlen.
  */
+import FormGroup from '@/Components/UI/FormGroup.vue';
+import FormRow from '@/Components/UI/FormRow.vue';
+import Toggle from '@/Components/UI/Toggle.vue';
+
 const model = defineModel({ type: Object, required: true });
 
 defineProps({
@@ -27,58 +31,44 @@ const models = [
 </script>
 
 <template>
-    <div class="space-y-4">
-        <div class="space-y-2" role="radiogroup" aria-label="Trainingsmodell">
+    <div class="space-y-6">
+        <FormGroup>
             <button
                 v-for="m in models"
                 :key="m.value"
                 type="button"
                 role="radio"
                 :aria-checked="model.training_model === m.value"
-                class="w-full rounded-card border-2 p-4 text-left transition active:scale-[0.99]"
-                :class="model.training_model === m.value
-                    ? 'border-accent bg-accent-soft'
-                    : 'border-line bg-surface hover:border-line-strong'"
+                class="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors active:bg-surface-2"
                 @click="model.training_model = m.value"
             >
-                <p class="text-[15px] font-semibold text-ink">{{ m.title }}</p>
-                <p class="mt-1 text-[13px] leading-relaxed text-ink-2">{{ m.text }}</p>
+                <span class="min-w-0 flex-1">
+                    <span class="block text-[17px] text-ink">{{ m.title }}</span>
+                    <span class="mt-0.5 block text-[13px] leading-snug text-ink-3">{{ m.text }}</span>
+                </span>
+                <svg class="mt-1 h-5 w-5 shrink-0 text-accent" :class="model.training_model === m.value ? '' : 'invisible'"
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                </svg>
             </button>
-        </div>
+        </FormGroup>
 
         <div v-if="model.training_model === 'norwegian' && readiness && !readiness.recommended"
-            class="rounded-field border border-warn/25 bg-warn-soft px-4 py-3 text-[13px] leading-relaxed text-warn-ink">
+            class="rounded-card bg-warn-soft px-4 py-3 text-[15px] leading-snug text-warn-ink">
             <p class="font-semibold">Zone3 rät dir eher zu 80/20</p>
             <p v-for="r in readiness.reasons" :key="r" class="mt-1">{{ r }}</p>
             <p class="mt-1">Du kannst Norwegisch trotzdem wählen.</p>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
-            <div>
-                <label class="mb-1.5 block text-[13px] font-medium text-ink-2">Lauferfahrung</label>
-                <div class="relative">
-                    <input v-model.number="model.running_experience_years" type="number" min="0" max="60" inputmode="numeric"
-                        placeholder="z. B. 5" class="z-input pr-14" />
-                    <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] text-ink-3">Jahre</span>
-                </div>
-            </div>
-            <div>
-                <label class="mb-1.5 block text-[13px] font-medium text-ink-2">Laktatmessgerät</label>
-                <button type="button"
-                    class="flex h-[44px] w-full items-center justify-between rounded-field border border-line bg-surface px-3 text-[15px] text-ink"
-                    :aria-pressed="model.has_lactate_meter"
-                    @click="model.has_lactate_meter = !model.has_lactate_meter">
-                    {{ model.has_lactate_meter ? 'Vorhanden' : 'Keins' }}
-                    <span class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors"
-                        :class="model.has_lactate_meter ? 'bg-accent' : 'bg-surface-3'">
-                        <span class="inline-block h-4 w-4 rounded-full bg-surface transition-transform"
-                            :class="model.has_lactate_meter ? 'translate-x-6' : 'translate-x-1'" />
-                    </span>
-                </button>
-            </div>
-        </div>
-        <p class="text-[13px] leading-relaxed text-ink-3">
-            Ohne Laktatmessgerät steuert Zone3 die Schwellenarbeit über Pace und einen Pulsdeckel.
-        </p>
+        <FormGroup footer="Ohne Laktatmessgerät steuert Zone3 die Schwellenarbeit über Pace und einen Pulsdeckel.">
+            <FormRow as="label" label="Lauferfahrung">
+                <input v-model.number="model.running_experience_years" type="number" min="0" max="60" inputmode="numeric"
+                    placeholder="0" class="z-inline w-16" />
+                <span class="text-[17px] text-ink-3">Jahre</span>
+            </FormRow>
+            <FormRow label="Laktatmessgerät">
+                <Toggle v-model="model.has_lactate_meter" label="Laktatmessgerät vorhanden" />
+            </FormRow>
+        </FormGroup>
     </div>
 </template>

@@ -131,6 +131,26 @@
            border-0 focus:outline-none focus:ring-2 focus:ring-accent/40;
   }
 
+  /*
+   * Feld in einer Listenzeile (FormRow): ohne Fläche, rechtsbündig, 17 px —
+   * wie die Eingaben in den iOS-Einstellungen. 17 px liegen über den 16 px,
+   * ab denen Safari beim Fokus nicht mehr hineinzoomt.
+   */
+  .z-inline {
+    @apply min-w-0 border-0 bg-transparent p-0 text-right text-[17px] text-ink placeholder-ink-3
+           focus:outline-none focus:ring-0;
+    /* @tailwindcss/forms legt einem <select> einen Pfeil als Hintergrund an. */
+    background-image: none;
+  }
+
+  /* Trennlinie zwischen Listenzeilen, links um 16 px eingerückt wie in iOS. */
+  .z-group > * + * {
+    background-image: linear-gradient(rgb(var(--z-border)), rgb(var(--z-border)));
+    background-size: calc(100% - 1rem) 1px;
+    background-position: right top;
+    background-repeat: no-repeat;
+  }
+
   .z-error {
     @apply mt-1 text-xs text-danger;
   }
