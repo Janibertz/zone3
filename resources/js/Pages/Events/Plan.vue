@@ -19,7 +19,6 @@ import { ref, computed, onMounted } from 'vue';
 import axios from 'axios';
 
 const coach   = computed(() => usePage().props.coach ?? null);
-const isAdmin = computed(() => usePage().props.auth?.isAdmin ?? false);
 const flash   = computed(() => usePage().props.flash ?? {});
 const coachName = computed(() => coach.value?.name ?? 'Dein Coach');
 
@@ -222,20 +221,6 @@ async function completeSession(session) {
         errorMsg.value = 'Fehler beim Speichern.';
     } finally {
         completingId.value = null;
-    }
-}
-
-// ── Admin: reset steps cache ────────────────────────────────────────
-async function resetSessionCache(session) {
-    try {
-        const { data } = await axios.post(route('training-sessions.reset-cache', session.id));
-        // Reflect the reset (and a possibly rebuilt strength description) in local state
-        if (data?.session) updateSessionInList(data.session);
-        const s = currentSessions.value?.find(x => x.id === session.id) ?? session;
-        s.steps = null;
-        delete stepsCache[session.id];
-    } catch {
-        errorMsg.value = 'Fehler beim Zurücksetzen des Caches.';
     }
 }
 
@@ -1615,7 +1600,7 @@ const lapHeightPct = computed(() => {
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                             </svg>
-                            Struktur wird erstellt…
+                            Struktur wird geladen…
                         </div>
 
                         <p v-else-if="stepsError" class="text-[13px] text-danger">{{ stepsError }}</p>
@@ -1818,11 +1803,6 @@ const lapHeightPct = computed(() => {
                             @click="switchFromDetail(openSkipModal)">
                             Kein Training
                             <svg class="h-3.5 w-2 shrink-0 text-ink-3" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m1 1 6 6-6 6" /></svg>
-                        </button>
-                        <button v-if="isAdmin" type="button" title="Admin: Steps- und Nutrition-Cache leeren"
-                            class="flex min-h-[52px] w-full items-center px-4 text-left text-[17px] text-ink-2 transition-colors active:bg-surface-3"
-                            @click="resetSessionCache(detailSession)">
-                            KI-Inhalte neu erzeugen (Admin)
                         </button>
                     </div>
                     <button v-if="canChange(detailSession)" type="button"

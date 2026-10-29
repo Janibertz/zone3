@@ -83,6 +83,17 @@ class RecommendForWellbeingJob implements ShouldQueue
             return;
         }
 
+        // Der Ablauf kommt aus dem Katalog, nicht vom Modell — der Vorschlag
+        // zeigt dieselben Zahlen, die nach dem Annehmen gelten.
+        $draft = $session->replicate();
+        $draft->fill($after);
+        $draft->steps = null;
+        if (app(\App\Services\Run\SessionStructure::class)->apply($draft, $adjusted['workout'] ?? null)) {
+            foreach (['duration_min', 'distance_km', 'pace_target', 'zone', 'workout_variant'] as $f) {
+                $after[$f] = $draft->{$f};
+            }
+        }
+
         // Eine aeltere offene Empfehlung fuer dieselbe Einheit ist ueberholt.
         SessionRecommendation::where('training_session_id', $session->id)
             ->where('status', SessionRecommendation::STATUS_PENDING)

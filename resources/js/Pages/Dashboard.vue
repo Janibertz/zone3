@@ -802,7 +802,7 @@ onMounted(() => {
         if (rec.type !== 'race_prep') {
             recStepsLoading.value = true;
             axios.get(route('training-sessions.steps', rec.id))
-                .then(({ data }) => { recSteps.value = data; })
+                .then(({ data }) => { recSteps.value = data.steps ?? null; })
                 .catch(() => { recStepsError.value = 'Struktur konnte nicht geladen werden.'; })
                 .finally(() => { recStepsLoading.value = false; });
         }

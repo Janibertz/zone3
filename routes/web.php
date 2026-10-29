@@ -623,7 +623,6 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::post('/plan-interview', [PlanInterviewController::class, 'store'])->name('plan-interview.store');
 
     Route::patch('/training-sessions/{session}/apply-workout', [TrainingSessionController::class, 'applyWorkout'])->name('training-sessions.apply-workout');
-    Route::post('/training-sessions/{session}/reset-cache', [TrainingSessionController::class, 'resetCache'])->name('training-sessions.reset-cache');
     Route::post('/newsletter/preference', [NewsletterController::class, 'updatePreference'])->name('newsletter.preference');
 
     // ── Workout Baukasten ─────────────────────────────────────────────────────

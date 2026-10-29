@@ -357,10 +357,12 @@ class RegeneratePlanJob implements ShouldQueue
                     'zone'             => $s['zone'] ?? null,
                     'intensity'        => $s['intensity'] ?? 'low',
                     'exercises'        => ! empty($s['exercises']) && is_array($s['exercises']) ? $s['exercises'] : null,
-                    // Radeinheiten kommen fertig aus dem Gerüst: Sportart und
-                    // Schritte in % FTP. Laufeinheiten tragen beides nicht.
+                    // Radeinheiten kommen fertig aus dem Gerüst (Schritte in
+                    // % FTP), Laufeinheiten aus dem Katalog (RunWorkouts) —
+                    // beide setzt der Validator.
                     'sport_type'       => $s['sport_type'] ?? null,
                     'steps'            => ! empty($s['steps']) && is_array($s['steps']) ? $s['steps'] : null,
+                    'workout_variant'  => $s['workout'] ?? null,
                     'status'           => 'planned',
                     'sort_order'       => $i,
                 ]);

@@ -47,7 +47,7 @@ class SessionRecommendation extends Model
     /** Die Felder, die eine Empfehlung an der Einheit ueberhaupt anfassen darf. */
     public const FIELDS = [
         'type', 'title', 'description', 'distance_km',
-        'duration_min', 'pace_target', 'zone', 'intensity',
+        'duration_min', 'pace_target', 'zone', 'intensity', 'workout_variant',
     ];
 
     public function session()
@@ -90,12 +90,15 @@ class SessionRecommendation extends Model
             return false;
         }
 
-        $session->update(array_intersect_key($this->after, array_flip(self::FIELDS)) + [
+        $session->fill(array_intersect_key($this->after, array_flip(self::FIELDS)) + [
             'pinned_at' => now(),
-            // Steps und Verpflegungstipps beschrieben die alte Einheit.
-            'steps'          => null,
-            'nutrition_tips' => null,
+            // Die Schritte beschrieben die alte Einheit.
+            'steps'     => null,
         ]);
+        // Der neue Ablauf aus dem Katalog — der Vorschlag hat ihn schon mit
+        // denselben Zahlen gerechnet.
+        app(\App\Services\Run\SessionStructure::class)->apply($session, $this->after['workout_variant'] ?? null);
+        $session->save();
 
         $this->update(['status' => self::STATUS_ACCEPTED, 'responded_at' => now()]);
 

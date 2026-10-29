@@ -150,6 +150,7 @@ class TrainingSession extends Model
         'title',
         'description',
         'distance_km',
+        'workout_variant',
         'duration_min',
         'pace_target',
         'zone',

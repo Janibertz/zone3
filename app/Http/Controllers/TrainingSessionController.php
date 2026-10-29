@@ -200,52 +200,6 @@ class TrainingSessionController extends Controller
     }
 
     /**
-     * Admin: clear cached steps and nutrition tips so they get regenerated on next request.
-     */
-    public function resetCache(TrainingSession $session)
-    {
-        abort_if(! Auth::user()->is_admin, 403); // admin-only; ownership intentionally not required
-
-        $update = ['steps' => null, 'nutrition_tips' => null];
-
-        // Strength/core/mobility sessions may carry a run description that was wrongly
-        // overwritten by an earlier steps generation — rebuild it from the exercises.
-        if (in_array($session->type, ['strength', 'core', 'mobility']) && ! empty($session->exercises)) {
-            $update['description'] = $this->buildDescriptionFromExercises($session);
-        }
-
-        $session->update($update);
-
-        return response()->json(['session' => $this->formatSession($session->fresh())]);
-    }
-
-    /** Build a German strength-session description from the structured exercise list. */
-    private function buildDescriptionFromExercises(TrainingSession $session): string
-    {
-        $label = [
-            'strength' => 'Krafttraining',
-            'core'     => 'Core-Training',
-            'mobility' => 'Mobility-Einheit',
-        ][$session->type] ?? 'Krafttraining';
-
-        $parts = [];
-        foreach ((array) $session->exercises as $ex) {
-            $name = $ex['name'] ?? null;
-            if (! $name) continue;
-            $setsReps = trim(implode('×', array_filter([$ex['sets'] ?? null, $ex['reps'] ?? null])));
-            $parts[]  = $setsReps ? "{$name} ({$setsReps})" : $name;
-        }
-
-        return $parts
-            ? "{$label}: " . implode(', ', $parts) . '.'
-            : "{$label}.";
-    }
-
-    /**
-     * Return structured workout steps for a session — served from DB cache, generated on first request.
-     * Only for non-rest, non-race sessions.
-     */
-    /**
      * Die Radeinheit als .zwo-Datei für Zwift.
      *
      * Nur für Einheiten, deren Schritte in % FTP stehen — eine Laufstruktur
@@ -287,54 +241,33 @@ class TrainingSessionController extends Controller
         ]);
     }
 
-    public function sessionSteps(TrainingSession $session, SessionContentService $sessions)
+    /**
+     * Die Abschnitte einer Einheit für die Details — ohne Modellaufruf.
+     *
+     * Bis 29.10.2026 erfand hier ein KI-Aufruf die Struktur beim ersten
+     * Öffnen, und sie passte oft nicht zu Dauer und Distanz in der Liste.
+     * Neue Einheiten bringen ihren Ablauf aus dem Katalog mit; einer älteren
+     * ohne Schritte baut ihn der Katalog jetzt hier nach.
+     */
+    public function sessionSteps(TrainingSession $session, \App\Services\Run\SessionStructure $structure, SessionContentService $sessions)
     {
         abort_if($session->user_id !== Auth::id(), 403);
-        // Strength/core/mobility sessions carry their own "exercises" list — no run
-        // structure is generated for them (it would also overwrite the description).
+        // Strength/core/mobility sessions carry their own "exercises" list.
         abort_if(in_array($session->type, ['rest', 'race_prep', 'strength', 'core', 'mobility']), 422);
-        // Completed sessions show real Strava splits — no planned structure generated.
+        // Completed sessions show real Strava splits — no planned structure.
         abort_if($session->status === 'completed', 422);
 
-        if ($session->steps) {
-            // Aeltere Einheiten tragen noch die Zahl aus dem Wochenbudget —
-            // beim ersten Oeffnen wird sie an die Struktur angeglichen.
-            $this->syncDistanceWithSteps($session, $session->steps);
-
-            return $this->stepsResponse($session);
-        }
-
-        $sessions->withCoach(Auth::user()->coach?->personality_prompt)->forUser(Auth::id());
-        $steps = $sessions->generateSessionSteps($session);
-
-        if (! $steps) {
-            return response()->json(['error' => 'Steps konnten nicht generiert werden.'], 500);
-        }
-
-        // Keep the original coaching description intact — the concrete step breakdown is
-        // already shown separately in the "Trainingsstruktur" visualization. (Previously
-        // this rebuilt the description from the steps and overwrote the coaching text,
-        // so loading the structure replaced the athlete-facing prose with "9 min einlaufen…".)
-        $session->steps = $steps;
-
-        // Die Struktur folgt der Beschreibung. Ergibt sie eine andere Dauer als
-        // die Einheit, war die Zahl daneben falsch — nicht die Struktur. Vorher
-        // wurde die Differenz stillschweigend dem Auslaufen abgezogen, und der
-        // Athlet las "10 min auslaufen" und fand 7.
-        $stepMinutes = SessionContentService::stepsTotalMinutes($steps);
-
-        if ($stepMinutes > 0 && $stepMinutes !== (int) $session->duration_min) {
-            // Distanz mitziehen, sonst behauptet die Einheit eine Pace, die
-            // niemand laeuft. Ohne Pace in den Schritten bleibt das die
-            // einzige Schaetzung.
-            if ($session->duration_min > 0 && $session->distance_km > 0) {
-                $session->distance_km = round($session->distance_km * $stepMinutes / $session->duration_min, 1);
+        if (! $session->steps) {
+            if ($session->type === 'yard_simulation') {
+                $session->steps = $sessions->buildYardSimulationSteps($session);
+            } elseif (! $structure->apply($session)) {
+                return response()->json(['error' => 'Für diese Einheit gibt es keinen Ablauf.'], 422);
             }
-
-            $session->duration_min = $stepMinutes;
         }
 
-        $this->syncDistanceWithSteps($session, $steps);
+        // Aeltere Einheiten tragen noch die Zahl aus dem Wochenbudget —
+        // beim ersten Oeffnen wird sie an die Struktur angeglichen.
+        $this->syncDistanceWithSteps($session, (array) $session->steps);
 
         return $this->stepsResponse($session);
     }
@@ -416,10 +349,7 @@ class TrainingSessionController extends Controller
             return response()->json(['error' => 'Anpassung fehlgeschlagen. Bitte versuche es erneut.'], 500);
         }
 
-        $session->update(array_intersect_key($adjusted, array_flip([
-            'type', 'title', 'description', 'distance_km',
-            'duration_min', 'pace_target', 'zone', 'intensity',
-        ])));
+        $this->applyAdjusted($session, $adjusted);
 
         return response()->json(['session' => $this->formatSession($session->fresh())]);
     }
@@ -449,12 +379,24 @@ class TrainingSessionController extends Controller
             return response()->json(['error' => 'Anpassung fehlgeschlagen. Bitte versuche es erneut.'], 500);
         }
 
-        $session->update(array_intersect_key($adjusted, array_flip([
+        $this->applyAdjusted($session, $adjusted);
+
+        return response()->json(['session' => $this->formatSession($session->fresh())]);
+    }
+
+    /**
+     * Die Antwort des Modells übernehmen — den Ablauf baut der Katalog,
+     * mit der Dauer, die das Modell vorgibt.
+     */
+    private function applyAdjusted(TrainingSession $session, array $adjusted): void
+    {
+        $session->fill(array_intersect_key($adjusted, array_flip([
             'type', 'title', 'description', 'distance_km',
             'duration_min', 'pace_target', 'zone', 'intensity',
         ])));
-
-        return response()->json(['session' => $this->formatSession($session->fresh())]);
+        $session->steps = null;
+        app(\App\Services\Run\SessionStructure::class)->apply($session, $adjusted['workout'] ?? null);
+        $session->save();
     }
 
     /**

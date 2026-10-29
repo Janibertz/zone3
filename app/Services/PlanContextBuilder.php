@@ -133,36 +133,42 @@ class PlanContextBuilder
         );
 
         // Gerüst und Garmin-Zusammenfassung bauen auf dem Rest auf.
+        $skeleton = $this->pattern->build(
+            $event,
+            $windowFrom,
+            $windowTo,
+            $availability,
+            $availabilityOverrides,
+            $context->blockedDates(),
+            $comeback,
+            $longRuns,
+            // Der Umfangsdeckel gehoert ins Geruest, nicht nur in den
+            // Prompt: sonst belegt das Geruest die Tage nach
+            // Verfuegbarkeit und der Deckel daneben ist unerfuellbar.
+            $volume,
+            $paces['long_sec'] ?? null,
+            // Rennen im Fenster gehören INS Gerüst, nicht nur in den
+            // Prompt. Standen sie nur dort, lieferte das Modell den
+            // verlangten Ruhetag — und der Validator ersetzte ihn durch
+            // die Einheit, die im Gerüst stand. Am Renntag stand dann ein
+            // Tempolauf.
+            //
+            // `races()` und nicht `otherEvents`: letzteres lässt das
+            // Zielrennen dieses Plans aus, und genau dort stand zuletzt
+            // ein „Langer Lauf" am Marathon-Renntag.
+            $this->races($user, $event, $windowTo),
+            $this->trainingModel($user, $windowFrom, $paces),
+            // Rad/Zwift: welche lockeren Läufe und welches Intervall
+            // aufs Rad wandern, entscheidet das Gerüst — nicht der Prompt.
+            \App\Services\Bike\BikeSchedule::settingsFor($user->runnerProfile),
+        );
+
+        // Die Paces reisen mit dem Gerüst in den Validator: dort entsteht der
+        // Ablauf jeder Einheit aus dem Katalog (RunWorkouts).
+        $skeleton['paces'] = $paces;
+
         return $context->with(
-            skeleton: $this->pattern->build(
-                $event,
-                $windowFrom,
-                $windowTo,
-                $availability,
-                $availabilityOverrides,
-                $context->blockedDates(),
-                $comeback,
-                $longRuns,
-                // Der Umfangsdeckel gehoert ins Geruest, nicht nur in den
-                // Prompt: sonst belegt das Geruest die Tage nach
-                // Verfuegbarkeit und der Deckel daneben ist unerfuellbar.
-                $volume,
-                $paces['long_sec'] ?? null,
-                // Rennen im Fenster gehören INS Gerüst, nicht nur in den
-                // Prompt. Standen sie nur dort, lieferte das Modell den
-                // verlangten Ruhetag — und der Validator ersetzte ihn durch
-                // die Einheit, die im Gerüst stand. Am Renntag stand dann ein
-                // Tempolauf.
-                //
-                // `races()` und nicht `otherEvents`: letzteres lässt das
-                // Zielrennen dieses Plans aus, und genau dort stand zuletzt
-                // ein „Langer Lauf" am Marathon-Renntag.
-                $this->races($user, $event, $windowTo),
-                $this->trainingModel($user, $windowFrom, $paces),
-                // Rad/Zwift: welche lockeren Läufe und welches Intervall
-                // aufs Rad wandern, entscheidet das Gerüst — nicht der Prompt.
-                \App\Services\Bike\BikeSchedule::settingsFor($user->runnerProfile),
-            ),
+            skeleton:   $skeleton,
             garminText: ! $user->receivesGarminHealth()
                 ? null
                 : $this->garmin->toPromptSection($this->garmin->forUser($user->id, $windowFrom)),
