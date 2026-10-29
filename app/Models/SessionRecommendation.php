@@ -41,6 +41,9 @@ class SessionRecommendation extends Model
 
     public const SOURCE_WELLBEING = 'wellbeing';
 
+    /** Eine eigene Idee des Coaches aus dem Chat (seit 29.10.2026). */
+    public const SOURCE_COACH = 'coach';
+
     /** Die Felder, die eine Empfehlung an der Einheit ueberhaupt anfassen darf. */
     public const FIELDS = [
         'type', 'title', 'description', 'distance_km',

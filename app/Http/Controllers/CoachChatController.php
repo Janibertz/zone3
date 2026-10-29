@@ -27,11 +27,47 @@ class CoachChatController extends Controller
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->limit(self::HISTORY_LIMIT)
-            ->get(['role', 'content', 'created_at'])
+            ->get(['role', 'content', 'actions', 'created_at'])
             ->reverse()
             ->values();
 
+        $messages = self::withProposalStatus($messages->map(fn ($m) => [
+            'role'       => $m->role,
+            'content'    => $m->content,
+            'actions'    => $m->actions ?? [],
+            'created_at' => $m->created_at,
+        ])->all());
+
         return response()->json(['messages' => $messages]);
+    }
+
+    /**
+     * Ein Vorschlag des Coaches steht im Verlauf mit seinem heutigen Stand —
+     * angenommen, abgelehnt oder noch offen. Sonst böte der Chat nach dem
+     * Neuladen Knöpfe für etwas an, das längst entschieden ist.
+     */
+    private static function withProposalStatus(array $messages): array
+    {
+        $ids = collect($messages)->flatMap(fn ($m) => collect($m['actions'] ?? [])
+            ->where('type', 'proposal')->pluck('recommendation_id'))->filter()->unique();
+
+        if ($ids->isEmpty()) {
+            return $messages;
+        }
+
+        $status = \App\Models\SessionRecommendation::whereIn('id', $ids)->pluck('status', 'id');
+
+        return array_map(function ($m) use ($status) {
+            $m['actions'] = array_map(function ($a) use ($status) {
+                if (($a['type'] ?? null) === 'proposal') {
+                    $a['status'] = $status[$a['recommendation_id'] ?? 0] ?? \App\Models\SessionRecommendation::STATUS_EXPIRED;
+                }
+
+                return $a;
+            }, $m['actions'] ?? []);
+
+            return $m;
+        }, $messages);
     }
 
     /**
@@ -100,7 +136,7 @@ class CoachChatController extends Controller
         return response()->json([
             'pending'       => false,
             'response'      => $reply->content,
-            'actions_taken' => $reply->actions ?? [],
+            'actions_taken' => self::withProposalStatus([['actions' => $reply->actions ?? []]])[0]['actions'],
             'timestamp'     => $reply->created_at?->toIso8601String(),
         ]);
     }

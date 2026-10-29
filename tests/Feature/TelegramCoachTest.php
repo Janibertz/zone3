@@ -266,6 +266,35 @@ class TelegramCoachTest extends TestCase
         $this->assertSame("rec:reject:{$rec->id}", $sent['reply_markup']['inline_keyboard'][0][1]['callback_data']);
     }
 
+    /**
+     * Ein Vorschlag aus dem Chat kommt NACH der Antwort, die ihn erklärt —
+     * nicht schon beim Anlegen, und aus dem Web-Chat gar nicht.
+     */
+    public function test_a_coach_proposal_follows_the_reply(): void
+    {
+        [$user, $session] = $this->athleteWithSession();
+        $rec = SessionRecommendation::create([
+            'user_id' => $user->id, 'training_session_id' => $session->id,
+            'source' => SessionRecommendation::SOURCE_COACH, 'reason' => 'Drei harte Tage.',
+            'before' => ['title' => 'Schwelle 3×10 min'], 'after' => ['title' => 'Locker statt Schwelle', 'distance_km' => 8],
+        ]);
+        $this->assertSame([], $this->sentTexts());
+
+        $proposal = ['type' => 'proposal', 'label' => 'Vorschlag', 'recommendation_id' => $rec->id];
+
+        CoachMessage::create(['user_id' => $user->id, 'role' => 'assistant', 'content' => 'Aus dem Web',
+            'channel' => CoachMessage::CHANNEL_WEB, 'actions' => [$proposal]]);
+        CoachMessage::create(['user_id' => $user->id, 'role' => 'assistant', 'content' => 'Lieber locker heute.',
+            'channel' => CoachMessage::CHANNEL_TELEGRAM, 'actions' => [$proposal]]);
+
+        $texts = array_column($this->sentTexts(), 'text');
+
+        $this->assertCount(2, $texts);
+        $this->assertSame('Lieber locker heute.', $texts[0]);
+        $this->assertStringContainsString('Vorschlag für heute', $texts[1]);
+        $this->assertSame("rec:accept:{$rec->id}", $this->sentTexts()[1]['reply_markup']['inline_keyboard'][0][0]['callback_data']);
+    }
+
     public function test_accepting_in_telegram_changes_and_pins_the_session(): void
     {
         [$user, $session] = $this->athleteWithSession();

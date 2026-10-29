@@ -17,13 +17,31 @@ class SessionRecommendationObserver
 {
     public function created(SessionRecommendation $recommendation): void
     {
+        // Ein Vorschlag aus dem Chat kommt mit der Antwort des Coaches
+        // ({@see CoachMessageObserver}) — sonst stünde er in Telegram vor dem
+        // Text, der ihn erklärt, und aus dem Web-Chat käme er doppelt.
+        if ($recommendation->source === SessionRecommendation::SOURCE_COACH) {
+            return;
+        }
+
+        self::send($recommendation);
+    }
+
+    /** Der Vorschlag mit zwei Knöpfen, sofern der Athlet Telegram hat. */
+    public static function send(SessionRecommendation $recommendation): void
+    {
         $user = $recommendation->user;
         if (! $user?->hasTelegram() || ! $recommendation->isOpen()) {
             return;
         }
 
+        $date = $recommendation->session?->planned_date;
+        $when = ! $date || $date->isToday()
+            ? 'heute'
+            : $date->locale('de')->isoFormat('dddd, D.M.');
+
         $lines = [
-            '**Vorschlag für heute**',
+            "**Vorschlag für {$when}**",
             'Geplant: ' . self::describe($recommendation->before ?? []),
             'Vorschlag: ' . self::describe($recommendation->after ?? []),
         ];

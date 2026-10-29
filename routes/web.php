@@ -229,12 +229,16 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
     $open = \App\Models\SessionRecommendation::with('session')
         ->where('user_id', $user->id)
         ->where('status', \App\Models\SessionRecommendation::STATUS_PENDING)
+        // Nur für HEUTE. Ein Vorschlag von gestern ist überholt — er beschreibt
+        // eine Tagesform, die es nicht mehr gibt. In der Abfrage und nicht
+        // danach: seit der Coach auch für Samstag vorschlägt, wäre der
+        // neueste offene Vorschlag sonst oft einer, der hier nicht hingehört,
+        // und der für heute verschwände hinter ihm.
+        ->whereHas('session', fn ($q) => $q->whereDate('planned_date', $todayStr))
         ->latest('id')
         ->first();
 
-    // Nur für HEUTE. Ein Vorschlag von gestern ist überholt — er beschreibt
-    // eine Tagesform, die es nicht mehr gibt.
-    if ($open && $open->session?->planned_date?->toDateString() === $todayStr) {
+    if ($open) {
         $coachRecommendation = [
             'id'         => $open->id,
             'reason'     => $open->reason,
