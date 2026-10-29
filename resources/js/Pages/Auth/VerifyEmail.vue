@@ -2,6 +2,8 @@
 import { computed } from 'vue';
 import GuestLayout from '@/Layouts/GuestLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import Wordmark from '@/Components/Brand/Wordmark.vue';
+import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
 
 const props = defineProps({ status: String });
 
@@ -18,10 +20,8 @@ const verificationLinkSent = computed(() => props.status === 'verification-link-
             <!-- Logo -->
             <div class="text-center mb-8">
                 <Link href="/" class="inline-flex flex-col items-center gap-2">
-                    <div class="h-12 w-12 rounded-2xl bg-accent flex items-center justify-center shadow-lg">
-                        <span class="text-white text-lg font-bold">Z3</span>
-                    </div>
-                    <span class="text-xl font-bold text-ink tracking-tight">Zone3</span>
+                    <ZoneIcon class="h-14 w-14" />
+                    <Wordmark class="mt-1 h-6 text-ink" />
                 </Link>
                 <h1 class="mt-5 text-[28px] font-bold leading-[34px] tracking-[-0.4px] text-ink">E-Mail bestätigen</h1>
             </div>

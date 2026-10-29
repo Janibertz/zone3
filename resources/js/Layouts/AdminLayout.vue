@@ -2,6 +2,8 @@
 import { ref, computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useDarkMode } from '@/Composables/useDarkMode';
+import Wordmark from '@/Components/Brand/Wordmark.vue';
+import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
 
 const page = usePage();
 const user = computed(() => page.props.auth.user);
@@ -87,11 +89,9 @@ const allNavItems = [...navItems, ...moreNavItems];
         <aside class="hidden lg:flex lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:w-64 flex-col bg-surface border-r border-line">
             <!-- Logo -->
             <div class="flex h-16 shrink-0 items-center gap-3 px-6 border-b border-line">
-                <div class="h-8 w-8 rounded-field bg-danger flex items-center justify-center shadow-card">
-                    <span class="text-white text-sm font-bold">Z3</span>
-                </div>
-                <div class="flex flex-col">
-                    <span class="text-base font-bold text-ink tracking-tight leading-tight">Zone3</span>
+                <ZoneIcon tone="admin" class="h-8 w-8" />
+                <div class="flex flex-col gap-1">
+                    <Wordmark class="h-4 text-ink" />
                     <span class="text-[13px] font-semibold text-danger leading-tight">Admin</span>
                 </div>
             </div>
@@ -176,11 +176,9 @@ const allNavItems = [...navItems, ...moreNavItems];
                     </svg>
                 </Link>
                 <div class="flex items-center gap-2">
-                    <div class="h-7 w-7 rounded-lg bg-danger flex items-center justify-center shadow-card">
-                        <span class="text-white text-xs font-bold">Z3</span>
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="text-sm font-bold text-ink tracking-tight leading-tight">Zone3</span>
+                    <ZoneIcon tone="admin" class="h-7 w-7" />
+                    <div class="flex flex-col gap-0.5">
+                        <Wordmark class="h-3.5 text-ink" />
                         <span class="text-[9px] font-semibold text-danger uppercase tracking-widest leading-tight">Admin</span>
                     </div>
                 </div>
