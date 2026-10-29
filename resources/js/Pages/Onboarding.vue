@@ -5,6 +5,10 @@ import axios from 'axios';
 import TrainingModelFields from '@/Components/Settings/TrainingModelFields.vue';
 import BikeFields from '@/Components/Settings/BikeFields.vue';
 import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
+import AppButton from '@/Components/UI/AppButton.vue';
+import FormGroup from '@/Components/UI/FormGroup.vue';
+import FormRow from '@/Components/UI/FormRow.vue';
+import Toggle from '@/Components/UI/Toggle.vue';
 
 const props = defineProps({
     coaches:     Array,
@@ -413,832 +417,402 @@ watch(sourceValue, (source, previous) => {
 });
 
 function complete() { router.post(route('onboarding.complete')); }
+
+function back() {
+    if (stepKey.value === 'profile' && profileMode.value) {
+        profileMode.value = null;
+        estimateResult.value = null;
+        return;
+    }
+    if (currentStep.value > 1) currentStep.value--;
+}
+
+/** Der Knopf unten: je Schritt eine Hauptaktion, wo sinnvoll „Überspringen“ darunter. */
+const bar = computed(() => {
+    switch (stepKey.value) {
+        case 'welcome':
+            return { label: 'Los geht’s', run: nextStep };
+        case 'coach': {
+            const name = props.coaches?.find(c => c.id === selectedCoachId.value)?.name;
+            return { label: name ? `Mit ${name} trainieren` : 'Coach wählen', run: submitCoach,
+                disabled: !selectedCoachId.value, loading: coachLoading.value, skip: nextStep };
+        }
+        case 'profile':
+            if (!profileMode.value) return { skip: nextStep, skipLabel: 'Später eintragen' };
+            if (profileMode.value === 'know') return { label: 'Weiter', run: submitKnown, loading: knownLoading.value };
+            return estimateResult.value
+                ? { label: 'Übernehmen', run: confirmEstimate, loading: knownLoading.value }
+                : { label: 'Zonen schätzen', run: runEstimate, loading: estimateLoading.value };
+        case 'model':
+            return { label: 'Weiter', run: submitModel, loading: modelLoading.value };
+        case 'availability':
+            return { label: 'Weiter', run: submitAvailability, loading: availabilityLoading.value,
+                disabled: !days.some(d => availability.value[d.key].available) };
+        case 'strength':
+            return { label: 'Weiter', run: submitStrength, loading: strengthLoading.value, skip: nextStep };
+        case 'bike':
+            return { label: 'Weiter', run: submitBike, loading: bikeLoading.value, skip: nextStep };
+        case 'goal':
+            return { label: 'Ziel sichern', run: submitGoal, loading: goalLoading.value, skip: nextStep };
+        case 'connect':
+            return anyLinked.value
+                ? { label: 'Fertig', run: complete }
+                : { skip: complete, skipLabel: 'Später verbinden' };
+        default:
+            return {};
+    }
+});
 </script>
 
 <template>
-    <Head title="Willkommen bei Zone3" />
+    <Head title="Willkommen" />
 
-    <div class="min-h-screen bg-surface-2 flex flex-col">
-
-        <!-- Header -->
-        <header class="flex items-center gap-3 px-6 py-4 border-b border-line bg-surface">
-            <div class="h-8 w-8 rounded-field bg-gradient-to-br from-accent to-accent flex items-center justify-center shadow-card">
-                <span class="text-white text-sm font-bold">Z3</span>
+    <!--
+        Redesign 29.10.2026: Vollbild wie das Plan-Interview — Fortschritt als
+        Segmente oben, eine große Frage je Schritt, Eingaben als gruppierte
+        Listen, der Knopf unten fest. Vorher Karten mit Rahmen, Emoji-Kacheln
+        und neun Kreise als Schrittanzeige.
+    -->
+    <div class="min-h-screen bg-canvas text-ink">
+        <div class="mx-auto flex max-w-xl items-center gap-3 px-4 pt-[max(env(safe-area-inset-top),16px)]">
+            <button type="button" aria-label="Zurück" :disabled="currentStep === 1 && !profileMode"
+                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-2 transition active:opacity-60 disabled:invisible"
+                @click="back">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
+            </button>
+            <div class="grid flex-1 gap-1" :style="{ gridTemplateColumns: `repeat(${totalSteps}, minmax(0, 1fr))` }">
+                <i v-for="s in steps" :key="s.key" class="block h-1 rounded-full transition-colors duration-200"
+                    :class="s.number <= currentStep ? 'bg-accent' : 'bg-surface-2'" />
             </div>
-            <span class="text-lg font-bold text-ink tracking-tight">Zone3</span>
-        </header>
-
-        <!-- Progress bar -->
-        <div class="w-full h-1 bg-surface-3">
-            <div class="h-1 bg-accent transition-[width] duration-500"
-                :style="{ width: ((currentStep - 1) / (totalSteps - 1) * 100) + '%' }"></div>
+            <span class="w-8 shrink-0 text-right text-[13px] tabular-nums text-ink-3">{{ currentStep }}/{{ totalSteps }}</span>
         </div>
 
-        <!-- Auf dem Telefon passen neun Kreise nicht in eine Zeile — dort steht der Schritt als Text. -->
-        <p class="pt-5 px-4 text-center text-[13px] text-ink-3 sm:hidden">
-            Schritt {{ currentStep }} von {{ totalSteps }} · <span class="font-semibold text-ink">{{ steps[currentStep - 1].label }}</span>
-        </p>
+        <main class="mx-auto max-w-xl space-y-7 px-4 pb-44 pt-8">
 
-        <!-- Step indicators -->
-        <div class="hidden sm:flex justify-center gap-2 pt-6 px-4">
-            <div v-for="step in steps" :key="step.number" class="flex items-center gap-1.5">
-                <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition duration-300"
-                    :class="currentStep > step.number
-                        ? 'bg-accent text-white'
-                        : currentStep === step.number
-                            ? 'bg-accent text-white ring-4 ring-accent/20'
-                            : 'bg-surface-3 text-ink-3'">
-                    <svg v-if="currentStep > step.number" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
-                    <span v-else>{{ step.number }}</span>
-                </div>
-                <span class="text-xs hidden lg:block transition-colors"
-                    :class="currentStep === step.number ? 'text-accent-ink font-medium' : 'text-ink-3'">
-                    {{ step.label }}
-                </span>
-                <div v-if="step.number < totalSteps" class="w-4 lg:w-8 h-px bg-surface-3 mx-1"></div>
-            </div>
-        </div>
+            <!-- ── Willkommen ── -->
+            <template v-if="stepKey === 'welcome'">
+                <header>
+                    <div class="flex h-14 w-14 items-center justify-center rounded-[14px] bg-accent text-[20px] font-bold text-white">Z3</div>
+                    <h1 class="mt-6 text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Willkommen, {{ user?.name?.split(' ')[0] }}</h1>
+                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Ein paar Fragen, dann baut dein Coach den ersten Plan. Alles lässt sich später im Profil ändern.</p>
+                </header>
+                <FormGroup>
+                    <div v-for="(row, i) in [
+                            ['Coach und Trainingsmodell', 'Wer dich begleitet und wie du trainierst'],
+                            ['Deine Werte', 'Puls und Schwellenpace, bekannt oder geschätzt'],
+                            ['Zeit und Ziel', 'Wann du trainieren kannst und worauf'],
+                            ['Garmin oder Strava', 'Damit Zone3 deine Läufe sieht'],
+                        ]" :key="i" class="flex items-center gap-3 px-4 py-3">
+                        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[13px] font-bold text-accent-ink">{{ i + 1 }}</span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-[17px]">{{ row[0] }}</span>
+                            <span class="block text-[13px] text-ink-3">{{ row[1] }}</span>
+                        </span>
+                    </div>
+                </FormGroup>
+            </template>
 
-        <!-- Main content -->
-        <main class="flex-1 flex items-start justify-center p-6 pt-8">
-            <div class="w-full max-w-lg">
-
-                <!-- ══════════════════════════════════════════
-                     STEP 1 — Welcome
-                     ══════════════════════════════════════════ -->
-                <div v-if="stepKey === 'welcome'" class="text-center space-y-6">
-                    <div class="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-accent to-accent flex items-center justify-center shadow-lg">
-                        <svg class="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                        </svg>
-                    </div>
-                    <div>
-                        <h1 class="text-3xl font-bold text-ink">
-                            Willkommen, {{ user?.name?.split(' ')[0] }}!
-                        </h1>
-                        <p class="mt-3 text-ink-3 text-lg leading-relaxed">
-                            In 3 kurzen Schritten richtest du Zone3 auf dich ein.
-                        </p>
-                    </div>
-                    <div class="grid grid-cols-3 gap-4 text-center py-2">
-                        <div class="p-4 rounded-field bg-surface/50 border border-line">
-                            <div class="text-2xl mb-1">🏃</div>
-                            <div class="text-xs font-medium text-ink-2">Dein Profil</div>
-                            <div class="text-[10px] text-ink-3 mt-0.5">Werte bekannt oder berechnen lassen</div>
-                        </div>
-                        <div class="p-4 rounded-field bg-surface/50 border border-line">
-                            <div class="text-2xl mb-1">🎯</div>
-                            <div class="text-xs font-medium text-ink-2">Dein Ziel</div>
-                            <div class="text-[10px] text-ink-3 mt-0.5">Rennen + Zielzeit</div>
-                        </div>
-                        <div class="p-4 rounded-field bg-surface/50 border border-line">
-                            <div class="text-2xl mb-1">🔗</div>
-                            <div class="text-xs font-medium text-ink-2">Strava</div>
-                            <div class="text-[10px] text-ink-3 mt-0.5">Optional verbinden</div>
-                        </div>
-                    </div>
-                    <button @click="nextStep"
-                        class="w-full py-3 px-6 bg-accent hover:opacity-90 text-white font-semibold rounded-field transition-colors shadow-card">
-                        Lass uns starten
+            <!-- ── Coach ── -->
+            <template v-else-if="stepKey === 'coach'">
+                <header>
+                    <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Wähle deinen Coach</h1>
+                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Er begleitet dich durch jedes Training. Wechseln geht jederzeit.</p>
+                </header>
+                <FormGroup :footer="coaches.find(c => c.id === selectedCoachId)?.description">
+                    <button v-for="coach in coaches" :key="coach.id" type="button" role="radio" :aria-checked="selectedCoachId === coach.id"
+                        class="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors active:bg-surface-2"
+                        @click="selectedCoachId = coach.id">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[15px] font-bold text-white"
+                            :class="coachColors[coach.avatar_color]?.bg ?? 'bg-accent'">{{ coach.avatar_initials }}</span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-[17px]">{{ coach.name }} <span class="text-ink-3">· {{ specialtyLabels[coach.specialty] ?? coach.specialty }}</span></span>
+                            <span class="block text-[13px] leading-snug text-ink-3">„{{ coach.tagline }}“</span>
+                        </span>
+                        <svg class="h-5 w-5 shrink-0 text-accent" :class="selectedCoachId === coach.id ? '' : 'invisible'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
                     </button>
-                </div>
+                </FormGroup>
+                <p v-if="coachError" class="z-error mx-4">{{ coachError }}</p>
+            </template>
 
-                <!-- ══════════════════════════════════════════
-                     STEP 2 — Coach selection
-                     ══════════════════════════════════════════ -->
-                <div v-else-if="stepKey === 'coach'" class="space-y-5">
-                    <div class="text-center">
-                        <h2 class="text-2xl font-bold text-ink">Wähle deinen Coach</h2>
-                        <p class="mt-2 text-ink-3">
-                            Dein Coach begleitet dich durch jedes Training. Du kannst ihn später wechseln.
-                        </p>
-                    </div>
+            <!-- ── Werte ── -->
+            <template v-else-if="stepKey === 'profile'">
+                <header>
+                    <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Deine Werte</h1>
+                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Aus Puls und Schwellenpace rechnet Zone3 deine Trainingszonen.</p>
+                </header>
 
-                    <div class="space-y-3">
-                        <button
-                            v-for="coach in coaches" :key="coach.id"
-                            type="button"
-                            @click="selectedCoachId = coach.id"
-                            class="w-full flex items-start gap-4 p-5 rounded-card border-2 text-left transition duration-200"
-                            :class="selectedCoachId === coach.id
-                                ? [coachColors[coach.avatar_color]?.light, coachColors[coach.avatar_color]?.border, 'shadow-card']
-                                : 'bg-surface/50 border-line hover:border-line-strong'"
-                        >
-                            <!-- Avatar -->
-                            <div class="shrink-0 w-14 h-14 rounded-card flex items-center justify-center text-white font-bold text-lg shadow-card"
-                                :class="[coachColors[coach.avatar_color]?.bg, selectedCoachId === coach.id ? 'ring-2 ring-offset-2 ' + coachColors[coach.avatar_color]?.ring : '']">
-                                {{ coach.avatar_initials }}
-                            </div>
-
-                            <!-- Info -->
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-2 mb-1">
-                                    <span class="font-bold text-ink">{{ coach.name }}</span>
-                                    <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="coachColors[coach.avatar_color]?.badge">
-                                        {{ specialtyLabels[coach.specialty] }}
-                                    </span>
-                                </div>
-                                <p class="text-xs font-medium text-ink-3 italic mb-1.5">„{{ coach.tagline }}"</p>
-                                <p class="text-sm text-ink-2 leading-relaxed">{{ coach.description }}</p>
-                            </div>
-
-                            <!-- Check -->
-                            <div class="shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition mt-0.5"
-                                :class="selectedCoachId === coach.id
-                                    ? [coachColors[coach.avatar_color]?.bg, 'border-transparent']
-                                    : 'border-line-strong'">
-                                <svg v-if="selectedCoachId === coach.id" class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
-                                </svg>
-                            </div>
-                        </button>
-                    </div>
-
-                    <p v-if="coachError" class="text-xs text-danger text-center">{{ coachError }}</p>
-
-                    <button
-                        @click="submitCoach"
-                        :disabled="!selectedCoachId || coachLoading"
-                        class="w-full py-3 bg-accent hover:opacity-90 disabled:opacity-50 text-white font-semibold rounded-field transition-colors shadow-card">
-                        {{ coachLoading ? 'Speichern…' : selectedCoachId ? 'Mit ' + (coaches.find(c => c.id === selectedCoachId)?.name) + ' trainieren' : 'Coach auswählen' }}
+                <FormGroup v-if="!profileMode">
+                    <button v-for="opt in [
+                            { mode: 'know', title: 'Ich kenne meine Werte', text: 'Schwellenpuls, Maximalpuls und Schwellenpace eintragen' },
+                            { mode: 'estimate', title: 'Aus einer Bestzeit schätzen', text: 'Eine Wettkampf- oder schnelle Trainingszeit genügt' },
+                        ]" :key="opt.mode" type="button"
+                        class="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors active:bg-surface-2"
+                        @click="profileMode = opt.mode">
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-[17px]">{{ opt.title }}</span>
+                            <span class="block text-[13px] leading-snug text-ink-3">{{ opt.text }}</span>
+                        </span>
+                        <svg class="h-4 w-4 shrink-0 text-ink-3/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
                     </button>
+                    <template #footer>Ohne Angaben schätzt Zone3 die Werte später aus deinen Läufen.</template>
+                </FormGroup>
 
-                    <button @click="nextStep" class="w-full py-2 text-sm text-ink-3 hover:text-ink-2 transition-colors">
-                        Jetzt überspringen
-                    </button>
-                </div>
+                <template v-else-if="profileMode === 'know'">
+                    <FormGroup footer="Schwelle heißt: das, was du etwa 60 Minuten halten kannst.">
+                        <FormRow as="label" label="Schwellenpuls">
+                            <input v-model="knownForm.threshold_heart_rate" type="number" inputmode="numeric" min="100" max="220" placeholder="168" class="z-inline w-16" />
+                            <span class="text-[17px] text-ink-3">bpm</span>
+                        </FormRow>
+                        <FormRow as="label" label="Maximalpuls">
+                            <input v-model="knownForm.max_heart_rate" type="number" inputmode="numeric" min="100" max="220" placeholder="192" class="z-inline w-16" />
+                            <span class="text-[17px] text-ink-3">bpm</span>
+                        </FormRow>
+                        <FormRow as="label" label="Schwellenpace">
+                            <input v-model="knownForm.threshold_speed" type="text" inputmode="numeric" placeholder="5:30" class="z-inline w-16" />
+                            <span class="text-[17px] text-ink-3">/km</span>
+                        </FormRow>
+                    </FormGroup>
+                    <p v-for="k in ['threshold_heart_rate', 'max_heart_rate', 'threshold_speed']" v-show="knownErrors[k]" :key="k" class="z-error mx-4">{{ knownErrors[k]?.[0] }}</p>
+                </template>
 
-                <!-- ══════════════════════════════════════════
-                     STEP 3 — Athlete profile
-                     ══════════════════════════════════════════ -->
-                <div v-else-if="stepKey === 'profile'" class="space-y-5">
-                    <div class="text-center">
-                        <h2 class="text-2xl font-bold text-ink">Dein Athletenprofil</h2>
-                        <p class="mt-2 text-ink-3">
-                            Zone3 nutzt deine Trainingszonen für persönliche Empfehlungen.
-                        </p>
-                    </div>
-
-                    <!-- Mode selection -->
-                    <div v-if="!profileMode" class="space-y-3">
-                        <button @click="profileMode = 'know'"
-                            class="w-full flex items-start gap-4 p-5 rounded-card border-2 border-line hover:border-accent bg-surface/50 text-left transition-colors group">
-                            <div class="h-10 w-10 rounded-field bg-accent-soft flex items-center justify-center shrink-0 group-hover:opacity-90 transition-colors">
-                                <svg class="h-5 w-5 text-accent-ink" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <p class="font-semibold text-ink">Ich kenne meine Werte</p>
-                                <p class="text-sm text-ink-3 mt-0.5">Ich trage Herzfrequenz-Schwelle und Schwellentempo direkt ein.</p>
-                            </div>
-                        </button>
-
-                        <button @click="profileMode = 'estimate'"
-                            class="w-full flex items-start gap-4 p-5 rounded-card border-2 border-line hover:border-accent bg-surface/50 text-left transition-colors group">
-                            <div class="h-10 w-10 rounded-field bg-accent-soft flex items-center justify-center shrink-0 group-hover:opacity-90 transition-colors">
-                                <svg class="h-5 w-5 text-accent-ink" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <p class="font-semibold text-ink">Werte berechnen lassen</p>
-                                <p class="text-sm text-ink-3 mt-0.5">Ich gebe meine beste Laufzeit an und Zone3 schätzt meine Zonen.</p>
-                            </div>
-                        </button>
-
-                        <button @click="nextStep"
-                            class="w-full py-2.5 text-sm text-ink-3 hover:text-ink-2 transition-colors">
-                            Jetzt überspringen — später in den Einstellungen eintragen
-                        </button>
-                    </div>
-
-                    <!-- Mode: know my values -->
-                    <div v-else-if="profileMode === 'know'" class="space-y-5">
-                        <button @click="profileMode = null" class="flex items-center gap-1.5 text-sm text-ink-3 hover:text-ink transition-colors">
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
-                            Zurück
-                        </button>
-
-                        <div class="bg-surface/50 border border-line rounded-card p-6 space-y-5">
-                            <div>
-                                <label class="block text-sm font-medium text-ink-2 mb-1.5">
-                                    Schwellenherzfrequenz (LTHR) <span class="text-ink-3 font-normal">bpm</span>
-                                </label>
-                                <input v-model="knownForm.threshold_heart_rate" type="number" min="100" max="220" placeholder="z.B. 168"
-                                    class="input-field" :class="knownErrors.threshold_heart_rate ? 'border-danger' : 'border-line'" />
-                                <p v-if="knownErrors.threshold_heart_rate" class="mt-1 text-xs text-danger">{{ knownErrors.threshold_heart_rate[0] }}</p>
-                                <p class="mt-1 text-xs text-ink-3">Herzfrequenz, die du ~60 Minuten maximal halten kannst (Laktatschwelle)</p>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-ink-2 mb-1.5">
-                                    Maximale Herzfrequenz <span class="text-ink-3 font-normal">bpm</span>
-                                </label>
-                                <input v-model="knownForm.max_heart_rate" type="number" min="100" max="220" placeholder="z.B. 192"
-                                    class="input-field" :class="knownErrors.max_heart_rate ? 'border-danger' : 'border-line'" />
-                                <p v-if="knownErrors.max_heart_rate" class="mt-1 text-xs text-danger">{{ knownErrors.max_heart_rate[0] }}</p>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-ink-2 mb-1.5">
-                                    Schwellentempo <span class="text-ink-3 font-normal">min/km (MM:SS)</span>
-                                </label>
-                                <input v-model="knownForm.threshold_speed" type="text" placeholder="z.B. 5:30"
-                                    class="input-field" :class="knownErrors.threshold_speed ? 'border-danger' : 'border-line'" />
-                                <p v-if="knownErrors.threshold_speed" class="mt-1 text-xs text-danger">{{ knownErrors.threshold_speed[0] }}</p>
-                                <p class="mt-1 text-xs text-ink-3">Tempo, das du ~60 Minuten maximal halten kannst</p>
-                            </div>
-                        </div>
-
-                        <button @click="submitKnown" :disabled="knownLoading"
-                            class="w-full py-3 bg-accent hover:opacity-90 disabled:opacity-50 text-white font-semibold rounded-field transition-colors">
-                            {{ knownLoading ? 'Speichern…' : 'Speichern & weiter' }}
-                        </button>
-                    </div>
-
-                    <!-- Mode: AI estimate -->
-                    <div v-else-if="profileMode === 'estimate'" class="space-y-5">
-                        <button @click="profileMode = null" class="flex items-center gap-1.5 text-sm text-ink-3 hover:text-ink transition-colors">
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
-                            Zurück
-                        </button>
-
-                        <!-- Input form (hidden once result is shown) -->
-                        <div v-if="!estimateResult" class="bg-surface/50 border border-line rounded-card p-6 space-y-5">
-                            <div class="flex items-start gap-3 p-3 rounded-field bg-accent-soft border border-accent/25">
-                                <svg class="h-4 w-4 text-accent mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/>
-                                </svg>
-                                <p class="text-xs text-accent-ink">Zone3 berechnet deine Trainingszonen basierend auf deiner besten Wettkampfzeit. Du kannst die Werte danach noch anpassen.</p>
-                            </div>
-
-                            <!-- Age -->
-                            <div>
-                                <label class="block text-sm font-medium text-ink-2 mb-1.5">Alter</label>
-                                <input v-model="estimateForm.age" type="number" min="14" max="90" placeholder="z.B. 32"
-                                    class="input-field" :class="estimateErrors.age ? 'border-danger' : 'border-line'" />
-                                <p v-if="estimateErrors.age" class="mt-1 text-xs text-danger">{{ estimateErrors.age[0] }}</p>
-                            </div>
-
-                            <!-- Race distance -->
-                            <div>
-                                <label class="block text-sm font-medium text-ink-2 mb-2">Beste Wettkampfdistanz</label>
-                                <div class="grid grid-cols-2 gap-2">
-                                    <button v-for="d in raceDistances" :key="d.value"
-                                        type="button" @click="estimateForm.race_distance = d.value"
-                                        class="py-2.5 px-3 text-sm rounded-field border transition-colors text-center"
-                                        :class="estimateForm.race_distance === d.value
-                                            ? 'bg-accent text-white border-accent'
-                                            : 'border-line text-ink-2 hover:border-accent'">
-                                        {{ d.label }}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Race time -->
-                            <div>
-                                <label class="block text-sm font-medium text-ink-2 mb-1.5">Beste Zeit über diese Distanz</label>
-                                <input v-model="estimateForm.race_time" type="text" :placeholder="raceTimePlaceholder"
-                                    class="input-field" :class="estimateErrors.race_time ? 'border-danger' : 'border-line'" />
-                                <p v-if="estimateErrors.race_time" class="mt-1 text-xs text-danger">{{ estimateErrors.race_time[0] }}</p>
-                                <p class="mt-1 text-xs text-ink-3">Format: H:MM:SS oder MM:SS — kein Wettkampf? Einfach deine schnellste Trainingszeit</p>
-                            </div>
-
-                            <!-- Weekly runs -->
-                            <div>
-                                <label class="block text-sm font-medium text-ink-2 mb-2">
-                                    Läufe pro Woche: <span class="text-accent-ink font-bold">{{ estimateForm.weekly_runs }}×</span>
-                                </label>
-                                <input v-model.number="estimateForm.weekly_runs" type="range" min="1" max="14" step="1"
-                                    class="w-full accent-indigo-600" />
-                                <div class="flex justify-between text-xs text-ink-3 mt-1">
-                                    <span>1× (Einsteiger)</span>
-                                    <span>7× (Fortgeschritten)</span>
-                                    <span>14× (Profi)</span>
-                                </div>
-                            </div>
-
-                            <p v-if="estimateErrors.general" class="text-xs text-danger">{{ estimateErrors.general[0] }}</p>
-
-                            <button @click="runEstimate" :disabled="estimateLoading"
-                                class="w-full py-3 bg-accent hover:opacity-90 disabled:opacity-50 text-white font-semibold rounded-field transition-colors flex items-center justify-center gap-2">
-                                <svg v-if="estimateLoading" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                                </svg>
-                                {{ estimateLoading ? 'Berechnung läuft…' : 'Zonen berechnen lassen' }}
-                            </button>
-                        </div>
-
-                        <!-- Result confirmation -->
-                        <div v-if="estimateResult" class="space-y-4">
-                            <div class="bg-surface/50 border border-line rounded-card p-6 space-y-4">
-                                <div class="flex items-center gap-2">
-                                    <div class="h-6 w-6 rounded-full bg-success-soft flex items-center justify-center">
-                                        <svg class="h-3.5 w-3.5 text-success-ink" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
-                                        </svg>
-                                    </div>
-                                    <p class="text-sm font-semibold text-ink">Schätzung abgeschlossen</p>
-                                </div>
-
-                                <div class="grid grid-cols-3 gap-3">
-                                    <div class="text-center p-3 rounded-field bg-surface-2">
-                                        <p class="text-xs text-ink-3 mb-1">LTHR</p>
-                                        <p class="text-xl font-bold text-ink">{{ estimateResult.threshold_heart_rate }}</p>
-                                        <p class="text-xs text-ink-3">bpm</p>
-                                    </div>
-                                    <div class="text-center p-3 rounded-field bg-surface-2">
-                                        <p class="text-xs text-ink-3 mb-1">Max HF</p>
-                                        <p class="text-xl font-bold text-ink">{{ estimateResult.max_heart_rate }}</p>
-                                        <p class="text-xs text-ink-3">bpm</p>
-                                    </div>
-                                    <div class="text-center p-3 rounded-field bg-surface-2">
-                                        <p class="text-xs text-ink-3 mb-1">Schwellentempo</p>
-                                        <p class="text-xl font-bold text-ink">{{ estimateResult.threshold_speed }}</p>
-                                        <p class="text-xs text-ink-3">min/km</p>
-                                    </div>
-                                </div>
-
-                                <p class="text-xs text-ink-3 text-center">
-                                    Diese Werte sind Schätzungen. Du kannst sie jederzeit im Profil anpassen.
-                                </p>
-                            </div>
-
-                            <div class="flex gap-3">
-                                <button @click="estimateResult = null"
-                                    class="flex-1 py-2.5 text-sm border border-line text-ink-2 rounded-field hover:bg-surface-2 transition-colors">
-                                    Neu berechnen
-                                </button>
-                                <button @click="confirmEstimate" :disabled="knownLoading"
-                                    class="flex-1 py-2.5 bg-accent hover:opacity-90 disabled:opacity-50 text-white font-semibold rounded-field transition-colors">
-                                    {{ knownLoading ? 'Speichern…' : 'Übernehmen & weiter' }}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ══════════════════════════════════════════
-                     Trainingsmodell
-                     ══════════════════════════════════════════ -->
-                <div v-else-if="stepKey === 'model'" class="space-y-5">
-                    <div class="text-center">
-                        <h2 class="text-2xl font-bold text-ink">Wie willst du trainieren?</h2>
-                        <p class="mt-2 text-ink-3">Du kannst das Modell später im Profil jederzeit wechseln.</p>
-                    </div>
-
-                    <TrainingModelFields v-model="modelForm" :readiness="modelReadiness" />
-
-                    <p v-if="modelError" class="z-error">{{ modelError }}</p>
-
-                    <button @click="submitModel" :disabled="modelLoading"
-                        class="w-full rounded-card bg-accent px-6 py-3.5 text-base font-semibold text-white hover:opacity-90 active:opacity-80 disabled:opacity-50 transition-colors">
-                        {{ modelLoading ? 'Speichern…' : 'Weiter' }}
-                    </button>
-                </div>
-
-                <!-- ══════════════════════════════════════════
-                     STEP 4 — Availability
-                     ══════════════════════════════════════════ -->
-                <div v-else-if="stepKey === 'availability'" class="space-y-6">
-                    <div class="text-center">
-                        <h2 class="text-2xl font-bold text-ink">Wann kannst du trainieren?</h2>
-                        <p class="mt-2 text-ink-3">
-                            Wähle deine verfügbaren Tage und wie viel Zeit du hast.<br>
-                            Dein Coach passt den Plan automatisch daran an.
-                        </p>
-                    </div>
-
-                    <!-- Day grid -->
-                    <div class="grid grid-cols-7 gap-2">
-                        <div v-for="day in days" :key="day.key" class="flex flex-col items-center gap-2">
-                            <!-- Day toggle -->
-                            <button
-                                type="button"
-                                @click="toggleDay(day.key)"
-                                class="w-full aspect-square rounded-card flex flex-col items-center justify-center text-sm font-bold transition duration-150 border-2"
-                                :class="availability[day.key].available
-                                    ? 'bg-accent border-accent text-white shadow-md scale-105'
-                                    : 'bg-surface border-line text-ink-3 hover:border-line-strong'"
-                            >
-                                {{ day.label }}
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Duration per available day -->
-                    <div class="space-y-3">
-                        <p class="text-sm font-semibold text-ink-2">Trainingszeit pro Tag</p>
-                        <div v-for="day in days.filter(d => availability[d.key].available)" :key="day.key + '_dur'" class="space-y-2">
+                <template v-else-if="profileMode === 'estimate' && !estimateResult">
+                    <FormGroup title="Beste Distanz" plain>
+                        <SegmentedControl v-model="estimateForm.race_distance" :options="raceDistances.map(d => ({ value: d.value, label: d.value === 'half_marathon' ? 'HM' : d.label }))" />
+                    </FormGroup>
+                    <FormGroup footer="Kein Wettkampf? Dann deine schnellste Trainingszeit über die Strecke.">
+                        <FormRow as="label" label="Zeit">
+                            <input v-model="estimateForm.race_time" type="text" inputmode="numeric" :placeholder="raceTimePlaceholder.replace('z.B. ', '')" class="z-inline w-28" />
+                        </FormRow>
+                        <FormRow as="label" label="Alter">
+                            <input v-model="estimateForm.age" type="number" inputmode="numeric" min="14" max="90" placeholder="32" class="z-inline w-16" />
+                        </FormRow>
+                        <FormRow label="Läufe pro Woche" stacked>
                             <div class="flex items-center gap-3">
-                                <span class="w-24 text-sm text-ink-2 font-medium">{{ day.full }}</span>
-                                <div class="flex flex-wrap gap-1.5 flex-1">
-                                    <button
-                                        v-for="opt in durationOptions"
-                                        :key="opt.value"
-                                        type="button"
-                                        @click="availability[day.key].duration_min = opt.value"
-                                        class="px-2.5 py-1 rounded-field text-xs font-semibold border transition-colors"
-                                        :class="availability[day.key].duration_min === opt.value
-                                            ? 'bg-accent border-accent text-white'
-                                            : 'bg-surface border-line text-ink-2 hover:border-accent'"
-                                    >
-                                        {{ opt.label }}
-                                    </button>
-                                </div>
+                                <input v-model.number="estimateForm.weekly_runs" type="range" min="1" max="14" step="1" class="z-range flex-1" />
+                                <span class="w-10 text-right text-[17px] tabular-nums text-ink-3">{{ estimateForm.weekly_runs }}×</span>
                             </div>
-                            <!-- Zweites Zeitfenster: nur im norwegischen Modell gefragt -->
-                            <div v-if="modelForm.training_model === 'norwegian'" class="ml-[108px] flex flex-wrap items-center gap-1.5">
+                        </FormRow>
+                    </FormGroup>
+                    <p v-for="k in ['age', 'race_time', 'general']" v-show="estimateErrors[k]" :key="k" class="z-error mx-4">{{ estimateErrors[k]?.[0] }}</p>
+                </template>
+
+                <template v-else-if="profileMode === 'estimate'">
+                    <div class="grid grid-cols-3 gap-3">
+                        <div v-for="v in [
+                                ['Schwellenpuls', estimateResult.threshold_heart_rate, 'bpm'],
+                                ['Maximalpuls', estimateResult.max_heart_rate, 'bpm'],
+                                ['Schwelle', estimateResult.threshold_speed, '/km'],
+                            ]" :key="v[0]" class="rounded-card bg-surface px-3 py-3">
+                            <p class="text-[13px] text-ink-3">{{ v[0] }}</p>
+                            <p class="font-rounded text-[24px] font-bold">{{ v[1] }}<span class="ml-0.5 text-[13px] font-semibold text-ink-3">{{ v[2] }}</span></p>
+                        </div>
+                    </div>
+                    <p class="mx-4 text-[13px] text-ink-3">Geschätzt. Du kannst die Werte jederzeit im Profil ändern.</p>
+                    <AppButton variant="plain" class="mx-4" @click="estimateResult = null">Neu berechnen</AppButton>
+                </template>
+            </template>
+
+            <!-- ── Trainingsmodell ── -->
+            <template v-else-if="stepKey === 'model'">
+                <header>
+                    <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Wie willst du trainieren?</h1>
+                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Wechseln geht später im Profil.</p>
+                </header>
+                <TrainingModelFields v-model="modelForm" :readiness="modelReadiness" />
+                <p v-if="modelError" class="z-error mx-4">{{ modelError }}</p>
+            </template>
+
+            <!-- ── Zeit ── -->
+            <template v-else-if="stepKey === 'availability'">
+                <header>
+                    <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Wann kannst du trainieren?</h1>
+                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Der Plan hält sich an diese Tage und Zeiten.</p>
+                </header>
+                <FormGroup :footer="days.some(d => availability[d.key].available)
+                        ? `${days.filter(d => availability[d.key].available).length} Tage · ${days.filter(d => availability[d.key].available).reduce((s, d) => s + availability[d.key].duration_min, 0)} min pro Woche`
+                            + (modelForm.training_model === 'norwegian' ? '. Für die Doppel-Schwelle braucht es mindestens zwei Tage mit Abendfenster.' : '')
+                        : 'Wähle mindestens einen Tag.'">
+                    <div v-for="day in days" :key="day.key" class="px-4 py-2">
+                        <div class="flex min-h-[32px] items-center gap-3">
+                            <span class="flex-1 text-[17px]" :class="availability[day.key].available ? 'text-ink' : 'text-ink-3'">{{ day.full }}</span>
+                            <Toggle :model-value="availability[day.key].available" :label="`${day.full} verfügbar`" @update:model-value="toggleDay(day.key)" />
+                        </div>
+                        <div v-if="availability[day.key].available" class="mt-2 space-y-2 pb-1">
+                            <SegmentedControl v-model="availability[day.key].duration_min"
+                                :options="durationOptions.map(o => ({ value: o.value, label: o.value < 60 ? `${o.value}′` : `${(o.value / 60).toLocaleString('de-DE')} h` }))" />
+                            <template v-if="modelForm.training_model === 'norwegian'">
                                 <button type="button" @click="toggleSecond(day.key)"
-                                    class="rounded-full px-3 py-1 text-xs font-medium transition-colors"
-                                    :class="availability[day.key].second_min ? 'bg-accent-soft text-accent-ink' : 'bg-surface-2 text-ink-3'">
-                                    {{ availability[day.key].second_min ? 'Abends' : '+ Abends' }}
+                                    class="h-8 rounded-full px-3 text-[13px] font-semibold transition active:scale-[0.97]"
+                                    :class="availability[day.key].second_min ? 'bg-accent-soft text-accent-ink' : 'bg-surface-2 text-ink-2'">
+                                    {{ availability[day.key].second_min ? 'Abends ✓' : '+ Abends' }}
                                 </button>
-                                <template v-if="availability[day.key].second_min">
-                                    <button v-for="m in secondOptions" :key="m" type="button"
-                                        @click="availability[day.key].second_min = m"
-                                        class="px-2.5 py-1 rounded-field text-xs font-semibold border transition-colors"
-                                        :class="availability[day.key].second_min === m
-                                            ? 'bg-accent border-accent text-white'
-                                            : 'bg-surface border-line text-ink-2'">
-                                        {{ m }} min
-                                    </button>
-                                </template>
-                            </div>
+                                <SegmentedControl v-if="availability[day.key].second_min" v-model="availability[day.key].second_min"
+                                    :options="secondOptions.map(m => ({ value: m, label: `abends ${m}′` }))" />
+                            </template>
                         </div>
-                        <p v-if="modelForm.training_model === 'norwegian'" class="text-[13px] leading-relaxed text-ink-3">
-                            Für die Doppel-Schwelle braucht es mindestens zwei Tage mit einem zweiten Zeitfenster am Abend.
-                        </p>
-                        <p v-if="!days.some(d => availability[d.key].available)" class="text-sm text-warn-ink">
-                            Bitte wähle mindestens einen Tag aus.
-                        </p>
                     </div>
+                </FormGroup>
+            </template>
 
-                    <!-- Summary -->
-                    <div class="rounded-card bg-accent-soft border border-accent/25 px-4 py-3">
-                        <p class="text-sm font-semibold text-accent-ink mb-1">Deine Wochenverfügbarkeit</p>
-                        <p class="text-sm text-accent-ink">
-                            {{ days.filter(d => availability[d.key].available).length }} Trainingstage ·
-                            {{ days.filter(d => availability[d.key].available).reduce((s, d) => s + availability[d.key].duration_min, 0) }} Min. pro Woche
-                        </p>
-                    </div>
-
-                    <button
-                        @click="submitAvailability"
-                        :disabled="availabilityLoading || !days.some(d => availability[d.key].available)"
-                        class="w-full rounded-card bg-accent px-6 py-3.5 text-base font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-card"
-                    >
-                        <svg v-if="availabilityLoading" class="inline h-5 w-5 animate-spin mr-2" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                        Weiter
-                    </button>
-                </div>
-
-                <!-- ══════════════════════════════════════════
-                     STEP 5 — Race goal
-                     ══════════════════════════════════════════ -->
-                <!-- ══════════════════════════════════════════
-                     STEP 5 — Kraft & Core
-                     ══════════════════════════════════════════ -->
-                <div v-else-if="stepKey === 'strength'" class="space-y-5">
-                    <div class="text-center">
-                        <div class="w-16 h-16 mx-auto rounded-card bg-gradient-to-br from-danger to-danger flex items-center justify-center shadow-lg text-3xl">💪</div>
-                        <h2 class="mt-4 text-2xl font-bold text-ink">Kraft & Core</h2>
-                        <p class="mt-2 text-ink-3">Ausdauersportler:innen vernachlässigen oft Kraft & Rumpf — dabei beugt es Verletzungen vor und macht dich schneller. Soll dein Coach Kraft- & Core-Einheiten in den Plan einbauen?</p>
-                    </div>
-
-                    <!-- Toggle -->
-                    <div class="bg-surface/50 border border-line rounded-card p-5 flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-semibold text-ink-2">Kraft & Core einplanen</p>
-                            <p class="text-xs text-ink-3 mt-0.5">Ergänzend zum Lauftraining</p>
-                        </div>
-                        <button type="button" @click="strengthForm.strength_enabled = !strengthForm.strength_enabled"
-                            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0"
-                            :class="strengthForm.strength_enabled ? 'bg-danger' : 'bg-surface-3'">
-                            <span class="inline-block h-4 w-4 transform rounded-full bg-surface transition-transform"
-                                :class="strengthForm.strength_enabled ? 'translate-x-6' : 'translate-x-1'"></span>
-                        </button>
-                    </div>
-
+            <!-- ── Kraft ── -->
+            <template v-else-if="stepKey === 'strength'">
+                <header>
+                    <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Kraft und Rumpf</h1>
+                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Beugt Verletzungen vor und macht dich schneller. Soll dein Coach Kraft-Einheiten einplanen?</p>
+                </header>
+                <FormGroup>
+                    <FormRow label="Kraft einplanen" hint="Ergänzend zum Laufen">
+                        <Toggle v-model="strengthForm.strength_enabled" label="Kraft einplanen" />
+                    </FormRow>
                     <template v-if="strengthForm.strength_enabled">
-                        <!-- Equipment -->
-                        <div class="bg-surface/50 border border-line rounded-card p-5 space-y-3">
-                            <label class="block text-sm font-semibold text-ink-2">Welches Equipment hast du?</label>
-                            <div class="grid grid-cols-3 gap-2">
+                        <FormRow as="label" label="Pro Woche">
+                            <select v-model.number="strengthForm.strength_days_per_week" class="z-inline appearance-none text-ink-3">
+                                <option v-for="n in 4" :key="n" :value="n">{{ n }}×</option>
+                            </select>
+                        </FormRow>
+                        <FormRow as="label" label="Erfahrung">
+                            <select v-model="strengthForm.strength_experience" class="z-inline appearance-none text-ink-3">
+                                <option value="beginner">Anfänger</option>
+                                <option value="intermediate">Mittel</option>
+                                <option value="advanced">Fortgeschritten</option>
+                            </select>
+                        </FormRow>
+                        <FormRow label="Ausrüstung" hint="Keine Auswahl heißt Körpergewicht." stacked>
+                            <div class="flex flex-wrap gap-2">
                                 <button v-for="opt in equipmentOptions" :key="opt.value" type="button" @click="toggleEquipment(opt.value)"
-                                    class="py-3 px-2 rounded-field border-2 transition text-center"
-                                    :class="strengthForm.strength_equipment.includes(opt.value)
-                                        ? 'bg-accent-soft border-danger text-danger-ink'
-                                        : 'border-line text-ink-2 hover:border-danger'">
-                                    <div class="text-xl mb-1">{{ opt.icon }}</div>
-                                    <div class="text-xs font-semibold">{{ opt.label }}</div>
+                                    class="h-8 rounded-full px-3 text-[15px] font-semibold transition active:scale-[0.97]"
+                                    :class="strengthForm.strength_equipment.includes(opt.value) ? 'bg-accent text-white' : 'bg-surface-2 text-ink-2'">
+                                    {{ opt.label }}
                                 </button>
                             </div>
-                            <p class="text-[11px] text-ink-3">Mehrfachauswahl möglich. Keine Auswahl = nur Körpergewicht.</p>
-                        </div>
+                        </FormRow>
+                    </template>
+                </FormGroup>
+            </template>
 
-                        <!-- Frequency + experience -->
-                        <div class="bg-surface/50 border border-line rounded-card p-5 grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs text-ink-3 mb-1.5">Einheiten / Woche</label>
-                                <select v-model.number="strengthForm.strength_days_per_week" class="input-field border-line">
-                                    <option v-for="n in 4" :key="n" :value="n">{{ n }}×</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-xs text-ink-3 mb-1.5">Erfahrung</label>
-                                <select v-model="strengthForm.strength_experience" class="input-field border-line">
-                                    <option value="beginner">Anfänger</option>
-                                    <option value="intermediate">Mittel</option>
-                                    <option value="advanced">Fortgeschritten</option>
-                                </select>
-                            </div>
+            <!-- ── Rad ── -->
+            <template v-else-if="stepKey === 'bike'">
+                <header>
+                    <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Rad als Abwechslung?</h1>
+                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Gerade im Winter ein guter Reiz. Zwift-Fahrten kommen über Strava ohnehin an.</p>
+                </header>
+                <BikeFields v-model="bikeForm" />
+                <p v-if="bikeError" class="z-error mx-4">{{ bikeError }}</p>
+            </template>
+
+            <!-- ── Ziel ── -->
+            <template v-else-if="stepKey === 'goal'">
+                <header>
+                    <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Was ist dein Ziel?</h1>
+                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Das Rennen, auf das dein Plan hinarbeitet.</p>
+                </header>
+                <FormGroup title="Rennen">
+                    <button v-for="opt in raceOptions" :key="opt.value" type="button" role="radio" :aria-checked="goalForm.race_distance === opt.value"
+                        class="flex min-h-[48px] w-full items-center gap-3 px-4 py-2 text-left transition-colors active:bg-surface-2"
+                        @click="selectRace(opt)">
+                        <span class="flex-1 text-[17px]">{{ opt.label }}</span>
+                        <span v-if="opt.distance" class="text-[15px] text-ink-3">{{ opt.distance.toLocaleString('de-DE', { maximumFractionDigits: 1 }) }} km</span>
+                        <svg class="h-5 w-5 shrink-0 text-accent" :class="goalForm.race_distance === opt.value ? '' : 'invisible'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                    </button>
+                </FormGroup>
+                <FormGroup :footer="isBackyardGoal ? '1 Yard = 1 Stunde = eine Runde von 6,706 km, jede startet zur vollen Stunde.' : null">
+                    <FormRow v-if="goalForm.race_distance === 'custom'" as="label" label="Distanz">
+                        <input v-model="goalForm.distance_km" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="15" class="z-inline w-20" />
+                        <span class="text-[17px] text-ink-3">km</span>
+                    </FormRow>
+                    <FormRow as="label" label="Name">
+                        <input v-model="goalForm.name" type="text" placeholder="optional" class="z-inline w-3/5" />
+                    </FormRow>
+                    <FormRow as="label" label="Datum">
+                        <input v-model="goalForm.race_date" type="date" class="z-inline w-40" />
+                    </FormRow>
+                    <FormRow v-if="isBackyardGoal" as="label" label="Ziel">
+                        <input v-model="goalForm.target_yards" type="number" inputmode="numeric" min="1" max="100" placeholder="24" class="z-inline w-14" />
+                        <span class="text-[17px] text-ink-3">Std<template v-if="backyardGoalKm"> · {{ backyardGoalKm }} km</template></span>
+                    </FormRow>
+                    <FormRow v-else label="Zielzeit">
+                        <select v-model.number="goalForm.target_time_hours" class="z-inline appearance-none" aria-label="Stunden">
+                            <option v-for="h in 24" :key="h - 1" :value="h - 1">{{ h - 1 }} h</option>
+                        </select>
+                        <select v-model.number="goalForm.target_time_minutes" class="z-inline appearance-none" aria-label="Minuten">
+                            <option v-for="m in 60" :key="m - 1" :value="m - 1">{{ String(m - 1).padStart(2, '0') }} min</option>
+                        </select>
+                    </FormRow>
+                </FormGroup>
+                <p v-for="k in ['name', 'race_date', 'target_yards', 'general']" v-show="goalErrors[k]" :key="k" class="z-error mx-4">{{ goalErrors[k]?.[0] }}</p>
+            </template>
+
+            <!-- ── Verbindungen ── -->
+            <template v-else-if="stepKey === 'connect'">
+                <header>
+                    <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Woher kommen deine Läufe?</h1>
+                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Garmin, Strava oder beides. Zone3 lernt aus deinen echten Läufen und gleicht sie mit dem Plan ab.</p>
+                </header>
+                <FormGroup>
+                    <template v-if="connections.garminAvailable">
+                        <div class="flex min-h-[60px] items-center gap-3 px-4 py-2">
+                            <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-ink text-canvas">
+                                <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="7" y="6" width="10" height="12" rx="2" /><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l.5-2.5h5L15 6M9 18l.5 2.5h5L15 18" /></svg>
+                            </span>
+                            <span class="min-w-0 flex-1">
+                                <span class="block text-[17px]">Garmin Connect</span>
+                                <span class="block text-[13px] leading-snug" :class="garminLinked && !garminGranted ? 'text-warn-ink' : 'text-ink-3'">
+                                    <template v-if="garminLinked && garminGranted">Verbunden · {{ garminGranted }}</template>
+                                    <template v-else-if="garminLinked">Verbunden, aber keine Daten freigegeben</template>
+                                    <template v-else>Läufe, Schlaf, HRV und Ruhepuls von der Uhr</template>
+                                </span>
+                            </span>
+                            <svg v-if="garminLinked" class="h-5 w-5 shrink-0 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
                         </div>
+                        <div v-if="!garminLinked" class="space-y-3 px-4 py-3">
+                            <label class="flex items-start gap-3 text-[15px] leading-snug text-ink-2">
+                                <input v-model="garminConsent" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 rounded-md border-line-strong text-accent focus:ring-accent/40" />
+                                <span>
+                                    Ich willige ein, dass Zone3 meine Garmin-Daten für Plan, Auswertungen und Coach an OpenAI übermittelt.
+                                    Die Daten werden nicht zum Training von KI-Modellen verwendet. Widerruf jederzeit durch Trennen.
+                                    <Link :href="route('privacy')" class="text-accent">Datenschutz</Link>
+                                </span>
+                            </label>
+                            <AppButton variant="secondary" block :disabled="!garminConsent" :loading="garminBusy" @click="connectGarmin">Mit Garmin verbinden</AppButton>
+                            <p class="text-[13px] leading-snug text-ink-3">Die Anmeldung läuft direkt bei Garmin. Aktiviere dort alle Freigaben. Landest du danach in Safari, wechsle einfach zurück in die App.</p>
+                        </div>
+                        <p v-if="connections.garminStatus?.type === 'error'" class="px-4 py-3 text-[13px] text-danger">{{ connections.garminStatus.message }}</p>
                     </template>
 
-                    <div class="flex gap-3">
-                        <button @click="nextStep"
-                            class="flex-1 py-2.5 px-4 text-sm text-ink-3 hover:text-ink border border-line rounded-field transition-colors">
-                            Überspringen
-                        </button>
-                        <button @click="submitStrength" :disabled="strengthLoading"
-                            class="flex-1 py-2.5 px-4 bg-accent hover:opacity-90 disabled:opacity-50 text-white font-semibold rounded-field transition-colors">
-                            {{ strengthLoading ? 'Speichern…' : 'Weiter' }}
-                        </button>
+                    <div class="flex min-h-[60px] items-center gap-3 px-4 py-2">
+                        <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-warn text-white">
+                            <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" /></svg>
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-[17px]">Strava</span>
+                            <span class="block text-[13px] leading-snug text-ink-3">
+                                <template v-if="stravaLinked">Verbunden<template v-if="connections.strava.username"> · {{ connections.strava.username }}</template></template>
+                                <template v-else>Läufe von jeder Uhr und App, auch die bisherigen</template>
+                            </span>
+                        </span>
+                        <svg v-if="stravaLinked" class="h-5 w-5 shrink-0 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                        <button v-else type="button" class="shrink-0 text-[17px] text-accent active:opacity-60" @click="connectStrava">Verbinden</button>
                     </div>
-                </div>
+                    <template v-if="garminLinked && !stravaLinked" #footer>
+                        Garmin schickt nur neue Läufe. Verbinde zusätzlich Strava, damit Zone3 auch deine bisherigen kennt — daraus kommen Schwellenpace, Wochenumfang und Bestzeiten vom ersten Tag an.
+                    </template>
+                </FormGroup>
 
-                <!-- ══════════════════════════════════════════
-                     Rad / Zwift
-                     ══════════════════════════════════════════ -->
-                <div v-else-if="stepKey === 'bike'" class="space-y-5">
-                    <div class="text-center">
-                        <h2 class="text-2xl font-bold text-ink">Rad als Abwechslung?</h2>
-                        <p class="mt-2 text-ink-3">
-                            Gerade im Winter ist ein Reiz auf dem Rad eine gute Ergänzung.
-                            Zwift-Fahrten kommen über Strava ohnehin in Zone3 an.
-                        </p>
-                    </div>
-
-                    <BikeFields v-model="bikeForm" />
-
-                    <p v-if="bikeError" class="z-error">{{ bikeError }}</p>
-
-                    <div class="flex gap-3">
-                        <button @click="nextStep"
-                            class="flex-1 py-2.5 px-4 text-sm text-ink-3 hover:text-ink border border-line rounded-field transition-colors">
-                            Überspringen
-                        </button>
-                        <button @click="submitBike" :disabled="bikeLoading"
-                            class="flex-1 py-2.5 px-4 bg-accent hover:opacity-90 active:opacity-80 disabled:opacity-50 text-white font-semibold rounded-field transition-colors">
-                            {{ bikeLoading ? 'Speichern…' : 'Weiter' }}
-                        </button>
-                    </div>
-                </div>
-
-                <!-- ══════════════════════════════════════════
-                     STEP 6 — Ziel
-                     ══════════════════════════════════════════ -->
-                <div v-else-if="stepKey === 'goal'" class="space-y-5">
-                    <div class="text-center">
-                        <h2 class="text-2xl font-bold text-ink">Was ist dein Ziel?</h2>
-                        <p class="mt-2 text-ink-3">
-                            Wähle dein Rennen, das Datum und deine Wunschzeit.
-                        </p>
-                    </div>
-
-                    <div class="space-y-5">
-                        <!-- Race type selection -->
-                        <div class="bg-surface/50 border border-line rounded-card p-5 space-y-3">
-                            <label class="block text-sm font-semibold text-ink-2">Welches Rennen?</label>
-                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                <button v-for="opt in raceOptions" :key="opt.value"
-                                    type="button" @click="selectRace(opt)"
-                                    class="py-3 px-3 rounded-field border-2 transition text-center"
-                                    :class="goalForm.race_distance === opt.value
-                                        ? 'bg-accent-soft border-accent text-accent-ink'
-                                        : 'border-line text-ink-2 hover:border-accent'">
-                                    <div class="text-xl mb-1">{{ opt.icon }}</div>
-                                    <div class="text-xs font-semibold">{{ opt.label }}</div>
-                                    <div v-if="opt.distance" class="text-[10px] text-ink-3">{{ opt.distance }} km</div>
-                                </button>
-                            </div>
-
-                            <!-- Custom distance -->
-                            <div v-if="goalForm.race_distance === 'custom'" class="mt-1">
-                                <label class="block text-xs text-ink-3 mb-1.5">Distanz in km</label>
-                                <input v-model="goalForm.distance_km" type="number" min="0.1" step="0.1" placeholder="z.B. 15"
-                                    class="input-field border-line" />
-                            </div>
-
-                            <!-- Backyard goal: hours/yards -->
-                            <div v-if="isBackyardGoal" class="mt-1">
-                                <label class="block text-xs text-ink-3 mb-1.5">Ziel: Anzahl Stunden (Yards)</label>
-                                <div class="flex items-center gap-2">
-                                    <input v-model="goalForm.target_yards" type="number" min="1" max="100" step="1" placeholder="z.B. 24"
-                                        class="input-field border-line w-32"
-                                        :class="goalErrors.target_yards ? 'border-danger' : ''" />
-                                    <span class="text-sm text-ink-3">
-                                        Std<template v-if="backyardGoalKm"> · ≈ {{ backyardGoalKm }} km</template>
-                                    </span>
-                                </div>
-                                <p class="mt-1.5 text-[11px] text-ink-3">1 Yard = 1 Stunde = eine 6,706-km-Runde, jede Runde startet zur vollen Stunde.</p>
-                                <p v-if="goalErrors.target_yards" class="mt-1 text-xs text-danger">{{ goalErrors.target_yards[0] }}</p>
-                            </div>
-                        </div>
-
-                        <!-- Race details -->
-                        <div class="bg-surface/50 border border-line rounded-card p-5 space-y-4">
-                            <!-- Name -->
-                            <div>
-                                <label class="block text-sm font-medium text-ink-2 mb-1.5">Name des Rennens <span class="text-ink-3 font-normal">(optional)</span></label>
-                                <input v-model="goalForm.name" type="text" placeholder="z.B. Frankfurt Halbmarathon"
-                                    class="input-field" :class="goalErrors.name ? 'border-danger' : 'border-line'" />
-                                <p v-if="goalErrors.name" class="mt-1 text-xs text-danger">{{ goalErrors.name[0] }}</p>
-                            </div>
-
-                            <!-- Race date -->
-                            <div>
-                                <label class="block text-sm font-medium text-ink-2 mb-1.5">Datum des Rennens</label>
-                                <input v-model="goalForm.race_date" type="date"
-                                    class="input-field" :class="goalErrors.race_date ? 'border-danger' : 'border-line'" />
-                                <p v-if="goalErrors.race_date" class="mt-1 text-xs text-danger">{{ goalErrors.race_date[0] }}</p>
-                            </div>
-
-                            <!-- Target time (not for Backyard) -->
-                            <div v-if="!isBackyardGoal">
-                                <label class="block text-sm font-medium text-ink-2 mb-2">
-                                    Zielzeit:
-                                    <span class="text-accent-ink font-bold">{{ targetTimeFormatted }}</span>
-                                </label>
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="block text-xs text-ink-3 mb-1.5">Stunden</label>
-                                        <select v-model.number="goalForm.target_time_hours"
-                                            class="input-field border-line">
-                                            <option v-for="h in 24" :key="h-1" :value="h-1">{{ h-1 }} Std.</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="block text-xs text-ink-3 mb-1.5">Minuten</label>
-                                        <select v-model.number="goalForm.target_time_minutes"
-                                            class="input-field border-line">
-                                            <option v-for="m in 60" :key="m-1" :value="m-1">{{ m-1 }} Min.</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Summary card -->
-                        <div v-if="selectedRace && goalForm.race_date"
-                            class="p-4 rounded-card bg-accent-soft border border-accent/25">
-                            <p class="text-sm text-accent-ink font-medium">
-                                {{ selectedRace.icon }} {{ goalForm.name || selectedRace.label }}
-                                <template v-if="isBackyardGoal">
-                                    <template v-if="goalForm.target_yards">— Ziel {{ goalForm.target_yards }} Std<template v-if="backyardGoalKm"> (≈ {{ backyardGoalKm }} km)</template></template>
-                                </template>
-                                <template v-else>in {{ targetTimeFormatted }}</template>
-                                am {{ new Date(goalForm.race_date).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' }) }}
-                            </p>
-                        </div>
-
-                        <p v-if="goalErrors.general" class="text-xs text-danger text-center">{{ goalErrors.general[0] }}</p>
-
-                        <div class="flex gap-3">
-                            <button @click="nextStep"
-                                class="flex-1 py-2.5 px-4 text-sm text-ink-3 hover:text-ink border border-line rounded-field transition-colors">
-                                Überspringen
-                            </button>
-                            <button @click="submitGoal" :disabled="goalLoading"
-                                class="flex-1 py-2.5 px-4 bg-accent hover:opacity-90 disabled:opacity-50 text-white font-semibold rounded-field transition-colors">
-                                {{ goalLoading ? 'Speichern…' : 'Ziel speichern & weiter' }}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ══════════════════════════════════════════
-                     Letzter Schritt — Verbindungen (Garmin und Strava gleichrangig)
-                     ══════════════════════════════════════════ -->
-                <div v-else-if="stepKey === 'connect'" class="space-y-6">
-                    <div class="text-center">
-                        <h2 class="text-2xl font-bold text-ink">Woher kommen deine Läufe?</h2>
-                        <p class="mt-2 text-ink-3 leading-relaxed">
-                            Verbinde Garmin, Strava oder beides. Zone3 lernt aus deinen echten Läufen
-                            und gleicht sie mit dem Plan ab.
-                        </p>
-                    </div>
-
-                    <div class="space-y-3">
-                        <!-- Garmin -->
-                        <div v-if="connections.garminAvailable" class="rounded-card bg-surface border border-line overflow-hidden">
-                            <div class="flex items-center gap-3 px-4 py-4">
-                                <div class="h-11 w-11 rounded-field flex items-center justify-center shrink-0 bg-info-soft">
-                                    <svg class="h-6 w-6 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                        <rect x="7" y="6" width="10" height="12" rx="2" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 6l.5-2.5h5L15 6M9 18l.5 2.5h5L15 18" />
-                                        <circle cx="12" cy="12" r="2.2" />
-                                    </svg>
-                                </div>
-                                <div class="min-w-0 flex-1">
-                                    <p class="font-semibold text-ink">Garmin Connect</p>
-                                    <p v-if="garminLinked && garminGranted" class="text-xs text-success-ink mt-0.5">Verbunden · {{ garminGranted }}</p>
-                                    <p v-else-if="garminLinked" class="text-xs text-warn-ink mt-0.5">Verbunden · keine Daten freigegeben</p>
-                                    <p v-else class="text-xs text-ink-3 mt-0.5">Läufe, Schlaf, HRV und Ruhepuls von der Uhr</p>
-                                </div>
-                                <div v-if="garminLinked" class="w-5 h-5 rounded-full bg-success-soft flex items-center justify-center shrink-0">
-                                <svg class="w-3 h-3 text-success-ink" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                            </div>
-                            </div>
-                            <div v-if="!garminLinked" class="border-t border-line p-4 space-y-3">
-                                <label class="flex items-start gap-3 text-xs leading-relaxed text-ink-2">
-                                    <input v-model="garminConsent" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 rounded border-line text-info focus:ring-info/40" />
-                                    <span>
-                                        Ich willige ein, dass Zone3 meine Garmin-Daten für Plan, Auswertungen und Coach
-                                        an OpenAI übermittelt. Die Daten werden nicht zum Training von KI-Modellen verwendet.
-                                        Widerruf jederzeit durch Trennen.
-                                        <Link :href="route('privacy')" class="text-accent">Datenschutz</Link>
-                                    </span>
-                                </label>
-                                <button @click="connectGarmin" :disabled="!garminConsent || garminBusy"
-                                    class="w-full rounded-field bg-info px-4 py-3 font-semibold text-white hover:opacity-90 active:scale-[0.98] disabled:opacity-50 transition">
-                                    {{ garminBusy ? 'Weiter zu Garmin…' : 'Mit Garmin verbinden' }}
-                                </button>
-                                <p class="text-xs text-ink-3 leading-relaxed">
-                                    Die Anmeldung läuft direkt bei Garmin. Aktiviere dort alle Freigaben, sonst kommen keine Daten an.
-                                    Kommst du in Safari zurück, wechsle einfach wieder in die App.
-                                </p>
-                            </div>
-                            <p v-if="connections.garminStatus?.type === 'error'" class="border-t border-line px-4 py-3 text-xs text-danger-ink">
-                                {{ connections.garminStatus.message }}
-                            </p>
-                        </div>
-
-                        <!-- Strava -->
-                        <div class="rounded-card bg-surface border border-line overflow-hidden">
-                            <div class="flex items-center gap-3 px-4 py-4">
-                                <div class="h-11 w-11 rounded-field flex items-center justify-center shrink-0 bg-warn">
-                                    <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066l-2.084 4.116z"/>
-                                        <path d="M11.094 13.828l.716 1.416.773-1.416H14.2L11.807 9l-2.39 4.828h1.677z"/>
-                                    </svg>
-                                </div>
-                                <div class="min-w-0 flex-1">
-                                    <p class="font-semibold text-ink">Strava</p>
-                                    <p v-if="stravaLinked" class="text-xs text-success-ink mt-0.5">
-                                        Verbunden<template v-if="connections.strava.username"> · {{ connections.strava.username }}</template>
-                                    </p>
-                                    <p v-else class="text-xs text-ink-3 mt-0.5">Läufe von jeder Uhr und App, inklusive deiner bisherigen</p>
-                                </div>
-                                <div v-if="stravaLinked" class="w-5 h-5 rounded-full bg-success-soft flex items-center justify-center shrink-0">
-                                <svg class="w-3 h-3 text-success-ink" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                            </div>
-                            </div>
-                            <div v-if="!stravaLinked" class="border-t border-line p-4">
-                                <button @click="connectStrava"
-                                    class="w-full rounded-field bg-warn px-4 py-3 font-semibold text-white hover:opacity-90 active:scale-[0.98] transition">
-                                    Mit Strava verbinden
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Nur Garmin: keine Historie (Backfill gibt es nur für Enterprise) -->
-                    <p v-if="garminLinked && !stravaLinked" class="rounded-card bg-surface-2 px-4 py-3 text-sm text-ink-2 leading-relaxed">
-                        Garmin schickt nur neue Läufe. Verbinde zusätzlich Strava, damit Zone3 auch deine bisherigen
-                        kennt — daraus kommen Schwellenpace, Wochenumfang und Bestzeiten vom ersten Tag an.
-                    </p>
-
-                    <div v-if="sourceChoosable" class="rounded-card bg-surface border border-line px-4 py-4 space-y-2">
-                        <p class="text-sm font-semibold text-ink">Neue Aktivitäten kommen von</p>
-                        <SegmentedControl v-model="sourceValue" :options="sourceOptions" />
-                        <p class="text-xs text-ink-3 leading-relaxed">
-                            Eine Quelle, damit kein Lauf doppelt zählt. Änderbar jederzeit im Profil.
-                        </p>
-                    </div>
-
-                    <div class="flex flex-col gap-3">
-                        <button v-if="anyLinked" @click="complete"
-                            class="w-full py-3 px-6 bg-accent hover:opacity-90 text-white font-semibold rounded-field transition-colors">
-                            Fertig — Zum Dashboard
-                        </button>
-                        <button v-else @click="complete"
-                            class="w-full py-2.5 text-sm text-ink-3 hover:text-ink border border-line rounded-field transition-colors">
-                            Später verbinden — Zum Dashboard
-                        </button>
-                    </div>
-                </div>
-
-            </div>
+                <FormGroup v-if="sourceChoosable" title="Neue Aktivitäten kommen von" plain
+                    footer="Eine Quelle, damit kein Lauf doppelt zählt. Änderbar im Profil.">
+                    <SegmentedControl v-model="sourceValue" :options="sourceOptions" />
+                </FormGroup>
+            </template>
         </main>
+
+        <!-- Knopf unten fest -->
+        <div class="fixed inset-x-0 bottom-0 z-10 bg-canvas/90 px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-3 backdrop-blur-xl">
+            <div class="mx-auto max-w-xl space-y-1">
+                <AppButton v-if="bar.label" size="lg" block :disabled="bar.disabled" :loading="bar.loading" @click="bar.run">{{ bar.label }}</AppButton>
+                <button v-if="bar.skip" type="button" class="flex h-11 w-full items-center justify-center text-[17px] text-accent active:opacity-60" @click="bar.skip">
+                    {{ bar.skipLabel ?? 'Überspringen' }}
+                </button>
+            </div>
+        </div>
     </div>
 </template>
-
-<style scoped>
-.input-field {
-    @apply w-full px-4 py-2.5 rounded-field border text-ink bg-surface outline-none transition-colors focus:border-accent;
-}
-</style>

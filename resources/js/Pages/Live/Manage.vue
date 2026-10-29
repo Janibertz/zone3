@@ -1,4 +1,6 @@
 <script setup>
+import PageHeader from '@/Components/UI/PageHeader.vue';
+import Toggle from '@/Components/UI/Toggle.vue';
 import { ref } from 'vue';
 import { Head, useForm, router, usePage } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
@@ -64,14 +66,9 @@ async function copyLink(which) {
 
     <AuthenticatedLayout>
         <div class="min-h-screen bg-canvas">
-            <div class="space-y-5 px-4 py-5 lg:px-6">
-
-                <header class="px-1">
-                    <h1 class="text-[34px] font-bold leading-[41px] text-ink">Live-Verfolgung</h1>
-                    <p class="mt-1 text-[15px] text-ink-3">
-                        Eine öffentliche Seite, auf der Freunde deinen Lauf mitverfolgen können.
-                    </p>
-                </header>
+            <PageHeader width="max-w-3xl" :back="route('more')" title="Live-Verfolgung"
+                subtitle="Eine öffentliche Seite, auf der Freunde deinen Lauf mitverfolgen." />
+            <div class="mx-auto max-w-3xl space-y-7 px-4 pb-10 pt-3 lg:px-8">
 
                 <div v-if="flash().success" class="rounded-card bg-success-soft px-5 py-3.5">
                     <p class="text-[15px] font-semibold text-success-ink">{{ flash().success }}</p>
@@ -151,10 +148,10 @@ async function copyLink(which) {
                                 </div>
                             </div>
 
-                            <label class="flex cursor-pointer items-center gap-3">
-                                <input v-model="form.is_active" type="checkbox" class="h-4 w-4 rounded border-line-strong text-accent focus:ring-accent" />
-                                <span class="text-[15px] text-ink">Seite ist aktiv</span>
-                            </label>
+                            <div class="flex min-h-[44px] items-center gap-3">
+                                <span class="flex-1 text-[17px] text-ink">Seite ist aktiv</span>
+                                <Toggle v-model="form.is_active" label="Seite ist aktiv" />
+                            </div>
 
                             <AppButton block :loading="form.processing" @click="save">Speichern</AppButton>
                         </div>
@@ -198,17 +195,17 @@ async function copyLink(which) {
                             <p v-if="track.lastError" class="mt-3 text-[13px] text-danger">{{ track.lastError }}</p>
                         </div>
 
-                        <label class="mt-4 flex cursor-pointer items-start gap-3">
-                            <input v-model="form.embed_map" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-line-strong text-accent focus:ring-accent" />
-                            <span>
-                                <span class="block text-[15px] text-ink">Garmins Karte auf der Seite einbetten</span>
+                        <div class="mt-4 flex items-start gap-3">
+                            <span class="flex-1">
+                                <span class="block text-[17px] text-ink">Karte von Garmin einbetten</span>
                                 <span class="mt-0.5 block text-[13px] text-ink-3">
                                     Dann steht die LiveTrack-Adresse im Quelltext der öffentlichen Seite —
                                     also genau der Link, den du deinen Freunden ohnehin schickst.
-                                    Ohne Haken zeigt die Seite keine Karte.
+                                    Ausgeschaltet zeigt die Seite keine Karte.
                                 </span>
                             </span>
-                        </label>
+                            <Toggle v-model="form.embed_map" label="Karte von Garmin einbetten" />
+                        </div>
 
                         <AppButton block class="mt-4" :loading="form.processing" @click="save">Speichern</AppButton>
 

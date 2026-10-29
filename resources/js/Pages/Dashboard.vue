@@ -1968,8 +1968,10 @@ async function resetLayout() {
 
                                     <div v-if="props.paceZones" class="mt-4 grid grid-cols-5 gap-1.5">
                                         <div v-for="(zone, key) in props.paceZones" :key="key" class="rounded-field bg-surface-2 p-2 text-center">
-                                            <p class="text-[11px] font-bold uppercase text-ink-2">{{ key }}</p>
-                                            <p class="mt-0.5 font-mono text-[11px] leading-tight text-ink-3">
+                                            <p class="flex items-center justify-center gap-1 text-[13px] font-semibold text-ink">
+                                                <span class="h-2 w-2 rounded-full" :class="{ z1: 'bg-ink-3', z2: 'bg-success', z3: 'bg-accent', z4: 'bg-warn', z5: 'bg-danger' }[key]" />{{ key.toUpperCase() }}
+                                            </p>
+                                            <p class="mt-0.5 text-[12px] leading-tight tabular-nums text-ink-3">
                                                 <template v-if="zone.max_pace === '∞' || zone.min_pace === '0:00'">{{ zoneRangeShort(zone) }}</template>
                                                 <template v-else>{{ zone.min_pace }}<br><span class="opacity-70">{{ zone.max_pace }}</span></template>
                                             </p>

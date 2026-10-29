@@ -137,7 +137,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
     <AuthenticatedLayout>
         <div class="py-4 lg:py-6">
             <div class="relative mx-auto max-w-md px-3">
-                <div class="relative h-[78vh] rounded-3xl overflow-hidden text-white shadow-xl select-none transition-colors duration-300" :class="current.gradient">
+                <div class="relative h-[78vh] rounded-[28px] overflow-hidden text-white select-none transition-colors duration-300" :class="current.gradient">
                     <!-- Fortschritts-Segmente -->
                     <div class="absolute top-0 inset-x-0 z-30 flex gap-1 p-3">
                         <div v-for="(s, i) in slides" :key="i" class="h-1 flex-1 rounded-full" :class="i <= index ? 'bg-surface' : 'bg-surface/30'"></div>
@@ -152,7 +152,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 
                         <!-- Intro / Umschalter -->
                         <template v-if="current.type === 'intro'">
-                            <p class="text-xs uppercase tracking-[0.2em] text-white/70">Dein Rückblick</p>
+                            <p class="text-[17px] font-semibold text-white/75">Dein Rückblick</p>
                             <p class="text-4xl font-black mt-2">{{ stats?.period_label }}</p>
 
                             <div class="mt-6 pointer-events-auto flex flex-col items-center gap-3" @click.stop>
@@ -174,7 +174,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 
                         <!-- KI-Coach-Rückblick -->
                         <template v-else-if="current.type === 'review'">
-                            <p class="text-xs uppercase tracking-[0.2em] text-white/70">{{ coachName }} über dich</p>
+                            <p class="text-[17px] font-semibold text-white/75">{{ coachName }} über dich</p>
                             <div class="mt-4 max-w-sm min-h-[6rem] flex items-center justify-center">
                                 <p v-if="reviewLoading" class="text-white/80 animate-pulse">{{ coachName }} schreibt deinen Rückblick…</p>
                                 <p v-else-if="reviewText" class="text-lg leading-relaxed font-medium">„{{ reviewText }}"</p>

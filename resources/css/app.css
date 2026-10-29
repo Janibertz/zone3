@@ -143,6 +143,10 @@
     background-image: none;
   }
 
+  .z-inline[type="number"] { -moz-appearance: textfield; }
+  .z-inline::-webkit-inner-spin-button,
+  .z-inline::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
   /* Trennlinie zwischen Listenzeilen, links um 16 px eingerückt wie in iOS. */
   .z-group > * + * {
     background-image: linear-gradient(rgb(var(--z-border)), rgb(var(--z-border)));

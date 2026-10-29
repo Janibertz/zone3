@@ -27,29 +27,29 @@ const submit = () => {
 
         <div class="w-full max-w-sm">
             <!-- Logo -->
-            <div class="text-center mb-8">
+            <div class="text-center mb-7">
                 <Link href="/" class="inline-flex flex-col items-center gap-2">
-                    <div class="h-12 w-12 rounded-2xl bg-accent flex items-center justify-center shadow-lg">
+                    <div class="h-14 w-14 rounded-[14px] bg-accent flex items-center justify-center">
                         <span class="text-white text-lg font-bold">Z3</span>
                     </div>
-                    <span class="text-xl font-bold text-ink tracking-tight">Zone3</span>
+                    <span class="sr-only">Zone3</span>
                 </Link>
-                <h1 class="mt-5 text-[28px] font-bold leading-[34px] tracking-[-0.4px] text-ink">Willkommen zurück</h1>
-                <p class="mt-1 text-sm text-ink-3">Meld dich an und weiter trainieren</p>
+                <h1 class="mt-6 text-[34px] font-extrabold leading-[41px] tracking-[-0.035em] text-ink">Willkommen zurück</h1>
+                <p class="mt-1 text-[17px] text-ink-3">Meld dich an und weiter trainieren</p>
             </div>
 
             <!-- Card -->
-            <div class="bg-surface rounded-2xl border border-line-strong shadow-xl p-6">
+            <div class="rounded-card bg-surface p-5">
 
                 <!-- Status message -->
-                <div v-if="status" class="mb-5 flex items-center gap-2 rounded-xl bg-success/10 border border-success/30 px-4 py-3 text-sm text-success">
+                <div v-if="status" class="mb-5 flex items-center gap-2 rounded-field bg-success-soft px-4 py-3 text-[15px] text-success-ink">
                     <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     {{ status }}
                 </div>
 
                 <form @submit.prevent="submit" class="space-y-4">
                     <div>
-                        <label for="email" class="block text-sm font-medium text-ink-3 mb-1.5">E-Mail</label>
+                        <label for="email" class="mb-1.5 block text-[15px] text-ink-2">E-Mail</label>
                         <input
                             id="email"
                             v-model="form.email"
@@ -58,18 +58,18 @@ const submit = () => {
                             autofocus
                             autocomplete="username"
                             placeholder="deine@email.de"
-                            class="block w-full rounded-xl border border-line-strong bg-surface-2 px-4 py-2.5 text-sm text-ink placeholder-ink-3 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40 transition-colors"
+                            class="z-input"
                         />
                         <InputError class="mt-1.5" :message="form.errors.email" />
                     </div>
 
                     <div>
                         <div class="flex items-center justify-between mb-1.5">
-                            <label for="password" class="block text-sm font-medium text-ink-3">Passwort</label>
+                            <label for="password" class="block text-[15px] text-ink-2">Passwort</label>
                             <Link
                                 v-if="canResetPassword"
                                 :href="route('password.request')"
-                                class="text-xs text-accent hover:text-accent transition-colors"
+                                class="text-[15px] text-accent active:opacity-60"
                             >
                                 Vergessen?
                             </Link>
@@ -81,24 +81,24 @@ const submit = () => {
                             required
                             autocomplete="current-password"
                             placeholder="••••••••"
-                            class="block w-full rounded-xl border border-line-strong bg-surface-2 px-4 py-2.5 text-sm text-ink placeholder-ink-3 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40 transition-colors"
+                            class="z-input"
                         />
                         <InputError class="mt-1.5" :message="form.errors.password" />
                     </div>
 
-                    <label class="flex items-center gap-2.5 cursor-pointer">
+                    <label class="flex min-h-[44px] items-center gap-3 cursor-pointer">
                         <input
                             type="checkbox"
                             v-model="form.remember"
-                            class="h-4 w-4 rounded border-line-strong bg-surface text-accent-ink focus:ring-accent/40"
+                            class="h-5 w-5 rounded-md border-line-strong bg-surface text-accent focus:ring-accent/40"
                         />
-                        <span class="text-sm text-ink-3">Angemeldet bleiben</span>
+                        <span class="text-[17px] text-ink">Angemeldet bleiben</span>
                     </label>
 
                     <button
                         type="submit"
                         :disabled="form.processing"
-                        class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-sm mt-1"
+                        class="inline-flex h-[50px] w-full items-center justify-center gap-2 rounded-full bg-accent px-6 text-[17px] font-semibold text-white transition active:scale-[0.97] hover:opacity-90 disabled:opacity-40 mt-1"
                     >
                         <svg v-if="form.processing" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -110,7 +110,7 @@ const submit = () => {
             </div>
 
             <!-- Registrieren geht nur über einen Einladungslink -->
-            <p class="mt-5 text-center text-sm text-ink-3">
+            <p class="mt-5 text-center text-[15px] text-ink-3">
                 Noch kein Konto? Zone3 ist nur auf Einladung.
             </p>
         </div>

@@ -1,7 +1,11 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, router, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
+import FormGroup from '@/Components/UI/FormGroup.vue';
+import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
+import AppButton from '@/Components/UI/AppButton.vue';
 
 const props = defineProps({ tickets: Array });
 
@@ -13,10 +17,10 @@ const form = ref({ subject: '', description: '', type: 'bug' });
 const submitting = ref(false);
 
 const typeOptions = [
-    { value: 'bug',         label: '🐛 Bug / Fehler' },
-    { value: 'improvement', label: '💡 Verbesserungsvorschlag' },
-    { value: 'question',    label: '❓ Frage' },
-    { value: 'other',       label: '📝 Sonstiges' },
+    { value: 'bug',         label: 'Fehler' },
+    { value: 'improvement', label: 'Idee' },
+    { value: 'question',    label: 'Frage' },
+    { value: 'other',       label: 'Sonstiges' },
 ];
 
 const statusConfig = {
@@ -37,77 +41,53 @@ function submit() {
 </script>
 
 <template>
-    <Head title="Support & Feedback" />
+    <Head title="Hilfe & Feedback" />
     <AuthenticatedLayout>
-        <div class="mx-auto max-w-3xl space-y-5 px-4 py-6 lg:px-8 lg:pt-8">
+        <div class="min-h-screen bg-canvas">
+            <PageHeader width="max-w-3xl" title="Hilfe & Feedback">
+                <template v-if="!showForm" #action>
+                    <AppButton variant="plain" @click="showForm = true">Neu</AppButton>
+                </template>
+            </PageHeader>
 
-            <div class="flex items-center justify-between">
-                <h1 class="text-[34px] font-bold leading-[41px] text-ink">Support & Feedback</h1>
-                <button v-if="!showForm" @click="showForm = true"
-                    class="px-4 py-2 rounded-field bg-accent hover:opacity-90 text-sm font-semibold text-white transition-colors">
-                    + Neues Ticket
-                </button>
-            </div>
+            <div class="mx-auto max-w-3xl space-y-7 px-4 pb-10 pt-3 lg:px-8">
+                <p v-if="flash.success" class="rounded-card bg-success-soft px-4 py-3 text-[15px] text-success-ink">{{ flash.success }}</p>
 
-            <!-- Flash -->
-            <div v-if="flash.success" class="flex items-center gap-3 px-4 py-3 bg-success-soft border border-success/25 rounded-field text-sm text-success-ink">
-                {{ flash.success }}
-            </div>
+                <!-- Neue Nachricht -->
+                <section v-if="showForm" class="space-y-3">
+                    <FormGroup title="Worum geht es?" plain>
+                        <SegmentedControl v-model="form.type" :options="typeOptions" />
+                    </FormGroup>
+                    <FormGroup footer="Die Antwort findest du später hier.">
+                        <input v-model="form.subject" type="text" placeholder="Betreff"
+                            class="block w-full border-0 bg-transparent px-4 py-3 text-[17px] text-ink placeholder-ink-3 focus:outline-none focus:ring-0" />
+                        <textarea v-model="form.description" rows="5" placeholder="Beschreib das Problem oder deine Idee so genau wie möglich …"
+                            class="block w-full resize-none border-0 bg-transparent px-4 py-3 text-[17px] text-ink placeholder-ink-3 focus:outline-none focus:ring-0" />
+                    </FormGroup>
+                    <div class="flex gap-3">
+                        <AppButton v-if="tickets.length > 0" variant="secondary" block @click="showForm = false">Abbrechen</AppButton>
+                        <AppButton block :loading="submitting" :disabled="!form.subject || !form.description" @click="submit">Senden</AppButton>
+                    </div>
+                </section>
 
-            <!-- Neues Ticket Formular -->
-            <div v-if="showForm" class="bg-surface rounded-card p-5 space-y-4">
-                <div class="flex items-center justify-between">
-                    <h2 class="text-sm font-semibold text-ink">Neues Ticket erstellen</h2>
-                    <button v-if="tickets.length > 0" @click="showForm = false" class="text-ink-3 hover:text-ink-2">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-                    </button>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3">
-                    <button v-for="opt in typeOptions" :key="opt.value"
-                        @click="form.type = opt.value"
-                        class="px-3 py-2.5 rounded-field border text-sm font-medium transition-colors text-left"
-                        :class="form.type === opt.value
-                            ? 'border-accent bg-accent-soft text-accent-ink'
-                            : 'border-line text-ink-2 hover:border-line-strong'">
-                        {{ opt.label }}
-                    </button>
-                </div>
-
-                <input v-model="form.subject" type="text" placeholder="Kurze Zusammenfassung…"
-                    class="w-full rounded-field bg-surface px-3 py-2.5 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/40" />
-
-                <textarea v-model="form.description" rows="4" placeholder="Beschreibe das Problem oder deinen Vorschlag so genau wie möglich…"
-                    class="w-full rounded-field bg-surface px-3 py-2.5 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/40 resize-none" />
-
-                <button @click="submit" :disabled="submitting || !form.subject || !form.description"
-                    class="w-full py-2.5 rounded-field bg-accent hover:opacity-90 disabled:opacity-50 text-sm font-semibold text-white transition-colors">
-                    {{ submitting ? 'Wird gesendet…' : 'Ticket senden' }}
-                </button>
-            </div>
-
-            <!-- Ticket Liste -->
-            <div v-if="tickets.length === 0 && !showForm" class="text-center py-12 text-ink-3">
-                <svg class="h-10 w-10 mx-auto mb-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" /></svg>
-                <p class="text-sm">Noch keine Tickets. Hast du ein Problem oder einen Vorschlag?</p>
-            </div>
-
-            <div v-else-if="tickets.length > 0" class="space-y-2">
-                <a v-for="ticket in tickets" :key="ticket.id" :href="route('support.tickets.show', ticket.id)"
-                    class="block bg-surface rounded-card px-4 py-3.5 hover:border-accent/25 transition-colors">
-                    <div class="flex items-start justify-between gap-3">
-                        <div class="flex-1 min-w-0">
-                            <p class="text-sm font-semibold text-ink truncate">#{{ ticket.id }} {{ ticket.subject }}</p>
-                            <p class="text-xs text-ink-3 mt-0.5">{{ ticket.replies_count }} Antwort{{ ticket.replies_count !== 1 ? 'en' : '' }}</p>
-                        </div>
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0"
-                            :class="statusConfig[ticket.status]?.class">
+                <!-- Bisherige Nachrichten -->
+                <p v-if="tickets.length === 0 && !showForm" class="py-12 text-center text-[15px] text-ink-3">
+                    Noch keine Nachrichten. Hast du ein Problem oder eine Idee?
+                </p>
+                <FormGroup v-else-if="tickets.length > 0" title="Deine Nachrichten">
+                    <Link v-for="ticket in tickets" :key="ticket.id" :href="route('support.tickets.show', ticket.id)"
+                        class="flex min-h-[56px] items-center gap-3 px-4 py-2.5 transition-colors active:bg-surface-2">
+                        <span class="min-w-0 flex-1">
+                            <span class="block truncate text-[17px] text-ink">{{ ticket.subject }}</span>
+                            <span class="block text-[13px] text-ink-3">#{{ ticket.id }} · {{ ticket.replies_count }} Antwort{{ ticket.replies_count !== 1 ? 'en' : '' }}</span>
+                        </span>
+                        <span class="shrink-0 rounded-full px-2.5 py-0.5 text-[13px] font-semibold" :class="statusConfig[ticket.status]?.class">
                             {{ statusConfig[ticket.status]?.label }}
                         </span>
-                    </div>
-                </a>
+                        <svg class="h-4 w-4 shrink-0 text-ink-3/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                    </Link>
+                </FormGroup>
             </div>
-
         </div>
     </AuthenticatedLayout>
 </template>

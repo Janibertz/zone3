@@ -30,21 +30,21 @@ const submit = () => {
 
         <div class="w-full max-w-sm">
             <!-- Logo -->
-            <div class="text-center mb-8">
+            <div class="text-center mb-7">
                 <Link href="/" class="inline-flex flex-col items-center gap-2">
-                    <div class="h-12 w-12 rounded-2xl bg-accent flex items-center justify-center shadow-lg">
+                    <div class="h-14 w-14 rounded-[14px] bg-accent flex items-center justify-center">
                         <span class="text-white text-lg font-bold">Z3</span>
                     </div>
-                    <span class="text-xl font-bold text-ink tracking-tight">Zone3</span>
+                    <span class="sr-only">Zone3</span>
                 </Link>
-                <h1 class="mt-5 text-[28px] font-bold leading-[34px] tracking-[-0.4px] text-ink">
+                <h1 class="mt-6 text-[34px] font-extrabold leading-[41px] tracking-[-0.035em] text-ink">
                     {{ invite ? 'Konto erstellen' : 'Nur auf Einladung' }}
                 </h1>
-                <p v-if="invite" class="mt-1 text-sm text-ink-3">Du wurdest zu Zone3 eingeladen</p>
+                <p v-if="invite" class="mt-1 text-[17px] text-ink-3">Du wurdest zu Zone3 eingeladen</p>
             </div>
 
             <!-- Ohne gültigen Link kein Formular -->
-            <div v-if="!invite" class="bg-surface rounded-2xl border border-line-strong shadow-xl p-6 text-[15px] leading-relaxed text-ink-2">
+            <div v-if="!invite" class="rounded-card bg-surface p-5 text-[15px] leading-relaxed text-ink-2">
                 <p v-if="inviteGiven">
                     Dieser Einladungslink ist nicht mehr gültig — er wurde schon eingelöst,
                     ist abgelaufen oder wurde zurückgezogen. Frag nach einem neuen.
@@ -56,12 +56,12 @@ const submit = () => {
             </div>
 
             <!-- Card -->
-            <div v-else class="bg-surface rounded-2xl border border-line-strong shadow-xl p-6">
+            <div v-else class="rounded-card bg-surface p-5">
                 <form @submit.prevent="submit" class="space-y-4">
                     <InputError :message="form.errors.invite" />
 
                     <div>
-                        <label for="name" class="block text-sm font-medium text-ink-3 mb-1.5">Name</label>
+                        <label for="name" class="mb-1.5 block text-[15px] text-ink-2">Name</label>
                         <input
                             id="name"
                             v-model="form.name"
@@ -70,13 +70,13 @@ const submit = () => {
                             autofocus
                             autocomplete="name"
                             placeholder="Max Mustermann"
-                            class="block w-full rounded-xl border border-line-strong bg-surface-2 px-4 py-2.5 text-sm text-ink placeholder-ink-3 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40 transition-colors"
+                            class="z-input"
                         />
                         <InputError class="mt-1.5" :message="form.errors.name" />
                     </div>
 
                     <div>
-                        <label for="email" class="block text-sm font-medium text-ink-3 mb-1.5">E-Mail</label>
+                        <label for="email" class="mb-1.5 block text-[15px] text-ink-2">E-Mail</label>
                         <input
                             id="email"
                             v-model="form.email"
@@ -84,13 +84,13 @@ const submit = () => {
                             required
                             autocomplete="username"
                             placeholder="deine@email.de"
-                            class="block w-full rounded-xl border border-line-strong bg-surface-2 px-4 py-2.5 text-sm text-ink placeholder-ink-3 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40 transition-colors"
+                            class="z-input"
                         />
                         <InputError class="mt-1.5" :message="form.errors.email" />
                     </div>
 
                     <div>
-                        <label for="password" class="block text-sm font-medium text-ink-3 mb-1.5">Passwort</label>
+                        <label for="password" class="mb-1.5 block text-[15px] text-ink-2">Passwort</label>
                         <input
                             id="password"
                             v-model="form.password"
@@ -98,13 +98,13 @@ const submit = () => {
                             required
                             autocomplete="new-password"
                             placeholder="Mindestens 8 Zeichen"
-                            class="block w-full rounded-xl border border-line-strong bg-surface-2 px-4 py-2.5 text-sm text-ink placeholder-ink-3 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40 transition-colors"
+                            class="z-input"
                         />
                         <InputError class="mt-1.5" :message="form.errors.password" />
                     </div>
 
                     <div>
-                        <label for="password_confirmation" class="block text-sm font-medium text-ink-3 mb-1.5">Passwort bestätigen</label>
+                        <label for="password_confirmation" class="mb-1.5 block text-[15px] text-ink-2">Passwort bestätigen</label>
                         <input
                             id="password_confirmation"
                             v-model="form.password_confirmation"
@@ -112,7 +112,7 @@ const submit = () => {
                             required
                             autocomplete="new-password"
                             placeholder="••••••••"
-                            class="block w-full rounded-xl border border-line-strong bg-surface-2 px-4 py-2.5 text-sm text-ink placeholder-ink-3 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40 transition-colors"
+                            class="z-input"
                         />
                         <InputError class="mt-1.5" :message="form.errors.password_confirmation" />
                     </div>
@@ -120,7 +120,7 @@ const submit = () => {
                     <button
                         type="submit"
                         :disabled="form.processing"
-                        class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-sm mt-1"
+                        class="inline-flex h-[50px] w-full items-center justify-center gap-2 rounded-full bg-accent px-6 text-[17px] font-semibold text-white transition active:scale-[0.97] hover:opacity-90 disabled:opacity-40 mt-1"
                     >
                         <svg v-if="form.processing" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -132,7 +132,7 @@ const submit = () => {
             </div>
 
             <!-- Login link -->
-            <p class="mt-5 text-center text-sm text-ink-3">
+            <p class="mt-5 text-center text-[15px] text-ink-3">
                 Bereits registriert?
                 <Link :href="route('login')" class="text-accent font-medium hover:text-accent transition-colors">
                     Anmelden
