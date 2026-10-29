@@ -1,5 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 
@@ -68,7 +69,10 @@ function when(value) {
     <Head title="Log" />
 
     <AdminLayout>
-        <div class="px-4 py-4 lg:px-6 lg:py-6 space-y-6">
+        <template #header>
+            <PageHeader title="Log" :back="route('admin.system.index')" />
+        </template>
+        <div class="px-4 py-4 lg:px-8 lg:py-6 space-y-6">
 
             <div class="bg-surface rounded-card shadow-card">
                 <div class="px-6 py-4 border-b border-line flex flex-wrap items-start justify-between gap-3">
@@ -82,7 +86,7 @@ function when(value) {
                     </div>
                     <div class="flex gap-2">
                         <Link :href="route('admin.system.index')"
-                            class="px-3 py-1.5 rounded-field text-xs font-medium border border-line text-ink-2 hover:bg-surface-2">
+                            class="px-3 py-1.5 rounded-field text-[13px] font-medium bg-surface-2 text-ink-2 hover:bg-surface-3">
                             Systemstatus
                         </Link>
                         <button
@@ -113,7 +117,7 @@ function when(value) {
                     <div class="flex flex-wrap gap-2">
                         <button
                             v-for="s in shortcuts" :key="s.label"
-                            class="px-2 py-1 rounded-full text-xs border border-line text-ink-2 hover:bg-surface-2"
+                            class="px-2 py-1 rounded-full text-xs bg-surface-2 text-ink-2 hover:bg-surface-3"
                             :class="q === s.q ? 'bg-accent-soft text-accent-ink border-accent/25' : ''"
                             @click="useShortcut(s)">
                             {{ s.label }}

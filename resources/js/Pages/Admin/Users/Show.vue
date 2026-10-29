@@ -1,5 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
@@ -164,14 +165,10 @@ const zoneColors = [
 
     <AdminLayout>
         <template #header>
-            <div class="flex items-center gap-2 text-sm text-ink-3">
-                <Link :href="route('admin.users.index')" class="hover:text-ink">Nutzer</Link>
-                <span>/</span>
-                <span class="text-ink font-medium">{{ user.name }}</span>
-            </div>
+            <PageHeader :title="user.name" :back="route('admin.users.index')" />
         </template>
 
-        <div class="p-4 sm:p-6 space-y-5">
+        <div class="p-4 lg:px-8 lg:py-6 space-y-5">
 
             <!-- ── Flash banner ──────────────────────────────────── -->
             <div v-if="flash.success" class="flex items-center gap-3 px-4 py-3 bg-success-soft border border-success/25 rounded-field text-sm text-success-ink">
@@ -251,7 +248,7 @@ const zoneColors = [
                         class="px-3 py-1.5 text-xs rounded-field border border-accent/25 text-accent-ink hover:bg-accent-soft transition-colors"
                     >Schwellenpace berechnen</button>
                     <button @click="sendPasswordReset"
-                        class="px-3 py-1.5 text-xs rounded-field border border-line text-ink-2 hover:bg-surface-2 transition-colors"
+                        class="px-3 py-1.5 text-xs rounded-full bg-surface-2 text-ink-2 hover:bg-surface-3 transition-colors"
                     >Passwort-Reset senden</button>
                 </div>
             </div>
@@ -331,12 +328,12 @@ const zoneColors = [
                         <table class="w-full text-sm">
                             <thead class="border-b border-line">
                                 <tr class="text-left text-xs text-ink-3">
-                                    <th class="px-6 py-2.5 font-semibold uppercase tracking-wider">Name</th>
-                                    <th class="px-4 py-2.5 font-semibold uppercase tracking-wider">Typ</th>
-                                    <th class="px-4 py-2.5 font-semibold uppercase tracking-wider text-right">Distanz</th>
-                                    <th class="px-4 py-2.5 font-semibold uppercase tracking-wider text-right">Dauer</th>
-                                    <th class="px-4 py-2.5 font-semibold uppercase tracking-wider text-right">Tempo</th>
-                                    <th class="px-4 py-2.5 font-semibold uppercase tracking-wider text-right">Datum</th>
+                                    <th class="px-6 py-2.5 font-medium">Name</th>
+                                    <th class="px-4 py-2.5 font-medium">Typ</th>
+                                    <th class="px-4 py-2.5 font-medium text-right">Distanz</th>
+                                    <th class="px-4 py-2.5 font-medium text-right">Dauer</th>
+                                    <th class="px-4 py-2.5 font-medium text-right">Tempo</th>
+                                    <th class="px-4 py-2.5 font-medium text-right">Datum</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-line">
@@ -473,12 +470,12 @@ const zoneColors = [
                         <table class="w-full text-sm">
                             <thead class="border-b border-line">
                                 <tr class="text-left text-xs text-ink-3">
-                                    <th class="px-4 py-2.5 font-semibold uppercase tracking-wider">Zeit</th>
-                                    <th class="px-4 py-2.5 font-semibold uppercase tracking-wider">Typ</th>
-                                    <th class="px-4 py-2.5 font-semibold uppercase tracking-wider text-right">Tokens</th>
-                                    <th class="px-4 py-2.5 font-semibold uppercase tracking-wider text-right">Kosten</th>
-                                    <th class="px-4 py-2.5 font-semibold uppercase tracking-wider text-right">Dauer</th>
-                                    <th class="px-4 py-2.5 font-semibold uppercase tracking-wider text-center">Status</th>
+                                    <th class="px-4 py-2.5 font-medium">Zeit</th>
+                                    <th class="px-4 py-2.5 font-medium">Typ</th>
+                                    <th class="px-4 py-2.5 font-medium text-right">Tokens</th>
+                                    <th class="px-4 py-2.5 font-medium text-right">Kosten</th>
+                                    <th class="px-4 py-2.5 font-medium text-right">Dauer</th>
+                                    <th class="px-4 py-2.5 font-medium text-center">Status</th>
                                     <th class="px-4 py-2.5"></th>
                                 </tr>
                             </thead>

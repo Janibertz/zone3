@@ -86,36 +86,34 @@ const allNavItems = [...navItems, ...moreNavItems];
         <!-- ══════════════════════════════════════
              DESKTOP SIDEBAR
              ══════════════════════════════════════ -->
-        <aside class="hidden lg:flex lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:w-64 flex-col bg-surface border-r border-line">
+        <aside class="hidden flex-col border-r border-line bg-canvas lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-64">
             <!-- Logo -->
-            <div class="flex h-16 shrink-0 items-center gap-3 px-6 border-b border-line">
+            <div class="flex h-16 shrink-0 items-center gap-3 px-5">
                 <ZoneIcon tone="admin" class="h-8 w-8" />
                 <div class="flex flex-col gap-1">
                     <Wordmark class="h-4 text-ink" />
-                    <span class="text-[13px] font-semibold text-danger leading-tight">Admin</span>
+                    <span class="text-[13px] font-semibold leading-tight text-danger">Admin</span>
                 </div>
             </div>
 
             <!-- Navigation -->
-            <nav class="flex-1 overflow-y-auto px-3 py-5 space-y-0.5">
-                <p class="px-3 mb-3 text-[13px] font-semibold text-ink-3">Verwaltung</p>
+            <nav class="flex-1 space-y-0.5 overflow-y-auto px-3 pb-5 pt-2">
                 <Link
                     v-for="item in allNavItems"
                     :key="item.routeName"
                     :href="route(item.routeName)"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-field text-sm font-medium transition duration-150"
+                    class="flex items-center gap-3 rounded-[10px] px-3 py-2 text-[15px] transition duration-150 ease-out-strong"
                     :class="route().current(item.routeName)
-                        ? 'bg-danger-soft text-danger-ink'
-                        : 'text-ink-2 hover:bg-surface-2 hover:text-ink'"
+                        ? 'bg-danger font-semibold text-white'
+                        : 'text-ink hover:bg-surface-2'"
                 >
-                    <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
+                    <svg class="h-5 w-5 shrink-0" :class="route().current(item.routeName) ? '' : 'text-danger'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
                     {{ item.label }}
-                    <span v-if="route().current(item.routeName)" class="ml-auto h-1.5 w-1.5 rounded-full bg-danger" />
                 </Link>
             </nav>
 
             <!-- Footer -->
-            <div class="shrink-0 border-t border-line p-4 space-y-1">
+            <div class="shrink-0 space-y-0.5 border-t border-line p-3">
                 <Link
                     :href="route('dashboard')"
                     class="w-full flex items-center gap-2.5 px-3 py-2 rounded-field text-sm text-ink-3 hover:bg-surface-2 hover:text-ink transition-colors"
@@ -138,12 +136,12 @@ const allNavItems = [...navItems, ...moreNavItems];
                     {{ isDark ? 'Helles Design' : 'Dunkles Design' }}
                 </button>
                 <div class="flex items-center gap-3 px-2 py-2">
-                    <div class="h-9 w-9 shrink-0 rounded-full bg-danger flex items-center justify-center shadow-card">
+                    <div class="h-9 w-9 shrink-0 rounded-full bg-danger flex items-center justify-center">
                         <span class="text-sm font-bold text-white">{{ user.name.charAt(0).toUpperCase() }}</span>
                     </div>
                     <div class="min-w-0 flex-1">
                         <p class="text-sm font-semibold text-ink truncate">{{ user.name }}</p>
-                        <p class="text-xs text-danger font-medium truncate">Administrator</p>
+                        <p class="text-[13px] text-ink-3 truncate">Administrator</p>
                     </div>
                 </div>
                 <Link
@@ -163,7 +161,7 @@ const allNavItems = [...navItems, ...moreNavItems];
         <!-- ══════════════════════════════════════
              MOBILE TOP BAR
              ══════════════════════════════════════ -->
-        <header class="lg:hidden fixed top-0 inset-x-0 z-20 h-mobile-header pt-safe flex items-end justify-between bg-surface border-b border-line px-3 pb-2">
+        <header class="fixed inset-x-0 top-0 z-20 flex h-mobile-header items-end justify-between border-b border-line/70 bg-canvas/80 px-3 pb-2 pt-safe backdrop-blur-xl backdrop-saturate-150 lg:hidden">
             <!-- Left: back to app + logo -->
             <div class="flex items-center gap-2">
                 <Link
@@ -179,7 +177,7 @@ const allNavItems = [...navItems, ...moreNavItems];
                     <ZoneIcon tone="admin" class="h-7 w-7" />
                     <div class="flex flex-col gap-0.5">
                         <Wordmark class="h-3.5 text-ink" />
-                        <span class="text-[9px] font-semibold text-danger uppercase tracking-widest leading-tight">Admin</span>
+                        <span class="text-[11px] font-semibold leading-tight text-danger">Admin</span>
                     </div>
                 </div>
             </div>
@@ -217,9 +215,7 @@ const allNavItems = [...navItems, ...moreNavItems];
         <div class="lg:pl-64 flex flex-col min-h-screen pt-mobile-header lg:pt-0">
             <!-- Titelzeile: sitzt auf dem Canvas, ohne Balken und Trennlinie —
                  die Karten darunter tragen die Struktur. -->
-            <header v-if="$slots.header" class="px-4 pt-5 pb-1 sm:px-6 lg:pt-7">
-                <slot name="header" />
-            </header>
+            <slot name="header" />
             <main class="flex-1 pb-24 lg:pb-0">
                 <slot />
             </main>
@@ -228,34 +224,31 @@ const allNavItems = [...navItems, ...moreNavItems];
         <!-- ══════════════════════════════════════
              MOBILE BOTTOM TAB BAR (4 primary + Mehr)
              ══════════════════════════════════════ -->
-        <nav class="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-surface border-t border-line pb-safe-tabbar">
-            <div class="flex items-center h-16">
+        <nav class="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface/85 pb-safe-tabbar backdrop-blur-xl backdrop-saturate-150 lg:hidden">
+            <div class="flex h-[52px] items-center">
                 <Link
                     v-for="item in navItems"
                     :key="item.routeName"
                     :href="route(item.routeName)"
-                    class="flex-1 flex flex-col items-center justify-center gap-1 h-full transition-colors relative"
+                    class="flex h-full flex-1 flex-col items-center justify-center gap-0.5 transition-colors"
                     :class="route().current(item.routeName)
-                        ? 'text-danger-ink'
+                        ? 'text-danger'
                         : 'text-ink-3'"
                 >
-                    <span v-if="route().current(item.routeName)"
-                        class="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 bg-danger rounded-b-full"
-                    />
-                    <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
-                    <span class="text-[10px] font-medium leading-none">{{ item.label }}</span>
+                    <svg class="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" v-html="item.icon" />
+                    <span class="text-[10px] font-semibold leading-none">{{ item.label }}</span>
                 </Link>
 
                 <!-- Mehr button -->
                 <button
                     @click="moreOpen = true"
-                    class="flex-1 flex flex-col items-center justify-center gap-1 h-full transition-colors relative"
-                    :class="moreOpen ? 'text-danger-ink' : 'text-ink-3'"
+                    class="flex h-full flex-1 flex-col items-center justify-center gap-0.5 transition-colors"
+                    :class="moreOpen ? 'text-danger' : 'text-ink-3'"
                 >
                     <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
                     </svg>
-                    <span class="text-[10px] font-medium leading-none">Mehr</span>
+                    <span class="text-[10px] font-semibold leading-none">Mehr</span>
                 </button>
             </div>
         </nav>
@@ -283,7 +276,7 @@ const allNavItems = [...navItems, ...moreNavItems];
             leave-to-class="translate-y-full"
         >
             <div v-if="moreOpen"
-                class="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-surface rounded-t-2xl shadow-2xl pb-safe-tabbar overflow-hidden"
+                class="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-surface rounded-t-[20px] pb-safe-tabbar overflow-hidden"
             >
                 <!-- Sheet handle -->
                 <div class="flex justify-center pt-3 pb-1">
@@ -292,7 +285,7 @@ const allNavItems = [...navItems, ...moreNavItems];
 
                 <!-- Header -->
                 <div class="flex items-center justify-between px-4 py-3 border-b border-line">
-                    <span class="text-sm font-semibold text-ink">Admin-Menü</span>
+                    <span class="text-[17px] font-semibold text-ink">Admin</span>
                     <button @click="moreOpen = false"
                         class="h-8 w-8 flex items-center justify-center rounded-full bg-surface-2 text-ink-3">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -308,10 +301,10 @@ const allNavItems = [...navItems, ...moreNavItems];
                         :key="item.routeName"
                         :href="route(item.routeName)"
                         @click="moreOpen = false"
-                        class="flex items-center gap-3 px-3 py-3 rounded-field text-sm font-medium transition-colors"
+                        class="flex items-center gap-3 rounded-[10px] px-3 py-2 text-[17px] transition-colors"
                         :class="route().current(item.routeName)
-                            ? 'bg-danger-soft text-danger-ink'
-                            : 'text-ink-2 hover:bg-surface-2'"
+                            ? 'bg-surface-2 font-semibold text-ink'
+                            : 'text-ink active:bg-surface-2'"
                     >
                         <span class="h-9 w-9 rounded-field flex items-center justify-center shrink-0"
                             :class="route().current(item.routeName)
@@ -329,7 +322,7 @@ const allNavItems = [...navItems, ...moreNavItems];
                     <Link
                         :href="route('dashboard')"
                         @click="moreOpen = false"
-                        class="flex items-center gap-3 px-3 py-3 rounded-field text-sm font-medium transition-colors text-accent-ink hover:bg-accent-soft"
+                        class="flex items-center gap-3 rounded-[10px] px-3 py-2 text-[17px] text-accent transition-colors active:bg-surface-2"
                     >
                         <span class="h-9 w-9 rounded-field flex items-center justify-center shrink-0 bg-accent-soft text-accent-ink">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">

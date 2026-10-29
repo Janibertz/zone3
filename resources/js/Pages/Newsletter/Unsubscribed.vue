@@ -23,8 +23,8 @@ function resubscribe() {
 </script>
 
 <template>
-    <div class="min-h-screen bg-surface-2 flex items-center justify-center p-6">
-        <div class="bg-surface rounded-card shadow-lg max-w-md w-full p-8 text-center">
+    <div class="min-h-screen bg-canvas flex items-center justify-center p-6">
+        <div class="bg-surface rounded-card max-w-md w-full p-6 text-center">
             <!-- Logo -->
             <div class="flex items-center justify-center gap-2 mb-6">
                 <ZoneIcon class="h-10 w-10" />
@@ -37,8 +37,8 @@ function resubscribe() {
                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                 </div>
-                <h1 class="text-xl font-bold text-ink mb-2">Wieder angemeldet!</h1>
-                <p class="text-ink-2 text-sm">Du erhältst den Zone3-Newsletter wieder. 🎉</p>
+                <h1 class="text-[28px] font-extrabold leading-[34px] tracking-[-0.03em] text-ink mb-2">Wieder angemeldet!</h1>
+                <p class="text-ink-2 text-[17px] leading-snug">Du erhältst den Zone3-Newsletter wieder.</p>
             </template>
 
             <template v-else-if="alreadyUnsubscribed">
@@ -47,8 +47,8 @@ function resubscribe() {
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
                     </svg>
                 </div>
-                <h1 class="text-xl font-bold text-ink mb-2">Bereits abgemeldet</h1>
-                <p class="text-ink-2 text-sm">{{ name }}, du hast den Newsletter bereits abbestellt.</p>
+                <h1 class="text-[28px] font-extrabold leading-[34px] tracking-[-0.03em] text-ink mb-2">Bereits abgemeldet</h1>
+                <p class="text-ink-2 text-[17px] leading-snug">{{ name }}, du hast den Newsletter bereits abbestellt.</p>
             </template>
 
             <template v-else>
@@ -57,19 +57,19 @@ function resubscribe() {
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
                     </svg>
                 </div>
-                <h1 class="text-xl font-bold text-ink mb-2">Newsletter abgemeldet</h1>
-                <p class="text-ink-2 text-sm mb-6">
+                <h1 class="text-[28px] font-extrabold leading-[34px] tracking-[-0.03em] text-ink mb-2">Newsletter abgemeldet</h1>
+                <p class="text-ink-2 text-[17px] leading-snug mb-6">
                     {{ name }}, du erhältst keine Newsletter-E-Mails mehr von Zone3.
                 </p>
                 <button v-if="token" @click="resubscribe" :disabled="resubscribing"
-                    class="inline-flex items-center gap-2 rounded-field bg-accent hover:opacity-90 text-white text-sm font-semibold px-5 py-2.5 disabled:opacity-50 transition-colors">
+                    class="inline-flex h-11 items-center gap-2 rounded-full bg-accent px-5 text-[17px] font-semibold text-white transition active:scale-[0.97] disabled:opacity-40">
                     <svg v-if="resubscribing" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                     Wieder anmelden
                 </button>
             </template>
 
             <div class="mt-8 pt-6 border-t border-line">
-                <a href="/" class="text-sm text-accent hover:text-accent-ink font-medium">Zur Zone3 App →</a>
+                <a href="/" class="text-[17px] text-accent">Zur Zone3-App</a>
             </div>
         </div>
     </div>

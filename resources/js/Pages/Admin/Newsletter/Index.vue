@@ -1,5 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
@@ -135,10 +136,10 @@ function formatDate(d) {
 
     <AdminLayout>
         <template #header>
-            <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Newsletter</h1>
+            <PageHeader title="Newsletter" />
         </template>
 
-        <div class="p-4 sm:p-6 space-y-6">
+        <div class="p-4 lg:px-8 lg:py-6 space-y-6">
 
             <!-- Flash -->
             <div v-if="flash.success" class="flex items-center gap-3 px-4 py-3 bg-success-soft border border-success/25 rounded-field text-sm text-success-ink">
@@ -174,7 +175,7 @@ function formatDate(d) {
                     </button>
                 </div>
 
-                <div class="p-4 sm:p-6 space-y-4">
+                <div class="p-4 lg:px-8 lg:py-6 space-y-4">
                     <!-- Subject -->
                     <div>
                         <label class="text-[13px] font-semibold text-ink-3">Betreff *</label>

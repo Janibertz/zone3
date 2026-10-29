@@ -1,5 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 
@@ -47,18 +48,16 @@ function formatDate(dt) {
     <Head :title="`Ticket #${ticket.id}`" />
     <AdminLayout>
         <template #header>
-            <div class="flex items-center gap-3">
-                <Link :href="route('admin.support.index')" class="text-ink-3 hover:text-ink-2 transition-colors">
-                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
-                </Link>
-                <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Ticket #{{ ticket.id }}</h1>
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" :class="statusConfig[ticket.status]">
-                    {{ statusOptions.find(s => s.value === ticket.status)?.label }}
-                </span>
-            </div>
+            <PageHeader :title="`Ticket #${ticket.id}`" :back="route('admin.support.index')">
+                <template #action>
+                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[13px] font-medium" :class="statusConfig[ticket.status]">
+                        {{ statusOptions.find(s => s.value === ticket.status)?.label }}
+                    </span>
+                </template>
+            </PageHeader>
         </template>
 
-        <div class="px-4 py-4 lg:px-6 lg:py-6 space-y-5">
+        <div class="px-4 py-4 lg:px-8 lg:py-6 space-y-5">
 
             <!-- Flash -->
             <div v-if="flash.success" class="px-4 py-3 bg-success-soft border border-success/25 rounded-field text-sm text-success-ink">

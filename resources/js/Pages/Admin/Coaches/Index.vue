@@ -1,5 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import { Head, Link } from '@inertiajs/vue3';
 
 const props = defineProps({
@@ -35,10 +36,10 @@ function formatTokens(n) {
 
     <AdminLayout>
         <template #header>
-            <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Coaches</h1>
+            <PageHeader title="Coaches" />
         </template>
 
-        <div class="p-4 sm:p-6 space-y-6">
+        <div class="p-4 lg:px-8 lg:py-6 space-y-6">
 
             <p class="text-sm text-ink-3">
                 Hier kannst du die Persönlichkeits-Prompts der AI-Coaches bearbeiten und ihre Nutzungsstatistiken einsehen.
@@ -48,7 +49,7 @@ function formatTokens(n) {
             <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div
                     v-for="coach in coaches" :key="coach.id"
-                    class="bg-surface border rounded-card overflow-hidden transition-shadow hover:shadow-md shadow-card"
+                    class="overflow-hidden rounded-card bg-surface"
                     :class="coachColors[coach.avatar_color]?.border ?? 'border-line'"
                 >
                     <!-- Header -->

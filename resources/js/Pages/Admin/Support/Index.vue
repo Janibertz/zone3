@@ -1,5 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 
 const props = defineProps({
@@ -43,10 +44,10 @@ function formatDate(dt) {
     <Head title="Admin – Support" />
     <AdminLayout>
         <template #header>
-            <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Support-Tickets</h1>
+            <PageHeader title="Support" />
         </template>
 
-        <div class="px-4 py-4 lg:px-6 lg:py-6 space-y-4">
+        <div class="px-4 py-4 lg:px-8 lg:py-6 space-y-4">
 
             <!-- Tabs -->
             <div class="flex gap-1 bg-surface-2 rounded-field p-1">

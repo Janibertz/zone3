@@ -1111,8 +1111,27 @@ const moduleHasData = computed(() => ({
 const visibleModules = computed(() =>
     layout.value.filter(m => !m.hidden && moduleHasData.value[m.key] !== false));
 
+/**
+ * Die halben Module stehen ab lg zu zweit, ab 2xl zu dritt nebeneinander,
+ * und `grid-flow-row-dense` zieht sie über die breiten hinweg zusammen.
+ * Geht die Zahl nicht auf, blieb am Ende ein Loch neben einer einzelnen
+ * kleinen Karte (Jan, 29.10.2026: „kleine Boxen, die das Design auf dem
+ * Desktop brechen"). Das letzte halbe Modul nimmt deshalb den Rest der
+ * Zeile ein.
+ */
+const lastHalfSpan = computed(() => {
+    const halves = visibleModules.value.filter(m => !m.wide);
+    const last = halves.at(-1)?.key ?? null;
+    // Volle Klassennamen, damit Tailwind sie findet. Ab 2xl muss die
+    // lg-Spanne gegebenenfalls zurückgesetzt werden (col-span-1).
+    const lg = halves.length % 2 === 1 ? 'lg:col-span-2' : '';
+    const xl = ['2xl:col-span-1', '2xl:col-span-3', '2xl:col-span-2'][halves.length % 3];
+    return { key: last, cls: `${lg} ${xl}` };
+});
+
 function moduleClass(m) {
-    return m.wide ? 'min-w-0 lg:col-span-full' : 'min-w-0';
+    if (m.wide) return 'min-w-0 lg:col-span-full';
+    return m.key === lastHalfSpan.value.key ? `min-w-0 ${lastHalfSpan.value.cls}` : 'min-w-0';
 }
 
 function moduleHint(m) {
@@ -1391,7 +1410,7 @@ async function resetLayout() {
                             breiter Knopf, der die Karte optisch verdoppelte.
                             Downloads sind echte <a>, keine Inertia-Links.
                         -->
-                        <SessionCard v-if="props.todayPlanSession"
+                        <SessionCard v-if="props.todayPlanSession" wide
                             :session="props.todayPlanSession"
                             :badge="props.todayPlanSession.status === 'completed' ? 'Erledigt'
                                 : props.todayPlanSession.is_today ? 'Heute'
@@ -1681,7 +1700,7 @@ async function resetLayout() {
                     statt CSS `order`), damit Vorlesen und Tabulator dieselbe Folge
                     sehen wie das Auge. Halbe Module liegen ab lg nebeneinander.
                 -->
-                <div class="grid grid-cols-1 gap-x-5 gap-y-7 lg:grid-cols-2 2xl:grid-cols-3">
+                <div class="grid grid-cols-1 gap-x-5 gap-y-7 lg:grid-flow-row-dense lg:grid-cols-2 2xl:grid-cols-3">
                     <template v-for="m in visibleModules" :key="m.key">
                         <div v-if="m.key === 'woche'" :class="moduleClass(m)">
                             <!-- ══════════════════════════════════════════════════
@@ -1912,8 +1931,10 @@ async function resetLayout() {
 
                                     <div v-if="props.paceZones" class="mt-4 grid grid-cols-5 gap-1.5">
                                         <div v-for="(zone, key) in props.paceZones" :key="key" class="rounded-field bg-surface-2 p-2 text-center">
-                                            <p class="text-[11px] font-bold uppercase text-ink-2">{{ key }}</p>
-                                            <p class="mt-0.5 font-mono text-[11px] leading-tight text-ink-3">
+                                            <p class="flex items-center justify-center gap-1 text-[13px] font-semibold text-ink">
+                                                <span class="h-2 w-2 rounded-full" :class="{ z1: 'bg-ink-3', z2: 'bg-success', z3: 'bg-accent', z4: 'bg-warn', z5: 'bg-danger' }[key]" />{{ key.toUpperCase() }}
+                                            </p>
+                                            <p class="mt-0.5 text-[12px] leading-tight tabular-nums text-ink-3">
                                                 <template v-if="zone.max_pace === '∞' || zone.min_pace === '0:00'">{{ zoneRangeShort(zone) }}</template>
                                                 <template v-else>{{ zone.min_pace }}<br><span class="opacity-70">{{ zone.max_pace }}</span></template>
                                             </p>

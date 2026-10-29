@@ -1,5 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
@@ -82,7 +83,10 @@ function daysAgo(value) {
     <Head title="System" />
 
     <AdminLayout>
-        <div class="px-4 py-4 lg:px-6 lg:py-6 space-y-6">
+        <template #header>
+            <PageHeader title="System" />
+        </template>
+        <div class="px-4 py-4 lg:px-8 lg:py-6 space-y-6">
 
             <!-- Flash -->
             <div v-if="flash.success" class="px-4 py-3 bg-success-soft border border-success/25 rounded-field text-sm text-success-ink">

@@ -275,7 +275,7 @@ async function save() {
     <AuthenticatedLayout>
         <div class="min-h-screen bg-canvas">
             <!-- Navigationsleiste wie ein iOS-Editor: Abbrechen · Titel · Sichern -->
-            <div class="flex h-[52px] items-center justify-between gap-3 px-4 lg:px-8">
+            <div class="mx-auto flex h-[52px] max-w-2xl items-center justify-between gap-3 px-4 lg:mt-4 lg:px-8">
                 <Link :href="route('workouts.index')" class="text-[17px] text-accent active:opacity-60">Abbrechen</Link>
                 <span class="truncate text-[17px] font-semibold text-ink">{{ isEdit ? 'Workout bearbeiten' : 'Neues Workout' }}</span>
                 <button type="button" class="text-[17px] font-semibold text-accent active:opacity-60 disabled:opacity-40" :disabled="saving" @click="save">

@@ -1,5 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 
@@ -59,17 +60,10 @@ const prettyResponse = computed(() => {
 
     <AdminLayout>
         <template #header>
-            <div class="flex items-center gap-3">
-                <Link :href="route('admin.ai-logs.index')" class="text-ink-3 hover:text-ink-2 transition-colors">
-                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-                    </svg>
-                </Link>
-                <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">AI Log #{{ log.id }}</h1>
-            </div>
+            <PageHeader :title="`AI Log #${log.id}`" :back="route('admin.ai-logs.index')" />
         </template>
 
-        <div class="px-4 py-4 lg:px-6 lg:py-6 space-y-6">
+        <div class="px-4 py-4 lg:px-8 lg:py-6 space-y-6">
 
             <!-- ── Meta Card ── -->
             <div class="bg-surface rounded-card p-6 shadow-card">

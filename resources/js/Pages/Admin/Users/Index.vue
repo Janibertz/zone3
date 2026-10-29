@@ -1,5 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
@@ -10,7 +11,9 @@ const props = defineProps({
 });
 
 const search    = ref(props.filters?.search ?? '');
-const filter    = ref(props.filters?.filter ?? '');
+// Ohne Filter kommt `filters` als leeres Array an, und `[].filter` ist die
+// Array-Methode — das Auswahlfeld stand dann leer statt auf „Alle".
+const filter    = ref(typeof props.filters?.filter === 'string' ? props.filters.filter : '');
 const deleteTarget = ref(null);
 
 let searchTimeout = null;
@@ -73,10 +76,10 @@ const filterOptions = [
 
     <AdminLayout>
         <template #header>
-            <h1 class="text-2xl font-bold tracking-tight text-ink lg:text-3xl">Nutzerverwaltung</h1>
+            <PageHeader title="Nutzer" />
         </template>
 
-        <div class="p-4 sm:p-6 space-y-6">
+        <div class="p-4 lg:px-8 lg:py-6 space-y-6">
 
             <!-- Filter bar -->
             <div class="flex flex-col sm:flex-row gap-3">
@@ -84,12 +87,12 @@ const filterOptions = [
                     v-model="search"
                     type="search"
                     placeholder="Name oder E-Mail suchen…"
-                    class="flex-1 px-4 py-2.5 rounded-field border border-line bg-surface text-ink text-sm focus:border-danger outline-none transition-colors"
+                    class="flex-1 px-4 py-2.5 rounded-field border-0 bg-surface text-ink text-sm focus:outline-none focus:ring-2 focus:ring-danger/40 transition-colors"
                 />
                 <select
                     v-model="filter"
                     @change="applyFilters"
-                    class="px-4 py-2.5 rounded-field border border-line bg-surface text-ink text-sm focus:border-danger outline-none transition-colors"
+                    class="px-4 py-2.5 rounded-field border-0 bg-surface text-ink text-sm focus:outline-none focus:ring-2 focus:ring-danger/40 transition-colors"
                 >
                     <option v-for="opt in filterOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                 </select>

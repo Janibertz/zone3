@@ -168,7 +168,7 @@ const filtered = computed(() => sport.value !== 'all' || !!search.value);
 
     <AuthenticatedLayout>
         <div class="min-h-screen bg-canvas">
-            <PageHeader title="Aktivitäten" :eyebrow="subtitle">
+            <PageHeader width="max-w-3xl" title="Aktivitäten" :eyebrow="subtitle">
                 <template #action>
                     <button type="button" :aria-label="searchOpen ? 'Suche schließen' : 'Suchen'"
                         class="flex h-11 w-11 items-center justify-center rounded-full text-accent transition-transform active:scale-90"
