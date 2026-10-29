@@ -5,6 +5,8 @@ import axios from 'axios';
 import TrainingModelFields from '@/Components/Settings/TrainingModelFields.vue';
 import BikeFields from '@/Components/Settings/BikeFields.vue';
 import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
+import Wordmark from '@/Components/Brand/Wordmark.vue';
+import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
 
 const props = defineProps({
     coaches:     Array,
@@ -422,10 +424,8 @@ function complete() { router.post(route('onboarding.complete')); }
 
         <!-- Header -->
         <header class="flex items-center gap-3 px-6 py-4 border-b border-line bg-surface">
-            <div class="h-8 w-8 rounded-field bg-gradient-to-br from-accent to-accent flex items-center justify-center shadow-card">
-                <span class="text-white text-sm font-bold">Z3</span>
-            </div>
-            <span class="text-lg font-bold text-ink tracking-tight">Zone3</span>
+            <ZoneIcon class="h-8 w-8" />
+            <Wordmark class="h-[19px] text-ink" />
         </header>
 
         <!-- Progress bar -->

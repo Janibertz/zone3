@@ -1,5 +1,7 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
+import Wordmark from '@/Components/Brand/Wordmark.vue';
+import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
 
 /**
  * Öffentliche Datenschutzerklärung (/privacy, vorher /support).
@@ -68,8 +70,8 @@ const empfaenger = [
         <nav class="border-b border-line">
             <div class="mx-auto flex h-16 max-w-3xl items-center justify-between px-5">
                 <Link href="/" class="flex items-center gap-2">
-                    <div class="flex h-8 w-8 items-center justify-center rounded-field bg-accent text-sm font-bold text-white">Z3</div>
-                    <span class="text-lg font-bold tracking-tight">Zone3</span>
+                    <ZoneIcon class="h-8 w-8" />
+                    <Wordmark class="h-[19px] text-ink" />
                 </Link>
                 <Link href="/login" class="text-sm text-ink-2 transition hover:text-ink active:opacity-60">Anmelden</Link>
             </div>
