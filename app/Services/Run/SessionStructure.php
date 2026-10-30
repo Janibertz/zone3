@@ -46,6 +46,12 @@ class SessionStructure
             return false;
         }
 
+        // Den Laufclub gibt der Trainer vor. Nur wer ausdrücklich einen
+        // Baustein verlangt (Coach-Chat), bekommt dort einen Ablauf.
+        if ($variant === null && $session->isFixedAppointment()) {
+            return false;
+        }
+
         $slot    = ['type' => $session->type];
         $allowed = RunWorkouts::VARIANTS[$session->type] ?? RunWorkouts::variantsFor($slot);
         // Ohne Hang keine Bergeinheit — außer der Athlet verlangt sie ausdrücklich.

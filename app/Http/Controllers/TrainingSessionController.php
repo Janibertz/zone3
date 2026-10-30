@@ -257,6 +257,24 @@ class TrainingSessionController extends Controller
         // Completed sessions show real Strava splits — no planned structure.
         abort_if($session->status === 'completed', 422);
 
+        // Den festen Termin gestaltet der Laufclub, jede Woche anders. Ein
+        // Ablauf, der früher beim Öffnen gebaut wurde, fällt dabei weg.
+        if ($session->isFixedAppointment()) {
+            if ($session->steps) {
+                $session->steps           = null;
+                $session->workout_variant = null;
+                $session->save();
+            }
+
+            return response()->json([
+                'steps' => null,
+                'note'  => 'Den Ablauf gibt dein Termin vor.',
+                'description'  => $session->description,
+                'distance_km'  => $session->distance_km,
+                'duration_min' => $session->duration_min,
+            ]);
+        }
+
         if (! $session->steps) {
             if ($session->type === 'yard_simulation') {
                 $session->steps = $sessions->buildYardSimulationSteps($session);

@@ -77,6 +77,24 @@ class TrainingSession extends Model
     /** Was eine geplante Radeinheit erfüllt — Zwift oder draußen. */
     public const BIKE_SPORTS = ['VirtualRide', 'Ride'];
 
+    /**
+     * Der feste Wochentermin (Laufclub)? Den Inhalt gibt der Trainer vor
+     * Ort vor, jede Woche einen anderen — Zone3 baut dafür keinen Ablauf
+     * und schickt nichts auf die Uhr (Jan, 28. und 30.10.2026).
+     */
+    public function isFixedAppointment(): bool
+    {
+        if (! $this->planned_date) {
+            return false;
+        }
+
+        return \App\Services\Garmin\GarminWorkoutSync::isFixedAppointment(
+            $this,
+            $this->user?->runnerProfile?->weekly_availability ?? [],
+            $this->trainingPlan?->availability_overrides ?? [],
+        );
+    }
+
     /** Eine Radeinheit mit Schritten in % FTP — nur die lässt sich als .zwo schreiben. */
     public function hasBikeSteps(): bool
     {
