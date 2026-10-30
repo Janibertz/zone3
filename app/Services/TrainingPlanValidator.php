@@ -151,14 +151,21 @@ class TrainingPlanValidator
      * An einem Radtag schreibt das Modell nichts — die Radeinheit steht fest
      * und kommt aus den Vorlagen. Was es trotzdem liefert (meist den Lauf,
      * den das Rad ersetzt), fliegt raus. Kraft und Mobility daneben bleiben.
+     *
+     * Kommt das Rad zusätzlich (`extra`), bleibt der Lauf des Tages; dann
+     * fliegt nur eine Radeinheit raus, die das Modell selbst geschrieben hat.
      */
     private function clearBikeDays(array $sessions, array $days): array
     {
         return array_values(array_filter($sessions, function ($s) use ($days) {
-            $isBikeDay = collect($days[$s['date']]['slots'] ?? [])->contains(fn ($slot) => ! empty($slot['bike']));
+            $bikes = collect($days[$s['date']]['slots'] ?? [])->filter(fn ($slot) => ! empty($slot['bike']));
 
-            if (! $isBikeDay || in_array($s['type'] ?? '', ['strength', 'core', 'mobility'], true)) {
+            if ($bikes->isEmpty() || in_array($s['type'] ?? '', ['strength', 'core', 'mobility'], true)) {
                 return true;
+            }
+
+            if ($bikes->every(fn ($slot) => ! empty($slot['extra']))) {
+                return ($s['type'] ?? '') !== 'cross_training';
             }
 
             if (in_array($s['type'] ?? '', self::RUN_TYPES, true)) {

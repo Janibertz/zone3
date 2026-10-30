@@ -38,6 +38,9 @@ class WeeklyPatternService
     /** Ein geplanter Lauf unter 20 Minuten ist kein sinnvoller Trainingsreiz. */
     public const MIN_USEFUL_RUN_MINUTES = 20;
 
+    /** Unter so viele Läufe streicht das Umfangsbudget eine Woche nicht. */
+    public const MIN_RUNS_PER_WEEK = 4;
+
     /** Alles, wofür Laufschuhe nötig sind — die Typen, die Wochenumfang kosten. */
     public const RUN_SLOT_TYPES = ['easy_run', 'tempo_run', 'interval', 'long_run', 'progressive_run', 'test_run'];
 
@@ -272,17 +275,21 @@ class WeeklyPatternService
             $this->applyEightyTwenty($days, $priority);
         }
 
+        // Kraft vor dem Rad: die Zahl der Krafttage ist eingestellt, das Rad
+        // nur ein Höchstwert. Lief das Rad zuerst, belegte die zusätzliche
+        // Fahrt den einzigen Tag mit Restzeit, und Jans Woche hatte gar
+        // keine Kraft mehr. Kraft braucht die fertige Laufwoche — welche
+        // Tage frei bleiben, wo der lange Lauf liegt, was übrig ist.
+        if (! empty($strength['enabled'])) {
+            $this->applyStrength($days, (int) ($strength['days_per_week'] ?? 2), $periods);
+        }
+
         // Rad/Zwift zuletzt: der Lauf, den eine Radeinheit ersetzt, hat dann
         // seine Minuten und seinen Hauptteil — und seine Kilometer fallen mit
         // dem Tausch aus der Woche, statt auf andere Läufe verteilt zu werden.
+        // Eine zusätzliche Fahrt nimmt, was neben Lauf und Kraft übrig ist.
         if ($bike) {
             $this->bikeSchedule->apply($days, $this->groupByWeek($days), $bike, $periods);
-        }
-
-        // Kraft ganz zuletzt: sie braucht die fertige Woche — welche Tage frei
-        // bleiben, wo der lange Lauf liegt und was danach an Zeit übrig ist.
-        if (! empty($strength['enabled'])) {
-            $this->applyStrength($days, (int) ($strength['days_per_week'] ?? 2), $periods);
         }
 
         return [
@@ -476,7 +483,7 @@ class WeeklyPatternService
         }
 
         // Der Deckel wächst über das Fenster mit — mit derselben Rate von
-        // 10 %, die auch im Umfangsblock des Prompts steht. Bliebe er flach,
+        // 8 %, die auch im Umfangsblock des Prompts steht. Bliebe er flach,
         // hungerte die zweite Woche aus: ihr langer Lauf ist laut Leiter
         // länger, und vom selben Deckel bliebe für den Rest der Woche
         // weniger übrig als in der ersten.
@@ -484,18 +491,24 @@ class WeeklyPatternService
         // Entlastung und Taper kommen als Faktor obendrauf. Sie stehen damit
         // im Gerüst und nicht als Bitte im Prompt („jede dritte bis vierte
         // Woche entlasten"), die nie jemand durchgesetzt hat.
-        $week = 0;
+        //
+        // Gesteigert wird nur über Belastungswochen: nach einer Entlastung
+        // geht es dort weiter, wo die Woche davor aufgehört hat, nicht mit
+        // einem doppelten Sprung.
+        $loadWeeks = 0;
         foreach ($this->groupByWeek($days) as $weekKey => $dates) {
             $this->budgetWeek(
                 $days,
                 $dates,
                 $budgetKm
-                    * (1 + WeeklyVolumeService::MAX_PROGRESSION_PCT / 100) ** $week
+                    * (1 + WeeklyVolumeService::MAX_PROGRESSION_PCT / 100) ** $loadWeeks
                     * ($periods[$weekKey]['volume_factor'] ?? 1.0),
                 $paceSec,
                 $priority,
             );
-            $week++;
+            if (empty($periods[$weekKey]['recovery'])) {
+                $loadWeeks++;
+            }
         }
     }
 
@@ -634,6 +647,7 @@ class WeeklyPatternService
     {
         $open    = [];
         $takenKm = 0.0;
+        $fixed   = 0;
 
         foreach ($dates as $date) {
             foreach ($days[$date]['slots'] ?? [] as $i => $slot) {
@@ -659,12 +673,14 @@ class WeeklyPatternService
                     $days[$date]['slots'][$i]['target_km']  = round($km, 1);
                     $days[$date]['slots'][$i]['target_min'] = $minutes;
                     $takenKm += $km;
+                    $fixed++;
                     continue;
                 }
 
                 // Der lange Lauf steht schon (Leiter) und geht ab.
                 if (isset($slot['target_km'])) {
                     $takenKm += (float) $slot['target_km'];
+                    $fixed++;
                     continue;
                 }
 
@@ -695,6 +711,7 @@ class WeeklyPatternService
                     $days[$date]['slots'][$i]['target_km']  = round($km, 1);
                     $days[$date]['slots'][$i]['target_min'] = $minutes;
                     $takenKm += $km;
+                    $fixed++;
                     continue;
                 }
 
@@ -717,10 +734,15 @@ class WeeklyPatternService
         // darin.
         $budgetMin = max(0.0, ($budgetKm - $takenKm)) * $paceSec / 60;
 
-        // Solange das Budget die Mindestdauern nicht traegt, faellt die
-        // unwichtigste Einheit weg. Lieber drei Laeufe mit Substanz als
-        // fuenf, die keinen Reiz setzen.
-        while (count($open) > 1 && $this->minutesNeeded($open) > $budgetMin) {
+        // Die Zahl der Läufe kommt aus der Verfügbarkeit (Jan, 30.10.2026):
+        // ist der Umfang knapp, werden die lockeren Läufe kürzer, bis
+        // hinunter auf MIN_USEFUL_RUN_MINUTES. Gestrichen wird erst, wenn
+        // selbst das nicht passt, und nie unter MIN_RUNS_PER_WEEK Läufe.
+        // Vorher fiel ein Lauf schon, sobald die vollen 30 Minuten nicht
+        // passten — bei Jans 21 km blieben drei Läufe, und die freien Tage
+        // füllten Kraft und Rad.
+        while (count($open) > 1 && $fixed + count($open) > self::MIN_RUNS_PER_WEEK
+            && $this->minutesNeeded($open, true) > $budgetMin) {
             $victim = $this->leastImportant($open, $priority);
             if ($victim === null) {
                 break;
@@ -730,12 +752,59 @@ class WeeklyPatternService
             array_splice($open, $victim, 1);
         }
 
-        // Reicht es nicht einmal fuer die letzte Einheit, bleibt sie
-        // trotzdem stehen — eine Woche ohne jeden Lauf waere kein Plan.
-        // Sie wird dann eben kurz.
+        // Hat das Streichen die Woche unter SECOND_HARD_FROM_SESSIONS Läufe
+        // gebracht, wird die zweite harte Einheit locker statt gestrichen —
+        // so bleibt die Zahl der Läufe und 80/20 nach Einheiten trotzdem.
+        // Die Sub-Schwelle des norwegischen Modells regelt ihre Anteile selbst.
+        $hardInWeek = 0;
+        foreach ($dates as $date) {
+            foreach ($days[$date]['slots'] ?? [] as $slot) {
+                if (! empty($slot['hard']) && empty($slot['controlled']) && empty($slot['race'])) {
+                    $hardInWeek++;
+                }
+            }
+        }
+        while ($hardInWeek > $this->hardSessionsFor($fixed + count($open))) {
+            $hardOpen = array_filter($open, fn ($o) => in_array($o['type'], self::HARD_TYPES, true)
+                && empty($days[$o['date']]['slots'][$o['index']]['controlled']));
+            if ($hardOpen === []) {
+                break;
+            }
+
+            $keys   = array_keys($hardOpen);
+            $victim = $keys[$this->leastImportantHard(array_values($hardOpen), $priority)];
+            $o      = $open[$victim];
+
+            $days[$o['date']]['slots'][$o['index']]['type'] = 'easy_run';
+            $days[$o['date']]['slots'][$o['index']]['hard'] = false;
+            $open[$victim]['type'] = 'easy_run';
+            $hardInWeek--;
+        }
+
+        // Reicht es nicht einmal fuer die Mindestdauern, bleiben die Läufe
+        // trotzdem stehen — sie werden dann eben kurz.
         $base = [];
         foreach ($open as $k => $slot) {
             $base[$k] = min($this->minMinutesFor($slot['type']), $slot['cap']);
+        }
+
+        // Fehlt Zeit für die vollen Mindestdauern, geben zuerst die lockeren
+        // Läufe nach, gleichmäßig bis auf ihre Untergrenze. Eine harte
+        // Einheit unter 45 Minuten hätte keinen Hauptteil mehr.
+        $deficit = array_sum($base) - $budgetMin;
+        if ($deficit > 0) {
+            $slack = [];
+            foreach ($open as $k => $slot) {
+                if ($slot['type'] === 'easy_run') {
+                    $slack[$k] = max(0, $base[$k] - min(self::MIN_USEFUL_RUN_MINUTES, $slot['cap']));
+                }
+            }
+            $totalSlack = array_sum($slack);
+            foreach ($slack as $k => $room) {
+                if ($totalSlack > 0) {
+                    $base[$k] -= min($room, $deficit * $room / $totalSlack);
+                }
+            }
         }
 
         // Was ueber die Mindestdauern hinaus uebrig ist, wird im Verhaeltnis
@@ -878,12 +947,18 @@ class WeeklyPatternService
         return $sessions >= self::SECOND_HARD_FROM_SESSIONS ? 2 : 1;
     }
 
-    /** Wie viele Minuten die offenen Einheiten mindestens brauchen. */
-    private function minutesNeeded(array $open): float
+    /**
+     * Wie viele Minuten die offenen Einheiten mindestens brauchen — mit
+     * $shortEasy die lockeren Läufe nur mit ihrer Untergrenze.
+     */
+    private function minutesNeeded(array $open, bool $shortEasy = false): float
     {
         $sum = 0.0;
         foreach ($open as $slot) {
-            $sum += min($this->minMinutesFor($slot['type']), $slot['cap']);
+            $min = $shortEasy && $slot['type'] === 'easy_run'
+                ? self::MIN_USEFUL_RUN_MINUTES
+                : $this->minMinutesFor($slot['type']);
+            $sum += min($min, $slot['cap']);
         }
 
         return $sum;
@@ -1974,8 +2049,11 @@ class WeeklyPatternService
                 // Eine Radeinheit steht fest — sie kommt aus den Vorlagen in
                 // % FTP und wird vom System eingesetzt, nicht vom Modell.
                 if (! empty($slot['bike'])) {
-                    $parts[] = "RADEINHEIT (Zwift, vom System gesetzt: \"{$slot['workout']['title']}\", {$slot['target_min']} min) — "
-                        . 'gib dafuer KEINEN Eintrag zurueck, auch keinen Lauf';
+                    $parts[] = ! empty($slot['extra'])
+                        ? "dazu RADEINHEIT (Zwift, vom System gesetzt: \"{$slot['workout']['title']}\", {$slot['target_min']} min) — "
+                            . 'gib dafuer keinen Eintrag zurueck; der Lauf dieses Tages bleibt'
+                        : "RADEINHEIT (Zwift, vom System gesetzt: \"{$slot['workout']['title']}\", {$slot['target_min']} min) — "
+                            . 'gib dafuer KEINEN Eintrag zurueck, auch keinen Lauf';
                     continue;
                 }
 
@@ -2100,7 +2178,8 @@ class WeeklyPatternService
 
             foreach ($day['slots'] ?? [] as $slot) {
                 if (! empty($slot['bike'])) {
-                    $bikes[$day['week']] = ($bikes[$day['week']] ?? 0) + 1;
+                    $kind = ! empty($slot['extra']) ? 'extra' : 'swap';
+                    $bikes[$day['week']][$kind] = ($bikes[$day['week']][$kind] ?? 0) + 1;
                 }
 
                 if (in_array($slot['type'], self::RUN_SLOT_TYPES, true)) {
@@ -2129,7 +2208,10 @@ class WeeklyPatternService
 
             // Rad zählt nicht in die Laufminuten — die Kilometer des
             // ersetzten Laufs sind aus der Woche heraus, nicht verteilt.
-            $bike = ! empty($bikes[$weekKey]) ? " (dazu {$bikes[$weekKey]}× Rad statt Laufen)" : '';
+            $bike = implode('', array_filter([
+                ! empty($bikes[$weekKey]['swap']) ? " (dazu {$bikes[$weekKey]['swap']}× Rad statt Laufen)" : '',
+                ! empty($bikes[$weekKey]['extra']) ? " (dazu {$bikes[$weekKey]['extra']}× Rad zusaetzlich)" : '',
+            ]));
 
             $planned[] = "- {$weekKey}: {$list}{$bike}{$share}";
         }
@@ -2162,7 +2244,7 @@ class WeeklyPatternService
             . "- Als [optional] markierte Zweiteinheiten darfst du weglassen, wenn sie an dem Tag nicht sinnvoll sind — aber niemals durch eine harte Einheit ersetzen.\n"
             . "- Als RUHETAG markierte Tage sind Pflicht: type=\"rest\", keine Einheit, auch keine lockere. Der Athlet hat sie fest eingeplant und richtet seine Woche danach ein.\n"
             . "- Erfinde KEINE zusätzlichen harten Einheiten und verschiebe KEINE Termine.\n"
-            . ($bikes !== [] ? "- RADEINHEITEN (Zwift) setzt das System selbst ein — gib an diesen Tagen keinen Lauf und keine Radeinheit zurueck. Die Kilometer des ersetzten Laufs fehlen bewusst im Laufumfang: gleiche sie NICHT an anderen Tagen aus. Ein Radintervall ist eine harte Einheit — plane den Tag danach entsprechend locker.\n" : '')
+            . ($bikes !== [] ? "- RADEINHEITEN (Zwift) setzt das System selbst ein — gib keine Radeinheit zurueck. Ersetzt das Rad einen Lauf, gib an diesem Tag auch keinen Lauf zurueck; die Kilometer fehlen bewusst im Laufumfang: gleiche sie NICHT an anderen Tagen aus. Kommt das Rad zusaetzlich, schreibst du den Lauf des Tages wie sonst. Ein Radintervall ist eine harte Einheit — plane den Tag danach entsprechend locker.\n" : '')
             . "- FESTE TERMINE sind auswärtige Einheiten (Laufclub, Vereinstraining). Ihr Inhalt steht NICHT fest und wechselt wöchentlich. Schreibe dort KEINE erfundene Struktur hinein: kurzer title mit dem Namen des Termins, und eine description, die sagt, dass der Inhalt vor Ort vorgegeben wird. Setze pace_target=null. Plane an diesem Tag nichts Zusätzliches und ziehe die Einheit bei der Wochenbelastung mit ein.";
     }
 }

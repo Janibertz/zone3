@@ -114,7 +114,7 @@ class PlanNumbersTest extends TestCase
         $this->assertTrue($v['has_data']);
         $this->assertSame(30.0, $v['avg_km'], 'Rad und Fehlstart dürfen nicht mitzählen');
         $this->assertSame(12.0, $v['longest_run']);
-        $this->assertSame(33.0, $v['next_week_max'], 'Höchstens 10 % mehr in der Folgewoche');
+        $this->assertSame(32.4, $v['next_week_max'], 'Höchstens 8 % mehr in der Folgewoche');
     }
 
     /** Die laufende Woche ist unvollständig und verfälscht jeden Schnitt. */
@@ -140,7 +140,7 @@ class PlanNumbersTest extends TestCase
         $text = app(WeeklyVolumeService::class)
             ->toPromptSection(app(WeeklyVolumeService::class)->forUser($user->id), $this->marathon($user));
 
-        $this->assertStringContainsString('44 km NICHT überschreiten', $text);
+        $this->assertStringContainsString('43.2 km NICHT überschreiten', $text);
         $this->assertStringContainsString('Periodisierung', $text);
     }
 

@@ -501,7 +501,7 @@ class PlanContextBuilder
      * Den Umfangsdeckel um das korrigieren, was der Athlet erzaehlt hat.
      *
      * `WeeklyVolumeService` schreibt die letzten Wochen fort: Durchschnitt
-     * plus 10 %. Das ist richtig, solange die vergangenen Wochen gelaufen
+     * plus 8 %. Das ist richtig, solange die vergangenen Wochen gelaufen
      * WURDEN. Wer sagt „ich hatte keine Zeit" oder „die Beine machten nicht
      * mit", bekommt sonst denselben Umfang noch einmal vorgelegt, der schon
      * beim letzten Mal nicht in die Woche passte — und die Ausfallquote

@@ -39,6 +39,13 @@ class BikePlanTest extends TestCase
     private const RACE_DAY  = '2026-11-29';
     private const PEAK_WEEK = '2026-10-26';
 
+    /** Belastungswoche mit Restzeit neben den lockeren Läufen (bei 150 min am Tag). */
+    private const LOAD_WEEK = '2026-11-02';
+
+    /** Entlastungswochen: Halbmarathon und 5 km zählen ihren Rhythmus verschieden. */
+    private const RECOVERY_WEEK    = '2026-10-19';
+    private const RECOVERY_WEEK_5K = '2026-10-26';
+
     private const BIKE = [
         'season' => 'all_year', 'purpose' => 'both', 'max_per_week' => 2,
         'preferred_days' => [], 'ftp' => 250,
@@ -58,29 +65,31 @@ class BikePlanTest extends TestCase
         parent::tearDown();
     }
 
-    private function event(?User $user = null): Event
+    private function event(?User $user = null, string $distance = 'half_marathon'): Event
     {
         return Event::create([
             'user_id' => ($user ?? User::factory()->create())->id, 'name' => 'Halbmarathon',
-            'event_date' => self::RACE_DAY, 'race_distance' => 'half_marathon', 'priority' => 'A',
+            'event_date' => self::RACE_DAY, 'race_distance' => $distance, 'priority' => 'A',
             'target_time_hours' => 1, 'target_time_minutes' => 29,
         ]);
     }
 
-    private function availability(array $evenings = []): array
+    private function availability(array $evenings = [], int $minutes = 90): array
     {
         return collect(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'])
-            ->mapWithKeys(fn ($d) => [$d => ['available' => true, 'duration_min' => 90]
+            ->mapWithKeys(fn ($d) => [$d => ['available' => true, 'duration_min' => $minutes]
                 + (isset($evenings[$d]) ? ['second_min' => $evenings[$d]] : [])])
             ->all();
     }
 
-    private function week(string $monday = self::PEAK_WEEK, ?array $bike = self::BIKE, ?array $model = null, array $evenings = []): array
-    {
+    private function week(
+        string $monday = self::PEAK_WEEK, ?array $bike = self::BIKE, ?array $model = null, array $evenings = [],
+        int $minutes = 90, string $distance = 'half_marathon',
+    ): array {
         $from = CarbonImmutable::parse($monday);
 
         return app(WeeklyPatternService::class)->build(
-            $this->event(), $from, $from->addDays(6), $this->availability($evenings),
+            $this->event(distance: $distance), $from, $from->addDays(6), $this->availability($evenings, $minutes),
             [], [], null, null,
             ['has_data' => true, 'next_week_max' => 60], 330,
             [], $model, $bike,
@@ -97,25 +106,56 @@ class BikePlanTest extends TestCase
 
     // ── Gerüst ───────────────────────────────────────────────────────────
 
-    public function test_an_easy_run_and_the_interval_go_on_the_bike(): void
+    /**
+     * Seit 30.10.2026 (Jan, nach seinem Coach-Plan bei Mats): in einer
+     * Belastungswoche kommt das Rad dazu, kein Lauf fällt weg.
+     */
+    public function test_a_load_week_keeps_every_run_and_adds_the_ride(): void
     {
-        $slots = $this->slots($this->week());
-        $bikes = $slots->whereNotNull('bike');
+        $runs = fn ($sk) => $this->slots($sk)
+            ->filter(fn ($s) => in_array($s['type'], WeeklyPatternService::RUN_SLOT_TYPES, true))
+            ->map(fn ($s) => [$s['date'], $s['type'], $s['target_min'] ?? null])->values()->all();
 
-        $this->assertSame(['easy', 'vo2'], $bikes->pluck('bike')->sort()->values()->all());
-        $this->assertSame(['easy_run', 'interval'], $bikes->sortBy('bike')->pluck('replaces')->values()->all());
+        $without = $this->week(self::LOAD_WEEK, bike: null, minutes: 150);
+        $with    = $this->week(self::LOAD_WEEK, minutes: 150);
+        $bikes   = $this->slots($with)->whereNotNull('bike');
+
+        $this->assertSame($runs($without), $runs($with), 'jeder Lauf bleibt, mit seiner Dauer');
+        $this->assertCount(self::BIKE['max_per_week'], $bikes);
+        $this->assertTrue($bikes->every(fn ($s) => ! empty($s['extra']) && ! isset($s['replaces']) && $s['bike'] === 'easy'));
+
+        // Neben dem Lauf, in dessen Restzeit, nie neben einer harten Einheit.
+        foreach ($bikes as $ride) {
+            $day = $this->slots($with)->where('date', $ride['date']);
+            $run = $day->first(fn ($s) => in_array($s['type'], WeeklyPatternService::RUN_SLOT_TYPES, true));
+            $this->assertContains($run['type'], ['easy_run', 'long_run']);
+            $this->assertLessThanOrEqual(150, $run['target_min'] + $ride['target_min']);
+            $this->assertGreaterThanOrEqual(45, $ride['target_min']);
+        }
+    }
+
+    /** Ohne Restzeit neben dem Lauf kein zusätzliches Rad — der Lauf wird dafür nicht kürzer. */
+    public function test_no_room_beside_the_run_means_no_extra_ride(): void
+    {
+        $this->assertSame([], $this->slots($this->week(self::PEAK_WEEK, minutes: 60))->whereNotNull('bike')->all());
+    }
+
+    /** In der Entlastung ersetzt das Rad genau einen Lauf; der Rest des Maximums kommt dazu. */
+    public function test_a_recovery_week_swaps_exactly_one_run(): void
+    {
+        $bikes = $this->slots($this->week(self::RECOVERY_WEEK))->whereNotNull('bike');
+
+        $this->assertCount(1, $bikes->filter(fn ($s) => isset($s['replaces'])));
+        $this->assertSame('easy_run', $bikes->firstWhere('replaces')['replaces']);
         $this->assertTrue($bikes->every(fn ($s) => $s['type'] === 'cross_training' && $s['sport'] === 'VirtualRide'));
-
-        // Langer Lauf und Schwelle bleiben Laufen.
-        $this->assertNotNull($slots->firstWhere('type', 'long_run'));
-        $this->assertNotNull($slots->firstWhere('type', 'tempo_run'));
-        $this->assertNull($slots->firstWhere('type', 'interval'));
+        $this->assertCount(self::BIKE['max_per_week'], $bikes);
     }
 
     public function test_an_easy_ride_lasts_a_quarter_longer_than_the_run(): void
     {
-        $without = $this->slots($this->week(bike: null))->firstWhere('type', 'easy_run');
-        $ride    = $this->slots($this->week())->firstWhere('bike', 'easy');
+        $ride    = $this->slots($this->week(self::RECOVERY_WEEK))->first(fn ($s) => ($s['replaces'] ?? null) === 'easy_run');
+        $without = $this->slots($this->week(self::RECOVERY_WEEK, bike: null))
+            ->first(fn ($s) => $s['date'] === $ride['date'] && $s['type'] === 'easy_run');
 
         $this->assertSame((int) round($without['target_min'] * BikeWorkouts::EASY_DURATION_FACTOR), $ride['target_min']);
         $this->assertSame($ride['target_min'], $ride['workout']['duration_min']);
@@ -125,13 +165,23 @@ class BikePlanTest extends TestCase
     /** Regel 2: das Radintervall bleibt hart und hält den Hauptteil, den 80/20 gelassen hat. */
     public function test_the_bike_interval_stays_hard_within_its_eighty_twenty_minutes(): void
     {
-        $run  = $this->slots($this->week(bike: null))->firstWhere('type', 'interval');
-        $ride = $this->slots($this->week())->firstWhere('bike', 'vo2');
+        $run  = $this->slots($this->week(self::RECOVERY_WEEK_5K, bike: null, distance: '5km'))->firstWhere('type', 'interval');
+        $ride = $this->slots($this->week(self::RECOVERY_WEEK_5K, distance: '5km'))->firstWhere('bike', 'vo2');
 
+        $this->assertSame('interval', $ride['replaces']);
         $this->assertTrue($ride['hard']);
         $this->assertLessThanOrEqual($run['hard_min'], $ride['hard_min']);
         $reps = collect($ride['workout']['steps'])->firstWhere('type', 'work')['repetitions'];
         $this->assertSame($reps * BikeWorkouts::VO2_REP_MINUTES, $ride['hard_min']);
+    }
+
+    /** Intervalle gehen nur in der Entlastung aufs Rad. */
+    public function test_a_load_week_keeps_the_interval_on_foot(): void
+    {
+        $slots = $this->slots($this->week('2026-10-19', distance: '5km'));
+
+        $this->assertNotNull($slots->firstWhere('type', 'interval'));
+        $this->assertNull($slots->firstWhere('bike', 'vo2'));
     }
 
     /** Regel 5: die Kilometer fallen aus der Woche, sie wandern nicht zu den anderen Läufen. */
@@ -141,8 +191,8 @@ class BikePlanTest extends TestCase
             ->filter(fn ($s) => in_array($s['type'], WeeklyPatternService::RUN_SLOT_TYPES, true))
             ->sum('target_km');
 
-        $without = $this->week(bike: null);
-        $with    = $this->week();
+        $without = $this->week(self::RECOVERY_WEEK, bike: null);
+        $with    = $this->week(self::RECOVERY_WEEK);
 
         $this->assertLessThan($runKm($without), $runKm($with));
 
@@ -153,17 +203,17 @@ class BikePlanTest extends TestCase
 
     public function test_preferred_days_come_first_and_the_maximum_holds(): void
     {
-        $slots = $this->slots($this->week(bike: ['purpose' => 'easy', 'max_per_week' => 1, 'preferred_days' => ['sunday']] + self::BIKE));
+        $slots = $this->slots($this->week(self::RECOVERY_WEEK, bike: ['purpose' => 'easy', 'max_per_week' => 1, 'preferred_days' => ['sunday']] + self::BIKE));
         $bikes = $slots->whereNotNull('bike');
 
         $this->assertCount(1, $bikes);
-        $this->assertSame('2026-11-01', $bikes->first()['date']);
-        $this->assertNotNull($slots->firstWhere('type', 'interval'), 'Zweck „locker" lässt die Intervalle laufen');
+        $this->assertSame('2026-10-25', $bikes->first()['date']);
+        $this->assertSame('easy_run', $bikes->first()['replaces']);
     }
 
-    public function test_the_interval_counts_against_the_weekly_maximum(): void
+    public function test_the_swap_counts_against_the_weekly_maximum(): void
     {
-        $bikes = $this->slots($this->week(bike: ['max_per_week' => 1] + self::BIKE))->whereNotNull('bike');
+        $bikes = $this->slots($this->week(self::RECOVERY_WEEK_5K, bike: ['max_per_week' => 1] + self::BIKE, distance: '5km'))->whereNotNull('bike');
 
         $this->assertSame(['vo2'], $bikes->pluck('bike')->values()->all());
     }
@@ -173,30 +223,27 @@ class BikePlanTest extends TestCase
         $winter = ['season' => 'winter'] + self::BIKE;
 
         $this->assertCount(0, $this->slots($this->week('2026-10-19', bike: $winter))->whereNotNull('bike'));
-        $this->assertNotEmpty($this->slots($this->week('2026-11-02', bike: $winter))->whereNotNull('bike'));
+        $this->assertNotEmpty($this->slots($this->week('2026-11-02', bike: $winter, minutes: 150))->whereNotNull('bike'));
     }
 
-    /** Regel 4: Rennwoche — lockeres Rad ja, Radintervall nein. */
-    public function test_no_bike_intervals_in_race_week(): void
+    /** In der Rennwoche zählt Frische: kein Rad dazu, und getauscht wird dort nichts. */
+    public function test_no_bike_in_race_week(): void
     {
-        $bikes = $this->slots($this->week('2026-11-23'))->whereNotNull('bike');
-
-        $this->assertNotEmpty($bikes);
-        $this->assertSame([], $bikes->where('bike', 'vo2')->all());
+        $this->assertSame([], $this->slots($this->week('2026-11-23', minutes: 150))->whereNotNull('bike')->all());
     }
 
-    /** Regel 3: im norwegischen Modell bleibt die Doppel-Schwelle Laufen, die schnelle Einheit darf aufs Rad. */
+    /** Regel 3: im norwegischen Modell bleibt die Doppel-Schwelle Laufen; das Rad kommt nur dazu. */
     public function test_the_norwegian_double_threshold_stays_running(): void
     {
         $model = ['name' => 'norwegian', 'threshold' => '4:10', 'sub_pace' => '4:15–4:25', 'hr_max' => 165];
-        $slots = $this->slots($this->week(model: $model, evenings: ['tuesday' => 45, 'thursday' => 45]));
+        $slots = $this->slots($this->week(self::LOAD_WEEK, model: $model, evenings: ['tuesday' => 45, 'thursday' => 45], minutes: 150));
 
         $this->assertCount(4, $slots->filter(fn ($s) => ! empty($s['double'])), 'beide Doppel-Tage komplett');
-        $this->assertTrue($slots->whereNotNull('bike')->every(fn ($s) => in_array($s['replaces'], ['easy_run', 'interval'], true)));
-        $fast = $slots->firstWhere('bike', 'fast');
-        $this->assertNotNull($fast, 'die kurze schnelle Einheit geht aufs Rad — als kurze Stöße, nicht als VO2-Block');
-        $this->assertSame('interval', $fast['replaces']);
-        $this->assertLessThanOrEqual(10, $fast['hard_min'], 'innerhalb des 5-%-Anteils');
+        $this->assertNotEmpty($slots->whereNotNull('bike'));
+        $this->assertTrue($slots->whereNotNull('bike')->every(fn ($s) => ! empty($s['extra'])));
+        $this->assertTrue($slots->whereNotNull('bike')->every(
+            fn ($s) => $slots->where('date', $s['date'])->every(fn ($o) => empty($o['double']))
+        ), 'kein Rad an einem Doppel-Tag');
     }
 
     public function test_without_bike_settings_nothing_changes(): void
@@ -206,26 +253,38 @@ class BikePlanTest extends TestCase
 
     public function test_the_prompt_names_the_bike_day_and_asks_for_no_entry(): void
     {
-        $text = app(WeeklyPatternService::class)->toPromptSection($this->week());
+        $text = app(WeeklyPatternService::class)->toPromptSection($this->week(self::RECOVERY_WEEK));
 
         $this->assertStringContainsString('RADEINHEIT (Zwift', $text);
         $this->assertStringContainsString('gleiche sie NICHT an anderen Tagen aus', $text);
         $this->assertStringContainsString('Rad statt Laufen', $text);
     }
 
+    public function test_the_prompt_keeps_the_run_beside_an_extra_ride(): void
+    {
+        $text = app(WeeklyPatternService::class)->toPromptSection($this->week(self::LOAD_WEEK, minutes: 150));
+
+        $this->assertStringContainsString('der Lauf dieses Tages bleibt', $text);
+        $this->assertStringContainsString('Rad zusaetzlich', $text);
+        $this->assertStringNotContainsString('Rad statt Laufen', $text);
+    }
+
     // ── Validator ────────────────────────────────────────────────────────
 
-    public function test_the_validator_puts_the_ride_where_the_model_wrote_a_run(): void
+    private function modelRunsEveryDay(array $skeleton): array
     {
-        $skeleton = $this->week();
-        $date     = $this->slots($skeleton)->firstWhere('bike', 'easy')['date'];
-
-        $sessions = collect($skeleton['days'])->keys()->map(fn ($d) => [
+        return collect($skeleton['days'])->keys()->map(fn ($d) => [
             'date' => $d, 'type' => 'easy_run', 'title' => 'Locker', 'description' => '',
             'distance_km' => 7, 'duration_min' => 40, 'pace_target' => null, 'zone' => 2, 'intensity' => 'low',
         ])->all();
+    }
 
-        $result = app(TrainingPlanValidator::class)->validate($sessions, $skeleton, self::RACE_DAY);
+    public function test_the_validator_puts_the_ride_where_the_model_wrote_a_run(): void
+    {
+        $skeleton = $this->week(self::RECOVERY_WEEK);
+        $date     = $this->slots($skeleton)->first(fn ($s) => ($s['replaces'] ?? null) === 'easy_run')['date'];
+
+        $result = app(TrainingPlanValidator::class)->validate($this->modelRunsEveryDay($skeleton), $skeleton, self::RACE_DAY);
         $onDay  = collect($result['sessions'])->where('date', $date)->values();
 
         $ride = $onDay->firstWhere('type', 'cross_training');
@@ -234,6 +293,23 @@ class BikePlanTest extends TestCase
         $this->assertNotEmpty($ride['steps']);
         $this->assertNull($onDay->firstWhere('type', 'easy_run'), 'der Lauf des Modells ist weg');
         $this->assertArrayNotHasKey('_locked', $ride);
+    }
+
+    public function test_the_validator_keeps_the_run_beside_an_extra_ride(): void
+    {
+        $skeleton = $this->week(self::LOAD_WEEK, minutes: 150);
+        $date     = $this->slots($skeleton)->firstWhere('extra', true)['date'];
+        $sessions = $this->modelRunsEveryDay($skeleton);
+        // Eine eigene Radeinheit des Modells fliegt trotzdem raus.
+        $sessions[] = ['date' => $date, 'type' => 'cross_training', 'title' => 'Rad vom Modell', 'description' => '',
+            'distance_km' => 0, 'duration_min' => 60, 'pace_target' => null, 'zone' => null, 'intensity' => 'low'];
+
+        $result = app(TrainingPlanValidator::class)->validate($sessions, $skeleton, self::RACE_DAY);
+        $onDay  = collect($result['sessions'])->where('date', $date)->values();
+
+        $this->assertCount(1, $onDay->where('type', 'cross_training'));
+        $this->assertSame('VirtualRide', $onDay->firstWhere('type', 'cross_training')['sport_type']);
+        $this->assertNotEmpty($onDay->whereIn('type', TrainingPlanValidator::RUN_TYPES), 'der Lauf bleibt');
     }
 
     // ── Strava ───────────────────────────────────────────────────────────
@@ -377,7 +453,7 @@ class BikePlanTest extends TestCase
     {
         [$user, $plan] = $this->athleteWithPlan();
         $user->runnerProfile()->updateOrCreate([], [
-            'threshold_speed' => 5.0, 'weekly_availability' => $this->availability(), 'ftp' => 250,
+            'threshold_speed' => 5.0, 'weekly_availability' => $this->availability(minutes: 150), 'ftp' => 250,
             'bike_enabled' => true, 'bike_season' => 'all_year', 'bike_purpose' => 'both', 'bike_max_per_week' => 2,
         ]);
         $plan->forceFill(['needs_plan_update' => true])->save();
@@ -403,8 +479,10 @@ class BikePlanTest extends TestCase
         foreach ($rides as $ride) {
             $this->assertSame('VirtualRide', $ride->sport_type);
             $this->assertTrue($ride->hasBikeSteps());
-            $this->assertSame(0, TrainingSession::where('user_id', $user->id)->whereDate('planned_date', $ride->planned_date)
-                ->whereIn('type', TrainingPlanValidator::RUN_TYPES)->count(), 'kein Lauf neben der Radeinheit');
+            // Zusätzlich heißt: der Lauf bleibt; ersetzt heißt: kein Lauf daneben.
+            $extra = str_contains($ride->title, 'zusätzlich');
+            $this->assertSame($extra ? 1 : 0, TrainingSession::where('user_id', $user->id)->whereDate('planned_date', $ride->planned_date)
+                ->whereIn('type', TrainingPlanValidator::RUN_TYPES)->count());
         }
     }
 }
