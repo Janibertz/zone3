@@ -2097,7 +2097,8 @@ class WeeklyPatternService
                     $rough = isset($slot['target_km'])
                         ? " (rechne mit rund {$slot['target_km']} km fuer die Wochenbilanz)"
                         : '';
-                    $parts[] = "type=\"{$slot['type']}\" — FESTER TERMIN: {$slot['label']}{$slotCap}{$rough}";
+                    $parts[] = "type=\"{$slot['type']}\" — FESTER TERMIN: {$slot['label']}{$slotCap}{$rough}"
+                        . ' — den Inhalt gibt der Termin vor (jede Woche anders): kein workout, kein Ablauf, keine Zahlen in der Beschreibung';
                     continue;
                 }
 

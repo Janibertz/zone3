@@ -196,6 +196,7 @@ Gemeldet: in der Planliste „Tempolauf 10,7 km", in den Details 12 km. Die Absc
 - `GET /training-sessions/{id}/steps` ruft **kein Modell** mehr: einer älteren Einheit ohne Schritte baut der Katalog sie beim Öffnen. Der Admin-Knopf „KI-Inhalte neu erzeugen" ist weg.
 - **`php artisan sessions:rebuild-steps`** (`--user`, `--dry-run`) baut den Bestand einmal nach, ohne KI. Gepinnte Einheiten bleiben — dahinter kann ein geteiltes Workout mit eigener Struktur stehen, und das sieht man der Zeile nicht an.
 - Ohne VDOT haben die Abschnitte keine Pace; dann bleibt die Distanz, die da war.
+- **Der feste Termin (Laufclub) bekommt keinen Ablauf** (Jan, 30.10.2026: „jede Woche vom Laufclub ein anderes Intervall"). `TrainingSession::isFixedAppointment()` (dieselbe Regel wie `GarminWorkoutSync`): der Validator überspringt ihn, `SessionStructure::apply()` baut dort nur mit ausdrücklichem Baustein (Coach-Chat), der Steps-Endpunkt antwortet „Den Ablauf gibt dein Termin vor." und löscht einen früher gebauten Ablauf, der Prompt verlangt keinen. Die Migration `2026_10_30_120000` hat die alten Abläufe an geplanten Terminen geleert.
 
 ### „Tagesform", nicht „Wellbeing"
 

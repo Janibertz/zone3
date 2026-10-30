@@ -533,6 +533,8 @@ const stepPower = (step) => step.watts
 const aiSteps        = ref(null);
 const stepsLoading   = ref(false);
 const stepsError     = ref('');
+// Fester Termin: den Ablauf gibt der Laufclub vor, Zone3 baut keinen.
+const stepsNote      = ref('');
 const stepsCache     = {};
 
 // ── Rating ───────────────────────────────────────────────────────────────────
@@ -639,6 +641,7 @@ async function openDetail(session) {
     detailSession.value   = session;
     aiSteps.value         = null;
     stepsError.value      = '';
+    stepsNote.value       = '';
     ratingValue.value     = session.rating          || 0;
     effortValue.value     = session.effort_perceived || 0;
     feelingNotes.value    = session.feeling_notes    || '';
@@ -676,9 +679,12 @@ async function openDetail(session) {
  * 12 km im Detail).
  */
 function applySteps(session, data) {
-    aiSteps.value = data.steps ?? data;
+    aiSteps.value = 'steps' in data ? data.steps : data;
+    stepsNote.value = data.note ?? '';
 
     const fields = {};
+    // Ein früher gebauter Ablauf am festen Termin verschwindet auch von der Karte.
+    if (data.note) fields.steps = null;
     for (const key of ['description', 'distance_km', 'duration_min']) {
         if (data[key] != null) fields[key] = data[key];
     }
@@ -1611,6 +1617,8 @@ const lapHeightPct = computed(() => {
                         </div>
 
                         <p v-else-if="stepsError" class="text-[13px] text-danger">{{ stepsError }}</p>
+
+                        <p v-else-if="stepsNote" class="text-[15px] text-ink-3">{{ stepsNote }}</p>
 
                         <div v-else-if="aiSteps && aiSteps.length">
                             <!-- Verlaufsbalken: Breite = Zeitanteil, Höhe = Intensität -->
