@@ -510,11 +510,10 @@ WARN;
             };
             $strengthDays = (int) ($strength['days_per_week'] ?? 2);
             $strengthBlock = "\n\n**Kraft & Core (vom Athleten gewünscht):**\n"
-                . "- Frequenz: {$strengthDays}× pro Woche eine strength- oder core-Einheit (zusätzlich zum Laufen).\n"
+                . "- Die Krafttage ({$strengthDays}× pro Woche) setzt das Wochengerüst — dort ist strength PFLICHT, mit konkreten Übungen. Plane Kraft an keinem anderen Tag.\n"
                 . "- Verfügbares Equipment — NUR dieses verwenden: {$equipList}. Level: {$expLabel}.\n"
                 . "- Übungen passend zum Equipment wählen (z.B. Kettlebell: Swing, Goblet Squat, Turkish Get-up, Clean&Press, Romanian Deadlift; Gym: Kniebeuge, Kreuzheben, Ausfallschritte, Wadenheben; Körpergewicht: Liegestütz, Ausfallschritte, Plank, Side-Plank, Bird-Dog, Glute Bridge).\n"
-                . "- INTERFERENZ vermeiden: KEINE Kraft am Tag VOR einem Long Run oder Schlüssel-Workout; schwere Beinkraft nicht direkt vor/nach Tempo-/Intervalltagen. Lege Kraft eher nach einem easy_run oder als eigenständige Einheit. Mind. 1 Tag Abstand zwischen schwerer Beinkraft und Qualitätsläufen.\n"
-                . "- TAPER: in der Race Week (<7 Tage bis Rennen) nur noch leichtes core/mobility; in den letzten 3 Tagen KEINE Kraft.\n"
+                . "- Neben einer harten Einheit oder am Tag danach: Oberkörper und Rumpf statt schwerer Beinkraft.\n"
                 . "- Für strength/core/mobility: distance_km=0, duration_min gesetzt, pace_target=null, zone=null UND ein \"exercises\"-Array mit konkreten Übungen ({name, sets, reps, load, note}). load-Beispiele: \"16 kg\", \"2×20 kg\", \"Körpergewicht\", \"RPE 7\".";
         } else {
             $strengthBlock = "\n\n**Kraft & Core:** Nicht gewünscht — plane KEINE strength/core/mobility-Einheiten.";

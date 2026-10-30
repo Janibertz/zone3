@@ -32,6 +32,9 @@ class WeeklyPatternService
      */
     private const SECOND_SLOT_MAX_MINUTES = 30;
 
+    /** Eine eigene Krafteinheit an einem laufreien Tag. */
+    private const STRENGTH_MAX_MINUTES = 45;
+
     /** Ein geplanter Lauf unter 20 Minuten ist kein sinnvoller Trainingsreiz. */
     public const MIN_USEFUL_RUN_MINUTES = 20;
 
@@ -179,6 +182,7 @@ class WeeklyPatternService
         array $races = [],
         ?array $model = null,
         ?array $bike = null,
+        ?array $strength = null,
     ): array {
         $days      = $this->availabilityPerDate($from, $to, $weeklyAvailability, $overrides, $finalizedDates, $races);
         $norwegian = ($model['name'] ?? 'polarized') === 'norwegian';
@@ -273,6 +277,12 @@ class WeeklyPatternService
         // dem Tausch aus der Woche, statt auf andere Läufe verteilt zu werden.
         if ($bike) {
             $this->bikeSchedule->apply($days, $this->groupByWeek($days), $bike, $periods);
+        }
+
+        // Kraft ganz zuletzt: sie braucht die fertige Woche — welche Tage frei
+        // bleiben, wo der lange Lauf liegt und was danach an Zeit übrig ist.
+        if (! empty($strength['enabled'])) {
+            $this->applyStrength($days, (int) ($strength['days_per_week'] ?? 2), $periods);
         }
 
         return [
@@ -1645,6 +1655,135 @@ class WeeklyPatternService
                 'max_min' => $days[$date]['budget_min'],
                 'filler'  => true,
             ];
+        }
+    }
+
+    /**
+     * Kraft so oft, wie der Athlet sie eingestellt hat — als feste Einheit.
+     *
+     * `strength_days_per_week` wurde bis zum 30.10.2026 nirgends gelesen.
+     * Kraft entstand nur als optionale Zweiteinheit an einem Lauftag mit
+     * Restzeit, nie an einem freien Tag, und das Modell durfte sie weglassen:
+     * Jan wollte zweimal pro Woche und bekam in 14 Tagen eine, die dann fehlte.
+     *
+     * Reihenfolge (Entscheidung von Jan): zuerst freie verfügbare Tage, dann
+     * neben einen lockeren Lauf, zuletzt hinter eine harte Einheit — harte
+     * Tage hart. Nie am Tag vor dem langen Lauf oder einer harten Einheit,
+     * nie an einem Renntag oder in den drei Tagen davor, nicht in der
+     * Rennwoche und nicht in den ersten beiden Stufen eines Wiedereinstiegs.
+     * Zwei Krafttage liegen nicht direkt nebeneinander, solange es anders geht.
+     */
+    private function applyStrength(array &$days, int $perWeek, array $periods): void
+    {
+        $perWeek = max(1, min(4, $perWeek));
+        $dates   = array_keys($days);
+
+        $hasRun = fn (array $day) => collect($day['slots'])
+            ->contains(fn ($s) => in_array($s['type'], self::RUN_SLOT_TYPES, true) || ! empty($s['bike']) || ! empty($s['race']));
+        $isStrength = fn (array $slot) => in_array($slot['type'], ['strength', 'core'], true);
+
+        // Renntage im Fenster — auch die eines Nebenrennens.
+        $raceDates = [];
+        foreach ($days as $date => $day) {
+            if (collect($day['slots'])->contains(fn ($s) => ! empty($s['race']) || $s['type'] === 'race_prep')) {
+                $raceDates[] = $date;
+            }
+        }
+
+        foreach ($this->groupByWeek($days) as $weekKey => $weekDates) {
+            $phase = $periods[$weekKey]['phase'] ?? null;
+
+            // Die optionalen Kraft-Ergänzungen aus fillSecondSlots weichen
+            // der festen Zahl; Mobility neben harten Tagen bleibt.
+            foreach ($weekDates as $d) {
+                $days[$d]['slots'] = array_values(array_filter(
+                    $days[$d]['slots'],
+                    fn ($s) => ! ($isStrength($s) && ! empty($s['optional'])),
+                ));
+            }
+
+            if ($phase === 'race_week') {
+                continue;
+            }
+            if (collect($weekDates)->contains(fn ($d) => collect($days[$d]['slots'])->contains(fn ($s) => ($s['comeback'] ?? 99) < 3))) {
+                continue;
+            }
+
+            $tiers = [[], [], []];
+            foreach ($weekDates as $d) {
+                $day = $days[$d];
+                if (! $day['available'] || $day['finalized'] || ! empty($day['kept'])) {
+                    continue;
+                }
+
+                $tomorrow = CarbonImmutable::parse($d)->addDay()->format('Y-m-d');
+                $next     = $days[$tomorrow]['slots'] ?? [];
+                if (collect($next)->contains(fn ($s) => $s['type'] === 'long_run' || ! empty($s['hard']))) {
+                    continue;
+                }
+                if (collect($raceDates)->contains(fn ($r) => $r >= $d && CarbonImmutable::parse($d)->diffInDays(CarbonImmutable::parse($r)) <= 3)) {
+                    continue;
+                }
+
+                $budget = $day['budget_min'];
+
+                if (! $hasRun($day)) {
+                    // Ein Tag ohne Zeitangabe bekommt eine Einheit normaler Länge.
+                    $room = $budget > 0 ? $budget : self::STRENGTH_MAX_MINUTES;
+                    if ($room >= self::SECOND_SLOT_MIN_MINUTES) {
+                        $tiers[0][$d] = min($room, self::STRENGTH_MAX_MINUTES);
+                    }
+                    continue;
+                }
+
+                // Eine optionale Mobility-Ergänzung weicht der Kraft.
+                $primary = array_values(array_filter($day['slots'], fn ($s) => empty($s['optional'])));
+                if (count($primary) !== 1 || $budget <= 0) {
+                    continue;
+                }
+
+                $slot = $primary[0];
+                if ($slot['type'] === 'long_run' || ! empty($slot['race']) || ! empty($slot['double'])) {
+                    continue;
+                }
+
+                $used = (int) ($slot['target_min'] ?? $this->estimateMinutes($slot['type'], $budget));
+                $room = $budget - $used;
+                if ($room < self::SECOND_SLOT_MIN_MINUTES) {
+                    continue;
+                }
+
+                $tiers[! empty($slot['hard']) ? 2 : 1][$d] = min($room, self::SECOND_SLOT_MAX_MINUTES);
+            }
+
+            $chosen = [];
+            foreach ([true, false] as $spaced) {
+                foreach ($tiers as $tier) {
+                    foreach ($tier as $d => $minutes) {
+                        if (count($chosen) >= $perWeek || isset($chosen[$d])) {
+                            continue;
+                        }
+
+                        $i = array_search($d, $dates, true);
+                        $neighbours = [$dates[$i - 1] ?? null, $dates[$i + 1] ?? null];
+                        if ($spaced && array_intersect($neighbours, array_keys($chosen))) {
+                            continue;
+                        }
+
+                        $chosen[$d] = $minutes;
+                    }
+                }
+            }
+
+            foreach ($chosen as $d => $minutes) {
+                unset($days[$d]['rest']);
+                $days[$d]['slots']   = array_values(array_filter($days[$d]['slots'], fn ($s) => empty($s['optional'])));
+                $days[$d]['slots'][] = [
+                    'type'    => 'strength',
+                    'hard'    => false,
+                    'max_min' => $minutes,
+                ];
+            }
         }
     }
 
