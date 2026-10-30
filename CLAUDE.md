@@ -152,7 +152,7 @@ This is the core of the app and the part with the most hard-won rules. Do not tr
 PlanContextBuilder            gathers everything, in one place for both jobs
   ├─ ReturnToRunService::forPlan()   comeback step after illness/injury/exhaustion
   ├─ TrainingPaceService             pace table + target race pace + verdict vs. current form
-  ├─ WeeklyVolumeService             6 weeks of volume + binding ceiling (+10 %/week)
+  ├─ WeeklyVolumeService             6 weeks of volume + level before a break + binding ceiling (+8 %/load week)
   ├─ LongRunPlanService              the long-run ladder, computed backwards from race day
   ├─ GarminHealthSummary             7-day averages vs. 60-day baseline
   └─ WeeklyPatternService::build()   the weekly skeleton — which slot on which day
@@ -387,7 +387,7 @@ This was the most consequential contradiction in the prompt. The skeleton filled
 - the long run's km come from the ladder and are subtracted first
 - a fixed appointment consumes the time it actually takes (the athlete goes either way)
 - what remains is shared across the other run slots, each with a **minimum** (`MIN_MINUTES_PER_TYPE`: 45 min for quality, 30 for easy)
-- if the budget cannot carry them all, the least important is dropped (reverse `PRIORITIES`) — three sessions with substance beat five without
+- if the budget cannot carry them all, the easy runs get **shorter** first (down to `MIN_USEFUL_RUN_MINUTES`); only if even that does not fit is the least important dropped (reverse `PRIORITIES`), and never below `MIN_RUNS_PER_WEEK` (4) runs. A week that falls below five runs that way turns its second hard session easy instead (seit 30.10.2026, vorher: drei Läufe mit Substanz statt fünf)
 - a day that loses its only slot becomes `rest`, never an open day
 - availability stays a **ceiling**, never a target
 
@@ -416,7 +416,7 @@ Gemeldet im Sub-90-Check: in einer knappen Woche strich `budgetWeek()` beim Halb
 | Frage | Antwort | Wer liest |
 |---|---|---|
 | Phase | Base → Build → Peak → Taper → Race Week (Grenzen wie bisher, Taper aus `LongRunPlanService::taperDays()`) | Gerüst, Prompt, `Event::training_phase` |
-| Entlastung | 3:1, **vom längsten Lauf rückwärts** gezählt — die Peak-Woche ist immer Belastung | Leiter (langer Lauf × 0,7), Gerüst (Umfang × 0,75, eine harte Einheit) |
+| Entlastung | 3:1, **vom längsten Lauf rückwärts** gezählt — die Peak-Woche ist immer Belastung | Leiter (langer Lauf × 0,7), Gerüst (Laufumfang × 0,5 seit 30.10.2026, vorher 0,75; eine harte Einheit) |
 | Umfang | Taper: 85 % / 70 %, Rennwoche 50 % | `applyVolumeBudget()`, Deckel im Prompt |
 | Harte Einheiten | Base nur Schwelle/Steigerung (keine Intervalle) und eine; sonst zwei, Rennwoche eine | `planWeek()` |
 
@@ -477,7 +477,8 @@ Gemeldet von Jan: HM am 11.04.2027, Ziel 1:25, Planstart 30.11. nach OP-Pause, D
 - **Wiedereinstieg nur in einem laufenden Plan**, den Krankheit oder Verletzung unterbricht. `PlanContextBuilder` verwirft ihn, wenn das Fenster nach heute beginnt oder der Auslöser eine Lauflücke ohne Krankheit ist (`break`). Vorher sah das Gerüst am 30.10. „verletzt am 26.10." und schrieb Stufe 1–4 in Jans erste Dezemberwoche, mit Schwelle am Sonntag. Die Dashboard-Karte (`statusFor()`) ist davon unberührt.
 - **Erste Entlastung frühestens nach drei Belastungswochen** ab Planstart (`PeriodizationService::LOAD_WEEKS_BEFORE_FIRST_RECOVERY`). Planstart ist `plan_start_date`, sonst die früheste Einheit des Rennens — nicht `planStartsOn()`, das rückt täglich auf heute vor. Eine solche Woche fällt aus, der Rhythmus danach bleibt.
 - **Entlastung nach Ermüdung vorziehen:** `FatigueCheck` zählt vier Signale der letzten sieben Tage (HRV unter Schnitt − Streuung, Ruhepuls ≥ +5, Energie ≤ 4, Muskelkater ≥ 7); ab zwei wird die nächste Woche Entlastung und als `events.early_recovery_week` gespeichert — eine Neuberechnung nimmt sie nicht zurück, wenn die Werte sich erholen. Nicht in Taper, Rennwoche, Spitzenwoche, höchstens einmal in vier Wochen; die nächste Rhythmus-Entlastung innerhalb von drei Wochen fällt aus. Gute Werte streichen keine Entlastung.
-- **Kraft so oft wie eingestellt** (`strength_days_per_week`, vorher nirgends gelesen). `WeeklyPatternService::applyStrength()` läuft als Letztes, setzt feste (nicht optionale) `strength`-Slots: zuerst freie verfügbare Tage (bis 45 min), dann neben einen lockeren Lauf, zuletzt hinter eine harte Einheit (je bis 30 min Restzeit). Nie am Tag vor langem Lauf oder harter Einheit, nicht in der Rennwoche, nicht ≤ 3 Tage vor einem Rennen, nicht in Stufe 1–2 eines Wiedereinstiegs; zwei Krafttage nicht nebeneinander, solange es anders geht. Optionale Kraft-Ergänzungen weichen der festen Zahl.
+- **Umfang wie im Coach-Plan** (30.10.2026, Jans Mats-Plan als Vorbild, `CoachLikeVolumeTest`): `WeeklyVolumeService::level()` ist der beste Vier-Wochen-Schnitt der letzten zwölf Wochen (ohne Rennen); der Deckel startet bei mindestens `LEVEL_START_SHARE` (60 %) davon — nach Marathon und OP war der Schnitt der letzten sechs Wochen 21 km, und das Budget strich Läufe, deren Tage dann Kraft und Rad füllten. Steigerung 8 % (`MAX_PROGRESSION_PCT`), im Gerüst **nur über Belastungswochen** gezählt. Die Zahl der Läufe kommt aus der Verfügbarkeit (siehe „The weekly volume drives the skeleton"), Entlastung halbiert das Laufen.
+- **Kraft so oft wie eingestellt** (`strength_days_per_week`, vorher nirgends gelesen). `WeeklyPatternService::applyStrength()` läuft nach der Laufwoche und **vor dem Rad** (sonst belegte die zusätzliche Fahrt den einzigen Tag mit Restzeit), setzt feste (nicht optionale) `strength`-Slots: zuerst freie verfügbare Tage (bis 45 min), dann neben einen lockeren Lauf, zuletzt hinter eine harte Einheit (je bis 30 min Restzeit). Nie am Tag vor langem Lauf oder harter Einheit, nicht in der Rennwoche, nicht ≤ 3 Tage vor einem Rennen, nicht in Stufe 1–2 eines Wiedereinstiegs; zwei Krafttage nicht nebeneinander, solange es anders geht. Optionale Kraft-Ergänzungen weichen der festen Zahl.
 
 
 ### One verdict on the goal, not two
@@ -766,7 +767,8 @@ Zwift-Fahrten kommen über Strava als `VirtualRide`. Zwift nimmt Einheiten nur a
 - **FTP-Hinweis** (`FtpCheck`): Zone3 schätzt keine FTP, aber eine Fahrt kann belegen, dass die eingetragene zu niedrig ist. Gemessen an der Normalized Power (`activities.weighted_average_watts`, sonst Durchschnitt), ab 20 min mit 95 %, ab 60 min mit 100 %, 3 % Luft. Geschätzte Watt (`device_watts = false`) zählen nicht; ältere Fahrten ohne Herkunft nur auf Zwift. Hinweis auf der Aktivitätsseite, Vorschlag mit „Übernehmen" im Profil (stärkste Fahrt der letzten 6 Wochen).
 **Rad im Plan** (`App\Services\Bike\BikeSchedule`, läuft am Ende von `WeeklyPatternService::build()`, nach Umfangsbudget und 80/20). Jans fünf Regeln vom 25.10.2026:
 
-1. Rad ersetzt einen **lockeren Lauf** — Wunschtage zuerst, sonst nach Datum —, bis `bike_max_per_week`. Der lange Lauf nie. Dauer = Lauf × `BikeWorkouts::EASY_DURATION_FACTOR` (**1,25**, Entscheidung von Jan), gedeckelt durch das Tagesfenster.
+0. **Seit 30.10.2026 kommt das Rad in Belastungswochen zusätzlich** (Jan, nach seinem Coach-Plan bei Mats): lockere Fahrten (45–90 min, `extra` am Slot) in der Restzeit neben einem lockeren oder langen Lauf, Wunschtage zuerst, Tage ohne Kraft vor Tagen mit Kraft, bis `bike_max_per_week`. Kein Lauf fällt weg; Validator und Prompt lassen den Lauf an dem Tag stehen. Regeln 1 und 2 gelten **nur in der Entlastungswoche**, und dort für genau einen Lauf; der Rest des Maximums kommt auch dort zusätzlich. In der Rennwoche kein Rad.
+1. Rad ersetzt einen **lockeren Lauf** — Wunschtage zuerst, sonst nach Datum. Der lange Lauf nie. Dauer = Lauf × `BikeWorkouts::EASY_DURATION_FACTOR` (**1,25**, Entscheidung von Jan), gedeckelt durch das Tagesfenster.
 2. **Höchstens ein Radintervall** pro Woche, statt der VO2-Intervalle (`interval`), nie statt Tempo/Schwelle. Bleibt hart (Abstand, Ruhetag danach); die Wiederholungen deckelt der `hard_min`, den 80/20 dem Lauf gelassen hat. Es zählt ins Wochenmaximum.
 3. **Norwegisch:** Doppel-Schwelle und Sub-Schwelle bleiben Laufen. Die kurze schnelle Einheit wird auf dem Rad 1-Minuten-Stöße (`BikeWorkouts::FAST`), sofern ihr 5-%-Anteil fünf davon trägt.
 4. **Taper und Rennwoche:** keine Radintervalle, lockeres Rad ja.

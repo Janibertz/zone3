@@ -54,8 +54,12 @@ class PeriodizationService
      */
     public const LOAD_WEEKS_BEFORE_FIRST_RECOVERY = 3;
 
-    /** Eine Entlastungswoche hat rund ein Viertel weniger Umfang. */
-    public const RECOVERY_FACTOR = 0.75;
+    /**
+     * In einer Entlastungswoche wird das Laufen etwa halbiert (vorher ein
+     * Viertel weniger). So stand es in Jans Coach-Plan bei Mats, Woche 4, 8,
+     * 12, 16 und 20: rund 3:50 h statt 7:30 h — Rad und Kraft bleiben.
+     */
+    public const RECOVERY_FACTOR = 0.5;
 
     /**
      * Umfang im Taper, nach Wochen bis zur Rennwoche: in der Rennwoche die

@@ -25,9 +25,21 @@ class WeeklyVolumeService
 {
     private const WEEKS = 6;
 
-    /** So viel darf der Wochenumfang höchstens wachsen. */
-    /** Auch das Geruest rechnet damit — siehe WeeklyPatternService::applyVolumeBudget(). */
-    public const MAX_PROGRESSION_PCT = 10;
+    /**
+     * So viel darf der Wochenumfang je Belastungswoche wachsen. Auch Gerüst
+     * und Leiter rechnen damit — siehe WeeklyPatternService::applyVolumeBudget().
+     * 8 % statt 10 % seit dem 30.10.2026 (Jans Mats-Plan als Vorbild).
+     */
+    public const MAX_PROGRESSION_PCT = 8;
+
+    /**
+     * Das Niveau vor einer Pause: der beste Vierwochenschnitt der letzten
+     * zwölf Wochen. Nach einer Pause startet der Plan bei diesem Anteil
+     * davon statt bei dem, was in der Pause gelaufen wurde.
+     */
+    private const LEVEL_WEEKS     = 12;
+    private const LEVEL_WINDOW    = 4;
+    public const LEVEL_START_SHARE = 0.6;
 
     /**
      * @return array{
@@ -91,10 +103,16 @@ class WeeklyVolumeService
         $withRuns = array_values(array_filter($complete, fn ($w) => $w['runs'] > 0));
 
         if (! $withRuns) {
+            // Sechs Wochen ohne Lauf, aber davor gelaufen: ohne Deckel füllte
+            // das Gerüst die Woche nach Verfügbarkeit. Es gilt der Abschlag
+            // vom Niveau davor.
+            $level = $this->level($userId, $today);
+
             return [
-                'has_data' => false, 'weeks' => array_values($weeks),
+                'has_data' => $level > 0, 'weeks' => array_values($weeks),
                 'avg_km' => 0.0, 'median_km' => 0.0, 'last_km' => 0.0, 'trend_pct' => null,
-                'longest_run' => 0.0, 'next_week_max' => 0.0,
+                'longest_run' => 0.0, 'level_km' => $level,
+                'next_week_max' => round($level * self::LEVEL_START_SHARE, 1),
             ];
         }
 
@@ -116,6 +134,13 @@ class WeeklyVolumeService
             ? $sorted[$mid]
             : round(($sorted[$mid - 1] + $sorted[$mid]) / 2, 1);
 
+        // Gemessen wurde nur die Zeit seit der Pause. Jans Plan nach Marathon
+        // und OP startete deshalb mit 21 km — zwei Läufe die Woche, während
+        // sein Coach-Plan bei Mats in Woche 1 mit 3:25 h Laufen begann. Der
+        // Start richtet sich jetzt nach dem Niveau davor, mit Abschlag.
+        $level = $this->level($userId, $today);
+        $next  = round(max($avg, $last) * (1 + self::MAX_PROGRESSION_PCT / 100), 1);
+
         return [
             'has_data'      => true,
             'weeks'         => array_values($weeks),
@@ -124,8 +149,50 @@ class WeeklyVolumeService
             'last_km'       => $last,
             'trend_pct'     => $avg > 0 ? round(($last - $avg) / $avg * 100) : null,
             'longest_run'   => $longest,
-            'next_week_max' => round(max($avg, $last) * (1 + self::MAX_PROGRESSION_PCT / 100), 1),
+            'level_km'      => $level,
+            'next_week_max' => max($next, round($level * self::LEVEL_START_SHARE, 1)),
         ];
+    }
+
+    /**
+     * Der beste Vierwochenschnitt (Kilometer je Woche) der letzten zwölf
+     * vollen Wochen, Rennen herausgerechnet — ein Marathon ist kein Niveau.
+     */
+    private function level(int $userId, CarbonImmutable $today): float
+    {
+        $from = $today->startOfWeek()->subWeeks(self::LEVEL_WEEKS);
+        $to   = $today->startOfWeek();
+
+        $runs = Activity::where('user_id', $userId)
+            ->where('type', 'Run')
+            ->where('distance', '>=', 1000)
+            ->where('start_date', '>=', $from->toDateTimeString())
+            ->where('start_date', '<', $to->toDateTimeString())
+            ->get(['id', 'start_date', 'distance']);
+
+        if ($runs->isEmpty()) {
+            return 0.0;
+        }
+
+        $races = $this->raceActivityIds($userId, $runs);
+        $km    = array_fill(0, self::LEVEL_WEEKS, 0.0);
+
+        foreach ($runs as $run) {
+            if (isset($races[$run->id])) {
+                continue;
+            }
+            $i = (int) floor($from->diffInDays(CarbonImmutable::parse($run->start_date)->startOfWeek()) / 7);
+            if (isset($km[$i])) {
+                $km[$i] += $run->distance / 1000;
+            }
+        }
+
+        $best = 0.0;
+        for ($i = 0; $i + self::LEVEL_WINDOW <= self::LEVEL_WEEKS; $i++) {
+            $best = max($best, array_sum(array_slice($km, $i, self::LEVEL_WINDOW)) / self::LEVEL_WINDOW);
+        }
+
+        return round($best, 1);
     }
 
     /**

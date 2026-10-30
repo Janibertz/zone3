@@ -6,11 +6,17 @@ use App\Models\RunnerProfile;
 use Carbon\CarbonImmutable;
 
 /**
- * Welche Läufe des Gerüsts aufs Rad wandern (Entscheidung vom 25.10.2026).
+ * Wo das Rad in die Woche kommt (Entscheidungen vom 25. und 30.10.2026).
  *
+ *   0. In einer Belastungswoche kommt das Rad ZUSÄTZLICH: lockere Fahrten
+ *      in der Restzeit eines Tages mit lockerem oder langem Lauf, bis zum
+ *      Wochenmaximum. Kein Lauf fällt dafür weg (Jan, 30.10.2026, nach
+ *      seinem Coach-Plan bei Mats: dort kamen 3–4,5 h Rad zum Laufen dazu).
+ *      Nur in der Entlastungswoche ersetzt das Rad EINEN Lauf — Regeln 1
+ *      und 2 gelten also nur dort; der Rest des Maximums kommt zusätzlich.
  *   1. Rad ersetzt einen lockeren Lauf — bevorzugt an den Wunschtagen,
- *      sonst an irgendeinem Tag mit lockerem Lauf —, bis zum Wochenmaximum.
- *      Der lange Lauf wird nie ersetzt.
+ *      sonst an irgendeinem Tag mit lockerem Lauf. Der lange Lauf wird nie
+ *      ersetzt.
  *   2. Höchstens ein Radintervall pro Woche, und zwar statt der
  *      VO2-Intervalle, nicht statt Tempo- oder Schwellenlauf. Es bleibt eine
  *      harte Einheit: Abstand und Ruhetag danach stehen schon, die harten
@@ -40,6 +46,10 @@ class BikeSchedule
 
     /** Die schnelle Einheit braucht mindestens fünf Stöße. */
     private const MIN_FAST_REPS = 5;
+
+    /** Eine zusätzliche lockere Fahrt: kürzer lohnt das Aufbauen nicht, länger wird sie Training für sich. */
+    private const EXTRA_MIN_MINUTES = 45;
+    private const EXTRA_MAX_MINUTES = 90;
 
     private const ISO_TO_KEY = [
         1 => 'monday', 2 => 'tuesday', 3 => 'wednesday', 4 => 'thursday',
@@ -79,38 +89,140 @@ class BikeSchedule
         $preferred = array_flip($settings['preferred_days']);
 
         foreach ($weeks as $weekKey => $dates) {
-            $left  = $settings['max_per_week'];
-            $phase = $periods[$weekKey]['phase'] ?? 'build';
+            $left     = $settings['max_per_week'];
+            $phase    = $periods[$weekKey]['phase'] ?? 'build';
+            $recovery = ! empty($periods[$weekKey]['recovery']);
 
             $candidates = fn (callable $fits) => $this->candidates($days, $dates, $settings, $preferred, $fits);
 
-            // Grundlage: dort gibt es nur Fahrtspiel und Bergintervalle, keine VO2-Blöcke.
-            if ($intervals && ! in_array($phase, ['base', 'taper', 'race_week', 'past'], true)) {
-                foreach ($candidates(fn ($slot) => $slot['type'] === 'interval') as [$date, $i]) {
-                    // Die kurze schnelle Einheit des norwegischen Modells wird
-                    // auf dem Rad wieder kurz und schnell, kein VO2-Block.
-                    $swapped = ! empty($days[$date]['slots'][$i]['fast'])
-                        ? $this->toFast($days[$date], $i, $settings['ftp'])
-                        : $this->toVo2($days[$date], $i, $settings['ftp']);
+            // Nur die Entlastung tauscht einen Lauf gegen das Rad — einen.
+            if ($recovery) {
+                $swapped = false;
 
-                    if ($swapped) {
-                        $left--;
+                // Grundlage: dort gibt es nur Fahrtspiel und Bergintervalle, keine VO2-Blöcke.
+                if ($intervals && ! in_array($phase, ['base', 'taper', 'race_week', 'past'], true)) {
+                    foreach ($candidates(fn ($slot) => $slot['type'] === 'interval') as [$date, $i]) {
+                        // Die kurze schnelle Einheit des norwegischen Modells wird
+                        // auf dem Rad wieder kurz und schnell, kein VO2-Block.
+                        $swapped = ! empty($days[$date]['slots'][$i]['fast'])
+                            ? $this->toFast($days[$date], $i, $settings['ftp'])
+                            : $this->toVo2($days[$date], $i, $settings['ftp']);
+
+                        if ($swapped) {
+                            break;
+                        }
+                    }
+                }
+
+                if (! $swapped && $easy) {
+                    foreach ($candidates(fn ($slot) => $slot['type'] === 'easy_run') as [$date, $i]) {
+                        $this->toEasy($days[$date], $i, $settings['ftp']);
+                        $swapped = true;
                         break;
                     }
                 }
+
+                if ($swapped) {
+                    $left--;
+                }
             }
 
-            if ($easy) {
-                foreach ($candidates(fn ($slot) => $slot['type'] === 'easy_run') as [$date, $i]) {
+            // Der Rest kommt dazu. In der Rennwoche nicht — dort zählt Frische.
+            if ($easy && $phase !== 'race_week' && $phase !== 'past') {
+                foreach ($this->extraDays($days, $dates, $settings, $preferred) as $date => $minutes) {
                     if ($left <= 0) {
                         break;
                     }
 
-                    $this->toEasy($days[$date], $i, $settings['ftp']);
+                    $this->addEasy($days[$date], $minutes, $settings['ftp']);
                     $left--;
                 }
             }
         }
+    }
+
+    /**
+     * Tage, an denen neben dem Lauf noch eine lockere Fahrt Platz hat —
+     * Wunschtage zuerst, dann die mit der meisten Restzeit.
+     *
+     * Nur neben einem lockeren oder langen Lauf: neben einer harten
+     * Einheit, einem festen Termin, einem Rennen oder einem
+     * Wiedereinstiegs-Lauf bleibt der Tag, wie er ist. Ein Tag ohne Lauf
+     * ist ein Ruhetag und bleibt einer.
+     *
+     * @return array<string,int> Datum → Minuten der Fahrt
+     */
+    private function extraDays(array $days, array $dates, array $settings, array $preferred): array
+    {
+        $found = [];
+
+        foreach ($dates as $date) {
+            $day = $days[$date];
+
+            if (! $day['available'] || ! empty($day['finalized']) || ! empty($day['kept'])
+                || ! $this->inSeason($date, $settings['season'])) {
+                continue;
+            }
+
+            // Neben dem Lauf darf Kraft stehen; die frisst dann Restzeit.
+            $primary = array_values(array_filter($day['slots'] ?? [], fn ($s) => empty($s['optional'])));
+            $others  = array_filter($primary, fn ($s) => ! in_array($s['type'], ['strength', 'core'], true));
+            if (count($others) !== 1) {
+                continue;
+            }
+
+            $run = reset($others);
+            if (! in_array($run['type'], ['easy_run', 'long_run'], true)
+                || ! empty($run['fixed']) || ! empty($run['race']) || isset($run['comeback'])
+                || ! empty($run['double']) || ! empty($run['hard'])) {
+                continue;
+            }
+
+            $used     = array_sum(array_map(fn ($s) => (int) ($s['target_min'] ?? $s['max_min'] ?? 0), $primary));
+            $strength = count($primary) > 1;
+
+            $budget = (int) $day['budget_min'];
+            $room   = $budget > 0 ? $budget - $used : self::EXTRA_MAX_MINUTES;
+            $room   = (int) (floor(min($room, self::EXTRA_MAX_MINUTES) / 5) * 5);
+
+            if ($room < self::EXTRA_MIN_MINUTES) {
+                continue;
+            }
+
+            $found[] = [$date, $room, isset($preferred[self::ISO_TO_KEY[$day['weekday']]]), ! $strength];
+        }
+
+        // Wunschtage zuerst, dann Tage ohne Kraft, dann die meiste Restzeit.
+        usort($found, fn ($a, $b) => [$b[2], $b[3], $b[1], $a[0]] <=> [$a[2], $a[3], $a[1], $b[0]]);
+
+        $out = [];
+        foreach ($found as [$date, $room]) {
+            $out[$date] = $room;
+        }
+
+        return $out;
+    }
+
+    /** Eine lockere Fahrt neben den Lauf setzen. Der Lauf bleibt. */
+    private function addEasy(array &$day, int $minutes, ?int $ftp): void
+    {
+        $workout = $this->workouts->build(BikeWorkouts::EASY, $minutes, $ftp);
+        $workout['title']       = 'Rad locker (zusätzlich)';
+        $workout['description'] = 'Zusätzlich zum Lauf, gleichmäßig im Grundlagenbereich. Baut Ausdauer auf, ohne die Beine mit Stößen zu belasten — '
+            . 'nicht schneller fahren, nur weil es sich leicht anfühlt.';
+
+        // Eine optionale Ergänzung (Mobility) hat neben Lauf und Rad keinen Platz mehr.
+        $day['slots']   = array_values(array_filter($day['slots'], fn ($s) => empty($s['optional'])));
+        $day['slots'][] = [
+            'type'       => 'cross_training',
+            'sport'      => 'VirtualRide',
+            'bike'       => BikeWorkouts::EASY,
+            'extra'      => true,
+            'hard'       => false,
+            'max_min'    => $minutes,
+            'target_min' => $workout['duration_min'],
+            'workout'    => $workout,
+        ];
     }
 
     /**
