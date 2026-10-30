@@ -69,7 +69,7 @@ class TrainingPlanController extends Controller
 
         $sessions = $plan
             ? TrainingSession::where('training_plan_id', $plan->id)
-                ->with('activity:id,laps')
+                ->with('activity:id,laps,source')
                 ->orderBy('planned_date')
                 ->get()
                 ->map(fn ($s) => $this->formatSession($s, $garminConnected))
@@ -407,6 +407,7 @@ class TrainingPlanController extends Controller
             'analysis_text'    => $analysisText,
             'actual_time'      => $this->secToClock((int) $activity->moving_time),
             'race_activity_id' => $activity->id,
+            'source'           => $activity->sourceLabel(),
         ]);
     }
 
@@ -493,6 +494,7 @@ class TrainingPlanController extends Controller
         return [
             'time'     => $this->secToClock($seconds),
             'activity' => $activity->name,
+            'source'   => $activity->sourceLabel(),
         ];
     }
 
@@ -591,6 +593,8 @@ class TrainingPlanController extends Controller
             'skip_reason'      => $s->skip_reason,
             'sort_order'       => $s->sort_order,
             'activity_id'      => $s->activity_id,
+            // „Nicht im Plan · aus Garmin“ — woher der Lauf wirklich kam.
+            'activity_source'  => $s->activity?->sourceLabel(),
             'rating'           => $s->rating,
             'effort_perceived' => $s->effort_perceived,
             'feeling_notes'    => $s->feeling_notes,

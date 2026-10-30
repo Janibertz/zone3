@@ -77,7 +77,8 @@ class RaceResultAdoptionTest extends TestCase
             ->get(route('events.plan.show', $event))
             ->assertInertia(fn ($page) => $page
                 ->where('resultSource.time', '3:24:15')
-                ->where('resultSource.activity', 'Stadtmarathon 2026'));
+                ->where('resultSource.activity', 'Stadtmarathon 2026')
+                ->where('resultSource.source', 'Strava'));
     }
 
     /** Eine von Hand eingetragene Zeit ist die offizielle — sie bleibt stehen. */
