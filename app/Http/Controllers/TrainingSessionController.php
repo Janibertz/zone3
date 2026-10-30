@@ -485,6 +485,16 @@ class TrainingSessionController extends Controller
             'pace_target'  => $resolved['pace_target'],
             'zone'         => $resolved['zone'],
             'steps'        => $resolved['steps'],
+            // Wie beim Einplanen aus dem Builder: aus einem lockeren Lauf
+            // wird mit einem Intervall-Workout keine lockere Einheit.
+            'intensity'    => match (true) {
+                in_array($workout->type, ['interval', 'tempo_run'], true) => 'high',
+                ($resolved['zone'] ?? 2) >= 3                             => 'medium',
+                default                                                   => 'low',
+            },
+            // Der Katalog-Baustein gehoerte zur alten Einheit. Stehen
+            // gelassen, zaehlte er in der Rotation als gelaufen.
+            'workout_variant' => null,
             // Die Verpflegungstipps beschrieben die alte Einheit.
             'nutrition_tips' => null,
             // Der Athlet hat sich das ausgesucht — eine Neuberechnung des

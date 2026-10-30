@@ -79,7 +79,7 @@ class SharedWorkoutTest extends TestCase
             'user_id' => $user->id, 'training_plan_id' => $plan->id, 'event_id' => $event->id,
             'planned_date' => now()->toDateString(), 'type' => 'easy_run',
             'title' => 'Lockere 30 Minuten', 'distance_km' => 5, 'duration_min' => 30,
-            'intensity' => 'low', 'status' => 'planned',
+            'intensity' => 'low', 'status' => 'planned', 'workout_variant' => 'locker',
         ]);
     }
 
@@ -291,6 +291,8 @@ class SharedWorkoutTest extends TestCase
         $this->assertNotNull($session->steps, 'Die Struktur kommt aus dem Workout, nicht vom Modell');
         $this->assertSame(1000, collect($session->steps)->firstWhere('type', 'work')['distance_m']);
         $this->assertNotNull($session->pinned_at, 'Der Athlet hat sich das ausgesucht');
+        $this->assertSame('high', $session->intensity, 'Ein Intervall-Workout ist keine lockere Einheit');
+        $this->assertNull($session->workout_variant, 'Der Baustein gehoerte zur alten Einheit');
     }
 
     // ── Der Admin nimmt zurück ───────────────────────────────────────────

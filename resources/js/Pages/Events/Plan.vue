@@ -723,14 +723,21 @@ async function applyWorkout() {
     workoutApplying.value    = true;
     workoutPickerError.value = '';
     try {
-        const { data } = await axios.patch(
+        // Die Liste merkt sich die ID, nicht das Workout. Hier stand
+        // `.value.id` — das war undefined, der Server lehnte jede Anfrage
+        // mit 422 ab, und kein eigenes Workout liess sich je einsetzen.
+        await axios.patch(
             route('training-sessions.apply-workout', workoutPickerSession.value.id),
-            { workout_id: workoutPickerSelected.value.id }
+            { workout_id: workoutPickerSelected.value }
         );
-        updateSessionInList(data.session);
+        // Neu laden statt die Antwort einsetzen: die Planseite braucht Felder
+        // (Abschnitte, Apple-Watch-Link, Schloss), die die Antwort nicht hat,
+        // und die alten Abschnitte im Cache gehoeren zur alten Einheit.
+        delete stepsCache[workoutPickerSession.value.id];
+        reloadSessions();
         workoutPickerModal.value = false;
     } catch (e) {
-        workoutPickerError.value = e?.response?.data?.error ?? 'Fehler beim Anwenden.';
+        workoutPickerError.value = e?.response?.data?.error ?? e?.response?.data?.message ?? 'Fehler beim Anwenden.';
     } finally {
         workoutApplying.value = false;
     }
