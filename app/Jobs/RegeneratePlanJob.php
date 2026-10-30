@@ -353,7 +353,7 @@ class RegeneratePlanJob implements ShouldQueue
                     'description'      => $s['description'] ?? '',
                     'distance_km'      => ($s['distance_km'] ?? 0) ?: null,
                     'duration_min'     => ($s['duration_min'] ?? 0) ?: null,
-                    'pace_target'      => ($s['pace_target'] === 'null' || empty($s['pace_target'])) ? null : $s['pace_target'],
+                    'pace_target'      => (empty($s['pace_target']) || $s['pace_target'] === 'null') ? null : $s['pace_target'],
                     'zone'             => $s['zone'] ?? null,
                     'intensity'        => $s['intensity'] ?? 'low',
                     'exercises'        => ! empty($s['exercises']) && is_array($s['exercises']) ? $s['exercises'] : null,
