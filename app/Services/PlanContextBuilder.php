@@ -167,6 +167,7 @@ class PlanContextBuilder
         // Die Paces reisen mit dem Gerüst in den Validator: dort entsteht der
         // Ablauf jeder Einheit aus dem Katalog (RunWorkouts).
         $skeleton['paces'] = $paces;
+        $this->rampRacePace($skeleton, $event, $paces);
         // Rotation und Hang: was zuletzt lief, faellt aus der Auswahl, und
         // ohne Hang gibt es keine Bergeinheiten (RunWorkouts::fresh/filter).
         $skeleton['workout_history'] = $this->workoutHistory($user, $windowFrom);
@@ -390,6 +391,45 @@ class PlanContextBuilder
                 'priority' => $e->priority,
             ])
             ->toArray();
+    }
+
+    /**
+     * Wochen, über die das Renntempo von der heutigen Form zum Ziel wandert:
+     * Aufbau und Spitze zusammen. Davor gibt es keine Renntempo-Abschnitte.
+     */
+    public const RACE_PACE_RAMP_WEEKS = (PeriodizationService::BUILD_PHASE_DAYS + PeriodizationService::PEAK_PHASE_DAYS) / 7;
+
+    /**
+     * Das Renntempo jedes Slots: von der Form zum Ziel, nicht ab Tag 1 das Ziel.
+     *
+     * Bis zum 30.10.2026 lief jeder Renntempo-Abschnitt im Zieltempo. Jan
+     * (Ziel 1:25, Form 1:33) bekam in Woche 1 sechs Kilometer in 4:01 — für
+     * ihn das Tempo einer 5-km-Bestzeit. Jetzt startet das Tempo bei der
+     * Prognose aus dem VDOT und erreicht das Ziel in der Woche des längsten
+     * Laufs. Ist die Form schon schneller als das Ziel, gilt das Ziel.
+     */
+    private function rampRacePace(array &$skeleton, Event $event, ?array $paces): void
+    {
+        $target    = $paces['target_sec'] ?? null;
+        $predicted = $paces['predicted_sec'] ?? null;
+        if (! $target || ! $predicted || $predicted <= $target) {
+            return;
+        }
+
+        $peak = PeriodizationService::peakWeek(
+            CarbonImmutable::parse($event->event_date->toDateString()),
+            LongRunPlanService::taperDays($event->race_distance),
+        );
+
+        foreach ($skeleton['days'] as $date => $day) {
+            $weeksToPeak = max(0, (int) round(CarbonImmutable::parse($date)->startOfWeek()->diffInDays($peak, false) / 7));
+            $progress    = max(0.0, min(1.0, 1 - $weeksToPeak / self::RACE_PACE_RAMP_WEEKS));
+            $pace        = PaceFormat::target($predicted - ($predicted - $target) * $progress);
+
+            foreach ($day['slots'] as $i => $slot) {
+                $skeleton['days'][$date]['slots'][$i]['race_pace'] = $pace;
+            }
+        }
     }
 
     /**

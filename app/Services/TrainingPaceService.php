@@ -82,6 +82,8 @@ class TrainingPaceService
                 'target_time'    => null,
                 'predicted_pace' => null,
                 'predicted_time' => null,
+                'target_sec'     => null,
+                'predicted_sec'  => null,
                 'delta_sec'      => null,
                 'verdict'        => null,
             ];
@@ -103,6 +105,10 @@ class TrainingPaceService
             'target_time'    => $targetSec > 0 ? $this->clock($targetSec) : null,
             'predicted_pace' => $predicted['pace'] ?? null,
             'predicted_time' => $predicted['time'] ?? null,
+            // Als Zahl für die Renntempo-Rampe im Gerüst (siehe
+            // PlanContextBuilder::rampRacePace()).
+            'target_sec'     => $targetPace,
+            'predicted_sec'  => $predicted ? $predicted['total_sec'] / $km : null,
             'delta_sec'      => $deltaSec,
             'verdict'        => $deltaSec === null ? null : $this->verdict($deltaSec),
         ];

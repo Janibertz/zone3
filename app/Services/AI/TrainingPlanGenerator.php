@@ -137,7 +137,7 @@ class TrainingPlanGenerator
         // Ob die lockeren Läufe auch locker gelaufen werden. Steht bei der
         // Periodisierung, weil es dieselbe Frage von der anderen Seite ist:
         // dort was geplant ist, hier was passiert.
-        $phaseText .= app(\App\Services\IntensityDistributionService::class)->toPromptSection($c->intensity);
+        $intensityText = app(\App\Services\IntensityDistributionService::class)->toPromptSection($c->intensity);
 
         // Was die Zieldistanz im Kern verlangt. Der Backyard-Prompt war
         // darin ausführlich, der Standard-Prompt behandelte 5 km und
@@ -552,7 +552,7 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
 **{$pastResultsText}**
 
 **Bisherige Einheitsbewertungen (Athleten-Feedback):**
-{$ratingsText}{$phaseText}
+{$ratingsText}{$phaseText}{$intensityText}
 
 **{$availabilityText}**{$otherEventsText}{$followUpGoalText}{$finalizedText}{$pinnedText}{$keptText}{$recoveryWarning}{$perDateAvailText}{$strengthBlock}
 
@@ -602,57 +602,42 @@ Für Ruhetage: distance_km=0, duration_min=0.
 Nur bei strength/core/mobility das "exercises"-Array füllen; bei allen Lauf-Einheiten weglassen oder leer lassen.
 PROMPT;
         } else {
+        // Der Standard-Prompt ist seit dem 30.10.2026 kurz (vorher ~7.000
+        // Token). Das Modell waehlt nur noch Baustein, Titel und
+        // Beschreibung; Umfang, Leiter, Phase, 80/20, Paces und Ablauf setzt
+        // der Code durch. Jeder Abschnitt, der eine dieser Zahlen ein
+        // zweites Mal nannte, war eine zweite Wahrheit — in Jans Prompt
+        // stand „kein Long Run" (Wiedereinstieg) neben 20 km (Leiter), „TSB
+        // frisch: Umfang erhoehen" neben der Pause, und drei Zielzeiten fuer
+        // dasselbe Rennen. Gestrichen: Tempotabelle, Laufliste, Umfang,
+        // Leiter, Belastung, Rennergebnisse, Bewertungen, Distanzfokus,
+        // Verfuegbarkeit (steckt im Geruest), alte Rennregel.
+        $goalLine = $this->goalLine($c->paces, $targetTime);
+        $notesBlock = $this->recentNotes($c->coachNotes, $c->windowFrom);
+        $easyHint = $this->easyHint($c->intensity);
+        // Ohne Kraftwunsch sagte der Prompt „plane KEINE Mobility", während
+        // das Gerüst optionale Mobility-Slots trug. Jetzt gilt das Gerüst.
+        $strengthRule = ($strength && ! empty($strength['enabled']))
+            ? $strengthBlock . "\n- Kraft, Core und Mobility nur dort, wo das Wochengerüst sie vorsieht."
+            : "\n\n**Kraft & Core:** Kein eigenes Programm gewünscht. Optionale Zweiteinheiten aus dem Gerüst nur als kurze, leichte Mobility — oder weglassen.";
+
         $prompt = <<<PROMPT
-Du bist ein professioneller Lauf-Coach. Erstelle einen Trainingsplan von heute bis zum Renntag.
+Du bist ein professioneller Lauf-Coach. Das System hat den Plan fuer {$totalDays} Tage ab {$today} schon gebaut: welcher Tag welche Einheit bekommt, Umfang, Distanz, Paces und den Ablauf jeder Laufeinheit. Deine Aufgabe ist nur: je Tag den Baustein aus den erlaubten waehlen, einen Titel und eine kurze Beschreibung schreiben.
 
-**Event:**
-- Name: {$event->name}
-- Datum: {$eventDate} (in {$daysUntil} Tagen)
-- Distanz: {$distLabel}
-- Priorität: {$priorityText}
-- Zielzeit: {$targetTime}
+**Rennen:** {$event->name}, {$eventDate} (noch {$daysUntil} Tage), {$distLabel}, Zielzeit {$targetTime}.
+Es gilt diese Zielzeit — auch wenn eine Notiz unten eine andere nennt.{$goalLine}{$phaseText}
 
-**{$profileText}**{$paceText}
+**{$wellbeingText}**{$garminBlock}{$notesBlock}{$finalizedText}{$pinnedText}{$keptText}{$recoveryWarning}{$perDateAvailText}{$strengthRule}
 
-**Letzte Läufe (4 Wochen):**
-{$activitiesText}{$crossText}{$volumeText}{$longRunText}
-
-**{$wellbeingText}**{$garminBlock}{$coachNotesText}
-
-**{$loadText}**
-
-**{$pastResultsText}**
-
-**Bisherige Einheitsbewertungen (Athleten-Feedback):**
-{$ratingsText}{$phaseText}{$focusText}
-
-**{$availabilityText}**{$otherEventsText}{$finalizedText}{$pinnedText}{$keptText}{$recoveryWarning}{$perDateAvailText}{$strengthBlock}
-
-**Wenn sich Signale widersprechen, gilt diese Rangfolge — von oben nach unten:**
-1. Gesundheit: Krankheit, Verletzung, Wiedereinstieg. Schlägt alles andere, auch das Renndatum.
-2. Gemessene Erholung (Garmin: HRV, Ruhepuls, Schlaf). Objektiv und wichtiger als die Selbsteinschätzung. Warnt sie, wird gekürzt — die Struktur der Woche bleibt.
-3. Trainingsbelastung (TSB) und Selbsteinschätzung (Tagesform).
-4. Der Zielehrgeiz. Er bestimmt, WAS trainiert wird, aber nie gegen die drei Punkte darüber, WIE VIEL.
-Reduziere im Zweifel die Intensität einer Einheit, nicht ihre Existenz — ein gekürzter Tempolauf ist besser als ein gestrichener.
-
-**Planungsregeln:**
-- Plane GENAU jeden Tag von {$fromLabel} bis {$planEndDate} — das sind {$totalDays} Tage. Kein Tag davor, kein Tag danach.
+**Regeln:**
 - {$endRuleStandard}
-- Halte dich an die Trainingsphase und an die Umfangsregeln oben. Beides ist ausgerechnet, nicht geschätzt.
-- Mindestens ein Ruhetag pro Woche.
-- WOCHENMUSTER: Die Wochenstruktur ist im Gerüst oben festgelegt und nicht verhandelbar.
 {$workoutRule}
-- JEDE EINHEIT BRAUCHT EINEN ZWECK: Schreibe in die description in einem Halbsatz, worauf die Einheit hinarbeitet (z.B. „hält die Schwelle für das Renntempo"). Eine Einheit, für die sich kein Zweck formulieren lässt, gehört nicht in den Plan.
-- A-Events: max. Leistungsoptimierung; C-Events: Trainingsrennen, moderate Belastung.
-- Lerne aus den Athleten-Bewertungen: niedrige Bewertungen (1-2⭐) oder hohe RPE (≥8) bei bestimmten Typen → weniger davon oder leichter planen; hohe Bewertungen (4-5⭐) → mehr davon.
-- Lerne aus vergangenen Rennergebnissen: Ziel verfehlt → mehr spezifisches Tempotraining für diese Distanz; Ziel erreicht/übertroffen → Plan funktioniert, ähnliche Struktur beibehalten.
-- ANDERE RENNEVENTS: An Tagen mit anderen Rennevents im Planungszeitraum IMMER type="rest" — der Athlet läuft ein Rennen, kein zusätzliches Training.
-- VERFÜGBARKEIT: Plane Training AUSSCHLIESSLICH an verfügbaren Tagen. An nicht verfügbaren Tagen IMMER type="rest". Die GESAMTE Trainingsdauer eines Tages (bei zwei Einheiten die Summe) darf die angegebene Maximalzeit NIEMALS überschreiten. Tages-Ausnahmen haben Vorrang.
-- ZIELORIENTIERUNG: Der Plan führt auf {$targetTime} hin. Das Renntempo aus der Tabelle oben gehört regelmäßig ins Training — es ist die spezifischste Vorbereitung, die es gibt. Sei nicht unnötig konservativ, solange Gesundheit, Erholung und Belastung es zulassen. Was die Einordnung oben zum Verhältnis von Ziel und heutiger Form sagt, gehört in die description der Schlüsseleinheiten.
+- JEDE EINHEIT BRAUCHT EINEN ZWECK: ein Halbsatz in der description, worauf sie hinarbeitet (z.B. „hält die Schwelle für das Renntempo").
+- Wähle den Baustein passend zur Phase und zu dem, was der Athlet über sich gesagt hat (Beschwerden → die schonendere Wahl). Im Wiedereinstieg schreibst du einfühlsam: Erholung ist Training.{$easyHint}
 {$oneRunRule}
-- ZWEITE EINHEIT: Nur strength, core oder mobility duerfen als zweiter Eintrag zu einem Tag dazukommen, und nur wenn das Wochengeruest sie dort vorsieht. Bei zwei Eintraegen am selben "date": Tageszeit im title kennzeichnen ("Morgens: ...", "Abends: ..."), Laufeinheit zuerst, Summe beider duration_min <= Tages-Maximum.
+- ZWEITE EINHEIT: Bei zwei Einträgen am selben "date" Tageszeit im title ("Morgens: ...", "Abends: ..."), Laufeinheit zuerst.
 
-**Antworte ausschließlich mit einem JSON-Array — EIN Eintrag {$openList}. Kein Eintrag für einen anderen Tag; alles andere steht bereits und wurde oben genannt. {$secondEntryRule} Ist einer dieser Tage ein Ruhetag, gehört er als Eintrag mit type="rest" dazu.**
+**Antworte ausschließlich mit einem JSON-Array — EIN Eintrag {$openList}. Kein Eintrag für einen anderen Tag. {$secondEntryRule} Ist einer dieser Tage ein Ruhetag, gehört er als Eintrag mit type="rest" dazu.**
 [
   {
     "date": "YYYY-MM-DD",
@@ -667,7 +652,7 @@ Reduziere im Zweifel die Intensität einer Einheit, nicht ihre Existenz — ein 
     "exercises": [{ "name": "Goblet Squat", "sets": 3, "reps": "10", "load": "20 kg", "note": "" }]
   }
 ]
-Für Ruhetage: distance_km=0, duration_min=0.
+Für Ruhetage: distance_km=0, duration_min=0. distance_km und duration_min übernimmst du aus dem Gerüst.
 Nur bei strength/core/mobility das "exercises"-Array füllen; bei allen Lauf-Einheiten weglassen oder leer lassen.
 PROMPT;
         }
@@ -691,6 +676,66 @@ PROMPT;
         Log::warning('Event training plan parse failed', ['text' => $text]);
 
         return null;
+    }
+
+    /** Ziel gegen Form in einem Satz — die einzige Stelle, an der der Prompt über Tempo spricht. */
+    private function goalLine(?array $paces, string $targetTime): string
+    {
+        if (! $paces || empty($paces['predicted_time']) || empty($paces['target_pace'])) {
+            return '';
+        }
+
+        $delta = (int) ($paces['delta_sec'] ?? 0);
+        $gap   = $delta > 0
+            ? "Das Ziel ({$paces['target_pace']} min/km) liegt {$delta} s/km vor der heutigen Form ({$paces['predicted_time']}, {$paces['predicted_pace']} min/km). Die Renntempo-Abschnitte im Plan wandern deshalb über die Wochen von der Form zum Ziel — das System setzt sie."
+            : "Die heutige Form ({$paces['predicted_time']}) trägt das Ziel bereits.";
+
+        return "\n{$gap}";
+    }
+
+    /**
+     * Die Notizen, die heute noch etwas sagen: höchstens acht Wochen alt,
+     * höchstens zehn, ohne Wiederholung. Vorher standen alle 25 im Prompt —
+     * Rückmeldungen aus dem August, die OP zweimal, drei Zielzeiten.
+     */
+    private function recentNotes(?string $notes, \Carbon\CarbonImmutable $from): string
+    {
+        $cutoff = \Carbon\CarbonImmutable::today()->subWeeks(8);
+        $seen   = [];
+        $keep   = [];
+
+        foreach (preg_split('/\R/', (string) $notes, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $line) {
+            if (preg_match('/\[(\d{2}\.\d{2}\.\d{4})\]/', $line, $m)) {
+                $date = \Carbon\CarbonImmutable::createFromFormat('d.m.Y', $m[1])->startOfDay();
+                if ($date->lt($cutoff)) {
+                    continue;
+                }
+            }
+
+            $key = mb_strtolower(trim(preg_replace('/\[[^\]]*\]/', '', $line)));
+            if ($key === '' || isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $keep[]     = trim($line);
+        }
+
+        $keep = array_slice($keep, -10);
+        if ($keep === []) {
+            return '';
+        }
+
+        return "\n\n**Was der Athlet zuletzt über sich gesagt hat:**\n" . implode("\n", $keep);
+    }
+
+    /** Ein Satz, wenn die lockeren Läufe zuletzt zu schnell waren — ohne Pace, die steht im Ablauf. */
+    private function easyHint(?array $intensity): string
+    {
+        if (! $intensity || ($intensity['hard_pct'] ?? 0) <= ($intensity['limit_pct'] ?? \App\Services\IntensityDistributionService::TOO_HARD_PCT)) {
+            return '';
+        }
+
+        return "\n- Die lockeren Läufe waren zuletzt zu schnell ({$intensity['hard_pct']} % hart): sage bei jedem lockeren Lauf, dass er langsam sein muss.";
     }
 
 }

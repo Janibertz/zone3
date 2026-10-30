@@ -222,8 +222,8 @@ class PeriodizationService
 
     /** Was jede Phase verlangt — für den Prompt. */
     private const RULES = [
-        'base'      => 'Grundlage: lockeres Volumen aufbauen, als Reiz Schwelle oder Steigerung, noch keine Intervalle und keine Rennschärfe.',
-        'build'     => 'Aufbau: Umfang steigt, dazu Schwellen- und Intervallarbeit. Der lange Lauf wächst schrittweise.',
+        'base'      => 'Grundlage: lockeres Volumen aufbauen. Die eine harte Einheit wechselt wochenweise zwischen Schwelle und Fahrtspiel oder Bergintervallen — keine Bahnintervalle, kein Renntempo.',
+        'build'     => 'Aufbau: Umfang steigt, dazu Schwellen- und Intervallarbeit; der lange Lauf wächst schrittweise und bekommt erste kurze Abschnitte im Renntempo.',
         'peak'      => 'Spezifische Phase: die Schlüsseleinheiten laufen jetzt im Renntempo. Höchster Umfang, längster Lauf, danach beginnt die Reduktion.',
         'taper'     => 'Tapering: Umfang zurück, Intensität und Renntempo aber halten. Weniger, nicht langsamer.',
         'race_week' => 'Rennwoche: Umfang stark zurück, Beine frisch machen. Drei bis vier Tage vor dem Rennen eine kurze Einheit mit wenigen Minuten im Zielrenntempo (z. B. 3×1 km), sonst kurze lockere Läufe mit ein paar Steigerungen. Keine langen oder ermüdenden Einheiten mehr — die Form ist gemacht.',

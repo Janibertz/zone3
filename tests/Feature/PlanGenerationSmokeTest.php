@@ -91,6 +91,46 @@ class PlanGenerationSmokeTest extends TestCase
     }
 
     /**
+     * Der Plan-Prompt nennt keine Zahl ein zweites Mal, die das Gerüst
+     * schon festlegt. Jans Prompt vom 29.10.2026 hatte rund 26.000 Zeichen
+     * und widersprach sich: „kein Long Run" neben 20 km, „TSB frisch: Umfang
+     * erhöhen" neben der Pause, drei Zielzeiten für dasselbe Rennen.
+     */
+    public function test_the_plan_prompt_leaves_the_numbers_to_the_skeleton(): void
+    {
+        $user  = $this->athlete();
+        $event = $this->event($user);
+        $user->runnerProfile->update(['coach_notes' => implode("\n", [
+            '- [01.01.2026] Uralte Rückmeldung',
+            '- [' . now()->subDays(3)->format('d.m.Y') . '] Hüfte zwickt',
+            '- [' . now()->subDays(2)->format('d.m.Y') . '] Hüfte zwickt',
+        ])]);
+
+        $this->fakeReply([]);
+
+        $context = app(PlanContextBuilder::class)->build($user, $event);
+        app(TrainingPlanGenerator::class)->withCoach(null)->forUser($user->id)->generateEventTrainingPlan($context);
+
+        $prompt = '';
+        Http::assertSent(function ($request) use (&$prompt) {
+            $prompt = collect($request['messages'] ?? [])->firstWhere('role', 'user')['content'] ?? '';
+
+            return true;
+        });
+
+        foreach (['Leiter der langen Läufe', 'TSB', 'Wochenumfang (nur Läufe)', 'Trainingstempi nach Daniels',
+                  'ANDERE RENNEVENTS', 'Vergangene Rennergebnisse', 'von heute bis zum Renntag'] as $gone) {
+            $this->assertStringNotContainsString($gone, $prompt);
+        }
+
+        $this->assertStringContainsString('VERBINDLICHES WOCHENGERÜST', $prompt);
+        $this->assertStringContainsString('Zielzeit 1:45 Std', $prompt);
+        $this->assertStringNotContainsString('Uralte Rückmeldung', $prompt);
+        $this->assertSame(1, substr_count($prompt, 'Hüfte zwickt'));
+        $this->assertLessThan(12000, mb_strlen($prompt));
+    }
+
+    /**
      * Der Coach-Chat ruft OpenAI mit Werkzeugen auf und ging deshalb einen
      * eigenen Weg am Transport vorbei — beim Zerlegen fiel ihm dabei der
      * Zugangsschluessel weg, ohne dass ein Test es gemerkt haette.

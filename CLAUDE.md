@@ -459,6 +459,19 @@ Der Athlet wählt sein Trainingsmodell selbst (Onboarding, Profil → Athletenpr
 - Der Kontext markiert die Hälften („morgens"/„abends", `HEUTE ABENDS`), sonst plant der Coach den Abend im Gespräch weg.
 - Das Telegram-Briefing zeigte schon beide Läufe, aber zweimal als „Heute:" — jetzt „Morgens:" / „Abends:".
 
+### Die erste Woche nach einer Pause (seit 30.10.2026)
+
+Gemeldet von Jan: HM am 11.04.2027, Ziel 1:25, Planstart 30.11. nach OP-Pause, Do gesperrt, Di Laufclub. Im Plan standen Mo bis Mi Ruhetag, ein lockerer Lauf und am Sonntag **20 km mit 6 km in 4:01** — für Jan das Tempo einer 5-km-Bestzeit. Der Prompt war nicht schuld; das Gerüst gab es so vor. Nachgebaut ohne Modellaufruf, Regression in `FirstPlanWeekTest`.
+
+- **Ein Rennen ist kein längster Lauf** (Entscheidung von Jan). `WeeklyVolumeService` zählt es in den Wochenumfang, aber nicht in `longest_run` — erkannt an einer `race_prep`-Einheit oder am Datum eines eingetragenen Rennens. Der Berlin-Marathon (42,5 km) setzte die Leiter sonst sofort auf ihre Spitze.
+- **Der lange Lauf ist höchstens 30 % der Woche** (`LongRunPlanService::MAX_SHARE_OF_WEEK`). Die Leiter bekommt den Wochendeckel als zweite Grenze, mit derselben Steigerung wie das Gerüst; nie unter eine Stunde. Vorher kannte sie nur den längsten Lauf: 20 km bei 36 km Deckel, und `budgetWeek()` strich den Rest.
+- **Renntempo nach Phase:** Grundlage keins, Aufbau 15 % des langen Laufs, Spitze 30 % (`RACE_PACE_SHARE`).
+- **Renntempo von der Form zum Ziel:** `PlanContextBuilder::rampRacePace()` legt je Slot `race_pace` fest — Prognose aus dem VDOT zu Beginn von Aufbau + Spitze (12 Wochen vor dem längsten Lauf), das Ziel in dessen Woche. `RunWorkouts::forSlot()` nimmt es statt `target_pace`. Das Ziel ist immer das unter Rennen eingetragene (Jan).
+- **Wiedereinstieg:** Folgt auf einen Tag ein fester Termin, bleibt der Tag frei und der Termin nimmt die Stufe auf — vorher überschrieb der Pflicht-Ruhetag nach Stufe 1 den Laufclub. Stufen streicht das Budget nicht mehr; sie verbrauchen ihre Höchstdauer.
+- **Höchstens zwei Tage ohne Lauf am Stück**, solange es anders geht: `spreadRuns()` verschiebt nach dem Budget einen lockeren Lauf, der an einem anderen klebt, in die Mitte der längsten Lücke.
+
+**Der Plan-Prompt ist kurz** (seit 30.10.2026). Jans Prompt hatte rund 26.000 Zeichen und widersprach sich selbst: „kein Long Run" (Wiedereinstieg) neben 20 km (Leiter), „TSB frisch → Umfang erhöhen" neben der Pause, drei Zielzeiten. Das Modell wählt seit dem Katalog nur Baustein, Titel und Beschreibung — also bekommt es nur noch: Rennen mit Zielzeit (die unter Rennen eingetragene gilt, Entscheidung von Jan), Ziel gegen Form in einem Satz, Periodisierung, Tagesform/Garmin, Notizen der letzten acht Wochen (höchstens zehn, ohne Doppelte), Wiedereinstieg, das Gerüst und die Regeln. Gestrichen sind Tempotabelle, Laufliste, Umfang, Leiter, TSB, Rennergebnisse, Bewertungen, Distanzfokus und die alte Rennregel — das alles setzt der Code durch, und jede zweite Fassung im Prompt war eine Gelegenheit zum Widerspruch. Die Bausteine stehen je Tag nur mit Namen, die Beschreibung einmal in einer Legende. Der Backyard-Prompt ist unverändert. `PlanGenerationSmokeTest::test_the_plan_prompt_leaves_the_numbers_to_the_skeleton` hält es fest.
+
 ### One verdict on the goal, not two
 
 `TrainingPaceService` judged the goal from threshold pace ("Das Ziel passt zur heutigen Form"); `LongRunPlanService` judged it from the ladder ("Mit dieser Vorbereitung ist die Zielzeit unwahrscheinlich"). Both landed in the same prompt as fact, with no precedence, and the model picked one at random for the description.

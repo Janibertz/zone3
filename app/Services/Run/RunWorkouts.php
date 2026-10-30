@@ -365,6 +365,12 @@ class RunWorkouts
             return null;
         }
 
+        // Das Renntempo dieser Woche (PlanContextBuilder::rampRacePace()) —
+        // auf dem Weg von der Form zum Ziel, nicht ab Tag 1 das Ziel.
+        if (! empty($slot['race_pace']) && $paces !== null) {
+            $paces['target_pace'] = $slot['race_pace'];
+        }
+
         return $this->build($type, $variant, [
             'minutes'  => (int) ($session['duration_min'] ?? 0) ?: (int) ($slot['target_min'] ?? $slot['max_min'] ?? 0),
             'km'       => (float) ($session['distance_km'] ?? 0) ?: (float) ($slot['target_km'] ?? 0),

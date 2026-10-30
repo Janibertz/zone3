@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Activity;
 use App\Models\Event;
+use App\Models\TrainingSession;
 use Carbon\CarbonImmutable;
 
 /**
@@ -47,6 +48,8 @@ class WeeklyVolumeService
             ->orderBy('start_date')
             ->get(['id', 'start_date', 'distance', 'moving_time']);
 
+        $races = $this->raceActivityIds($userId, $runs);
+
         $weeks = [];
         for ($i = 0; $i < self::WEEKS; $i++) {
             $start = $from->addWeeks($i);
@@ -71,7 +74,15 @@ class WeeklyVolumeService
 
             $weeks[$key]['km']      = round($weeks[$key]['km'] + $km, 1);
             $weeks[$key]['runs']++;
-            $weeks[$key]['longest'] = round(max($weeks[$key]['longest'], $km), 1);
+
+            // Ein Rennen ist kein Trainingslauf. Der Berlin-Marathon stand
+            // hier als „längster Lauf: 42,5 km", und die Leiter der langen
+            // Läufe begann den neuen Halbmarathon-Plan deshalb sofort auf
+            // ihrer Spitze von 20 km — fünf Wochen nach dem letzten Lauf.
+            // In den Wochenumfang zählt das Rennen weiter: gelaufen ist es.
+            if (! isset($races[$run->id])) {
+                $weeks[$key]['longest'] = round(max($weeks[$key]['longest'], $km), 1);
+            }
         }
 
         // Die laufende Woche ist noch nicht vorbei — sie verzerrt jeden
@@ -115,6 +126,38 @@ class WeeklyVolumeService
             'longest_run'   => $longest,
             'next_week_max' => round(max($avg, $last) * (1 + self::MAX_PROGRESSION_PCT / 100), 1),
         ];
+    }
+
+    /**
+     * Welche dieser Läufe Rennen waren: zugeordnet zu einer Renn-Einheit,
+     * oder am Tag eines eingetragenen Rennens gelaufen.
+     *
+     * @return array<int, true>
+     */
+    private function raceActivityIds(int $userId, $runs): array
+    {
+        if ($runs->isEmpty()) {
+            return [];
+        }
+
+        $ids = TrainingSession::where('user_id', $userId)
+            ->where('type', 'race_prep')
+            ->whereIn('activity_id', $runs->pluck('id'))
+            ->pluck('activity_id')
+            ->all();
+
+        $raceDays = Event::where('user_id', $userId)
+            ->pluck('event_date')
+            ->map(fn ($d) => CarbonImmutable::parse($d)->toDateString())
+            ->flip();
+
+        foreach ($runs as $run) {
+            if (isset($raceDays[CarbonImmutable::parse($run->start_date)->toDateString()])) {
+                $ids[] = $run->id;
+            }
+        }
+
+        return array_fill_keys($ids, true);
     }
 
     /**

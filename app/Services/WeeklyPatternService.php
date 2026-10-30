@@ -637,6 +637,21 @@ class WeeklyPatternService
                     continue;
                 }
 
+                // Eine Stufe des Wiedereinstiegs wird nicht gestrichen: die
+                // Leiter zählt Einheiten, und eine gestrichene Stufe hätte
+                // die nächste ohne Vorlauf gelassen. Sie verbraucht ihre
+                // Höchstdauer. Vorher fielen Jans erste beiden Stufen dem
+                // 20-km-Lauf zum Opfer, und Mo bis Mi standen leer.
+                if (isset($slot['comeback']) && empty($slot['race'])) {
+                    $minutes = (int) ($slot['max_min'] ?: $days[$date]['budget_min']);
+                    $km      = $minutes * 60 / $paceSec;
+
+                    $days[$date]['slots'][$i]['target_km']  = round($km, 1);
+                    $days[$date]['slots'][$i]['target_min'] = $minutes;
+                    $takenKm += $km;
+                    continue;
+                }
+
                 // Der lange Lauf steht schon (Leiter) und geht ab.
                 if (isset($slot['target_km'])) {
                     $takenKm += (float) $slot['target_km'];
@@ -746,6 +761,94 @@ class WeeklyPatternService
 
             if ($days[$date]['slots'] === [] && $days[$date]['available'] && empty($days[$date]['finalized'])) {
                 $days[$date]['rest'] = true;
+            }
+        }
+
+        $this->spreadRuns($days, $dates);
+    }
+
+    /** Mehr Tage ohne Lauf am Stück lässt das Gerüst nicht stehen, solange es anders geht. */
+    private const MAX_DAYS_WITHOUT_RUN = 2;
+
+    /**
+     * Nach dem Streichen die übrigen Läufe über die Woche verteilen.
+     *
+     * Das Budget streicht nach Wichtigkeit, nicht nach Lage. Übrig blieb
+     * bei Jan ein lockerer Lauf am Mittwoch direkt nach dem Laufclub — und
+     * danach Do (gesperrt), Fr und Sa ohne Lauf, obwohl Fr und Sa je
+     * 120 Minuten frei waren. Ein lockerer Lauf, der an einem anderen Lauf
+     * klebt, wandert deshalb in die Mitte der längsten Lücke, wenn er dort
+     * hineinpasst. Umfang und Zahl der Läufe bleiben, nur der Tag ändert sich.
+     *
+     * @param  list<string>  $dates
+     */
+    private function spreadRuns(array &$days, array $dates): void
+    {
+        $hasRun = fn (string $d) => collect($days[$d]['slots'] ?? [])
+            ->contains(fn ($slot) => in_array($slot['type'], self::RUN_SLOT_TYPES, true) || ! empty($slot['race']));
+
+        // Die längste Lücke der Woche suchen.
+        $gap = [];
+        $run = [];
+        foreach ($dates as $d) {
+            if ($hasRun($d)) {
+                $run = [];
+                continue;
+            }
+            $run[] = $d;
+            if (count($run) > count($gap)) {
+                $gap = $run;
+            }
+        }
+
+        if (count($gap) <= self::MAX_DAYS_WITHOUT_RUN) {
+            return;
+        }
+
+        // Ziel: ein freier, verfügbarer Tag möglichst in der Mitte der Lücke.
+        $middle     = (count($gap) - 1) / 2;
+        $candidates = collect($gap)
+            ->filter(fn ($d) => $days[$d]['available'] && empty($days[$d]['finalized']) && empty($days[$d]['fixed']))
+            ->sortBy(fn ($d) => abs(array_search($d, $gap, true) - $middle))
+            ->values();
+
+        // Quelle: ein lockerer Lauf, der direkt neben einem anderen Lauf liegt.
+        foreach ($dates as $source) {
+            foreach ($days[$source]['slots'] ?? [] as $i => $slot) {
+                if ($slot['type'] !== 'easy_run' || ! empty($slot['fixed']) || isset($slot['comeback'])
+                    || ! empty($slot['double']) || ! empty($slot['bike'])) {
+                    continue;
+                }
+
+                $prev = CarbonImmutable::parse($source)->subDay()->format('Y-m-d');
+                $next = CarbonImmutable::parse($source)->addDay()->format('Y-m-d');
+                if (! (isset($days[$prev]) && $hasRun($prev)) && ! (isset($days[$next]) && $hasRun($next))) {
+                    continue;
+                }
+
+                $minutes = (int) ($slot['target_min'] ?? self::MIN_MINUTES_PER_TYPE['easy_run']);
+
+                foreach ($candidates as $target) {
+                    $budget = (int) $days[$target]['budget_min'];
+                    if ($budget > 0 && $budget < $minutes) {
+                        continue;
+                    }
+
+                    $slot['max_min'] = $budget;
+                    unset($days[$source]['slots'][$i]);
+                    $days[$source]['slots'] = array_values($days[$source]['slots']);
+
+                    // Was am Quelltag übrig bleibt (Kraft, Mobility), bleibt
+                    // dort; ohne Lauf wird er Ruhetag.
+                    if ($days[$source]['slots'] === []) {
+                        $days[$source]['rest'] = true;
+                    }
+
+                    unset($days[$target]['rest']);
+                    array_unshift($days[$target]['slots'], $slot);
+
+                    return;
+                }
             }
         }
     }
@@ -1293,6 +1396,17 @@ class WeeklyPatternService
 
             // In den ersten beiden Stufen liegt zwischen zwei Läufen ein
             // Ruhetag — das ist der Sinn eines vorsichtigen Wiedereinstiegs.
+            // Folgt morgen ein fester Termin, bleibt heute frei: der Termin
+            // nimmt die Stufe auf (entschärft), statt dass der Ruhetag nach
+            // dem ersten Lauf ihn überschreibt. So verschwand Jans Laufclub
+            // am Dienstag hinter einem Pflicht-Ruhetag.
+            $tomorrow = CarbonImmutable::parse($date)->addDay()->format('Y-m-d');
+            if ($step <= 2 && empty($days[$date]['fixed']) && ! empty($days[$tomorrow]['fixed'])
+                && in_array($tomorrow, $usable, true)) {
+                $days[$date]['rest'] = true;
+                continue;
+            }
+
             if ($lastRun !== null && $step <= 2
                 && CarbonImmutable::parse($lastRun)->diffInDays(CarbonImmutable::parse($date)) < 2) {
                 // Der Ruhetag zwischen den ersten beiden Comeback-Läufen
@@ -1640,10 +1754,13 @@ class WeeklyPatternService
             return '';
         }
 
-        $list = array_map(
-            fn ($v) => "\"{$v}\" (" . (\App\Services\Run\RunWorkouts::DESCRIPTIONS[$v] ?? $v) . ')',
-            $variants,
-        );
+        // Die Beschreibung steht einmal in der Legende unter dem Gerüst,
+        // nicht an jedem Tag — sie machte vorher die Hälfte des Prompts aus.
+        foreach ($variants as $v) {
+            $this->legend[$v] = \App\Services\Run\RunWorkouts::DESCRIPTIONS[$v] ?? $v;
+        }
+
+        $list = array_map(fn ($v) => "\"{$v}\"", $variants);
 
         return count($list) === 1
             ? " — workout={$list[0]}"
@@ -1654,8 +1771,13 @@ class WeeklyPatternService
      * Das Gerüst als Prompt-Abschnitt. Bewusst als Belegung formuliert und
      * nicht als Wunsch — die KI füllt aus, sie entscheidet nicht mehr.
      */
+    /** @var array<string,string> Bausteine, die der gerade gebaute Prompt-Abschnitt nennt */
+    private array $legend = [];
+
     public function toPromptSection(array $skeleton): string
     {
+        $this->legend = [];
+
         $model     = $skeleton['model'] ?? ['name' => 'polarized'];
         $norwegian = ($model['name'] ?? null) === 'norwegian';
 
@@ -1881,8 +2003,15 @@ class WeeklyPatternService
                 . "Halte dich daran und ergänze KEINE weitere Einheit, um die Regel zu erfüllen — sie ist damit erfüllt.";
         }
 
+        $legend = $this->legend === [] ? '' : "\n\nBausteine:\n" . implode("\n", array_map(
+            fn ($k, $v) => "- {$k}: {$v}",
+            array_keys($this->legend),
+            $this->legend,
+        ));
+
         return "\n\n**VERBINDLICHES WOCHENGERÜST (vom System festgelegt, NICHT ändern):**\n"
             . implode("\n", $lines)
+            . $legend
             . "\n\nWochenübersicht:\n" . implode("\n", $planned)
             . $comeback
             . "\n\nRegeln zum Gerüst:\n"
