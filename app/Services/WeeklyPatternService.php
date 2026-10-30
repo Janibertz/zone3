@@ -1754,10 +1754,13 @@ class WeeklyPatternService
             return '';
         }
 
-        $list = array_map(
-            fn ($v) => "\"{$v}\" (" . (\App\Services\Run\RunWorkouts::DESCRIPTIONS[$v] ?? $v) . ')',
-            $variants,
-        );
+        // Die Beschreibung steht einmal in der Legende unter dem Gerüst,
+        // nicht an jedem Tag — sie machte vorher die Hälfte des Prompts aus.
+        foreach ($variants as $v) {
+            $this->legend[$v] = \App\Services\Run\RunWorkouts::DESCRIPTIONS[$v] ?? $v;
+        }
+
+        $list = array_map(fn ($v) => "\"{$v}\"", $variants);
 
         return count($list) === 1
             ? " — workout={$list[0]}"
@@ -1768,8 +1771,13 @@ class WeeklyPatternService
      * Das Gerüst als Prompt-Abschnitt. Bewusst als Belegung formuliert und
      * nicht als Wunsch — die KI füllt aus, sie entscheidet nicht mehr.
      */
+    /** @var array<string,string> Bausteine, die der gerade gebaute Prompt-Abschnitt nennt */
+    private array $legend = [];
+
     public function toPromptSection(array $skeleton): string
     {
+        $this->legend = [];
+
         $model     = $skeleton['model'] ?? ['name' => 'polarized'];
         $norwegian = ($model['name'] ?? null) === 'norwegian';
 
@@ -1995,8 +2003,15 @@ class WeeklyPatternService
                 . "Halte dich daran und ergänze KEINE weitere Einheit, um die Regel zu erfüllen — sie ist damit erfüllt.";
         }
 
+        $legend = $this->legend === [] ? '' : "\n\nBausteine:\n" . implode("\n", array_map(
+            fn ($k, $v) => "- {$k}: {$v}",
+            array_keys($this->legend),
+            $this->legend,
+        ));
+
         return "\n\n**VERBINDLICHES WOCHENGERÜST (vom System festgelegt, NICHT ändern):**\n"
             . implode("\n", $lines)
+            . $legend
             . "\n\nWochenübersicht:\n" . implode("\n", $planned)
             . $comeback
             . "\n\nRegeln zum Gerüst:\n"
