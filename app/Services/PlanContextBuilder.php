@@ -8,6 +8,7 @@ use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Log;
 use App\Services\PaceFormat;
 use App\Services\Run\RunWorkouts;
 
@@ -32,6 +33,7 @@ class PlanContextBuilder
         private readonly WeeklyVolumeService $volume,
         private readonly LongRunPlanService $longRuns,
         private readonly IntensityDistributionService $intensity,
+        private readonly FatigueCheck $fatigue,
     ) {}
 
     /**
@@ -82,6 +84,21 @@ class PlanContextBuilder
         // beschreibt dieselbe Stufe. Vorher hatte jede Seite ihre eigene
         // Erkennung — und beide widersprachen sich im selben Prompt.
         $comeback = $this->returnToRun->forPlan($user, $wellbeing, $finalized);
+
+        // Ein Wiedereinstieg gehört in einen laufenden Plan, den Krankheit
+        // oder Verletzung unterbrochen hat (Entscheidung von Jan, 30.10.2026).
+        // Jans Plan startete am 30.11.; das Gerüst sah am 30.10. „verletzt am
+        // 26.10." und schrieb Stufe 1 bis 4 in die erste Dezemberwoche. Eine
+        // Pause vor dem Start oder ohne Krankheit fängt die Grundlage mit
+        // ihrem niedrigen Umfang ab, nicht die Leiter.
+        if ($comeback && ($windowFrom->gt($today) || $comeback['trigger'] === 'break')) {
+            $comeback = null;
+        }
+
+        // Sieht die letzte Woche nach Ermüdung aus, wird die kommende zur
+        // Entlastung — vor der Leiter und dem Gerüst, die beide über
+        // PeriodizationService::forWeek() daran hängen.
+        $this->pullRecoveryForward($user, $event, $windowFrom, $today);
 
         $availability = $user->runnerProfile?->weekly_availability;
         $vdot         = $user->runnerProfile?->vdotInfo();
@@ -162,6 +179,11 @@ class PlanContextBuilder
             // Rad/Zwift: welche lockeren Läufe und welches Intervall
             // aufs Rad wandern, entscheidet das Gerüst — nicht der Prompt.
             \App\Services\Bike\BikeSchedule::settingsFor($user->runnerProfile),
+            // Kraft so oft, wie der Athlet sie eingestellt hat.
+            [
+                'enabled'       => (bool) $user->runnerProfile?->strength_enabled,
+                'days_per_week' => $user->runnerProfile?->strength_days_per_week ?? 2,
+            ],
         );
 
         // Die Paces reisen mit dem Gerüst in den Validator: dort entsteht der
@@ -279,6 +301,49 @@ class PlanContextBuilder
                 'minutes' => (int) round($rows->sum('moving_time') / 60),
             ])
             ->toArray();
+    }
+
+    /**
+     * Die nächste Woche zur Entlastung machen, wenn FatigueCheck es verlangt
+     * (Entscheidung von Jan, 30.10.2026). Nur in einem laufenden Plan, nicht
+     * in Taper, Rennwoche oder der Woche des längsten Laufs, nicht wenn die
+     * Woche ohnehin Entlastung ist, und höchstens einmal in vier Wochen.
+     * Gespeichert, damit eine Neuberechnung mitten in der Woche sie nicht
+     * wieder zurücknimmt, sobald die Werte sich erholen.
+     */
+    private function pullRecoveryForward(User $user, Event $event, CarbonImmutable $windowFrom, CarbonImmutable $today): void
+    {
+        if ($windowFrom->gt($today->addDays(7))) {
+            return;
+        }
+
+        $week = $windowFrom->isMonday() ? $windowFrom : $windowFrom->next(CarbonImmutable::MONDAY);
+
+        $last = $event->early_recovery_week
+            ? CarbonImmutable::parse($event->early_recovery_week->toDateString())
+            : null;
+        if ($last && $last->gt($week->subWeeks(PeriodizationService::RECOVERY_EVERY))) {
+            return;
+        }
+
+        $periods = app(PeriodizationService::class);
+        $period  = $periods->forWeek($event, $week);
+        $peak    = PeriodizationService::peakWeek(
+            CarbonImmutable::parse($event->event_date->toDateString()),
+            LongRunPlanService::taperDays($event->race_distance),
+        );
+
+        if ($period['recovery'] || ! in_array($period['phase'], ['base', 'build', 'peak'], true) || $week->eq($peak)) {
+            return;
+        }
+
+        $signals = $this->fatigue->signals($user, $today);
+        if (count($signals) < FatigueCheck::SIGNALS_NEEDED) {
+            return;
+        }
+
+        $event->update(['early_recovery_week' => $week->toDateString()]);
+        Log::info('Entlastung vorgezogen', ['event_id' => $event->id, 'week' => $week->toDateString(), 'signals' => $signals]);
     }
 
     private function wellbeing(User $user): array

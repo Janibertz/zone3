@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Event;
+use App\Models\TrainingSession;
 use Carbon\CarbonImmutable;
 
 /**
@@ -43,6 +44,15 @@ class PeriodizationService
 
     /** 3:1 — drei Wochen Belastung, eine Woche Entlastung. */
     public const RECOVERY_EVERY = 4;
+
+    /**
+     * Vor der ersten Entlastung stehen mindestens drei Belastungswochen ab
+     * Planstart (Entscheidung von Jan, 30.10.2026). Der 3:1-Rhythmus hängt am
+     * Renntag und weiß nichts vom Planstart — bei Jans Plan (Start 30.11.)
+     * fiel die erste Entlastung zufällig in Woche 2. Eine solche Woche fällt
+     * aus; der Rhythmus danach bleibt, wie er ist.
+     */
+    public const LOAD_WEEKS_BEFORE_FIRST_RECOVERY = 3;
 
     /** Eine Entlastungswoche hat rund ein Viertel weniger Umfang. */
     public const RECOVERY_FACTOR = 0.75;
@@ -196,7 +206,17 @@ class PeriodizationService
             // Vom längsten Lauf aus rückwärts: 0 = Peak-Woche (Belastung),
             // 1 und 2 Belastung, 3 Entlastung, dann wieder von vorn.
             $fromPeak = (int) round($week->diffInDays($peakWeek) / 7);
-            $recovery = $fromPeak % self::RECOVERY_EVERY === self::RECOVERY_EVERY - 1;
+            //
+            // Eine vorgezogene Entlastung (FatigueCheck) gilt in ihrer Woche;
+            // die nächste aus dem Rhythmus fällt aus, wenn sie weniger als
+            // drei Belastungswochen danach käme.
+            $early    = $event->early_recovery_week
+                ? CarbonImmutable::parse($event->early_recovery_week->toDateString())->startOfWeek()
+                : null;
+            $recovery = $fromPeak % self::RECOVERY_EVERY === self::RECOVERY_EVERY - 1
+                && $week->gte($this->planBegan($event)->startOfWeek()->addWeeks(self::LOAD_WEEKS_BEFORE_FIRST_RECOVERY))
+                && ! ($early && $week->gt($early) && $week->lte($early->addWeeks(self::LOAD_WEEKS_BEFORE_FIRST_RECOVERY)));
+            $recovery = $recovery || ($early && $week->eq($early));
             $factor   = $recovery ? self::RECOVERY_FACTOR : 1.0;
         }
 
@@ -215,6 +235,27 @@ class PeriodizationService
     }
 
     /** Die Woche mit dem längsten Lauf — die einzige Definition dafür. */
+    /**
+     * Der erste Tag des Plans: das Startdatum aus dem Interview, sonst die
+     * früheste Einheit des Rennens, sonst heute. Nicht
+     * {@see Event::planStartsOn()} — das rückt bei einem laufenden Plan jeden
+     * Tag auf heute vor, und die erste Entlastung käme nie.
+     */
+    private function planBegan(Event $event): CarbonImmutable
+    {
+        if (! $event->exists) {
+            return CarbonImmutable::today();
+        }
+
+        if ($event->plan_start_date) {
+            return CarbonImmutable::parse($event->plan_start_date->toDateString());
+        }
+
+        $first = TrainingSession::where('event_id', $event->id)->min('planned_date');
+
+        return $first ? CarbonImmutable::parse($first)->startOfDay() : CarbonImmutable::today();
+    }
+
     public static function peakWeek(CarbonImmutable $raceDate, int $taperDays): CarbonImmutable
     {
         return $raceDate->startOfDay()->subDays($taperDays)->startOfWeek();

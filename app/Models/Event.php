@@ -62,6 +62,7 @@ class Event extends Model
         'name',
         'event_date',
         'plan_start_date',
+        'early_recovery_week',
         'race_distance',
         'distance_km',
         'goal_check_week',
@@ -79,6 +80,7 @@ class Event extends Model
     protected $casts = [
         'event_date'          => 'date',
         'plan_start_date'     => 'date',
+        'early_recovery_week' => 'date',
         'distance_km'         => 'float',
         'goal_confirmed_at'   => 'datetime',
         'target_time_hours'   => 'integer',
