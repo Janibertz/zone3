@@ -993,7 +993,7 @@ const lapHeightPct = computed(() => {
                     class="flex flex-wrap items-start gap-3 rounded-card bg-warn-soft p-4 shadow-card">
                     <span class="mt-0.5 shrink-0 text-xl leading-none">🔗</span>
                     <div class="min-w-0 flex-1">
-                        <p class="text-sm font-semibold text-warn-ink">Neue Strava-Aktivität importiert</p>
+                        <p class="text-sm font-semibold text-warn-ink">Neue Aktivität importiert</p>
                         <p class="mt-0.5 text-[13px] text-ink-2">
                             {{ coachName }} sollte den verbleibenden Plan neu berechnen.
                         </p>
@@ -1183,7 +1183,7 @@ const lapHeightPct = computed(() => {
                                                 <p v-if="session.status === 'skipped'" class="text-[13px] text-ink-3">
                                                     Ausgelassen<template v-if="session.skip_reason"> · {{ session.skip_reason }}</template>
                                                 </p>
-                                                <p v-else-if="session.was_unplanned" class="text-[13px] text-warn-ink">Nicht im Plan · aus Strava</p>
+                                                <p v-else-if="session.was_unplanned" class="text-[13px] text-warn-ink">Nicht im Plan<template v-if="session.activity_source"> · aus {{ session.activity_source }}</template></p>
                                                 <p v-else-if="plannedDiffers(session)" class="truncate text-[13px] text-ink-3">Geplant: {{ plannedSummary(session) }}</p>
                                             </div>
 
@@ -1341,7 +1341,7 @@ const lapHeightPct = computed(() => {
                                     <svg class="h-3.5 w-3.5 shrink-0 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                                     </svg>
-                                    <span class="truncate">{{ resultSource.time }} aus Strava übernommen — „{{ resultSource.activity }}“</span>
+                                    <span class="truncate">{{ resultSource.time }} aus {{ resultSource.source }} übernommen — „{{ resultSource.activity }}“</span>
                                 </p>
 
                                 <Transition enter-active-class="transition duration-300 ease-out-strong" enter-from-class="opacity-0 scale-95">
@@ -1380,7 +1380,7 @@ const lapHeightPct = computed(() => {
                             <!-- Renn-Analyse -->
                             <AppCard v-if="isPastEvent && plan && (raceAnalysisLoading || raceAnalysis)"
                                 :title="`Analyse von ${coachName}`"
-                                :subtitle="raceAnalysis?.found ? `Strava-Lauf · ${raceAnalysis.actual_time}` : null">
+                                :subtitle="raceAnalysis?.found ? `${raceAnalysis.source}-Lauf · ${raceAnalysis.actual_time}` : null">
 
                                 <div v-if="raceAnalysisLoading" class="flex items-center gap-2 py-3 text-[13px] text-ink-3">
                                     <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -1394,7 +1394,7 @@ const lapHeightPct = computed(() => {
                                     {{ raceAnalysis.analysis_text }}
                                 </p>
                                 <p v-else class="text-[13px] text-ink-3">
-                                    Kein Renn-Lauf von Strava gefunden. Sobald die Aktivität da ist, erstellt
+                                    Kein Renn-Lauf gefunden. Sobald die Aktivität da ist, erstellt
                                     {{ coachName }} hier die Auswertung.
                                 </p>
                             </AppCard>

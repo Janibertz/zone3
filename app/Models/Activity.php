@@ -18,6 +18,12 @@ class Activity extends Model
         self::SOURCE_GARMIN => 'garmin_activity_id',
     ];
 
+    /** Wie die Quelle in der Oberfläche heißt. */
+    public const SOURCE_LABELS = [
+        self::SOURCE_STRAVA => 'Strava',
+        self::SOURCE_GARMIN => 'Garmin',
+    ];
+
     /**
      * Sportfamilien für den Duplikat-Abgleich: ein Laufband-Lauf bei Garmin
      * und ein „Run“ bei Strava sind dieselbe Einheit, ein Lauf und eine
@@ -104,5 +110,14 @@ class Activity extends Model
     public function bestEfforts()
     {
         return $this->hasMany(BestEffort::class);
+    }
+
+    /**
+     * Woher die Zeile kam, als Name für die Oberfläche. Die Planseite schrieb
+     * bis zum 30.10.2026 fest „aus Strava“ — auch unter Garmin-Läufen.
+     */
+    public function sourceLabel(): string
+    {
+        return self::SOURCE_LABELS[$this->source] ?? self::SOURCE_LABELS[self::SOURCE_STRAVA];
     }
 }
