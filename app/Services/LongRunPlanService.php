@@ -69,6 +69,23 @@ class LongRunPlanService
      */
     private const CUTBACK_FACTOR = 0.7;
 
+    /**
+     * Höchstens dieser Anteil des Wochenumfangs ist langer Lauf.
+     *
+     * Die Leiter kannte bisher nur den längsten Lauf, nicht die Woche. Jan
+     * stand nach einer OP-Pause bei 36 km Wochendeckel und bekam einen
+     * 20-km-Lauf: 56 % der Woche. `budgetWeek()` strich danach alles andere
+     * bis auf einen lockeren Lauf, und die freien Tage wurden Ruhetage.
+     */
+    public const MAX_SHARE_OF_WEEK = 0.30;
+
+    /**
+     * Welcher Anteil des langen Laufs je Phase im Renntempo laufen darf.
+     * In der Grundlage keiner — dort gibt es auch sonst keine Rennschärfe,
+     * und vorher stand der Abschnitt schon in Woche 1 (6 km in 4:01).
+     */
+    private const RACE_PACE_SHARE = ['base' => 0.0, 'build' => 0.15, 'peak' => 0.30];
+
     public function __construct(private readonly PeriodizationService $periods) {}
 
     /**
@@ -111,12 +128,28 @@ class LongRunPlanService
         // nicht bei null an, sondern bei einer Stunde auf den Beinen.
         $current = max($volume['longest_run'] ?? 0, round(60 * 60 / $longSec, 1));
 
-        $recovery = array_map(
-            fn (string $key) => $this->periods->forWeek($event, self::weekStart($key))['recovery'],
+        $periods = array_map(
+            fn (string $key) => $this->periods->forWeek($event, self::weekStart($key)),
             $weeks['build'],
         );
+        $recovery = array_column($periods, 'recovery');
 
-        [$ladder, $kinds, $peak] = $this->climb($current, $idealPeak, $recovery);
+        // Der Wochenumfang deckelt den langen Lauf. Der Deckel wächst mit
+        // derselben Rate wie im Gerüst (WeeklyPatternService::applyVolumeBudget),
+        // gerechnet ab der ersten Woche der Leiter. Unter einer Stunde auf
+        // den Beinen geht er nie — sonst wäre der lange Lauf keiner.
+        $ceilings = $this->volumeCeilings($volume, count($weeks['build']), round(60 * 60 / $longSec, 1));
+        if ($ceilings !== null) {
+            $current = min($current, $ceilings[0]);
+        }
+
+        [$ladder, $kinds, $peak] = $this->climb($current, $idealPeak, $recovery, $ceilings);
+
+        // Eine Entlastung unter eine Stunde ist kein langer Lauf mehr — wer
+        // noch auf dem Boden der Leiter steht, entlastet über den Umfang.
+        if ($ceilings !== null) {
+            $ladder = array_map(fn ($km) => max($km, $ceilings[0] > 0 ? min($ceilings[0], round(60 * 60 / $longSec, 1)) : $km), $ladder);
+        }
 
         $plan = [];
         foreach ($weeks['build'] as $i => $key) {
@@ -125,7 +158,7 @@ class LongRunPlanService
                 'km'    => $km,
                 'min'   => (int) round($km * $longSec / 60),
                 'kind'  => $kinds[$i],
-                'mp_km' => $spec['race_pace'] ? $this->racePaceKm($km, $peak) : 0.0,
+                'mp_km' => $spec['race_pace'] ? $this->racePaceKm($km, $peak, $periods[$i]['phase'] ?? 'peak') : 0.0,
             ];
         }
 
@@ -159,7 +192,7 @@ class LongRunPlanService
      *
      * @return array{0: list<float>, 1: list<string>, 2: float}
      */
-    private function climb(float $current, float $idealPeak, array $recovery): array
+    private function climb(float $current, float $idealPeak, array $recovery, ?array $ceilings = null): array
     {
         $ladder = [];
         $kinds  = [];
@@ -169,18 +202,19 @@ class LongRunPlanService
         for ($i = 0; $i < $steps; $i++) {
             $isPeak    = $i === $steps - 1;
             $isCutback = ! $isPeak && $recovery[$i];
+            $top       = min($idealPeak, $ceilings[$i] ?? $idealPeak);
 
             if ($isCutback) {
                 // Die Entlastung bricht die Leiter nicht ab: der nächste
                 // Aufbauschritt geht vom letzten Aufbauwert weiter, nicht
                 // vom reduzierten.
-                $ladder[] = round(min($last, $idealPeak) * self::CUTBACK_FACTOR, 1);
+                $ladder[] = round(min($last, $top) * self::CUTBACK_FACTOR, 1);
                 $kinds[]  = 'cutback';
                 continue;
             }
 
             $step     = max(self::STEP_MIN_KM, $last * self::STEP_PCT);
-            $last     = round(min($idealPeak, $last + $step), 1);
+            $last     = round(min($top, $last + $step), 1);
             $ladder[] = $last;
             $kinds[]  = $isPeak ? 'peak' : 'build';
         }
@@ -198,14 +232,41 @@ class LongRunPlanService
         return [$ladder, $kinds, $last];
     }
 
-    /** Ab welcher Höhe der lange Lauf Abschnitte im Renntempo trägt. */
-    private function racePaceKm(float $km, float $peak): float
+    /**
+     * Ab welcher Höhe der lange Lauf Abschnitte im Renntempo trägt — und
+     * wie viel davon die Phase zulässt.
+     */
+    private function racePaceKm(float $km, float $peak, string $phase = 'peak'): float
     {
-        if ($peak <= 0 || $km < $peak * 0.6) {
+        $share = self::RACE_PACE_SHARE[$phase] ?? self::RACE_PACE_SHARE['peak'];
+
+        if ($peak <= 0 || $share <= 0 || $km < $peak * 0.6) {
             return 0.0;
         }
 
-        return $this->clampRacePace($km * 0.3, 12.0);
+        return $this->clampRacePace($km * $share, 12.0);
+    }
+
+    /**
+     * Der höchste lange Lauf je Aufbauwoche, den der Wochenumfang trägt.
+     * Ohne Umfangsdaten gibt es keinen Deckel — dann gilt die Leiter allein.
+     *
+     * @return list<float>|null
+     */
+    private function volumeCeilings(array $volume, int $weeks, float $floorKm): ?array
+    {
+        $base = (float) ($volume['next_week_max'] ?? 0);
+        if ($base <= 0) {
+            return null;
+        }
+
+        $ceilings = [];
+        for ($i = 0; $i < $weeks; $i++) {
+            $week       = $base * (1 + WeeklyVolumeService::MAX_PROGRESSION_PCT / 100) ** $i;
+            $ceilings[] = round(max($floorKm, $week * self::MAX_SHARE_OF_WEEK), 1);
+        }
+
+        return $ceilings;
     }
 
     /** Ein Renntempo-Abschnitt unter drei Kilometern lohnt die Mühe nicht. */
