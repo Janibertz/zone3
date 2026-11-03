@@ -18,6 +18,11 @@ const props = defineProps({
     maxWidth:  { type: String,  default: 'md' },
     /** Mobile sheet takes the full height instead of hugging its content. */
     tall:      { type: Boolean, default: false },
+    /**
+     * Am Desktop ein mittiger Dialog statt einer Seitenleiste — für
+     * Rückfragen und kurze Formulare (Befund N5). Details bleiben rechts.
+     */
+    dialog:    { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['close']);
@@ -169,10 +174,10 @@ onUnmounted(() => {
 
         <!-- Panel: slides up on mobile, in from the right on desktop -->
         <Transition
-            enter-active-class="transition-transform duration-300 ease-sheet"
-            enter-from-class="translate-y-full lg:translate-y-0 lg:translate-x-full"
-            leave-active-class="transition-transform duration-200 ease-out-strong"
-            leave-to-class="translate-y-full lg:translate-y-0 lg:translate-x-full"
+            enter-active-class="transition duration-300 ease-sheet"
+            :enter-from-class="dialog ? 'translate-y-full lg:translate-y-0 lg:scale-95 lg:opacity-0' : 'translate-y-full lg:translate-y-0 lg:translate-x-full'"
+            leave-active-class="transition duration-200 ease-out-strong"
+            :leave-to-class="dialog ? 'translate-y-full lg:translate-y-0 lg:scale-95 lg:opacity-0' : 'translate-y-full lg:translate-y-0 lg:translate-x-full'"
         >
             <div
                 v-if="show"
@@ -183,9 +188,14 @@ onUnmounted(() => {
                 :aria-label="title ?? undefined"
                 :style="panelStyle"
                 class="fixed z-50 flex flex-col bg-surface text-ink shadow-sheet outline-none
-                       inset-x-0 bottom-0 rounded-t-sheet
-                       lg:inset-y-0 lg:left-auto lg:right-0 lg:w-full lg:rounded-none lg:rounded-l-sheet"
-                :class="[widthClass, tall ? 'top-[env(safe-area-inset-top)]' : 'max-h-[90dvh]']"
+                       inset-x-0 bottom-0 rounded-t-sheet lg:w-full"
+                :class="[
+                    widthClass,
+                    dialog
+                        ? 'lg:inset-0 lg:m-auto lg:h-fit lg:max-h-[85vh] lg:rounded-sheet'
+                        : 'lg:inset-y-0 lg:left-auto lg:right-0 lg:max-h-none lg:rounded-none lg:rounded-l-sheet',
+                    tall ? 'top-[env(safe-area-inset-top)]' : 'max-h-[90dvh]',
+                ]"
             >
                 <!-- Grabber + header double as the drag surface -->
                 <div

@@ -21,7 +21,7 @@ defineEmits(['confirm', 'close']);
 </script>
 
 <template>
-    <AppSheet :show="show" :title="title" :closeable="!loading" @close="$emit('close')">
+    <AppSheet dialog :show="show" :title="title" :closeable="!loading" @close="$emit('close')">
         <p v-if="message" class="text-sm leading-relaxed text-ink-2">{{ message }}</p>
         <slot />
 

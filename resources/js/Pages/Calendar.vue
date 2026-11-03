@@ -274,7 +274,8 @@ const LEGEND = [
                                 :class="[c.dotState === 'skipped' ? 'bg-ink-3/40' : c.dot, c.dotState === 'open' ? 'opacity-40' : '']" />
                             <!-- Ab sm Platz für den Titel; am Desktop zieht man ihn direkt von hier. -->
                             <span v-if="c.inMonth && (c.event || c.main)"
-                                class="hidden w-full truncate px-1 text-[12px] font-medium sm:block"
+                                :title="c.event ? c.event.name : c.main.title"
+                                class="hidden w-full px-1 text-[12px] font-medium leading-tight [overflow-wrap:anywhere] sm:line-clamp-2"
                                 :class="[
                                     c.event ? sessionType('race_prep').text : sessionType(c.main.type).text,
                                     c.main && canChange(c.main) ? 'cursor-grab' : '',

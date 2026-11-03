@@ -317,8 +317,9 @@ const ratings = [
         </main>
 
         <!-- Weiter unten fest -->
-        <div class="fixed inset-x-0 bottom-0 z-10 bg-canvas/90 px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-3 backdrop-blur-xl">
-            <div class="mx-auto max-w-xl space-y-1">
+        <!-- Innen dieselbe Breite und derselbe Rand wie die Spalte, sonst fluchtet der Knopf nicht (Befund N19). -->
+        <div class="fixed inset-x-0 bottom-0 z-10 bg-canvas/90 pb-[max(env(safe-area-inset-bottom),16px)] pt-3 backdrop-blur-xl">
+            <div class="mx-auto max-w-xl space-y-1 px-4">
                 <AppButton size="lg" block :loading="busy" :disabled="busy" @click="next">
                     {{ isLast ? (event ? 'Fertig, zum Plan' : 'Fertig') : 'Weiter' }}
                 </AppButton>

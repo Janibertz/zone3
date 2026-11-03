@@ -110,10 +110,17 @@ const isCurrent = (item) => route().current(item.routeName) || (item.also ?? [])
 
 /** Was über „Mehr" erreicht wird, lässt den Tab aktiv — wie in iOS. */
 const MORE_ROUTES = ['more', 'profile.edit', 'workouts.*', 'statistics.index', 'live.*', 'wrapped.index', 'support.*', 'admin.*'];
-const helpIcon = `<path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />`;
 
 const moreActive = computed(() =>
     MORE_ROUTES.some(r => route().current(r)) || route().current('events.index'));
+
+const moreIcon = `<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />`;
+
+/** Die Seitenleiste am Desktop: genau die Tabs, in derselben Reihenfolge. */
+const sideNavItems = computed(() => [
+    ...mobileNavItems.value.map(i => ({ ...i, active: isCurrent(i) })),
+    { label: 'Mehr', routeName: 'more', icon: moreIcon, active: moreActive.value },
+]);
 </script>
 
 <template>
@@ -248,44 +255,24 @@ const moreActive = computed(() =>
 
             <!-- Navigation -->
             <nav class="flex-1 space-y-0.5 overflow-y-auto px-3 pb-5 pt-2">
+                <!--
+                    Dieselben fünf Ziele wie die Tab-Leiste (Befund N4, Jan 03.11.2026).
+                    Vorher war die Seitenleiste eine andere App: „Profil“ statt
+                    „Mehr“, kein „Plan“, die Mehr-Seite nur über die Adresse.
+                -->
                 <Link
-                    v-for="item in navItems"
+                    v-for="item in sideNavItems"
                     :key="item.routeName"
                     :href="route(item.routeName)"
+                    :aria-current="item.active ? 'page' : undefined"
                     class="flex items-center gap-3 rounded-[10px] px-3 py-2 text-[15px] transition duration-150 ease-out-strong"
-                    :class="route().current(item.routeName)
+                    :class="item.active
                         ? 'bg-accent font-semibold text-white'
                         : 'text-ink hover:bg-surface-2'"
                 >
-                    <svg class="h-5 w-5 shrink-0" :class="route().current(item.routeName) ? '' : 'text-accent'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
+                    <svg class="h-5 w-5 shrink-0" :class="item.active ? '' : 'text-accent'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
                     {{ item.label }}
                 </Link>
-
-                <!-- Active plan link -->
-                <div v-if="activePlan" class="pt-5">
-                    <p class="mb-1 px-3 text-[13px] font-semibold text-ink-3">Aktiver Plan</p>
-                    <Link
-                        :href="route('events.plan.show', activePlan.event_id)"
-                        class="flex items-center gap-3 rounded-[10px] px-3 py-2 text-[15px] transition duration-150 ease-out-strong"
-                        :class="route().current('events.plan.show')
-                            ? 'bg-accent font-semibold text-white'
-                            : 'text-ink hover:bg-surface-2'"
-                    >
-                        <svg class="h-5 w-5 shrink-0" :class="route().current('events.plan.show') ? '' : 'text-accent'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="planTabIcon" />
-                        <span class="truncate">{{ activePlan.event_name }}</span>
-                    </Link>
-                </div>
-
-                <div class="pt-5">
-                    <p class="mb-1 px-3 text-[13px] font-semibold text-ink-3">Hilfe</p>
-                    <Link
-                        :href="route('support.tickets.index')"
-                        class="flex items-center gap-3 rounded-[10px] px-3 py-2 text-[15px] text-ink transition duration-150 ease-out-strong hover:bg-surface-2"
-                    >
-                        <svg class="h-5 w-5 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="helpIcon" />
-                        Hilfe &amp; Feedback
-                    </Link>
-                </div>
 
                 <!-- Admin link -->
                 <div v-if="isAdmin" class="pt-5">
