@@ -23,6 +23,8 @@ const props = defineProps({
     vdot:                  Object,
     // Eine Fahrt der letzten sechs Wochen lag über der FTP.
     ftpSuggestion:         Object,
+    // Die Schwelle aus dem VDOT, mit Herkunft (Befund N10).
+    thresholdDisplay:      Object,
     stravaConnected:       Boolean,
     stravaAccount:         Object,
     notificationSettings:  Object,
@@ -366,12 +368,28 @@ const athleteForm = useForm({
     threshold_speed:      props.runnerProfile?.threshold_speed ? formatPace(props.runnerProfile.threshold_speed) : '',
 });
 
-const submitAthlete = () => { athleteForm.post(route('runner.profile.store'), { preserveScroll: true }); };
+const submitAthlete = () => new Promise((resolve) => {
+    athleteForm.post(route('runner.profile.store'), {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => athleteForm.defaults(),
+        onFinish: resolve,
+    });
+});
 // Der Accessor liefert die Zonen als Objekt (z1 … z5), nicht als Liste —
 // `.length` war darum undefined, und das Profil zeigte trotz VDOT „Speichere
 // dein Profil um deine Laufzonen zu berechnen" (gefunden 29.10.2026).
 const paceZones   = computed(() => Object.values(props.runnerProfile?.pace_zones ?? {}));
 const athleteSaved = computed(() => props.status === 'athlete-saved');
+// Hebt eine Bestzeit oder Garmins VO2max den VDOT, rechnen Zonen und Tempi
+// mit einer schnelleren Schwelle als der eingetragenen. Das muss hier stehen,
+// sonst sieht der Athlet zwei Schwellen und weiß nicht, welche gilt.
+const thresholdFooter = computed(() => {
+    const t = props.thresholdDisplay;
+    const base = 'Schwellenpace: das Tempo, das du etwa 60 Minuten halten kannst.';
+    if (!t || t.source === 'threshold') return base;
+    return `Für Zonen und Tempi gilt ${t.pace} /km, ${t.label.replace(/\.$/, '')}. ${base}`;
+});
 
 // ── Persönliche Rekorde ─────────────────────────────────────────────────────
 const hasAnyPr = computed(() => (props.personalRecords ?? []).some(d => d.entries.length > 0));
@@ -635,6 +653,49 @@ async function saveStrength() {
         setTimeout(() => { strengthSaved.value = false; }, 2500);
     } finally {
         strengthSaving.value = false;
+    }
+}
+
+// ── Ein Knopf für das ganze Athletenprofil ───────────────────────────────────
+// Vorher stand unter jedem Abschnitt ein eigenes „Sichern" — vier Knöpfe auf
+// einer Seite, und wer oben etwas änderte und unten sicherte, verlor es
+// (Usability-Befund N8). Jetzt sichert ein Knopf, was sich geändert hat;
+// die Endpunkte bleiben dieselben wie im Onboarding.
+const snap = (v) => JSON.stringify(v);
+const athleteBase = ref({
+    model:        snap(modelForm.value),
+    availability: snap(availability.value),
+    strength:     snap(strength.value),
+});
+const athleteDirty = computed(() => athleteForm.isDirty
+    || snap(modelForm.value) !== athleteBase.value.model
+    || snap(availability.value) !== athleteBase.value.availability
+    || snap(strength.value) !== athleteBase.value.strength);
+const athleteTabSaving = ref(false);
+const athleteTabSaved  = ref(false);
+
+async function saveAthleteTab() {
+    athleteTabSaving.value = true;
+    athleteTabSaved.value  = false;
+    try {
+        if (snap(modelForm.value) !== athleteBase.value.model) {
+            await saveModel();
+            if (!modelError.value) athleteBase.value.model = snap(modelForm.value);
+        }
+        if (snap(availability.value) !== athleteBase.value.availability) {
+            await saveAvailability();
+            if (!availError.value) athleteBase.value.availability = snap(availability.value);
+        }
+        if (snap(strength.value) !== athleteBase.value.strength) {
+            await saveStrength();
+            athleteBase.value.strength = snap(strength.value);
+        }
+        // Zuletzt: Puls und Schwelle gehen über Inertia und laden die Zonen neu.
+        if (athleteForm.isDirty) await submitAthlete();
+        athleteTabSaved.value = !modelError.value && !availError.value && !Object.keys(athleteForm.errors).length;
+        if (athleteTabSaved.value) setTimeout(() => { athleteTabSaved.value = false; }, 2500);
+    } finally {
+        athleteTabSaving.value = false;
     }
 }
 
@@ -927,24 +988,22 @@ const inputClass = 'z-input';
 
                     <!-- ── ATHLETENPROFIL ── -->
                     <template v-else-if="activeTab === 'athlete'">
-                        <form class="space-y-3" @submit.prevent="submitAthlete">
-                            <FormGroup title="Schwelle und Puls" footer="Schwellenpace: das Tempo, das du etwa 60 Minuten halten kannst.">
+                        <form class="space-y-3" @submit.prevent="saveAthleteTab">
+                            <FormGroup title="Schwelle und Puls" :footer="thresholdFooter">
                                 <FormRow as="label" label="Schwellen-HF">
-                                    <input v-model="athleteForm.threshold_heart_rate" type="number" inputmode="numeric" min="100" max="220" placeholder="165" required class="z-inline w-16" />
+                                    <input v-model="athleteForm.threshold_heart_rate" type="number" inputmode="numeric" min="100" max="220" placeholder="165" class="z-inline w-16" />
                                     <span class="text-[17px] text-ink-3">bpm</span>
                                 </FormRow>
                                 <FormRow as="label" label="Maximale HF">
-                                    <input v-model="athleteForm.max_heart_rate" type="number" inputmode="numeric" min="100" max="220" placeholder="195" required class="z-inline w-16" />
+                                    <input v-model="athleteForm.max_heart_rate" type="number" inputmode="numeric" min="100" max="220" placeholder="195" class="z-inline w-16" />
                                     <span class="text-[17px] text-ink-3">bpm</span>
                                 </FormRow>
                                 <FormRow as="label" label="Schwellenpace">
-                                    <input v-model="athleteForm.threshold_speed" type="text" inputmode="numeric" placeholder="5:30" pattern="[0-9]{1,2}:[0-9]{2}" required class="z-inline w-16" />
+                                    <input v-model="athleteForm.threshold_speed" type="text" inputmode="numeric" placeholder="5:30" pattern="[0-9]{1,2}:[0-9]{2}" class="z-inline w-16" />
                                     <span class="text-[17px] text-ink-3">/km</span>
                                 </FormRow>
                             </FormGroup>
                             <InputError :message="athleteForm.errors.threshold_heart_rate || athleteForm.errors.max_heart_rate || athleteForm.errors.threshold_speed" />
-                            <p v-if="athleteSaved" class="mx-4 text-[13px] text-success-ink">Gespeichert, Zonen neu berechnet.</p>
-                            <AppButton type="submit" block :loading="athleteForm.processing">Sichern und Zonen berechnen</AppButton>
                         </form>
 
                         <FormGroup v-if="paceZones.length > 0" title="Laufzonen">
@@ -968,8 +1027,6 @@ const inputClass = 'z-input';
                                 Der Wechsel gilt ab {{ modelNextLabel }}. Bis dahin plant Zone3 die laufende Woche mit dem bisherigen Modell weiter.
                             </p>
                             <p v-if="modelError" class="z-error mx-4">{{ modelError }}</p>
-                            <p v-if="modelSaved" class="mx-4 text-[13px] text-success-ink">Gespeichert.</p>
-                            <AppButton block :loading="modelSaving" @click="saveModel">Modell sichern</AppButton>
                         </section>
 
                         <!-- Wochenraster -->
@@ -1017,8 +1074,6 @@ const inputClass = 'z-input';
                                 </template>
                             </FormGroup>
                             <p v-if="availError" class="z-error mx-4">{{ availError }}</p>
-                            <p v-if="availSaved" class="mx-4 text-[13px] text-success-ink">Gespeichert.</p>
-                            <AppButton block :loading="availSaving" @click="saveAvailability">Zeiten sichern</AppButton>
                         </section>
 
                         <!-- Kraft & Core -->
@@ -1051,9 +1106,13 @@ const inputClass = 'z-input';
                                     </FormRow>
                                 </template>
                             </FormGroup>
-                            <p v-if="strengthSaved" class="mx-4 text-[13px] text-success-ink">Gespeichert.</p>
-                            <AppButton block :loading="strengthSaving" @click="saveStrength">Kraft sichern</AppButton>
                         </section>
+
+                        <!-- Ein Knopf für die ganze Seite, unten fest über der Tab-Leiste. -->
+                        <div class="sticky bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-10 space-y-2 lg:bottom-4">
+                            <p v-if="athleteTabSaved" class="mx-4 text-[13px] text-success-ink">Gespeichert<template v-if="athleteSaved">, Zonen neu berechnet</template>.</p>
+                            <AppButton block :loading="athleteTabSaving" :disabled="!athleteDirty" @click="saveAthleteTab">Sichern</AppButton>
+                        </div>
                     </template>
 
                     <!-- ── BENACHRICHTIGUNGEN ── -->
@@ -1207,9 +1266,10 @@ const inputClass = 'z-input';
 
                         <section class="space-y-3">
                             <h2 class="mx-4 -mb-1.5 text-[13px] text-ink-3">Rad / Zwift · Fahrten kommen über Strava</h2>
-                            <BikeFields v-model="bikeForm" />
+                            <!-- Ohne FTP, aber mit Vorschlag: nur der Vorschlag, nicht zusätzlich „Ohne FTP …“ (Befund N8). -->
+                            <BikeFields v-model="bikeForm" :ftp-hint-elsewhere="!!ftpSuggestion && !ftpTaken" />
                             <div v-if="ftpSuggestion && !ftpTaken" class="rounded-card bg-warn-soft px-4 py-3">
-                                <p class="text-[17px] font-semibold text-warn-ink">FTP wirkt zu niedrig</p>
+                                <p class="text-[17px] font-semibold text-warn-ink">{{ ftpSuggestion.current ? 'FTP wirkt zu niedrig' : 'FTP aus deinen Fahrten' }}</p>
                                 <p class="mt-1 text-[15px] leading-snug text-ink-2">
                                     „{{ ftpSuggestion.activity_name }}“ am {{ ftpSuggestion.date }} spricht für mindestens
                                     <span class="font-semibold tabular-nums">{{ ftpSuggestion.estimate }} W</span><template v-if="ftpSuggestion.current">, eingetragen sind {{ ftpSuggestion.current }} W</template>.
