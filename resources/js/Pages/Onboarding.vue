@@ -815,8 +815,9 @@ const bar = computed(() => {
         </main>
 
         <!-- Knopf unten fest -->
-        <div class="fixed inset-x-0 bottom-0 z-10 bg-canvas/90 px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-3 backdrop-blur-xl">
-            <div class="mx-auto max-w-xl space-y-1">
+        <!-- Innen dieselbe Breite und derselbe Rand wie die Spalte, sonst fluchtet der Knopf nicht (Befund N19). -->
+        <div class="fixed inset-x-0 bottom-0 z-10 bg-canvas/90 pb-[max(env(safe-area-inset-bottom),16px)] pt-3 backdrop-blur-xl">
+            <div class="mx-auto max-w-xl space-y-1 px-4">
                 <AppButton v-if="bar.label" size="lg" block :disabled="bar.disabled" :loading="bar.loading" @click="bar.run">{{ bar.label }}</AppButton>
                 <button v-if="bar.skip" type="button" class="flex h-11 w-full items-center justify-center text-[17px] text-accent active:opacity-60" @click="bar.skip">
                     {{ bar.skipLabel ?? 'Überspringen' }}

@@ -1477,7 +1477,7 @@ const lapHeightPct = computed(() => {
         <!-- ══════════════════════════════════════════════════════
              KEIN TRAINING
              ══════════════════════════════════════════════════════ -->
-        <AppSheet :show="skipModal" title="Kein Training" :subtitle="skipSession?.title" @close="skipModal = false">
+        <AppSheet dialog :show="skipModal" title="Kein Training" :subtitle="skipSession?.title" @close="skipModal = false">
             <p class="z-label">Grund (optional)</p>
             <div class="flex flex-wrap gap-2">
                 <button v-for="r in skipReasons" :key="r" @click="skipReason = r"

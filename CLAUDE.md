@@ -105,6 +105,10 @@ Von Jan aus drei Richtungen gewählt: eine **3 aus zwei Laufbahn-Kurven** mit **
 - `resources/brand/` hält die SVG-Quellen (Icons schwarz/blau/hell, randlos und gerundet, Zeichen, Wortmarke, Querversion). Die Wortmarke ist **in Pfade umgewandelt** — nicht als `<text>` zurückbauen, sonst hängt sie an der geladenen Schrift.
 - **Die PNGs in `public/` sind fest eingecheckt**, nicht mehr erzeugt: `icons/icon-192|512.png` (Manifest, `any` und `maskable` — das Zeichen liegt in der 80-%-Sicherheitszone), `icons/apple-touch-icon.png` (180), `icons/badge-72.png` (nur weiße Form auf Transparenz — Android wertet beim Badge nur den Alphakanal aus), `favicon.svg` + `favicon.ico`, `brand/zone3-wortmarke-weiss@2x.png` (Mail-Kopf; Mail-Programme können kein SVG). Das frühere `pwa:icons` zeichnete mit GD Balken und hätte die Dateien bei jedem Deploy überschrieben; es ist weg. Wer das Icon ändert, rendert die PNGs aus `resources/brand/` neu (Chromium, randlos, ohne Transparenz) und erhöht `CACHE_NAME` in `public/sw.js`.
 
+### Desktop (seit 03.11.2026)
+
+Die Seitenleiste zeigt **genau die fünf Tabs** (Heute · Plan · Kalender · Aktivitäten · Mehr, `sideNavItems` im Layout) — vorher war sie eine andere App mit „Profil“, „Aktiver Plan“ und Live-Verfolgung oben. `AppSheet` kennt `dialog`: am Desktop ein mittiger Dialog statt der Seitenleiste rechts, für Rückfragen und kurze Formulare (ConfirmSheet, Tagesform, Kein Training, Einplanen, Deine Woche, Garmin senden, Zuschneiden). Details bleiben rechts. Eine Seitenleiste ohne `tall` hatte am Desktop `max-h-[90dvh]` und hing oben abgeschnitten. Die Tagesform startet ohne Vorauswahl; gespeichert wird erst, wenn alle fünf Skalen angetippt sind.
+
 ### Bewegung — drei Kurven, und wann welche gilt
 
 Am 09.10.2026 gegen `emil-design-eng` geprüft. Hier geht es um die Schicht über dem visuellen System.

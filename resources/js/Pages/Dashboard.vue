@@ -2254,7 +2254,7 @@ async function resetLayout() {
         <!-- ══════════════════════════════════════════════════
              WOCHE ANPASSEN
              ══════════════════════════════════════════════════ -->
-        <AppSheet :show="weekSheet" title="Deine Woche" subtitle="Nur für diese eine Woche" @close="weekSheet = false">
+        <AppSheet dialog :show="weekSheet" title="Deine Woche" subtitle="Nur für diese eine Woche" @close="weekSheet = false">
             <p class="z-hint mb-4">
                 Änderungen gelten einmalig und überschreiben dein Wochenraster im Profil nicht.
             </p>

@@ -296,7 +296,7 @@ async function submitSchedule() {
         />
 
         <!-- Einplanen -->
-        <AppSheet :show="!!scheduleWorkout" title="Einplanen" :subtitle="scheduleWorkout?.name" @close="scheduleWorkout = null">
+        <AppSheet dialog :show="!!scheduleWorkout" title="Einplanen" :subtitle="scheduleWorkout?.name" @close="scheduleWorkout = null">
             <div v-if="scheduleDone" class="rounded-card bg-success-soft p-5 text-center">
                 <p class="text-sm font-semibold text-success-ink">Eingeplant</p>
                 <p class="mt-1 text-xs text-success-ink/80">

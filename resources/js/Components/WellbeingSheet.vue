@@ -13,11 +13,13 @@ const emit = defineEmits(['close', 'saved']);
 const today = new Date();
 
 const blank = () => ({
-    energy_level:    5,
-    mood:            5,
-    sleep_quality:   5,
-    muscle_soreness: 5,
-    stress_level:    5,
+    // Ohne Vorauswahl (Befund P2-14): mit 5 auf allen Skalen stand schon
+    // „Nur leichtes Training“ da, bevor jemand etwas angetippt hatte.
+    energy_level:    null,
+    mood:            null,
+    sleep_quality:   null,
+    muscle_soreness: null,
+    stress_level:    null,
     notes:           '',
     is_sick:         false,
     is_injured:      false,
@@ -47,24 +49,30 @@ const flags = [
 ];
 
 // Soreness and stress are inverted — high values are bad.
+const INVERTED = ['muscle_soreness', 'stress_level'];
+const answered = computed(() => scales.filter((s) => form.value[s.key] !== null).length);
+const complete = computed(() => answered.value === scales.length);
+
+// Der Schnitt über das, was schon angetippt ist; ohne Eingabe keiner.
 const score = computed(() => {
-    const f = form.value;
-    const total = f.energy_level + f.mood + f.sleep_quality
-        + (10 - f.muscle_soreness) + (10 - f.stress_level);
-    return total / 5;
+    const vals = scales
+        .filter((s) => form.value[s.key] !== null)
+        .map((s) => INVERTED.includes(s.key) ? 10 - form.value[s.key] : form.value[s.key]);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
 });
 
 const verdict = computed(() => {
     if (form.value.is_sick || form.value.is_injured) {
         return { text: 'Heute nicht trainieren', tone: 'text-danger' };
     }
+    if (score.value === null) return { text: 'Tipp an, wie es dir geht', tone: 'text-ink-3' };
     if (score.value >= 8) return { text: 'Bereit für hartes Training', tone: 'text-success' };
     if (score.value >= 6) return { text: 'Moderates Training möglich', tone: 'text-accent' };
     if (score.value >= 4) return { text: 'Nur leichtes Training',      tone: 'text-warn' };
     return { text: 'Ruhetag empfohlen', tone: 'text-danger' };
 });
 
-const scoreLabel = computed(() => score.value.toLocaleString('de-DE', {
+const scoreLabel = computed(() => score.value === null ? '–' : score.value.toLocaleString('de-DE', {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
 }));
@@ -100,11 +108,11 @@ watch(() => props.show, async (open) => {
         const { data } = await axios.get('/api/wellbeing/today');
         if (data) {
             form.value = {
-                energy_level:    data.energy_level    || 5,
-                mood:            data.mood            || 5,
-                sleep_quality:   data.sleep_quality   || 5,
-                muscle_soreness: data.muscle_soreness || 5,
-                stress_level:    data.stress_level    || 5,
+                energy_level:    data.energy_level    || null,
+                mood:            data.mood            || null,
+                sleep_quality:   data.sleep_quality   || null,
+                muscle_soreness: data.muscle_soreness || null,
+                stress_level:    data.stress_level    || null,
                 notes:           data.notes           || '',
                 is_sick:         data.is_sick         || false,
                 is_injured:      data.is_injured      || false,
@@ -119,6 +127,7 @@ watch(() => props.show, async (open) => {
 
 <template>
     <AppSheet
+        dialog
         :show="show"
         title="Wie geht's dir heute?"
         :subtitle="`Tagesform · ${formatDate(today)}`"
@@ -192,8 +201,8 @@ watch(() => props.show, async (open) => {
 
         <template #footer>
             <p v-if="saveError" class="mb-3 text-[13px] text-danger">{{ saveError }}</p>
-            <AppButton block :loading="submitting" @click="submitWellbeing">
-                {{ submitting ? 'Speichert…' : 'Speichern' }}
+            <AppButton block :loading="submitting" :disabled="!complete" @click="submitWellbeing">
+                {{ submitting ? 'Speichert…' : complete ? 'Speichern' : `Noch ${scales.length - answered} von ${scales.length}` }}
             </AppButton>
         </template>
     </AppSheet>

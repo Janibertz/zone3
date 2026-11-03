@@ -922,9 +922,19 @@ const inputClass = 'z-input';
                     </button>
                 </FormGroup>
 
-                <!-- ══ Abschnitte — ab lg: Segmentleiste ══ -->
-                <div class="hidden lg:block">
-                    <SegmentedControl v-model="activeTab" :options="tabs.map(t => ({ value: t.key, label: t.short ?? t.label }))" />
+<!--
+                    ══ Abschnitte — ab lg: Reiter als Pillen ══
+                    Sieben Abschnitte in einer Segmentleiste waren gequetscht
+                    (Befund N19); als umbrechende Pillen stehen die vollen Namen.
+                -->
+                <div class="hidden flex-wrap gap-2 lg:flex" role="tablist" aria-label="Abschnitte">
+                    <button v-for="tab in tabs" :key="tab.key" type="button" role="tab"
+                        :aria-selected="activeTab === tab.key"
+                        class="h-9 rounded-full px-4 text-[15px] font-semibold transition"
+                        :class="activeTab === tab.key ? 'bg-accent text-white' : 'bg-surface text-ink-2 hover:bg-surface-2'"
+                        @click="activeTab = tab.key">
+                        {{ tab.label }}
+                    </button>
                 </div>
 
                 <!-- ══ Inhalt des Abschnitts ══ -->
@@ -1116,7 +1126,8 @@ const inputClass = 'z-input';
                         </section>
 
                         <!-- Ein Knopf für die ganze Seite, unten fest über der Tab-Leiste. -->
-                        <div class="sticky bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-10 space-y-2 lg:bottom-4">
+                        <div v-if="athleteDirty || athleteTabSaving || athleteTabSaved"
+                            class="sticky bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-10 -mx-4 space-y-2 bg-canvas/90 px-4 py-2 backdrop-blur-xl lg:bottom-0">
                             <p v-if="athleteTabSaved" class="mx-4 text-[13px] text-success-ink">Gespeichert<template v-if="athleteSaved">, Zonen neu berechnet</template>.</p>
                             <AppButton block :loading="athleteTabSaving" :disabled="!athleteDirty" @click="saveAthleteTab">Sichern</AppButton>
                         </div>
@@ -1372,7 +1383,7 @@ const inputClass = 'z-input';
     </AuthenticatedLayout>
 
     <!-- ══ PROFILBILD ZUSCHNEIDEN ══ -->
-    <AppSheet :show="showCropModal" title="Profilbild zuschneiden" @close="closeCropModal">
+    <AppSheet dialog :show="showCropModal" title="Profilbild zuschneiden" @close="closeCropModal">
         <div class="-mx-5 bg-black" style="height: 340px;">
             <img
                 ref="cropperEl"

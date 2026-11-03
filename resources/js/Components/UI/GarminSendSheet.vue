@@ -26,7 +26,7 @@ const emit = defineEmits(['close', 'send']);
 </script>
 
 <template>
-    <AppSheet :show="show" title="Zu Garmin Connect senden" :subtitle="subtitle" @close="emit('close')">
+    <AppSheet dialog :show="show" title="Zu Garmin Connect senden" :subtitle="subtitle" @close="emit('close')">
         <!-- Success -->
         <div v-if="success" class="rounded-card bg-success-soft p-5 text-center">
             <svg class="mx-auto mb-2 h-8 w-8 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
