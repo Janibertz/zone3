@@ -41,7 +41,7 @@ class OnboardingConnectTest extends TestCase
 
     private function newcomer(): User
     {
-        return User::factory()->create(['onboarding_completed_at' => null]);
+        return User::factory()->create(['onboarding_completed_at' => null, 'strava_allowed' => true]);
     }
 
     private function connectGarmin(User $user): void
@@ -110,7 +110,7 @@ class OnboardingConnectTest extends TestCase
             'athlete'       => ['id' => 4711],
         ])]);
 
-        $this->actingAs(User::factory()->onboarded()->create())
+        $this->actingAs(User::factory()->onboarded()->create(['strava_allowed' => true]))
             ->get('/strava/callback?code=the-code')
             ->assertRedirect(route('dashboard'));
     }

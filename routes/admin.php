@@ -23,6 +23,7 @@ Route::get('/users',                               [AdminUserController::class, 
 Route::get('/users/{user}',                        [AdminUserController::class, 'show'])               ->name('users.show');
 Route::patch('/users/{user}/toggle-admin',         [AdminUserController::class, 'toggleAdmin'])        ->name('users.toggle-admin');
 Route::patch('/users/{user}/toggle-active',        [AdminUserController::class, 'toggleActive'])       ->name('users.toggle-active');
+Route::patch('/users/{user}/toggle-strava',        [AdminUserController::class, 'toggleStrava'])       ->name('users.toggle-strava');
 Route::post('/users/{user}/reset-recommendation',    [AdminUserController::class, 'resetRecommendation'])   ->name('users.reset-recommendation');
 Route::post('/users/{user}/trigger-weekly-review',  [AdminUserController::class, 'triggerWeeklyReview'])  ->name('users.trigger-weekly-review');
 Route::post('/users/{user}/recalculate-threshold',  [AdminUserController::class, 'recalculateThreshold']) ->name('users.recalculate-threshold');

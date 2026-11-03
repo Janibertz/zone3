@@ -54,6 +54,13 @@ const requestedSection = typeof window !== 'undefined'
 const startSection = backFromGarmin ? 'connections' : (SECTION_KEYS.includes(requestedSection) ? requestedSection : null);
 const activeTab = ref(startSection ?? 'personal');
 
+// Strava nur nach Freischaltung (Jan, 03.11.2026); wer verbunden ist, behält es.
+const stravaOffered = computed(() => !!usePage().props.auth?.strava);
+function connectionsHint() {
+    const on = [props.garminOfficial?.connection && 'Garmin', props.stravaConnected && 'Strava'].filter(Boolean);
+    return on.length ? `${on.join(' und ')} verbunden` : 'Uhr noch nicht verbunden';
+}
+
 // Alle vier Zahlen beziehen sich auf Laeufe — deshalb steht hier "Läufe"
 // und nicht "Aktivitäten": Radtouren und Schwimmen zaehlen nicht mit.
 const heroStats = computed(() => [
@@ -68,7 +75,7 @@ const tabs = [
     { key: 'coach',         label: 'Mein Coach',         short: 'Coach',         hint: () => savedCoachName.value },
     { key: 'athlete',       label: 'Athletenprofil',     short: 'Athlet',     hint: () => (props.runnerProfile?.threshold_speed ? 'Schwellenpace hinterlegt' : 'Noch unvollständig') },
     { key: 'notifications', label: 'Benachrichtigungen', short: 'Mitteilungen', hint: () => null },
-    { key: 'connections',   label: 'Verbindungen',       hint: () => (props.stravaConnected ? 'Strava verbunden' : 'Strava nicht verbunden') },
+    { key: 'connections',   label: 'Verbindungen',       hint: () => connectionsHint() },
     { key: 'security',      label: 'Sicherheit',         hint: () => null },
     { key: 'account',       label: 'Konto',              hint: () => null },
 ];
@@ -1158,19 +1165,6 @@ const inputClass = 'z-input';
                     <!-- ── VERBINDUNGEN ── -->
                     <template v-else-if="activeTab === 'connections'">
                         <FormGroup title="Dienste">
-                            <!-- Strava -->
-                            <div class="flex min-h-[60px] items-center gap-3 px-4 py-2">
-                                <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-warn text-white">
-                                    <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" /></svg>
-                                </span>
-                                <span class="min-w-0 flex-1">
-                                    <span class="block text-[17px] text-ink">Strava</span>
-                                    <span class="block truncate text-[13px] text-ink-3">{{ props.stravaConnected ? `Verbunden als ${props.stravaAccount?.username ?? '–'}` : 'Nicht verbunden' }}</span>
-                                </span>
-                                <button v-if="props.stravaConnected" type="button" class="shrink-0 text-[17px] text-danger active:opacity-60" @click="confirmStravaDisconnect = true">Trennen</button>
-                                <Link v-else href="/strava/connect" class="shrink-0 text-[17px] text-accent active:opacity-60">Verbinden</Link>
-                            </div>
-
                             <!-- Garmin -->
                             <div class="flex min-h-[60px] items-center gap-3 px-4 py-2">
                                 <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-ink text-canvas">
@@ -1219,6 +1213,19 @@ const inputClass = 'z-input';
                             <p v-if="props.garminOfficial.status" class="px-4 py-3 text-[13px]"
                                 :class="props.garminOfficial.status.type === 'error' ? 'text-danger' : 'text-success-ink'">{{ props.garminOfficial.status.message }}</p>
 
+                            <!-- Strava: nur nach Freischaltung durch einen Admin (Jan, 03.11.2026). -->
+                            <div v-if="stravaOffered" class="flex min-h-[60px] items-center gap-3 px-4 py-2">
+                                <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-warn text-white">
+                                    <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" /></svg>
+                                </span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-[17px] text-ink">Strava</span>
+                                    <span class="block truncate text-[13px] text-ink-3">{{ props.stravaConnected ? `Verbunden als ${props.stravaAccount?.username ?? '–'}` : 'Nicht verbunden' }}</span>
+                                </span>
+                                <button v-if="props.stravaConnected" type="button" class="shrink-0 text-[17px] text-danger active:opacity-60" @click="confirmStravaDisconnect = true">Trennen</button>
+                                <a v-else href="/strava/connect" class="shrink-0 text-[17px] text-accent active:opacity-60">Verbinden</a>
+                            </div>
+
                             <!-- Telegram -->
                             <div v-if="props.telegram.available" class="flex min-h-[60px] items-center gap-3 px-4 py-2">
                                 <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-info text-white">
@@ -1265,7 +1272,7 @@ const inputClass = 'z-input';
                         </FormGroup>
 
                         <section class="space-y-3">
-                            <h2 class="mx-4 -mb-1.5 text-[13px] text-ink-3">Rad / Zwift · Fahrten kommen über Strava</h2>
+                            <h2 class="mx-4 -mb-1.5 text-[13px] text-ink-3">Rad / Zwift</h2>
                             <!-- Ohne FTP, aber mit Vorschlag: nur der Vorschlag, nicht zusätzlich „Ohne FTP …“ (Befund N8). -->
                             <BikeFields v-model="bikeForm" :ftp-hint-elsewhere="!!ftpSuggestion && !ftpTaken" />
                             <div v-if="ftpSuggestion && !ftpTaken" class="rounded-card bg-warn-soft px-4 py-3">
@@ -1304,13 +1311,13 @@ const inputClass = 'z-input';
 
                     <!-- ── KONTO ── -->
                     <template v-else-if="activeTab === 'account'">
-                        <FormGroup title="Strava" :footer="props.stravaConnected ? 'Beim Trennen bleiben deine bisherigen Aktivitäten in Zone3. Neue kommen erst wieder, wenn du neu verbindest.' : 'Verbinde Strava, um deine Aktivitäten zu übernehmen.'">
+                        <FormGroup v-if="stravaOffered" title="Strava" :footer="props.stravaConnected ? 'Beim Trennen bleiben deine bisherigen Aktivitäten in Zone3. Neue kommen erst wieder, wenn du neu verbindest.' : 'Verbinde Strava, um deine Aktivitäten zu übernehmen.'">
                             <FormRow v-if="props.stravaConnected" :label="props.stravaAccount?.username ?? 'Verbunden'" :hint="`Zuletzt abgeglichen: ${props.stravaAccount?.last_synced_at ?? 'noch nie'}`">
                                 <span class="text-[15px] text-success-ink">Aktiv</span>
                             </FormRow>
-                            <Link href="/strava/connect" class="flex min-h-[48px] items-center px-4 text-[17px] text-accent active:bg-surface-2">
+                            <a href="/strava/connect" class="flex min-h-[48px] items-center px-4 text-[17px] text-accent active:bg-surface-2">
                                 {{ props.stravaConnected ? 'Konto wechseln' : 'Mit Strava verbinden' }}
-                            </Link>
+                            </a>
                             <button v-if="props.stravaConnected" type="button" class="flex min-h-[48px] w-full items-center px-4 text-[17px] text-danger active:bg-surface-2" @click="confirmStravaDisconnect = true">Strava trennen</button>
                         </FormGroup>
 

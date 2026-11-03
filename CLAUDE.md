@@ -707,6 +707,10 @@ Inertia.js — no API calls, all data passed as props from Laravel controllers.
 - `race_analysis_text` pointing at it is cleared; `best_efforts` cascade away.
 - **A tombstone is required.** The manual sync runs `Activity::updateOrCreate` over Strava's recent activities and would re-create the deleted one on the next run. `ignored_activities` holds (user_id, source, external_id) — `IgnoredActivity::bury()` writes one per ID the row carries, so neither Strava nor Garmin brings it back; both the sync and the webhook check it. The webhook alone would not have brought it back — it only handles `aspect_type = create` — but the sync would.
 
+## Strava nur nach Freischaltung (seit 03.11.2026)
+
+Strava hat keine freien Athletenplätze, und die Werbung holt Garmin-Läufer (Policy §5.3 verbietet Strava-Daten in KI ohnehin). Jans Entscheidung: **neue Athleten sehen Strava nicht**, ein Admin schaltet es pro Athlet frei (`users.strava_allowed`, Knopf „Strava freischalten“ unter `/admin/users/{id}`). `User::canUseStrava()` = freigeschaltet **oder** schon verbunden — wer verbunden ist, behält es; Ausblenden trennt nichts. Die Migration hat alle bestehenden Athleten freigeschaltet. Geteilt als `auth.strava`; Onboarding, Verbindungen, Konto und Mehr zeigen Strava nur damit, `strava.connect` leitet sonst zu den Verbindungen. Texte für alle anderen sind quellenneutral oder nennen Garmin.
+
 ## Strava Webhook
 
 `POST /strava/webhook` — **the import runs in the request.** Fetch the activity from the Strava API, store it, match it to the planned session, write best efforts, dispatch the review job, send the push.

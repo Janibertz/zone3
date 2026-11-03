@@ -196,10 +196,12 @@ const filtered = computed(() => sport.value !== 'all' || !!search.value);
                         title="Keine Aktivitäten"
                         :description="filtered
                             ? 'Mit diesem Filter gibt es nichts.'
-                            : 'Verbinde Strava oder Garmin, dann erscheinen deine Einheiten hier.'"
+                            : $page.props.auth.garminLinked
+                                ? 'Dein nächster Lauf erscheint hier, sobald die Uhr synchronisiert.'
+                                : 'Verbinde deine Uhr, dann erscheinen deine Einheiten hier.'"
                     >
                         <AppButton v-if="filtered" variant="secondary" @click="search = ''; searchOpen = false; setSport('all')">Alle zeigen</AppButton>
-                        <AppButton v-else href="/profile">Verbinden</AppButton>
+                        <AppButton v-else-if="!$page.props.auth.garminLinked" :href="route('profile.edit', { section: 'connections' })">Uhr verbinden</AppButton>
                     </EmptyState>
                 </AppCard>
 

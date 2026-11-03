@@ -20,7 +20,7 @@ use Illuminate\Notifications\Notifiable;
     'push_notifications_enabled', 'wellbeing_reminder_time', 'notify_threshold_pace', 'notify_plan_updated',
     'notify_monthly_review',
     'avatar', 'bio', 'location', 'birth_year', 'favorite_distance', 'coach_id',
-    'ai_daily_limit', 'activity_source', 'garmin_workout_sync',
+    'ai_daily_limit', 'activity_source', 'garmin_workout_sync', 'strava_allowed',
     'newsletter_opt_in', 'unsubscribe_token',
     'telegram_chat_id', 'telegram_link_token', 'telegram_linked_at', 'calendar_token',
     'dashboard_layout'])]
@@ -69,7 +69,20 @@ class User extends Authenticatable
             'telegram_linked_at'            => 'datetime',
             'dashboard_layout'              => 'array',
             'garmin_workout_sync'           => 'boolean',
+            'strava_allowed'                => 'boolean',
         ];
+    }
+
+    /**
+     * Darf der Athlet Strava sehen und verbinden?
+     *
+     * Neue Athleten nicht (Jan, 03.11.2026: Strava hat keine freien Plätze,
+     * die Werbung holt Garmin-Läufer); ein Admin schaltet es frei. Wer
+     * schon verbunden ist, behält es.
+     */
+    public function canUseStrava(): bool
+    {
+        return (bool) $this->strava_allowed || $this->stravaAccount()->exists();
     }
 
     /** Ob der Coach diesen Athleten auch per Telegram erreicht. */

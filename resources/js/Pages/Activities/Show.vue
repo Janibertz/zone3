@@ -37,7 +37,7 @@ const deleting      = ref(false);
 const deleteError   = ref('');
 
 const deleteMessage = computed(() => {
-    const base = 'Die Aktivität wird endgültig gelöscht und beim nächsten Strava-Abgleich nicht erneut geladen.';
+    const base = 'Die Aktivität wird endgültig gelöscht und beim nächsten Abgleich nicht erneut geladen.';
 
     if (!props.linkedSession) return base;
 

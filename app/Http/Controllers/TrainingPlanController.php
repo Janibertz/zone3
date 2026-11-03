@@ -653,7 +653,7 @@ class TrainingPlanController extends Controller
                 'has_data'       => false,
                 'target_yards'   => $target,
                 'estimated_yards'=> null,
-                'advice'         => 'Noch keine Laufdaten der letzten 12 Wochen — verbinde Strava oder absolviere erste Läufe für eine Einschätzung.',
+                'advice'         => 'Noch keine Laufdaten der letzten 12 Wochen — verbinde deine Uhr oder lauf die ersten Einheiten, dann folgt eine Einschätzung.',
             ];
         }
 
