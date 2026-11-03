@@ -42,7 +42,7 @@ const slides = computed(() => {
     let i = 0;
     const g = () => GRAD[i++ % GRAD.length];
 
-    out.push({ type: 'stat', emoji: '📏', big: nf(s.totals.km) + ' km', label: 'gelaufen', sub: s.fun?.marathons ? `Das sind ${s.fun.marathons} Marathons.` : null, gradient: g() });
+    out.push({ type: 'stat', emoji: '📏', big: nf(s.totals.km) + ' km', label: 'gelaufen', sub: s.fun?.marathons ? `Das sind ${nf(s.fun.marathons)} Marathons.` : null, gradient: g() });
     out.push({ type: 'stat', emoji: '⏱️', big: nf(s.totals.hours) + ' h', label: 'in Bewegung', sub: `an ${s.totals.active_days} aktiven Tagen`, gradient: g() });
     out.push({ type: 'stat', emoji: '🏃', big: nf(s.totals.runs), label: s.totals.runs === 1 ? 'Lauf' : 'Läufe', sub: `${nf(s.totals.elevation)} Höhenmeter erklommen`, gradient: g() });
     if (s.longest_run) out.push({ type: 'stat', emoji: '🦵', big: s.longest_run.km + ' km', label: 'längster Lauf', sub: `${s.longest_run.name} · ${s.longest_run.date}`, gradient: g() });

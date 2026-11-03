@@ -37,7 +37,7 @@ const coachColors = {
     purple: { bg: 'bg-accent',  light: 'bg-accent-soft',  border: 'border-accent/25',  badge: 'bg-accent-soft text-accent-ink'  },
 };
 
-const specialtyLabels = { motivator: 'Motivator', strategist: 'Stratege', companion: 'Begleiter' };
+const specialtyLabels = { motivator: 'Motivator', strategist: 'Strategin', companion: 'Begleiter', ultra: 'Ultra' };
 
 const colors = computed(() => coachColors[props.coach.avatar_color] ?? {
     bg: 'bg-ink-3', light: 'bg-surface-2', border: 'border-line', badge: 'bg-surface-2 text-ink-2',

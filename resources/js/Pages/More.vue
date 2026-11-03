@@ -6,7 +6,6 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 import UserAvatar from '@/Components/UserAvatar.vue';
 import { useDarkMode } from '@/Composables/useDarkMode';
-import { useInstallPrompt } from '@/Composables/useInstallPrompt';
 import { fmtNum } from '@/Composables/useFormat';
 
 /**
@@ -33,7 +32,6 @@ const themeOptions = [
     { value: 'dark',   label: 'Dunkel' },
 ];
 
-const { isInstallable, isIOSHint, installApp, dismiss: dismissInstall } = useInstallPrompt();
 
 const profile = (section) => route('profile.edit', { section });
 const on = (v) => (v ? 'verbunden' : 'aus');
@@ -116,17 +114,6 @@ const groups = computed(() => [
                     </span>
                     <svg class="h-4 w-4 shrink-0 text-ink-3/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
                 </Link>
-
-                <!-- App installieren -->
-                <div v-if="isInstallable || isIOSHint" class="rounded-card bg-accent px-4 py-4 text-white">
-                    <p class="text-[17px] font-semibold">Zone3 als App</p>
-                    <p v-if="isInstallable" class="mt-1 text-[15px] text-white/80">Auf den Homescreen, ohne App Store.</p>
-                    <p v-else class="mt-1 text-[15px] text-white/80">Tippe in Safari auf „Teilen“ und dann auf „Zum Home-Bildschirm“.</p>
-                    <div class="mt-3 flex justify-end gap-4">
-                        <button type="button" class="text-[15px] text-white/75" @click="dismissInstall">{{ isInstallable ? 'Nicht jetzt' : 'Verstanden' }}</button>
-                        <button v-if="isInstallable" type="button" class="rounded-full bg-white px-4 py-1.5 text-[15px] font-semibold text-accent" @click="installApp">Installieren</button>
-                    </div>
-                </div>
 
                 <section v-for="g in groups" :key="g.title">
                     <h2 class="mx-4 mb-1.5 text-[13px] text-ink-3">{{ g.title }}</h2>

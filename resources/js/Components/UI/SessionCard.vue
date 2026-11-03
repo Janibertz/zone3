@@ -49,7 +49,7 @@ const metrics = computed(() => {
     if (s.distance_km)  out.push({ label: 'Distanz', value: String(s.distance_km).replace('.', ','), unit: 'km' });
     if (s.duration_min) out.push({ label: 'Dauer',   value: String(s.duration_min), unit: 'min' });
     const pace = paceValue(s.pace_target);
-    if (pace)           out.push({ label: 'Tempo',   value: pace, unit: '/km' });
+    if (pace)           out.push({ label: 'Pace',    value: pace, unit: '/km' });
     if (s.zone && out.length < 3) out.push({ label: 'Zone', value: String(s.zone), unit: null });
     return out.slice(0, 3);
 });

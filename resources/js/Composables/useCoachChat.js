@@ -18,7 +18,9 @@ export function useCoachChat() {
         isOpen,
         pendingMessage,
         open: (message = null) => {
-            if (message) pendingMessage.value = message;
+            // Nur Text ist eine Frage. `@click="open"` reicht sonst das
+            // Klick-Ereignis durch, und der Chat versucht es zu senden.
+            if (typeof message === 'string' && message.trim()) pendingMessage.value = message;
             isOpen.value = true;
         },
         close:  () => { isOpen.value = false; },

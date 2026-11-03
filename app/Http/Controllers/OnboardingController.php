@@ -6,6 +6,7 @@ use App\Models\Coach;
 use App\Models\Event;
 use App\Models\RunnerProfile;
 use App\Services\AI\AthleteProfileService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
@@ -19,6 +20,9 @@ class OnboardingController extends Controller
      * Verbinden weitermachen, nicht bei „Willkommen".
      */
     public const RESUME_KEY = 'onboarding.resume_step';
+
+    /** Das Rennen, das dieser Onboarding-Durchgang angelegt hat. */
+    public const GOAL_EVENT_KEY = 'onboarding.goal_event_id';
 
     /** Was ein fester Wochentermin sein kann. */
     private const FIXED_TYPES = ['interval', 'tempo_run', 'easy_run', 'long_run'];
@@ -294,7 +298,7 @@ class OnboardingController extends Controller
     public function saveGoal(Request $request)
     {
         $validated = $request->validate([
-            'name'                => 'required|string|max:150',
+            'name'                => 'nullable|string|max:150',
             'race_distance'       => 'required|string|in:5km,10km,half_marathon,marathon,custom,backyard_ultra',
             'distance_km'         => 'nullable|numeric|min:0.1',
             'target_time_hours'   => 'required_unless:race_distance,backyard_ultra|integer|min:0|max:23',
@@ -303,9 +307,8 @@ class OnboardingController extends Controller
             'race_date'           => 'required|date|after:today',
         ]);
 
-        Event::create([
-            'user_id'             => Auth::id(),
-            'name'                => $validated['name'],
+        $attributes = [
+            'name'                => $validated['name'] ?? null,
             'event_date'          => $validated['race_date'],
             'race_distance'       => $validated['race_distance'],
             'distance_km'         => $validated['distance_km'] ?? null,
@@ -313,7 +316,25 @@ class OnboardingController extends Controller
             'target_time_hours'   => $validated['target_time_hours'] ?? 0,
             'target_time_minutes' => $validated['target_time_minutes'] ?? 0,
             'target_yards'        => $validated['target_yards'] ?? null,
-        ]);
+        ];
+
+        // Wer im Onboarding zurückgeht und das Ziel noch einmal sichert,
+        // ändert sein Rennen — er legt kein zweites an. Das Rennen aus diesem
+        // Durchgang merkt sich die Session.
+        $event = Event::where('user_id', Auth::id())
+            ->find($request->session()->get(self::GOAL_EVENT_KEY))
+            ?? new Event(['user_id' => Auth::id()]);
+        $event->fill($attributes);
+
+        // Der Name ist optional: ohne Eingabe heißt das Rennen nach Distanz
+        // und Monat („Halbmarathon April 2027“).
+        if (blank($event->name)) {
+            $event->name = trim($event->distance_label . ' ' . Carbon::parse($validated['race_date'])->locale('de')->translatedFormat('F Y'));
+        }
+        $event->user_id = Auth::id();
+        $event->save();
+
+        $request->session()->put(self::GOAL_EVENT_KEY, $event->id);
 
         return response()->json(['success' => true]);
     }
@@ -344,7 +365,7 @@ class OnboardingController extends Controller
         }
 
         $user->save();
-        $request->session()->forget(self::RESUME_KEY);
+        $request->session()->forget([self::RESUME_KEY, self::GOAL_EVENT_KEY]);
 
         return redirect()->route('dashboard');
     }

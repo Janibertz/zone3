@@ -108,7 +108,7 @@ const coachColors = {
     green:  { bg: 'bg-success',  ring: 'ring-success',  light: 'bg-success-soft',  border: 'border-success',  badge: 'bg-success-soft text-success-ink'  },
     purple: { bg: 'bg-accent', ring: 'ring-accent', light: 'bg-accent-soft', border: 'border-accent', badge: 'bg-accent-soft text-accent-ink' },
 };
-const specialtyLabels = { motivator: 'Motivator', strategist: 'Stratege', companion: 'Begleiter' };
+const specialtyLabels = { motivator: 'Motivator', strategist: 'Strategin', companion: 'Begleiter', ultra: 'Ultra' };
 
 // Wie in den iOS-Einstellungen: antippen heißt auswählen, ohne Sichern-Knopf.
 function chooseCoach(id) {
@@ -1182,7 +1182,7 @@ const inputClass = 'z-input';
                                     <span class="block text-[17px] text-ink">Kalender-Abo</span>
                                     <span class="block text-[13px] leading-snug text-ink-3">{{ props.calendarFeed ? 'Aktiv · Einheiten und Rennen' : 'Plan und Rennen im iPhone- oder Google-Kalender' }}</span>
                                 </span>
-                                <button v-if="props.calendarFeed" type="button" :disabled="calendarForm.processing" class="shrink-0 text-[17px] text-danger active:opacity-60 disabled:opacity-40" @click="removeCalendarFeed">Aus</button>
+                                <button v-if="props.calendarFeed" type="button" :disabled="calendarForm.processing" class="shrink-0 text-[17px] text-danger active:opacity-60 disabled:opacity-40" @click="removeCalendarFeed">Abschalten</button>
                                 <button v-else type="button" :disabled="calendarForm.processing" class="shrink-0 text-[17px] text-accent active:opacity-60 disabled:opacity-40" @click="createCalendarFeed">Einrichten</button>
                             </div>
                             <template v-if="props.calendarFeed">
@@ -1283,7 +1283,7 @@ const inputClass = 'z-input';
         <ConfirmSheet
             :show="confirmingDeletion"
             title="Konto wirklich löschen?"
-            message="Diese Aktion kann nicht rückgängig gemacht werden. Gib dein Passwort ein um zu bestätigen."
+            message="Diese Aktion kann nicht rückgängig gemacht werden. Gib zur Bestätigung dein Passwort ein."
             confirm-label="Ja, löschen"
             :loading="deleteForm.processing"
             @confirm="deleteAccount"

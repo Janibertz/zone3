@@ -148,10 +148,13 @@ class GoalCheckService
             'headline'  => $this->headline($verdict, $event),
             'detail'    => $this->detail($verdict, $deltaSec, $weeklyKm, $longestKm, $spec, $predicted, $daysLeft),
             'target'    => $this->clock($targetSec),
+            'target_full' => $this->clockFull($targetSec),
             'predicted' => $predicted['time'],
             'suggested' => $suggestedSec ? $this->clock($suggestedSec) : null,
             'suggested_hours'   => $suggestedSec ? intdiv($suggestedSec, 3600) : null,
             'suggested_minutes' => $suggestedSec ? intdiv($suggestedSec % 3600, 60) : null,
+            'target_hours'      => intdiv($targetSec, 3600),
+            'target_minutes'    => intdiv($targetSec % 3600, 60),
             'weekly_km'    => $weeklyKm,
             'longest_km'   => $longestKm,
             'needs_weekly' => $spec['weekly'],
@@ -240,7 +243,7 @@ class GoalCheckService
                 $predicted['time'], $this->num($weekly), $this->num($longest), abs($deltaSec),
             ),
             'pace_ok_base_thin' => sprintf(
-                'Vom Tempo her passt es: die Schwellenpace trägt %s. Der Unterbau nicht — %s km pro Woche und ein längster Lauf von %s km, nötig wären etwa %s und %s km. Der Marathon bestraft nicht das fehlende Tempo, sondern die fehlende Wiederholung.',
+                'Vom Tempo her passt es: die Schwellenpace trägt %s. Der Unterbau nicht — %s km pro Woche und ein längster Lauf von %s km, nötig wären etwa %s und %s km. Im Rennen fehlt dann nicht das Tempo, sondern die Ausdauer, es über die ganze Strecke zu halten.',
                 $predicted['time'], $this->num($weekly), $this->num($longest),
                 $this->num($spec['weekly']), $this->num($spec['long']),
             ),
@@ -255,5 +258,14 @@ class GoalCheckService
     private function clock(int $sec): string
     {
         return sprintf('%d:%02d', intdiv($sec, 3600), intdiv($sec % 3600, 60));
+    }
+
+    /**
+     * Wie die Prognose daneben: mit Sekunden. „1:29“ neben „1:28:28“ las
+     * sich wie zwei verschiedene Einheiten.
+     */
+    private function clockFull(int $sec): string
+    {
+        return sprintf('%d:%02d:%02d', intdiv($sec, 3600), intdiv($sec % 3600, 60), $sec % 60);
     }
 }

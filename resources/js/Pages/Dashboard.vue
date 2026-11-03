@@ -495,8 +495,10 @@ const { open: openChat } = useCoachChat();
 const goalBusy      = ref(false);
 const goalAnswered  = ref(false);
 const goalEditing   = ref(false);
-const goalHours     = ref(props.goalCheck?.suggested_hours ?? 0);
-const goalMinutes   = ref(props.goalCheck?.suggested_minutes ?? 0);
+// Vorbelegt mit dem Vorschlag, sonst mit dem heutigen Ziel — „0 : 0“ war
+// ein Feld, das man erst leeren musste.
+const goalHours     = ref(props.goalCheck?.suggested_hours ?? props.goalCheck?.target_hours ?? 0);
+const goalMinutes   = ref(props.goalCheck?.suggested_minutes ?? props.goalCheck?.target_minutes ?? 0);
 
 async function goalConfirm() {
     goalBusy.value = true;
@@ -532,7 +534,16 @@ async function goalDiscuss() {
     goalBusy.value = true;
     try {
         await axios.post('/api/goal-check/discuss');
-        openChat(`Warum passt meine Zielzeit ${props.goalCheck?.target} für ${props.goalCheck?.event_name} nicht mehr?`);
+        const g = props.goalCheck ?? {};
+        // Die Frage passt zum Urteil der Karte. Vorher fragte sie immer
+        // „Warum passt meine Zielzeit nicht mehr?“, auch wenn die Karte
+        // gerade gesagt hatte, das Tempo passe.
+        const question = {
+            too_ambitious:     `Warum ist meine Zielzeit ${g.target} für ${g.event_name} zu ehrgeizig?`,
+            too_conservative:  `Warum traust du mir für ${g.event_name} mehr zu als ${g.target}?`,
+            pace_ok_base_thin: `Mein Tempo passt für ${g.event_name}, aber mein Umfang nicht. Was heißt das für mein Ziel ${g.target}?`,
+        }[g.kind] ?? `Wie realistisch ist meine Zielzeit ${g.target} für ${g.event_name}?`;
+        openChat(question);
     } finally {
         goalBusy.value = false;
     }
@@ -1214,7 +1225,7 @@ async function resetLayout() {
                             <div class="mt-3 flex gap-2">
                                 <div class="flex-1 rounded-field bg-surface-2 px-3 py-2">
                                     <p class="text-[13px] text-ink-3">Dein Ziel</p>
-                                    <p class="mt-0.5 font-rounded text-[22px] font-bold tabular-nums text-ink">{{ goalCheck.target }}</p>
+                                    <p class="mt-0.5 font-rounded text-[22px] font-bold tabular-nums text-ink">{{ goalCheck.target_full ?? goalCheck.target }}</p>
                                 </div>
                                 <div class="flex-1 rounded-field bg-surface-2 px-3 py-2">
                                     <p class="text-[13px] text-ink-3">Deine Form</p>
@@ -1233,7 +1244,7 @@ async function resetLayout() {
                             <span class="text-lg font-bold text-ink-3">:</span>
                             <input v-model="goalMinutes" type="number" min="0" max="59" inputmode="numeric"
                                 class="z-input w-20 text-center" aria-label="Minuten" />
-                            <span class="text-[13px] text-ink-3">Std</span>
+                            <span class="text-[13px] text-ink-3">h : min</span>
                         </div>
                         <div class="mt-3 flex gap-2">
                             <AppButton variant="ghost" size="md" class="flex-1" @click="goalEditing = false">
@@ -1250,7 +1261,7 @@ async function resetLayout() {
 
                     <div v-else class="mt-4 flex flex-wrap gap-2">
                         <AppButton size="md" class="flex-1" :loading="goalBusy" @click="goalEditing = true">
-                            {{ goalCheck.suggested ? `Auf ${goalCheck.suggested} ändern` : 'Ziel anpassen' }}
+                            {{ goalCheck.suggested ? `Ziel ${goalCheck.suggested}` : 'Ziel anpassen' }}
                         </AppButton>
                         <AppButton variant="secondary" size="md" class="flex-1" :loading="goalBusy" @click="goalConfirm">
                             Ziel bleibt
@@ -1392,9 +1403,10 @@ async function resetLayout() {
                                 Hier stand „2/200 KI" — eine Zahl ohne Satz.
                                 Was gemeint ist: so viele Coach-Anfragen sind
                                 heute noch frei. Der Rest-Wert ist die Zahl, die
-                                interessiert, nicht der Verbrauch.
+                                interessiert, nicht der Verbrauch — und erst,
+                                wenn er knapp wird.
                             -->
-                            <span v-else class="text-[13px] text-ink-3"
+                            <span v-else-if="props.aiUsage.limit - props.aiUsage.used <= 5" class="text-[13px] text-ink-3"
                                 :title="`${props.aiUsage.used} von ${props.aiUsage.limit} Coach-Anfragen heute verbraucht`">
                                 noch {{ Math.max(0, props.aiUsage.limit - props.aiUsage.used) }} Coach-Anfragen
                             </span>
@@ -1417,7 +1429,8 @@ async function resetLayout() {
                                 : new Date(props.todayPlanSession.session_date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' })"
                             :badge-tone="props.todayPlanSession.status === 'completed' ? 'success' : props.todayPlanSession.is_today ? 'accent' : 'neutral'"
                         >
-                            <div class="mt-5 flex gap-2">
+                            <!-- Ein Ruhetag hat keine Details, die nicht schon dastehen. -->
+                            <div v-if="props.todayPlanSession.type !== 'rest'" class="mt-5 flex gap-2">
                                 <AppButton variant="secondary" class="flex-1"
                                     :href="todaySessionHref">
                                     Details
@@ -2063,7 +2076,7 @@ async function resetLayout() {
 
                         <div v-if="m.key === 'events'" :class="moduleClass(m)">
                             <section class="min-w-0">
-                                <SectionHeader title="Events">
+                                <SectionHeader title="Rennen">
                                     <template #action>
                                         <AppButton variant="plain" href="/events">Alle</AppButton>
                                     </template>

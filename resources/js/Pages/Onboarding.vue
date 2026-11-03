@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { Head, Link, usePage, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import TrainingModelFields from '@/Components/Settings/TrainingModelFields.vue';
@@ -55,7 +55,7 @@ const coachColors = {
     purple: { bg: 'bg-accent', ring: 'ring-accent', light: 'bg-accent-soft', border: 'border-accent', badge: 'bg-accent-soft text-accent-ink' },
 };
 
-const specialtyLabels = { motivator: 'Motivator', strategist: 'Stratege', companion: 'Begleiter' };
+const specialtyLabels = { motivator: 'Motivator', strategist: 'Strategin', companion: 'Begleiter', ultra: 'Ultra' };
 
 async function submitCoach() {
     if (!selectedCoachId.value) return;
@@ -285,6 +285,7 @@ const goalForm = ref({
     race_date:           '',
 });
 
+const goalErrorList = computed(() => [...new Set(Object.values(goalErrors.value ?? {}).map(e => e?.[0]).filter(Boolean))]);
 const isBackyardGoal = computed(() => goalForm.value.race_distance === 'backyard_ultra');
 const backyardGoalKm = computed(() =>
     goalForm.value.target_yards ? (Number(goalForm.value.target_yards) * BACKYARD_LAP_KM).toFixed(1).replace('.', ',') : null
@@ -361,7 +362,15 @@ async function submitGoal() {
         });
         nextStep();
     } catch (err) {
-        if (err.response?.status === 422) goalErrors.value = err.response.data.errors;
+        if (err.response?.status === 422) {
+            goalErrors.value = err.response.data.errors;
+            // Die Meldungen stehen unter dem Formular; auf dem iPhone liegt
+            // das hinter dem festen Knopf. Ohne Scrollen schien „Weiter" nichts zu tun.
+            await nextTick();
+            document.querySelector('.z-error')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+            goalErrors.value = { general: ['Speichern fehlgeschlagen. Bitte versuch es noch einmal.'] };
+        }
     } finally {
         goalLoading.value = false;
     }
@@ -450,9 +459,10 @@ const bar = computed(() => {
             return { label: 'Weiter', run: submitAvailability, loading: availabilityLoading.value,
                 disabled: !days.some(d => availability.value[d.key].available) };
         case 'strength':
-            return { label: 'Weiter', run: submitStrength, loading: strengthLoading.value, skip: nextStep };
+            // Ausgeschaltet tun „Weiter“ und „Überspringen“ dasselbe — dann nur einer.
+            return { label: 'Weiter', run: submitStrength, loading: strengthLoading.value, skip: strengthForm.value.strength_enabled ? nextStep : null };
         case 'bike':
-            return { label: 'Weiter', run: submitBike, loading: bikeLoading.value, skip: nextStep };
+            return { label: 'Weiter', run: submitBike, loading: bikeLoading.value, skip: bikeForm.value.bike_enabled ? nextStep : null };
         case 'goal':
             return { label: 'Ziel sichern', run: submitGoal, loading: goalLoading.value, skip: nextStep };
         case 'connect':
@@ -517,7 +527,7 @@ const bar = computed(() => {
             <template v-else-if="stepKey === 'coach'">
                 <header>
                     <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Wähle deinen Coach</h1>
-                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Er begleitet dich durch jedes Training. Wechseln geht jederzeit.</p>
+                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Dein Coach begleitet dich durch jedes Training. Wechseln geht jederzeit.</p>
                 </header>
                 <FormGroup :footer="coaches.find(c => c.id === selectedCoachId)?.description">
                     <button v-for="coach in coaches" :key="coach.id" type="button" role="radio" :aria-checked="selectedCoachId === coach.id"
@@ -712,7 +722,7 @@ const bar = computed(() => {
                         class="flex min-h-[48px] w-full items-center gap-3 px-4 py-2 text-left transition-colors active:bg-surface-2"
                         @click="selectRace(opt)">
                         <span class="flex-1 text-[17px]">{{ opt.label }}</span>
-                        <span v-if="opt.distance" class="text-[15px] text-ink-3">{{ opt.distance.toLocaleString('de-DE', { maximumFractionDigits: 1 }) }} km</span>
+                        <span v-if="opt.distance && !opt.label.includes('km')" class="text-[15px] text-ink-3">{{ opt.distance.toLocaleString('de-DE', { maximumFractionDigits: 1 }) }} km</span>
                         <svg class="h-5 w-5 shrink-0 text-accent" :class="goalForm.race_distance === opt.value ? '' : 'invisible'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
                     </button>
                 </FormGroup>
@@ -740,7 +750,7 @@ const bar = computed(() => {
                         </select>
                     </FormRow>
                 </FormGroup>
-                <p v-for="k in ['name', 'race_date', 'target_yards', 'general']" v-show="goalErrors[k]" :key="k" class="z-error mx-4">{{ goalErrors[k]?.[0] }}</p>
+                <p v-for="msg in goalErrorList" :key="msg" class="z-error mx-4">{{ msg }}</p>
             </template>
 
             <!-- ── Verbindungen ── -->

@@ -77,11 +77,11 @@ class PeriodizationService
      * Rennwoche genau ein kurzer Renntempo-Reiz.
      */
     private const PHASES = [
-        'base'      => ['label' => 'Base',      'color' => 'green',  'quality' => ['tempo_run', 'progressive_run'],             'max_hard' => 1],
-        'build'     => ['label' => 'Build',     'color' => 'blue',   'quality' => ['tempo_run', 'interval', 'progressive_run'], 'max_hard' => 2],
-        'peak'      => ['label' => 'Peak',      'color' => 'orange', 'quality' => ['tempo_run', 'interval', 'progressive_run'], 'max_hard' => 2],
+        'base'      => ['label' => 'Grundlage', 'color' => 'green',  'quality' => ['tempo_run', 'progressive_run'],             'max_hard' => 1],
+        'build'     => ['label' => 'Aufbau',    'color' => 'blue',   'quality' => ['tempo_run', 'interval', 'progressive_run'], 'max_hard' => 2],
+        'peak'      => ['label' => 'Spitze',    'color' => 'orange', 'quality' => ['tempo_run', 'interval', 'progressive_run'], 'max_hard' => 2],
         'taper'     => ['label' => 'Taper',     'color' => 'yellow', 'quality' => ['tempo_run', 'interval', 'progressive_run'], 'max_hard' => 2],
-        'race_week' => ['label' => 'Race Week', 'color' => 'red',    'quality' => ['tempo_run', 'interval', 'progressive_run'], 'max_hard' => 1],
+        'race_week' => ['label' => 'Rennwoche', 'color' => 'red',    'quality' => ['tempo_run', 'interval', 'progressive_run'], 'max_hard' => 1],
         'past'      => ['label' => 'Vergangenheit', 'color' => 'gray', 'quality' => ['tempo_run', 'interval', 'progressive_run'], 'max_hard' => 2],
     ];
 
