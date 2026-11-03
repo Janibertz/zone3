@@ -27,6 +27,13 @@ class StravaController extends Controller
 
     public function connect(Request $request, StravaService $strava): RedirectResponse
     {
+        // Strava nur nach Freischaltung (Jan, 03.11.2026) — der Knopf ist dann
+        // gar nicht zu sehen; das hier fängt einen alten Link ab.
+        if (! $request->user()->canUseStrava()) {
+            return redirect()->route('profile.edit', ['section' => 'connections'])
+                ->with('error', 'Strava ist für dein Konto nicht freigeschaltet. Verbinde deine Garmin-Uhr.');
+        }
+
         OnboardingController::rememberConnectStep($request);
 
         return redirect()->away($strava->getAuthorizationUrl());
@@ -35,6 +42,7 @@ class StravaController extends Controller
     public function callback(Request $request, StravaService $strava): RedirectResponse
     {
         $request->validate(['code' => 'required|string']);
+        abort_unless($request->user()->canUseStrava(), 403);
 
         $tokenData = $strava->exchangeCodeForToken($request->code);
         $user = $request->user();

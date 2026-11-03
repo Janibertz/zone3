@@ -2053,9 +2053,14 @@ async function resetLayout() {
                                 </SectionHeader>
 
                                 <AppCard v-if="props.recentActivities.length === 0">
-                                    <EmptyState title="Noch keine Aktivitäten" description="Verbinde Strava und synchronisiere, dann erscheinen deine Einheiten hier.">
-                                        <AppButton v-if="!props.stravaConnected" href="/strava/connect">Strava verbinden</AppButton>
-                                        <AppButton v-else :loading="syncing" @click="syncStrava">Jetzt synchronisieren</AppButton>
+                                    <!-- Garmin zuerst (Jan, 03.11.2026): Strava nur, wenn es schon verbunden ist. -->
+                                    <EmptyState v-if="props.stravaConnected" title="Noch keine Aktivitäten" description="Synchronisiere Strava, dann erscheinen deine Einheiten hier.">
+                                        <AppButton :loading="syncing" @click="syncStrava">Jetzt synchronisieren</AppButton>
+                                    </EmptyState>
+                                    <EmptyState v-else-if="$page.props.auth.garminLinked" title="Noch keine Aktivitäten"
+                                        description="Garmin schickt jeden Lauf, sobald die Uhr synchronisiert. Dein nächster Lauf erscheint hier." />
+                                    <EmptyState v-else title="Noch keine Aktivitäten" description="Verbinde deine Uhr, dann erscheinen deine Einheiten hier.">
+                                        <AppButton :href="route('profile.edit', { section: 'connections' })">Uhr verbinden</AppButton>
                                     </EmptyState>
                                 </AppCard>
 

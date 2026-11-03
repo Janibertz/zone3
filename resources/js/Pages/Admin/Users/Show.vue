@@ -62,6 +62,7 @@ function impersonate() {
     router.post(route('admin.users.impersonate', props.user.id));
 }
 function toggleActive() { router.patch(route('admin.users.toggle-active', props.user.id), {}, { preserveScroll: true }); }
+function toggleStrava() { router.patch(route('admin.users.toggle-strava', props.user.id), {}, { preserveScroll: true }); }
 function deleteUser()   { router.delete(route('admin.users.destroy',      props.user.id)); }
 
 function resetRecommendation() {
@@ -229,6 +230,13 @@ const zoneColors = [
                                 ? 'border-warn/25 text-warn-ink hover:bg-warn-soft'
                                 : 'border-success/25 text-success-ink hover:bg-success-soft'"
                         >{{ user.is_active ? 'Deaktivieren' : 'Aktivieren' }}</button>
+                        <!-- Strava nur nach Freischaltung (Jan, 03.11.2026). Ausblenden trennt nichts. -->
+                        <button @click="toggleStrava"
+                            class="px-3 py-1.5 text-xs rounded-field border transition-colors"
+                            :class="user.strava_allowed
+                                ? 'border-line text-ink-2 hover:bg-surface-2'
+                                : 'border-warn/25 text-warn-ink hover:bg-warn-soft'"
+                        >{{ user.strava_allowed ? 'Strava ausblenden' : 'Strava freischalten' }}</button>
                         <button @click="showDeleteModal = true"
                             class="px-3 py-1.5 text-xs rounded-field border border-danger/25 text-danger-ink hover:bg-danger-soft transition-colors"
                         >Löschen</button>

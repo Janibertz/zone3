@@ -70,7 +70,8 @@ const groups = computed(() => [
     ] },
     { title: 'Verbindungen', rows: [
         { name: 'Garmin',       href: profile('connections'), icon: P.watch, tint: 'bg-ink-3',  value: on(s.value.garmin) },
-        { name: 'Strava',       href: profile('connections'), icon: P.link,  tint: 'bg-warn',   value: on(s.value.strava) },
+        // Strava nur nach Freischaltung (Jan, 03.11.2026).
+        ...(usePage().props.auth?.strava ? [{ name: 'Strava', href: profile('connections'), icon: P.link, tint: 'bg-warn', value: on(s.value.strava) }] : []),
         { name: 'Telegram',     href: profile('connections'), icon: P.send,  tint: 'bg-info',   value: on(s.value.telegram) },
         { name: 'Kalender-Abo', href: profile('connections'), icon: P.cal,   tint: 'bg-danger', value: s.value.calendar ? 'an' : 'aus' },
     ] },

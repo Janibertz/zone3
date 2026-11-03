@@ -142,6 +142,18 @@ class AdminUserController extends Controller
         return back()->with('success', $user->is_active ? 'Konto aktiviert.' : 'Konto deaktiviert.');
     }
 
+    /**
+     * Strava für einen Athleten freischalten oder wieder ausblenden.
+     *
+     * Ausblenden trennt nichts: wer verbunden ist, bleibt verbunden.
+     */
+    public function toggleStrava(User $user)
+    {
+        $user->update(['strava_allowed' => ! $user->strava_allowed]);
+
+        return back()->with('success', $user->strava_allowed ? 'Strava freigeschaltet.' : 'Strava ausgeblendet.');
+    }
+
     public function resetRecommendation(User $user)
     {
         $user->runnerProfile?->update([

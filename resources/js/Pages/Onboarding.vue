@@ -383,6 +383,9 @@ async function submitGoal() {
 // 28.10.2026). Beide Wege führen zum Anbieter und zurück ins Onboarding;
 // abgeschlossen wird es erst mit „Fertig".
 const stravaLinked = computed(() => !!props.connections?.strava);
+// Strava nur nach Freischaltung (Jan, 03.11.2026): Strava hat keine freien
+// Plätze, neue Athleten kommen über Garmin.
+const stravaOffered = computed(() => !!page.props.auth?.strava);
 const garminLinked = computed(() => !!props.connections?.garmin);
 const anyLinked    = computed(() => stravaLinked.value || garminLinked.value);
 const garminGranted = computed(() => {
@@ -512,7 +515,7 @@ const bar = computed(() => {
                             ['Coach und Trainingsmodell', 'Wer dich begleitet und wie du trainierst'],
                             ['Deine Werte', 'Puls und Schwellenpace, bekannt oder geschätzt'],
                             ['Zeit und Ziel', 'Wann du trainieren kannst und worauf'],
-                            ['Garmin oder Strava', 'Damit Zone3 deine Läufe sieht'],
+                            [stravaOffered ? 'Garmin oder Strava' : 'Deine Garmin-Uhr', 'Damit Zone3 deine Läufe sieht'],
                         ]" :key="i" class="flex items-center gap-3 px-4 py-3">
                         <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[13px] font-bold text-accent-ink">{{ i + 1 }}</span>
                         <span class="min-w-0 flex-1">
@@ -699,7 +702,7 @@ const bar = computed(() => {
             <template v-else-if="stepKey === 'bike'">
                 <header>
                     <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Rad als Abwechslung?</h1>
-                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Gerade im Winter ein guter Reiz. Zwift-Fahrten kommen über Strava ohnehin an.</p>
+                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Gerade im Winter ein guter Reiz. Zwift-Fahrten kommen mit deinen anderen Aktivitäten an.</p>
                 </header>
                 <BikeFields v-model="bikeForm" />
                 <p v-if="bikeError" class="z-error mx-4">{{ bikeError }}</p>
@@ -751,7 +754,7 @@ const bar = computed(() => {
             <template v-else-if="stepKey === 'connect'">
                 <header>
                     <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Woher kommen deine Läufe?</h1>
-                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Garmin, Strava oder beides. Zone3 lernt aus deinen echten Läufen und gleicht sie mit dem Plan ab.</p>
+                    <p class="mt-2 text-[17px] leading-snug text-ink-3">{{ stravaOffered ? 'Garmin, Strava oder beides.' : 'Verbinde deine Garmin-Uhr.' }} Zone3 lernt aus deinen echten Läufen und gleicht sie mit dem Plan ab.</p>
                 </header>
                 <FormGroup>
                     <template v-if="connections.garminAvailable">
@@ -784,7 +787,7 @@ const bar = computed(() => {
                         <p v-if="connections.garminStatus?.type === 'error'" class="px-4 py-3 text-[13px] text-danger">{{ connections.garminStatus.message }}</p>
                     </template>
 
-                    <div class="flex min-h-[60px] items-center gap-3 px-4 py-2">
+                    <div v-if="stravaOffered" class="flex min-h-[60px] items-center gap-3 px-4 py-2">
                         <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-warn text-white">
                             <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" /></svg>
                         </span>
@@ -799,7 +802,8 @@ const bar = computed(() => {
                         <button v-else type="button" class="shrink-0 text-[17px] text-accent active:opacity-60" @click="connectStrava">Verbinden</button>
                     </div>
                     <template v-if="garminLinked && !stravaLinked" #footer>
-                        Garmin schickt nur neue Läufe. Verbinde zusätzlich Strava, damit Zone3 auch deine bisherigen kennt — daraus kommen Schwellenpace, Wochenumfang und Bestzeiten vom ersten Tag an.
+                        <template v-if="stravaOffered">Garmin schickt nur neue Läufe. Verbinde zusätzlich Strava, damit Zone3 auch deine bisherigen kennt — daraus kommen Schwellenpace, Wochenumfang und Bestzeiten vom ersten Tag an.</template>
+                        <template v-else>Garmin schickt nur neue Läufe. Bis genug davon da sind, plant Zone3 mit den Werten, die du eben eingetragen hast.</template>
                     </template>
                 </FormGroup>
 

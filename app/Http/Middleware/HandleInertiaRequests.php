@@ -84,6 +84,10 @@ class HandleInertiaRequests extends Middleware
                 // Zone3 legt die naechsten sieben Plantage selbst in den
                 // Garmin-Kalender; dann braucht die Einheit keinen Senden-Knopf.
                 'garminSync'     => (bool) $request->user()?->syncsPlanToGarmin(),
+                // Strava nur nach Freischaltung durch einen Admin (Jan, 03.11.2026).
+                'strava'         => (bool) $request->user()?->canUseStrava(),
+                // Irgendeine Garmin-Verbindung, unabhängig von den Freigaben.
+                'garminLinked'   => (bool) $request->user()?->garminConnection,
                 // Laeuft gerade eine Uebernahme? Dann gehoert das sichtbar
                 // auf jede Seite — sonst haelt man fremde Daten fuer eigene
                 // und aendert im Zweifel etwas am falschen Account.
