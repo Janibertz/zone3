@@ -979,7 +979,7 @@ const chartData = computed(() => {
     const spanDays = (lastDate - firstDate) / (1000 * 60 * 60 * 24);
     if (spanDays < 7) return null;
 
-    const W = 560, H = 120, padX = 40, padY = 16;
+    const W = 560, H = 120, padX = 6, padY = 10;
     const plotW = W - padX * 2;
     const plotH = H - padY * 2;
 
@@ -992,7 +992,7 @@ const chartData = computed(() => {
         const x = padX + (i / (history.length - 1)) * plotW;
         // Invert Y: lower pace (faster) = higher on chart
         const y = padY + ((h.pace - minPace) / range) * plotH;
-        return { x, y, pace: h.pace_formatted, date: h.date };
+        return { x, y, pace: h.pace_formatted, date: String(h.date ?? '').slice(0, 6) };
     });
 
     // Smooth polyline path
@@ -1006,10 +1006,9 @@ const chartData = computed(() => {
     // Fill area below curve
     const fillD = pathD + ` L ${points[points.length - 1].x} ${H - padY} L ${padX} ${H - padY} Z`;
 
-    // Show fewer pace labels when many points to avoid clutter
-    const labelStep = points.length <= 8 ? 1 : points.length <= 15 ? 2 : points.length <= 25 ? 4 : 6;
+    const fastest = history.reduce((a, b) => (b.pace < a.pace ? b : a)).pace_formatted;
 
-    return { points, pathD, fillD, W, H, minPace, maxPace, padX, padY, labelStep };
+    return { points, pathD, fillD, W, H, minPace, maxPace, padX, padY, fastest };
 });
 
 // CTL/ATL chart — dual-line SVG over last 60 days
@@ -1975,11 +1974,16 @@ async function resetLayout() {
                                     </button>
 
                                     <div v-if="showPaceDetails">
-                                        <div v-if="props.racePredictions" class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                                            <div v-for="(pred, key) in props.racePredictions" :key="key" class="rounded-field bg-surface-2 px-3 py-2.5">
-                                                <p class="text-[12px] text-ink-3">{{ pred.label }}</p>
-                                                <p class="mt-0.5 font-rounded text-[20px] font-bold tabular-nums text-ink">{{ pred.total_time }}</p>
-                                                <p class="font-mono text-[11px] text-ink-3">{{ pred.pace }} /km</p>
+                                        <!--
+                                            Immer zwei Spalten: das Modul ist auch am Desktop oft nur
+                                            ~400 px breit, und vier Spalten ließen „Halbmarathon“ und
+                                            „1:33:22“ aus dem Kasten laufen (Jan, 03.11.2026).
+                                        -->
+                                        <div v-if="props.racePredictions" class="mt-4 grid grid-cols-2 gap-2">
+                                            <div v-for="(pred, key) in props.racePredictions" :key="key" class="min-w-0 rounded-field bg-surface-2 px-3 py-2.5">
+                                                <p class="truncate text-[13px] text-ink-3">{{ pred.label }}</p>
+                                                <p class="mt-0.5 font-rounded text-[22px] font-bold tabular-nums text-ink">{{ pred.total_time }}</p>
+                                                <p class="text-[13px] tabular-nums text-ink-3">{{ pred.pace }} /km</p>
                                             </div>
                                         </div>
 
@@ -1988,15 +1992,18 @@ async function resetLayout() {
                                                 <svg :viewBox="`0 0 ${chartData.W} ${chartData.H}`" class="h-full w-full" preserveAspectRatio="none">
                                                     <path :d="chartData.fillD" fill="rgb(var(--z-accent) / 0.12)" />
                                                     <path :d="chartData.pathD" fill="none" stroke="rgb(var(--z-accent))" stroke-width="2" stroke-linecap="round" />
-                                                    <g v-for="(p, i) in chartData.points" :key="i">
-                                                        <circle :cx="p.x" :cy="p.y" r="4" fill="rgb(var(--z-accent))" />
-                                                        <text v-if="i === 0 || i === chartData.points.length - 1 || i % chartData.labelStep === 0"
-                                                            :x="p.x" :y="p.y - 8" text-anchor="middle" font-size="9"
-                                                            fill="rgb(var(--z-ink-2))" font-family="monospace">{{ p.pace }}</text>
-                                                    </g>
                                                 </svg>
                                             </div>
-                                            <p class="mt-1.5 text-center text-[12px] text-ink-3">Gemessene Schwelle · {{ props.thresholdPaceHistory.length }} Messpunkte · oben = schneller</p>
+                                            <!--
+                                                Beschriftung als Text statt im SVG: das SVG wird gestreckt,
+                                                Schrift darin landete bei 6 px (Jan, 03.11.2026).
+                                            -->
+                                            <div class="mt-2 grid grid-cols-3 text-[13px] tabular-nums">
+                                                <p class="text-ink-3">{{ chartData.points[0].date }}<br><span class="font-semibold text-ink">{{ chartData.points[0].pace }}</span></p>
+                                                <p class="text-center text-ink-3">Schnellste<br><span class="font-semibold text-ink">{{ chartData.fastest }}</span></p>
+                                                <p class="text-right text-ink-3">{{ chartData.points[chartData.points.length - 1].date }}<br><span class="font-semibold text-ink">{{ chartData.points[chartData.points.length - 1].pace }}</span></p>
+                                            </div>
+                                            <p class="mt-1.5 text-center text-[12px] text-ink-3">Gemessene Schwelle · oben = schneller</p>
                                         </div>
                                         <p v-else-if="props.thresholdPace" class="mt-3 text-[13px] text-ink-3">
                                             Der Verlauf erscheint, sobald Daten über mehr als 7 Tage vorliegen.
