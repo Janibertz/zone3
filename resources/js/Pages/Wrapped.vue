@@ -93,8 +93,13 @@ async function fetchReview(params) {
     if (!stats.value?.has_data) return;
     reviewLoading.value = true;
     try {
-        const { data } = await axios.get(route('wrapped.review'), { params });
-        reviewText.value = data.text;
+        // Der Text entsteht im Hintergrund; nachfragen, bis er da ist
+        // (höchstens etwa zwei Minuten).
+        for (let i = 0; i < 60; i++) {
+            const { data } = await axios.post(route('wrapped.review'), params);
+            if (!data.pending) { reviewText.value = data.text; break; }
+            await new Promise((r) => setTimeout(r, 2000));
+        }
     } catch { /* ignore */ } finally {
         reviewLoading.value = false;
     }
@@ -137,7 +142,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
     <AuthenticatedLayout>
         <div class="py-4 lg:py-6">
             <div class="relative mx-auto max-w-md px-3">
-                <div class="relative h-[78vh] rounded-[28px] overflow-hidden text-white select-none transition-colors duration-300" :class="current.gradient">
+                <!-- Höhe so, dass „Zurück“/„Weiter“ darunter über der Tab-Leiste bleiben
+                     (bei 78vh lagen sie auf dem iPhone darunter). -->
+                <div class="relative h-[calc(100svh-15rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-h-[380px] lg:h-[78vh] rounded-[28px] overflow-hidden text-white select-none transition-colors duration-300" :class="current.gradient">
                     <!-- Fortschritts-Segmente -->
                     <div class="absolute top-0 inset-x-0 z-30 flex gap-1 p-3">
                         <div v-for="(s, i) in slides" :key="i" class="h-1 flex-1 rounded-full" :class="i <= index ? 'bg-surface' : 'bg-surface/30'"></div>
@@ -202,9 +209,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 
                 <!-- Navigation unter der Karte -->
                 <div class="flex items-center justify-between mt-3 px-1">
-                    <button @click="prev" :disabled="index === 0" class="text-sm font-medium text-ink-3 disabled:opacity-30">‹ Zurück</button>
+                    <button @click="prev" :disabled="index === 0" class="min-h-[44px] px-2 text-[15px] font-medium text-accent disabled:text-ink-3 disabled:opacity-40">‹ Zurück</button>
                     <span class="text-xs text-ink-3">{{ index + 1 }} / {{ slides.length }}</span>
-                    <button @click="next" :disabled="index === slides.length - 1" class="text-sm font-medium text-ink-3 disabled:opacity-30">Weiter ›</button>
+                    <button @click="next" :disabled="index === slides.length - 1" class="min-h-[44px] px-2 text-[15px] font-medium text-accent disabled:text-ink-3 disabled:opacity-40">Weiter ›</button>
                 </div>
             </div>
         </div>

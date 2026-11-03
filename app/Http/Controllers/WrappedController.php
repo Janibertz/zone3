@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\AI\CoachingTextService;
+use App\Jobs\GenerateWrappedReviewJob;
 use App\Services\WrappedService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,7 +35,11 @@ class WrappedController extends Controller
         ]);
     }
 
-    public function review(Request $request, CoachingTextService $text): JsonResponse
+    /**
+     * POST, nicht GET: der Aufruf kann ein Modell anstoßen, und ein GET, der
+     * Geld kostet, löst schon ein Prefetch aus.
+     */
+    public function review(Request $request): JsonResponse
     {
         $data  = $this->validatePeriod($request);
         $user  = $request->user();
@@ -49,12 +53,16 @@ class WrappedController extends Controller
         $hash = md5(json_encode($stats['totals']) . json_encode($stats['prs'] ?? []) . $stats['period_label']);
         $key  = "wrapped_review:{$user->id}:{$stats['period']}:{$stats['period_label']}:{$hash}";
 
-        $text = Cache::remember($key, now()->addDays(14), function () use ($text, $user, $stats) {
-            $text->withCoach($user->coach?->personality_prompt)->forUser($user->id);
-            return $text->generateWrappedReview($stats, $stats['period_label']);
-        });
+        if (Cache::has($key)) {
+            return response()->json(['text' => Cache::get($key) ?: null, 'pending' => false]);
+        }
 
-        return response()->json(['text' => $text]);
+        // Einmal anstoßen, danach nur nachfragen.
+        if (Cache::add($key . ':pending', true, now()->addMinutes(5))) {
+            GenerateWrappedReviewJob::dispatch($user->id, $data['period'], $data['year'] ?? null, $data['month'] ?? null, $key);
+        }
+
+        return response()->json(['text' => Cache::get($key) ?: null, 'pending' => ! Cache::has($key)]);
     }
 
     private function validatePeriod(Request $request): array

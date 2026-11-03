@@ -83,4 +83,22 @@ class OnboardingGoalTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('errors.race_date.0', 'Datum fehlt.');
     }
+
+    public function test_finishing_the_onboarding_leads_to_the_plan_interview(): void
+    {
+        $user = User::factory()->create(['onboarding_completed_at' => null]);
+
+        $this->actingAs($user)->postJson(route('onboarding.goal'), $this->goal())->assertOk();
+        $event = Event::where('user_id', $user->id)->first();
+
+        $this->actingAs($user)->post(route('onboarding.complete'))
+            ->assertRedirect(route('plan-interview.show', ['event' => $event->id]));
+    }
+
+    public function test_without_a_goal_the_onboarding_ends_on_today(): void
+    {
+        $user = User::factory()->create(['onboarding_completed_at' => null]);
+
+        $this->actingAs($user)->post(route('onboarding.complete'))->assertRedirect(route('dashboard'));
+    }
 }

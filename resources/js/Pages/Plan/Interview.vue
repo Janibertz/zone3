@@ -22,7 +22,9 @@ const coachName = computed(() => page.props.coach?.name ?? 'dein Coach');
  */
 const steps = computed(() => [
     ...(props.prefill.lastBlock ? [{ key: 'review', label: 'Rückblick' }] : []),
-    { key: 'skips',  label: 'Ausfälle' },
+    // Ohne geplante Einheiten in den letzten 90 Tagen gibt es keine Ausfälle
+    // zu erklären — die Frage stand bei neuen Athleten vor „0 erledigt, 0 %“.
+    ...((props.prefill.adherence?.completed ?? 0) + (props.prefill.adherence?.skipped ?? 0) > 0 ? [{ key: 'skips', label: 'Ausfälle' }] : []),
     { key: 'time',   label: 'Zeit' },
     // Steht das Rennen schon fest, ist die Frage nach dem Ziel beantwortet.
     ...(props.event ? [] : [{ key: 'goal', label: 'Ziel' }]),

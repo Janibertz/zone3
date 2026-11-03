@@ -571,15 +571,15 @@ const bar = computed(() => {
                 <template v-else-if="profileMode === 'know'">
                     <FormGroup footer="Schwelle heißt: das, was du etwa 60 Minuten halten kannst.">
                         <FormRow as="label" label="Schwellenpuls">
-                            <input v-model="knownForm.threshold_heart_rate" type="number" inputmode="numeric" min="100" max="220" placeholder="168" class="z-inline w-16" />
+                            <input v-model="knownForm.threshold_heart_rate" type="number" inputmode="numeric" min="100" max="220" placeholder="z. B. 168" class="z-inline w-28" />
                             <span class="text-[17px] text-ink-3">bpm</span>
                         </FormRow>
                         <FormRow as="label" label="Maximalpuls">
-                            <input v-model="knownForm.max_heart_rate" type="number" inputmode="numeric" min="100" max="220" placeholder="192" class="z-inline w-16" />
+                            <input v-model="knownForm.max_heart_rate" type="number" inputmode="numeric" min="100" max="220" placeholder="z. B. 192" class="z-inline w-28" />
                             <span class="text-[17px] text-ink-3">bpm</span>
                         </FormRow>
                         <FormRow as="label" label="Schwellenpace">
-                            <input v-model="knownForm.threshold_speed" type="text" inputmode="numeric" placeholder="5:30" class="z-inline w-16" />
+                            <input v-model="knownForm.threshold_speed" type="text" inputmode="numeric" placeholder="z. B. 5:30" class="z-inline w-28" />
                             <span class="text-[17px] text-ink-3">/km</span>
                         </FormRow>
                     </FormGroup>
@@ -590,18 +590,12 @@ const bar = computed(() => {
                     <FormGroup title="Beste Distanz" plain>
                         <SegmentedControl v-model="estimateForm.race_distance" :options="raceDistances.map(d => ({ value: d.value, label: d.value === 'half_marathon' ? 'HM' : d.label }))" />
                     </FormGroup>
-                    <FormGroup footer="Kein Wettkampf? Dann deine schnellste Trainingszeit über die Strecke.">
+                    <FormGroup footer="Kein Wettkampf? Dann deine schnellste Trainingszeit über die Strecke. Die Schwelle rechnet Zone3 daraus über den VDOT, den Puls über eine Faustformel nach dem Alter.">
                         <FormRow as="label" label="Zeit">
-                            <input v-model="estimateForm.race_time" type="text" inputmode="numeric" :placeholder="raceTimePlaceholder.replace('z.B. ', '')" class="z-inline w-28" />
+                            <input v-model="estimateForm.race_time" type="text" inputmode="numeric" :placeholder="raceTimePlaceholder.replace('z.B. ', 'z. B. ')" class="z-inline w-32" />
                         </FormRow>
                         <FormRow as="label" label="Alter">
-                            <input v-model="estimateForm.age" type="number" inputmode="numeric" min="14" max="90" placeholder="32" class="z-inline w-16" />
-                        </FormRow>
-                        <FormRow label="Läufe pro Woche" stacked>
-                            <div class="flex items-center gap-3">
-                                <input v-model.number="estimateForm.weekly_runs" type="range" min="1" max="14" step="1" class="z-range flex-1" />
-                                <span class="w-10 text-right text-[17px] tabular-nums text-ink-3">{{ estimateForm.weekly_runs }}×</span>
-                            </div>
+                            <input v-model="estimateForm.age" type="number" inputmode="numeric" min="14" max="90" placeholder="z. B. 35" class="z-inline w-24" />
                         </FormRow>
                     </FormGroup>
                     <p v-for="k in ['age', 'race_time', 'general']" v-show="estimateErrors[k]" :key="k" class="z-error mx-4">{{ estimateErrors[k]?.[0] }}</p>
@@ -618,7 +612,7 @@ const bar = computed(() => {
                             <p class="font-rounded text-[24px] font-bold">{{ v[1] }}<span class="ml-0.5 text-[13px] font-semibold text-ink-3">{{ v[2] }}</span></p>
                         </div>
                     </div>
-                    <p class="mx-4 text-[13px] text-ink-3">Geschätzt. Du kannst die Werte jederzeit im Profil ändern.</p>
+                    <p class="mx-4 text-[13px] text-ink-3">Geschätzt: die Schwelle aus deiner Zeit (VDOT {{ estimateResult.vdot?.toLocaleString('de-DE') }}), der Puls aus deinem Alter. Mit Uhr misst Zone3 beides später genauer; ändern kannst du die Werte jederzeit im Profil.</p>
                     <AppButton variant="plain" class="mx-4" @click="estimateResult = null">Neu berechnen</AppButton>
                 </template>
             </template>

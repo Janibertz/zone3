@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Coach;
 use App\Models\Event;
 use App\Models\RunnerProfile;
-use App\Services\AI\AthleteProfileService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -93,27 +92,72 @@ class OnboardingController extends Controller
      * Estimate runner profile from simple race data via OpenAI.
      * Returns suggested values — user still confirms before saving.
      */
-    public function estimateProfile(Request $request, AthleteProfileService $profiles)
+    public function estimateProfile(Request $request)
     {
         $validated = $request->validate([
             'age'           => 'required|integer|min:14|max:90',
             'race_distance' => 'required|string|in:5km,10km,half_marathon,marathon',
             'race_time'     => ['required', 'string', 'regex:/^(\d+:)?\d{1,2}:\d{2}$/'],
-            'weekly_runs'   => 'required|integer|min:1|max:14',
+            'weekly_runs'   => 'nullable|integer|min:1|max:14',
+        ], [
+            'race_time.regex' => 'Bitte die Zeit als h:mm:ss oder mm:ss eingeben, z. B. 1:45:00.',
         ]);
 
-        $estimate = $profiles->estimateProfileFromRaceData(
-            $validated['age'],
-            $validated['race_distance'],
-            $validated['race_time'],
-            $validated['weekly_runs'],
-        );
+        $estimate = self::estimateFromRace($validated['age'], $validated['race_distance'], $validated['race_time']);
 
-        if (!$estimate) {
-            return response()->json(['error' => 'Schätzung fehlgeschlagen. Bitte versuche es erneut.'], 500);
+        if (! $estimate) {
+            return response()->json(['errors' => ['race_time' => ['Mit dieser Zeit lässt sich nichts schätzen.']]], 422);
         }
 
         return response()->json($estimate);
+    }
+
+    /**
+     * Schwelle und Puls aus einer Bestzeit — gerechnet, nicht geraten
+     * (Entscheidung von Jan, 03.11.2026).
+     *
+     * Vorher fragte die Schätzung OpenAI, im Request: sie wartete, kostete
+     * Geld und scheiterte mit „Schätzung fehlgeschlagen“, sobald das Budget
+     * griff. Die Schwelle kommt jetzt über den VDOT, wie überall sonst in
+     * Zone3 (T = 88 % VO2max). Der Puls ist eine Faustformel und als solche
+     * gekennzeichnet: Maximalpuls nach Tanaka (208 − 0,7 × Alter), Schwelle
+     * bei 90 % davon. Eine Uhr misst beides später besser.
+     *
+     * @return array{threshold_heart_rate:int,max_heart_rate:int,threshold_speed:string,vdot:float}|null
+     */
+    public static function estimateFromRace(int $age, string $distance, string $time): ?array
+    {
+        $meters = [
+            '5km'           => 5000,
+            '10km'          => 10000,
+            'half_marathon' => 21097.5,
+            'marathon'      => 42195,
+        ][$distance] ?? null;
+
+        $parts   = array_map('intval', explode(':', $time));
+        $seconds = 0;
+        foreach ($parts as $part) {
+            $seconds = $seconds * 60 + $part;
+        }
+        // „45:00“ beim Marathon meint keine 45 Minuten — zwei Teile sind
+        // dort Stunden und Minuten.
+        if (count($parts) === 2 && in_array($distance, ['half_marathon', 'marathon'], true) && $parts[0] < 7) {
+            $seconds *= 60;
+        }
+
+        $vdot = $meters ? \App\Services\Vdot::fromPerformance($meters, $seconds) : null;
+        if (! $vdot || $vdot < 20 || $vdot > 90) {
+            return null;
+        }
+
+        $maxHr = (int) round(208 - 0.7 * $age);
+
+        return [
+            'threshold_heart_rate' => (int) round($maxHr * 0.90),
+            'max_heart_rate'       => $maxHr,
+            'threshold_speed'      => \App\Services\PaceFormat::fromSeconds(\App\Services\Vdot::paceAt($vdot, \App\Services\Vdot::THRESHOLD)),
+            'vdot'                 => round($vdot, 1),
+        ];
     }
 
     /**
@@ -365,7 +409,18 @@ class OnboardingController extends Controller
         }
 
         $user->save();
+        $goalEventId = $request->session()->get(self::GOAL_EVENT_KEY);
         $request->session()->forget([self::RESUME_KEY, self::GOAL_EVENT_KEY]);
+
+        // Wer im Onboarding ein Rennen eingetragen hat, bekommt gleich seinen
+        // Plan (Entscheidung von Jan, 03.11.2026): über das Interview, das
+        // jedem neuen Plan vorausgeht, und von dort mit `generate=1` zum Bau.
+        // Vorher endete das Onboarding auf Heute, und „Noch kein
+        // Trainingsplan“ stand an vierter Stelle halb unter der Tab-Leiste.
+        $goal = $goalEventId ? $user->events()->find($goalEventId) : null;
+        if ($goal && $goal->event_date->isFuture() && ! $goal->trainingPlans()->where('is_active', true)->exists()) {
+            return redirect()->route('plan-interview.show', ['event' => $goal->id]);
+        }
 
         return redirect()->route('dashboard');
     }

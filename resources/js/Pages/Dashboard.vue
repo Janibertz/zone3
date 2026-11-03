@@ -624,15 +624,21 @@ const RING = {
     'bg-info': 'border-info', 'bg-accent': 'border-accent', 'bg-ink-3': 'border-ink-3',
 };
 
-/** Geplante Laufkilometer dieser Woche — die Zahl, an der die gelaufenen sich messen. */
 /** Gelaufene Kilometer dieser Woche — nur Läufe, denn der Plan zählt nur Läufe. */
 const weekRunKm = computed(() => {
     const monday = new Date();
     monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
     monday.setHours(0, 0, 0, 0);
 
+    // Beginnt der Plan mitten in der Woche, zählen nur Läufe ab Planbeginn.
+    // Sonst stand „18,3 von 22,5 km“ (81 %) da, bevor die erste geplante
+    // Einheit gelaufen war — die Kilometer stammten aus der Zeit davor.
+    const planDates = (props.weekPlan || []).map((p) => p.date).filter(Boolean).sort();
+    const from = planDates.length ? new Date(planDates[0] + 'T00:00:00') : monday;
+    const start = from > monday ? from : monday;
+
     return props.recentActivities
-        .filter((a) => a.start_date && new Date(a.start_date) >= monday && ['Run', 'TrailRun', 'VirtualRun'].includes(a.type))
+        .filter((a) => a.start_date && new Date(a.start_date) >= start && ['Run', 'TrailRun', 'VirtualRun'].includes(a.type))
         .reduce((s, a) => s + (a.distance || 0), 0) / 1000;
 });
 
@@ -1580,14 +1586,15 @@ async function resetLayout() {
                                 </div>
                             </div>
 
-                            <AppCard v-else-if="recommendationHint">
+                            <!-- Fehlt nur die Tagesform, fragt die Karte oben danach. -->
+                            <AppCard v-else-if="recommendationHint && checkinDone">
                                 <p class="text-[15px] font-bold text-ink">Fast geschafft</p>
                                 <p class="mt-1 text-[15px] text-ink-3">{{ recommendationHint }}</p>
                                 <AppButton size="sm" class="mt-4" @click="showWellbeingModal = true">Tagesform eintragen</AppButton>
                             </AppCard>
 
-                            <AppCard v-else>
-                                <EmptyState title="Noch keine Empfehlung" description="Trag deine Tagesform ein, dann schlägt dir dein Coach eine passende Einheit vor.">
+                            <AppCard v-else-if="checkinDone">
+                                <EmptyState title="Noch keine Empfehlung" description="Dein Coach schlägt dir eine Einheit passend zu deiner Tagesform vor.">
                                     <AppButton @click="getTodayRecommendation">Empfehlung holen</AppButton>
                                 </EmptyState>
                             </AppCard>
@@ -1788,21 +1795,9 @@ async function resetLayout() {
                                 </div>
                             </section>
 
-                            <!-- Ohne Garmin und ohne Check-in bleibt nur die Aufforderung -->
-                            <button v-else type="button" class="w-full text-left" @click="showWellbeingModal = true">
-                                <AppCard>
-                                    <div class="flex items-center gap-4">
-                                        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-3"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m3.75-9.75H6.75A2.25 2.25 0 0 0 4.5 6v13.5A2.25 2.25 0 0 0 6.75 21h10.5A2.25 2.25 0 0 0 19.5 19.5V6a2.25 2.25 0 0 0-2.25-2.25H12.75Z" /></svg></div>
-                                        <div class="min-w-0 flex-1">
-                                            <p class="text-[15px] font-bold text-ink">Wie fühlst du dich heute?</p>
-                                            <p class="mt-0.5 text-[13px] text-ink-3">Trag deine Tagesform ein — dauert 30 Sekunden.</p>
-                                        </div>
-                                        <svg class="h-5 w-5 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                                        </svg>
-                                    </div>
-                                </AppCard>
-                            </button>
+                            <!-- Ohne Garmin und ohne Check-in stand hier eine dritte
+                                 Aufforderung zur Tagesform. Es fragt jetzt nur noch
+                                 die Karte oben. -->
                         </div>
 
                         <div v-if="m.key === 'form'" :class="moduleClass(m)">
@@ -1854,7 +1849,10 @@ async function resetLayout() {
                                         </div>
                                     </div>
 
-                                    <p class="mt-3 text-[13px] leading-relaxed text-ink-3">
+                                    <p v-if="props.trainingLoad.enough_data === false" class="mt-3 text-[13px] leading-relaxed text-ink-3">
+                                        Die Form ist ein Schnitt über sechs Wochen. Nach etwa vier Wochen mit Läufen sagt sie etwas aus.
+                                    </p>
+                                    <p v-else class="mt-3 text-[13px] leading-relaxed text-ink-3">
                                         Form ist Fitness minus Ermüdung. −10 bis +5 heißt wettkampfbereit,
                                         darunter steckst du in einem Trainingsblock.
                                     </p>

@@ -64,7 +64,7 @@ const models = [
         <FormGroup :footer="model.training_model === 'norwegian' ? 'Ohne Laktatmessgerät steuert Zone3 die Schwellenarbeit über Pace und einen Pulsdeckel.' : null">
             <FormRow as="label" label="Lauferfahrung">
                 <input v-model.number="model.running_experience_years" type="number" min="0" max="60" inputmode="numeric"
-                    placeholder="0" class="z-inline w-16" />
+                    placeholder="z. B. 3" class="z-inline w-24" />
                 <span class="text-[17px] text-ink-3">Jahre</span>
             </FormRow>
             <FormRow v-if="model.training_model === 'norwegian'" label="Laktatmessgerät">
