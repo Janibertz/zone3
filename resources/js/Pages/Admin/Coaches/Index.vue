@@ -14,7 +14,7 @@ const coachColors = {
     purple: { bg: 'bg-accent',  light: 'bg-accent-soft',  border: 'border-accent/25',  badge: 'bg-accent-soft text-accent-ink'  },
 };
 
-const specialtyLabels = { motivator: 'Motivator', strategist: 'Stratege', companion: 'Begleiter' };
+const specialtyLabels = { motivator: 'Motivator', strategist: 'Strategin', companion: 'Begleiter', ultra: 'Ultra' };
 
 function formatCost(eur) {
     const val = parseFloat(eur);

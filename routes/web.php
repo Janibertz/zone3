@@ -116,10 +116,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
     $racePredictions = null;
 
     if ($runnerProfile && $runnerProfile->threshold_speed) {
-        $ts   = $runnerProfile->threshold_speed;
-        $mins = (int)$ts;
-        $secs = (int)(($ts - $mins) * 60);
-        $thresholdPaceFormatted = sprintf('%d:%02d', $mins, $secs);
+        $thresholdPaceFormatted = \App\Services\PaceFormat::fromMinutes((float) $runnerProfile->threshold_speed);
 
         // Dieselbe Quelle wie auf der Planseite — die Formel stand hier
         // als zweite Kopie und musste von Hand mitgepflegt werden.

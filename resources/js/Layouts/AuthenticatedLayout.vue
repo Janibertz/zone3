@@ -181,66 +181,51 @@ const moreActive = computed(() =>
         </button>
 
         <!-- ══════════════════════════════════════
-             PWA INSTALL BANNER (mobile, dismissable)
+             PWA INSTALL-HINWEIS (mobil, schliessbar)
              ══════════════════════════════════════ -->
+        <!--
+            Als Karte ueber der Tab-Leiste, nicht als Leiste oben: oben lag
+            der Hinweis ueber der Kopfzeile und verdeckte den Avatar, also
+            Coach und Profil. Unten sitzt er ausserdem dort, wo Safari den
+            Teilen-Knopf hat, auf den er zeigt.
+        -->
         <Transition
             enter-active-class="transition duration-300 ease-out-strong"
-            enter-from-class="-translate-y-full opacity-0"
+            enter-from-class="translate-y-4 opacity-0"
             enter-to-class="translate-y-0 opacity-100"
             leave-active-class="transition duration-200 ease-out-strong"
             leave-from-class="translate-y-0 opacity-100"
-            leave-to-class="-translate-y-full opacity-0"
+            leave-to-class="translate-y-4 opacity-0"
         >
-            <!-- Android: native install prompt -->
             <div
-                v-if="isInstallable"
-                class="fixed inset-x-0 top-0 z-50 flex items-center gap-3 bg-accent px-4 pb-3 pt-safe-banner text-white shadow-card lg:hidden"
+                v-if="isInstallable || isIOSHint"
+                class="fixed inset-x-3 z-40 flex items-center gap-3 rounded-2xl bg-surface px-3 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.18)] ring-1 ring-line lg:hidden"
+                style="bottom: calc(4.75rem + env(safe-area-inset-bottom))"
             >
-                <button @click="dismissInstall" class="shrink-0 text-white/70 transition-colors hover:text-white" aria-label="Schließen">
+                <ZoneIcon class="h-10 w-10 rounded-[9px]" />
+                <div class="min-w-0 flex-1">
+                    <p class="text-[15px] font-semibold leading-tight">Zone3 als App</p>
+                    <p v-if="isInstallable" class="mt-0.5 text-[13px] leading-snug text-ink-3">Kostenlos, direkt auf dem Homescreen</p>
+                    <p v-else class="mt-0.5 text-[13px] leading-snug text-ink-3">
+                        Tippe auf
+                        <svg class="mx-0.5 -mt-0.5 inline h-4 w-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-label="Teilen">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15m0-3-3-3m0 0-3 3m3-3V15" />
+                        </svg>
+                        und dann „Zum Home-Bildschirm“.
+                    </p>
+                </div>
+                <button
+                    v-if="isInstallable"
+                    @click="installApp"
+                    class="shrink-0 rounded-full bg-accent px-4 py-2 text-[15px] font-semibold text-white transition active:opacity-80"
+                >
+                    Installieren
+                </button>
+                <button @click="dismissInstall" class="-mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-3 transition active:bg-surface-2" aria-label="Schließen">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
                     </svg>
                 </button>
-                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-field bg-surface/20">
-                    <span class="text-xs font-bold text-white">Z3</span>
-                </div>
-                <div class="min-w-0 flex-1">
-                    <p class="text-sm font-semibold leading-tight">Zone3 installieren</p>
-                    <p class="text-xs leading-tight text-white/75">Kostenlos · direkt auf dem Homescreen</p>
-                </div>
-                <button
-                    @click="installApp"
-                    class="shrink-0 rounded-full bg-surface px-4 py-1.5 text-xs font-bold text-accent-ink transition-colors hover:bg-surface/90"
-                >
-                    Installieren
-                </button>
-            </div>
-
-            <!-- iOS Safari: manual share-sheet instructions -->
-            <div
-                v-else-if="isIOSHint"
-                class="fixed inset-x-0 top-0 z-50 bg-accent px-4 pb-3 pt-safe-banner text-white shadow-card lg:hidden"
-            >
-                <div class="flex items-start gap-3">
-                    <button @click="dismissInstall" class="mt-0.5 shrink-0 text-white/70 transition-colors hover:text-white" aria-label="Schließen">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-field bg-surface/20">
-                        <span class="text-xs font-bold text-white">Z3</span>
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <p class="text-sm font-semibold leading-tight">Zone3 als App installieren</p>
-                        <p class="mt-1 text-xs leading-snug text-white/80">
-                            Tippe auf
-                            <svg class="mx-0.5 -mt-0.5 inline h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15m0-3-3-3m0 0-3 3m3-3V15" />
-                            </svg>
-                            und dann <strong>„Zum Home-Bildschirm"</strong>
-                        </p>
-                    </div>
-                </div>
             </div>
         </Transition>
 
@@ -318,7 +303,7 @@ const moreActive = computed(() =>
             <!-- Coach Chat Button -->
             <div v-if="coach" class="shrink-0 px-3 pb-3">
                 <button
-                    @click="openChat"
+                    @click="openChat()"
                     class="flex w-full items-center gap-3 rounded-[10px] px-3 py-2 text-[15px] font-medium text-accent transition duration-150 ease-out-strong hover:bg-accent-soft active:scale-[0.98]"
                 >
                     <div
@@ -375,7 +360,7 @@ const moreActive = computed(() =>
                 <!-- Coach chat button (mobile) -->
                 <button
                     v-if="coach"
-                    @click="openChat"
+                    @click="openChat()"
                     :aria-label="`Chat mit ${coach.name}`"
                     class="relative flex h-10 w-10 items-center justify-center rounded-full transition-transform duration-150 ease-out-strong active:scale-[0.94]"
                 >

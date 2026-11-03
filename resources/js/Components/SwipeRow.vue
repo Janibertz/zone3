@@ -62,11 +62,13 @@ defineExpose({ close });
 <template>
     <div class="relative overflow-hidden">
         <!-- Left action zone (revealed by swiping right) -->
-        <div v-if="leftW" class="absolute inset-y-0 left-0 flex items-stretch" :style="{ width: leftW + 'px' }">
+        <!-- Die Aktionen nur, solange gewischt wird: geschlossen schien ihr
+             Rot an den runden Ecken einer Karte durch. -->
+        <div v-if="leftW" v-show="offset > 0" class="absolute inset-y-0 left-0 flex items-stretch" :style="{ width: leftW + 'px' }">
             <slot name="left" :close="close" />
         </div>
         <!-- Right action zone (revealed by swiping left) -->
-        <div v-if="rightW" class="absolute inset-y-0 right-0 flex items-stretch" :style="{ width: rightW + 'px' }">
+        <div v-if="rightW" v-show="offset < 0" class="absolute inset-y-0 right-0 flex items-stretch" :style="{ width: rightW + 'px' }">
             <slot name="right" :close="close" />
         </div>
         <!-- Sliding content -->

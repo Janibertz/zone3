@@ -549,7 +549,7 @@ onUnmounted(() => {
                 :show="confirmDelete"
                 title="Aktivität löschen?"
                 :message="deleteMessage"
-                confirm-label="Endgültig löschen"
+                confirm-label="Löschen"
                 :loading="deleting"
                 @confirm="destroyActivity"
                 @close="confirmDelete = false"

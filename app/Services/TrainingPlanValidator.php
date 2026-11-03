@@ -1075,7 +1075,7 @@ class TrainingPlanValidator
                 'date'         => $date,
                 'type'         => 'long_run',
                 'title'        => 'Langer Lauf',
-                'description'  => "Gleichmäßig locker über {$slot['target_km']} km, Tempo bewusst zurückhalten.{$race} Trinken und essen mitnehmen.",
+                'description'  => "Gleichmäßig locker über {$slot['target_km']} km, Tempo bewusst zurückhalten.{$race}.",
                 'distance_km'  => $slot['target_km'],
                 'duration_min' => $slot['target_min'],
                 'pace_target'  => null,
@@ -1115,7 +1115,7 @@ class TrainingPlanValidator
         return match ($type) {
             'interval'  => ['Intervalltraining', 'Nach dem Einlaufen 5–6 harte Abschnitte mit lockerer Trabpause dazwischen, danach auslaufen.', 4, 'high'],
             'tempo_run' => ['Tempolauf', 'Nach dem Einlaufen zügig an der Schwelle laufen, danach auslaufen.', 3, 'medium'],
-            'long_run'  => ['Langer Lauf', 'Gleichmäßig locker, Tempo bewusst zurückhalten. Trinken und essen mitnehmen.', 2, 'medium'],
+            'long_run'  => ['Langer Lauf', 'Gleichmäßig locker, Tempo bewusst zurückhalten..', 2, 'medium'],
             'easy_run'  => ['Lockerer Lauf', 'Ruhiges Grundlagentempo in Zone 2 — unterhalten können muss möglich sein.', 2, 'low'],
             default     => ['Ergänzende Einheit', 'Lockere Ergänzung zum Lauftraining.', 2, 'low'],
         };

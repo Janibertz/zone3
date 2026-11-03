@@ -60,13 +60,14 @@ const models = [
             <p class="mt-1">Du kannst Norwegisch trotzdem wählen.</p>
         </div>
 
-        <FormGroup footer="Ohne Laktatmessgerät steuert Zone3 die Schwellenarbeit über Pace und einen Pulsdeckel.">
+        <!-- Das Laktatmessgerät ändert nur im norwegischen Modell etwas. -->
+        <FormGroup :footer="model.training_model === 'norwegian' ? 'Ohne Laktatmessgerät steuert Zone3 die Schwellenarbeit über Pace und einen Pulsdeckel.' : null">
             <FormRow as="label" label="Lauferfahrung">
                 <input v-model.number="model.running_experience_years" type="number" min="0" max="60" inputmode="numeric"
                     placeholder="0" class="z-inline w-16" />
                 <span class="text-[17px] text-ink-3">Jahre</span>
             </FormRow>
-            <FormRow label="Laktatmessgerät">
+            <FormRow v-if="model.training_model === 'norwegian'" label="Laktatmessgerät">
                 <Toggle v-model="model.has_lactate_meter" label="Laktatmessgerät vorhanden" />
             </FormRow>
         </FormGroup>

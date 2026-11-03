@@ -20,6 +20,9 @@ import axios from 'axios';
 
 const coach   = computed(() => usePage().props.coach ?? null);
 const flash   = computed(() => usePage().props.flash ?? {});
+// Die Validator-Korrekturen sind Werkzeug für die Prompt-Arbeit, keine
+// Information für den Athleten („tempo_run aus dem Gerüst fehlte“).
+const isAdmin = computed(() => !!usePage().props.auth?.isAdmin);
 const coachName = computed(() => coach.value?.name ?? 'Dein Coach');
 
 
@@ -263,7 +266,7 @@ function cardMetrics(s) {
     if (s.distance_km)  out.push({ label: 'Distanz', value: String(s.distance_km).replace('.', ','), unit: 'km' });
     if (s.duration_min) out.push({ label: 'Dauer',   value: String(s.duration_min), unit: 'min' });
     const pace = paceValue(s.pace_target);
-    if (pace)           out.push({ label: 'Tempo',   value: pace, unit: '/km' });
+    if (pace)           out.push({ label: 'Pace',    value: pace, unit: '/km' });
     if (s.zone && out.length < 3) out.push({ label: 'Zone', value: String(s.zone), unit: null });
     return out.slice(0, 3);
 }
@@ -1440,7 +1443,7 @@ const lapHeightPct = computed(() => {
 
                     <!-- Was der Prüfer an der Antwort des Modells korrigieren musste.
                          Stand bisher nur im Log. -->
-                    <div v-if="rev.corrections.length" class="mt-3.5 border-t border-line pt-3">
+                    <div v-if="isAdmin && rev.corrections.length" class="mt-3.5 border-t border-line pt-3">
                         <p class="mb-1.5 text-[13px] font-semibold text-ink-3">Automatisch korrigiert</p>
                         <ul class="space-y-1">
                             <li v-for="(corr, i) in rev.corrections" :key="i" class="text-[12px] leading-relaxed text-ink-3">
@@ -1863,8 +1866,8 @@ const lapHeightPct = computed(() => {
             :show="cancelModal"
             title="Plan wirklich abbrechen?"
             message="Der Plan wird deaktiviert. Deine bereits absolvierten Einheiten bleiben erhalten. Du kannst danach für jedes Event einen neuen Plan erstellen."
-            cancel-label="Nicht abbrechen"
-            confirm-label="Ja, Plan abbrechen"
+            cancel-label="Behalten"
+            confirm-label="Plan abbrechen"
             :loading="cancelLoading"
             @confirm="cancelPlan"
             @close="cancelModal = false"
