@@ -28,6 +28,9 @@ class TrainingLoadService
      *
      * @return array{ctl: float, atl: float, tsb: float, form_label: string, form_color: string, history: array}
      */
+    /** Ab so vielen Tagen Verlauf sagt die Form etwas aus. */
+    public const MIN_HISTORY_DAYS = 28;
+
     public function calculate(int $userId): array
     {
         $profile          = RunnerProfile::where('user_id', $userId)->first();
@@ -79,13 +82,20 @@ class TrainingLoadService
 
         $tsb = $ctl - $atl;
 
+        // Fitness ist ein 42-Tage-Schnitt. Mit weniger als vier Wochen Daten
+        // ist jede Bewertung erfunden — ein neuer Athlet stand mit Fitness 0
+        // und Ermüdung 0 auf „Optimal“.
+        $first      = $activities->first()?->start_date;
+        $enoughData = $first !== null && Carbon::parse($first)->lte(Carbon::now()->subDays(self::MIN_HISTORY_DAYS));
+
         return [
-            'ctl'        => round($ctl, 1),
-            'atl'        => round($atl, 1),
-            'tsb'        => round($tsb, 1),
-            'form_label' => $this->formLabel($tsb),
-            'form_color' => $this->formColor($tsb),
-            'history'    => $history,
+            'ctl'         => round($ctl, 1),
+            'atl'         => round($atl, 1),
+            'tsb'         => round($tsb, 1),
+            'form_label'  => $enoughData ? $this->formLabel($tsb) : 'Noch zu wenig Daten',
+            'form_color'  => $enoughData ? $this->formColor($tsb) : 'gray',
+            'enough_data' => $enoughData,
+            'history'     => $history,
         ];
     }
 

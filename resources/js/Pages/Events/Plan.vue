@@ -946,7 +946,8 @@ const lapHeightPct = computed(() => {
                     „Abbrechen" steht unten in der Liste unter dem Plan.
                 -->
                 <div class="-mx-4 -mt-4 lg:-mx-8 lg:-mt-6">
-                    <PageHeader :back="route('events.index')" :eyebrow="headerEyebrow" :title="event.name">
+                    <!-- Der aktive Plan ist die Wurzel des Plan-Tabs: dort kein Zurück. -->
+                    <PageHeader :back="currentPlan?.is_active ? null : route('events.index')" :eyebrow="headerEyebrow" :title="event.name">
                         <template v-if="!isPastEvent && currentPlan?.is_active" #action>
                             <button type="button" :disabled="generating" @click="generatePlan()"
                                 class="flex h-11 w-11 items-center justify-center rounded-full text-accent transition-[opacity,transform] duration-150 ease-out-strong active:scale-95 disabled:opacity-50"

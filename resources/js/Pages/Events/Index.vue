@@ -9,7 +9,7 @@ import EmptyState from '@/Components/UI/EmptyState.vue';
 import ListRow from '@/Components/UI/ListRow.vue';
 import { fmtNum, clock } from '@/Composables/useFormat';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 
 const props = defineProps({
     events: Array,
@@ -56,6 +56,11 @@ function openCreate() {
     form.target_yards = '';
     showModal.value = true;
 }
+
+// `?new=1` (vom leeren Plan-Tab) öffnet gleich das Formular.
+onMounted(() => {
+    if (new URLSearchParams(window.location.search).get('new') === '1') openCreate();
+});
 
 function openEdit(event) {
     editingEvent.value = event;

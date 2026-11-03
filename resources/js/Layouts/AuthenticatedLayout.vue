@@ -94,24 +94,26 @@ const planTabIcon = `<path stroke-linecap="round" stroke-linejoin="round" d="M9 
  *  Menuepunkt die Tab-Leiste. */
 const nav = (routeName) => navItems.find(i => i.routeName === routeName);
 
-const mobileNavItems = computed(() => {
-    const eventsOrPlan = activePlan.value
-        ? { label: 'Plan', routeName: 'events.plan.show', planId: activePlan.value.event_id, icon: planTabIcon }
-        : nav('events.index');
-    return [
-        nav('dashboard'),
-        eventsOrPlan,
-        nav('calendar'),
-        nav('activities.index'),
-    ];
-});
+// Der zweite Tab heißt immer „Plan“ (Entscheidung von Jan, 03.11.2026).
+// Vorher wechselte er zwischen „Rennen“ und „Plan“; Rennen stehen unter Mehr.
+const planTab = { label: 'Plan', routeName: 'plan.home', icon: planTabIcon, also: ['events.plan.*', 'plan-interview.*'] };
+
+const mobileNavItems = computed(() => [
+    nav('dashboard'),
+    planTab,
+    nav('calendar'),
+    nav('activities.index'),
+]);
+
+/** Ist dieser Tab gerade aktiv? Der Plan-Tab auch auf der Planseite. */
+const isCurrent = (item) => route().current(item.routeName) || (item.also ?? []).some(r => route().current(r));
 
 /** Was über „Mehr" erreicht wird, lässt den Tab aktiv — wie in iOS. */
 const MORE_ROUTES = ['more', 'profile.edit', 'workouts.*', 'statistics.index', 'live.*', 'wrapped.index', 'support.*', 'admin.*'];
 const helpIcon = `<path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />`;
 
 const moreActive = computed(() =>
-    MORE_ROUTES.some(r => route().current(r)) || (!!activePlan.value && route().current('events.index')));
+    MORE_ROUTES.some(r => route().current(r)) || route().current('events.index'));
 </script>
 
 <template>
@@ -426,12 +428,12 @@ const moreActive = computed(() =>
                 <Link
                     v-for="item in mobileNavItems"
                     :key="item.routeName"
-                    :href="item.planId ? route(item.routeName, item.planId) : route(item.routeName)"
-                    :aria-current="route().current(item.routeName) ? 'page' : undefined"
+                    :href="route(item.routeName)"
+                    :aria-current="isCurrent(item) ? 'page' : undefined"
                     class="flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-0.5 transition-colors"
-                    :class="route().current(item.routeName) ? 'text-accent' : 'text-ink-3'"
+                    :class="isCurrent(item) ? 'text-accent' : 'text-ink-3'"
                 >
-                    <svg class="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="route().current(item.routeName) ? 2.1 : 1.7" v-html="item.icon" />
+                    <svg class="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="isCurrent(item) ? 2.1 : 1.7" v-html="item.icon" />
                     <span class="max-w-full truncate px-0.5 text-[10px] font-semibold leading-none">{{ item.label }}</span>
                 </Link>
 

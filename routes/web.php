@@ -520,7 +520,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     // Wrapped / Rückblick
     Route::get('/rueckblick',         [\App\Http\Controllers\WrappedController::class, 'index'])->name('wrapped.index');
     Route::get('/api/wrapped',        [\App\Http\Controllers\WrappedController::class, 'stats'])->name('wrapped.stats');
-    Route::get('/api/wrapped/review', [\App\Http\Controllers\WrappedController::class, 'review'])->name('wrapped.review');
+    Route::post('/api/wrapped/review', [\App\Http\Controllers\WrappedController::class, 'review'])->name('wrapped.review');
     Route::get('/calendar', function () {
         $user = auth()->user();
 
@@ -587,6 +587,38 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/goals', [GoalController::class, 'index'])->name('goals.index');
     Route::post('/goals', [GoalController::class, 'store'])->name('goals.store');
     Route::delete('/goals/{goal}', [GoalController::class, 'destroy'])->name('goals.destroy');
+
+    // Der feste Tab „Plan“ (Entscheidung von Jan, 03.11.2026). Vorher
+    // wechselte der Tab zwischen „Rennen“ und „Plan“, je nachdem, ob ein Plan
+    // lief. Jetzt führt er immer hierher: mit aktivem Plan direkt dorthin,
+    // sonst ein leerer Zustand mit dem nächsten Schritt.
+    Route::get('/plan', function () {
+        $user = auth()->user();
+        $plan = \App\Models\TrainingPlan::where('user_id', $user->id)
+            ->where('is_active', true)
+            ->whereHas('event', fn ($q) => $q->whereDate('event_date', '>=', now()->toDateString()))
+            ->latest('id')
+            ->first();
+        if ($plan) {
+            return redirect()->route('events.plan.show', $plan->event_id);
+        }
+
+        $next = $user->events()
+            ->whereDate('event_date', '>', now()->toDateString())
+            ->orderByRaw("CASE priority WHEN 'A' THEN 0 WHEN 'B' THEN 1 ELSE 2 END")
+            ->orderBy('event_date')
+            ->first();
+
+        return Inertia::render('Plan/Start', [
+            'event' => $next ? [
+                'id'         => $next->id,
+                'name'       => $next->name,
+                'date_label' => $next->event_date->locale('de')->translatedFormat('j. F Y'),
+                'distance'   => $next->distance_label,
+                'days_until' => $next->days_until,
+            ] : null,
+        ]);
+    })->name('plan.home');
 
     // Events + Training Plans
     Route::get('/events', [EventController::class, 'index'])->name('events.index');
