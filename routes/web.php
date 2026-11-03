@@ -284,6 +284,8 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         'recentActivities' => Activity::where('user_id', $user->id)->orderByDesc('start_date')->limit(20)->get(Activity::SUMMARY_COLUMNS),
         'suggestions' => $progressService->generateTrainingSuggestions($user),
         'thresholdPace' => $thresholdPaceFormatted,
+        // Für die Anzeige gilt die Schwelle aus dem VDOT, mit Herkunft (N10).
+        'thresholdDisplay' => $runnerProfile?->thresholdDisplay(),
         'thresholdPaceCalculatedAt' => $runnerProfile?->threshold_pace_calculated_at?->format('d.m.Y H:i'),
         'paceZones' => $runnerProfile?->pace_zones,
         'thresholdPaceHistory' => $runnerProfile?->threshold_pace_history ?? [],

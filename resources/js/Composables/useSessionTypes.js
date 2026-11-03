@@ -183,6 +183,7 @@ export function stepRows(steps) {
             const prefix = [reps > 1 ? `${reps} ×` : null, amount].filter(Boolean).join(' ');
             rows.push({
                 kind: 'work',
+                zone: Number(s.zone) || null,
                 name: [prefix, s.label].filter(Boolean).join(' '),
                 value: paceValue(s.pace_target) ?? (reps > 1 ? null : amount),
             });
@@ -193,4 +194,25 @@ export function stepRows(steps) {
     }
 
     return rows;
+}
+
+/**
+ * Zonenfarben wie bei den Runden einer Aktivität: Z1 grau, Z2 grün, Z3 blau,
+ * Z4 orange, Z5 rot. Ein Belastungsabschnitt bekommt die Farbe seiner Zone —
+ * sonst sahen beim langen Lauf mit Renntempo beide Teile gleich aus.
+ */
+export const ZONE_BAR = { 1: 'bg-ink-3', 2: 'bg-success', 3: 'bg-accent', 4: 'bg-warn', 5: 'bg-danger' };
+
+/**
+ * Die Zone einer Einheit als Text: „2“ oder, wenn die Belastungsabschnitte
+ * verschiedene Zonen haben, „2–4“. Ein langer Lauf mit Renntempo stand
+ * sonst als „Zone 2“ da.
+ */
+export function zoneSpan(session, steps = null) {
+    const zones = (steps ?? session?.steps ?? [])
+        .filter((s) => s.type === 'work' && Number(s.zone) > 0)
+        .map((s) => Number(s.zone));
+    if (!zones.length) return session?.zone ? String(session.zone) : null;
+    const lo = Math.min(...zones), hi = Math.max(...zones);
+    return lo === hi ? String(lo) : `${lo}–${hi}`;
 }

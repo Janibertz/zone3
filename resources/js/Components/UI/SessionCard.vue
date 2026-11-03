@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue';
-import { paceValue, sessionType, stepRows } from '@/Composables/useSessionTypes';
+import { paceValue, sessionType, stepRows, zoneSpan, ZONE_BAR } from '@/Composables/useSessionTypes';
 
 /**
  * Eine Trainingseinheit als Karte — geplant, empfohlen oder eingebucht.
@@ -50,18 +50,19 @@ const metrics = computed(() => {
     if (s.duration_min) out.push({ label: 'Dauer',   value: String(s.duration_min), unit: 'min' });
     const pace = paceValue(s.pace_target);
     if (pace)           out.push({ label: 'Pace',    value: pace, unit: '/km' });
-    if (s.zone && out.length < 3) out.push({ label: 'Zone', value: String(s.zone), unit: null });
+    const zone = zoneSpan(s);
+    if (zone && out.length < 3) out.push({ label: 'Zone', value: zone, unit: null });
     return out.slice(0, 3);
 });
 
 const rows = computed(() => stepRows(props.session?.steps));
 const split = computed(() => props.wide && rows.value.length > 0);
-const barClass = (kind) => ({
+const barClass = (row) => ({
     warmup:   'bg-success',
     cooldown: 'bg-success',
     rest:     'bg-ink-3',
-    work:     meta.value.dot,
-}[kind] ?? meta.value.dot);
+    work:     ZONE_BAR[row.zone] ?? meta.value.dot,
+}[row.kind] ?? meta.value.dot);
 </script>
 
 <template>
@@ -105,7 +106,7 @@ const barClass = (kind) => ({
         <div v-if="rows.length" class="mt-4 space-y-2 border-t border-line pt-3"
             :class="split ? 'lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0 lg:self-center lg:border-l lg:border-t-0 lg:pl-10 lg:pt-0' : ''">
             <div v-for="(r, i) in rows" :key="i" class="flex items-center gap-3 text-[15px] leading-5">
-                <i class="h-[18px] w-1 shrink-0 rounded-full" :class="barClass(r.kind)" />
+                <i class="h-[18px] w-1 shrink-0 rounded-full" :class="barClass(r)" />
                 <span class="min-w-0 flex-1 truncate text-ink-2">{{ r.name }}</span>
                 <b v-if="r.value" class="shrink-0 font-semibold tabular-nums text-ink">{{ r.value }}</b>
             </div>

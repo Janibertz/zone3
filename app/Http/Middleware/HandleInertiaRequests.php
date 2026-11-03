@@ -81,6 +81,9 @@ class HandleInertiaRequests extends Middleware
                 // Einheiten koennen auf die Garmin-Uhr — ueber die Training
                 // API, mit Workout-Freigabe.
                 'garminConnected'=> (bool) $request->user()?->sendsWorkoutsViaGarminApi(),
+                // Zone3 legt die naechsten sieben Plantage selbst in den
+                // Garmin-Kalender; dann braucht die Einheit keinen Senden-Knopf.
+                'garminSync'     => (bool) $request->user()?->syncsPlanToGarmin(),
                 // Laeuft gerade eine Uebernahme? Dann gehoert das sichtbar
                 // auf jede Seite — sonst haelt man fremde Daten fuer eigene
                 // und aendert im Zweifel etwas am falschen Account.

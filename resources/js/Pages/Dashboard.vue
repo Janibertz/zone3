@@ -42,6 +42,10 @@ const props = defineProps({
         type: String,
         default: null,
     },
+    thresholdDisplay: {
+        type: Object,
+        default: null,
+    },
     thresholdPaceCalculatedAt: {
         type: String,
         default: null,
@@ -337,6 +341,7 @@ watch(
 );
 
 const showPaceDetails = ref(false);
+const shownThreshold = computed(() => props.thresholdDisplay?.pace ?? props.thresholdPace);
 
 // ── Inline-Rating (Noch zu bewerten) ─────────────────────────────────────────
 const ratedIds       = ref(new Set());
@@ -1929,15 +1934,24 @@ async function resetLayout() {
 
                                 <AppCard>
                                     <p class="text-[15px] font-semibold text-accent">Schwellenpace</p>
-                                    <p v-if="props.thresholdPace" class="mt-0.5 flex items-baseline gap-1.5">
-                                        <span class="font-rounded text-[40px] font-bold leading-[44px] tabular-nums tracking-tight text-ink">{{ props.thresholdPace }}</span>
+                                    <!--
+                                        Die Schwelle aus dem VDOT, mit Herkunft (Befund N10, Jan
+                                        03.11.2026): dieselbe Zahl, aus der Zonen und Tempoläufe
+                                        rechnen. Die gemessene steht daneben, wenn sie abweicht.
+                                    -->
+                                    <p v-if="shownThreshold" class="mt-0.5 flex items-baseline gap-1.5">
+                                        <span class="font-rounded text-[40px] font-bold leading-[44px] tabular-nums tracking-tight text-ink">{{ shownThreshold }}</span>
                                         <span class="text-[17px] font-semibold text-ink-3">/km</span>
                                     </p>
                                     <p v-else class="mt-1 text-xl font-bold text-ink-3">Noch nicht berechnet</p>
                                     <p class="mt-1 text-[13px] text-ink-3">
                                         <span v-if="props.thresholdPaceCalculating">Analyse läuft im Hintergrund…</span>
+                                        <template v-else-if="props.thresholdDisplay">
+                                            <span class="first-letter:uppercase inline-block">{{ props.thresholdDisplay.label }}</span>
+                                            <span v-if="props.thresholdDisplay.measured"> · gemessen {{ props.thresholdDisplay.measured }}</span>
+                                        </template>
                                         <span v-else-if="props.thresholdPaceCalculatedAt">{{ props.thresholdPaceCalculatedAt }} · letzte 20 Läufe</span>
-                                        <span v-else>Wird nach dem nächsten Strava-Sync berechnet</span>
+                                        <span v-else>Wird aus deinen ersten Läufen berechnet</span>
                                     </p>
 
                                     <div v-if="props.paceZones" class="mt-4 grid grid-cols-5 gap-1.5">
@@ -1982,7 +1996,7 @@ async function resetLayout() {
                                                     </g>
                                                 </svg>
                                             </div>
-                                            <p class="mt-1.5 text-center text-[12px] text-ink-3">{{ props.thresholdPaceHistory.length }} Messpunkte · oben = schneller</p>
+                                            <p class="mt-1.5 text-center text-[12px] text-ink-3">Gemessene Schwelle · {{ props.thresholdPaceHistory.length }} Messpunkte · oben = schneller</p>
                                         </div>
                                         <p v-else-if="props.thresholdPace" class="mt-3 text-[13px] text-ink-3">
                                             Der Verlauf erscheint, sobald Daten über mehr als 7 Tage vorliegen.

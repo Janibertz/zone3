@@ -30,7 +30,8 @@ class MoreController extends Controller
         return Inertia::render('More', [
             'summary' => [
                 'vdot'        => $vdot ? round($vdot, 1) : null,
-                'threshold'   => $profile?->threshold_speed ? PaceFormat::fromMinutes((float) $profile->threshold_speed) : null,
+                'threshold'   => $profile?->thresholdDisplay()['pace']
+                    ?? ($profile?->threshold_speed ? PaceFormat::fromMinutes((float) $profile->threshold_speed) : null),
                 'events'      => $user->events()->whereDate('event_date', '>=', today())->count(),
                 'workouts'    => Workout::where('user_id', $user->id)->count(),
                 'model'       => $profile?->trainingModelOn(today()) === 'norwegian' ? 'Norwegisch' : '80/20',

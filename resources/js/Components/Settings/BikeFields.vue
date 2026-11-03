@@ -12,6 +12,7 @@ import FormRow from '@/Components/UI/FormRow.vue';
 import Toggle from '@/Components/UI/Toggle.vue';
 
 const model = defineModel({ type: Object, required: true });
+defineProps({ ftpHintElsewhere: { type: Boolean, default: false } });
 
 const seasons  = [{ value: 'winter', label: 'Nur Winter' }, { value: 'all_year', label: 'Ganzjährig' }];
 const purposes = [{ value: 'easy', label: 'Locker' }, { value: 'intervals', label: 'Intervalle' }, { value: 'both', label: 'Beides' }];
@@ -60,10 +61,10 @@ function toggleDay(key) {
                 </FormRow>
                 <FormRow as="label" label="FTP">
                     <input v-model.number="model.ftp" type="number" min="50" max="600" inputmode="numeric"
-                        placeholder="250" class="z-inline w-20" />
+                        placeholder="z. B. 250" class="z-inline w-24" />
                     <span class="text-[17px] text-ink-3">W</span>
                 </FormRow>
-                <template v-if="model.bike_purpose !== 'easy' && !model.ftp" #footer>
+                <template v-if="model.bike_purpose !== 'easy' && !model.ftp && !ftpHintElsewhere" #footer>
                     <span class="text-warn-ink">Ohne FTP kann Zone3 keine Radintervalle in % FTP schreiben. Den Wert findest du in Zwift unter deinem Profil.</span>
                 </template>
             </FormGroup>

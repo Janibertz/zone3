@@ -91,6 +91,12 @@ Bis zum Usability-Befund gab es kein `lang/`, und `APP_LOCALE` stand auf `en`: L
 
 `resources/views/errors/` ersetzt Laravels englische Fehlerseiten (401–503) durch eine Karte im App-Stil mit „Zu Heute“. Bewusst ohne Vite: eine 500 kann gerade daran liegen, dass der Build fehlt.
 
+### Schwelle aus dem VDOT, Zone als Spanne (seit 03.11.2026)
+
+**Die Schwelle, die der Athlet sieht, kommt aus dem VDOT** (Jan: „Überall die aus dem VDOT mit der Quelle“). `RunnerProfile::thresholdDisplay()` liefert Pace, Herkunft („aus Garmins VO2max vom …“) und die gemessene, wenn sie abweicht. Heute, Mehr und Profil zeigen diese Zahl; `threshold_speed` bleibt die gemessene Eingabe und eine der drei VDOT-Quellen. Vorher standen drei Schwellen nebeneinander (gemessen 4:35, Zonen aus dem VDOT, Tempolauf).
+
+**Zone einer Einheit = Spanne der Belastungsabschnitte** (`zoneSpan()` in `useSessionTypes.js`): ein langer Lauf mit Renntempo ist „Zone 2–4“, nicht „Zone 2“. Abschnitte tragen die Zonenfarbe (`ZONE_BAR`, dieselbe wie bei den Runden), die große Pace oben ist die des härtesten Abschnitts. Der Uhr-Knopf in den Details richtet sich nach der Verbindung (`auth.garminSync`): mit Garmin-Abgleich steht dort „Steht automatisch auf deiner Garmin-Uhr“, ohne Garmin die Apple Watch und „Garmin-Uhr verbinden“. Das Athletenprofil hat **einen** Sichern-Knopf, der nur sichert, was sich geändert hat.
+
 ### Logo „Zone3." (seit 29.10.2026)
 
 Von Jan aus drei Richtungen gewählt: eine **3 aus zwei Laufbahn-Kurven** mit **blauem Punkt** — derselbe Punkt wie in „unter 90." auf der Startseite. Die Wortmarke ist „Zone3." in Inter Display ExtraBold, Punkt in Akzentblau. **Das Logo steht immer allein**; „Der Coach, der mitläuft." ist der Slogan für Posts und Stories, kein Claim am Logo (Entscheidung von Jan).

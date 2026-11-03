@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
-import { paceValue, paceWithUnit, sessionType, stepAmount, stepRows } from '@/Composables/useSessionTypes';
+import { paceValue, paceWithUnit, sessionType, stepAmount, stepRows, zoneSpan, ZONE_BAR } from '@/Composables/useSessionTypes';
 import AppButton from '@/Components/UI/AppButton.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
@@ -578,6 +578,15 @@ const garminSuccess  = ref(false);
 const garminError    = ref('');
 
 const garminConnected = computed(() => !!usePage().props.auth.garminConnected);
+const garminSync = computed(() => !!usePage().props.auth.garminSync);
+// Der Abgleich hält heute und die sechs Tage danach auf der Uhr (GarminWorkoutSync::DAYS_AHEAD).
+const detailOnWatchSoon = computed(() => {
+    const d = detailSession.value?.planned_date;
+    if (!d) return false;
+    const limit = new Date();
+    limit.setDate(limit.getDate() + 6);
+    return d >= today && d <= limit.toISOString().slice(0, 10);
+});
 
 function openGarminModal() {
     garminModal.value    = true;
@@ -633,7 +642,11 @@ const detailPace = computed(() => {
     const s = detailSession.value;
     if (!s) return null;
     if (s.status !== 'completed') {
-        const work = (aiSteps.value ?? []).find((x) => x.type === 'work' && paceValue(x.pace_target));
+        // Der Abschnitt mit der höchsten Zone: beim langen Lauf mit Renntempo
+        // ist das das Renntempo, nicht der lockere Anfang.
+        const work = (aiSteps.value ?? [])
+            .filter((x) => x.type === 'work' && paceValue(x.pace_target))
+            .sort((a, b) => (Number(b.zone) || 0) - (Number(a.zone) || 0))[0];
         if (work) return paceValue(work.pace_target);
     }
     return paceValue(s.pace_target);
@@ -791,8 +804,8 @@ const predictionDeltaText = computed(() => {
         ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
         : `${m}:${String(s).padStart(2,'0')}`;
     return prediction.value.delta >= 0
-        ? { label: `${fmt} unter Zielzeit`, positive: true }
-        : { label: `${fmt} über Zielzeit`, positive: false };
+        ? { label: `Prognose ${fmt} schneller`, positive: true }
+        : { label: `Prognose ${fmt} langsamer`, positive: false };
 });
 
 function secToPaceStr(sec) {
@@ -802,7 +815,8 @@ function secToPaceStr(sec) {
 }
 
 // Abschnittsfarben wie auf der Karte: Ein- und Auslaufen grün, Pause grau,
-// die Belastung in der Farbe der Einheit (Tempo orange, Intervall rot …).
+// die Belastung in der Farbe ihrer Zone (wie bei den Runden einer Aktivität),
+// sonst in der Farbe der Einheit.
 const stepBarColor = computed(() => ({
     warmup:   'bg-success',
     work:     detailSession.value ? typeOf(detailSession.value.type).dot : 'bg-accent',
@@ -810,6 +824,7 @@ const stepBarColor = computed(() => ({
     cooldown: 'bg-success',
 }));
 const stepLabel = { warmup: 'Aufwärmen', work: 'Hauptteil', rest: 'Pause', cooldown: 'Auslaufen' };
+const stepColor = (s) => (s.type === 'work' && ZONE_BAR[Number(s.zone)]) || stepBarColor.value[s.type] || 'bg-accent';
 
 // Bar height % by step type (bars grow from bottom)
 
@@ -1090,13 +1105,13 @@ const lapHeightPct = computed(() => {
                                 <p class="font-rounded text-[30px] font-bold leading-9 tracking-tight tabular-nums text-ink">{{ prediction.time }}</p>
                             </div>
                             <div v-if="event.target_time_formatted">
-                                <p class="text-[13px] text-ink-3">Ziel
-                                    <span v-if="predictionDeltaText" class="font-semibold"
-                                        :class="predictionDeltaText.positive ? 'text-success-ink' : 'text-danger-ink'">
-                                        {{ predictionDeltaText.positive ? '−' : '+' }}{{ predictionDeltaText.label }}
-                                    </span>
-                                </p>
+                                <p class="text-[13px] text-ink-3">Ziel</p>
                                 <p class="font-rounded text-[30px] font-bold leading-9 tracking-tight tabular-nums text-ink-3">{{ event.target_time_formatted.replace(/\s*Std\.?$/, '') }}</p>
+                                <!-- Ruhig formuliert (Befund P2-10/N11): „+10:07 über Zielzeit“ in Rot las sich wie ein Fehler. -->
+                                <p v-if="predictionDeltaText" class="mt-0.5 text-[13px] font-medium"
+                                    :class="predictionDeltaText.positive ? 'text-success-ink' : 'text-ink-3'">
+                                    {{ predictionDeltaText.label }}
+                                </p>
                             </div>
                         </div>
                         <p v-if="prediction?.text && !backyard" class="mt-3 text-[15px] leading-snug text-ink-2">{{ prediction.text }}</p>
@@ -1166,13 +1181,15 @@ const lapHeightPct = computed(() => {
                                             die eine Zahl. Abschnitte, Beschreibung und alle
                                             Aktionen stehen in den Details — die Zeile öffnet sie.
                                         -->
-                                        <div class="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3.5"
-                                            :class="session.type !== 'rest' ? 'cursor-pointer' : ''"
+                                        <!-- Ruhetage als schmale Zeile (Befund P2-10): in der ersten Woche waren sie 4 von 7 vollen Karten. -->
+                                        <div class="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 px-4"
+                                            :class="session.type !== 'rest' ? 'cursor-pointer py-3.5' : 'py-1.5'"
                                             @click="session.type !== 'rest' && openDetail(session)">
                                             <div class="text-center">
                                                 <p class="text-[12px] font-semibold leading-4"
                                                     :class="isToday(session.planned_date) ? 'text-accent' : 'text-ink-3'">{{ isToday(session.planned_date) ? 'Heute' : dayShort(session.planned_date) }}</p>
-                                                <p class="font-rounded text-[22px] font-extrabold leading-7 tracking-tight tabular-nums text-ink">{{ dayNum(session.planned_date) }}</p>
+                                                <p class="font-rounded font-extrabold tracking-tight tabular-nums"
+                                                    :class="session.type === 'rest' ? 'text-[15px] leading-5 text-ink-3' : 'text-[22px] leading-7 text-ink'">{{ dayNum(session.planned_date) }}</p>
                                             </div>
 
                                             <div class="min-w-0">
@@ -1182,8 +1199,9 @@ const lapHeightPct = computed(() => {
                                                     <svg v-if="session.pinned && session.status === 'planned'" class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-label="Von dir gesetzt"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
                                                     <span class="truncate">{{ session.sport_label || typeOf(session.type).label }}</span>
                                                 </p>
-                                                <h3 class="truncate text-[17px] leading-6"
-                                                    :class="session.type === 'rest' || session.status === 'skipped' ? 'text-ink-2' : 'font-semibold text-ink'">{{ session.title }}</h3>
+                                                <h3 class="truncate"
+                                                    :class="session.type === 'rest' ? 'text-[15px] leading-5 text-ink-3'
+                                                        : session.status === 'skipped' ? 'text-[17px] leading-6 text-ink-2' : 'text-[17px] leading-6 font-semibold text-ink'">{{ session.title }}</h3>
                                                 <p v-if="session.status === 'skipped'" class="text-[13px] text-ink-3">
                                                     Ausgelassen<template v-if="session.skip_reason"> · {{ session.skip_reason }}</template>
                                                 </p>
@@ -1540,7 +1558,7 @@ const lapHeightPct = computed(() => {
                     <p class="mt-1 flex items-center gap-1.5 text-[15px] font-semibold" :class="typeOf(detailSession.type).text">
                         <span class="h-2 w-2 rounded-full" :class="typeOf(detailSession.type).dot" />
                         <!-- Bei Fremdsport die Sportart statt "Alternativtraining". -->
-                        {{ detailSession.sport_label || typeOf(detailSession.type).label }}<template v-if="detailSession.zone"> · Zone {{ detailSession.zone }}</template>
+                        {{ detailSession.sport_label || typeOf(detailSession.type).label }}<template v-if="zoneSpan(detailSession, aiSteps)"> · Zone {{ zoneSpan(detailSession, aiSteps) }}</template>
                     </p>
                     <h2 class="mt-1 text-[28px] font-extrabold leading-[34px] tracking-[-0.03em] text-ink">{{ detailSession.title }}</h2>
                 </div>
@@ -1555,7 +1573,7 @@ const lapHeightPct = computed(() => {
                     stand hier der ganze Text („E 4:59–5:58 min/km; T 4:20")
                     und lief am iPhone aus dem Bild.
                 -->
-                <div class="grid grid-cols-3 gap-3 sm:max-w-lg">
+                <div class="grid grid-cols-[1fr_1fr_1.5fr] gap-3 sm:max-w-lg">
                     <div v-if="detailSession.distance_km" class="min-w-0">
                         <p class="text-[13px] text-ink-3">Distanz</p>
                         <p class="truncate"><span class="font-rounded text-[30px] font-bold leading-9 tracking-tight tabular-nums text-ink">{{ fmtNum(detailSession.distance_km) }}</span><span class="ml-1 text-[15px] font-semibold text-ink-3">km</span></p>
@@ -1566,8 +1584,8 @@ const lapHeightPct = computed(() => {
                     </div>
                     <div v-if="detailPace" class="min-w-0">
                         <p class="text-[13px] text-ink-3">Pace</p>
-                        <p class="truncate"><span class="font-rounded font-bold tracking-tight tabular-nums text-ink"
-                            :class="detailPace.length > 5 ? 'text-[22px] leading-9' : 'text-[30px] leading-9'">{{ detailPace }}</span><span class="ml-1 text-[15px] font-semibold text-ink-3">/km</span></p>
+                        <p class="whitespace-nowrap"><span class="font-rounded font-bold tracking-tight tabular-nums text-ink"
+                            :class="detailPace.length > 5 ? 'text-[20px] leading-9' : 'text-[30px] leading-9'">{{ detailPace }}</span><span class="ml-1 text-[13px] font-semibold text-ink-3">/km</span></p>
                     </div>
                 </div>
 
@@ -1631,7 +1649,7 @@ const lapHeightPct = computed(() => {
                                     v-for="(s, i) in stepsWithReps"
                                     :key="i"
                                     :style="{ width: stepWidthPct(s) + '%' }"
-                                    :class="stepBarColor[s.type] ?? 'bg-accent'"
+                                    :class="stepColor(s)"
                                     :title="`${s.label}: ${stepAmount(s) ?? ''}`"
                                 />
                             </div>
@@ -1645,7 +1663,7 @@ const lapHeightPct = computed(() => {
                                         </div>
                                         <div class="space-y-2 pl-1">
                                             <div class="flex items-center gap-2.5">
-                                                <span class="h-2 w-2 shrink-0 rounded-full" :class="stepBarColor.work" />
+                                                <span class="h-2 w-2 shrink-0 rounded-full" :class="stepColor(step)" />
                                                 <span class="min-w-0 truncate text-[13px] font-medium text-ink-2">{{ step.label }}</span>
                                                 <span class="ml-auto shrink-0 whitespace-nowrap text-[13px] tabular-nums text-ink-3">{{ stepAmount(step) }}</span>
                                                 <span v-if="step.pace_target || stepPower(step)" class="min-w-16 whitespace-nowrap text-right text-[13px] font-semibold tabular-nums text-ink">
@@ -1663,10 +1681,10 @@ const lapHeightPct = computed(() => {
 
                                     <template v-else>
                                         <div class="flex items-center gap-2.5">
-                                            <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="stepBarColor[step.type]" />
+                                            <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="stepColor(step)" />
                                             <div class="min-w-0 flex-1">
                                                 <p class="text-[13px] text-ink-3">
-                                                    {{ stepLabel[step.type] ?? step.type }}
+                                                    {{ stepLabel[step.type] ?? step.type }}<template v-if="step.type === 'work' && step.zone"> · Zone {{ step.zone }}</template>
                                                 </p>
                                                 <p class="text-[13px] font-medium text-ink">{{ step.label }}</p>
                                             </div>
@@ -1847,17 +1865,32 @@ const lapHeightPct = computed(() => {
                     Für Zwift herunterladen
                 </AppButton>
 
-                <div v-else-if="!detailIsStrength" class="space-y-2">
-                    <AppButton block @click="openGarminModal">
+<!--
+                    Der Knopf richtet sich nach der Uhr (Usability-Befund P2-11):
+                    mit Garmin-Abgleich steht die Einheit der nächsten sieben
+                    Tage schon auf der Uhr, ohne Garmin ist die Apple Watch der
+                    Weg. „Zu Garmin senden“ bleibt für Tage hinter dem Fenster.
+                -->
+                <div v-else-if="!detailIsStrength && !isRaceSession" class="space-y-2">
+                    <div v-if="garminSync && detailOnWatchSoon" class="flex items-center gap-2.5 rounded-card bg-surface-2 px-4 py-3">
+                        <svg class="h-5 w-5 shrink-0 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                        <p class="text-[15px] text-ink-2">Steht automatisch auf deiner Garmin-Uhr.</p>
+                    </div>
+                    <AppButton v-else-if="garminConnected" block @click="openGarminModal">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
                         </svg>
-                        Zu Garmin Connect senden
+                        Zu Garmin senden
                     </AppButton>
-                    <!-- .workout-Datei: auf dem iPhone antippen → Fitness → Hinzufügen. -->
-                    <AppButton v-if="detailSession.watch_url" :href="detailSession.watch_url" external download variant="secondary" block>
-                        Auf die Apple Watch
-                    </AppButton>
+                    <template v-else>
+                        <!-- .workout-Datei: auf dem iPhone antippen → Fitness → Hinzufügen. -->
+                        <AppButton v-if="detailSession.watch_url" :href="detailSession.watch_url" external download block>
+                            Auf die Apple Watch
+                        </AppButton>
+                        <AppButton :href="route('profile.edit', { section: 'connections' })" variant="plain" block>
+                            Garmin-Uhr verbinden
+                        </AppButton>
+                    </template>
                 </div>
             </template>
         </AppSheet>

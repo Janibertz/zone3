@@ -141,6 +141,37 @@ class RunnerProfile extends Model
     }
 
     /**
+     * Die Schwellenpace, die der Athlet sieht — aus dem VDOT, mit Herkunft.
+     *
+     * Vorher zeigten Mehr, Heute und Profil die gemessene Schwelle (4:35),
+     * während Zonen und Tempoläufe aus dem VDOT rechneten (4:11), sobald
+     * Garmins VO2max oder eine Bestzeit ihn anhob — drei Schwellen auf
+     * einmal (Usability-Befund N10). Jan, 03.11.2026: überall die aus dem
+     * VDOT, mit der Quelle.
+     *
+     * @return array{pace: string, source: string, label: string, measured: string|null}|null
+     */
+    public function thresholdDisplay(): ?array
+    {
+        $info = $this->vdotInfo();
+
+        if (! $info) {
+            return null;
+        }
+
+        $measured = $this->threshold_speed > 0 ? PaceFormat::fromMinutes((float) $this->threshold_speed) : null;
+        $pace     = PaceFormat::fromSeconds(Vdot::paceAt($info['value'], Vdot::THRESHOLD));
+
+        return [
+            'pace'     => $pace,
+            'source'   => $info['source'],
+            'label'    => $info['source'] === 'threshold' ? 'aus deinen Läufen' : $info['label'],
+            // Die gemessene nur nennen, wenn sie abweicht — sonst doppelt.
+            'measured' => $measured !== $pace ? $measured : null,
+        ];
+    }
+
+    /**
      * Die Pace-Zonen kommen aus dem VDOT und werden nicht mehr gespeichert.
      *
      * Die Spalte `pace_zones` wurde an drei Stellen geschrieben (Schwellen-
