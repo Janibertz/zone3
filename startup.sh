@@ -59,4 +59,8 @@ echo "[startup] Starting web server..."
 # Run the built-in server with multiple worker processes so a single slow request
 # can never block the whole site for other users (defense in depth — heavy work is queued).
 export PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-8}"
-exec php artisan serve --host=0.0.0.0 --port="${PORT:-8000}"
+# `--no-reload` ist Pflicht: ohne ignoriert `artisan serve` PHP_CLI_SERVER_WORKERS
+# ("Only creating a single server") und es laeuft nur ein einziger Prozess.
+# Seit dem ersten Deploy war das so (bemerkt am 04.11.2026 im Log). Neu laden
+# muss hier nichts: eine geaenderte Umgebung startet in Coolify den Container neu.
+exec php artisan serve --host=0.0.0.0 --port="${PORT:-8000}" --no-reload
