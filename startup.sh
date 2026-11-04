@@ -40,10 +40,18 @@ echo "[startup] Starting queue worker in background..."
 ) &
 
 echo "[startup] Starting scheduler in background..."
+# `schedule:work` startet `schedule:run` zu Beginn jeder vollen Minute, ohne
+# auf den vorigen Lauf zu warten. Die fruehere Schleife `schedule:run; sleep 60`
+# brauchte pro Runde 60 s plus Laufzeit, der Takt wanderte, und alle paar
+# Dutzend Minuten fiel eine Minute ganz aus. Ein Befehl mit fester Uhrzeit
+# (`dailyAt`) lief dann an diesem Tag gar nicht — am 04.11.2026 so passiert:
+# Runde um 04:29:59, naechste um 04:31, `garmin:refresh-tokens` (04:30) fehlte.
+# Die Neustart-Schleife bleibt, falls der Prozess einmal endet.
 (
   while true; do
-    php artisan schedule:run --no-interaction
-    sleep 60
+    php artisan schedule:work --no-interaction
+    echo "[scheduler] Restarting scheduler..."
+    sleep 2
   done
 ) &
 
