@@ -57,7 +57,7 @@ class OnboardingController extends Controller
         }
     }
 
-    /** Stand der beiden Verbindungen fuer den letzten Schritt. */
+    /** Stand der Verbindungen fuer den letzten Schritt. */
     private function connections($user): array
     {
         return [
@@ -65,6 +65,10 @@ class OnboardingController extends Controller
             'garmin'          => $user->garminConnection?->summary(),
             'garminAvailable' => app(\App\Services\Garmin\GarminClient::class)->configured(),
             'garminStatus'    => session('garmin_status'),
+            // COROS ueber MCP: bisher nur der Plan auf die Uhr, keine Laeufe.
+            'coros'           => $user->corosConnection?->summary(),
+            'corosAvailable'  => app(\App\Services\Coros\CorosClient::class)->enabled(),
+            'corosStatus'     => session('coros_status'),
             'source'          => [
                 'current' => $user->activitySource(),
                 'usable'  => $user->usableActivitySources(),

@@ -86,6 +86,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/strava/connect', [StravaController::class, 'connect'])->name('strava.connect');
     Route::get('/strava/callback', [StravaController::class, 'callback'])->name('strava.callback');
     Route::post('/garmin/connect', [\App\Http\Controllers\GarminController::class, 'connect'])->name('garmin.connect');
+    Route::post('/coros/connect', [\App\Http\Controllers\CorosController::class, 'connect'])->name('coros.connect');
     Route::patch('/profile/activity-source', [ProfileController::class, 'updateActivitySource'])->name('profile.activity-source');
 });
 
@@ -514,7 +515,6 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::delete('/garmin/connection', [\App\Http\Controllers\GarminController::class, 'disconnect'])->name('garmin.connection.destroy');
 
     // COROS ueber MCP: nur Workouts auf die Uhr (seit 05.11.2026).
-    Route::post('/coros/connect', [\App\Http\Controllers\CorosController::class, 'connect'])->name('coros.connect');
     Route::delete('/coros/connection', [\App\Http\Controllers\CorosController::class, 'disconnect'])->name('coros.connection.destroy');
     Route::patch('/coros/workout-sync', [\App\Http\Controllers\CorosController::class, 'updateWorkoutSync'])->name('coros.workout-sync');
 
