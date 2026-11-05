@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Services\Run\RunWorkouts;
+use App\Services\Strength\StrengthCatalog;
 
 /**
  * Prüft die KI-Antwort gegen das Wochengerüst und repariert sie.
@@ -78,6 +79,8 @@ class TrainingPlanValidator
         $sessions = $this->fillMissingDays($sessions, $days);
         // Zuletzt der Ablauf: aus den Zahlen, die jetzt feststehen.
         $sessions = $this->buildStructures($sessions, $days, $skeleton['paces'] ?? null, $skeleton['workout_history'] ?? [], (bool) ($skeleton['hills'] ?? true));
+        // Kraft: nur Übungen aus dem Katalog, passend zum Equipment.
+        $sessions = $this->buildStrength($sessions, $skeleton['strength'] ?? null);
 
         // Morgens vor abends, sonst die harte Einheit zuerst. Die Reihenfolge
         // wird als sort_order gespeichert.
@@ -141,6 +144,38 @@ class TrainingPlanValidator
             $s['intensity']    = $built['intensity'];
             // Der Prompt verbietet Zahlen in der Beschreibung; hier gilt es.
             $s['description']  = \App\Services\Run\SessionText::clean($s['description'] ?? null, $built['workout']);
+        }
+        unset($s);
+
+        return $sessions;
+    }
+
+    /**
+     * Kraft, Core und Mobility bekommen ihre Übungen aus dem Katalog
+     * ({@see StrengthCatalog}). Das Modell wählt Schlüssel und legt Sätze und
+     * Wiederholungen fest; eine Übung außerhalb des Katalogs oder ohne
+     * passendes Equipment fällt weg. Bleibt nichts — auch beim Notnagel —,
+     * gilt das Grundprogramm.
+     */
+    private function buildStrength(array $sessions, ?array $context): array
+    {
+        $catalog = app(StrengthCatalog::class);
+
+        foreach ($sessions as &$s) {
+            $type = $s['type'] ?? '';
+            if (! in_array($type, ['strength', 'core', 'mobility'], true)) {
+                continue;
+            }
+
+            $result = $catalog->normalize($s['exercises'] ?? [], $type, $s['date'] ?? null, $context);
+            $s['exercises'] = $result['exercises'];
+
+            if ($result['dropped'] !== []) {
+                $this->note(($s['date'] ?? '?').': Übungen ohne Katalogeintrag entfernt ('.implode(', ', array_slice($result['dropped'], 0, 4)).')');
+            }
+            if ($result['defaulted'] && $result['exercises'] !== []) {
+                $this->note(($s['date'] ?? '?').": {$type} ohne gültige Übungen → Grundprogramm");
+            }
         }
         unset($s);
 
@@ -1109,7 +1144,7 @@ class TrainingPlanValidator
         return $this->withTargets($entry, $slot, $minutes);
     }
 
-    /** @return array{0: string, 1: string, 2: int, 3: string} */
+    /** @return array{0: string, 1: string, 2: ?int, 3: string} */
     private function typicalContent(string $type): array
     {
         return match ($type) {
@@ -1117,6 +1152,9 @@ class TrainingPlanValidator
             'tempo_run' => ['Tempolauf', 'Nach dem Einlaufen zügig an der Schwelle laufen, danach auslaufen.', 3, 'medium'],
             'long_run'  => ['Langer Lauf', 'Gleichmäßig locker, Tempo bewusst zurückhalten..', 2, 'medium'],
             'easy_run'  => ['Lockerer Lauf', 'Ruhiges Grundlagentempo in Zone 2 — unterhalten können muss möglich sein.', 2, 'low'],
+            'strength'  => ['Krafttraining', 'Kräftigt Beine, Hüfte und Rumpf — sauber ausführen, Gewicht vor Technik zurückstellen.', null, 'medium'],
+            'core'      => ['Rumpf', 'Stabiler Rumpf hält die Haltung, wenn die Beine müde werden.', null, 'low'],
+            'mobility'  => ['Mobilität', 'Locker dehnen und mobilisieren, ohne zu forcieren.', null, 'low'],
             default     => ['Ergänzende Einheit', 'Lockere Ergänzung zum Lauftraining.', 2, 'low'],
         };
     }

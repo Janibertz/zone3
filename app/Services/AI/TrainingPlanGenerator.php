@@ -509,12 +509,17 @@ WARN;
                 'beginner' => 'Anfänger', 'advanced' => 'Fortgeschritten', default => 'Mittel',
             };
             $strengthDays = (int) ($strength['days_per_week'] ?? 2);
+            // Die Übungen kommen aus dem Katalog (Admin → Kraftübungen). Das
+            // Modell wählt Schlüssel und legt Sätze/Wiederholungen fest; der
+            // Validator wirft alles andere weg.
+            $catalogList = app(\App\Services\Strength\StrengthCatalog::class)
+                ->promptList($strength['equipment'] ?? [], $strength['experience'] ?? null);
             $strengthBlock = "\n\n**Kraft & Core (vom Athleten gewünscht):**\n"
-                . "- Die Krafttage ({$strengthDays}× pro Woche) setzt das Wochengerüst — dort ist strength PFLICHT, mit konkreten Übungen. Plane Kraft an keinem anderen Tag.\n"
-                . "- Verfügbares Equipment — NUR dieses verwenden: {$equipList}. Level: {$expLabel}.\n"
-                . "- Übungen passend zum Equipment wählen (z.B. Kettlebell: Swing, Goblet Squat, Turkish Get-up, Clean&Press, Romanian Deadlift; Gym: Kniebeuge, Kreuzheben, Ausfallschritte, Wadenheben; Körpergewicht: Liegestütz, Ausfallschritte, Plank, Side-Plank, Bird-Dog, Glute Bridge).\n"
-                . "- Neben einer harten Einheit oder am Tag danach: Oberkörper und Rumpf statt schwerer Beinkraft.\n"
-                . "- Für strength/core/mobility: distance_km=0, duration_min gesetzt, pace_target=null, zone=null UND ein \"exercises\"-Array mit konkreten Übungen ({name, sets, reps, load, note}). load-Beispiele: \"16 kg\", \"2×20 kg\", \"Körpergewicht\", \"RPE 7\".";
+                . "- Die Krafttage ({$strengthDays}× pro Woche) setzt das Wochengerüst — dort ist strength PFLICHT, mit 4–6 Übungen. Plane Kraft an keinem anderen Tag.\n"
+                . "- Equipment: {$equipList}. Level: {$expLabel}.\n"
+                . "- Übungen NUR aus dieser Liste, angegeben über den Schlüssel vor der Klammer:\n{$catalogList}\n"
+                . "- Neben einer harten Einheit oder am Tag danach: Oberkörper und Rumpf statt schwerer Beinkraft. Core-Einheiten vor allem Rumpf, Mobility aus der Mobilität.\n"
+                . "- Für strength/core/mobility: distance_km=0, duration_min gesetzt, pace_target=null, zone=null UND ein \"exercises\"-Array ({key, sets, reps, load, note}). sets und reps legst du passend zu Level und Phase fest; reps ist Text (\"10\", \"8 je Bein\", \"30 s\"). load-Beispiele: \"16 kg\", \"Körpergewicht\", \"RPE 7\".";
         } else {
             $strengthBlock = "\n\n**Kraft & Core:** Nicht gewünscht — plane KEINE strength/core/mobility-Einheiten.";
         }
@@ -594,7 +599,7 @@ Du bist ein erfahrener Ultra- und Backyard-Coach. Erstelle einen Trainingsplan v
     "duration_min": 0,
     "intensity": "rest|low|medium|high",
     "part": null,
-    "exercises": [{ "name": "Kettlebell Swing", "sets": 4, "reps": "15", "load": "16 kg", "note": "explosiv" }]
+    "exercises": [{ "key": "kettlebell_swing", "sets": 4, "reps": "15", "load": "16 kg", "note": "explosiv" }]
   }
 ]
 Für Ruhetage: distance_km=0, duration_min=0.
@@ -648,7 +653,7 @@ Es gilt diese Zielzeit — auch wenn eine Notiz unten eine andere nennt.{$goalLi
     "duration_min": 0,
     "intensity": "rest|low|medium|high",
     "part": null,
-    "exercises": [{ "name": "Goblet Squat", "sets": 3, "reps": "10", "load": "20 kg", "note": "" }]
+    "exercises": [{ "key": "goblet_squat", "sets": 3, "reps": "10", "load": "20 kg", "note": "" }]
   }
 ]
 Für Ruhetage: distance_km=0, duration_min=0. distance_km und duration_min übernimmst du aus dem Gerüst.

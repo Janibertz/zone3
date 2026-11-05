@@ -583,7 +583,7 @@ class TrainingPlanController extends Controller
             'pace_target'  => $s->pace_target,
             'zone'         => $s->zone,
             'intensity'    => $s->intensity,
-            'exercises'    => $s->exercises,
+            'exercises'    => app(\App\Services\Strength\StrengthCatalog::class)->present($s->exercises) ?: null,
             // Der Plan, bevor Strava die Ist-Werte darueber geschrieben hat.
             'planned_snapshot' => $s->planned_snapshot,
             'was_unplanned'    => (bool) $s->was_unplanned,

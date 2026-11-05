@@ -194,6 +194,11 @@ class PlanContextBuilder
         // ohne Hang gibt es keine Bergeinheiten (RunWorkouts::fresh/filter).
         $skeleton['workout_history'] = $this->workoutHistory($user, $windowFrom);
         $skeleton['hills']           = (bool) ($user->runnerProfile?->hills_available ?? true);
+        // Kraft: der Validator nimmt nur Übungen, für die das Equipment da ist.
+        $skeleton['strength']        = [
+            'equipment'  => $user->runnerProfile?->strength_equipment ?? [],
+            'experience' => $user->runnerProfile?->strength_experience,
+        ];
 
         return $context->with(
             skeleton:   $skeleton,

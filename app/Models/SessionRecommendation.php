@@ -98,6 +98,7 @@ class SessionRecommendation extends Model
         // Der neue Ablauf aus dem Katalog — der Vorschlag hat ihn schon mit
         // denselben Zahlen gerechnet.
         app(\App\Services\Run\SessionStructure::class)->apply($session, $this->after['workout_variant'] ?? null);
+        app(\App\Services\Strength\StrengthCatalog::class)->applyTo($session, $this->after['exercises'] ?? null);
         $session->save();
 
         $this->update(['status' => self::STATUS_ACCEPTED, 'responded_at' => now()]);
