@@ -52,6 +52,9 @@ class AdminStrengthExerciseController extends Controller
                     'license'        => $e->license,
                     'license_author' => $e->license_author,
                     'active'         => $e->active,
+                    'garmin_category' => $e->garmin_category,
+                    'garmin_name'    => $e->garmin_name,
+                    'youtube_id'     => $e->youtube_id,
                     'image_url'      => $p['image_url'] ?? null,
                     'credit'         => $p['credit'] ?? null,
                 ];
@@ -59,6 +62,7 @@ class AdminStrengthExerciseController extends Controller
             'groups'    => StrengthExercise::GROUPS,
             'equipment' => StrengthExercise::EQUIPMENT,
             'levels'    => StrengthExercise::LEVELS,
+            'garmin'    => StrengthExercise::garminExercises(),
         ]);
     }
 
@@ -166,7 +170,7 @@ class AdminStrengthExerciseController extends Controller
 
     private function validated(Request $request): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'name'           => 'required|string|max:120',
             'instructions'   => 'nullable|string|max:1000',
             'group'          => ['required', Rule::in(array_keys(StrengthExercise::GROUPS))],
@@ -177,7 +181,25 @@ class AdminStrengthExerciseController extends Controller
             'default_reps'   => 'required|string|max:30',
             'default_load'   => 'nullable|string|max:60',
             'wger_id'        => 'nullable|integer|min:1',
+            'garmin_category' => ['nullable', Rule::in(array_keys(StrengthExercise::garminExercises()))],
+            'garmin_name'    => ['nullable', 'required_with:garmin_category', function ($attr, $value, $fail) use ($request) {
+                $names = StrengthExercise::garminExercises()[$request->input('garmin_category')] ?? [];
+                if ($value !== null && ! in_array($value, $names, true)) {
+                    $fail('Diesen Namen kennt Garmin in der Kategorie nicht.');
+                }
+            }],
+            'youtube'        => ['nullable', 'string', 'max:300', function ($attr, $value, $fail) {
+                if (StrengthExercise::youtubeId($value) === null) {
+                    $fail('Das ist kein YouTube-Link.');
+                }
+            }],
         ]);
+
+        // Gespeichert wird nur die Video-ID, egal welche Form der Link hatte.
+        $data['youtube_id'] = StrengthExercise::youtubeId($data['youtube'] ?? null);
+        unset($data['youtube']);
+
+        return $data;
     }
 
     private function uniqueKey(string $name): string

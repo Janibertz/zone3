@@ -29,11 +29,28 @@ class GarminWorkoutBuilder
     /** `workoutProvider` und `workoutSourceId`, je hoechstens 20 Zeichen. */
     public const PROVIDER = 'Zone3';
 
-    public function __construct(private readonly AppleWorkoutWriter $steps) {}
+    public function __construct(
+        private readonly AppleWorkoutWriter $steps,
+        private readonly GarminStrengthBuilder $strength,
+    ) {}
+
+    /**
+     * Was auf die Garmin-Uhr darf: Läufe (ohne Rennen und Rad, siehe
+     * `AppleWorkoutWriter::supports()`) und Kraft/Rumpf/Mobilität mit
+     * Übungen aus dem Katalog.
+     */
+    public static function supports(TrainingSession $session): bool
+    {
+        return AppleWorkoutWriter::supports($session) || GarminStrengthBuilder::supports($session);
+    }
 
     /** @return array<string, mixed> */
     public function forSession(TrainingSession $session): array
     {
+        if (GarminStrengthBuilder::supports($session)) {
+            return $this->strength->forSession($session);
+        }
+
         return $this->build(
             $session->title ?: 'Training',
             $session->description,

@@ -1,4 +1,5 @@
 <script setup>
+import ExerciseVideo from '@/Components/UI/ExerciseVideo.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
 import { paceValue, paceWithUnit, sessionType, stepAmount, stepRows, zoneSpan, ZONE_BAR } from '@/Composables/useSessionTypes';
@@ -1606,8 +1607,10 @@ const lapHeightPct = computed(() => {
                         <h3 class="mb-3 text-[22px] font-bold tracking-tight text-ink">Übungen</h3>
                         <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
                             <div v-for="(ex, i) in detailSession.exercises" :key="ex.key ?? i" class="overflow-hidden rounded-card bg-surface-2">
+                                <!-- Video aus dem Katalog: Vorschau mit dem Katalogbild, spielt in der App -->
+                                <ExerciseVideo v-if="ex.youtube_id" :youtube-id="ex.youtube_id" :poster="ex.image_url" :title="ex.name" />
                                 <!-- Bild aus dem Kraft-Katalog (wger.de, Quelle darunter) -->
-                                <div v-if="ex.image_url" class="flex aspect-[4/3] items-center justify-center bg-white">
+                                <div v-else-if="ex.image_url" class="flex aspect-[4/3] items-center justify-center bg-white">
                                     <img :src="ex.image_url" :alt="ex.name" loading="lazy" class="h-full w-full object-contain" />
                                 </div>
                                 <div class="p-4">
@@ -1621,7 +1624,7 @@ const lapHeightPct = computed(() => {
                                     <p v-if="ex.note" class="mt-0.5 text-[13px] italic text-ink-3">{{ ex.note }}</p>
                                     <p v-if="ex.instructions" class="mt-2 text-[15px] leading-snug text-ink-2">{{ ex.instructions }}</p>
                                     <div class="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                                        <a :href="exerciseVideoUrl(ex.name)" target="_blank" rel="noopener noreferrer"
+                                        <a v-if="!ex.youtube_id" :href="exerciseVideoUrl(ex.name)" target="_blank" rel="noopener noreferrer"
                                             class="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent-ink hover:underline">
                                             <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                                                 <path d="M21.582 6.186a2.506 2.506 0 0 0-1.768-1.768C18.254 4 12 4 12 4s-6.254 0-7.814.418c-.86.23-1.538.908-1.768 1.768C2 7.746 2 12 2 12s0 4.254.418 5.814c.23.86.908 1.538 1.768 1.768C5.746 20 12 20 12 20s6.254 0 7.814-.418a2.506 2.506 0 0 0 1.768-1.768C22 16.254 22 12 22 12s0-4.254-.418-5.814ZM10 15.464V8.536L16 12l-6 3.464Z" />
@@ -1862,14 +1865,25 @@ const lapHeightPct = computed(() => {
             </div>
 
             <template v-if="detailSession" #footer>
-                <AppButton
-                    v-if="detailIsStrength && detailSession.status === 'planned' && !isPastEvent"
-                    block
-                    :loading="completingId === detailSession.id"
-                    @click="completeSession(detailSession)"
-                >
-                    Als erledigt markieren
-                </AppButton>
+                <!-- Kraft: abhaken, und mit Garmin dieselbe Uhr-Zeile wie beim Lauf (GarminStrengthBuilder). -->
+                <div v-if="detailIsStrength && detailSession.status === 'planned' && !isPastEvent" class="space-y-2">
+                    <template v-if="detailSession.exercises?.length">
+                        <div v-if="garminSync && detailOnWatchSoon" class="flex items-center gap-2.5 rounded-card bg-surface-2 px-4 py-3">
+                            <svg class="h-5 w-5 shrink-0 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                            <p class="text-[15px] text-ink-2">Steht automatisch auf deiner Garmin-Uhr.</p>
+                        </div>
+                        <AppButton v-else-if="garminConnected" variant="secondary" block @click="openGarminModal">
+                            Zu Garmin senden
+                        </AppButton>
+                    </template>
+                    <AppButton
+                        block
+                        :loading="completingId === detailSession.id"
+                        @click="completeSession(detailSession)"
+                    >
+                        Als erledigt markieren
+                    </AppButton>
+                </div>
 
                 <!-- Radeinheit: ein Zwift-Workout statt eines Laufs für die Uhr. -->
                 <AppButton v-else-if="detailSession.zwo_url" :href="detailSession.zwo_url" external download block>

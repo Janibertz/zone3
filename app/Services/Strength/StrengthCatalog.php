@@ -191,6 +191,7 @@ class StrengthCatalog
                 'image_url' => $e->imageUrl($versions[$e->id] ?? null),
                 'credit' => isset($versions[$e->id]) ? $e->credit() : null,
                 'source_url' => isset($versions[$e->id]) ? $e->wgerUrl() : null,
+                'youtube_id' => $e->youtube_id,
             ]);
         }, $exercises));
     }
@@ -241,6 +242,15 @@ class StrengthCatalog
         }
 
         return $have;
+    }
+
+    /**
+     * Die Katalog-Übung zu einer gespeicherten Übung, auch inaktive — über
+     * den Schlüssel, bei alten Einheiten über den Namen.
+     */
+    public function lookup(array $raw): ?StrengthExercise
+    {
+        return $this->match($raw, $this->all()->keyBy('key'));
     }
 
     private function match(array $raw, Collection $byKey): ?StrengthExercise

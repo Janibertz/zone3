@@ -262,6 +262,44 @@ class StrengthCatalogTest extends TestCase
         $this->assertSame(49, StrengthExercise::count());
     }
 
+    public function test_youtube_links_become_a_video_id(): void
+    {
+        foreach ([
+            'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s',
+            'https://youtu.be/dQw4w9WgXcQ?si=abc',
+            'youtube.com/shorts/dQw4w9WgXcQ',
+            'https://m.youtube.com/embed/dQw4w9WgXcQ',
+            'dQw4w9WgXcQ',
+        ] as $link) {
+            $this->assertSame('dQw4w9WgXcQ', StrengthExercise::youtubeId($link), $link);
+        }
+
+        $this->assertNull(StrengthExercise::youtubeId('https://vimeo.com/123456789'));
+        $this->assertNull(StrengthExercise::youtubeId('https://evil.example/watch?v=dQw4w9WgXcQ'));
+        $this->assertNull(StrengthExercise::youtubeId(''));
+    }
+
+    public function test_admin_adds_a_video_and_the_session_shows_it(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $e = StrengthExercise::where('key', 'squat')->first();
+        $form = [
+            'name' => $e->name, 'group' => $e->group, 'equipment' => $e->equipment, 'level' => $e->level,
+            'default_sets' => 3, 'default_reps' => '10',
+        ];
+
+        $this->actingAs($admin)->patch("/admin/strength-exercises/{$e->id}", $form + ['youtube' => 'https://vimeo.com/1'])
+            ->assertSessionHasErrors('youtube');
+
+        $this->actingAs($admin)->patch("/admin/strength-exercises/{$e->id}", $form + ['youtube' => 'https://youtu.be/dQw4w9WgXcQ'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame('dQw4w9WgXcQ', $e->fresh()->youtube_id);
+
+        $catalog = app(StrengthCatalog::class);
+        $catalog->forget();
+        $this->assertSame('dQw4w9WgXcQ', $catalog->present([['key' => 'squat', 'sets' => 3, 'reps' => '10']])[0]['youtube_id']);
+    }
+
     private function png(): string
     {
         $img = imagecreatetruecolor(800, 600);

@@ -39,10 +39,55 @@ class StrengthExercise extends Model
         'advanced' => 'Erfahren',
     ];
 
+    /**
+     * Garmins Übungsliste (FIT-Profil, `@garmin/fitsdk`): Kategorie → Namen.
+     * Nur was hier steht, darf in `garmin_category`/`garmin_name` — ein
+     * Tippfehler ließe Garmin das ganze Workout ablehnen.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function garminExercises(): array
+    {
+        static $list = null;
+
+        return $list ??= json_decode(file_get_contents(database_path('data/strength/garmin-exercises.json')), true);
+    }
+
+    /**
+     * Die Video-ID aus einem YouTube-Link: watch?v=, youtu.be/, shorts/,
+     * embed/, live/ — oder die nackte ID. Sonst null.
+     */
+    public static function youtubeId(?string $input): ?string
+    {
+        $input = trim((string) $input);
+        if ($input === '') {
+            return null;
+        }
+        if (preg_match('/^[A-Za-z0-9_-]{11}$/', $input)) {
+            return $input;
+        }
+
+        $parts = parse_url(str_contains($input, '://') ? $input : 'https://' . $input);
+        $host  = strtolower(preg_replace('/^(www\.|m\.)/', '', $parts['host'] ?? ''));
+        $path  = $parts['path'] ?? '';
+
+        if ($host === 'youtu.be') {
+            $id = ltrim($path, '/');
+        } elseif (in_array($host, ['youtube.com', 'youtube-nocookie.com', 'music.youtube.com'], true)) {
+            parse_str($parts['query'] ?? '', $query);
+            $id = $query['v'] ?? (preg_match('#^/(?:shorts|embed|live|v)/([^/?]+)#', $path, $m) ? $m[1] : null);
+        } else {
+            return null;
+        }
+
+        return is_string($id) && preg_match('/^[A-Za-z0-9_-]{11}$/', $id) ? $id : null;
+    }
+
     protected $fillable = [
         'key', 'name', 'instructions', 'group', 'equipment', 'level',
         'default_sets', 'default_reps', 'default_load',
         'wger_id', 'license', 'license_author', 'active', 'sort',
+        'garmin_category', 'garmin_name', 'youtube_id',
     ];
 
     protected $casts = [

@@ -10,7 +10,7 @@ import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
  * personenbezogene Daten bekommt, trägt ihn in `empfaenger` ein. Die Seite
  * ist eine Zusage an Fremde, keine Beschreibung von Absichten.
  */
-const STAND = '27. Oktober 2026';
+const STAND = '5. November 2026';
 const MAIL = 'jan.anders@zone3.run';
 
 const empfaenger = [
@@ -53,6 +53,11 @@ const empfaenger = [
         name: 'OpenStreetMap Foundation',
         ort: 'Vereinigtes Königreich',
         zweck: 'Kartenkacheln für die Streckenkarten. Dein Browser lädt sie direkt, dabei wird deine IP-Adresse übertragen.',
+    },
+    {
+        name: 'Google Ireland Limited (YouTube)',
+        ort: 'Irland, USA',
+        zweck: 'Nur wenn du ein Übungsvideo antippst: Erst dann lädt dein Browser den Player von youtube-nocookie.com. Dabei werden deine IP-Adresse und technische Angaben deines Geräts an Google übertragen, und YouTube kann eigene Cookies oder lokale Speicherung setzen. Vorher wird nichts von YouTube geladen; das Vorschaubild kommt von Zone3.',
     },
     {
         name: 'Apple, Google, Mozilla',
@@ -237,6 +242,11 @@ const empfaenger = [
                     Zone3 setzt nur technisch notwendige Cookies: ein Sitzungs-Cookie, damit du angemeldet bleibst,
                     und ein Sicherheits-Cookie gegen gefälschte Anfragen. Im Browser werden außerdem Einstellungen
                     wie das Farbschema gespeichert. Dafür ist keine Einwilligung nötig (§ 25 Abs. 2 TDDDG).
+                </p>
+                <p class="mt-3">
+                    Ein Übungsvideo von YouTube lädt erst, wenn du es antippst (siehe Abschnitt 4). Mit dem
+                    Antippen willigst du ein, dass YouTube dabei Cookies oder lokale Speicherung nutzen kann
+                    (§ 25 Abs. 1 TDDDG); ohne Antippen passiert nichts davon.
                 </p>
             </section>
 
