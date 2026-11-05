@@ -39,6 +39,8 @@ class MoreController extends Controller
                 'bike'        => (bool) $profile?->bike_enabled,
                 'coach'       => $user->coach?->name,
                 'garmin'      => (bool) $user->garminConnection,
+                // null = auf diesem Server nicht eingeschaltet (COROS_ENABLED).
+                'coros'       => config('services.coros.enabled') ? (bool) $user->corosConnection : null,
                 'strava'      => (bool) $user->stravaAccount,
                 'telegram'    => $user->telegram_chat_id !== null,
                 'calendar'    => $user->calendar_token !== null,

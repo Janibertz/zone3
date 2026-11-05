@@ -45,6 +45,19 @@ class MorePageTest extends TestCase
                 ->where('summary.telegram', false));
     }
 
+    public function test_coros_row_only_when_enabled_on_the_server(): void
+    {
+        $user = User::factory()->onboarded()->create();
+
+        config(['services.coros.enabled' => false]);
+        $this->actingAs($user)->get(route('more'))
+            ->assertInertia(fn ($page) => $page->where('summary.coros', null));
+
+        config(['services.coros.enabled' => true]);
+        $this->actingAs($user)->get(route('more'))
+            ->assertInertia(fn ($page) => $page->where('summary.coros', false));
+    }
+
     public function test_races_carry_target_prediction_and_pace_in_seconds(): void
     {
         $user = User::factory()->onboarded()->create();
