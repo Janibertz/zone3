@@ -10,6 +10,7 @@ import FormGroup from '@/Components/UI/FormGroup.vue';
 import FormRow from '@/Components/UI/FormRow.vue';
 import Toggle from '@/Components/UI/Toggle.vue';
 import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
+import { clockInput } from '@/Composables/useFormat';
 
 const props = defineProps({
     coaches:     Array,
@@ -582,7 +583,7 @@ const bar = computed(() => {
                             <span class="text-[17px] text-ink-3">bpm</span>
                         </FormRow>
                         <FormRow as="label" label="Schwellenpace">
-                            <input v-model="knownForm.threshold_speed" type="text" inputmode="numeric" placeholder="z. B. 5:30" class="z-inline w-28" />
+                            <input :value="knownForm.threshold_speed" @input="knownForm.threshold_speed = clockInput($event)" type="text" inputmode="numeric" autocomplete="off" placeholder="z. B. 5:30" class="z-inline w-28" />
                             <span class="text-[17px] text-ink-3">/km</span>
                         </FormRow>
                     </FormGroup>
@@ -595,7 +596,7 @@ const bar = computed(() => {
                     </FormGroup>
                     <FormGroup footer="Kein Wettkampf? Dann deine schnellste Trainingszeit über die Strecke. Die Schwelle rechnet Zone3 daraus über den VDOT, den Puls über eine Faustformel nach dem Alter.">
                         <FormRow as="label" label="Zeit">
-                            <input v-model="estimateForm.race_time" type="text" inputmode="numeric" :placeholder="raceTimePlaceholder.replace('z.B. ', 'z. B. ')" class="z-inline w-32" />
+                            <input :value="estimateForm.race_time" @input="estimateForm.race_time = clockInput($event, 3)" type="text" inputmode="numeric" autocomplete="off" :placeholder="raceTimePlaceholder.replace('z.B. ', 'z. B. ')" class="z-inline w-32" />
                         </FormRow>
                         <FormRow as="label" label="Alter">
                             <input v-model="estimateForm.age" type="number" inputmode="numeric" min="14" max="90" placeholder="z. B. 35" class="z-inline w-24" />

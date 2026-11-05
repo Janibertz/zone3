@@ -69,3 +69,24 @@ export function distanceOf(activity) {
         ? { value: fmtNum(m, 0), unit: 'm' }
         : { value: fmtNum(m / 1000), unit: 'km' };
 }
+
+/**
+ * Eingabe einer Uhrzeit-artigen Zahl (Pace M:SS, Zeit H:MM:SS) über die
+ * Ziffern-Tastatur. iOS zeigt bei `inputmode="numeric"` keinen Doppelpunkt
+ * und lässt nicht auf eine andere Tastatur wechseln — der Doppelpunkt kommt
+ * deshalb von hier: „417“ wird beim Tippen „4:17“, „14500“ wird „1:45:00“.
+ * Punkt, Komma oder ein getippter Doppelpunkt werden ignoriert, es zählen
+ * nur die Ziffern. `parts` = 2 für M:SS, 3 für H:MM:SS.
+ *
+ * Benutzung: `:value="form.x" @input="form.x = clockInput($event)"`.
+ */
+export function clockInput(event, parts = 2) {
+    const digits = String(event.target.value ?? '').replace(/\D/g, '').slice(0, parts * 2);
+    let out = digits;
+    if (digits.length > 2) out = `${digits.slice(0, -2)}:${digits.slice(-2)}`;
+    if (parts === 3 && digits.length > 4) out = `${digits.slice(0, -4)}:${digits.slice(-4, -2)}:${digits.slice(-2)}`;
+    // Führende Null weg („05:30“ → „5:30“), aber nicht die einzige Ziffer vor dem Doppelpunkt.
+    out = out.replace(/^0(\d)/, '$1');
+    if (event.target.value !== out) event.target.value = out;
+    return out;
+}

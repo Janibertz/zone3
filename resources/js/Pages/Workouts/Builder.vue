@@ -7,7 +7,7 @@ import axios from 'axios';
 import AppButton from '@/Components/UI/AppButton.vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
 import { sessionType } from '@/Composables/useSessionTypes';
-import { fmtNum } from '@/Composables/useFormat';
+import { fmtNum, clockInput } from '@/Composables/useFormat';
 
 const props = defineProps({
     workout:   Object,
@@ -403,7 +403,7 @@ async function save() {
                                         </div>
                                         <div>
                                             <label class="block text-[13px] font-semibold text-ink-3 mb-1">Pace-Ziel (MM:SS)</label>
-                                            <input v-model="block.pace" type="text" placeholder="z.B. 5:30"
+                                            <input :value="block.pace" @input="block.pace = clockInput($event)" type="text" inputmode="numeric" autocomplete="off" placeholder="z.B. 5:30"
                                                 class="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
                                         </div>
                                     </div>
@@ -521,7 +521,7 @@ async function save() {
                                                     <option :value="0">— keine Zone —</option>
                                                     <option v-for="z in [1,2,3,4,5]" :key="z" :value="z">Z{{ z }}{{ paceZones?.['z'+z] ? ' · ' + zonePaceLabel(z) : '' }}</option>
                                                 </select>
-                                                <input v-model="step.pace" type="text" placeholder="Pace (opt.)"
+                                                <input :value="step.pace" @input="step.pace = clockInput($event)" type="text" inputmode="numeric" autocomplete="off" placeholder="Pace (opt.)"
                                                     class="rounded-field border border-line bg-surface-2 px-2 py-1.5 text-xs text-ink focus:outline-none" />
                                             </div>
                                         </div>
