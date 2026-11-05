@@ -49,6 +49,8 @@ class CorosController extends Controller
             return $this->finish($request, false, 'COROS ist gerade nicht erreichbar. Bitte später noch einmal versuchen.');
         }
 
+        OnboardingController::rememberConnectStep($request);
+
         $state    = Str::random(40);
         $verifier = $this->client->makeVerifier();
 
@@ -140,7 +142,8 @@ class CorosController extends Controller
     private function finish(Request $request, bool $ok, string $message): Response
     {
         if ($request->user()) {
-            return redirect()->route('profile.edit')
+            // Aus dem Onboarding gestartet: dorthin zurueck, wie bei Garmin.
+            return redirect()->route($request->user()->onboarding_completed_at ? 'profile.edit' : 'onboarding')
                 ->with('coros_status', ['type' => $ok ? 'success' : 'error', 'message' => $message]);
         }
 

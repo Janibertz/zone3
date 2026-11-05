@@ -10,6 +10,7 @@ import FormGroup from '@/Components/UI/FormGroup.vue';
 import FormRow from '@/Components/UI/FormRow.vue';
 import Toggle from '@/Components/UI/Toggle.vue';
 import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
+import { clockInput } from '@/Composables/useFormat';
 
 const props = defineProps({
     coaches:     Array,
@@ -396,6 +397,15 @@ const garminGranted = computed(() => {
 
 function connectStrava() { window.location.href = route('strava.connect'); }
 
+// COROS (MCP) schreibt bisher nur den Plan auf die Uhr und liefert keine
+// Läufe — zählt deshalb nicht als Quelle (anyLinked).
+const corosLinked = computed(() => !!props.connections?.coros);
+const corosBusy   = ref(false);
+function connectCoros() {
+    corosBusy.value = true;
+    router.post(route('coros.connect'), {}, { onFinish: () => { corosBusy.value = false; } });
+}
+
 const garminConsent = ref(false);
 const garminBusy    = ref(false);
 function connectGarmin() {
@@ -582,7 +592,7 @@ const bar = computed(() => {
                             <span class="text-[17px] text-ink-3">bpm</span>
                         </FormRow>
                         <FormRow as="label" label="Schwellenpace">
-                            <input v-model="knownForm.threshold_speed" type="text" inputmode="numeric" placeholder="z. B. 5:30" class="z-inline w-28" />
+                            <input :value="knownForm.threshold_speed" @input="knownForm.threshold_speed = clockInput($event)" type="text" inputmode="numeric" autocomplete="off" placeholder="z. B. 5:30" class="z-inline w-28" />
                             <span class="text-[17px] text-ink-3">/km</span>
                         </FormRow>
                     </FormGroup>
@@ -595,7 +605,7 @@ const bar = computed(() => {
                     </FormGroup>
                     <FormGroup footer="Kein Wettkampf? Dann deine schnellste Trainingszeit über die Strecke. Die Schwelle rechnet Zone3 daraus über den VDOT, den Puls über eine Faustformel nach dem Alter.">
                         <FormRow as="label" label="Zeit">
-                            <input v-model="estimateForm.race_time" type="text" inputmode="numeric" :placeholder="raceTimePlaceholder.replace('z.B. ', 'z. B. ')" class="z-inline w-32" />
+                            <input :value="estimateForm.race_time" @input="estimateForm.race_time = clockInput($event, 3)" type="text" inputmode="numeric" autocomplete="off" :placeholder="raceTimePlaceholder.replace('z.B. ', 'z. B. ')" class="z-inline w-32" />
                         </FormRow>
                         <FormRow as="label" label="Alter">
                             <input v-model="estimateForm.age" type="number" inputmode="numeric" min="14" max="90" placeholder="z. B. 35" class="z-inline w-24" />
@@ -801,6 +811,21 @@ const bar = computed(() => {
                         <svg v-if="stravaLinked" class="h-5 w-5 shrink-0 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
                         <button v-else type="button" class="shrink-0 text-[17px] text-accent active:opacity-60" @click="connectStrava">Verbinden</button>
                     </div>
+                    <div v-if="connections.corosAvailable" class="flex min-h-[60px] items-center gap-3 px-4 py-2">
+                        <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-ink text-canvas">
+                            <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="6" /><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l.5-2.5h5L15 6M9 18l.5 2.5h5L15 18M12 9.5V12l1.5 1.5" /></svg>
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-[17px]">COROS</span>
+                            <span class="block text-[13px] leading-snug text-ink-3">
+                                <template v-if="corosLinked">Verbunden · Workouts auf die Uhr</template>
+                                <template v-else>Dein Plan als Workout auf die COROS-Uhr</template>
+                            </span>
+                        </span>
+                        <svg v-if="corosLinked" class="h-5 w-5 shrink-0 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                        <button v-else type="button" :disabled="corosBusy" class="shrink-0 text-[17px] text-accent active:opacity-60 disabled:opacity-40" @click="connectCoros">Verbinden</button>
+                    </div>
+                    <p v-if="connections.corosStatus?.type === 'error'" class="px-4 py-3 text-[13px] text-danger">{{ connections.corosStatus.message }}</p>
                     <template v-if="garminLinked && !stravaLinked" #footer>
                         <template v-if="stravaOffered">Garmin schickt nur neue Läufe. Verbinde zusätzlich Strava, damit Zone3 auch deine bisherigen kennt — daraus kommen Schwellenpace, Wochenumfang und Bestzeiten vom ersten Tag an.</template>
                         <template v-else>Garmin schickt nur neue Läufe. Bis genug davon da sind, plant Zone3 mit den Werten, die du eben eingetragen hast.</template>

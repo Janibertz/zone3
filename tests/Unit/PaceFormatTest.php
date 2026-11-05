@@ -117,4 +117,25 @@ class PaceFormatTest extends TestCase
         $this->assertSame('01:00:00', PaceFormat::hms(3600));
         $this->assertSame('00:42:07', PaceFormat::hms(2527));
     }
+
+    // ── Eingabe ──────────────────────────────────────────────────────────
+
+    /** Gemeldet: auf dem iPhone ließ sich im Onboarding kein Doppelpunkt tippen, „417" fiel durch. */
+    public function test_typed_pace_without_colon_is_read_as_minutes_and_seconds(): void
+    {
+        $this->assertSame('4:17', PaceFormat::normalizeInput('417'));
+        $this->assertSame('4:17', PaceFormat::normalizeInput('4.17'));
+        $this->assertSame('4:17', PaceFormat::normalizeInput('4,17'));
+        $this->assertSame('4:17', PaceFormat::normalizeInput(' 4:17 '));
+        $this->assertSame('5:30', PaceFormat::normalizeInput('05:30'));
+        $this->assertSame('10:05', PaceFormat::normalizeInput('1005'));
+    }
+
+    public function test_ambiguous_input_is_left_for_validation_to_reject(): void
+    {
+        $this->assertSame('5', PaceFormat::normalizeInput('5'));
+        $this->assertSame('4:7', PaceFormat::normalizeInput('4:7'));
+        $this->assertSame('12345', PaceFormat::normalizeInput('12345'));
+        $this->assertNull(PaceFormat::normalizeInput(null));
+    }
 }

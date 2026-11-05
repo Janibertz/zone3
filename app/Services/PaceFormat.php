@@ -106,4 +106,30 @@ class PaceFormat
             $seconds % 60,
         );
     }
+
+    /**
+     * Eine eingetippte Pace auf „M:SS“ bringen, bevor sie geprüft wird.
+     * Die Ziffern-Tastatur auf dem iPhone hat keinen Doppelpunkt; das
+     * Frontend setzt ihn selbst, aber ein altes Bundle oder ein Einfügen
+     * kann „417“, „4.17“ oder „4,17“ schicken. Alles, was sich nicht
+     * eindeutig lesen lässt, bleibt unverändert und fällt in der Prüfung durch.
+     */
+    public static function normalizeInput(mixed $value): mixed
+    {
+        if (! is_string($value)) {
+            return $value;
+        }
+
+        $v = trim($value);
+
+        if (preg_match('/^(\d{1,2})[.,:](\d{2})$/', $v, $m)) {
+            return (int) $m[1] . ':' . $m[2];
+        }
+
+        if (preg_match('/^(\d{1,2})(\d{2})$/', $v, $m)) {
+            return (int) $m[1] . ':' . $m[2];
+        }
+
+        return $v;
+    }
 }

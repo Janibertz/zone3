@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\OnboardingController;
 use App\Jobs\SyncCorosWorkoutsJob;
 use App\Models\CorosConnection;
 use App\Models\CorosScheduledWorkout;
@@ -325,6 +326,23 @@ class CorosWorkoutSyncTest extends TestCase
         // Die Registrierung wird gemerkt, nicht bei jedem Verbinden wiederholt.
         $this->actingAs($other)->post(route('coros.connect'), [], ['X-Inertia' => 'true']);
         $this->assertSame(1, Http::recorded(fn (Request $r) => str_ends_with($r->url(), '/connect/register'))->count());
+    }
+
+    /** Gemeldet von Jan (05.11.2026): im Verbinden-Schritt des Onboardings fehlte COROS. */
+    public function test_coros_can_be_connected_from_the_onboarding_and_returns_there(): void
+    {
+        $newcomer = User::factory()->create(['onboarding_completed_at' => null]);
+
+        $this->actingAs($newcomer)->get(route('onboarding'))
+            ->assertInertia(fn ($page) => $page->where('connections.corosAvailable', true)->where('connections.coros', null));
+
+        $response = $this->actingAs($newcomer)->post(route('coros.connect'), [], ['X-Inertia' => 'true']);
+        $response->assertStatus(409);
+        $response->assertSessionHas(OnboardingController::RESUME_KEY, 'connect');
+
+        Cache::put('coros-oauth:onb', ['user_id' => $newcomer->id, 'verifier' => 'v', 'client_id' => 'client-new'], 600);
+        $this->actingAs($newcomer)->get('/coros/callback?code=xyz&state=onb')->assertRedirect(route('onboarding'));
+        $this->assertNotNull($newcomer->fresh()->corosConnection);
     }
 
     public function test_the_callback_stores_the_connection_without_a_session(): void

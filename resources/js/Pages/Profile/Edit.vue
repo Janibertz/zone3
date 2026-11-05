@@ -15,6 +15,7 @@ import FormRow from '@/Components/UI/FormRow.vue';
 import Toggle from '@/Components/UI/Toggle.vue';
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import axios from 'axios';
+import { clockInput } from '@/Composables/useFormat';
 
 const props = defineProps({
     mustVerifyEmail:       Boolean,
@@ -1041,7 +1042,7 @@ const inputClass = 'z-input';
                                     <span class="text-[17px] text-ink-3">bpm</span>
                                 </FormRow>
                                 <FormRow as="label" label="Schwellenpace">
-                                    <input v-model="athleteForm.threshold_speed" type="text" inputmode="numeric" placeholder="5:30" pattern="[0-9]{1,2}:[0-9]{2}" class="z-inline w-16" />
+                                    <input :value="athleteForm.threshold_speed" @input="athleteForm.threshold_speed = clockInput($event)" type="text" inputmode="numeric" autocomplete="off" placeholder="5:30" class="z-inline w-16" />
                                     <span class="text-[17px] text-ink-3">/km</span>
                                 </FormRow>
                             </FormGroup>

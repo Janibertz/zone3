@@ -7,6 +7,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
 import FormRow from '@/Components/UI/FormRow.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
+import { clockInput } from '@/Composables/useFormat';
 
 const props = defineProps({
     track: { type: Object, default: null },
@@ -120,7 +121,7 @@ async function copyLink(which) {
                         <span class="text-[17px] text-ink-3">km</span>
                     </FormRow>
                     <FormRow as="label" label="Angenommene Pace">
-                        <input v-model="paceText" type="text" inputmode="numeric" placeholder="7:00" class="z-inline w-16" />
+                        <input :value="paceText" @input="paceText = clockInput($event)" type="text" inputmode="numeric" autocomplete="off" placeholder="7:00" class="z-inline w-16" />
                         <span class="text-[17px] text-ink-3">/km</span>
                     </FormRow>
                     <FormRow as="label" label="Zielrunden">

@@ -17,6 +17,8 @@ class RunnerProfileController extends Controller
             'user_id' => auth()->id(),
         ]);
 
+        $request->merge(['threshold_speed' => \App\Services\PaceFormat::normalizeInput($request->input('threshold_speed'))]);
+
         $validated = $request->validate([
 
             'threshold_heart_rate' => 'required|integer|min:100|max:220',
