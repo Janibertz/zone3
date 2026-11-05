@@ -442,8 +442,8 @@ class TrainingSessionController extends Controller
      */
     private function sendViaTrainingApi(TrainingSession $session)
     {
-        if (! \App\Services\Watch\AppleWorkoutWriter::supports($session)) {
-            return response()->json(['error' => 'Auf die Garmin-Uhr gehen nur Läufe. Radeinheiten gehen zu Zwift.'], 422);
+        if (! \App\Services\Garmin\GarminWorkoutBuilder::supports($session)) {
+            return response()->json(['error' => 'Auf die Garmin-Uhr gehen Läufe und Krafteinheiten. Radeinheiten gehen zu Zwift.'], 422);
         }
 
         try {

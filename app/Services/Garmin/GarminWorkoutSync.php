@@ -5,7 +5,6 @@ namespace App\Services\Garmin;
 use App\Models\GarminScheduledWorkout;
 use App\Models\TrainingSession;
 use App\Models\User;
-use App\Services\Watch\AppleWorkoutWriter;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
@@ -202,8 +201,8 @@ class GarminWorkoutSync
             ->reject(fn (TrainingSession $s) => self::isFixedAppointment($s, $weekly, $overrides))
             ->merge($manual)
             ->unique('id')
-            // Nur Läufe: Rennen nicht, Radeinheiten gehen zu Zwift.
-            ->filter(fn (TrainingSession $s) => AppleWorkoutWriter::supports($s))
+            // Läufe und Kraft: Rennen nicht, Radeinheiten gehen zu Zwift.
+            ->filter(fn (TrainingSession $s) => GarminWorkoutBuilder::supports($s))
             ->mapWithKeys(fn (TrainingSession $s) => [$s->id => $this->payload($s, manual: $manualIds->contains($s->id))]);
     }
 

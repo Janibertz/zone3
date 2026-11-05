@@ -1862,14 +1862,25 @@ const lapHeightPct = computed(() => {
             </div>
 
             <template v-if="detailSession" #footer>
-                <AppButton
-                    v-if="detailIsStrength && detailSession.status === 'planned' && !isPastEvent"
-                    block
-                    :loading="completingId === detailSession.id"
-                    @click="completeSession(detailSession)"
-                >
-                    Als erledigt markieren
-                </AppButton>
+                <!-- Kraft: abhaken, und mit Garmin dieselbe Uhr-Zeile wie beim Lauf (GarminStrengthBuilder). -->
+                <div v-if="detailIsStrength && detailSession.status === 'planned' && !isPastEvent" class="space-y-2">
+                    <template v-if="detailSession.exercises?.length">
+                        <div v-if="garminSync && detailOnWatchSoon" class="flex items-center gap-2.5 rounded-card bg-surface-2 px-4 py-3">
+                            <svg class="h-5 w-5 shrink-0 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                            <p class="text-[15px] text-ink-2">Steht automatisch auf deiner Garmin-Uhr.</p>
+                        </div>
+                        <AppButton v-else-if="garminConnected" variant="secondary" block @click="openGarminModal">
+                            Zu Garmin senden
+                        </AppButton>
+                    </template>
+                    <AppButton
+                        block
+                        :loading="completingId === detailSession.id"
+                        @click="completeSession(detailSession)"
+                    >
+                        Als erledigt markieren
+                    </AppButton>
+                </div>
 
                 <!-- Radeinheit: ein Zwift-Workout statt eines Laufs für die Uhr. -->
                 <AppButton v-else-if="detailSession.zwo_url" :href="detailSession.zwo_url" external download block>

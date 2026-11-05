@@ -52,6 +52,8 @@ class AdminStrengthExerciseController extends Controller
                     'license'        => $e->license,
                     'license_author' => $e->license_author,
                     'active'         => $e->active,
+                    'garmin_category' => $e->garmin_category,
+                    'garmin_name'    => $e->garmin_name,
                     'image_url'      => $p['image_url'] ?? null,
                     'credit'         => $p['credit'] ?? null,
                 ];
@@ -59,6 +61,7 @@ class AdminStrengthExerciseController extends Controller
             'groups'    => StrengthExercise::GROUPS,
             'equipment' => StrengthExercise::EQUIPMENT,
             'levels'    => StrengthExercise::LEVELS,
+            'garmin'    => StrengthExercise::garminExercises(),
         ]);
     }
 
@@ -177,6 +180,13 @@ class AdminStrengthExerciseController extends Controller
             'default_reps'   => 'required|string|max:30',
             'default_load'   => 'nullable|string|max:60',
             'wger_id'        => 'nullable|integer|min:1',
+            'garmin_category' => ['nullable', Rule::in(array_keys(StrengthExercise::garminExercises()))],
+            'garmin_name'    => ['nullable', 'required_with:garmin_category', function ($attr, $value, $fail) use ($request) {
+                $names = StrengthExercise::garminExercises()[$request->input('garmin_category')] ?? [];
+                if ($value !== null && ! in_array($value, $names, true)) {
+                    $fail('Diesen Namen kennt Garmin in der Kategorie nicht.');
+                }
+            }],
         ]);
     }
 

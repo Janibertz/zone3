@@ -39,10 +39,25 @@ class StrengthExercise extends Model
         'advanced' => 'Erfahren',
     ];
 
+    /**
+     * Garmins Übungsliste (FIT-Profil, `@garmin/fitsdk`): Kategorie → Namen.
+     * Nur was hier steht, darf in `garmin_category`/`garmin_name` — ein
+     * Tippfehler ließe Garmin das ganze Workout ablehnen.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function garminExercises(): array
+    {
+        static $list = null;
+
+        return $list ??= json_decode(file_get_contents(database_path('data/strength/garmin-exercises.json')), true);
+    }
+
     protected $fillable = [
         'key', 'name', 'instructions', 'group', 'equipment', 'level',
         'default_sets', 'default_reps', 'default_load',
         'wger_id', 'license', 'license_author', 'active', 'sort',
+        'garmin_category', 'garmin_name',
     ];
 
     protected $casts = [

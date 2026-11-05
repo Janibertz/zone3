@@ -16,7 +16,14 @@ const props = defineProps({
     groups:    Object,
     equipment: Object,
     levels:    Object,
+    garmin:    Object,
 });
+
+// Namen der gewählten Garmin-Kategorie; wechselt die Kategorie, passt der alte Name nicht mehr.
+const garminNames = computed(() => props.garmin?.[form.garmin_category] ?? []);
+function pickGarminCategory() {
+    if (!garminNames.value.includes(form.garmin_name)) form.garmin_name = garminNames.value[0] ?? null;
+}
 
 const page  = usePage();
 const flash = computed(() => page.props.flash ?? {});
@@ -51,6 +58,7 @@ function blank() {
     return {
         name: '', instructions: '', group: 'beine', equipment: ['bodyweight'], level: 'beginner',
         default_sets: 3, default_reps: '10', default_load: '', wger_id: null,
+        garmin_category: null, garmin_name: null,
     };
 }
 
@@ -59,6 +67,7 @@ function open(exercise = null) {
         name: exercise.name, instructions: exercise.instructions ?? '', group: exercise.group,
         equipment: [...exercise.equipment], level: exercise.level, default_sets: exercise.default_sets,
         default_reps: exercise.default_reps, default_load: exercise.default_load ?? '', wger_id: exercise.wger_id,
+        garmin_category: exercise.garmin_category, garmin_name: exercise.garmin_name,
     } : {});
     errors.value = {};
     wgerQuery.value = '';
@@ -252,6 +261,28 @@ const fieldClass = 'w-full rounded-field border-line bg-canvas text-[16px] text-
                     </label>
                 </div>
                 <p class="text-[13px] text-ink-3 -mt-2">Vorgabe für das Grundprogramm. Im Plan legt der Coach Sätze und Wiederholungen selbst fest.</p>
+
+                <!-- Garmin: Übung aus Garmins fester Liste, für Animation und Wiederholungszähler auf der Uhr -->
+                <div class="rounded-card bg-surface-2 p-3 space-y-2">
+                    <p class="text-[15px] font-semibold text-ink">Auf der Garmin-Uhr</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label class="block">
+                            <span class="text-[13px] text-ink-3">Kategorie</span>
+                            <select v-model="form.garmin_category" :class="fieldClass" @change="pickGarminCategory">
+                                <option :value="null">— keine —</option>
+                                <option v-for="c in Object.keys(garmin)" :key="c" :value="c">{{ c }}</option>
+                            </select>
+                        </label>
+                        <label class="block">
+                            <span class="text-[13px] text-ink-3">Übung</span>
+                            <select v-model="form.garmin_name" :class="fieldClass" :disabled="!form.garmin_category">
+                                <option v-for="n in garminNames" :key="n" :value="n">{{ n }}</option>
+                            </select>
+                        </label>
+                    </div>
+                    <p v-if="errors.garmin_category || errors.garmin_name" class="text-[13px] text-danger-ink">{{ errors.garmin_category || errors.garmin_name }}</p>
+                    <p class="text-[13px] text-ink-3">Ohne Angabe steht die Übung nur mit ihrem Namen auf der Uhr, ohne Animation.</p>
+                </div>
 
                 <!-- wger -->
                 <div class="rounded-card bg-surface-2 p-3 space-y-2">

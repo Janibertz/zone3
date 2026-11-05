@@ -243,6 +243,15 @@ class StrengthCatalog
         return $have;
     }
 
+    /**
+     * Die Katalog-Übung zu einer gespeicherten Übung, auch inaktive — über
+     * den Schlüssel, bei alten Einheiten über den Namen.
+     */
+    public function lookup(array $raw): ?StrengthExercise
+    {
+        return $this->match($raw, $this->all()->keyBy('key'));
+    }
+
     private function match(array $raw, Collection $byKey): ?StrengthExercise
     {
         $key = Str::of((string) ($raw['key'] ?? ''))->lower()->trim()->toString();
