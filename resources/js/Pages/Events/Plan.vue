@@ -580,7 +580,16 @@ const garminError    = ref('');
 
 const garminConnected = computed(() => !!usePage().props.auth.garminConnected);
 const garminSync = computed(() => !!usePage().props.auth.garminSync);
+// COROS: nur heute und morgen (CorosWorkoutSync::DAYS_AHEAD).
+const corosSync = computed(() => !!usePage().props.auth.corosSync);
 // Der Abgleich hält heute und die sechs Tage danach auf der Uhr (GarminWorkoutSync::DAYS_AHEAD).
+const detailOnCorosSoon = computed(() => {
+    const d = detailSession.value?.planned_date;
+    if (!d) return false;
+    const limit = new Date();
+    limit.setDate(limit.getDate() + 1);
+    return d >= today && d <= limit.toISOString().slice(0, 10);
+});
 const detailOnWatchSoon = computed(() => {
     const d = detailSession.value?.planned_date;
     if (!d) return false;
@@ -1900,6 +1909,10 @@ const lapHeightPct = computed(() => {
                     <div v-if="garminSync && detailOnWatchSoon" class="flex items-center gap-2.5 rounded-card bg-surface-2 px-4 py-3">
                         <svg class="h-5 w-5 shrink-0 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
                         <p class="text-[15px] text-ink-2">Steht automatisch auf deiner Garmin-Uhr.</p>
+                    </div>
+                    <div v-else-if="corosSync && detailOnCorosSoon" class="flex items-center gap-2.5 rounded-card bg-surface-2 px-4 py-3">
+                        <svg class="h-5 w-5 shrink-0 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                        <p class="text-[15px] text-ink-2">Steht automatisch auf deiner COROS-Uhr.</p>
                     </div>
                     <AppButton v-else-if="garminConnected" block @click="openGarminModal">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
