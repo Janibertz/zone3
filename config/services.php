@@ -55,6 +55,18 @@ return [
         'api_url'       => env('GARMIN_API_URL', 'https://apis.garmin.com'),
     ],
 
+    // COROS ueber MCP (seit 05.11.2026). Keine Freigabe noetig: Zone3
+    // registriert sich selbst als OAuth-Client (dynamische Registrierung).
+    // EU-Endpunkt, weil die Athleten in Deutschland sind (Auskunft COROS).
+    // `enabled` blendet die Verbindung im Profil ein — aus, bis sie mit
+    // echten Konten geprueft ist.
+    'coros' => [
+        'enabled'   => (bool) env('COROS_ENABLED', false),
+        'base_url'  => env('COROS_MCP_BASE_URL', 'https://mcpeu.coros.com'),
+        'client_id' => env('COROS_CLIENT_ID'),
+        'redirect'  => env('COROS_REDIRECT_URI', env('APP_URL') . '/coros/callback'),
+    ],
+
     'openai' => [
         'api_key'    => env('OPENAI_API_KEY'),
         'model'      => env('OPENAI_MODEL',      'gpt-5.6-sol'),     // Plan

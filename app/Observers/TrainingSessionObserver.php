@@ -2,12 +2,13 @@
 
 namespace App\Observers;
 
+use App\Jobs\SyncCorosWorkoutsJob;
 use App\Jobs\SyncGarminWorkoutsJob;
 use App\Models\TrainingSession;
 
 /**
  * Jede Aenderung an einer Einheit — Coach, Tagesform-Vorschlag, Tausch,
- * Neuberechnung — zieht den Garmin-Kalender nach. Ein Weg fuer alle
+ * Neuberechnung — zieht den Garmin- und den COROS-Kalender nach. Ein Weg fuer alle
  * Ausloeser, statt an jeder Stelle daran zu denken.
  *
  * Massen-Updates und -Loeschungen (`->delete()` auf einer Abfrage) laufen an
@@ -32,6 +33,10 @@ class TrainingSessionObserver
 
         if ($user?->sendsWorkoutsViaGarminApi()) {
             SyncGarminWorkoutsJob::dispatch($user->id)->delay(now()->addSeconds(SyncGarminWorkoutsJob::DELAY_SECONDS));
+        }
+
+        if ($user?->corosConnection) {
+            SyncCorosWorkoutsJob::dispatch($user->id)->delay(now()->addSeconds(SyncCorosWorkoutsJob::DELAY_SECONDS));
         }
     }
 }

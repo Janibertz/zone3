@@ -106,6 +106,17 @@ class User extends Authenticatable
         return $this->hasOne(GarminConnection::class);
     }
 
+    public function corosConnection()
+    {
+        return $this->hasOne(CorosConnection::class);
+    }
+
+    /** Legt Zone3 die naechsten Plantage selbst in den COROS-Kalender? */
+    public function syncsPlanToCoros(): bool
+    {
+        return (bool) $this->corosConnection?->workout_sync;
+    }
+
     /**
      * Woher Aktivitäten kommen. Eine Quelle pro Athlet (Entscheidung vom
      * 27.10.2026), damit nie zwei Wege dieselbe Einheit anlegen.

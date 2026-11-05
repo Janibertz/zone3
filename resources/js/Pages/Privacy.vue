@@ -35,6 +35,11 @@ const empfaenger = [
         zweck: 'Nur wenn du Garmin verbindest: Abruf deiner Erholungswerte und Aktivitäten aus Garmin Connect und Übertragung geplanter Einheiten auf deine Uhr, wenn du das antippst. Garmin erfährt dabei, welche Einheit du senden lässt.',
     },
     {
+        name: 'COROS Wearables Inc.',
+        ort: 'USA',
+        zweck: 'Nur wenn du COROS verbindest: Übertragung deiner geplanten Läufe von heute und morgen in deinen COROS-Trainingskalender. Zone3 liest derzeit keine Daten von COROS.',
+    },
+    {
         name: 'OpenAI, L.L.C.',
         ort: 'USA',
         zweck: 'Erzeugung von Trainingsplänen, Auswertungen und Antworten des Coachs. Übermittelt werden die dafür nötigen Trainingsdaten (Aktivitäten, Pace, Herzfrequenz, Ziele und Rennen, Trainingsprofil), deine Tagesform-Einträge, Coach-Notizen und deine Chat-Nachrichten sowie dein Name. Hast du Garmin verbunden, außerdem Wochenmittel und Tageswerte deiner Erholung (Schlaf, HRV, Ruhepuls, Stress, Body Battery). Nicht zum Training von KI-Modellen, siehe Abschnitt 7. E-Mail-Adresse, Passwort und Zugangsdaten werden nicht übermittelt.',
@@ -119,7 +124,7 @@ const empfaenger = [
                     <li><strong class="text-ink">Ziele und Pläne:</strong> Rennen, Zielzeiten, Trainingspläne und -einheiten, deine Bewertungen und Notizen dazu, Antworten im Plan-Interview.</li>
                     <li><strong class="text-ink">Tagesform:</strong> freiwillige Selbsteinschätzung (Energie, Schlaf, Muskelkater, Stress, krank oder verletzt, Notiz).</li>
                     <li><strong class="text-ink">Coach:</strong> deine Nachrichten an den Coach, seine Antworten und Notizen, die er sich über dich merkt.</li>
-                    <li><strong class="text-ink">Verbindungen:</strong> Zugangstoken für Strava und Garmin, deine Telegram-Chat-ID, das Token deines Kalender-Abos, Push-Abonnements.</li>
+                    <li><strong class="text-ink">Verbindungen:</strong> Zugangstoken für Strava, Garmin und COROS, deine Telegram-Chat-ID, das Token deines Kalender-Abos, Push-Abonnements.</li>
                     <li><strong class="text-ink">Support:</strong> Inhalt deiner Support-Anfragen.</li>
                     <li><strong class="text-ink">Technische Daten:</strong> IP-Adresse, Zeitpunkt und aufgerufene Adresse in Server-Logs.</li>
                 </ul>
@@ -193,7 +198,7 @@ const empfaenger = [
             </section>
 
             <section>
-                <h2 class="mb-3 text-[22px] font-bold text-ink">6. Garmin</h2>
+                <h2 class="mb-3 text-[22px] font-bold text-ink">6. Garmin und COROS</h2>
                 <p>
                     Verbindest du dein Garmin-Konto, liest Zone3 die Daten, die du dabei freigibst: deine
                     Erholungswerte und, wenn du Garmin als Quelle für Aktivitäten wählst, deine Aktivitäten.
@@ -211,6 +216,13 @@ const empfaenger = [
                     deinen Garmin-Zugang und alle gespeicherten Erholungswerte. Bereits übernommene Aktivitäten bleiben
                     als Teil deiner Trainingshistorie stehen, weil erledigte Einheiten und deine Bewertungen daran
                     hängen. Du kannst sie einzeln löschen oder mit dem Konto.
+                </p>
+                <p class="mt-3">
+                    Verbindest du dein COROS-Konto, schreibt Zone3 deine geplanten Läufe für heute und morgen in
+                    deinen COROS-Trainingskalender. Dafür speichert Zone3 den Zugang, den du bei COROS freigibst, und
+                    welche Einheit an welchem Tag dort steht. Daten von COROS liest Zone3 derzeit nicht, es gehen
+                    also auch keine COROS-Daten an OpenAI. Beim Trennen widerruft Zone3 den Zugang bei COROS und löscht
+                    alles, was es dazu gespeichert hat.
                 </p>
             </section>
 

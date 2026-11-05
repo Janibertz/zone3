@@ -39,6 +39,7 @@ const props = defineProps({
     norwegianReadiness:    { type: Object, default: null },
     calendarFeed:          { type: Object, default: null },
     garminOfficial:        { type: Object, default: () => ({ available: false, connection: null }) },
+    coros:                 { type: Object, default: () => ({ available: false, connection: null }) },
     activitySource:        { type: Object, default: () => ({ current: 'strava', usable: [] }) },
 });
 
@@ -46,7 +47,7 @@ const page = usePage();
 const user = computed(() => page.props.auth.user);
 // Kommt der Athlet von Garmin zurück, landet er direkt bei den Verbindungen —
 // sonst sähe er die Rückmeldung zum Verbinden gar nicht.
-const backFromGarmin = !!props.garminOfficial?.status;
+const backFromGarmin = !!props.garminOfficial?.status || !!props.coros?.status;
 // „Mehr" verlinkt direkt in einen Abschnitt (/profile?section=connections).
 const SECTION_KEYS = ['personal', 'coach', 'athlete', 'notifications', 'connections', 'security', 'account'];
 const requestedSection = typeof window !== 'undefined'
@@ -807,6 +808,30 @@ function disconnectGarminOfficial() {
     });
 }
 
+// ── COROS (MCP): nur Workouts auf die Uhr, heute und morgen ─────────────────
+const corosConnection = computed(() => props.coros?.connection ?? null);
+const corosBusy = ref(false);
+const corosWorkoutSync = ref(props.coros?.connection?.workout_sync ?? true);
+function connectCoros() {
+    corosBusy.value = true;
+    router.post(route('coros.connect'), {}, { onFinish: () => { corosBusy.value = false; } });
+}
+function disconnectCoros() {
+    corosBusy.value = true;
+    router.delete(route('coros.connection.destroy'), {
+        preserveScroll: true,
+        onFinish: () => { corosBusy.value = false; },
+    });
+}
+function toggleCorosWorkoutSync() {
+    const enabled = !corosWorkoutSync.value;
+    corosWorkoutSync.value = enabled;
+    router.patch(route('coros.workout-sync'), { enabled }, {
+        preserveScroll: true,
+        onError: () => { corosWorkoutSync.value = !enabled; },
+    });
+}
+
 // ── Aktivitäten kommen von ───────────────────────────────────────────────────
 // Eine Quelle pro Athlet. Wählbar nur, wenn Strava verbunden ist UND Garmin
 // Aktivitäten freigegeben hat — sonst gibt es nichts zu wählen.
@@ -1224,6 +1249,34 @@ const inputClass = 'z-input';
                             </p>
                             <p v-if="props.garminOfficial.status" class="px-4 py-3 text-[13px]"
                                 :class="props.garminOfficial.status.type === 'error' ? 'text-danger' : 'text-success-ink'">{{ props.garminOfficial.status.message }}</p>
+
+                            <!-- COROS (MCP): bisher nur Workouts auf die Uhr. -->
+                            <template v-if="props.coros.available">
+                                <div class="flex min-h-[60px] items-center gap-3 px-4 py-2">
+                                    <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-ink text-canvas text-[13px] font-bold" aria-hidden="true">C</span>
+                                    <span class="min-w-0 flex-1">
+                                        <span class="block text-[17px] text-ink">COROS</span>
+                                        <span class="block text-[13px] leading-snug" :class="corosConnection?.refresh_error ? 'text-danger' : 'text-ink-3'">
+                                            <template v-if="corosConnection?.refresh_error">COROS nimmt die Verbindung nicht mehr an</template>
+                                            <template v-else-if="corosConnection">Verbunden · Workouts auf die Uhr</template>
+                                            <template v-else>Nicht verbunden</template>
+                                        </span>
+                                    </span>
+                                    <button v-if="corosConnection" type="button" :disabled="corosBusy" class="shrink-0 text-[17px] text-danger active:opacity-60 disabled:opacity-40" @click="disconnectCoros">
+                                        {{ corosBusy ? 'Trenne …' : 'Trennen' }}
+                                    </button>
+                                    <button v-else type="button" :disabled="corosBusy" class="shrink-0 text-[17px] text-accent active:opacity-60 disabled:opacity-40" @click="connectCoros">Verbinden</button>
+                                </div>
+                                <FormRow v-if="corosConnection" label="Plan auf die Uhr"
+                                    hint="Die Läufe von heute und morgen stehen im COROS-Trainingskalender. Ändert sich der Plan, zieht die Einheit nach; fällt sie weg, steht dort „Entfällt“ (löschen kann Zone3 in COROS nicht). Vereinstermine, Rad und Kraft nicht.">
+                                    <Toggle :model-value="corosWorkoutSync" label="Plan automatisch auf die COROS-Uhr" @update:model-value="toggleCorosWorkoutSync" />
+                                </FormRow>
+                                <p v-if="!corosConnection" class="px-4 pb-3 text-[13px] leading-snug text-ink-3">
+                                    Die Anmeldung läuft direkt bei COROS. Zone3 schreibt nur deine Läufe in den COROS-Kalender und liest bisher keine Daten von dort.
+                                </p>
+                                <p v-if="props.coros.status" class="px-4 py-3 text-[13px]"
+                                    :class="props.coros.status.type === 'error' ? 'text-danger' : 'text-success-ink'">{{ props.coros.status.message }}</p>
+                            </template>
 
                             <!-- Strava: nur nach Freischaltung durch einen Admin (Jan, 03.11.2026). -->
                             <div v-if="stravaOffered" class="flex min-h-[60px] items-center gap-3 px-4 py-2">

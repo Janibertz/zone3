@@ -896,6 +896,18 @@ Zone3 ist im Garmin Connect Developer Program (Activity, Health, Training API). 
 
 - Im Garmin-Endpunkt-Tool zeigen Dailies, Sleeps, HRV Summary, Stress und User Metrics auf `https://zone3.run/garmin/webhook/health`. Die Werte stehen ungeprüft im Body (Garmin signiert nicht); gespeichert wird nur für verbundene Athleten mit `HEALTH_EXPORT`.
 
+## COROS (seit 05.11.2026)
+
+COROS hat auf den Partner-Antrag geantwortet: für Zone3 reicht **COROS MCP**, ohne Freigabe (Plan im Dokument „COROS-Anbindung über MCP: Plan“, Probelauf-Antworten in `coros-antrag/mcp-probelauf/` der Projektdateien). Der Partner-Antrag (Webhooks, Daily Push) bleibt offen. **Bisher nur Workouts auf die Uhr**; Aktivitäten und Erholungswerte folgen, sobald echte Beispielantworten da sind.
+
+- **Eingeblendet nur mit `COROS_ENABLED=true`.** Endpunkt `COROS_MCP_BASE_URL` (Vorgabe EU: `https://mcpeu.coros.com`).
+- **Keine Client-ID von COROS:** `CorosClient::clientId()` registriert Zone3 einmal dynamisch (`/connect/register`) und merkt sich die ID im Cache; `COROS_CLIENT_ID` übersteuert. Die ID steht zusätzlich an jeder Verbindung, weil ein Refresh-Token nur für seinen Client gilt. Den Device-Flow streicht COROS bei der Registrierung — Rückweg ist `/coros/callback`, ohne Anmeldung über den `state` im Cache wie bei Garmin.
+- Access-Token 30 Tage, Refresh-Token 180 Tage, jede Erneuerung liefert einen neuen → Sperre pro Athlet wie bei Garmin. Erneuert wird bei Bedarf (zwei Tage vor Ablauf); der stündliche Abgleich hält die Tokens so frisch.
+- **MCP antwortet nur mit Text** (kein `structuredContent`, kein `outputSchema`). Schreiben geht sauber per JSON. Wer etwas liest, liest es aus Text — `McpCorosCalendar` holt nur die `idInPlan` per Regex.
+- **Im COROS-Kalender kann Zone3 nichts löschen oder verschieben.** Darum `CorosWorkoutSync`: nur **heute und morgen**, eine Änderung am selben Tag ersetzt das Workout, eine weggefallene Einheit wird zu „Entfällt (Plan in Zone3 geändert)“, und der Platz (`coros_scheduled_workouts`, `cancelled`) wird für die nächste Einheit an demselben Tag wieder benutzt. Läufe ja; Vereinstermine, Rennen, Rad und Kraft nein (MCP kann Kraft nicht anlegen).
+- `CorosCalendar` ist die Naht für die Partner API: eine zweite Umsetzung neben `McpCorosCalendar`, Bindung in `AppServiceProvider`.
+- **Keine KI-Einwilligung beim Verbinden**, weil Zone3 noch nichts von COROS liest. Mit dem ersten Abruf von Daten kommen COROS' vier Bedingungen: DPA mit OpenAI, Einwilligung, Datenminimierung (nie Menstruationsdaten), Ausgaben nur zu Fitness und Leistung. Trennen sagt bevorstehende Workouts ab, widerruft den Token und löscht alles.
+
 ## Admin Panel
 
 Routes in `routes/admin.php` — protected by `is_admin` on User. Manual threshold recalculation, AI log viewer (all OpenAI calls with tokens + duration), coach personality editor, push test sender, settings page showing both models.
