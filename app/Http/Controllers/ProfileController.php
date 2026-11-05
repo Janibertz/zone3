@@ -67,6 +67,13 @@ class ProfileController extends Controller
                 'status'     => session('garmin_status'),
                 'workoutSync'=> (bool) ($user->garmin_workout_sync ?? true),
             ],
+            // COROS ueber MCP — nur Workouts auf die Uhr. Ausgeblendet, solange
+            // COROS_ENABLED nicht gesetzt ist.
+            'coros'            => [
+                'available'  => app(\App\Services\Coros\CorosClient::class)->enabled(),
+                'connection' => $user->corosConnection?->summary(),
+                'status'     => session('coros_status'),
+            ],
             // Woher Aktivitäten kommen. Wählbar nur, wenn beide liefern können.
             'activitySource'   => [
                 'current' => $user->activitySource(),
@@ -205,6 +212,9 @@ class ProfileController extends Controller
         // Zone3 dort als verbundene App stehen.
         if ($user->garminConnection) {
             app(\App\Services\Garmin\GarminDisconnector::class)->disconnect($user);
+        }
+        if ($user->corosConnection) {
+            app(\App\Services\Coros\CorosDisconnector::class)->disconnect($user);
         }
 
         Auth::logout();

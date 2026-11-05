@@ -14,6 +14,10 @@ class AppServiceProvider extends ServiceProvider
         // Der Katalog merkt sich die Übungen — je Anfrage bzw. je Job, damit
         // der Queue-Worker eine Änderung im Admin beim nächsten Job sieht.
         $this->app->scoped(\App\Services\Strength\StrengthCatalog::class);
+
+        // COROS-Kalender heute ueber MCP. Bewilligt COROS die Partner API,
+        // wird hier die zweite Umsetzung eingetragen.
+        $this->app->bind(\App\Services\Coros\CorosCalendar::class, \App\Services\Coros\McpCorosCalendar::class);
     }
 
     /**

@@ -513,6 +513,11 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     // Onboarding, der Callback weiter unten ausserhalb der Anmeldung.
     Route::delete('/garmin/connection', [\App\Http\Controllers\GarminController::class, 'disconnect'])->name('garmin.connection.destroy');
 
+    // COROS ueber MCP: nur Workouts auf die Uhr (seit 05.11.2026).
+    Route::post('/coros/connect', [\App\Http\Controllers\CorosController::class, 'connect'])->name('coros.connect');
+    Route::delete('/coros/connection', [\App\Http\Controllers\CorosController::class, 'disconnect'])->name('coros.connection.destroy');
+    Route::patch('/coros/workout-sync', [\App\Http\Controllers\CorosController::class, 'updateWorkoutSync'])->name('coros.workout-sync');
+
 
     Route::get('/activities', [ActivityController::class, 'index'])->name('activities.index');
     Route::get('/activities/{activity}', [ActivityController::class, 'show'])->name('activities.show');
@@ -728,6 +733,9 @@ Route::post('/strava/webhook', [StravaController::class, 'webhook'])->name('stra
 // Rueckweg von Garmin in Safari an, ohne Anmeldung. Der Controller erkennt
 // den Athleten am state. Die URL steht so im Garmin Developer Portal.
 Route::get('/garmin/callback', [\App\Http\Controllers\GarminController::class, 'callback'])->name('garmin.callback');
+
+// COROS-Rueckweg, aus demselben Grund ohne Anmeldung.
+Route::get('/coros/callback', [\App\Http\Controllers\CorosController::class, 'callback'])->name('coros.callback');
 
 // Garmin-Webhook fuer Deregistrierung und Freigaben — ohne Auth, Garmin ruft
 // von aussen an. Braucht in Cloudflare dieselbe WAF-Skip-Regel wie

@@ -2,18 +2,19 @@
 import { Head } from '@inertiajs/vue3';
 
 /**
- * Rückweg von Garmin ohne Anmeldung. Aus der Homescreen-App öffnet iOS den
+ * Rückweg von Garmin oder COROS ohne Anmeldung. Aus der Homescreen-App öffnet iOS den
  * Callback in Safari, und von dort führt kein Weg zurück in die App. Die
  * Seite sagt, was passiert ist, und schickt den Athleten zurück zur App.
  */
 defineProps({
     ok:      { type: Boolean, default: false },
     message: { type: String, default: '' },
+    service: { type: String, default: 'Garmin' },
 });
 </script>
 
 <template>
-    <Head :title="ok ? 'Garmin verbunden – Zone3' : 'Garmin – Zone3'" />
+    <Head :title="ok ? `${service} verbunden – Zone3` : `${service} – Zone3`" />
     <div class="min-h-screen bg-canvas flex items-center justify-center px-4">
         <div class="text-center max-w-md">
             <div class="h-16 w-16 rounded-2xl flex items-center justify-center mx-auto mb-6"

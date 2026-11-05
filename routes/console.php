@@ -51,6 +51,10 @@ Schedule::command('garmin:prune-webhook-payloads')->dailyAt('04:40');
 // darunter. Ein unveraenderter Plan kostet keinen Aufruf bei Garmin.
 Schedule::command('garmin:sync-workouts')->hourly()->withoutOverlapping();
 
+// Dasselbe fuer COROS (MCP): heute und morgen. Stuendlich, damit der neue Tag
+// kurz nach Mitternacht auf der Uhr steht. Ohne Aenderung kein Aufruf.
+Schedule::command('coros:sync-workouts')->hourly()->withoutOverlapping();
+
 // Jede Minute: laufende LiveTrack-Sitzungen abfragen. Der Command prueft
 // selbst, ob ueberhaupt eine Sitzung im Zeitfenster liegt.
 Schedule::command('livetrack:poll')->everyMinute()->withoutOverlapping();
