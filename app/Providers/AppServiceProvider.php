@@ -11,7 +11,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Der Katalog merkt sich die Übungen — je Anfrage bzw. je Job, damit
+        // der Queue-Worker eine Änderung im Admin beim nächsten Job sieht.
+        $this->app->scoped(\App\Services\Strength\StrengthCatalog::class);
     }
 
     /**

@@ -435,6 +435,7 @@ class CoachChatService
                     'duration_min' => ['type' => 'integer', 'description' => 'Zieldauer in Minuten'],
                     'workout'      => ['type' => 'string', 'enum' => self::workoutEnum(), 'description' => 'Baustein für den Ablauf eines Laufs (Varianten: ' . self::workoutHint() . '). Den Ablauf mit Abschnitten, Paces und Distanz baut das System daraus.'],
                     'part'         => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit Doppel-Schwelle: morgens (am) oder abends (pm)'],
+                    'exercises'    => self::exercisesParam(),
                 ]],
             ]],
             ['type' => 'function', 'function' => [
@@ -450,6 +451,7 @@ class CoachChatService
                     'duration_min' => ['type' => 'integer', 'description' => 'Zieldauer in Minuten'],
                     'workout'      => ['type' => 'string', 'enum' => self::workoutEnum(), 'description' => 'Baustein für den Ablauf eines Laufs (Varianten: ' . self::workoutHint() . '). Den Ablauf mit Abschnitten, Paces und Distanz baut das System daraus.'],
                     'part'         => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit Doppel-Schwelle: morgens (am) oder abends (pm)'],
+                    'exercises'    => self::exercisesParam(),
                 ], 'required' => ['reason']],
             ]],
             ['type' => 'function', 'function' => [
@@ -464,6 +466,7 @@ class CoachChatService
                     'duration_min' => ['type' => 'integer', 'description' => 'Zieldauer in Minuten'],
                     'workout'      => ['type' => 'string', 'enum' => self::workoutEnum(), 'description' => 'Baustein für den Ablauf eines Laufs (Varianten: ' . self::workoutHint() . '). Den Ablauf mit Abschnitten, Paces und Distanz baut das System daraus.'],
                     'part'         => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit Doppel-Schwelle: morgens (am) oder abends (pm)'],
+                    'exercises'    => self::exercisesParam(),
                 ], 'required' => ['date', 'type']],
             ]],
             ['type' => 'function', 'function' => [
@@ -733,6 +736,25 @@ class CoachChatService
         // der Coach keine Struktur erfindet, die sonst nirgends gilt.
         $session->steps = null;
         app(\App\Services\Run\SessionStructure::class)->apply($session, $args['workout'] ?? null);
+
+        // Kraft: Übungen nur aus dem Katalog (Admin → Kraftübungen).
+        app(\App\Services\Strength\StrengthCatalog::class)->applyTo($session, $args['exercises'] ?? null);
+    }
+
+    /** Werkzeug-Parameter für die Übungen einer Krafteinheit. */
+    private static function exercisesParam(): array
+    {
+        return [
+            'type'        => 'array',
+            'description' => 'Nur bei strength/core/mobility: Übungen aus dem Kraft-Katalog. Sätze und Wiederholungen legst du fest. Weglassen = das System wählt ein Programm.',
+            'items'       => ['type' => 'object', 'properties' => [
+                'key'  => ['type' => 'string', 'description' => 'Schlüssel aus dem Kraft-Katalog: ' . app(\App\Services\Strength\StrengthCatalog::class)->all()->where('active', true)->pluck('key')->implode(', ')],
+                'sets' => ['type' => 'integer'],
+                'reps' => ['type' => 'string', 'description' => 'z. B. "10", "8 je Bein", "30 s"'],
+                'load' => ['type' => 'string', 'description' => 'z. B. "16 kg", "Körpergewicht"'],
+                'note' => ['type' => 'string'],
+            ], 'required' => ['key']],
+        ];
     }
 
     /** Alle Bausteine des Katalogs, für das Werkzeug-Schema. */
@@ -1166,6 +1188,11 @@ class CoachChatService
         $draft = $session->replicate();
         $this->applySessionFields($draft, $args, $user);
         $after = collect($fields)->mapWithKeys(fn ($f) => [$f => $draft->{$f}])->all();
+        // Übungen reisen mit, damit der Athlet nach dem Annehmen dieselben
+        // bekommt, die der Coach gewählt hat.
+        if (! empty($draft->exercises)) {
+            $after['exercises'] = $draft->exercises;
+        }
 
         // Ein neuer Vorschlag zur selben Einheit ersetzt den alten — zwei
         // offene Entscheidungen zu einer Einheit kann niemand beantworten.

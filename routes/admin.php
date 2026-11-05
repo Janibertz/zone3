@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\AdminImpersonationController;
 use App\Http\Controllers\Admin\AdminInvitationController;
 use App\Http\Controllers\Admin\AdminNewsletterController;
 use App\Http\Controllers\Admin\AdminSettingsController;
+use App\Http\Controllers\Admin\AdminStrengthExerciseController;
 use App\Http\Controllers\Admin\AdminSupportController;
 use App\Http\Controllers\Admin\AdminSystemController;
 use App\Http\Controllers\Admin\AdminUserController;
@@ -45,6 +46,15 @@ Route::post('/invitations/{invitation}/revoke',    [AdminInvitationController::c
 // Freigabe zuruecknehmen, aber kein fremdes Workout aendern.
 Route::get('/workouts',                            [AdminWorkoutController::class, 'index'])     ->name('workouts.index');
 Route::post('/workouts/{workout}/unpublish',       [AdminWorkoutController::class, 'unpublish']) ->name('workouts.unpublish');
+
+// Kraft-Katalog — Übungen mit Bild aus wger. Nie löschen, nur abschalten.
+Route::get('/strength-exercises',                         [AdminStrengthExerciseController::class, 'index'])        ->name('strength-exercises.index');
+Route::post('/strength-exercises',                        [AdminStrengthExerciseController::class, 'store'])        ->name('strength-exercises.store');
+Route::get('/strength-exercises/wger',                    [AdminStrengthExerciseController::class, 'wgerSearch'])   ->name('strength-exercises.wger');
+Route::patch('/strength-exercises/{exercise}',            [AdminStrengthExerciseController::class, 'update'])       ->name('strength-exercises.update');
+Route::patch('/strength-exercises/{exercise}/toggle',     [AdminStrengthExerciseController::class, 'toggle'])       ->name('strength-exercises.toggle');
+Route::post('/strength-exercises/{exercise}/image',       [AdminStrengthExerciseController::class, 'refreshImage']) ->name('strength-exercises.image');
+Route::delete('/strength-exercises/{exercise}/image',     [AdminStrengthExerciseController::class, 'removeImage'])  ->name('strength-exercises.image.destroy');
 
 Route::get('/activities',                          [AdminActivityController::class, 'index'])           ->name('activities.index');
 Route::delete('/activities/{activity}',            [AdminActivityController::class, 'destroy'])         ->name('activities.destroy');

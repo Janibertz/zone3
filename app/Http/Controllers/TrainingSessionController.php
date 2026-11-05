@@ -556,7 +556,7 @@ class TrainingSessionController extends Controller
             'review_options'   => $s->review_options,
             'review_feedback'  => $s->review_feedback,
             'nutrition_tips'   => $s->nutrition_tips,
-            'exercises'        => $s->exercises,
+            'exercises'        => app(\App\Services\Strength\StrengthCatalog::class)->present($s->exercises) ?: null,
         ];
     }
 }

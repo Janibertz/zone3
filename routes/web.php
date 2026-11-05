@@ -646,6 +646,8 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/training-sessions/{session}/steps', [TrainingSessionController::class, 'sessionSteps'])->name('training-sessions.steps');
     Route::get('/training-sessions/{session}/zwift.zwo', [TrainingSessionController::class, 'zwo'])->name('training-sessions.zwo');
     Route::get('/training-sessions/{session}/apple.workout', [TrainingSessionController::class, 'appleWorkout'])->name('training-sessions.apple-workout');
+    // Bild einer Kraftübung aus der Datenbank (Versionsanhang ?v= im Link).
+    Route::get('/exercise-images/{exercise}', \App\Http\Controllers\StrengthExerciseImageController::class)->name('exercise-images.show');
     Route::patch('/training-sessions/{session}/rate', [TrainingSessionController::class, 'rate'])->name('training-sessions.rate');
     Route::patch('/training-sessions/{session}/review-feedback', [TrainingSessionController::class, 'reviewFeedback'])->name('training-sessions.review-feedback');
     // Das kurze Gespraech vor dem naechsten Block. Fragt nur, was die Daten

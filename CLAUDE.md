@@ -779,6 +779,18 @@ And `strava_webhook_events` answers it from the other side: every call from Stra
 
 An empty array means no subscription exists and no event will ever arrive — re-register with `php artisan strava:subscribe-webhook`.
 
+## Kraft-Katalog mit Bildern aus wger (seit 05.11.2026)
+
+Bis dahin schrieb das Modell die Übungen einer Krafteinheit frei — Namen ohne Bild und ohne Ausführung. Jetzt gibt es einen festen Katalog (`strength_exercises`), gepflegt **nur vom Admin** unter `/admin/strength-exercises` (Entscheidungen von Jan, 05.11.2026: Startkatalog von uns, kein eigener Upload, KI legt Sätze und Wiederholungen ohne Klammer fest).
+
+- **Das Modell wählt Schlüssel**, nicht Namen: der Plan-Prompt listet je Gruppe `key (Name)`, passend zu Equipment und Erfahrung (`StrengthCatalog::promptList()`), die Antwort ist `{key, sets, reps, load, note}`. `TrainingPlanValidator::buildStrength()` wirft Übungen außerhalb des Katalogs oder ohne passendes Equipment weg (steht in den Korrekturen); bleibt nichts — auch beim Notnagel —, gilt `defaultProgram()`: je Gruppe eine Übung, nach Datum rotiert. Körpergewicht geht immer, `gym` bringt Hanteln, Kettlebell und Band mit.
+- **Coach-Chat:** die Werkzeuge nehmen `exercises` mit Schlüssel; dort gilt der ganze aktive Katalog (wer ausdrücklich Swings verlangt, bekommt sie). Ohne Angabe bleiben vorhandene Übungen, sonst das Grundprogramm. Ein angenommener Vorschlag bringt die Übungen des Coaches mit (`after.exercises`).
+- **Gespeichert** wird an der Einheit `{key, name, sets, reps, load, note}`; Bild, Ausführung und Quelle setzt `StrengthCatalog::present()` erst beim Anzeigen dazu — eine Änderung im Admin kommt auch an alten Einheiten an. Alte Einheiten ohne Schlüssel werden über den Namen gefunden oder bleiben, wie sie sind.
+- **Gelöscht wird nie**, nur ausgeschaltet: alte Einheiten verweisen über den Schlüssel. Der Schlüssel ändert sich nie.
+- **Bilder liegen base64 in `strength_exercise_images`**, nicht auf der Platte (`storage/` ist im Container flüchtig), ausgeliefert über `/exercise-images/{id}?v=<Zeitstempel>` mit langem Cache. Verkleinert auf 640 px als JPEG, sonst unverändert — die wger-Bilder stehen unter CC-BY-SA, und **unter jedem Bild steht die Quelle** („Bild: philip, CC-BY-SA 4.0, wger.de"). Wer die Quellzeile entfernt, verletzt die Lizenz.
+- **wger nur aus dem Admin** (`WgerClient`), nie beim Athleten. Die API filtert nicht nach Namen; der Client holt einmal alle `exerciseinfo`-Seiten (~930 Übungen), merkt sie eine Woche (`wger:index:v1`) und sucht darin. Nur rund ein Drittel der wger-Übungen hat ein Bild; Seitstütz, Glute Bridge, Dead Bug und Clamshell haben keins und stehen ohne Bild im Katalog.
+- Der Startkatalog (49 Übungen, 37 mit Bild, eigene Ausführungstexte) liegt in `database/data/strength/` und wird von **einer** Migration eingelesen. Danach gilt die Datenbank.
+
 ## Rad / Zwift
 
 Zwift-Fahrten kommen über Strava als `VirtualRide`. Zwift nimmt Einheiten nur auf zwei Wegen an: über die Training API (vergibt Zwift nur an ausgewählte Partner) oder als **.zwo-Datei**, die einmal auf PC oder Mac in `Dokumente/Zwift/Workouts/<ID>/` liegt und dann auf allen Geräten da ist. Zone3 geht den zweiten Weg.

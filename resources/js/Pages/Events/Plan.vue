@@ -1605,22 +1605,33 @@ const lapHeightPct = computed(() => {
                     <section v-if="detailIsStrength && detailSession.exercises && detailSession.exercises.length" class="lg:col-span-2">
                         <h3 class="mb-3 text-[22px] font-bold tracking-tight text-ink">Übungen</h3>
                         <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                            <div v-for="(ex, i) in detailSession.exercises" :key="i" class="rounded-card bg-surface-2 p-4">
-                                <div class="flex flex-wrap items-baseline gap-2">
-                                    <span class="text-[15px] font-semibold text-ink">{{ ex.name }}</span>
-                                    <span v-if="ex.sets || ex.reps" class="text-[13px] font-semibold tabular-nums text-accent-ink">
-                                        {{ [ex.sets, ex.reps].filter(Boolean).join('×') }}
-                                    </span>
-                                    <span v-if="ex.load" class="text-[13px] text-ink-3">· {{ ex.load }}</span>
+                            <div v-for="(ex, i) in detailSession.exercises" :key="ex.key ?? i" class="overflow-hidden rounded-card bg-surface-2">
+                                <!-- Bild aus dem Kraft-Katalog (wger.de, Quelle darunter) -->
+                                <div v-if="ex.image_url" class="flex aspect-[4/3] items-center justify-center bg-white">
+                                    <img :src="ex.image_url" :alt="ex.name" loading="lazy" class="h-full w-full object-contain" />
                                 </div>
-                                <p v-if="ex.note" class="mt-0.5 text-[13px] italic text-ink-3">{{ ex.note }}</p>
-                                <a :href="exerciseVideoUrl(ex.name)" target="_blank" rel="noopener noreferrer"
-                                    class="mt-2 inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent-ink hover:underline">
-                                    <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                                        <path d="M21.582 6.186a2.506 2.506 0 0 0-1.768-1.768C18.254 4 12 4 12 4s-6.254 0-7.814.418c-.86.23-1.538.908-1.768 1.768C2 7.746 2 12 2 12s0 4.254.418 5.814c.23.86.908 1.538 1.768 1.768C5.746 20 12 20 12 20s6.254 0 7.814-.418a2.506 2.506 0 0 0 1.768-1.768C22 16.254 22 12 22 12s0-4.254-.418-5.814ZM10 15.464V8.536L16 12l-6 3.464Z" />
-                                    </svg>
-                                    Video ansehen
-                                </a>
+                                <div class="p-4">
+                                    <div class="flex flex-wrap items-baseline gap-2">
+                                        <span class="text-[17px] font-semibold text-ink">{{ ex.name }}</span>
+                                        <span v-if="ex.sets || ex.reps" class="text-[15px] font-semibold tabular-nums text-accent-ink">
+                                            {{ [ex.sets, ex.reps].filter(Boolean).join(' × ') }}
+                                        </span>
+                                        <span v-if="ex.load" class="text-[15px] text-ink-3">· {{ ex.load }}</span>
+                                    </div>
+                                    <p v-if="ex.note" class="mt-0.5 text-[13px] italic text-ink-3">{{ ex.note }}</p>
+                                    <p v-if="ex.instructions" class="mt-2 text-[15px] leading-snug text-ink-2">{{ ex.instructions }}</p>
+                                    <div class="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                                        <a :href="exerciseVideoUrl(ex.name)" target="_blank" rel="noopener noreferrer"
+                                            class="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent-ink hover:underline">
+                                            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M21.582 6.186a2.506 2.506 0 0 0-1.768-1.768C18.254 4 12 4 12 4s-6.254 0-7.814.418c-.86.23-1.538.908-1.768 1.768C2 7.746 2 12 2 12s0 4.254.418 5.814c.23.86.908 1.538 1.768 1.768C5.746 20 12 20 12 20s6.254 0 7.814-.418a2.506 2.506 0 0 0 1.768-1.768C22 16.254 22 12 22 12s0-4.254-.418-5.814ZM10 15.464V8.536L16 12l-6 3.464Z" />
+                                            </svg>
+                                            Video ansehen
+                                        </a>
+                                        <a v-if="ex.credit" :href="ex.source_url" target="_blank" rel="noopener noreferrer"
+                                            class="text-[11px] text-ink-3">{{ ex.credit }}</a>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </section>
