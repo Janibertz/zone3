@@ -35,6 +35,7 @@ class GarminStrengthWorkoutTest extends TestCase
     private User $user;
     private TrainingPlan $plan;
     private int $nextId = 1000;
+    private bool $rejectStrength = false;
 
     protected function setUp(): void
     {
@@ -63,7 +64,9 @@ class GarminStrengthWorkoutTest extends TestCase
                 return Http::response(null, 204);
             }
             if (str_contains($request->url(), '/workoutportal/workout/v2')) {
-                return Http::response(['workoutId' => $this->nextId++]);
+                return $this->rejectStrength && $request['sport'] === 'STRENGTH_TRAINING'
+                    ? Http::response(['message' => 'Invalid exerciseName'], 400)
+                    : Http::response(['workoutId' => $this->nextId++]);
             }
             if (str_contains($request->url(), '/training-api/schedule')) {
                 return Http::response(['scheduleId' => $this->nextId++]);
@@ -163,6 +166,24 @@ class GarminStrengthWorkoutTest extends TestCase
         $this->assertSame(1, $result['created']);
         $this->assertSame([$session->id], GarminScheduledWorkout::pluck('training_session_id')->all());
         Http::assertSent(fn (Request $r) => str_contains($r->url(), '/workoutportal/workout/v2') && $r['sport'] === 'STRENGTH_TRAINING');
+    }
+
+    /** Lehnt Garmin das Kraft-Workout ab, kommen die Läufe trotzdem auf die Uhr. */
+    public function test_a_rejected_strength_workout_does_not_block_the_runs(): void
+    {
+        $this->rejectStrength = true;
+
+        $this->strength(['planned_date' => '2026-11-05']);
+        $run = TrainingSession::create([
+            'user_id' => $this->user->id, 'training_plan_id' => $this->plan->id, 'event_id' => $this->plan->event_id,
+            'planned_date' => '2026-11-07', 'type' => 'easy_run', 'title' => 'Lockerer Lauf', 'distance_km' => 8,
+            'duration_min' => 48, 'pace_target' => '5:50-6:10', 'zone' => 2, 'intensity' => 'low', 'status' => 'planned',
+        ]);
+
+        $result = app(GarminWorkoutSync::class)->sync($this->user->fresh());
+
+        $this->assertSame([1, 1], [$result['created'], $result['rejected']]);
+        $this->assertSame([$run->id], GarminScheduledWorkout::pluck('training_session_id')->all());
     }
 
     public function test_the_button_sends_a_strength_session(): void

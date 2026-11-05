@@ -78,11 +78,29 @@ class GarminWorkoutSync
             }
 
             foreach ($wanted as $sessionId => $payload) {
-                $this->create($connection, $payload, [
-                    'training_session_id' => $sessionId,
-                    'manual'              => $payload['manual'],
-                ]);
-                $result['created']++;
+                try {
+                    $this->create($connection, $payload, [
+                        'training_session_id' => $sessionId,
+                        'manual'              => $payload['manual'],
+                    ]);
+                    $result['created']++;
+                } catch (RequestException $e) {
+                    // 400/422: Garmin lehnt genau dieses Workout ab (etwa
+                    // eine Kraftübung, die es so nicht kennt). Die anderen
+                    // Einheiten sollen trotzdem auf die Uhr; sonst blockierte
+                    // eine Einheit bei jedem Lauf alles, was nach ihr kommt.
+                    if (! in_array($e->response->status(), [400, 422], true)) {
+                        throw $e;
+                    }
+                    Log::warning('Garmin-Kalender: Workout abgelehnt', [
+                        'user_id'             => $user->id,
+                        'training_session_id' => $sessionId,
+                        'sport'               => $payload['body']['sport'] ?? null,
+                        'status'              => $e->response->status(),
+                        'response'            => mb_substr((string) $e->response->body(), 0, 500),
+                    ]);
+                    $result['rejected'] = ($result['rejected'] ?? 0) + 1;
+                }
             }
         } catch (RequestException $e) {
             // 429 (Kontingent) oder eine entzogene Freigabe: abbrechen, der
