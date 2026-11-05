@@ -58,7 +58,7 @@ function blank() {
     return {
         name: '', instructions: '', group: 'beine', equipment: ['bodyweight'], level: 'beginner',
         default_sets: 3, default_reps: '10', default_load: '', wger_id: null,
-        garmin_category: null, garmin_name: null,
+        garmin_category: null, garmin_name: null, youtube: '',
     };
 }
 
@@ -68,6 +68,7 @@ function open(exercise = null) {
         equipment: [...exercise.equipment], level: exercise.level, default_sets: exercise.default_sets,
         default_reps: exercise.default_reps, default_load: exercise.default_load ?? '', wger_id: exercise.wger_id,
         garmin_category: exercise.garmin_category, garmin_name: exercise.garmin_name,
+        youtube: exercise.youtube_id ? `https://youtu.be/${exercise.youtube_id}` : '',
     } : {});
     errors.value = {};
     wgerQuery.value = '';
@@ -261,6 +262,14 @@ const fieldClass = 'w-full rounded-field border-line bg-canvas text-[16px] text-
                     </label>
                 </div>
                 <p class="text-[13px] text-ink-3 -mt-2">Vorgabe für das Grundprogramm. Im Plan legt der Coach Sätze und Wiederholungen selbst fest.</p>
+
+                <!-- YouTube: spielt in den Einheit-Details in der App (ExerciseVideo) -->
+                <label class="block">
+                    <span class="text-[13px] text-ink-3">Video (YouTube-Link)</span>
+                    <input v-model="form.youtube" type="text" inputmode="url" autocapitalize="off" autocorrect="off" maxlength="300" placeholder="https://youtu.be/…" :class="fieldClass" />
+                    <span v-if="errors.youtube" class="text-[13px] text-danger-ink">{{ errors.youtube }}</span>
+                    <span v-else class="block text-[13px] text-ink-3">Optional. Ohne Video bleibt der Link „Video ansehen“ zur YouTube-Suche.</span>
+                </label>
 
                 <!-- Garmin: Übung aus Garmins fester Liste, für Animation und Wiederholungszähler auf der Uhr -->
                 <div class="rounded-card bg-surface-2 p-3 space-y-2">

@@ -191,6 +191,7 @@ class StrengthCatalog
                 'image_url' => $e->imageUrl($versions[$e->id] ?? null),
                 'credit' => isset($versions[$e->id]) ? $e->credit() : null,
                 'source_url' => isset($versions[$e->id]) ? $e->wgerUrl() : null,
+                'youtube_id' => $e->youtube_id,
             ]);
         }, $exercises));
     }
