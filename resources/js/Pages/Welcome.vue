@@ -28,7 +28,12 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
  *
  * Strava wird nicht genannt (29.10.2026): Stravas API-Richtlinie verbietet
  * Werbung mit Strava-Bezug ohne schriftliche Zustimmung, und Strava-Daten
- * dürfen nicht in KI. Angesprochen werden Garmin-Läufer.
+ * dürfen nicht in KI. Angesprochen werden Garmin- und COROS-Läufer.
+ *
+ * COROS (05.11.2026) nur so weit, wie es heute trägt: der Plan geht auf die
+ * Uhr. Läufe, Schlaf und HRV liest Zone3 von COROS noch nicht — deshalb
+ * bleibt der Abschnitt „Körper" bei Garmin, und COROS steht nur als Name,
+ * ohne Logo (keine Markenrichtlinie von COROS für Drittanbieter gefunden).
  */
 
 // „Schreib mir einfach" — eine E-Mail, kein Formular (Jan, 28.10.2026).
@@ -121,12 +126,11 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                         <span class="block whitespace-nowrap">unter <span class="text-accent">2 Stunden.</span></span>
                     </h1>
                     <p class="mt-6 max-w-md text-[20px] font-medium leading-snug text-ink-2">
-                        Zone3 plant jeden Tag mit dir. Du musst nur laufen.
+                        Garmin oder COROS? Verbinde deine Uhr und leg direkt mit deinem Ziel los.
                     </p>
                     <p class="mt-3 max-w-md text-[15px] leading-relaxed text-ink-3">
-                        Zone3 liest deine Läufe von deiner Garmin, rechnet daraus deine Tempi
-                        und baut einen Plan bis zum Renntag. Jede Einheit liegt morgens schon
-                        auf deiner Uhr.
+                        Zone3 rechnet deine Tempi aus und baut einen Plan bis zum Renntag.
+                        Jede Einheit liegt morgens schon auf deiner Uhr. Du musst nur laufen.
                     </p>
 
                     <div class="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -182,7 +186,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <rect x="6" y="6" width="12" height="12" rx="3" /><path d="M9 6V3h6v3M9 18v3h6v-3M10 12l1.5 1.5L14.5 10" />
                         </svg>
-                        Liegt schon auf deiner Garmin
+                        Liegt schon auf deiner Uhr
                     </div>
                 </div>
             </div>
@@ -317,10 +321,10 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                     Beta · kostenlos · auf Einladung
                 </span>
                 <h2 class="mt-5 text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.035em] sm:text-6xl">
-                    <span class="block">Läufst du mit Garmin?</span>
-                    <span class="block">Schreib mir einfach.</span>
+                    <span class="block">Garmin oder COROS?</span>
+                    <span class="block text-ink-3">Verbinden. Loslegen.</span>
                 </h2>
-                <p class="mt-4 text-[17px] text-ink-3">Web-App fürs Handy, ohne App Store.</p>
+                <p class="mt-4 text-[17px] text-ink-3">Schreib mir einfach. Web-App fürs Handy, ohne App Store.</p>
 
                 <div class="mt-8 flex flex-col gap-3 sm:flex-row">
                     <a :href="KONTAKT.href"
@@ -336,7 +340,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                 <!-- Die Adresse ausgeschrieben: ohne Mail-App am Rechner führt der Knopf ins Leere. -->
                 <p class="mt-4 select-text text-[15px] text-ink-3">{{ KONTAKT.adresse }}</p>
 
-                <p class="mt-14 text-[15px] font-semibold text-ink-3">Für Garmin-Läufer</p>
+                <p class="mt-14 text-[15px] font-semibold text-ink-3">Für Garmin- und COROS-Läufer</p>
             </div>
         </section>
 
