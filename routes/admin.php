@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AdminAiLogController;
 use App\Http\Controllers\Admin\AdminActivityController;
 use App\Http\Controllers\Admin\AdminCoachController;
+use App\Http\Controllers\Admin\AdminCorosProbeController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminImpersonationController;
 use App\Http\Controllers\Admin\AdminInvitationController;
@@ -60,6 +61,8 @@ Route::get('/activities',                          [AdminActivityController::cla
 Route::delete('/activities/{activity}',            [AdminActivityController::class, 'destroy'])         ->name('activities.destroy');
 
 // Systemstatus — Queue, fehlgeschlagene Aufgaben, Plan-Luecken, Anbindungen.
+Route::get('/coros-probe',                    [AdminCorosProbeController::class, 'index'])     ->name('coros-probe.index');
+Route::get('/coros-probe/{file}',             [AdminCorosProbeController::class, 'show'])      ->name('coros-probe.show');
 Route::get('/system',                         [AdminSystemController::class, 'index'])         ->name('system.index');
 Route::get('/system/logs',                    [AdminSystemController::class, 'logs'])          ->name('system.logs');
 Route::post('/system/failed/retry-all',       [AdminSystemController::class, 'retryAllFailed'])->name('system.failed.retry-all');
