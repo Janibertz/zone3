@@ -14,6 +14,7 @@ import SwipeRow from '@/Components/SwipeRow.vue';
 import DragGhost from '@/Components/UI/DragGhost.vue';
 import { useFinePointer } from '@/Composables/useFinePointer';
 import { useDragToDay } from '@/Composables/useDragToDay';
+import { completedActivityHref } from '@/Composables/useActivityLink';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
 
@@ -664,6 +665,13 @@ const detailPace = computed(() => {
 
 async function openDetail(session) {
     if (session.type === 'rest') return;
+
+    // Erledigt mit Aktivität: eine Detailseite für alles, die der Aktivität.
+    const done = completedActivityHref(session, `/events/${props.event.id}/plan`);
+    if (done) {
+        router.visit(done);
+        return;
+    }
     detailSession.value   = session;
     aiSteps.value         = null;
     stepsError.value      = '';

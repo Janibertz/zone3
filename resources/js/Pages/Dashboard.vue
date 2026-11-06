@@ -15,6 +15,7 @@ import { router } from '@inertiajs/vue3';
 import { ref, watch, computed, onMounted } from 'vue';
 import axios from 'axios';
 import SessionCard from '@/Components/UI/SessionCard.vue';
+import { activityHref, completedActivityHref } from '@/Composables/useActivityLink';
 import AppCard from '@/Components/UI/AppCard.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
 import StatChip from '@/Components/UI/StatChip.vue';
@@ -297,10 +298,17 @@ const recommendationChanges = computed(() => {
 });
 
 /** Die Kennzahlen aus `recommendationChanges` — Art und Titel stehen schon in der Zeile darüber. */
-/** Wohin „Details" an der Trainingskarte führt: die Einheit auf der Planseite. */
+/**
+ * Wohin „Details" an der Trainingskarte führt: ist die Einheit erledigt und
+ * hängt eine Aktivität daran, auf deren Seite (dieselbe wie unter
+ * Aktivitäten), sonst auf die Einheit in der Planseite.
+ */
 const todaySessionHref = computed(() => {
     const s = props.todayPlanSession;
     if (!s) return null;
+
+    const done = completedActivityHref(s, '/dashboard');
+    if (done) return done;
 
     return s.event_id ? `/events/${s.event_id}/plan?open=${s.id}` : route('calendar');
 });
@@ -723,7 +731,7 @@ const weekStats = computed(() => {
 
 
 function openActivityDetail(activity) {
-    router.visit(route('activities.show', activity.id));
+    router.visit(activityHref(activity.id, '/dashboard'));
 }
 
 
@@ -1705,7 +1713,7 @@ async function resetLayout() {
                                             :loading="ratingSavingId === session.id"
                                             :disabled="!ratingStars && !ratingEffort && !ratingNotes"
                                             @click="submitRating(session.id)">Speichern</AppButton>
-                                        <a v-if="session.activity_id" :href="route('activities.show', session.activity_id)" class="shrink-0 text-[13px] text-ink-3 hover:text-ink">Details</a>
+                                        <a v-if="session.activity_id" :href="activityHref(session.activity_id, '/dashboard')" class="shrink-0 text-[13px] text-ink-3 hover:text-ink">Details</a>
                                     </div>
                                 </div>
                             </div>
