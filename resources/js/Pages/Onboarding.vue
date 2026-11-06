@@ -388,7 +388,7 @@ const stravaLinked = computed(() => !!props.connections?.strava);
 // Plätze, neue Athleten kommen über Garmin.
 const stravaOffered = computed(() => !!page.props.auth?.strava);
 const garminLinked = computed(() => !!props.connections?.garmin);
-const anyLinked    = computed(() => stravaLinked.value || garminLinked.value);
+const anyLinked    = computed(() => stravaLinked.value || garminLinked.value || !!props.connections?.coros);
 const garminGranted = computed(() => {
     const c = props.connections?.garmin;
     if (!c) return '';
@@ -397,13 +397,15 @@ const garminGranted = computed(() => {
 
 function connectStrava() { window.location.href = route('strava.connect'); }
 
-// COROS (MCP) schreibt bisher nur den Plan auf die Uhr und liefert keine
-// Läufe — zählt deshalb nicht als Quelle (anyLinked).
-const corosLinked = computed(() => !!props.connections?.coros);
-const corosBusy   = ref(false);
+// COROS: ohne Einwilligung nur der Plan auf die Uhr, mit Einwilligung auch
+// Aktivitäten und Erholungswerte (COROS-Bedingung, wie im Profil).
+const corosLinked    = computed(() => !!props.connections?.coros);
+const corosReadsData = computed(() => !!props.connections?.coros?.reads_data);
+const corosConsent   = ref(false);
+const corosBusy      = ref(false);
 function connectCoros() {
     corosBusy.value = true;
-    router.post(route('coros.connect'), {}, { onFinish: () => { corosBusy.value = false; } });
+    router.post(route('coros.connect'), { ai_consent: corosConsent.value }, { onFinish: () => { corosBusy.value = false; } });
 }
 
 const garminConsent = ref(false);
@@ -426,7 +428,9 @@ onMounted(() => document.addEventListener('visibilitychange', refreshConnections
 onBeforeUnmount(() => document.removeEventListener('visibilitychange', refreshConnections));
 
 // Eine Quelle pro Athlet; wählbar, sobald beide liefern können.
-const sourceOptions    = [{ value: 'strava', label: 'Strava' }, { value: 'garmin', label: 'Garmin' }];
+const sourceOptions    = computed(() => [
+    { value: 'strava', label: 'Strava' }, { value: 'garmin', label: 'Garmin' }, { value: 'coros', label: 'COROS' },
+].filter((o) => (props.connections?.source?.usable ?? []).includes(o.value)));
 const sourceChoosable  = computed(() => (props.connections?.source?.usable ?? []).length > 1);
 const sourceValue      = ref(props.connections?.source?.current ?? 'strava');
 watch(() => props.connections?.source?.current, (current) => { if (current) sourceValue.value = current; });
@@ -818,12 +822,23 @@ const bar = computed(() => {
                         <span class="min-w-0 flex-1">
                             <span class="block text-[17px]">COROS</span>
                             <span class="block text-[13px] leading-snug text-ink-3">
-                                <template v-if="corosLinked">Verbunden · Workouts auf die Uhr</template>
-                                <template v-else>Dein Plan als Workout auf die COROS-Uhr</template>
+                                <template v-if="corosLinked">Verbunden · Workouts auf die Uhr<template v-if="corosReadsData"> · Aktivitäten und Erholung</template></template>
+                                <template v-else>Plan auf die Uhr, auf Wunsch Läufe, Schlaf und HRV</template>
                             </span>
                         </span>
                         <svg v-if="corosLinked" class="h-5 w-5 shrink-0 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                        <button v-else type="button" :disabled="corosBusy" class="shrink-0 text-[17px] text-accent active:opacity-60 disabled:opacity-40" @click="connectCoros">Verbinden</button>
+                    </div>
+                    <div v-if="connections.corosAvailable && !corosLinked" class="space-y-3 px-4 py-3">
+                        <label class="flex items-start gap-3 text-[15px] leading-snug text-ink-2">
+                            <input v-model="corosConsent" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 rounded-md border-line-strong text-accent focus:ring-accent/40" />
+                            <span>
+                                Auch Daten übernehmen: Ich willige ein, dass Zone3 meine COROS-Daten (Aktivitäten, Schlaf, HRV, Ruhepuls) für Plan, Auswertungen und Coach an OpenAI übermittelt.
+                                Nicht zum Training von KI-Modellen. Widerruf jederzeit im Profil.
+                                <Link :href="route('privacy')" class="text-accent">Datenschutz</Link>
+                            </span>
+                        </label>
+                        <AppButton variant="secondary" block :loading="corosBusy" @click="connectCoros">Mit COROS verbinden</AppButton>
+                        <p class="text-[13px] leading-snug text-ink-3">Die Anmeldung läuft direkt bei COROS. Ohne Haken schreibt Zone3 nur deinen Plan in den COROS-Kalender.</p>
                     </div>
                     <p v-if="connections.corosStatus?.type === 'error'" class="px-4 py-3 text-[13px] text-danger">{{ connections.corosStatus.message }}</p>
                     <template v-if="garminLinked && !stravaLinked" #footer>
