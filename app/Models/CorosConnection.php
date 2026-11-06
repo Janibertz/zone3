@@ -18,7 +18,7 @@ class CorosConnection extends Model
     protected $fillable = [
         'user_id', 'coros_user_id', 'client_id',
         'access_token', 'refresh_token', 'access_token_expires_at',
-        'workout_sync', 'ai_consent_at', 'health_synced_at', 'last_refreshed_at', 'refresh_error', 'refresh_error_at',
+        'workout_sync', 'ai_consent_at', 'health_synced_at', 'activities_synced_at', 'device_name', 'last_refreshed_at', 'refresh_error', 'refresh_error_at',
     ];
 
     protected function casts(): array
@@ -30,6 +30,7 @@ class CorosConnection extends Model
             'workout_sync'            => 'boolean',
             'ai_consent_at'           => 'datetime',
             'health_synced_at'        => 'datetime',
+            'activities_synced_at'    => 'datetime',
             'last_refreshed_at'       => 'datetime',
             'refresh_error_at'        => 'datetime',
         ];

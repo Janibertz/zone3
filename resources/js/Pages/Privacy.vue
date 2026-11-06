@@ -37,7 +37,7 @@ const empfaenger = [
     {
         name: 'COROS Wearables Inc.',
         ort: 'USA',
-        zweck: 'Nur wenn du COROS verbindest: Übertragung deiner geplanten Läufe von heute und morgen in deinen COROS-Trainingskalender; mit deiner Einwilligung Abruf deiner Erholungswerte (Schlaf, HRV, Ruhepuls, Stress, Schritte, VO2max).',
+        zweck: 'Nur wenn du COROS verbindest: Übertragung deiner geplanten Läufe von heute und morgen in deinen COROS-Trainingskalender; mit deiner Einwilligung Abruf deiner Aktivitäten (samt FIT-Datei mit Strecke und Herzfrequenz) und Erholungswerte (Schlaf, HRV, Ruhepuls, Stress, Schritte, VO2max).',
     },
     {
         name: 'OpenAI, L.L.C.',
@@ -221,11 +221,12 @@ const empfaenger = [
                     Verbindest du dein COROS-Konto, schreibt Zone3 deine geplanten Läufe für heute und morgen in
                     deinen COROS-Trainingskalender. Dafür speichert Zone3 den Zugang, den du bei COROS freigibst, und
                     welche Einheit an welchem Tag dort steht. Nur wenn du einwilligst (beim Verbinden oder im Profil
-                    unter „Daten übernehmen“), ruft Zone3 stündlich deine Erholungswerte von COROS ab: Schlafdauer und
-                    -wert, HRV, Ruhepuls, Stress, Schritte und VO2max. Sie werden wie die Garmin-Werte für Plan,
+                    unter „Daten übernehmen“), ruft Zone3 alle 15 Minuten deine Aktivitäten (mit Strecke, Runden und
+                    Herzfrequenz aus der FIT-Datei) und stündlich deine Erholungswerte von COROS ab: Schlafdauer und
+                    -wert, HRV, Ruhepuls, Stress, Schritte und VO2max. Sie werden wie die Garmin-Daten für Plan,
                     Auswertungen und Coach verwendet und dafür an OpenAI übermittelt (Abschnitt 7). Zyklusdaten ruft
-                    Zone3 nie ab. Ausschalten widerruft die Einwilligung und löscht die übernommenen Werte. Beim
-                    Trennen widerruft Zone3 den Zugang bei COROS und löscht alles, was es dazu gespeichert hat.
+                    Zone3 nie ab. Ausschalten widerruft die Einwilligung und löscht die übernommenen Aktivitäten und Werte.
+                    Beim Trennen widerruft Zone3 den Zugang bei COROS und löscht alles, was von COROS kam.
                 </p>
             </section>
 
@@ -252,7 +253,7 @@ const empfaenger = [
                 <p class="mt-3">
                     Für Daten von COROS gilt dasselbe: sie gehen nur mit deiner Einwilligung an OpenAI, die du beim
                     Verbinden oder unter <strong class="text-ink">Profil → Verbindungen → COROS → Daten übernehmen</strong>
-                    erteilst. Ausschalten widerruft sie und löscht die übernommenen Werte.
+                    erteilst. Ausschalten widerruft sie und löscht die übernommenen Aktivitäten und Werte.
                 </p>
             </section>
 

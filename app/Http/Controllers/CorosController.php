@@ -8,6 +8,7 @@ use App\Models\CorosConnection;
 use App\Models\User;
 use App\Services\Coros\CorosClient;
 use App\Services\Coros\CorosDisconnector;
+use App\Services\Coros\CorosActivityImporter;
 use App\Services\Coros\CorosHealthImporter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -161,8 +162,9 @@ class CorosController extends Controller
             $connection->update(['ai_consent_at' => $connection->ai_consent_at ?? now()]);
             SyncCorosHealthJob::dispatch($request->user()->id);
         } else {
-            $connection->update(['ai_consent_at' => null, 'health_synced_at' => null]);
+            $connection->update(['ai_consent_at' => null, 'health_synced_at' => null, 'activities_synced_at' => null]);
             $health->forget($request->user());
+            app(CorosActivityImporter::class)->forget($request->user());
         }
 
         return back();

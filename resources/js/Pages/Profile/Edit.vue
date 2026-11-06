@@ -846,9 +846,11 @@ function toggleCorosWorkoutSync() {
 }
 
 // ── Aktivitäten kommen von ───────────────────────────────────────────────────
-// Eine Quelle pro Athlet. Wählbar nur, wenn Strava verbunden ist UND Garmin
-// Aktivitäten freigegeben hat — sonst gibt es nichts zu wählen.
-const activitySourceOptions = [{ value: 'strava', label: 'Strava' }, { value: 'garmin', label: 'Garmin' }];
+// Eine Quelle pro Athlet. Wählbar nur, wenn mindestens zwei liefern können
+// (Strava verbunden, Garmin mit Freigabe, COROS mit Einwilligung).
+const activitySourceOptions = computed(() => [
+    { value: 'strava', label: 'Strava' }, { value: 'garmin', label: 'Garmin' }, { value: 'coros', label: 'COROS' },
+].filter((o) => (props.activitySource?.usable ?? []).includes(o.value)));
 const activitySourceChoosable = computed(() => (props.activitySource?.usable ?? []).length > 1);
 const activitySourceValue = ref(props.activitySource?.current ?? 'strava');
 watch(activitySourceValue, (source, previous) => {
@@ -1271,7 +1273,7 @@ const inputClass = 'z-input';
                                         <span class="block text-[17px] text-ink">COROS</span>
                                         <span class="block text-[13px] leading-snug" :class="corosConnection?.refresh_error ? 'text-danger' : 'text-ink-3'">
                                             <template v-if="corosConnection?.refresh_error">COROS nimmt die Verbindung nicht mehr an</template>
-                                            <template v-else-if="corosConnection">Verbunden · Workouts auf die Uhr<template v-if="corosReadsData"> · Erholungswerte</template></template>
+                                            <template v-else-if="corosConnection">Verbunden · Workouts auf die Uhr<template v-if="corosReadsData"> · Aktivitäten und Erholung</template></template>
                                             <template v-else>Nicht verbunden</template>
                                         </span>
                                     </span>
@@ -1285,14 +1287,14 @@ const inputClass = 'z-input';
                                     <Toggle :model-value="corosWorkoutSync" label="Plan automatisch auf die COROS-Uhr" @update:model-value="toggleCorosWorkoutSync" />
                                 </FormRow>
                                 <FormRow v-if="corosConnection" label="Daten übernehmen"
-                                    hint="Schlaf, HRV, Ruhepuls, Stress, Schritte und VO2max von COROS, stündlich. Mit dem Einschalten willigst du ein, dass Zone3 diese Daten für Plan, Auswertungen und Coach an OpenAI übermittelt; sie werden nicht zum Training von KI-Modellen verwendet. Ausschalten widerruft und löscht die übernommenen Werte.">
+                                    hint="Aktivitäten (alle 15 Minuten) sowie Schlaf, HRV, Ruhepuls, Stress, Schritte und VO2max (stündlich) von COROS. Mit dem Einschalten willigst du ein, dass Zone3 diese Daten für Plan, Auswertungen und Coach an OpenAI übermittelt; sie werden nicht zum Training von KI-Modellen verwendet. Ausschalten widerruft und löscht die übernommenen Aktivitäten und Werte.">
                                     <Toggle :model-value="corosReadsData" label="Daten von COROS übernehmen" @update:model-value="toggleCorosDataImport" />
                                 </FormRow>
                                 <div v-if="!corosConnection" class="space-y-2 px-4 pb-3">
                                     <label class="flex items-start gap-3 text-[15px] leading-snug text-ink-2">
                                         <input v-model="corosConsent" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 rounded-md border-line-strong text-accent focus:ring-accent/40" />
                                         <span>
-                                            Auch Daten übernehmen: Ich willige ein, dass Zone3 meine COROS-Daten (Schlaf, HRV, Ruhepuls) für Plan, Auswertungen und Coach an OpenAI übermittelt.
+                                            Auch Daten übernehmen: Ich willige ein, dass Zone3 meine COROS-Daten (Aktivitäten, Schlaf, HRV, Ruhepuls) für Plan, Auswertungen und Coach an OpenAI übermittelt.
                                             Nicht zum Training von KI-Modellen. Widerruf jederzeit im Profil.
                                             <Link :href="route('privacy')" class="text-accent">Datenschutz</Link>
                                         </span>

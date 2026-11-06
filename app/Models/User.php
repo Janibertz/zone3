@@ -147,6 +147,8 @@ class User extends Authenticatable
         return array_values(array_filter([
             $this->stravaAccount ? Activity::SOURCE_STRAVA : null,
             $this->garminConnection?->allows(GarminConnection::ACTIVITY) ? Activity::SOURCE_GARMIN : null,
+            // COROS liest nur mit Einwilligung (Schalter „Daten übernehmen“).
+            $this->corosConnection?->readsData() ? Activity::SOURCE_COROS : null,
         ]));
     }
 

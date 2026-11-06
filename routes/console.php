@@ -55,6 +55,7 @@ Schedule::command('garmin:sync-workouts')->hourly()->withoutOverlapping();
 // kurz nach Mitternacht auf der Uhr steht. Ohne Aenderung kein Aufruf.
 Schedule::command('coros:sync-workouts')->hourly()->withoutOverlapping();
 Schedule::command('coros:sync-health')->hourlyAt(20)->withoutOverlapping();
+Schedule::command('coros:sync-activities')->everyFifteenMinutes()->withoutOverlapping();
 
 // Jede Minute: laufende LiveTrack-Sitzungen abfragen. Der Command prueft
 // selbst, ob ueberhaupt eine Sitzung im Zeitfenster liegt.

@@ -10,8 +10,9 @@ use Throwable;
 /**
  * COROS trennen — ein Weg fuer Profil und Konto loeschen.
  *
- * Geloescht werden Zugang, Kalenderplaetze und die Erholungswerte, die von
- * COROS kamen (COROS verlangt laut Partner-Vertrag das Loeschen binnen
+ * Geloescht werden Zugang, Kalenderplaetze, die Erholungswerte und die
+ * Aktivitaeten, die von COROS kamen (Entscheidung von Jan, 06.11.2026 —
+ * anders als bei Garmin) (COROS verlangt laut Partner-Vertrag das Loeschen binnen
  * 24 Stunden).
  */
 class CorosDisconnector
@@ -20,6 +21,7 @@ class CorosDisconnector
         private readonly CorosClient $client,
         private readonly CorosWorkoutSync $workouts,
         private readonly CorosHealthImporter $health,
+        private readonly CorosActivityImporter $activities,
     ) {}
 
     public function disconnect(User $user): void
@@ -39,6 +41,7 @@ class CorosDisconnector
 
         CorosScheduledWorkout::where('user_id', $user->id)->delete();
         $this->health->forget($user);
+        $this->activities->forget($user);
         $connection?->delete();
     }
 }
