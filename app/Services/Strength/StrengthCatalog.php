@@ -44,7 +44,7 @@ class StrengthCatalog
     {
         if ($this->all === null) {
             try {
-                $this->all = StrengthExercise::orderBy('sort')->orderBy('id')->get();
+                $this->all = StrengthExercise::with('aliases')->orderBy('sort')->orderBy('id')->get();
             } catch (\Illuminate\Database\QueryException) {
                 // Ohne Tabelle (alte Testdatenbank) gibt es keinen Katalog —
                 // dann bleibt alles, wie das Modell es geschrieben hat.

@@ -98,10 +98,10 @@ class GarminStrengthWorkoutTest extends TestCase
 
     public function test_the_start_catalog_knows_garmins_exercises(): void
     {
-        $this->assertSame(48, StrengthExercise::whereNotNull('garmin_name')->count(), 'alle bis auf die einbeinige Landung');
+        $this->assertSame(48, \App\Models\StrengthExerciseAlias::where('provider', 'garmin')->count(), 'alle bis auf die einbeinige Landung');
 
         $list = StrengthExercise::garminExercises();
-        foreach (StrengthExercise::whereNotNull('garmin_category')->get() as $e) {
+        foreach (StrengthExercise::whereHas('aliases', fn ($q) => $q->where('provider', 'garmin'))->get() as $e) {
             $this->assertContains($e->garmin_name, $list[$e->garmin_category] ?? [], "{$e->key}: Garmin kennt {$e->garmin_category}/{$e->garmin_name} nicht");
         }
     }

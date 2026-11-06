@@ -27,7 +27,41 @@ const props = defineProps({
     linkedSession: Object,
     // { estimate, current } — die Fahrt lag über der eingetragenen FTP.
     ftpHint:       Object,
+    // Sätze eines Krafttrainings aus der Uhr-Datei (StrengthSets::present).
+    strength:      Object,
+    muscleLabels:  Object,
 });
+
+// ── Kraft ────────────────────────────────────────────────────────
+const openExercise = ref(null);
+const toggleExercise = (i) => { openExercise.value = openExercise.value === i ? null : i; };
+
+const STATUS = {
+    done:    { icon: '✓', cls: 'bg-success-soft text-success-ink', text: 'geschafft' },
+    partial: { icon: '½', cls: 'bg-warn-soft text-warn-ink',       text: 'teilweise' },
+    missing: { icon: '–', cls: 'bg-surface-2 text-ink-3',           text: 'fehlt' },
+};
+
+const setLine = (s) => {
+    const parts = [];
+    if (s.reps) parts.push(`${s.reps} Wdh.`);
+    else if (s.duration_s) parts.push(`${s.duration_s} s`);
+    if (s.weight_kg) parts.push(`${fmtNum(s.weight_kg, s.weight_kg % 1 ? 1 : 0)} kg`);
+    return parts.join(' · ') || '–';
+};
+
+const exerciseSummary = (ex) => {
+    const reps = ex.detail.map((d) => d.reps).filter(Boolean);
+    const kg = Math.max(0, ...ex.detail.map((d) => d.weight_kg || 0));
+    let text = `${ex.sets} ${ex.sets === 1 ? 'Satz' : 'Sätze'}`;
+    if (reps.length) text += ` · ${reps.reduce((a, b) => a + b, 0)} Wdh.`;
+    else {
+        const secs = ex.detail.map((d) => d.duration_s).filter(Boolean);
+        if (secs.length) text += ` · ${clock(secs.reduce((a, b) => a + b, 0))}`;
+    }
+    if (kg) text += ` · ${fmtNum(kg, kg % 1 ? 1 : 0)} kg`;
+    return text;
+};
 
 // Zurück führt dorthin, woher man kam (Dashboard, Plan, Kalender) — nicht
 // immer in die Liste. `back` setzt `activityHref()`.
@@ -198,6 +232,12 @@ const dateLine = computed(() => {
 const bigMetrics = computed(() => {
     const a = props.activity;
     const out = [];
+    if (props.strength) {
+        out.push({ k: 'Zeit', v: clock(a.moving_time), u: null });
+        out.push({ k: 'Sätze', v: props.strength.totals.sets, u: null });
+        out.push({ k: 'Wdh.', v: props.strength.totals.reps, u: null });
+        return out;
+    }
     const d = distanceOf(a);
     if (d) out.push({ k: 'Distanz', v: d.value, u: d.unit });
     out.push({ k: 'Zeit', v: clock(a.moving_time), u: null });
@@ -428,6 +468,56 @@ onUnmounted(() => {
                             <p class="whitespace-pre-line text-[17px] leading-[25px] text-ink">{{ linkedSession.coach_review }}</p>
                             <p v-if="reviewedAt" class="mt-2.5 text-[13px] text-ink-3">Zone3 Coach · {{ reviewedAt }}</p>
                         </div>
+                    </section>
+
+                    <!-- ── Kraft: geplant gegen gemacht ──────────── -->
+                    <section v-if="strength?.comparison">
+                        <SectionHeader title="Plan">
+                            <template #action><span class="text-[13px] tabular-nums text-ink-3">{{ strength.comparison.done_count }} von {{ strength.comparison.planned_count }} wie geplant</span></template>
+                        </SectionHeader>
+                        <ul class="divide-y divide-line rounded-card bg-surface">
+                            <li v-for="row in strength.comparison.rows" :key="row.key || row.label" class="flex items-center gap-3 px-4 py-3">
+                                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[15px] font-bold" :class="STATUS[row.status].cls" :aria-label="STATUS[row.status].text">{{ STATUS[row.status].icon }}</span>
+                                <div class="min-w-0 flex-1">
+                                    <p class="truncate text-[17px] text-ink">{{ row.label }}</p>
+                                    <p class="text-[13px] tabular-nums text-ink-3">Geplant {{ row.planned }}<template v-if="row.done"> · gemacht {{ row.done }}</template></p>
+                                </div>
+                            </li>
+                            <li v-for="ex in strength.comparison.extra" :key="'x' + ex.label" class="flex items-center gap-3 px-4 py-3">
+                                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[15px] font-bold text-accent-ink" aria-label="zusätzlich">+</span>
+                                <div class="min-w-0 flex-1">
+                                    <p class="truncate text-[17px] text-ink">{{ ex.label }}</p>
+                                    <p class="text-[13px] tabular-nums text-ink-3">Zusätzlich · {{ ex.done }}</p>
+                                </div>
+                            </li>
+                        </ul>
+                        <p v-if="strength.comparison.unknown_sets" class="mt-2 px-4 text-[13px] text-ink-3">
+                            {{ strength.comparison.unknown_sets }} {{ strength.comparison.unknown_sets === 1 ? 'Satz' : 'Sätze' }} ohne Übung auf der Uhr — nicht zugeordnet.
+                        </p>
+                    </section>
+
+                    <!-- ── Kraft: Übungen ─────────────────────────── -->
+                    <section v-if="strength">
+                        <SectionHeader title="Übungen" />
+                        <ul class="divide-y divide-line rounded-card bg-surface">
+                            <li v-for="(ex, i) in strength.exercises" :key="i">
+                                <button type="button" class="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-2"
+                                    :aria-expanded="openExercise === i" @click="toggleExercise(i)">
+                                    <span class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[10px]" :class="ex.image_url ? 'bg-white' : 'bg-surface-2'">
+                                        <img v-if="ex.image_url" :src="ex.image_url" :alt="''" loading="lazy" class="h-full w-full object-contain" />
+                                        <svg v-else class="h-5 w-5 text-ink-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11" /></svg>
+                                    </span>
+                                    <span class="min-w-0 flex-1">
+                                        <span class="block truncate text-[17px]" :class="ex.known ? 'text-ink' : 'text-ink-3'">{{ ex.label }}</span>
+                                        <span class="block text-[13px] tabular-nums text-ink-3">{{ exerciseSummary(ex) }}</span>
+                                    </span>
+                                    <svg class="h-4 w-4 shrink-0 text-ink-3 transition-transform duration-200 ease-in-out-strong" :class="openExercise === i ? 'rotate-90' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                                </button>
+                                <ol v-if="openExercise === i" class="space-y-1 px-4 pb-3 pl-[72px] text-[15px] tabular-nums text-ink-2">
+                                    <li v-for="(set, j) in ex.detail" :key="j">Satz {{ j + 1 }} · {{ setLine(set) }}</li>
+                                </ol>
+                            </li>
+                        </ul>
                     </section>
 
                     <!-- ── Runden ─────────────────────────────────── -->

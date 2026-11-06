@@ -227,6 +227,28 @@ class GarminClient
             || $connection->access_token_expires_at->lte(now()->addSeconds(self::REFRESH_MARGIN_SECONDS));
     }
 
+    /**
+     * Die Original-Datei einer Aktivität über den `callbackURL` aus dem
+     * Activity-Files-Push.
+     *
+     * Garmin signiert keine Webhooks. Ein untergeschobener Push könnte sonst
+     * eine fremde Adresse nennen, und Zone3 schickte ihr den Access-Token des
+     * Athleten. Darum nur Adressen unter der eigenen API-Basis.
+     */
+    public function activityFile(GarminConnection $connection, string $callbackUrl): string
+    {
+        $base = rtrim((string) config('services.garmin.api_url'), '/') . '/';
+        if (! str_starts_with($callbackUrl, $base)) {
+            throw new RuntimeException('Datei-Adresse liegt nicht bei Garmin.');
+        }
+
+        return Http::withToken($this->accessToken($connection))
+            ->timeout(60)
+            ->get($callbackUrl)
+            ->throw()
+            ->body();
+    }
+
     private function api(string $accessToken)
     {
         return Http::baseUrl(config('services.garmin.api_url'))
