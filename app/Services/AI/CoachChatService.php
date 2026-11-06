@@ -346,7 +346,7 @@ class CoachChatService
         $systemPrompt = $this->ai->systemPrompt(
             "Du bist {$coachName}, der persönliche Lauf-Coach von {$user->name}. ".
             "Du kennst alle Trainingsdaten und antwortest wie ein echter Coach der seinen Athleten kennt. ".
-            "Du kannst den Trainingsplan wirklich verändern. Deine Werkzeuge: Einheiten anlegen (create_training_session), ändern (modify_training_session, an JEDEM Tag – nicht nur heute), verschieben (move_training_session), löschen (delete_training_session), bei Krankheit/Urlaub überspringen (skip_training_sessions), eine mehrtägige Pause festlegen (pause_training) oder beenden (end_training_pause), Zielzeiten anpassen (update_event_target), einen Lauf aufs Rad legen (switch_to_bike, z. B. „heute lieber Zwift“) und Infos dauerhaft merken (remember_user_fact). ".
+            "Du kannst den Trainingsplan wirklich verändern. Deine Werkzeuge: Einheiten anlegen (create_training_session), ändern (modify_training_session, an JEDEM Tag – nicht nur heute), verschieben (move_training_session), löschen (delete_training_session), bei Krankheit/Urlaub überspringen (skip_training_sessions), eine mehrtägige Pause festlegen (pause_training) oder beenden (end_training_pause), Zielzeiten anpassen (update_event_target), eine Radeinheit anlegen (create_bike_session, z. B. „Sonntag 30 min Zwift“), einen Lauf aufs Rad legen (switch_to_bike, z. B. „heute lieber Zwift statt Laufen“) und Infos dauerhaft merken (remember_user_fact). ".
             "Nutze Tools proaktiv: Athlet sagt er ist krank, verletzt, hatte eine OP oder pausiert mehrere Tage → pause_training bis zum letzten Pausentag. Einzelne Einheit fällt aus → skip_training_sessions. Präferenz geäußert → merke sie dir. ".
             // Entscheidung von Jan (29.10.2026): was der Athlet bestellt,
             // setzt der Coach um; was der Coach selbst fuer richtig haelt,
@@ -364,6 +364,10 @@ class CoachChatService
             // des norwegischen Modells. Ohne sie ersetzte der Coach an einem
             // Doppel-Tag die Morgeneinheit, sobald er etwas anlegen sollte.
             "Einzige Ausnahme: ein Tag mit Doppel-Schwelle (norwegisches Modell, im Kontext als „morgens“/„abends“ markiert) hat zwei Läufe. Dort gibst du bei jedem Werkzeug part=\"am\" oder part=\"pm\" an, damit die richtige Hälfte getroffen wird. Verschiebst du ohne part, wandern beide Hälften zusammen. ".
+            // Gemeldet am 06.11.2026: „30 min locker auf Zwift" wurde ein
+            // easy_run mit 5,5 km und Laufpace — create_training_session
+            // kannte kein Rad, also nahm das Modell den naechsten Lauftyp.
+            "Rad und Zwift sind KEIN Lauf: lege sie nie als easy_run oder anderen Lauftyp an, sondern mit create_bike_session (zusätzlich) oder switch_to_bike (statt eines Laufs). ".
             "Antworte auf Deutsch, sprich mit 'du'. Passe Länge der Antwort der Frage an. Nutze Markdown für strukturierte Antworten. ".
             "Stütze dich IMMER auf echte Zahlen aus den Daten.".
             $contextBlock
@@ -376,17 +380,47 @@ class CoachChatService
         $tools        = $this->coachTools();
         $actionsTaken = [];
 
-        for ($i = 0; $i < 3; $i++) {
+        $leakRetried = false;
+
+        for ($i = 0; $i < 4; $i++) {
             $body   = $this->ai->chatWithTools('coach_chat', $messages, $tools, model: $this->ai->mid());
             $choice = $body['choices'][0] ?? null;
 
             if (! $choice) break;
 
             $assistantMsg = $choice['message'];
-            $finishReason = $choice['finish_reason'] ?? 'stop';
 
-            if ($finishReason !== 'tool_calls' || empty($assistantMsg['tool_calls'])) {
-                return ['reply' => $assistantMsg['content'] ?? '', 'actions' => array_values(array_filter($actionsTaken))];
+            // Werkzeugaufrufe zählen, wo sie stehen — nicht erst, wenn
+            // finish_reason es bestätigt. Sonst ginge ein Aufruf mit
+            // „stop" verloren und nur der Begleittext käme an.
+            if (empty($assistantMsg['tool_calls'])) {
+                $reply = trim((string) ($assistantMsg['content'] ?? ''));
+
+                // Gemeldet am 06.11.2026: „We need respond presumably correct
+                // prior mistake? … Use tool." stand als Antwort im Chat. Ohne
+                // Reasoning (Tools verlangen reasoning_effort=none) schreibt
+                // das Modell seine Überlegung manchmal in die Antwort. Die
+                // erreicht den Athleten nie; einmal wird nachgefragt, danach
+                // gilt die Rückfallantwort.
+                if (self::looksLikeLeakedReasoning($reply)) {
+                    \Illuminate\Support\Facades\Log::warning('Coach-Antwort war interne Überlegung, verworfen', [
+                        'user_id' => $user->id,
+                        'reply'   => mb_substr($reply, 0, 500),
+                    ]);
+
+                    if (! $leakRetried) {
+                        $leakRetried = true;
+                        $messages[] = ['role' => 'system', 'content' =>
+                            'Deine letzte Ausgabe war eine interne Überlegung und wurde dem Athleten nicht gezeigt. '
+                            . 'Soll sich am Plan etwas ändern, rufe JETZT das passende Werkzeug auf. '
+                            . 'Sonst antworte dem Athleten direkt auf Deutsch — ohne Überlegungen, ohne Werkzeugnamen.'];
+                        continue;
+                    }
+
+                    break;
+                }
+
+                return ['reply' => $reply, 'actions' => array_values(array_filter($actionsTaken))];
             }
 
             $messages[] = $assistantMsg;
@@ -397,7 +431,49 @@ class CoachChatService
             }
         }
 
-        return ['reply' => null, 'actions' => array_values(array_filter($actionsTaken))];
+        $actions = array_values(array_filter($actionsTaken));
+
+        // Ist etwas geändert worden, soll der Athlet das lesen — nicht
+        // „ich konnte gerade nicht antworten" über einer erledigten Änderung.
+        $reply = $actions
+            ? "Erledigt:\n" . collect($actions)->map(fn ($a) => '- ' . ($a['label'] ?? ''))->implode("\n")
+            : null;
+
+        return ['reply' => $reply, 'actions' => $actions];
+    }
+
+    /**
+     * Sieht die Antwort nach der Überlegung des Modells aus statt nach einer
+     * Antwort an den Athleten?
+     *
+     * Der Coach antwortet immer auf Deutsch; die Überlegung kommt auf
+     * Englisch und im Telegrammstil („Need tool? There is no create bike;
+     * … Use tool."). Gezählt werden kurze Funktionswörter beider Sprachen —
+     * ein englischer Fachbegriff in einer deutschen Antwort („Easy Run",
+     * „Zwift") kippt das nicht.
+     */
+    public static function looksLikeLeakedReasoning(string $reply): bool
+    {
+        $text = mb_strtolower(trim($reply));
+        if ($text === '') {
+            return false;
+        }
+
+        if (preg_match('/^(we need|we should|we must|need to|need tool|the user|user (says|wants|asks|clarifies)|let\'s|let me|i need|i should|i will call|so we|ok,? so|okay,? so)\b/u', $text)) {
+            return true;
+        }
+
+        // Werkzeugnamen gehören nie in eine Antwort an den Athleten.
+        $toolNames = '/\b(create_training_session|modify_training_session|move_training_session|delete_training_session|switch_to_bike|create_bike_session|skip_training_sessions|propose_session_change|remember_user_fact|pause_training|end_training_pause|update_event_target)\b/u';
+        $mentionsTool = (bool) preg_match($toolNames, $text);
+
+        preg_match_all('/\b(we|need|the|user|says|tool|call|should|presumably|likely|then|there|is|no|it|and|but|maybe|probably|respond|answer)\b/u', $text, $en);
+        preg_match_all('/\b(ich|du|dein|deine|dir|der|die|das|und|ist|nicht|für|am|mit|auf|eine|ein|wir|zu|im|es|sonntag|einheit)\b/u', $text, $de);
+
+        $english = count($en[0]);
+        $german  = count($de[0]);
+
+        return ($english >= 6 && $english > 2 * $german) || ($mentionsTool && $english > $german);
     }
 
     private function coachTools(): array
@@ -492,9 +568,19 @@ class CoachChatService
                 'name'        => 'switch_to_bike',
                 'description' => 'Lege einen geplanten Lauf aufs Rad (Zwift) — "heute lieber drinnen Zwift statt Easy Run". Ein lockerer Lauf wird eine lockere Radeinheit (etwas länger als der Lauf), Intervalle werden Rad-Intervalle an der VO2max. Langer Lauf, Schwelle und Rennen bleiben Laufen. Die Einheit kommt mit Schritten in % FTP und als .zwo-Datei für Zwift.',
                 'parameters'  => ['type' => 'object', 'properties' => [
-                    'date' => ['type' => 'string', 'description' => 'Tag der Einheit YYYY-MM-DD. Weglassen für heute.'],
-                    'part' => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit zwei Läufen: morgens (am) oder abends (pm)'],
+                    'date'         => ['type' => 'string', 'description' => 'Tag der Einheit YYYY-MM-DD. Weglassen für heute.'],
+                    'duration_min' => ['type' => 'integer', 'description' => 'Nur wenn der Athlet eine Dauer fürs Rad nennt („30 min Zwift statt dem Lauf“). Ohne Angabe wird der lockere Lauf × 1,25.'],
+                    'part'         => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit zwei Läufen: morgens (am) oder abends (pm)'],
                 ]],
+            ]],
+            ['type' => 'function', 'function' => [
+                'name'        => 'create_bike_session',
+                'description' => 'Lege eine Radeinheit (Zwift) an — „am Sonntag 30 min locker auf Zwift". Für JEDE Radeinheit dieses Werkzeug nehmen, nie create_training_session oder modify_training_session: die kennen nur Laufen und Kraft. Die Radeinheit kommt ZUSÄTZLICH an den Tag; ein Lauf dort bleibt stehen. Soll das Rad einen geplanten Lauf ERSETZEN („statt dem Lauf“), nimm switch_to_bike. Steht an dem Tag schon eine Radeinheit, wird sie ersetzt. Die Einheit kommt mit Schritten in % FTP und als .zwo-Datei.',
+                'parameters'  => ['type' => 'object', 'properties' => [
+                    'date'         => ['type' => 'string', 'description' => 'Tag der Einheit YYYY-MM-DD'],
+                    'workout'      => ['type' => 'string', 'enum' => [\App\Services\Bike\BikeWorkouts::EASY, \App\Services\Bike\BikeWorkouts::VO2, \App\Services\Bike\BikeWorkouts::THRESHOLD], 'description' => 'easy = locker 60–75 % FTP, vo2 = 4-min-Intervalle 110–120 % FTP, threshold = 10-min-Blöcke 95–100 % FTP. Ohne Angabe locker.'],
+                    'duration_min' => ['type' => 'integer', 'description' => 'Dauer in Minuten, wie vom Athleten genannt'],
+                ], 'required' => ['date', 'duration_min']],
             ]],
             ['type' => 'function', 'function' => [
                 'name'        => 'skip_training_sessions',
@@ -864,6 +950,10 @@ class CoachChatService
             // um". Der Coach antwortete dann so, als haette er es getan.
             case 'modify_today_session':
             case 'modify_training_session': {
+                if ($refusal = $this->bikeAsRunRefusal($args)) {
+                    return ['message' => $refusal, 'action' => null];
+                }
+
                 $date = $this->toolDate($args['date'] ?? null);
                 if (! $date) {
                     return ['message' => 'Das Datum liegt in der Vergangenheit — vergangene Einheiten aendere ich nicht.', 'action' => null];
@@ -901,6 +991,10 @@ class CoachChatService
                 return $this->proposeSessionChange($user, $args);
 
             case 'create_training_session': {
+                if ($refusal = $this->bikeAsRunRefusal($args)) {
+                    return ['message' => $refusal, 'action' => null];
+                }
+
                 $date = $this->toolDate($args['date'] ?? null);
                 if (! $date) {
                     return ['message' => 'Das Datum liegt in der Vergangenheit — dort lege ich nichts mehr an.', 'action' => null];
@@ -1129,6 +1223,9 @@ class CoachChatService
             case 'switch_to_bike':
                 return $this->switchToBike($user, $args);
 
+            case 'create_bike_session':
+                return $this->createBikeSession($user, $args);
+
             case 'update_event_target': {
                 $event = \App\Models\Event::where('id', $args['event_id'] ?? 0)->where('user_id', $user->id)->first();
                 if (!$event) return ['message' => 'Event nicht gefunden.', 'action' => null];
@@ -1264,9 +1361,86 @@ class CoachChatService
         // das Tagesfenster weiter.
         $run = (int) ($session->duration_min ?: 45);
 
-        $workout = $kind === \App\Services\Bike\BikeWorkouts::EASY
-            ? $workouts->build($kind, $workouts->easyMinutesFor($run), $profile?->ftp)
-            : $workouts->build($kind, $run, $profile?->ftp);
+        // Nennt der Athlet eine Dauer („30 min Zwift statt dem Lauf"), gilt
+        // sie — der Faktor ist nur die Umrechnung, wenn er keine nennt.
+        $asked = (int) ($args['duration_min'] ?? 0);
+
+        $minutes = $asked > 0
+            ? $asked
+            : ($kind === \App\Services\Bike\BikeWorkouts::EASY ? $workouts->easyMinutesFor($run) : $run);
+
+        $workout = $this->fillBikeSession($session, $kind, $minutes, $profile?->ftp);
+
+        $this->invalidateCoachCaches($user);
+
+        return [
+            'message' => "Am {$date} aufs Rad gelegt: {$workout['title']}, {$workout['duration_min']} min{$this->wattsNote($workout)}. "
+                . 'Die .zwo-Datei fuer Zwift liegt an der Einheit im Plan.',
+            'action'  => ['type' => 'session_modified', 'label' => "Aufs Rad gelegt ({$this->dayLabel($date)}): {$workout['title']}", 'reload' => true],
+        ];
+    }
+
+    /**
+     * Eine Radeinheit zusätzlich anlegen — „am Sonntag 30 min locker auf
+     * Zwift". Bis zum 06.11.2026 gab es dafür kein Werkzeug: switch_to_bike
+     * braucht einen Lauf, den es ersetzen kann, und create_training_session
+     * kennt kein Rad. Das Modell legte deshalb einen easy_run mit dem Titel
+     * „Zwift locker" an — 5,5 km, Laufpace, Laufschritte.
+     *
+     * Ein Lauf an dem Tag bleibt stehen, wie im Plan, wo das Rad in
+     * Belastungswochen zusätzlich kommt. Ersetzen ist switch_to_bike.
+     */
+    private function createBikeSession(\App\Models\User $user, array $args): array
+    {
+        $date = $this->toolDate($args['date'] ?? null);
+        if (! $date) {
+            return ['message' => 'Das Datum liegt in der Vergangenheit — dort lege ich nichts mehr an.', 'action' => null];
+        }
+
+        $kind = in_array($args['workout'] ?? null, [\App\Services\Bike\BikeWorkouts::VO2, \App\Services\Bike\BikeWorkouts::THRESHOLD], true)
+            ? $args['workout']
+            : \App\Services\Bike\BikeWorkouts::EASY;
+
+        $minutes = (int) ($args['duration_min'] ?? 0);
+        if ($minutes <= 0) {
+            $minutes = 45;
+        }
+
+        $sessions = \App\Models\TrainingSession::where('user_id', $user->id)
+            ->whereDate('planned_date', $date)
+            ->where('status', 'planned')
+            ->get();
+
+        // Ein Ruhetag mit Training darauf ist keiner mehr.
+        $sessions->where('type', 'rest')->each->delete();
+
+        $session = $sessions->first(fn ($s) => $s->type === 'cross_training'
+            && in_array($s->sport_type, \App\Models\TrainingSession::BIKE_SPORTS, true));
+        $replaced = (bool) $session;
+
+        if (! $session) {
+            $session = $this->newSessionFor($user, $date, 'cross_training');
+        }
+
+        $workout = $this->fillBikeSession($session, $kind, $minutes, $user->runnerProfile?->ftp);
+
+        $this->invalidateCoachCaches($user);
+
+        $run   = $sessions->first(fn ($s) => $this->isRun($s->type));
+        $next  = $run ? " Der Lauf „{$run->title}“ an dem Tag bleibt stehen — soll das Rad ihn ersetzen, nimm switch_to_bike." : '';
+        $label = ($replaced ? 'Radeinheit angepasst' : 'Radeinheit ergänzt') . " ({$this->dayLabel($date)}): {$workout['title']}, {$workout['duration_min']} min";
+
+        return [
+            'message' => "Am {$date} " . ($replaced ? 'die Radeinheit ersetzt' : 'eine Radeinheit angelegt') . ": {$workout['title']}, {$workout['duration_min']} min{$this->wattsNote($workout)}. "
+                . 'Die .zwo-Datei fuer Zwift liegt an der Einheit im Plan.' . $next,
+            'action'  => ['type' => $replaced ? 'session_modified' : 'session_created', 'label' => $label, 'reload' => true],
+        ];
+    }
+
+    /** Eine Einheit zur Radeinheit machen — derselbe Weg für Tausch und Neuanlage. */
+    private function fillBikeSession(\App\Models\TrainingSession $session, string $kind, int $minutes, ?int $ftp): array
+    {
+        $workout = app(\App\Services\Bike\BikeWorkouts::class)->build($kind, $minutes, $ftp);
 
         $session->fill([
             'type'           => 'cross_training',
@@ -1284,16 +1458,34 @@ class CoachChatService
             'pinned_at'      => now(),
         ])->save();
 
-        $this->invalidateCoachCaches($user);
+        return $workout;
+    }
 
-        $main  = collect($workout['steps'])->firstWhere('type', 'work');
-        $watts = ! empty($main['watts']) ? " ({$main['watts']})" : ' (ohne FTP im Profil nur in % FTP)';
+    private function wattsNote(array $workout): string
+    {
+        $main = collect($workout['steps'])->firstWhere('type', 'work');
 
-        return [
-            'message' => "Am {$date} aufs Rad gelegt: {$workout['title']}, {$workout['duration_min']} min{$watts}. "
-                . 'Die .zwo-Datei fuer Zwift liegt an der Einheit im Plan.',
-            'action'  => ['type' => 'session_modified', 'label' => "Aufs Rad gelegt ({$this->dayLabel($date)}): {$workout['title']}", 'reload' => true],
-        ];
+        return ! empty($main['watts']) ? " ({$main['watts']})" : ' (ohne FTP im Profil nur in % FTP)';
+    }
+
+    /**
+     * Ein Lauf, der eigentlich Rad sein soll? Dann nichts anlegen und das
+     * Modell auf das richtige Werkzeug schicken — sonst steht „Zwift locker"
+     * mit Laufpace im Plan.
+     */
+    private function bikeAsRunRefusal(array $args): ?string
+    {
+        if (! $this->isRun((string) ($args['type'] ?? ''))) {
+            return null;
+        }
+
+        $text = mb_strtolower(($args['title'] ?? '') . ' ' . ($args['description'] ?? ''));
+        if (! preg_match('/\b(zwift|rad|radeinheit|radfahren|fahrrad|bike|ride|cycling)\b/u', $text)) {
+            return null;
+        }
+
+        return 'Nichts geändert: das ist eine Radeinheit, kein Lauf. Lege sie mit create_bike_session an (zusätzlich) '
+            . 'oder lege einen geplanten Lauf mit switch_to_bike aufs Rad.';
     }
 
     /**

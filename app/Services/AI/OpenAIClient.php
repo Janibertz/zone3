@@ -381,7 +381,7 @@ class OpenAIClient
                 : null,
             'prompt_preview'    => mb_substr($userContent, 0, 500),
             'full_prompt'       => $userContent,
-            'full_response'     => data_get($body, 'choices.0.message.content', ''),
+            'full_response'     => $this->toolResponseText($body),
         ]);
 
         if ($response->failed()) {
@@ -392,6 +392,33 @@ class OpenAIClient
         }
 
         return $body;
+    }
+
+    /**
+     * Was das Modell im Werkzeug-Pfad geantwortet hat — Text UND Aufrufe.
+     *
+     * Bis 06.11.2026 stand hier nur der Text. Bei einer Antwort, die nur aus
+     * Werkzeugaufrufen bestand, war die Zeile leer, und ob das Modell ein
+     * Werkzeug aufgerufen hatte, liess sich im AI-Log nicht nachlesen.
+     */
+    private function toolResponseText(array $body): string
+    {
+        $message = data_get($body, 'choices.0.message', []);
+        $parts   = [];
+
+        if (filled($message['content'] ?? null)) {
+            $parts[] = (string) $message['content'];
+        }
+
+        foreach ($message['tool_calls'] ?? [] as $call) {
+            $parts[] = '[Werkzeug] ' . data_get($call, 'function.name', '?') . ' ' . data_get($call, 'function.arguments', '');
+        }
+
+        if ($finish = data_get($body, 'choices.0.finish_reason')) {
+            $parts[] = "[finish_reason] {$finish}";
+        }
+
+        return implode("\n", $parts);
     }
 
     // ── Transport, Kosten, Bremsen ──────────────────────────────────────
