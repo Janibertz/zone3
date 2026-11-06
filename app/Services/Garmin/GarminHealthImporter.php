@@ -85,7 +85,7 @@ class GarminHealthImporter
                     }
                 }
 
-                $metric->fill($values)->save();
+                $metric->fill($values + ['source' => 'garmin'])->save();
 
                 $event->update(['outcome' => GarminWebhookEvent::OUTCOME_STORED, 'note' => implode(',', array_keys($values))]);
                 $written[$type] = ($written[$type] ?? 0) + 1;

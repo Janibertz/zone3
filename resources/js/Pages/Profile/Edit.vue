@@ -812,9 +812,22 @@ function disconnectGarminOfficial() {
 const corosConnection = computed(() => props.coros?.connection ?? null);
 const corosBusy = ref(false);
 const corosWorkoutSync = ref(props.coros?.connection?.workout_sync ?? true);
+// Daten von COROS nur mit Einwilligung (COROS-Bedingung). Beim Verbinden
+// freiwillig — ohne Haken gehen nur Workouts auf die Uhr.
+const corosConsent = ref(false);
+const corosReadsData = ref(props.coros?.connection?.reads_data ?? false);
+watch(() => props.coros?.connection?.reads_data, (v) => { corosReadsData.value = !!v; });
 function connectCoros() {
     corosBusy.value = true;
-    router.post(route('coros.connect'), {}, { onFinish: () => { corosBusy.value = false; } });
+    router.post(route('coros.connect'), { ai_consent: corosConsent.value }, { onFinish: () => { corosBusy.value = false; } });
+}
+function toggleCorosDataImport() {
+    const enabled = !corosReadsData.value;
+    corosReadsData.value = enabled;
+    router.patch(route('coros.data-import'), { enabled, ai_consent: enabled }, {
+        preserveScroll: true,
+        onError: () => { corosReadsData.value = !enabled; },
+    });
 }
 function disconnectCoros() {
     corosBusy.value = true;
@@ -833,9 +846,11 @@ function toggleCorosWorkoutSync() {
 }
 
 // ── Aktivitäten kommen von ───────────────────────────────────────────────────
-// Eine Quelle pro Athlet. Wählbar nur, wenn Strava verbunden ist UND Garmin
-// Aktivitäten freigegeben hat — sonst gibt es nichts zu wählen.
-const activitySourceOptions = [{ value: 'strava', label: 'Strava' }, { value: 'garmin', label: 'Garmin' }];
+// Eine Quelle pro Athlet. Wählbar nur, wenn mindestens zwei liefern können
+// (Strava verbunden, Garmin mit Freigabe, COROS mit Einwilligung).
+const activitySourceOptions = computed(() => [
+    { value: 'strava', label: 'Strava' }, { value: 'garmin', label: 'Garmin' }, { value: 'coros', label: 'COROS' },
+].filter((o) => (props.activitySource?.usable ?? []).includes(o.value)));
 const activitySourceChoosable = computed(() => (props.activitySource?.usable ?? []).length > 1);
 const activitySourceValue = ref(props.activitySource?.current ?? 'strava');
 watch(activitySourceValue, (source, previous) => {
@@ -1250,7 +1265,7 @@ const inputClass = 'z-input';
                             <p v-if="props.garminOfficial.status" class="px-4 py-3 text-[13px]"
                                 :class="props.garminOfficial.status.type === 'error' ? 'text-danger' : 'text-success-ink'">{{ props.garminOfficial.status.message }}</p>
 
-                            <!-- COROS (MCP): bisher nur Workouts auf die Uhr. -->
+                            <!-- COROS (MCP): Workouts auf die Uhr, mit Einwilligung Erholungswerte. -->
                             <template v-if="props.coros.available">
                                 <div class="flex min-h-[60px] items-center gap-3 px-4 py-2">
                                     <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-ink text-canvas text-[13px] font-bold" aria-hidden="true">C</span>
@@ -1258,7 +1273,7 @@ const inputClass = 'z-input';
                                         <span class="block text-[17px] text-ink">COROS</span>
                                         <span class="block text-[13px] leading-snug" :class="corosConnection?.refresh_error ? 'text-danger' : 'text-ink-3'">
                                             <template v-if="corosConnection?.refresh_error">COROS nimmt die Verbindung nicht mehr an</template>
-                                            <template v-else-if="corosConnection">Verbunden · Workouts auf die Uhr</template>
+                                            <template v-else-if="corosConnection">Verbunden · Workouts auf die Uhr<template v-if="corosReadsData"> · Aktivitäten und Erholung</template></template>
                                             <template v-else>Nicht verbunden</template>
                                         </span>
                                     </span>
@@ -1271,9 +1286,21 @@ const inputClass = 'z-input';
                                     hint="Die Läufe von heute und morgen stehen im COROS-Trainingskalender. Ändert sich der Plan, zieht die Einheit nach; fällt sie weg, steht dort „Entfällt“ (löschen kann Zone3 in COROS nicht). Vereinstermine, Rad und Kraft nicht.">
                                     <Toggle :model-value="corosWorkoutSync" label="Plan automatisch auf die COROS-Uhr" @update:model-value="toggleCorosWorkoutSync" />
                                 </FormRow>
-                                <p v-if="!corosConnection" class="px-4 pb-3 text-[13px] leading-snug text-ink-3">
-                                    Die Anmeldung läuft direkt bei COROS. Zone3 schreibt nur deine Läufe in den COROS-Kalender und liest bisher keine Daten von dort.
-                                </p>
+                                <FormRow v-if="corosConnection" label="Daten übernehmen"
+                                    hint="Aktivitäten (alle 15 Minuten) sowie Schlaf, HRV, Ruhepuls, Stress, Schritte und VO2max (stündlich) von COROS. Mit dem Einschalten willigst du ein, dass Zone3 diese Daten für Plan, Auswertungen und Coach an OpenAI übermittelt; sie werden nicht zum Training von KI-Modellen verwendet. Ausschalten widerruft und löscht die übernommenen Aktivitäten und Werte.">
+                                    <Toggle :model-value="corosReadsData" label="Daten von COROS übernehmen" @update:model-value="toggleCorosDataImport" />
+                                </FormRow>
+                                <div v-if="!corosConnection" class="space-y-2 px-4 pb-3">
+                                    <label class="flex items-start gap-3 text-[15px] leading-snug text-ink-2">
+                                        <input v-model="corosConsent" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 rounded-md border-line-strong text-accent focus:ring-accent/40" />
+                                        <span>
+                                            Auch Daten übernehmen: Ich willige ein, dass Zone3 meine COROS-Daten (Aktivitäten, Schlaf, HRV, Ruhepuls) für Plan, Auswertungen und Coach an OpenAI übermittelt.
+                                            Nicht zum Training von KI-Modellen. Widerruf jederzeit im Profil.
+                                            <Link :href="route('privacy')" class="text-accent">Datenschutz</Link>
+                                        </span>
+                                    </label>
+                                    <p class="text-[13px] leading-snug text-ink-3">Die Anmeldung läuft direkt bei COROS. Ohne Haken schreibt Zone3 nur deine Läufe in den COROS-Kalender.</p>
+                                </div>
                                 <p v-if="props.coros.status" class="px-4 py-3 text-[13px]"
                                     :class="props.coros.status.type === 'error' ? 'text-danger' : 'text-success-ink'">{{ props.coros.status.message }}</p>
                             </template>

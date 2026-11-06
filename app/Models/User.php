@@ -147,13 +147,20 @@ class User extends Authenticatable
         return array_values(array_filter([
             $this->stravaAccount ? Activity::SOURCE_STRAVA : null,
             $this->garminConnection?->allows(GarminConnection::ACTIVITY) ? Activity::SOURCE_GARMIN : null,
+            // COROS liest nur mit Einwilligung (Schalter „Daten übernehmen“).
+            $this->corosConnection?->readsData() ? Activity::SOURCE_COROS : null,
         ]));
     }
 
-    /** Kommen Erholungswerte von Garmin an — per Push, mit Health-Freigabe. */
-    public function receivesGarminHealth(): bool
+    /**
+     * Kommen Erholungswerte an — von Garmin per Push (Health-Freigabe) oder
+     * von COROS per Abruf (Einwilligung). Beide schreiben in
+     * `garmin_daily_metrics`.
+     */
+    public function receivesHealthMetrics(): bool
     {
-        return (bool) $this->garminConnection?->allows(GarminConnection::HEALTH);
+        return (bool) $this->garminConnection?->allows(GarminConnection::HEALTH)
+            || (bool) $this->corosConnection?->readsData();
     }
 
     /** Workouts gehen ueber die Training API — offizielle Verbindung mit Workout-Freigabe. */

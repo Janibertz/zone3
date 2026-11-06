@@ -9,6 +9,7 @@ class GarminDailyMetric extends Model
     protected $fillable = [
         'user_id',
         'date',
+        'source',
         'hrv',
         'resting_hr',
         'sleep_hours',

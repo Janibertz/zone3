@@ -33,13 +33,18 @@ class ActivityMatcher
     public function findTwin(int $userId, string $source, array $attributes, ?int $otherId = null): ?Activity
     {
         $column      = Activity::ID_COLUMNS[$source];
-        $otherColumn = Activity::ID_COLUMNS[$source === Activity::SOURCE_STRAVA ? Activity::SOURCE_GARMIN : Activity::SOURCE_STRAVA];
+        // Den Querverweis gibt es nur zwischen Strava und Garmin.
+        $otherColumn = match ($source) {
+            Activity::SOURCE_STRAVA => Activity::ID_COLUMNS[Activity::SOURCE_GARMIN],
+            Activity::SOURCE_GARMIN => Activity::ID_COLUMNS[Activity::SOURCE_STRAVA],
+            default                 => null,
+        };
 
         $open = fn () => Activity::where('user_id', $userId)->whereNull($column);
 
         // Querverweis: eine von Garmin zu Strava hochgeladene Aktivität nennt
         // bei Strava ihre Garmin-ID. Dann braucht es keine Schätzung.
-        if ($otherId) {
+        if ($otherId && $otherColumn) {
             $hit = $open()->where($otherColumn, $otherId)->first();
             if ($hit) {
                 return $hit;

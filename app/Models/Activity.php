@@ -11,17 +11,20 @@ class Activity extends Model
 
     public const SOURCE_STRAVA = 'strava';
     public const SOURCE_GARMIN = 'garmin';
+    public const SOURCE_COROS = 'coros';
 
     /** Je Quelle die Spalte mit ihrer ID. Eine Zeile kann beide tragen. */
     public const ID_COLUMNS = [
         self::SOURCE_STRAVA => 'strava_id',
         self::SOURCE_GARMIN => 'garmin_activity_id',
+        self::SOURCE_COROS  => 'coros_label_id',
     ];
 
     /** Wie die Quelle in der Oberfläche heißt. */
     public const SOURCE_LABELS = [
         self::SOURCE_STRAVA => 'Strava',
         self::SOURCE_GARMIN => 'Garmin',
+        self::SOURCE_COROS  => 'COROS',
     ];
 
     /**
@@ -39,6 +42,7 @@ class Activity extends Model
         'user_id',
         'strava_id',
         'garmin_activity_id',
+        'coros_label_id',
         'source',
         'device_name',
         'name',
@@ -84,7 +88,7 @@ class Activity extends Model
      * to avoid loading (and serializing) large GPS payloads.
      */
     public const SUMMARY_COLUMNS = [
-        'id', 'user_id', 'strava_id', 'garmin_activity_id', 'source', 'name', 'description', 'type',
+        'id', 'user_id', 'strava_id', 'garmin_activity_id', 'coros_label_id', 'source', 'name', 'description', 'type',
         'distance', 'moving_time', 'elapsed_time', 'total_elevation_gain',
         'average_speed', 'average_watts', 'weighted_average_watts', 'device_watts', 'max_speed', 'average_heartrate',
         'start_date', 'location_city', 'location_state', 'location_country',

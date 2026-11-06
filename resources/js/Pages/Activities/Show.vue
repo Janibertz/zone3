@@ -511,7 +511,7 @@ onUnmounted(() => {
 
                     <!-- ── Herkunft und Löschen ───────────────────── -->
                     <section class="space-y-3">
-                        <div v-if="activity.strava_id || activity.garmin_activity_id" class="divide-y divide-line overflow-hidden rounded-card bg-surface">
+                        <div v-if="activity.strava_id || activity.garmin_activity_id || activity.coros_label_id" class="divide-y divide-line overflow-hidden rounded-card bg-surface">
                             <a v-if="activity.strava_id" :href="`https://www.strava.com/activities/${activity.strava_id}`" target="_blank" rel="noopener noreferrer"
                                 class="flex min-h-[44px] items-center gap-3 px-4 py-3 transition-colors active:bg-surface-2">
                                 <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-[#FC4C02] text-white">
@@ -532,6 +532,14 @@ onUnmounted(() => {
                                 </span>
                                 <svg class="h-4 w-4 shrink-0 text-ink-3/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
                             </a>
+                            <!-- COROS verlangt die Herkunftsangabe samt Uhr. Einen Link in die COROS-App gibt es nicht. -->
+                            <div v-if="activity.coros_label_id" class="flex min-h-[44px] items-center gap-3 px-4 py-3">
+                                <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-ink text-canvas text-[13px] font-bold" aria-hidden="true">C</span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-[17px] text-ink">Daten von COROS</span>
+                                    <span v-if="activity.device_name" class="block text-[13px] text-ink-3">Aufgezeichnet mit {{ activity.device_name }}</span>
+                                </span>
+                            </div>
                         </div>
 
                         <p v-if="deleteError" class="z-error text-center">{{ deleteError }}</p>
