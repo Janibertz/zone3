@@ -32,4 +32,10 @@ trait TalksToOpenAI
     {
         return $this->ai->isRateLimited();
     }
+
+    /** Welche Grenze den Chat gerade sperrt — oder null. */
+    public function chatBlockReason(): ?string
+    {
+        return $this->ai->chatBlockReason();
+    }
 }

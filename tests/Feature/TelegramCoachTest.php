@@ -173,6 +173,34 @@ class TelegramCoachTest extends TestCase
     }
 
     /** Telegram stellt nach einer Zeitüberschreitung erneut zu — der Coach antwortet trotzdem nur einmal. */
+    public function test_an_athlete_over_budget_is_told_so_and_reaches_no_coach(): void
+    {
+        config(['services.openai.budget.user_daily_eur' => 0.30, 'services.openai.budget.daily_eur' => 1.00]);
+        $user = $this->athlete();
+        \App\Models\AiLog::create(['user_id' => $user->id, 'call_type' => 'coach_chat', 'model' => 'gpt-5.6-terra', 'cost_eur' => 0.31, 'status' => 'success']);
+
+        $this->update($this->text('Kannst du das auf meine Uhr spielen?'))->assertOk();
+
+        $this->assertStringContainsString('dein Kontingent', $this->sentTexts()[0]['text']);
+        $this->assertSame(0, \App\Models\CoachMessage::where('user_id', $user->id)->count());
+
+        // Ein eigenes Budget im Admin hebt die Sperre auf.
+        $user->forceFill(['ai_daily_budget_eur' => 1.00])->save();
+        $this->update($this->text('Und jetzt?'))->assertOk();
+        $this->assertSame(1, \App\Models\CoachMessage::where('user_id', $user->id)->where('role', 'user')->count());
+    }
+
+    public function test_the_global_budget_is_not_called_the_athletes_quota(): void
+    {
+        config(['services.openai.budget.daily_eur' => 1.00]);
+        $this->athlete();
+        \App\Models\AiLog::create(['user_id' => null, 'call_type' => 'event_plan', 'model' => 'gpt-5.6-sol', 'cost_eur' => 1.01, 'status' => 'success']);
+
+        $this->update($this->text('Hallo'))->assertOk();
+
+        $this->assertStringNotContainsString('dein Kontingent', $this->sentTexts()[0]['text']);
+    }
+
     public function test_a_repeated_update_is_handled_once(): void
     {
         $this->athlete();

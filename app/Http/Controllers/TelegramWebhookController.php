@@ -137,8 +137,9 @@ class TelegramWebhookController extends Controller
     private function ask(User $user, int $chatId, string $text): void
     {
         $limiter = app(CoachChatService::class)->forUser($user->id);
-        if ($limiter->isRateLimited()) {
-            $this->telegram->sendMessage($chatId, 'Für heute ist dein Kontingent an KI-Anfragen aufgebraucht. Morgen geht es weiter.');
+        if ($reason = $limiter->chatBlockReason()) {
+            Log::info('Telegram: Coach gesperrt', ['user_id' => $user->id, 'reason' => $reason]);
+            $this->telegram->sendMessage($chatId, self::blockedMessage($reason));
 
             return;
         }
@@ -153,6 +154,17 @@ class TelegramWebhookController extends Controller
         $this->telegram->typing($chatId);
 
         CoachReplyJob::dispatch($question->id);
+    }
+
+    /**
+     * Die Notbremse und das Budget fuer alle sind nicht das Kontingent des
+     * Athleten — dort hilft es nichts, wenn der Admin sein Limit hochsetzt.
+     */
+    public static function blockedMessage(string $reason): string
+    {
+        return str_starts_with($reason, 'Notbremse') || str_starts_with($reason, 'Tagesbudget fuer alle')
+            ? 'Der Coach macht gerade eine Pause, die KI ist für heute ausgelastet. Versuch es später noch einmal.'
+            : 'Für heute ist dein Kontingent an KI-Anfragen aufgebraucht. Morgen geht es weiter.';
     }
 
     /** Ein Knopf unter einem Vorschlag: `rec:accept:42` oder `rec:reject:42`. */
