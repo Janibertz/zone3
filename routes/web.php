@@ -427,7 +427,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         // Garmin recovery data (HRV, sleep, RHR, Body Battery, stress, steps).
         // Per Push ueber die Health API. Missing values stay null ("keine Daten").
         'garminMetrics' => (function () use ($user) {
-            if (! $user->receivesGarminHealth()) return null;
+            if (! $user->receivesHealthMetrics()) return null;
 
             $rows = \App\Models\GarminDailyMetric::where('user_id', $user->id)
                 ->where('date', '>=', now()->subDays(60)->toDateString())
@@ -438,7 +438,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                     'steps', 'vo2max',
                 ]);
 
-            if ($rows->isEmpty()) return ['latest' => null, 'series' => []];
+            if ($rows->isEmpty()) return ['latest' => null, 'series' => [], 'source' => null];
 
             $series = $rows->map(fn ($r) => [
                 'date'               => $r->date->format('Y-m-d'),
@@ -453,12 +453,15 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 'vo2max'             => $r->vo2max,
             ])->values();
 
-            return ['latest' => $series->last(), 'series' => $series];
+            // Woher die Werte kommen — fuer die Beschriftung der Kacheln.
+            $source = $user->garminConnection?->allows(\App\Models\GarminConnection::HEALTH) ? 'Garmin' : 'COROS';
+
+            return ['latest' => $series->last(), 'series' => $series, 'source' => $source];
         })(),
 
         // Activities for the recovery dashboard's logbook + weekly-km chart (last 60 days).
         'recoveryActivities' => (function () use ($user) {
-            if (! $user->receivesGarminHealth() && ! $user->stravaAccount) return [];
+            if (! $user->receivesHealthMetrics() && ! $user->stravaAccount) return [];
 
             return Activity::where('user_id', $user->id)
                 ->where('start_date', '>=', now()->subDays(60))
@@ -517,6 +520,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     // COROS ueber MCP: nur Workouts auf die Uhr (seit 05.11.2026).
     Route::delete('/coros/connection', [\App\Http\Controllers\CorosController::class, 'disconnect'])->name('coros.connection.destroy');
     Route::patch('/coros/workout-sync', [\App\Http\Controllers\CorosController::class, 'updateWorkoutSync'])->name('coros.workout-sync');
+    Route::patch('/coros/data-import', [\App\Http\Controllers\CorosController::class, 'updateDataImport'])->name('coros.data-import');
 
 
     Route::get('/activities', [ActivityController::class, 'index'])->name('activities.index');

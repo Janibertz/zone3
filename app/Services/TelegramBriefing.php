@@ -124,7 +124,7 @@ class TelegramBriefing
      */
     private function garminNight(User $user): ?string
     {
-        if (! $user->receivesGarminHealth()) {
+        if (! $user->receivesHealthMetrics()) {
             return null;
         }
 
