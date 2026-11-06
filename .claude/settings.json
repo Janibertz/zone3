@@ -121,6 +121,7 @@
       "Bash(php -l app/Http/Controllers/ProfileController.php)",
       "Skill(dataviz)",
       "Skill(dataviz:*)",
+      "Bash(git push:*)",
       "Bash(\"/c/Program Files/Google/Chrome/Application/chrome.exe\" --headless --disable-gpu --hide-scrollbars --force-color-profile=srgb --window-size=760,900 --screenshot=preview.png \"file:///C:/Users/janan/AppData/Local/Temp/claude/c--Users-janan-Desktop-zone3/ebc874d9-e9a5-4fd8-a1fe-910b498364c6/scratchpad/preview.html\")"
     ],
     "additionalDirectories": [
