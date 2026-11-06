@@ -86,12 +86,13 @@ class StrengthExercise extends Model
     protected $fillable = [
         'key', 'name', 'instructions', 'group', 'equipment', 'level',
         'default_sets', 'default_reps', 'default_load',
-        'wger_id', 'license', 'license_author', 'active', 'sort',
+        'wger_id', 'license', 'license_author', 'active', 'sort', 'muscles',
         'garmin_category', 'garmin_name', 'youtube_id',
     ];
 
     protected $casts = [
         'equipment' => 'array',
+        'muscles' => 'array',
         'active' => 'boolean',
         'default_sets' => 'integer',
         'wger_id' => 'integer',

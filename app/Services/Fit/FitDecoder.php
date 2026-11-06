@@ -6,7 +6,8 @@ use RuntimeException;
 
 /**
  * Liest die Teile einer FIT-Datei, die Zone3 braucht: Messpunkte (record),
- * Runden (lap) und die Zusammenfassung (session).
+ * Runden (lap), die Zusammenfassung (session) und die Sätze eines
+ * Krafttrainings (set).
  *
  * Kein vollstaendiger Decoder, sondern das FIT-Protokoll ohne Profil: jede
  * Nachricht wird nach ihrer Definition gelesen, behalten werden nur die
@@ -25,6 +26,7 @@ class FitDecoder
     private const MSG_SESSION = 18;
     private const MSG_LAP = 19;
     private const MSG_RECORD = 20;
+    private const MSG_SET = 225;
 
     /** Je Nachricht: Feldnummer => [Name, Faktor, Versatz]; Wert = roh / Faktor - Versatz. */
     private const FIELDS = [
@@ -73,6 +75,21 @@ class FitDecoder
             22  => ['total_ascent', 1, 0],
             23  => ['total_descent', 1, 0],
         ],
+        // Ein Satz im Krafttraining. Kategorie und Unterart sind Felder mit
+        // mehreren Werten (Garmin raet mitunter mehrere Übungen); gelesen
+        // wird der erste, das ist die, die die Uhr anzeigt. Beim Satz ist
+        // der Zeitstempel Feld 254, nicht 253.
+        self::MSG_SET => [
+            254 => ['timestamp', 1, 0],
+            0   => ['duration', 1000, 0],
+            3   => ['repetitions', 1, 0],
+            4   => ['weight', 16, 0],
+            5   => ['set_type', 1, 0],
+            6   => ['start_time', 1, 0],
+            7   => ['category', 1, 0],
+            8   => ['category_subtype', 1, 0],
+            11  => ['wkt_step_index', 1, 0],
+        ],
     ];
 
     /** Zeitfelder, die in Unix-Sekunden umgerechnet werden. */
@@ -93,7 +110,7 @@ class FitDecoder
     ];
 
     /**
-     * @return array{records: list<array>, laps: list<array>, session: array}
+     * @return array{records: list<array>, laps: list<array>, session: array, sets: list<array>}
      */
     public function decode(string $bytes): array
     {
@@ -108,7 +125,7 @@ class FitDecoder
 
         $definitions   = [];
         $lastTimestamp = 0;
-        $out           = ['records' => [], 'laps' => [], 'session' => []];
+        $out           = ['records' => [], 'laps' => [], 'session' => [], 'sets' => []];
 
         while ($pos < $end) {
             $header = ord($bytes[$pos++]);
@@ -243,6 +260,7 @@ class FitDecoder
             self::MSG_RECORD  => $out['records'][] = $named,
             self::MSG_LAP     => $out['laps'][] = $named,
             self::MSG_SESSION => $out['session'] = $out['session'] ?: $named,
+            self::MSG_SET     => $out['sets'][] = $named,
         };
     }
 }

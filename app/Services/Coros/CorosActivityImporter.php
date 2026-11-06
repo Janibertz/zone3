@@ -268,6 +268,12 @@ class CorosActivityImporter
             $attributes['laps'] = $laps;
         }
 
+        // Krafttraining: dieselbe `set`-Nachricht wie bei Garmin.
+        $sets = \App\Services\Strength\StrengthSets::fromFit($decoded['sets'] ?? []);
+        if ($sets !== []) {
+            $attributes['strength_sets'] = $sets;
+        }
+
         return $attributes;
     }
 

@@ -204,6 +204,14 @@ class GarminController extends Controller
             \App\Jobs\ImportGarminActivitiesJob::dispatch($payload);
         }
 
+        // Activity Files: kein Inhalt, nur ein Link auf die FIT-Datei. Für
+        // Krafttrainings stehen darin die Sätze (siehe Job).
+        foreach ((array) ($payload['activityFiles'] ?? []) as $item) {
+            if (is_array($item)) {
+                \App\Jobs\ImportGarminActivityFileJob::dispatch($item)->delay(now()->addSeconds(30));
+            }
+        }
+
         return response()->json(['ok' => true]);
     }
 

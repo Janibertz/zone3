@@ -74,6 +74,7 @@ class ActivityController extends Controller
                 'laps'                 => $activity->laps ?? null,
             ],
             'paceZones'     => $paceZones,
+            'strength'      => app(\App\Services\Strength\StrengthSets::class)->present($activity->strength_sets, $linkedSession),
             'ftpHint'       => app(\App\Services\Bike\FtpCheck::class)
                 ->forActivity($activity, Auth::user()->runnerProfile?->ftp),
             'linkedSession' => $linkedSession ? [
