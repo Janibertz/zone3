@@ -6,6 +6,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import SectionHeader from '@/Components/UI/SectionHeader.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
+import MuscleMap from '@/Components/Strength/MuscleMap.vue';
 import { activityType } from '@/Composables/useActivityTypes';
 import { sessionType } from '@/Composables/useSessionTypes';
 import { fmtNum, clock, speedOf, distanceOf, paceFromSpeed } from '@/Composables/useFormat';
@@ -518,6 +519,14 @@ onUnmounted(() => {
                                 </ol>
                             </li>
                         </ul>
+                    </section>
+
+                    <!-- ── Kraft: Muskeln ─────────────────────────── -->
+                    <section v-if="strength && Object.keys(strength.muscles || {}).length">
+                        <SectionHeader title="Muskeln" />
+                        <div class="rounded-card bg-surface p-4">
+                            <MuscleMap :load="strength.muscles" :labels="muscleLabels || {}" />
+                        </div>
                     </section>
 
                     <!-- ── Runden ─────────────────────────────────── -->

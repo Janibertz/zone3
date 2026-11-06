@@ -300,6 +300,29 @@ class StrengthCatalogTest extends TestCase
         $this->assertSame('dQw4w9WgXcQ', $catalog->present([['key' => 'squat', 'sets' => 3, 'reps' => '10']])[0]['youtube_id']);
     }
 
+    public function test_admin_sets_the_muscles_of_an_exercise(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $e = StrengthExercise::where('key', 'squat')->first();
+        $form = [
+            'name' => $e->name, 'group' => $e->group, 'equipment' => $e->equipment, 'level' => $e->level,
+            'default_sets' => 3, 'default_reps' => '10',
+        ];
+
+        $this->actingAs($admin)->patch("/admin/strength-exercises/{$e->id}", $form + ['muscles' => ['primary' => ['nose']]])
+            ->assertSessionHasErrors('muscles.primary.0');
+
+        // Ein Muskel in beiden Listen zählt als Hauptmuskel.
+        $this->actingAs($admin)->patch("/admin/strength-exercises/{$e->id}", $form + ['muscles' => [
+            'primary' => ['quads', 'glutes'], 'secondary' => ['glutes', 'calves'],
+        ]])->assertSessionHasNoErrors();
+        $this->assertSame(['primary' => ['quads', 'glutes'], 'secondary' => ['calves']], $e->fresh()->muscles);
+
+        // Ein Formular ohne Muskeln lässt sie stehen.
+        $this->actingAs($admin)->patch("/admin/strength-exercises/{$e->id}", $form)->assertSessionHasNoErrors();
+        $this->assertSame(['quads', 'glutes'], $e->fresh()->muscles['primary']);
+    }
+
     private function png(): string
     {
         $img = imagecreatetruecolor(800, 600);

@@ -3,6 +3,7 @@ import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
+import MuscleMap from '@/Components/Strength/MuscleMap.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { computed, reactive, ref } from 'vue';
 
@@ -17,6 +18,7 @@ const props = defineProps({
     equipment: Object,
     levels:    Object,
     garmin:    Object,
+    muscles:   Object, // Schlüssel → deutscher Name
 });
 
 // Namen der gewählten Garmin-Kategorie; wechselt die Kategorie, passt der alte Name nicht mehr.
@@ -59,6 +61,7 @@ function blank() {
         name: '', instructions: '', group: 'beine', equipment: ['bodyweight'], level: 'beginner',
         default_sets: 3, default_reps: '10', default_load: '', wger_id: null,
         garmin_category: null, garmin_name: null, youtube: '',
+        muscles: { primary: [], secondary: [] },
     };
 }
 
@@ -69,6 +72,7 @@ function open(exercise = null) {
         default_reps: exercise.default_reps, default_load: exercise.default_load ?? '', wger_id: exercise.wger_id,
         garmin_category: exercise.garmin_category, garmin_name: exercise.garmin_name,
         youtube: exercise.youtube_id ? `https://youtu.be/${exercise.youtube_id}` : '',
+        muscles: { primary: [...(exercise.muscles?.primary ?? [])], secondary: [...(exercise.muscles?.secondary ?? [])] },
     } : {});
     errors.value = {};
     wgerQuery.value = '';
@@ -76,6 +80,24 @@ function open(exercise = null) {
     wgerPicked.value = null;
     editing.value = exercise ?? {};
 }
+
+// Muskeln: Tippen schaltet aus → Haupt → Neben → aus.
+function muscleRole(key) {
+    if (form.muscles?.primary.includes(key)) return 'primary';
+    if (form.muscles?.secondary.includes(key)) return 'secondary';
+    return null;
+}
+function cycleMuscle(key) {
+    const role = muscleRole(key);
+    form.muscles.primary   = form.muscles.primary.filter((k) => k !== key);
+    form.muscles.secondary = form.muscles.secondary.filter((k) => k !== key);
+    if (role === null) form.muscles.primary.push(key);
+    else if (role === 'primary') form.muscles.secondary.push(key);
+}
+const musclePreview = computed(() => Object.fromEntries([
+    ...(form.muscles?.secondary ?? []).map((k) => [k, 0.5]),
+    ...(form.muscles?.primary ?? []).map((k) => [k, 1]),
+]));
 
 const isNew = computed(() => editing.value && !editing.value.id);
 
@@ -270,6 +292,23 @@ const fieldClass = 'w-full rounded-field border-line bg-canvas text-[16px] text-
                     <span v-if="errors.youtube" class="text-[13px] text-danger-ink">{{ errors.youtube }}</span>
                     <span v-else class="block text-[13px] text-ink-3">Optional. Ohne Video bleibt der Link „Video ansehen“ zur YouTube-Suche.</span>
                 </label>
+
+                <!-- Muskeln: für die Körpergrafik auf der Aktivitätsseite -->
+                <div class="rounded-card bg-surface-2 p-3 space-y-2">
+                    <p class="text-[15px] font-semibold text-ink">Muskeln</p>
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            v-for="(label, key) in muscles" :key="key" type="button"
+                            class="px-3 h-9 rounded-full text-[15px] transition"
+                            :class="muscleRole(key) === 'primary' ? 'bg-accent text-white' : muscleRole(key) === 'secondary' ? 'bg-accent-soft text-accent-ink' : 'bg-surface text-ink-2'"
+                            :aria-label="`${label}: ${muscleRole(key) === 'primary' ? 'Hauptmuskel' : muscleRole(key) === 'secondary' ? 'Nebenmuskel' : 'nicht beteiligt'}`"
+                            @click="cycleMuscle(key)">
+                            {{ label }}
+                        </button>
+                    </div>
+                    <p class="text-[13px] text-ink-3">Einmal tippen = Hauptmuskel, zweimal = Nebenmuskel, dreimal = aus.</p>
+                    <MuscleMap v-if="form.muscles?.primary.length || form.muscles?.secondary.length" :load="musclePreview" :labels="{}" class="pt-1" />
+                </div>
 
                 <!-- Garmin: Übung aus Garmins fester Liste, für Animation und Wiederholungszähler auf der Uhr -->
                 <div class="rounded-card bg-surface-2 p-3 space-y-2">
