@@ -76,7 +76,7 @@ class CorosHealthImportTest extends TestCase
         ========================
 
         2026-11-05:
-          timestamp=1793000000, timezone=4, hrv=131 ms, status=4, confidence=100000
+          timestamp=1700000000, timezone=4, hrv=72 ms, status=4, confidence=95000
         TXT;
 
     private const RHR = <<<'TXT'
