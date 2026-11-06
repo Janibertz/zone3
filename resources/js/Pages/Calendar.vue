@@ -11,6 +11,7 @@ import SwipeRow from '@/Components/SwipeRow.vue';
 import DragGhost from '@/Components/UI/DragGhost.vue';
 import { useFinePointer } from '@/Composables/useFinePointer';
 import { useDragToDay } from '@/Composables/useDragToDay';
+import { activityHref, completedActivityHref } from '@/Composables/useActivityLink';
 
 /**
  * Kalender im Story-Look (Redesign 28.10.2026).
@@ -203,6 +204,8 @@ function confirmDelete(session) {
 }
 
 function openSession(s) {
+    const done = completedActivityHref(s, '/calendar');
+    if (done) return router.visit(done);
     if (s.event_id) router.visit(`/events/${s.event_id}/plan?open=${s.id}`);
 }
 
@@ -358,7 +361,7 @@ const LEGEND = [
 
                         <!-- Aktivitäten -->
                         <div v-if="selected.acts.length" class="divide-y divide-line overflow-hidden rounded-card bg-surface">
-                            <Link v-for="a in selected.acts" :key="a.id" :href="route('activities.show', a.id)"
+                            <Link v-for="a in selected.acts" :key="a.id" :href="activityHref(a.id, '/calendar')"
                                 class="flex min-w-0 items-center gap-3 px-4 py-3 transition-colors active:bg-surface-2">
                                 <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-surface-2 text-ink-2">
                                     <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9" aria-hidden="true" v-html="activityType(a.type).icon" />

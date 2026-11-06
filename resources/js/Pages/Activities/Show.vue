@@ -9,6 +9,7 @@ import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import { activityType } from '@/Composables/useActivityTypes';
 import { sessionType } from '@/Composables/useSessionTypes';
 import { fmtNum, clock, speedOf, distanceOf, paceFromSpeed } from '@/Composables/useFormat';
+import { safeBack } from '@/Composables/useActivityLink';
 
 /**
  * Eine Aktivität im Story-Look (Redesign 28.10.2026).
@@ -27,6 +28,12 @@ const props = defineProps({
     // { estimate, current } — die Fahrt lag über der eingetragenen FTP.
     ftpHint:       Object,
 });
+
+// Zurück führt dorthin, woher man kam (Dashboard, Plan, Kalender) — nicht
+// immer in die Liste. `back` setzt `activityHref()`.
+const backHref = (typeof window !== 'undefined'
+    && safeBack(new URLSearchParams(window.location.search).get('back')))
+    || route('activities.index');
 
 // ── Löschen ───────────────────────────────────────────────────────────────────
 // Unwiderruflich, deshalb mit Rückfrage. Die Rückfrage sagt auch, was mit der
@@ -368,7 +375,7 @@ onUnmounted(() => {
                 <div class="relative">
                     <div v-if="activity.polyline" ref="mapContainer" class="z-0 h-[300px] w-full bg-surface-2 lg:rounded-card" />
                     <div v-else class="h-16" />
-                    <Link :href="route('activities.index')" aria-label="Zurück"
+                    <Link :href="backHref" aria-label="Zurück"
                         class="absolute left-4 top-4 z-[500] flex h-10 w-10 items-center justify-center rounded-full bg-surface/80 text-ink backdrop-blur-xl transition-transform active:scale-90">
                         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
                     </Link>
