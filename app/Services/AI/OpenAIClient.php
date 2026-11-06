@@ -125,13 +125,7 @@ class OpenAIClient
      */
     public function isRateLimited(): bool
     {
-        if ($this->blockReason('coach_chat') !== null) return true;
-
-        if (!$this->userId) return false;
-        $user  = User::find($this->userId);
-        if (!$user) return false;
-        $limit = $user->ai_daily_limit ?? 20;
-        return AiLog::todayCountForUser($this->userId) >= $limit;
+        return $this->chatBlockReason() !== null;
     }
 
     /**
@@ -146,7 +140,8 @@ class OpenAIClient
      *  2. **Tagesbudget fuer alle** (`budget.daily_eur`). Faengt eine
      *     Schleife ab, die das Monatslimit der Plattform sonst erst am
      *     Monatsende stoppt.
-     *  3. **Tagesbudget pro Athlet** (`budget.user_daily_eur`), ausser fuer
+     *  3. **Tagesbudget pro Athlet** (`users.ai_daily_budget_eur`, sonst
+     *     `budget.user_daily_eur`), ausser fuer
      *     die Aufrufarten in {@see BUDGET_EXEMPT}.
      *
      * Gezaehlt wird in Euro aus `ai_logs.cost_eur`, nicht in Aufrufen: ein
@@ -164,10 +159,41 @@ class OpenAIClient
         }
 
         if ($this->userId && ! in_array($callType, self::BUDGET_EXEMPT, true)) {
-            $perUser = (float) config('services.openai.budget.user_daily_eur', 0);
+            $perUser = $this->userBudgetEur();
             if ($perUser > 0 && AiLog::todayCost($this->userId) >= $perUser) {
                 return sprintf('Tagesbudget des Athleten erreicht (%.2f EUR)', $perUser);
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * Das Euro-Budget des Athleten fuer heute: was im Admin an ihm steht,
+     * sonst die Vorgabe aus der Umgebung. 0 = unbegrenzt.
+     */
+    public function userBudgetEur(): float
+    {
+        $own = $this->userId ? User::whereKey($this->userId)->value('ai_daily_budget_eur') : null;
+
+        return $own !== null
+            ? (float) $own
+            : (float) config('services.openai.budget.user_daily_eur', 0);
+    }
+
+    /**
+     * Warum der Coach-Chat dem Athleten gerade nicht antwortet — oder null.
+     * Dieselben Grenzen wie {@see isRateLimited()}, aber mit Grund, damit
+     * Admin und Athlet sehen, welche Grenze greift.
+     */
+    public function chatBlockReason(): ?string
+    {
+        if ($reason = $this->blockReason('coach_chat')) return $reason;
+
+        if (! $this->userId) return null;
+        $limit = User::whereKey($this->userId)->value('ai_daily_limit') ?? 20;
+        if (AiLog::todayCountForUser($this->userId) >= $limit) {
+            return sprintf('Anzahl der Anfragen erreicht (%d)', $limit);
         }
 
         return null;

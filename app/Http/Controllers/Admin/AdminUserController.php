@@ -113,6 +113,11 @@ class AdminUserController extends Controller
             'aiLogs'           => $aiLogs,
             'aiStats'          => $aiStats,
             'aiTodayUsed'      => AiLog::todayCountForUser($user->id),
+            // Die zweite Grenze neben der Anzahl: Euro. Ohne sie hier sah
+            // der Admin ein freies Limit, waehrend der Coach schon gesperrt war.
+            'aiTodayCost'      => round(AiLog::todayCost($user->id), 4),
+            'aiBudgetDefault'  => (float) config('services.openai.budget.user_daily_eur', 0),
+            'aiBlockReason'    => app(\App\Services\AI\OpenAIClient::class)->forUser($user->id)->chatBlockReason(),
             // Was bei der Suche nach der Plan-Luecke gefehlt hat: welche
             // Neuberechnungen es gab und warum, was im aktiven Plan steht,
             // und welche Einheiten ohne Plan dastehen.
@@ -229,9 +234,21 @@ class AdminUserController extends Controller
 
     public function updateAiLimit(Request $request, User $user)
     {
-        $request->validate(['ai_daily_limit' => 'required|integer|min:0|max:500']);
-        $user->update(['ai_daily_limit' => $request->ai_daily_limit]);
-        return back()->with('success', 'AI-Tageslimit auf ' . $request->ai_daily_limit . ' gesetzt.');
+        $data = $request->validate([
+            'ai_daily_limit'      => 'required|integer|min:0|max:500',
+            // Leer = Vorgabe aus der Umgebung, 0 = unbegrenzt.
+            'ai_daily_budget_eur' => 'nullable|numeric|min:0|max:20',
+        ]);
+        $user->update([
+            'ai_daily_limit'      => $data['ai_daily_limit'],
+            'ai_daily_budget_eur' => $data['ai_daily_budget_eur'] ?? null,
+        ]);
+
+        $budget = $user->ai_daily_budget_eur === null
+            ? 'Vorgabe'
+            : ((float) $user->ai_daily_budget_eur > 0 ? number_format((float) $user->ai_daily_budget_eur, 2, ',', '.') . ' €' : 'unbegrenzt');
+
+        return back()->with('success', "KI-Tageslimit: {$data['ai_daily_limit']} Anfragen, Budget {$budget}.");
     }
 
     public function destroy(User $user)

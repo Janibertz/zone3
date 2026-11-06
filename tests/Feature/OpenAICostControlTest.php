@@ -209,6 +209,69 @@ class OpenAICostControlTest extends TestCase
         Http::assertNothingSent();
     }
 
+    /**
+     * Gemeldet am 06.11.2026: im Admin das Limit eines Athleten hochgesetzt,
+     * Telegram meldete weiter „Kontingent aufgebraucht". Hochgesetzt war die
+     * Anzahl — gesperrt hatte das Euro-Budget, das im Admin nicht stand.
+     */
+    public function test_raising_only_the_count_does_not_lift_the_euro_budget(): void
+    {
+        $user = User::factory()->create(['ai_daily_limit' => 200]);
+        $this->spent($user->id, 0.31);
+
+        $client = $this->client()->forUser($user->id);
+
+        $this->assertTrue($client->isRateLimited());
+        $this->assertStringStartsWith('Tagesbudget des Athleten', $client->chatBlockReason());
+    }
+
+    public function test_the_athletes_own_budget_overrides_the_default(): void
+    {
+        $user = User::factory()->create(['ai_daily_budget_eur' => 0.80]);
+        $this->spent($user->id, 0.31);
+        Http::fake(['api.openai.com/*' => $this->answer()]);
+
+        $client = $this->client()->forUser($user->id);
+
+        $this->assertFalse($client->isRateLimited());
+        $this->assertSame('OK', $this->say($client));
+    }
+
+    public function test_an_own_budget_of_zero_means_unlimited(): void
+    {
+        $user = User::factory()->create(['ai_daily_budget_eur' => 0]);
+        $this->spent($user->id, 0.90);
+
+        $this->assertFalse($this->client()->forUser($user->id)->isRateLimited());
+    }
+
+    public function test_the_global_budget_still_applies_with_an_own_budget(): void
+    {
+        $user = User::factory()->create(['ai_daily_budget_eur' => 5]);
+        $this->spent($user->id, 1.01);
+
+        $reason = $this->client()->forUser($user->id)->chatBlockReason();
+
+        $this->assertStringStartsWith('Tagesbudget fuer alle', $reason);
+    }
+
+    public function test_the_admin_sets_count_and_budget_together(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $user  = User::factory()->create();
+
+        $this->actingAs($admin)
+            ->patch(route('admin.users.ai-limit', $user), ['ai_daily_limit' => 50, 'ai_daily_budget_eur' => 1.5])
+            ->assertRedirect();
+        $this->assertSame(50, $user->fresh()->ai_daily_limit);
+        $this->assertEquals(1.5, (float) $user->fresh()->ai_daily_budget_eur);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.users.ai-limit', $user), ['ai_daily_limit' => 50, 'ai_daily_budget_eur' => null])
+            ->assertRedirect();
+        $this->assertNull($user->fresh()->ai_daily_budget_eur);
+    }
+
     public function test_yesterdays_spending_does_not_count(): void
     {
         $user = User::factory()->create();

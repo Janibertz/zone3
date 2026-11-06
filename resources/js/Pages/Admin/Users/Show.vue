@@ -15,6 +15,9 @@ const props = defineProps({
     aiLogs:           Array,
     aiStats:          Object,
     aiTodayUsed:      Number,
+    aiTodayCost:      Number,
+    aiBudgetDefault:  Number,
+    aiBlockReason:    String,
     planDiagnostics:  Object,
 });
 
@@ -81,8 +84,20 @@ function sendPasswordReset() {
 }
 
 const aiLimitInput = ref(props.user.ai_daily_limit ?? 20);
+// Leer = Vorgabe aus der Umgebung, 0 = unbegrenzt.
+const aiBudgetInput = ref(props.user.ai_daily_budget_eur ?? '');
+const aiBudgetEffective = computed(() => {
+    const own = props.user.ai_daily_budget_eur;
+    return own === null || own === undefined ? props.aiBudgetDefault : Number(own);
+});
+function euro(v) {
+    return Number(v ?? 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
 function saveAiLimit() {
-    router.patch(route('admin.users.ai-limit', props.user.id), { ai_daily_limit: aiLimitInput.value }, { preserveScroll: true });
+    router.patch(route('admin.users.ai-limit', props.user.id), {
+        ai_daily_limit: aiLimitInput.value,
+        ai_daily_budget_eur: aiBudgetInput.value === '' ? null : aiBudgetInput.value,
+    }, { preserveScroll: true });
 }
 
 // ── Formatters ────────────────────────────────────────────────
@@ -421,16 +436,31 @@ const zoneColors = [
             <template v-if="activeTab === 'ai'">
 
                 <!-- AI Rate Limit -->
-                <div class="bg-surface rounded-card px-5 py-4 flex items-center justify-between gap-4 shadow-card">
+                <div class="bg-surface rounded-card px-5 py-4 shadow-card space-y-3">
                     <div>
-                        <p class="text-sm font-semibold text-ink">AI-Tageslimit</p>
-                        <p class="text-xs text-ink-3 mt-0.5">Heute genutzt: <strong class="text-ink-2">{{ aiTodayUsed }}</strong> / {{ user.ai_daily_limit ?? 20 }} Calls</p>
+                        <p class="text-sm font-semibold text-ink">KI-Tageslimit</p>
+                        <p class="text-xs text-ink-3 mt-0.5">
+                            Heute: <strong class="text-ink-2">{{ aiTodayUsed }}</strong> / {{ user.ai_daily_limit ?? 20 }} Anfragen ·
+                            <strong class="text-ink-2">{{ euro(aiTodayCost) }}</strong> /
+                            {{ aiBudgetEffective > 0 ? euro(aiBudgetEffective) : 'unbegrenzt' }}
+                        </p>
+                        <p v-if="aiBlockReason" class="text-xs font-semibold text-red-600 dark:text-red-400 mt-1">Coach gesperrt: {{ aiBlockReason }}</p>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <input v-model.number="aiLimitInput" type="number" min="0" max="500"
-                            class="w-20 rounded-field bg-surface px-3 py-1.5 text-sm text-ink text-center focus:outline-none focus:ring-2 focus:ring-accent/40" />
-                        <button @click="saveAiLimit" class="px-3 py-1.5 rounded-field bg-accent hover:opacity-90 text-xs font-semibold text-white transition-colors">Speichern</button>
+                    <div class="flex flex-wrap items-end gap-3">
+                        <label class="text-xs text-ink-3">
+                            Anfragen
+                            <input v-model.number="aiLimitInput" type="number" min="0" max="500"
+                                class="mt-1 block w-20 rounded-field bg-surface px-3 py-1.5 text-sm text-ink text-center focus:outline-none focus:ring-2 focus:ring-accent/40" />
+                        </label>
+                        <label class="text-xs text-ink-3">
+                            Budget € / Tag
+                            <input v-model="aiBudgetInput" type="number" min="0" max="20" step="0.05"
+                                :placeholder="aiBudgetDefault.toFixed(2)"
+                                class="mt-1 block w-24 rounded-field bg-surface px-3 py-1.5 text-sm text-ink text-center focus:outline-none focus:ring-2 focus:ring-accent/40" />
+                        </label>
+                        <button @click="saveAiLimit" class="px-3 py-1.5 rounded-field bg-accent hover:opacity-90 active:opacity-80 text-xs font-semibold text-white transition-colors">Speichern</button>
                     </div>
+                    <p class="text-xs text-ink-3">Budget leer = Vorgabe ({{ euro(aiBudgetDefault) }}), 0 = unbegrenzt. Das Budget für alle und die Notbremse gelten trotzdem.</p>
                 </div>
 
                 <!-- AI KPIs -->
