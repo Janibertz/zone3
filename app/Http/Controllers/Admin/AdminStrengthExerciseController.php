@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\StrengthExercise;
 use App\Models\StrengthExerciseAlias;
+use App\Services\Strength\Muscles;
 use App\Services\Strength\StrengthCatalog;
 use App\Services\Strength\WgerClient;
 use Illuminate\Http\JsonResponse;
@@ -56,6 +57,7 @@ class AdminStrengthExerciseController extends Controller
                     'garmin_category' => $e->garmin_category,
                     'garmin_name'    => $e->garmin_name,
                     'youtube_id'     => $e->youtube_id,
+                    'muscles'        => Muscles::clean($e->muscles['primary'] ?? [], $e->muscles['secondary'] ?? []),
                     'image_url'      => $p['image_url'] ?? null,
                     'credit'         => $p['credit'] ?? null,
                 ];
@@ -64,6 +66,7 @@ class AdminStrengthExerciseController extends Controller
             'equipment' => StrengthExercise::EQUIPMENT,
             'levels'    => StrengthExercise::LEVELS,
             'garmin'    => StrengthExercise::garminExercises(),
+            'muscles'   => Muscles::LABELS,
         ]);
     }
 
@@ -196,6 +199,11 @@ class AdminStrengthExerciseController extends Controller
                     $fail('Diesen Namen kennt Garmin in der Kategorie nicht.');
                 }
             }],
+            'muscles'             => 'nullable|array',
+            'muscles.primary'     => 'nullable|array',
+            'muscles.primary.*'   => [Rule::in(array_keys(Muscles::LABELS))],
+            'muscles.secondary'   => 'nullable|array',
+            'muscles.secondary.*' => [Rule::in(array_keys(Muscles::LABELS))],
             'youtube'        => ['nullable', 'string', 'max:300', function ($attr, $value, $fail) {
                 if (StrengthExercise::youtubeId($value) === null) {
                     $fail('Das ist kein YouTube-Link.');
@@ -206,6 +214,12 @@ class AdminStrengthExerciseController extends Controller
         // Gespeichert wird nur die Video-ID, egal welche Form der Link hatte.
         $data['youtube_id'] = StrengthExercise::youtubeId($data['youtube'] ?? null);
         unset($data['youtube']);
+
+        // Für die Körpergrafik. Ein Muskel ist entweder Haupt- oder Nebenmuskel.
+        // Ohne Angabe bleibt, was da ist.
+        if ($request->has('muscles')) {
+            $data['muscles'] = Muscles::clean($data['muscles']['primary'] ?? [], $data['muscles']['secondary'] ?? []);
+        }
 
         return $data;
     }
