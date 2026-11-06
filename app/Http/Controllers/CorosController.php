@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SyncCorosHealthJob;
 use App\Jobs\SyncCorosWorkoutsJob;
 use App\Models\CorosConnection;
 use App\Models\User;
 use App\Services\Coros\CorosClient;
 use App\Services\Coros\CorosDisconnector;
+use App\Services\Coros\CorosHealthImporter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -23,9 +25,9 @@ use Throwable;
  * im Cache unter dem `state`, der Rueckweg ohne Anmeldung, weil iOS ihn aus
  * der Homescreen-App in Safari oeffnet.
  *
- * Zone3 liest derzeit nichts von COROS, es schreibt nur Workouts in den
- * Kalender. Darum gibt es hier keine KI-Einwilligung; die kommt mit dem
- * ersten Abruf von Daten (Bedingung von COROS, Mail vom 05.11.2026).
+ * Gelesen wird von COROS nur mit Einwilligung (Bedingung von COROS, Mail
+ * vom 05.11.2026): `ai_consent` beim Verbinden oder spaeter der Schalter
+ * „Daten übernehmen“ im Profil. Ohne sie schreibt Zone3 nur Workouts.
  */
 class CorosController extends Controller
 {
@@ -58,6 +60,7 @@ class CorosController extends Controller
             'user_id'   => $request->user()->id,
             'verifier'  => $verifier,
             'client_id' => $clientId,
+            'consent'   => $request->boolean('ai_consent'),
         ], now()->addMinutes(self::PENDING_MINUTES));
 
         return Inertia::location($this->client->authorizationUrl($clientId, $state, $verifier));
@@ -107,12 +110,15 @@ class CorosController extends Controller
                 'last_refreshed_at' => now(),
                 'refresh_error'     => null,
                 'refresh_error_at'  => null,
-            ],
+            ] + (! empty($pending['consent']) ? ['ai_consent_at' => now()] : []),
         );
 
         Log::info('COROS verbunden', ['user_id' => $user->id]);
 
         SyncCorosWorkoutsJob::dispatch($user->id);
+        if (! empty($pending['consent'])) {
+            SyncCorosHealthJob::dispatch($user->id);
+        }
 
         return $this->finish($request, true, 'COROS verbunden.');
     }
@@ -135,6 +141,29 @@ class CorosController extends Controller
 
         $connection->update(['workout_sync' => $request->boolean('enabled')]);
         SyncCorosWorkoutsJob::dispatch($request->user()->id);
+
+        return back();
+    }
+
+    /**
+     * Daten von COROS uebernehmen (Einwilligung) an oder aus. Aus widerruft:
+     * die Erholungswerte von COROS werden geloescht.
+     */
+    public function updateDataImport(Request $request, CorosHealthImporter $health): RedirectResponse
+    {
+        $request->validate(['enabled' => 'required|boolean']);
+
+        $connection = $request->user()->corosConnection;
+        abort_unless($connection, 404);
+
+        if ($request->boolean('enabled')) {
+            $request->validate(['ai_consent' => 'accepted']);
+            $connection->update(['ai_consent_at' => $connection->ai_consent_at ?? now()]);
+            SyncCorosHealthJob::dispatch($request->user()->id);
+        } else {
+            $connection->update(['ai_consent_at' => null, 'health_synced_at' => null]);
+            $health->forget($request->user());
+        }
 
         return back();
     }

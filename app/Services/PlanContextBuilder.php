@@ -202,7 +202,7 @@ class PlanContextBuilder
 
         return $context->with(
             skeleton:   $skeleton,
-            garminText: ! $user->receivesGarminHealth()
+            garminText: ! $user->receivesHealthMetrics()
                 ? null
                 : $this->garmin->toPromptSection($this->garmin->forUser($user->id, $windowFrom)),
         );

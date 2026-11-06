@@ -225,11 +225,11 @@ class GarminHealthSummary
     public function toPromptSection(array $summary): string
     {
         if (! $summary['has_data']) {
-            return "Garmin-Gesundheitswerte: keine Daten vorhanden (Uhr nicht verbunden oder noch nicht synchronisiert). "
+            return "Gesundheitswerte der Uhr: keine Daten vorhanden (Uhr nicht verbunden oder noch nicht synchronisiert). "
                  . "Stütze dich auf die Tagesform, die der Athlet einträgt.";
         }
 
-        $text = "Garmin-Gesundheitswerte (gemessen, {$summary['days']} Tage Historie):\n- "
+        $text = "Gesundheitswerte der Uhr (gemessen, {$summary['days']} Tage Historie):\n- "
               . implode("\n- ", $summary['lines']);
 
         if ($summary['flags']) {

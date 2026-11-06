@@ -10,16 +10,16 @@ use Throwable;
 /**
  * COROS trennen — ein Weg fuer Profil und Konto loeschen.
  *
- * Zone3 liest derzeit nichts von COROS, also gibt es ausser dem Zugang und
- * den Kalenderplaetzen nichts zu loeschen. Kommen Aktivitaeten und
- * Erholungswerte dazu, gehoeren sie hierher (COROS verlangt laut
- * Partner-Vertrag das Loeschen binnen 24 Stunden).
+ * Geloescht werden Zugang, Kalenderplaetze und die Erholungswerte, die von
+ * COROS kamen (COROS verlangt laut Partner-Vertrag das Loeschen binnen
+ * 24 Stunden).
  */
 class CorosDisconnector
 {
     public function __construct(
         private readonly CorosClient $client,
         private readonly CorosWorkoutSync $workouts,
+        private readonly CorosHealthImporter $health,
     ) {}
 
     public function disconnect(User $user): void
@@ -38,6 +38,7 @@ class CorosDisconnector
         }
 
         CorosScheduledWorkout::where('user_id', $user->id)->delete();
+        $this->health->forget($user);
         $connection?->delete();
     }
 }

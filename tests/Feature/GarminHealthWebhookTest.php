@@ -190,8 +190,8 @@ class GarminHealthWebhookTest extends TestCase
 
     public function test_the_dashboard_and_plan_see_garmin_health_from_the_official_connection(): void
     {
-        $this->assertTrue($this->connected()->receivesGarminHealth());
-        $this->assertFalse($this->connected(['WORKOUT_IMPORT'])->receivesGarminHealth());
-        $this->assertFalse(User::factory()->create()->receivesGarminHealth());
+        $this->assertTrue($this->connected()->receivesHealthMetrics());
+        $this->assertFalse($this->connected(['WORKOUT_IMPORT'])->receivesHealthMetrics());
+        $this->assertFalse(User::factory()->create()->receivesHealthMetrics());
     }
 }

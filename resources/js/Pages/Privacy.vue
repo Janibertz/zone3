@@ -10,7 +10,7 @@ import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
  * personenbezogene Daten bekommt, trägt ihn in `empfaenger` ein. Die Seite
  * ist eine Zusage an Fremde, keine Beschreibung von Absichten.
  */
-const STAND = '5. November 2026';
+const STAND = '6. November 2026';
 const MAIL = 'jan.anders@zone3.run';
 
 const empfaenger = [
@@ -37,12 +37,12 @@ const empfaenger = [
     {
         name: 'COROS Wearables Inc.',
         ort: 'USA',
-        zweck: 'Nur wenn du COROS verbindest: Übertragung deiner geplanten Läufe von heute und morgen in deinen COROS-Trainingskalender. Zone3 liest derzeit keine Daten von COROS.',
+        zweck: 'Nur wenn du COROS verbindest: Übertragung deiner geplanten Läufe von heute und morgen in deinen COROS-Trainingskalender; mit deiner Einwilligung Abruf deiner Erholungswerte (Schlaf, HRV, Ruhepuls, Stress, Schritte, VO2max).',
     },
     {
         name: 'OpenAI, L.L.C.',
         ort: 'USA',
-        zweck: 'Erzeugung von Trainingsplänen, Auswertungen und Antworten des Coachs. Übermittelt werden die dafür nötigen Trainingsdaten (Aktivitäten, Pace, Herzfrequenz, Ziele und Rennen, Trainingsprofil), deine Tagesform-Einträge, Coach-Notizen und deine Chat-Nachrichten sowie dein Name. Hast du Garmin verbunden, außerdem Wochenmittel und Tageswerte deiner Erholung (Schlaf, HRV, Ruhepuls, Stress, Body Battery). Nicht zum Training von KI-Modellen, siehe Abschnitt 7. E-Mail-Adresse, Passwort und Zugangsdaten werden nicht übermittelt.',
+        zweck: 'Erzeugung von Trainingsplänen, Auswertungen und Antworten des Coachs. Übermittelt werden die dafür nötigen Trainingsdaten (Aktivitäten, Pace, Herzfrequenz, Ziele und Rennen, Trainingsprofil), deine Tagesform-Einträge, Coach-Notizen und deine Chat-Nachrichten sowie dein Name. Hast du Garmin verbunden oder bei COROS in die Datenübernahme eingewilligt, außerdem Wochenmittel und Tageswerte deiner Erholung (Schlaf, HRV, Ruhepuls, Stress, Body Battery). Nicht zum Training von KI-Modellen, siehe Abschnitt 7. E-Mail-Adresse, Passwort und Zugangsdaten werden nicht übermittelt.',
     },
     {
         name: 'Telegram',
@@ -220,9 +220,12 @@ const empfaenger = [
                 <p class="mt-3">
                     Verbindest du dein COROS-Konto, schreibt Zone3 deine geplanten Läufe für heute und morgen in
                     deinen COROS-Trainingskalender. Dafür speichert Zone3 den Zugang, den du bei COROS freigibst, und
-                    welche Einheit an welchem Tag dort steht. Daten von COROS liest Zone3 derzeit nicht, es gehen
-                    also auch keine COROS-Daten an OpenAI. Beim Trennen widerruft Zone3 den Zugang bei COROS und löscht
-                    alles, was es dazu gespeichert hat.
+                    welche Einheit an welchem Tag dort steht. Nur wenn du einwilligst (beim Verbinden oder im Profil
+                    unter „Daten übernehmen“), ruft Zone3 stündlich deine Erholungswerte von COROS ab: Schlafdauer und
+                    -wert, HRV, Ruhepuls, Stress, Schritte und VO2max. Sie werden wie die Garmin-Werte für Plan,
+                    Auswertungen und Coach verwendet und dafür an OpenAI übermittelt (Abschnitt 7). Zyklusdaten ruft
+                    Zone3 nie ab. Ausschalten widerruft die Einwilligung und löscht die übernommenen Werte. Beim
+                    Trennen widerruft Zone3 den Zugang bei COROS und löscht alles, was es dazu gespeichert hat.
                 </p>
             </section>
 
@@ -245,6 +248,11 @@ const empfaenger = [
                     Garmin unter <strong class="text-ink">Profil → Verbindungen</strong> trennst oder eine formlose
                     E-Mail an <a :href="`mailto:${MAIL}`" class="text-accent">{{ MAIL }}</a> schreibst. Danach gehen
                     keine Garmin-Daten mehr an OpenAI.
+                </p>
+                <p class="mt-3">
+                    Für Daten von COROS gilt dasselbe: sie gehen nur mit deiner Einwilligung an OpenAI, die du beim
+                    Verbinden oder unter <strong class="text-ink">Profil → Verbindungen → COROS → Daten übernehmen</strong>
+                    erteilst. Ausschalten widerruft sie und löscht die übernommenen Werte.
                 </p>
             </section>
 

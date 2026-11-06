@@ -472,7 +472,7 @@ const metricTiles = computed(() => (garminLatest.value
 
 /** Woher die Kacheln stammen — für die Beschriftung darüber. */
 const metricSource = computed(() => {
-    if (garminLatest.value) return 'Garmin';
+    if (garminLatest.value) return props.garminMetrics?.source ?? 'Garmin';
     if (props.wellbeingToday) return 'Tagesform';
     return null;
 });
