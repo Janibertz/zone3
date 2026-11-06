@@ -3,6 +3,7 @@
 namespace App\Services\Strength;
 
 use App\Models\StrengthExercise;
+use App\Models\StrengthExerciseAlias;
 use App\Models\TrainingSession;
 use App\Services\Garmin\GarminStrengthBuilder;
 use Illuminate\Support\Collection;
@@ -20,7 +21,7 @@ use Illuminate\Support\Collection;
  * Vergleich mit dem Plan, Muskeln — entsteht beim Anzeigen, damit eine
  * Änderung im Katalog auch alte Einheiten erreicht.
  *
- * Zuordnung zum Katalog nur über `garmin_category` + `garmin_name`, nie über
+ * Zuordnung zum Katalog nur über `strength_exercise_aliases`, nie über
  * Ähnlichkeit: dieselbe Zuordnung, mit der Zone3 das Workout auf die Uhr
  * schickt, also kommt eine geplante Übung als dieselbe zurück.
  */
@@ -47,9 +48,16 @@ class StrengthSets
     /**
      * Die `set`-Nachrichten aus `FitDecoder` als gespeicherte Liste.
      *
-     * @return list<array{category: ?string, name: ?string, reps: ?int, weight_kg: ?float, duration_s: ?int, start: ?int}>
+     * Jede Zeile ist anbieterneutral: `source` sagt, von welcher Uhr sie kam,
+     * `alias` + `key` sind die Kennung, über die `strength_exercise_aliases`
+     * die Katalog-Übung findet. Die FIT-Datei nummeriert Übungen nach dem
+     * FIT-Profil — das ist Garmins Liste, auch wenn COROS die Datei schreibt.
+     * `name` ist, was die Uhr anzeigt, `group` die grobe Gruppe für die
+     * Muskeln, wenn die Übung nicht im Katalog steht.
+     *
+     * @return list<array{source: string, alias: ?string, key: ?string, name: ?string, group: ?string, reps: ?int, weight_kg: ?float, duration_s: ?int, start: ?int}>
      */
-    public static function fromFit(array $sets): array
+    public static function fromFit(array $sets, string $source): array
     {
         $out = [];
 
@@ -65,21 +73,38 @@ class StrengthSets
             }
 
             [$category, $name] = self::names($set['category'] ?? null, $set['category_subtype'] ?? null);
-            $weight = isset($set['weight']) && $set['weight'] > 0 ? round((float) $set['weight'], 1) : null;
 
-            $out[] = [
-                'category'   => $category,
-                'name'       => $name,
-                'reps'       => $reps ?: null,
-                'weight_kg'  => $weight,
-                'duration_s' => $duration ?: null,
+            $out[] = self::row($source, [
+                'alias'      => StrengthExerciseAlias::GARMIN,
+                'key'        => StrengthExerciseAlias::garminKey($category, $name),
+                'name'       => $name ? self::humanize($name) : ($category ? self::humanize($category) : null),
+                'group'      => $category,
+                'reps'       => $reps,
+                'weight_kg'  => isset($set['weight']) && $set['weight'] > 0 ? (float) $set['weight'] : null,
+                'duration_s' => $duration,
                 'start'      => $set['start_time'] ?? $set['timestamp'] ?? null,
-            ];
+            ]);
         }
 
         usort($out, fn ($a, $b) => ($a['start'] ?? 0) <=> ($b['start'] ?? 0));
 
         return $out;
+    }
+
+    /** Eine Satzzeile in der gespeicherten Form — auch für Quellen ohne FIT (COROS über MCP). */
+    public static function row(string $source, array $set): array
+    {
+        return [
+            'source'     => $source,
+            'alias'      => $set['alias'] ?? null,
+            'key'        => $set['key'] ?? null,
+            'name'       => $set['name'] ?? null,
+            'group'      => $set['group'] ?? null,
+            'reps'       => ($set['reps'] ?? null) ?: null,
+            'weight_kg'  => isset($set['weight_kg']) ? round((float) $set['weight_kg'], 1) : null,
+            'duration_s' => ($set['duration_s'] ?? null) ?: null,
+            'start'      => $set['start'] ?? null,
+        ];
     }
 
     /** @return array{0: ?string, 1: ?string} Garmins Kategorie und Übung als Namen */
@@ -145,7 +170,7 @@ class StrengthSets
         $groups = [];
 
         foreach ($sets as $set) {
-            $id   = ($set['category'] ?? '') . '/' . ($set['name'] ?? '');
+            $id   = ($set['alias'] ?? '') . ':' . ($set['key'] ?? $set['name'] ?? '');
             $last = array_key_last($groups);
 
             if ($last !== null && $groups[$last]['_id'] === $id) {
@@ -153,25 +178,24 @@ class StrengthSets
                 continue;
             }
 
-            $groups[] = ['_id' => $id, 'category' => $set['category'] ?? null, 'name' => $set['name'] ?? null, 'sets_detail' => [$this->setRow($set)]];
+            $groups[] = ['_id' => $id, 'alias' => $set['alias'] ?? null, 'key' => $set['key'] ?? null, 'name' => $set['name'] ?? null, 'group' => $set['group'] ?? null, 'sets_detail' => [$this->setRow($set)]];
         }
 
         return array_map(function (array $g) use ($catalog, $plannedKeys) {
-            $match   = $this->catalogFor($g['category'], $g['name'], $catalog, $plannedKeys);
+            $match   = $this->catalogFor($g['alias'], $g['key'], $catalog, $plannedKeys);
             $present = $match ? ($this->catalog->present([['key' => $match->key]])[0] ?? []) : [];
-            $label   = $match?->name
-                ?? ($g['name'] ? self::humanize($g['name']) : ($g['category'] ? self::humanize($g['category']) : 'Unbekannt'));
+            $label   = $match?->name ?? $g['name'] ?? 'Unbekannt';
 
             return [
                 'key'       => $match?->key,
                 'label'     => $label,
-                'known'     => $g['category'] !== null,
-                'garmin'    => $g['name'] ?? $g['category'],
+                'known'     => $g['name'] !== null,
+                'device'    => $g['name'],
                 'image_url' => $present['image_url'] ?? null,
                 'sets'      => count($g['sets_detail']),
                 'reps'      => array_sum(array_map(fn ($s) => (int) ($s['reps'] ?? 0), $g['sets_detail'])),
                 'detail'    => $g['sets_detail'],
-                'muscles'   => Muscles::forExercise($match?->muscles, $g['category']),
+                'muscles'   => Muscles::forExercise($match?->muscles, $g['group']),
             ];
         }, $groups);
     }
@@ -181,14 +205,19 @@ class StrengthSets
         return ['reps' => $set['reps'] ?? null, 'weight_kg' => $set['weight_kg'] ?? null, 'duration_s' => $set['duration_s'] ?? null];
     }
 
-    /** Die Katalog-Übung zu Garmins Übung; bei mehreren die geplante. */
-    private function catalogFor(?string $category, ?string $name, Collection $catalog, array $plannedKeys): ?StrengthExercise
+    /**
+     * Die Katalog-Übung zur Kennung der Uhr — nur über die Zuordnung, nie
+     * über Ähnlichkeit. Ohne Treffer bleibt der Name der Uhr stehen.
+     */
+    private function catalogFor(?string $alias, ?string $key, Collection $catalog, array $plannedKeys): ?StrengthExercise
     {
-        if (! $category || ! $name) {
+        if (! $alias || ! $key) {
             return null;
         }
 
-        $hits = $catalog->filter(fn (StrengthExercise $e) => $e->garmin_category === $category && $e->garmin_name === $name);
+        $hits = $catalog->filter(fn (StrengthExercise $e) => $e->aliases->contains(
+            fn ($a) => $a->provider === $alias && strcasecmp($a->external_key, $key) === 0,
+        ));
 
         return $hits->first(fn ($e) => in_array($e->key, $plannedKeys, true)) ?? $hits->first();
     }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
@@ -87,7 +88,7 @@ class StrengthExercise extends Model
         'key', 'name', 'instructions', 'group', 'equipment', 'level',
         'default_sets', 'default_reps', 'default_load',
         'wger_id', 'license', 'license_author', 'active', 'sort', 'muscles',
-        'garmin_category', 'garmin_name', 'youtube_id',
+        'youtube_id',
     ];
 
     protected $casts = [
@@ -102,6 +103,49 @@ class StrengthExercise extends Model
     public function image(): HasOne
     {
         return $this->hasOne(StrengthExerciseImage::class);
+    }
+
+    public function aliases(): HasMany
+    {
+        return $this->hasMany(StrengthExerciseAlias::class);
+    }
+
+    /** Die Kennung eines Anbieters, z. B. `HIP_RAISE/KETTLEBELL_SWING` für Garmin. */
+    public function aliasFor(string $provider): ?string
+    {
+        return $this->aliases->firstWhere('provider', $provider)?->external_key;
+    }
+
+    /** Garmins Kategorie — aus der Zuordnung, nicht mehr aus einer Spalte. */
+    public function getGarminCategoryAttribute(): ?string
+    {
+        $key = $this->aliasFor(StrengthExerciseAlias::GARMIN);
+
+        return $key ? explode('/', $key, 2)[0] : null;
+    }
+
+    public function getGarminNameAttribute(): ?string
+    {
+        $key = $this->aliasFor(StrengthExerciseAlias::GARMIN);
+
+        return $key && str_contains($key, '/') ? explode('/', $key, 2)[1] : null;
+    }
+
+    /**
+     * Die Kennung eines Anbieters setzen (null entfernt sie). Eine Kennung,
+     * die schon an einer anderen Übung hängt, wandert hierher — der Rückweg
+     * aus der Uhr-Datei muss eindeutig bleiben.
+     */
+    public function setAlias(string $provider, ?string $externalKey): void
+    {
+        $this->aliases()->where('provider', $provider)->delete();
+
+        if ($externalKey !== null && $externalKey !== '') {
+            StrengthExerciseAlias::where('provider', $provider)->where('external_key', $externalKey)->delete();
+            $this->aliases()->create(['provider' => $provider, 'external_key' => $externalKey]);
+        }
+
+        $this->unsetRelation('aliases');
     }
 
     public function scopeActive(Builder $q): Builder

@@ -75,6 +75,7 @@ class ActivityController extends Controller
             ],
             'paceZones'     => $paceZones,
             'strength'      => app(\App\Services\Strength\StrengthSets::class)->present($activity->strength_sets, $linkedSession),
+            'muscleLabels'  => $activity->strength_sets ? \App\Services\Strength\Muscles::LABELS : null,
             'ftpHint'       => app(\App\Services\Bike\FtpCheck::class)
                 ->forActivity($activity, Auth::user()->runnerProfile?->ftp),
             'linkedSession' => $linkedSession ? [

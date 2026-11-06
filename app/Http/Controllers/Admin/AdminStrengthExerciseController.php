@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\StrengthExercise;
+use App\Models\StrengthExerciseAlias;
 use App\Services\Strength\StrengthCatalog;
 use App\Services\Strength\WgerClient;
 use Illuminate\Http\JsonResponse;
@@ -70,12 +71,17 @@ class AdminStrengthExerciseController extends Controller
     {
         $data = $this->validated($request);
 
-        $exercise = DB::transaction(function () use ($data) {
-            return StrengthExercise::create($data + [
+        $garmin = $this->pullGarmin($data);
+
+        $exercise = DB::transaction(function () use ($data, $garmin) {
+            $exercise = StrengthExercise::create($data + [
                 'key'    => $this->uniqueKey($data['name']),
                 'active' => true,
                 'sort'   => (int) StrengthExercise::max('sort') + 10,
             ]);
+            $exercise->setAlias(StrengthExerciseAlias::GARMIN, $garmin);
+
+            return $exercise;
         });
 
         $message = "„{$exercise->name}“ angelegt.";
@@ -92,8 +98,10 @@ class AdminStrengthExerciseController extends Controller
     {
         $data = $this->validated($request);
         $wgerChanged = ($data['wger_id'] ?? null) !== $exercise->wger_id;
+        $garmin = $this->pullGarmin($data);
 
         $exercise->update($data);
+        $exercise->setAlias(StrengthExerciseAlias::GARMIN, $garmin);
 
         // Andere wger-Übung → das alte Bild gehört nicht mehr dazu.
         if ($wgerChanged) {
@@ -200,6 +208,15 @@ class AdminStrengthExerciseController extends Controller
         unset($data['youtube']);
 
         return $data;
+    }
+
+    /** Garmins Kategorie und Name aus dem Formular → eine Kennung der Zuordnung. */
+    private function pullGarmin(array &$data): ?string
+    {
+        $key = StrengthExerciseAlias::garminKey($data['garmin_category'] ?? null, $data['garmin_name'] ?? null);
+        unset($data['garmin_category'], $data['garmin_name']);
+
+        return $key;
     }
 
     private function uniqueKey(string $name): string

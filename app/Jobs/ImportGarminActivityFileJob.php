@@ -8,7 +8,6 @@ use App\Models\GarminWebhookEvent;
 use App\Services\Fit\FitDecoder;
 use App\Services\Garmin\GarminClient;
 use App\Services\Strength\StrengthSets;
-use Carbon\Carbon;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -22,11 +21,11 @@ use Throwable;
  * `callbackURL` anbietet (gültig 24 Stunden). Geladen wird nur für
  * Krafttrainings — für einen Lauf hat Zone3 alles aus `activityDetails`.
  *
- * Die Aktivität muss schon da sein. Kommt die Datei vor der Zusammenfassung,
- * versucht der Job es später noch einmal. Kommen die Aktivitäten von Strava,
- * gibt es keine Zeile mit Garmin-ID; dann hängen die Sätze an der
- * Krafteinheit aus Strava mit derselben Startzeit (±2 min) — Strava liefert
- * die Übungen über seine API nicht.
+ * Die Aktivität muss schon da sein (gesucht über die Garmin-ID). Kommt die
+ * Datei vor der Zusammenfassung, versucht der Job es später noch einmal.
+ * Kommen die Aktivitäten eines Athleten von Strava, gibt es keine Zeile mit
+ * Garmin-ID, und die Sätze fallen weg — Strava wird dafür nicht extra
+ * bedient (Jans Entscheidung, 06.11.2026).
  */
 class ImportGarminActivityFileJob implements ShouldQueue
 {
@@ -81,7 +80,7 @@ class ImportGarminActivityFileJob implements ShouldQueue
             return;
         }
 
-        $activity = $this->findActivity($connection->user_id, $activityId, isset($item['startTimeInSeconds']) ? (int) $item['startTimeInSeconds'] : null);
+        $activity = $this->findActivity($connection->user_id, $activityId);
 
         if (! $activity) {
             if ($this->attempts() < $this->tries) {
@@ -109,7 +108,7 @@ class ImportGarminActivityFileJob implements ShouldQueue
             return;
         }
 
-        $sets = StrengthSets::fromFit($decoded['sets']);
+        $sets = StrengthSets::fromFit($decoded['sets'], Activity::SOURCE_GARMIN);
         if ($sets === []) {
             $outcome(GarminWebhookEvent::OUTCOME_NOTHING_TO_STORE, 'keine Sätze in der Datei');
 
@@ -120,24 +119,10 @@ class ImportGarminActivityFileJob implements ShouldQueue
         $outcome(GarminWebhookEvent::OUTCOME_STORED, count($sets) . ' Sätze · ' . $activity->name);
     }
 
-    private function findActivity(int $userId, int $activityId, ?int $start): ?Activity
+    private function findActivity(int $userId, int $activityId): ?Activity
     {
-        if ($activityId > 0) {
-            $byId = Activity::where('user_id', $userId)->where('garmin_activity_id', $activityId)->first();
-            if ($byId) {
-                return $byId;
-            }
-        }
-
-        if ($start === null) {
-            return null;
-        }
-
-        $at = Carbon::createFromTimestampUTC($start);
-
-        return Activity::where('user_id', $userId)
-            ->whereIn('type', self::STRENGTH_TYPES)
-            ->whereBetween('start_date', [$at->copy()->subMinutes(2), $at->copy()->addMinutes(2)])
-            ->first();
+        return $activityId > 0
+            ? Activity::where('user_id', $userId)->where('garmin_activity_id', $activityId)->first()
+            : null;
     }
 }

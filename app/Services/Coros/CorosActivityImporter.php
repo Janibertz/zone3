@@ -269,7 +269,7 @@ class CorosActivityImporter
         }
 
         // Krafttraining: dieselbe `set`-Nachricht wie bei Garmin.
-        $sets = \App\Services\Strength\StrengthSets::fromFit($decoded['sets'] ?? []);
+        $sets = \App\Services\Strength\StrengthSets::fromFit($decoded['sets'] ?? [], \App\Models\Activity::SOURCE_COROS);
         if ($sets !== []) {
             $attributes['strength_sets'] = $sets;
         }
