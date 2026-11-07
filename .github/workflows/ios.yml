@@ -9,10 +9,14 @@ name: iOS
 # zählen in privaten Repositories zehnfach, darum kein Lauf bei jedem Push.
 #
 # Stufe 1: Simulator-Build ohne Signatur — beweist, dass das Projekt baut.
-# Signieren und Upload zu TestFlight folgen, sobald der Apple-Developer-Zugang
-# und der App-Store-Connect-API-Schlüssel als Secrets hinterlegt sind.
+# Stufe 2 (Job testflight) signiert und lädt hoch, nur per Hand gestartet.
 on:
   workflow_dispatch:
+    inputs:
+      testflight:
+        description: 'Signieren und zu TestFlight hochladen'
+        type: boolean
+        default: false
   pull_request:
     paths:
       - 'ios/**'
@@ -61,3 +65,89 @@ jobs:
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+  # Stufe 2: signieren und zu TestFlight hochladen — nur per Hand
+  # (Actions → iOS → Run workflow, „testflight" anhaken).
+  #
+  # Ohne Mac gibt es keinen Schlüsselbund mit Zertifikat. Xcode holt sich
+  # Zertifikat und Profil deshalb selbst über den App-Store-Connect-API-
+  # Schlüssel (-allowProvisioningUpdates, „cloud-managed signing"). Dafür
+  # braucht der Schlüssel die Rolle Admin; App Manager darf keine
+  # Zertifikate anlegen.
+  #
+  # Secrets: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (Inhalt der .p8-Datei),
+  # APPLE_TEAM_ID. Die App muss in App Store Connect einmal von Hand angelegt
+  # sein (Name Zone3, Bundle-ID run.zone3.app), sonst lehnt der Upload ab.
+  testflight:
+    name: TestFlight
+    if: github.event_name == 'workflow_dispatch' && inputs.testflight
+    needs: build
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Abhängigkeiten
+        run: npm ci
+
+      - name: Capacitor synchronisieren
+        run: npx cap sync ios
+
+      - name: API-Schlüssel ablegen
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/asc/key.p8"
+
+      - name: Archiv bauen
+        # Die Build-Nummer muss bei jedem Upload steigen; die Laufnummer tut das.
+        run: |
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Zone3.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/asc/key.p8" \
+            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
+            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            archive
+
+      - name: Exportieren und hochladen
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key><string>app-store-connect</string>
+              <key>destination</key><string>upload</string>
+              <key>teamID</key><string>${{ secrets.APPLE_TEAM_ID }}</string>
+              <key>signingStyle</key><string>automatic</string>
+              <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Zone3.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/asc/key.p8" \
+            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
+
+      - name: Schlüssel entfernen
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/asc"
