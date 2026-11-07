@@ -108,7 +108,13 @@ const groups = computed(() => [
                     class="flex min-h-[76px] items-center gap-3 rounded-card bg-surface px-4 py-3 transition-colors active:bg-surface-2">
                     <UserAvatar :user="user" size="lg" class="!h-14 !w-14 !text-[20px]" />
                     <span class="min-w-0 flex-1">
-                        <span class="block truncate text-[20px] font-bold text-ink">{{ user.name }}</span>
+                        <span class="flex items-center gap-2">
+                            <span class="truncate text-[20px] font-bold text-ink">{{ user.name }}</span>
+                            <span v-if="s.beta_badge" class="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[12px] font-semibold text-white">
+                                <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4l-5.2 2.7 1-5.8L3.5 9.2l5.9-.9L12 3z" /></svg>
+                                Beta-Tester
+                            </span>
+                        </span>
                         <span class="block truncate text-[13px] text-ink-3">
                             <template v-if="s.vdot">VDOT {{ fmtNum(s.vdot) }}</template><template v-if="s.vdot && s.threshold"> · </template><template v-if="s.threshold">Schwelle {{ s.threshold }} /km</template>
                             <template v-if="!s.vdot && !s.threshold">{{ user.email }}</template>

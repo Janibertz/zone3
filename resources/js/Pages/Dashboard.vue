@@ -7,6 +7,8 @@ import AppSheet from '@/Components/UI/AppSheet.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import GarminSendSheet from '@/Components/UI/GarminSendSheet.vue';
 import GarminRecovery from '@/Components/GarminRecovery.vue';
+import StarterChecklistCard from '@/Components/StarterChecklistCard.vue';
+import NotificationChoice from '@/Components/Settings/NotificationChoice.vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import { activityType, matchesSport } from '@/Composables/useActivityTypes';
 import { useCoachChat } from '@/Composables/useCoachChat';
@@ -31,6 +33,8 @@ const props = defineProps({
     stravaAccount: Object,
     events: { type: Array, default: () => [] },
     goalCheck:        { type: Object, default: null },
+    starterChecklist: { type: Object, default: null },
+    notifyOptions:    { type: Object, default: () => ({ vapidPublicKey: '', telegram: { available: false, linked: false } }) },
     recentActivities: {
         type: Array,
         default: () => [],
@@ -496,7 +500,20 @@ const metricSource = computed(() => {
  * nur aus Laeufen kam. Jetzt zaehlt alles mit — aber sichtbar, und
  * umschaltbar.
  */
-const { open: openChat } = useCoachChat();
+const { open: openChat, isOpen: chatOpen } = useCoachChat();
+
+// Einsteiger-Checkliste: Punkte ohne eigene Seite öffnen hier etwas.
+const notifySheet = ref(false);
+function starterAction(action) {
+    if (action === 'chat') openChat();
+    else if (action === 'tagesform') showWellbeingModal.value = true;
+    else if (action === 'notify') notifySheet.value = true;
+}
+function refreshStarter() {
+    if (props.starterChecklist) router.reload({ only: ['starterChecklist', 'notifyOptions'] });
+}
+// Nach dem ersten „Hallo“ im Chat steht der Haken beim Schliessen.
+watch(chatOpen, (open) => { if (!open) refreshStarter(); });
 
 /**
  * Die wöchentliche Zielprüfung.
@@ -1227,6 +1244,9 @@ async function resetLayout() {
             <PageHeader :eyebrow="headerLine" title="Heute" />
 
             <div class="space-y-7 px-4 pb-8 pt-2 lg:px-8">
+
+                <!-- Einsteiger-Checkliste — fest oben, bis alles erledigt ist. -->
+                <StarterChecklistCard v-if="starterChecklist" :checklist="starterChecklist" @action="starterAction" />
 
                 <!-- ══════════════════════════════════════════════════
                      ZIELPRÜFUNG — wöchentlich, nur bei echter Abweichung
@@ -2208,6 +2228,10 @@ async function resetLayout() {
              ══════════════════════════════════════════════════
              Pfeile statt Ziehen: im Sheet kollidiert Ziehen mit dem
              Wischen, das das Sheet schliesst, und mit dem Scrollen. -->
+        <AppSheet dialog :show="notifySheet" title="Benachrichtigungen" subtitle="Telegram, Push oder beides" @close="notifySheet = false; refreshStarter()">
+            <NotificationChoice :vapid-public-key="notifyOptions.vapidPublicKey" :telegram="notifyOptions.telegram" @changed="refreshStarter" />
+        </AppSheet>
+
         <AppSheet :show="layoutSheet" title="Übersicht anpassen" subtitle="Gilt auf allen deinen Geräten" @close="layoutSheet = false">
             <p class="z-hint mb-4">
                 „Heute“ und Hinweise, die eine Antwort brauchen, stehen immer oben.

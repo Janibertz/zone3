@@ -40,6 +40,12 @@ class OnboardingController extends Controller
             'coaches'     => $coaches,
             'resumeStep'  => session(self::RESUME_KEY),
             'connections' => fn () => $this->connections($user->fresh()),
+            'coachTexts'  => \App\Services\OnboardingTexts::all(),
+            'vapidPublicKey' => config('services.webpush.public_key'),
+            'telegram'    => fn () => [
+                'available' => app(\App\Services\TelegramClient::class)->configured(),
+                'linked'    => $user->fresh()->hasTelegram(),
+            ],
         ]);
     }
 
@@ -50,10 +56,10 @@ class OnboardingController extends Controller
      * es diese Session nicht — wohl aber, wenn der Athlet in die App
      * zurueckwechselt.
      */
-    public static function rememberConnectStep(Request $request): void
+    public static function rememberConnectStep(Request $request, string $step = 'connect'): void
     {
         if ($request->user() && ! $request->user()->onboarding_completed_at) {
-            $request->session()->put(self::RESUME_KEY, 'connect');
+            $request->session()->put(self::RESUME_KEY, $step);
         }
     }
 

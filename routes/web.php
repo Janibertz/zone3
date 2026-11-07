@@ -79,6 +79,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/onboarding/goal', [OnboardingController::class, 'saveGoal'])->name('onboarding.goal');
     Route::post('/onboarding/reset', [OnboardingController::class, 'reset'])->name('onboarding.reset');
     Route::post('/onboarding/complete', [OnboardingController::class, 'complete'])->name('onboarding.complete');
+    // Der Schritt „Benachrichtigungen“ verbindet Telegram und Push — vor dem
+    // Abschluss, also ohne die Onboarding-Middleware (wie Strava/Garmin).
+    Route::post('/profile/telegram', [\App\Http\Controllers\TelegramLinkController::class, 'store'])->name('telegram.link');
+    Route::post('/push/subscribe', [PushSubscriptionController::class, 'store'])->name('push.subscribe');
+    Route::post('/push/unsubscribe', [PushSubscriptionController::class, 'destroy'])->name('push.unsubscribe');
 
     // Verbinden geht schon im Onboarding (letzter Schritt), darum ohne die
     // Onboarding-Pruefung. Der Rueckweg fuehrt dorthin zurueck, solange es
@@ -300,6 +305,15 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         'weekPlan' => $weekPlan,
         // Reihenfolge und Sichtbarkeit der Module, siehe App\Services\DashboardLayout.
         'dashboardLayout' => \App\Services\DashboardLayout::resolve($user->dashboard_layout),
+        // Einsteiger-Checkliste, fest oben (Jan, 07.11.2026); null = geschlossen.
+        'starterChecklist' => app(\App\Services\StarterChecklist::class)->forUser($user),
+        'notifyOptions' => [
+            'vapidPublicKey' => config('services.webpush.public_key'),
+            'telegram'       => [
+                'available' => app(\App\Services\TelegramClient::class)->configured(),
+                'linked'    => $user->hasTelegram(),
+            ],
+        ],
         'returnToRun' => $returnToRunService->statusFor($user),
         // whereDate statt where: die Spalte ist ein DATE, kommt je nach
         // Treiber aber als "Y-m-d H:i:s" zurueck — ein Stringvergleich
@@ -495,9 +509,17 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar');
     Route::patch('/profile/coach', [ProfileController::class, 'updateCoach'])->name('profile.coach');
+    Route::post('/starter-checklist/dismiss', function (\Illuminate\Http\Request $request) {
+        // Schliessen geht erst, wenn alles erledigt ist — sonst wäre „fest
+        // oben“ nur eine Bitte.
+        $card = app(\App\Services\StarterChecklist::class)->forUser($request->user());
+        abort_unless($card && $card['complete'], 422);
+        $request->user()->forceFill(['starter_dismissed_at' => now()])->save();
+
+        return back();
+    })->name('starter-checklist.dismiss');
     Route::put('/dashboard/layout', [\App\Http\Controllers\DashboardLayoutController::class, 'update'])->name('dashboard.layout');
     Route::delete('/dashboard/layout', [\App\Http\Controllers\DashboardLayoutController::class, 'destroy'])->name('dashboard.layout.reset');
-    Route::post('/profile/telegram', [\App\Http\Controllers\TelegramLinkController::class, 'store'])->name('telegram.link');
     Route::delete('/profile/telegram', [\App\Http\Controllers\TelegramLinkController::class, 'destroy'])->name('telegram.unlink');
     Route::post('/profile/calendar', [\App\Http\Controllers\CalendarFeedController::class, 'store'])->name('calendar-feed.store');
     Route::delete('/profile/calendar', [\App\Http\Controllers\CalendarFeedController::class, 'destroy'])->name('calendar-feed.destroy');
@@ -505,8 +527,6 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // Push Notifications
-    Route::post('/push/subscribe', [PushSubscriptionController::class, 'store'])->name('push.subscribe');
-    Route::post('/push/unsubscribe', [PushSubscriptionController::class, 'destroy'])->name('push.unsubscribe');
     Route::patch('/push/settings', [PushSubscriptionController::class, 'updateSettings'])->name('push.settings');
     Route::post('/push/test', [PushSubscriptionController::class, 'test'])->name('push.test');
 

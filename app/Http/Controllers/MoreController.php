@@ -30,6 +30,8 @@ class MoreController extends Controller
         return Inertia::render('More', [
             'summary' => [
                 'vdot'        => $vdot ? round($vdot, 1) : null,
+                // Für die erledigte Einsteiger-Checkliste (Jan, 07.11.2026).
+                'beta_badge'  => (bool) $user->beta_badge_at,
                 'threshold'   => $profile?->thresholdDisplay()['pace']
                     ?? ($profile?->threshold_speed ? PaceFormat::fromMinutes((float) $profile->threshold_speed) : null),
                 'events'      => $user->events()->whereDate('event_date', '>=', today())->count(),

@@ -70,6 +70,9 @@ class User extends Authenticatable
             'dashboard_layout'              => 'array',
             'garmin_workout_sync'           => 'boolean',
             'strava_allowed'                => 'boolean',
+            'starter_plan_viewed_at'        => 'datetime',
+            'starter_dismissed_at'          => 'datetime',
+            'beta_badge_at'                 => 'datetime',
         ];
     }
 

@@ -10,12 +10,18 @@ import FormGroup from '@/Components/UI/FormGroup.vue';
 import FormRow from '@/Components/UI/FormRow.vue';
 import Toggle from '@/Components/UI/Toggle.vue';
 import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
+import CoachBubble from '@/Components/Onboarding/CoachBubble.vue';
+import NotificationChoice from '@/Components/Settings/NotificationChoice.vue';
 import { clockInput } from '@/Composables/useFormat';
 
 const props = defineProps({
     coaches:     Array,
     resumeStep:  { type: String, default: null },
     connections: { type: Object, default: () => ({ strava: null, garmin: null, garminAvailable: false, garminStatus: null, source: { current: 'strava', usable: [] } }) },
+    // Was der Coach über jeder Frage sagt — gepflegt unter /admin/onboarding-texts.
+    coachTexts:  { type: Object, default: () => ({}) },
+    vapidPublicKey: { type: String, default: '' },
+    telegram:    { type: Object, default: () => ({ available: false, linked: false }) },
 });
 
 const page = usePage();
@@ -34,6 +40,7 @@ const steps = [
     { key: 'strength',     label: 'Kraft & Core'  },
     { key: 'bike',         label: 'Rad / Zwift'   },
     { key: 'goal',         label: 'Dein Ziel'     },
+    { key: 'notify',       label: 'Benachrichtigungen' },
     { key: 'connect',      label: 'Verbindungen'  },
 ].map((s, i) => ({ ...s, number: i + 1 }));
 // Zurück von Strava oder Garmin geht es beim Verbinden weiter, nicht vorn.
@@ -45,7 +52,17 @@ function nextStep() { if (currentStep.value < totalSteps) currentStep.value++; }
 // ════════════════════════════════════════════════════════════════════════
 // STEP 2 — Coach selection
 // ════════════════════════════════════════════════════════════════════════
-const selectedCoachId = ref(props.coaches?.find(c => c.slug === 'max')?.id ?? null);
+const selectedCoachId = ref(user.value?.coach_id ?? props.coaches?.find(c => c.slug === 'max')?.id ?? null);
+
+// Der Coach spricht ab seiner Wahl über jeder Frage (Jan, 07.11.2026).
+const activeCoach = computed(() => props.coaches?.find(c => c.id === selectedCoachId.value) ?? null);
+const firstName   = computed(() => user.value?.name?.split(' ')[0] ?? '');
+const say = (key) => props.coachTexts?.[key] ?? '';
+
+// Benachrichtigungen: Telegram oder Push, gleichrangig.
+const notifyChoice = ref(null);
+const notifyOn = computed(() => !!notifyChoice.value?.anyOn);
+function refreshNotify() { router.reload({ only: ['telegram'] }); }
 const coachLoading    = ref(false);
 const coachError      = ref(null);
 
@@ -482,6 +499,10 @@ const bar = computed(() => {
             return { label: 'Weiter', run: submitBike, loading: bikeLoading.value, skip: bikeForm.value.bike_enabled ? nextStep : null };
         case 'goal':
             return { label: 'Ziel sichern', run: submitGoal, loading: goalLoading.value, skip: nextStep };
+        case 'notify':
+            return notifyOn.value
+                ? { label: 'Weiter', run: nextStep }
+                : { skip: nextStep, skipLabel: 'Nicht jetzt' };
         case 'connect':
             return anyLinked.value
                 ? { label: 'Fertig', run: complete }
@@ -544,7 +565,7 @@ const bar = computed(() => {
             <template v-else-if="stepKey === 'coach'">
                 <header>
                     <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Wähle deinen Coach</h1>
-                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Dein Coach begleitet dich durch jedes Training. Wechseln geht jederzeit.</p>
+                    <CoachBubble class="mt-4" :coach="activeCoach" :name="firstName" :text="say('coach')" />
                 </header>
                 <FormGroup :footer="coaches.find(c => c.id === selectedCoachId)?.description">
                     <button v-for="coach in coaches" :key="coach.id" type="button" role="radio" :aria-checked="selectedCoachId === coach.id"
@@ -566,7 +587,7 @@ const bar = computed(() => {
             <template v-else-if="stepKey === 'profile'">
                 <header>
                     <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Deine Werte</h1>
-                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Aus Puls und Schwellenpace rechnet Zone3 deine Trainingszonen.</p>
+                    <CoachBubble class="mt-4" :coach="activeCoach" :name="firstName" :text="say('profile')" />
                 </header>
 
                 <FormGroup v-if="!profileMode">
@@ -638,7 +659,7 @@ const bar = computed(() => {
             <template v-else-if="stepKey === 'model'">
                 <header>
                     <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Wie willst du trainieren?</h1>
-                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Wechseln geht später im Profil.</p>
+                    <CoachBubble class="mt-4" :coach="activeCoach" :name="firstName" :text="say('model')" />
                 </header>
                 <TrainingModelFields v-model="modelForm" :readiness="modelReadiness" />
                 <p v-if="modelError" class="z-error mx-4">{{ modelError }}</p>
@@ -648,7 +669,7 @@ const bar = computed(() => {
             <template v-else-if="stepKey === 'availability'">
                 <header>
                     <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Wann kannst du trainieren?</h1>
-                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Der Plan hält sich an diese Tage und Zeiten.</p>
+                    <CoachBubble class="mt-4" :coach="activeCoach" :name="firstName" :text="say('availability')" />
                 </header>
                 <FormGroup :footer="days.some(d => availability[d.key].available)
                         ? `${days.filter(d => availability[d.key].available).length} Tage · ${days.filter(d => availability[d.key].available).reduce((s, d) => s + availability[d.key].duration_min, 0)} min pro Woche`
@@ -680,7 +701,7 @@ const bar = computed(() => {
             <template v-else-if="stepKey === 'strength'">
                 <header>
                     <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Kraft und Rumpf</h1>
-                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Beugt Verletzungen vor und macht dich schneller. Soll dein Coach Kraft-Einheiten einplanen?</p>
+                    <CoachBubble class="mt-4" :coach="activeCoach" :name="firstName" :text="say('strength')" />
                 </header>
                 <FormGroup>
                     <FormRow label="Kraft einplanen" hint="Ergänzend zum Laufen">
@@ -716,7 +737,7 @@ const bar = computed(() => {
             <template v-else-if="stepKey === 'bike'">
                 <header>
                     <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Rad als Abwechslung?</h1>
-                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Gerade im Winter ein guter Reiz. Zwift-Fahrten kommen mit deinen anderen Aktivitäten an.</p>
+                    <CoachBubble class="mt-4" :coach="activeCoach" :name="firstName" :text="say('bike')" />
                 </header>
                 <BikeFields v-model="bikeForm" />
                 <p v-if="bikeError" class="z-error mx-4">{{ bikeError }}</p>
@@ -726,7 +747,7 @@ const bar = computed(() => {
             <template v-else-if="stepKey === 'goal'">
                 <header>
                     <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Was ist dein Ziel?</h1>
-                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Das Rennen, auf das dein Plan hinarbeitet.</p>
+                    <CoachBubble class="mt-4" :coach="activeCoach" :name="firstName" :text="say('goal')" />
                 </header>
                 <FormGroup title="Rennen">
                     <button v-for="opt in raceOptions" :key="opt.value" type="button" role="radio" :aria-checked="goalForm.race_distance === opt.value"
@@ -764,11 +785,20 @@ const bar = computed(() => {
                 <p v-for="msg in goalErrorList" :key="msg" class="z-error mx-4">{{ msg }}</p>
             </template>
 
+            <!-- ── Benachrichtigungen ── -->
+            <template v-else-if="stepKey === 'notify'">
+                <header>
+                    <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Wo erreiche ich dich?</h1>
+                    <CoachBubble class="mt-4" :coach="activeCoach" :name="firstName" :text="say('notify')" />
+                </header>
+                <NotificationChoice ref="notifyChoice" :vapid-public-key="vapidPublicKey" :telegram="telegram" @changed="refreshNotify" />
+            </template>
+
             <!-- ── Verbindungen ── -->
             <template v-else-if="stepKey === 'connect'">
                 <header>
                     <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Woher kommen deine Läufe?</h1>
-                    <p class="mt-2 text-[17px] leading-snug text-ink-3">{{ stravaOffered ? 'Garmin, Strava oder beides.' : 'Verbinde deine Garmin-Uhr.' }} Zone3 lernt aus deinen echten Läufen und gleicht sie mit dem Plan ab.</p>
+                    <CoachBubble class="mt-4" :coach="activeCoach" :name="firstName" :text="say('connect')" />
                 </header>
                 <FormGroup>
                     <template v-if="connections.garminAvailable">
