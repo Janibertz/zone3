@@ -26,6 +26,7 @@
         "@inertiajs/inertia": "^0.11.1",
         "cropperjs": "^1.6.2",
         "leaflet": "^1.9.4",
+        "maplibre-gl": "^5.24.0",
         "ziggy-js": "^2.6.2"
     }
 }

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed } from 'vue';
 import { Link, Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
@@ -7,6 +7,7 @@ import AppButton from '@/Components/UI/AppButton.vue';
 import SectionHeader from '@/Components/UI/SectionHeader.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import MuscleMap from '@/Components/Strength/MuscleMap.vue';
+import RouteMap from '@/Components/Map/RouteMap.vue';
 import { activityType } from '@/Composables/useActivityTypes';
 import { sessionType } from '@/Composables/useSessionTypes';
 import { fmtNum, clock, speedOf, distanceOf, paceFromSpeed } from '@/Composables/useFormat';
@@ -285,16 +286,12 @@ function decodePolyline(encoded) {
     return coords;
 }
 
-// ── Leaflet map ───────────────────────────────────────────────────────────────
+// ── Streckenkarte ─────────────────────────────────────────────────────────────
 
-const mapContainer = ref(null);
-let mapInstance    = null;
-let L              = null;       // Leaflet module, kept for the highlight watcher
-let routeCoords    = [];         // decoded polyline points [[lat,lng], …]
-let polyCum        = [];         // cumulative distance (m) up to each point
-let polyTotal      = 0;          // total polyline length (m)
-let lapFractions   = [];         // [{start, end}] distance fraction per lap (0–1)
-let highlightLayer = null;       // currently drawn lap-segment polyline
+/** Zonenfarbe als Name aus app.css — dieselben wie die Rundenbalken. */
+const ZONE_TONE = { z1: 'ink-3', z2: 'success', z3: 'accent', z4: 'warn', z5: 'danger' };
+
+const routeCoords = computed(() => (props.activity.polyline ? decodePolyline(props.activity.polyline) : []));
 
 // Great-circle distance between two [lat,lng] points in metres.
 function haversine(a, b) {
@@ -306,104 +303,36 @@ function haversine(a, b) {
     return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-// Map a lap onto the route by distance fraction (approximate — the stored
-// polyline may be a simplified summary, so we scale by fraction of total length
-// rather than absolute metres).
-function buildLapSegment(i) {
-    if (routeCoords.length < 2 || !lapFractions[i] || polyTotal <= 0) return [];
-    const startD = lapFractions[i].start * polyTotal;
-    const endD   = lapFractions[i].end   * polyTotal;
-    let a = -1, b = -1;
-    for (let k = 0; k < routeCoords.length; k++) {
-        if (a === -1 && polyCum[k] >= startD) a = k;
-        if (polyCum[k] <= endD) b = k;
-    }
-    if (a === -1) a = b;
-    a = Math.max(0, a - 1);                              // include neighbours so
-    b = Math.min(routeCoords.length - 1, b + 1);         // segments stay connected
-    return a < b ? routeCoords.slice(a, b + 1) : [];
-}
+/**
+ * Je Runde ein Abschnitt der Route in ihrer Zonenfarbe. Zugeordnet über den
+ * Anteil an der Strecke (ungefähr — die gespeicherte Linie kann vereinfacht
+ * sein, darum Anteil statt absoluter Meter). Ohne Runden eine Linie in Akzent.
+ */
+const routeSegments = computed(() => {
+    const coords = routeCoords.value;
+    if (!hasLaps.value || coords.length < 2) return [];
 
-// Redraw the orange highlight whenever the active lap changes.
-watch(activeLap, (i) => {
-    if (!mapInstance || !L) return;
-    if (highlightLayer) { highlightLayer.remove(); highlightLayer = null; }
-    if (i === null || i === undefined) return;
-    const seg = buildLapSegment(i);
-    if (seg.length < 2) return;
-    highlightLayer = L.polyline(seg, { color: '#f97316', weight: 6, opacity: 1 }).addTo(mapInstance);
-    highlightLayer.bringToFront();
+    const cum = [0];
+    for (let k = 1; k < coords.length; k++) cum[k] = cum[k - 1] + haversine(coords[k - 1], coords[k]);
+    const total = cum[cum.length - 1];
+    const dists = props.activity.laps.map((l) => l.distance || 0);
+    const lapTotal = dists.reduce((a, d) => a + d, 0);
+    if (total <= 0 || lapTotal <= 0) return [];
+
+    let acc = 0;
+    let from = 0;
+    return props.activity.laps.map((lap, i) => {
+        acc += dists[i];
+        const endD = acc / lapTotal * total;
+        let to = from;
+        while (to < coords.length - 1 && cum[to + 1] <= endD) to++;
+        if (i === props.activity.laps.length - 1) to = coords.length - 1;
+        const seg = { from, to, tone: ZONE_TONE[zoneOf(lap.average_speed)] ?? 'accent' };
+        from = to;
+        return seg;
+    });
 });
 
-onMounted(async () => {
-    // Precompute per-lap distance fractions (independent of the map).
-    if (hasLaps.value) {
-        const dists  = props.activity.laps.map(l => l.distance || 0);
-        const totalD = dists.reduce((s, d) => s + d, 0) || 1;
-        let cum = 0;
-        lapFractions = dists.map(d => {
-            const start = cum / totalD;
-            cum += d;
-            return { start, end: cum / totalD };
-        });
-    }
-
-    if (!props.activity.polyline || !mapContainer.value) return;
-
-    try {
-        routeCoords = decodePolyline(props.activity.polyline);
-        if (routeCoords.length === 0) return;
-
-        // Cumulative distance along the route, for lap-segment lookup.
-        polyCum = new Array(routeCoords.length);
-        polyCum[0] = 0;
-        for (let k = 1; k < routeCoords.length; k++) {
-            polyCum[k] = polyCum[k - 1] + haversine(routeCoords[k - 1], routeCoords[k]);
-        }
-        polyTotal = polyCum[routeCoords.length - 1];
-
-        L = (await import('leaflet')).default;
-        await import('leaflet/dist/leaflet.css');
-
-        // Fix Leaflet default icon paths broken by Vite
-        delete L.Icon.Default.prototype._getIconUrl;
-        L.Icon.Default.mergeOptions({
-            iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-            iconUrl:       'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-            shadowUrl:     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-        });
-
-        mapInstance = L.map(mapContainer.value, { zoomControl: false, scrollWheelZoom: false, attributionControl: true });
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap',
-            maxZoom: 18,
-        }).addTo(mapInstance);
-
-        // Die Linie in der Farbe der Einheit, nicht im alten Indigo.
-        const accent = getComputedStyle(document.documentElement).getPropertyValue('--z-accent').trim().split(/\s+/).join(',');
-        const polyline = L.polyline(routeCoords, { color: `rgb(${accent || '0,113,227'})`, weight: 4, opacity: 0.95 }).addTo(mapInstance);
-        mapInstance.fitBounds(polyline.getBounds(), { padding: [16, 16] });
-
-        // Start + End markers
-        L.circleMarker(routeCoords[0], { radius: 7, color: '#16a34a', fillColor: '#16a34a', fillOpacity: 1, weight: 2 }).addTo(mapInstance);
-        L.circleMarker(routeCoords[routeCoords.length - 1], { radius: 7, color: '#dc2626', fillColor: '#dc2626', fillOpacity: 1, weight: 2 }).addTo(mapInstance);
-
-        // If a lap was already activated before the map finished loading, draw it.
-        if (activeLap.value !== null) {
-            const seg = buildLapSegment(activeLap.value);
-            if (seg.length >= 2) {
-                highlightLayer = L.polyline(seg, { color: '#f97316', weight: 6, opacity: 1 }).addTo(mapInstance);
-            }
-        }
-    } catch (e) {
-        console.warn('Leaflet init failed:', e);
-    }
-});
-
-onUnmounted(() => {
-    if (mapInstance) { mapInstance.remove(); mapInstance = null; }
-});
 </script>
 
 <template>
@@ -414,7 +343,8 @@ onUnmounted(() => {
             <div class="mx-auto max-w-3xl lg:px-8 lg:pt-6">
                 <!-- ── Karte randlos oben ─────────────────────────── -->
                 <div class="relative">
-                    <div v-if="activity.polyline" ref="mapContainer" class="z-0 h-[300px] w-full bg-surface-2 lg:rounded-card" />
+                    <RouteMap v-if="routeCoords.length > 1" :coords="routeCoords" :segments="routeSegments" :active="activeLap"
+                        class="z-0 h-[300px] w-full overflow-hidden bg-surface-2 lg:rounded-card" />
                     <div v-else class="h-16" />
                     <Link :href="backHref" aria-label="Zurück"
                         class="absolute left-4 top-4 z-[500] flex h-10 w-10 items-center justify-center rounded-full bg-surface/80 text-ink backdrop-blur-xl transition-transform active:scale-90">
