@@ -175,10 +175,16 @@ const zoneShare = computed(() => {
 // ── Lap ↔ chart ↔ map interaction ─────────────────────────────────────────────
 // Hovering (desktop) or tapping (mobile) a lap highlights it across the bar
 // chart, the table row, and the route segment on the map.
-const activeLap = ref(null);
-function setActiveLap(i)    { activeLap.value = i; }
-function clearActiveLap()   { activeLap.value = null; }
-function toggleActiveLap(i) { activeLap.value = activeLap.value === i ? null : i; }
+// Hover (nur Maus) zeigt eine Runde an, Antippen wählt sie fest und holt sie
+// auf der Karte ins Bild. Getrennt, weil ein Tipp auf dem Telefon erst ein
+// mouseenter und dann den Klick auslöst — beides auf einem Wert hob sich auf.
+const hoverLap  = ref(null);
+const pickedLap = ref(null);
+const activeLap = computed(() => pickedLap.value ?? hoverLap.value);
+function setActiveLap(i)    { hoverLap.value = i; }
+function clearActiveLap()   { hoverLap.value = null; }
+function toggleActiveLap(i) { pickedLap.value = pickedLap.value === i ? null : i; }
+function clearPickedLap()   { pickedLap.value = null; }
 
 // ── Session rating ────────────────────────────────────────────────────────────
 const ratingValue  = ref(props.linkedSession?.rating          ?? 0);
@@ -292,6 +298,10 @@ function decodePolyline(encoded) {
 const ZONE_TONE = { z1: 'ink-3', z2: 'success', z3: 'accent', z4: 'warn', z5: 'danger' };
 
 const routeCoords = computed(() => (props.activity.polyline ? decodePolyline(props.activity.polyline) : []));
+const hasMap = computed(() => routeCoords.value.length > 1);
+/** Unten liegen Titel und Kennzahlen auf der Karte; die Route bleibt darüber frei. */
+const MAP_PADDING = { top: 64, bottom: 200, left: 32, right: 32 };
+
 
 // Great-circle distance between two [lat,lng] points in metres.
 function haversine(a, b) {
@@ -343,9 +353,33 @@ const routeSegments = computed(() => {
             <div class="mx-auto max-w-3xl lg:px-8 lg:pt-6">
                 <!-- ── Karte randlos oben ─────────────────────────── -->
                 <div class="relative">
-                    <RouteMap v-if="routeCoords.length > 1" :coords="routeCoords" :segments="routeSegments" :active="activeLap"
-                        class="z-0 h-[300px] w-full overflow-hidden bg-surface-2 lg:rounded-card" />
+                    <RouteMap v-if="hasMap" :coords="routeCoords" :segments="routeSegments" :active="activeLap" :focus="pickedLap"
+                        mode="calm" :distance="activity.distance || 0" :padding="MAP_PADDING"
+                        class="z-0 h-[460px] w-full overflow-hidden bg-surface-2 lg:h-[520px] lg:rounded-card" />
                     <div v-else class="h-16" />
+
+                    <!-- Die Kopfdaten liegen auf der Karte (wie eine Story-Karte) und sparen den Block darunter. -->
+                    <div v-if="hasMap" class="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-canvas via-canvas/90 to-transparent px-4 pb-4 pt-20 lg:rounded-b-card lg:px-6 lg:pb-5">
+                        <p class="flex items-center gap-1.5 text-[15px] font-semibold" :class="label.color">
+                            <span class="h-2 w-2 shrink-0 rounded-full" :class="label.dot" />{{ label.text }}
+                        </p>
+                        <h1 class="mt-1 break-words text-[26px] font-extrabold leading-[31px] tracking-[-0.03em] text-ink">{{ activity.name }}</h1>
+                        <p class="mt-0.5 text-[13px] text-ink-3">{{ dateLine }}</p>
+                        <div class="mt-3 grid grid-cols-3 gap-3">
+                            <div v-for="m in bigMetrics" :key="m.k" class="min-w-0">
+                                <p class="text-[13px] text-ink-3">{{ m.k }}</p>
+                                <p class="whitespace-nowrap font-rounded text-[28px] font-extrabold leading-8 tracking-[-0.035em] tabular-nums text-ink">{{ m.v }}<span v-if="m.u" class="ml-0.5 text-[15px] font-semibold tracking-normal text-ink-3">{{ m.u }}</span></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Angetippte Runde: ihre Werte oben auf der Karte, Tipp schließt. -->
+                    <button v-if="hasMap && pickedLap !== null && lapRows[pickedLap]" type="button" @click="clearPickedLap"
+                        class="absolute left-4 top-16 z-[500] flex h-9 items-center gap-2 rounded-full bg-surface/80 px-3.5 text-[13px] font-semibold tabular-nums text-ink backdrop-blur-xl active:scale-95">
+                        <span class="h-2.5 w-2.5 rounded-full" :class="lapRows[pickedLap].bar" />
+                        Runde {{ lapRows[pickedLap].n }} · {{ lapRows[pickedLap].distance }} km · {{ lapRows[pickedLap].value }}{{ isCycling ? ' km/h' : ' /km' }}<template v-if="lapRows[pickedLap].hr"> · {{ lapRows[pickedLap].hr }} bpm</template>
+                        <span class="text-ink-3">✕</span>
+                    </button>
                     <Link :href="backHref" aria-label="Zurück"
                         class="absolute left-4 top-4 z-[500] flex h-10 w-10 items-center justify-center rounded-full bg-surface/80 text-ink backdrop-blur-xl transition-transform active:scale-90">
                         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
@@ -354,7 +388,7 @@ const routeSegments = computed(() => {
 
                 <div class="space-y-7 px-4 pt-5 lg:px-0">
                     <!-- ── Kopf ───────────────────────────────────── -->
-                    <header>
+                    <header v-if="!hasMap">
                         <p class="flex items-center gap-1.5 text-[15px] font-semibold" :class="label.color">
                             <span class="h-2 w-2 shrink-0 rounded-full" :class="label.dot" />{{ label.text }}
                         </p>
@@ -362,7 +396,7 @@ const routeSegments = computed(() => {
                         <p class="mt-1 text-[15px] text-ink-3">{{ dateLine }}</p>
                     </header>
 
-                    <div class="grid grid-cols-3 gap-3">
+                    <div v-if="!hasMap" class="grid grid-cols-3 gap-3">
                         <div v-for="m in bigMetrics" :key="m.k" class="min-w-0">
                             <p class="text-[13px] text-ink-3">{{ m.k }}</p>
                             <p class="whitespace-nowrap font-rounded text-[30px] font-extrabold leading-9 tracking-[-0.035em] tabular-nums text-ink">{{ m.v }}<span v-if="m.u" class="ml-0.5 text-[15px] font-semibold tracking-normal text-ink-3">{{ m.u }}</span></p>
@@ -469,7 +503,7 @@ const routeSegments = computed(() => {
                                 class="grid w-full grid-cols-[28px_1fr_56px] items-center gap-2.5 rounded-[8px] px-1 py-[3px] text-left transition-colors"
                                 :class="activeLap === i ? 'bg-surface-2' : ''"
                                 :aria-label="`Runde ${r.n}: ${r.distance} km in ${r.time}, ${r.value}`"
-                                :aria-pressed="activeLap === i"
+                                :aria-pressed="pickedLap === i"
                                 @mouseenter="setActiveLap(i)" @mouseleave="clearActiveLap" @click="toggleActiveLap(i)">
                                 <span class="text-[13px] tabular-nums text-ink-3">{{ r.n }}</span>
                                 <span class="block h-[18px]">
