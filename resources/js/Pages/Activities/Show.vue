@@ -104,7 +104,8 @@ async function destroyActivity() {
 
 // ── Runden ────────────────────────────────────────────────────────────────────
 
-const hasLaps = computed(() => Array.isArray(props.activity.laps) && props.activity.laps.length > 1);
+// Bei Kraft sind die Runden die Sätze — ohne Strecke, ohne Pace. Die stehen unter „Übungen“.
+const hasLaps = computed(() => !props.strength && Array.isArray(props.activity.laps) && props.activity.laps.length > 1);
 const isRun = computed(() => activityType(props.activity.type).group === 'run');
 const isCycling = computed(() => activityType(props.activity.type).group === 'ride');
 

@@ -77,7 +77,11 @@ class StrengthSets
             $out[] = self::row($source, [
                 'alias'      => StrengthExerciseAlias::GARMIN,
                 'key'        => StrengthExerciseAlias::garminKey($category, $name),
-                'name'       => $name ? self::humanize($name) : ($category ? self::humanize($category) : null),
+                // Nur eine Kategorie heißt: auf der Uhr wurde keine Übung gewählt.
+                // COROS schreibt so seine Körperregion („Legs/Hips" → SQUAT),
+                // Garmin eine Gruppe ohne Übung. Die Kategorie ist dann kein
+                // Übungsname, taugt aber für die Muskeln (`group`).
+                'name'       => $name ? self::humanize($name) : null,
                 'group'      => $category,
                 'reps'       => $reps,
                 'weight_kg'  => isset($set['weight']) && $set['weight'] > 0 ? (float) $set['weight'] : null,
@@ -170,6 +174,10 @@ class StrengthSets
         $groups = [];
 
         foreach ($sets as $set) {
+            // Ältere Zeilen trugen bei fehlender Übung die Kategorie als Namen.
+            if (! ($set['key'] ?? null) && ($set['group'] ?? null) && ($set['name'] ?? null) === self::humanize($set['group'])) {
+                $set['name'] = null;
+            }
             $id   = ($set['alias'] ?? '') . ':' . ($set['key'] ?? $set['name'] ?? '');
             $last = array_key_last($groups);
 
@@ -184,7 +192,7 @@ class StrengthSets
         return array_map(function (array $g) use ($catalog, $plannedKeys) {
             $match   = $this->catalogFor($g['alias'], $g['key'], $catalog, $plannedKeys);
             $present = $match ? ($this->catalog->present([['key' => $match->key]])[0] ?? []) : [];
-            $label   = $match?->name ?? $g['name'] ?? 'Unbekannt';
+            $label   = $match?->name ?? $g['name'] ?? ($g['group'] ? 'Übung nicht gewählt' : 'Unbekannt');
 
             return [
                 'key'       => $match?->key,
