@@ -851,6 +851,16 @@ Gewünscht am 25.10.2026: Einheiten als strukturiertes Training auf die Watch. S
 - Ohne gespeicherte Schritte wird die Einheit ein Abschnitt aus Strecke/Dauer/Pace — **kein Modellaufruf beim Herunterladen**, das wäre ein GET, der Geld kostet.
 - Offen: ob die Watch beim Laufen wirklich warnt, zeigt nur ein Lauf; die Vorschau beweist nur, dass die Datei gelesen wird.
 
+## Native iOS-App (Capacitor, im Aufbau seit 07.11.2026)
+
+Entscheidungen von Jan (27.10.): **Capacitor-Hülle statt Neubau**, zuerst nur iOS über **TestFlight** (Beta bleibt kostenlos), mit Apple Health; Android später. **Kein Mac** — Xcode läuft ausschliesslich auf GitHub Actions (`.github/workflows/ios.yml`).
+
+- `capacitor.config.json` → `server.url = https://zone3.run/dashboard`. Die App lädt die Live-Seite, Session-Login und alle Vue-Seiten bleiben unverändert, es gibt **keine API**. Eine Änderung an Laravel oder Vue braucht keinen neuen App-Build; nur `ios/`, Capacitor-Pakete und native Plugins.
+- `mobile/www/` ist nur die Ausweichseite ohne Netz — Capacitor verlangt ein `webDir`.
+- Bundle-ID `run.zone3.app`. Sie ist fest, sobald sie in App Store Connect registriert ist.
+- Der iOS-Workflow läuft nur bei Änderungen an `ios/`, Capacitor oder per Hand: macOS-Minuten zählen in privaten Repositories zehnfach.
+- Geplant: OAuth-Rücksprung per Universal Links (Garmin/Strava), nativer Push (APNs), WorkoutKit-Plugin statt `.workout`-Datei, HealthKit. HealthKit-Werte dürfen erst in Prompts, wenn das Data-Sharing mit OpenAI aus ist (Apple-Richtlinie 5.1.3).
+
 ## Garmin
 
 **Es gibt nur noch einen Weg: die offizielle Verbindung** (OAuth2, Push-Webhooks, Training API). Der alte Login über den Python-Fit-Service (garth, E-Mail und Passwort im Formular, `users.garmin_session`) ist mit Schritt 6 am 28.10.2026 abgebaut worden (Entscheidung von Jan): Dienst, Spalten, Formulare, `SyncGarminHealthJob` / `garmin:sync-health`, der Knopf „Aktualisieren" unter Erholung und der Garmin-Abruf beim Tagesform-Speichern. Die nie gerouteten FIT-/TCX-Downloads im `TrainingSessionController` sind mit gegangen. **LiveTrack ist davon unabhängig** — es fragt `livetrack.garmin.com` direkt ab, `live_tracks.garmin_session_id` hat mit dem alten Login nichts zu tun.

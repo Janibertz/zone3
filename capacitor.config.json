@@ -1,0 +1,13 @@
+{
+    "appId": "run.zone3.app",
+    "appName": "Zone3",
+    "webDir": "mobile/www",
+    "server": {
+        "url": "https://zone3.run/dashboard",
+        "cleartext": false
+    },
+    "ios": {
+        "contentInset": "never",
+        "backgroundColor": "#000000"
+    }
+}
