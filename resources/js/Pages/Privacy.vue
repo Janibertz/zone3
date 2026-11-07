@@ -10,7 +10,7 @@ import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
  * personenbezogene Daten bekommt, trägt ihn in `empfaenger` ein. Die Seite
  * ist eine Zusage an Fremde, keine Beschreibung von Absichten.
  */
-const STAND = '6. November 2026';
+const STAND = '7. November 2026';
 const MAIL = 'jan.anders@zone3.run';
 
 const empfaenger = [
@@ -55,9 +55,14 @@ const empfaenger = [
         zweck: 'Wetterdaten zu Trainings und Rennen. Der Server übermittelt dabei nur Koordinaten bzw. einen Ortsnamen, keine Angaben zu deiner Person.',
     },
     {
+        name: 'Hyperknot Software Kft. (OpenFreeMap)',
+        ort: 'Ungarn',
+        zweck: 'Kartendaten und Schrift für die Streckenkarte einer Aktivität. Dein Browser lädt sie direkt, dabei wird deine IP-Adresse übertragen; deine Strecke selbst wird nicht übertragen. Laut Betreiber stehen in den Zugriffsprotokollen keine IP-Adressen, in Fehlerprotokollen höchstens 7 Tage.',
+    },
+    {
         name: 'OpenStreetMap Foundation',
         ort: 'Vereinigtes Königreich',
-        zweck: 'Kartenkacheln für die Streckenkarten. Dein Browser lädt sie direkt, dabei wird deine IP-Adresse übertragen.',
+        zweck: 'Kartenkacheln für die Karte der Live-Verfolgung. Dein Browser lädt sie direkt, dabei wird deine IP-Adresse übertragen.',
     },
     {
         name: 'Google Ireland Limited (YouTube)',
