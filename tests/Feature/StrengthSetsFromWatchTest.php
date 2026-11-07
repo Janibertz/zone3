@@ -241,6 +241,38 @@ class StrengthSetsFromWatchTest extends TestCase
         $this->assertNull($p['comparison'], 'ohne geplante Einheit kein Vergleich');
     }
 
+    /**
+     * So schreibt COROS ein Krafttraining, bei dem auf der Uhr keine Übung
+     * gewählt wurde (echte Datei vom 07.11.2026, nachgebaut): jeder Satz nur
+     * mit der Kategorie SQUAT, ohne Übung — in COROS heißt das „Legs/Hips".
+     * Das ist eine Körperregion, kein Kniebeugen.
+     */
+    public function test_a_category_without_exercise_is_not_an_exercise(): void
+    {
+        $activity = $this->activity();
+        $legs = self::ids('SQUAT', null);
+        $sets = StrengthSets::fromFit((new FitDecoder())->decode(self::fit([
+            [$legs, 0, 31, null], [$legs, 6, 32, null], [$legs, 25, 247, null],
+        ]))['sets'], Activity::SOURCE_COROS);
+        $activity->update(['strength_sets' => $sets]);
+        $session = $this->plannedFor($activity);
+
+        $this->assertNull($sets[0]['name']);
+        $this->assertSame('SQUAT', $sets[0]['group']);
+
+        $p = app(StrengthSets::class)->present($activity->fresh()->strength_sets, $session);
+
+        $this->assertCount(1, $p['exercises']);
+        $this->assertSame('Übung nicht gewählt', $p['exercises'][0]['label']);
+        $this->assertSame([], $p['comparison']['extra'], 'keine „zusätzliche Kniebeuge"');
+        $this->assertSame(3, $p['comparison']['unknown_sets']);
+        $this->assertArrayHasKey('quads', $p['muscles'], 'die Region färbt trotzdem die Beine');
+
+        // Was vor dem Fix gespeichert wurde, trug die Kategorie als Namen.
+        $old = array_map(fn ($s) => ['name' => 'Squat'] + $s, $sets);
+        $this->assertSame('Übung nicht gewählt', app(StrengthSets::class)->present($old)['exercises'][0]['label']);
+    }
+
     public function test_the_admin_mapping_decides_the_match(): void
     {
         $activity = $this->activity();
