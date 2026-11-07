@@ -28,6 +28,9 @@ class TelegramLinkController extends Controller
             return back()->with('error', 'Telegram ist auf diesem Server noch nicht eingerichtet.');
         }
 
+        // Aus dem Onboarding geht es danach bei den Benachrichtigungen weiter.
+        OnboardingController::rememberConnectStep($request, 'notify');
+
         $token = Str::random(40);
         $request->user()->forceFill(['telegram_link_token' => $token])->save();
 

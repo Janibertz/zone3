@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminImpersonationController;
 use App\Http\Controllers\Admin\AdminInvitationController;
 use App\Http\Controllers\Admin\AdminNewsletterController;
+use App\Http\Controllers\Admin\AdminOnboardingTextController;
 use App\Http\Controllers\Admin\AdminSettingsController;
 use App\Http\Controllers\Admin\AdminStrengthExerciseController;
 use App\Http\Controllers\Admin\AdminSupportController;
@@ -49,6 +50,9 @@ Route::get('/workouts',                            [AdminWorkoutController::clas
 Route::post('/workouts/{workout}/unpublish',       [AdminWorkoutController::class, 'unpublish']) ->name('workouts.unpublish');
 
 // Kraft-Katalog — Übungen mit Bild aus wger. Nie löschen, nur abschalten.
+Route::get('/onboarding-texts',   [AdminOnboardingTextController::class, 'index'])  ->name('onboarding-texts.index');
+Route::put('/onboarding-texts',   [AdminOnboardingTextController::class, 'update']) ->name('onboarding-texts.update');
+
 Route::get('/strength-exercises',                         [AdminStrengthExerciseController::class, 'index'])        ->name('strength-exercises.index');
 Route::post('/strength-exercises',                        [AdminStrengthExerciseController::class, 'store'])        ->name('strength-exercises.store');
 Route::get('/strength-exercises/wger',                    [AdminStrengthExerciseController::class, 'wgerSearch'])   ->name('strength-exercises.wger');

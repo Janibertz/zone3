@@ -109,6 +109,11 @@ class TrainingPlanController extends Controller
             ]
             : null;
 
+        // „Deinen Plan ansehen“ in der Einsteiger-Checkliste.
+        if ($plan && ! Auth::user()->starter_plan_viewed_at) {
+            Auth::user()->forceFill(['starter_plan_viewed_at' => now()])->save();
+        }
+
         return Inertia::render('Events/Plan', [
             'event' => [
                 'id'                    => $event->id,

@@ -1,4 +1,5 @@
 <script setup>
+import { usePush } from '@/Composables/usePush';
 import { zoneRange } from '@/Composables/usePaceZones';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm, usePage, Link, router } from '@inertiajs/vue3';
@@ -246,11 +247,10 @@ const initials = computed(() => {
 });
 
 // ── Push Notification state ──────────────────────────────────────────────────
-const pushSupported    = ref('Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window);
-const pushPermission   = ref(typeof Notification !== 'undefined' ? Notification.permission : 'default');
-const pushSubscribed   = ref(false);
-const pushLoading      = ref(false);
-const pushError        = ref('');
+const {
+    supported: pushSupported, permission: pushPermission, subscribed: pushSubscribed,
+    loading: pushLoading, error: pushError, subscribe: subscribePush, unsubscribe: unsubscribePush,
+} = usePush(props.vapidPublicKey);
 const pushTestSent     = ref(false);
 
 const notifSettings = ref({
@@ -276,48 +276,6 @@ async function toggleNewsletter() {
     } finally {
         newsletterSaving.value = false;
     }
-}
-
-onMounted(async () => {
-    if (!pushSupported.value) return;
-    try {
-        const reg = await navigator.serviceWorker.ready;
-        const sub = await reg.pushManager.getSubscription();
-        pushSubscribed.value = !!sub;
-    } catch {}
-});
-
-function urlBase64ToUint8Array(base64String) {
-    const padding = '='.repeat((4 - base64String.length % 4) % 4);
-    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-    const raw = atob(base64);
-    return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
-}
-
-async function subscribePush() {
-    pushLoading.value = true; pushError.value = '';
-    try {
-        const permission = await Notification.requestPermission();
-        pushPermission.value = permission;
-        if (permission !== 'granted') { pushError.value = 'Benachrichtigungen wurden blockiert.'; return; }
-        const reg = await navigator.serviceWorker.ready;
-        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(props.vapidPublicKey) });
-        const json = sub.toJSON();
-        await axios.post(route('push.subscribe'), { endpoint: json.endpoint, public_key: json.keys.p256dh, auth_token: json.keys.auth });
-        pushSubscribed.value = true;
-    } catch (e) { pushError.value = 'Fehler: ' + (e?.message ?? 'Unbekannt'); }
-    finally { pushLoading.value = false; }
-}
-
-async function unsubscribePush() {
-    pushLoading.value = true; pushError.value = '';
-    try {
-        const reg = await navigator.serviceWorker.ready;
-        const sub = await reg.pushManager.getSubscription();
-        if (sub) { await axios.post(route('push.unsubscribe'), { endpoint: sub.endpoint }); await sub.unsubscribe(); }
-        pushSubscribed.value = false;
-    } catch (e) { pushError.value = 'Fehler: ' + (e?.message ?? ''); }
-    finally { pushLoading.value = false; }
 }
 
 async function sendTestPush() {
