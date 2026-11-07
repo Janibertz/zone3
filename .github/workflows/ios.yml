@@ -1,0 +1,63 @@
+name: iOS
+
+# Baut die Capacitor-Hülle (ios/) auf einem macOS-Runner — Zone3 hat keinen
+# eigenen Mac, also ist das hier die einzige Stelle, an der Xcode läuft.
+#
+# Die App lädt zone3.run (capacitor.config.json → server.url). Eine Änderung
+# an Vue oder Laravel braucht deshalb KEINEN neuen Build; nur was unter ios/
+# oder an den Capacitor-Paketen ändert, löst diesen Lauf aus. macOS-Minuten
+# zählen in privaten Repositories zehnfach, darum kein Lauf bei jedem Push.
+#
+# Stufe 1: Simulator-Build ohne Signatur — beweist, dass das Projekt baut.
+# Signieren und Upload zu TestFlight folgen, sobald der Apple-Developer-Zugang
+# und der App-Store-Connect-API-Schlüssel als Secrets hinterlegt sind.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'ios/**'
+      - 'capacitor.config.json'
+      - 'mobile/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/ios.yml'
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Simulator-Build
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Abhängigkeiten
+        run: npm ci
+
+      - name: Capacitor synchronisieren
+        run: npx cap sync ios
+
+      - name: Xcode-Version
+        run: xcodebuild -version
+
+      - name: Bauen
+        run: |
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
