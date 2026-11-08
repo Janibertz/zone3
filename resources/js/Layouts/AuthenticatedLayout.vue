@@ -13,6 +13,7 @@ import Wordmark from '@/Components/Brand/Wordmark.vue';
 import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
 import NativePushPrompt from '@/Components/Native/NativePushPrompt.vue';
 import AppleHealthSync from '@/Components/Native/AppleHealthSync.vue';
+import WatchWorkoutSync from '@/Components/Native/WatchWorkoutSync.vue';
 import { isNativeApp, nativePlugin } from '@/Composables/useNativeApp';
 
 const { updateReady, startVersionPolling, reload } = useVersionCheck();
@@ -259,6 +260,7 @@ const sideNavItems = computed(() => [
 
         <NativePushPrompt v-if="nativeApp" />
         <AppleHealthSync v-if="nativeApp && $page.props.auth?.appleHealth" />
+        <WatchWorkoutSync v-if="nativeApp && $page.props.auth?.appleWatch?.sync" />
 
         <!-- ══════════════════════════════════════
              DESKTOP SIDEBAR (hidden on mobile)

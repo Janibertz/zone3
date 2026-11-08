@@ -566,6 +566,12 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::post('/health/apple/metrics', [\App\Http\Controllers\AppleHealthController::class, 'metrics'])->name('apple-health.metrics');
     Route::post('/health/apple/workouts', [\App\Http\Controllers\AppleHealthController::class, 'workouts'])->name('apple-health.workouts');
 
+    // Apple Watch per WorkoutKit (08.11.2026): die App holt die Einheiten als
+    // JSON und plant sie selbst ein. Kein Modellaufruf.
+    Route::get('/apple-watch/workouts', [\App\Http\Controllers\AppleWatchController::class, 'upcoming'])->name('apple-watch.workouts');
+    Route::get('/apple-watch/workouts/{session}', [\App\Http\Controllers\AppleWatchController::class, 'show'])->name('apple-watch.workout');
+    Route::patch('/apple-watch/sync', [\App\Http\Controllers\AppleWatchController::class, 'updateSync'])->name('apple-watch.sync');
+
 
     Route::get('/activities', [ActivityController::class, 'index'])->name('activities.index');
     Route::post('/activities/upload', [ActivityController::class, 'upload'])->name('activities.upload');

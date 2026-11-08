@@ -4,6 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
 import { paceValue, paceWithUnit, sessionType, stepAmount, stepRows, zoneSpan, ZONE_BAR } from '@/Composables/useSessionTypes';
 import AppButton from '@/Components/UI/AppButton.vue';
+import WatchButton from '@/Components/Native/WatchButton.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
 import AppCard from '@/Components/UI/AppCard.vue';
@@ -1929,10 +1930,12 @@ const lapHeightPct = computed(() => {
                         Zu Garmin senden
                     </AppButton>
                     <template v-else>
-                        <!-- .workout-Datei: auf dem iPhone antippen → Fitness → Hinzufügen. -->
-                        <AppButton v-if="detailSession.watch_url" :href="detailSession.watch_url" external download block>
-                            Auf die Apple Watch
-                        </AppButton>
+                        <!-- In der App per WorkoutKit direkt auf die Watch, sonst .workout-Datei
+                             (auf dem iPhone antippen → Fitness → Hinzufügen). -->
+                        <WatchButton v-if="detailSession.watch_url" :key="detailSession.id" :session-id="detailSession.id"
+                            :href="detailSession.watch_url" block v-slot="{ done, note }">
+                            {{ done ? 'Auf der Apple Watch ✓' : (note || 'Auf die Apple Watch') }}
+                        </WatchButton>
                         <AppButton :href="route('profile.edit', { section: 'connections' })" variant="plain" block>
                             Garmin-Uhr verbinden
                         </AppButton>
