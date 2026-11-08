@@ -8,8 +8,8 @@ use App\Models\User;
 use App\Services\ActivityDeletionService;
 use App\Services\ActivityImportService;
 use App\Services\BestEffortService;
+use App\Services\Fit\FitActivityAttributes;
 use App\Services\Fit\FitDecoder;
-use App\Services\Polyline;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -41,8 +41,6 @@ class CorosActivityImporter
     public const MAX_NEW_PER_RUN = 10;
 
     public const FRESH_HOURS = 48;
-
-    private const MAX_POLYLINE_POINTS = 2000;
 
     public function __construct(
         private readonly CorosClient $client,
@@ -208,87 +206,13 @@ class CorosActivityImporter
     /** Linie, Runden und die genauen Summen aus der FIT-Datei. */
     public function fromFit(array $decoded): array
     {
-        $attributes = [];
-        $session    = $decoded['session'];
-
-        $map = [
-            'total_timer_time'   => 'moving_time',
-            'total_elapsed_time' => 'elapsed_time',
-            'total_distance'     => 'distance',
-            'total_ascent'       => 'total_elevation_gain',
-            'avg_speed'          => 'average_speed',
-            'max_speed'          => 'max_speed',
-            'avg_heart_rate'     => 'average_heartrate',
-            'max_heart_rate'     => 'max_heartrate',
-            'avg_power'          => 'average_watts',
-            'normalized_power'   => 'weighted_average_watts',
-        ];
-        foreach ($map as $from => $to) {
-            if (isset($session[$from]) && $session[$from] > 0) {
-                $attributes[$to] = in_array($to, ['moving_time', 'elapsed_time'], true) ? (int) round($session[$from]) : $session[$from];
-            }
-        }
-        if (isset($attributes['average_watts'])) {
-            $attributes['device_watts'] = true;
-        }
-
-        $points = [];
-        foreach ($decoded['records'] as $r) {
-            if (isset($r['lat'], $r['lng'])) {
-                $points[] = [round($r['lat'], 6), round($r['lng'], 6)];
-            }
-        }
-        if (count($points) >= 2) {
-            $step = (int) ceil(count($points) / self::MAX_POLYLINE_POINTS);
-            $kept = $step > 1 ? array_values(array_filter($points, fn ($i) => $i % $step === 0, ARRAY_FILTER_USE_KEY)) : $points;
-            if (end($kept) !== end($points)) {
-                $kept[] = end($points);
-            }
-            $attributes['polyline'] = ['polyline' => Polyline::encode($kept)];
-        }
-
-        $laps = [];
-        foreach ($decoded['laps'] as $i => $lap) {
-            $moving   = (int) round($lap['total_timer_time'] ?? $lap['total_elapsed_time'] ?? 0);
-            $distance = round((float) ($lap['total_distance'] ?? 0), 1);
-            $laps[]   = [
-                'index'             => $i + 1,
-                'name'              => 'Runde ' . ($i + 1),
-                'elapsed_time'      => (int) round($lap['total_elapsed_time'] ?? $moving),
-                'moving_time'       => $moving,
-                'distance'          => $distance,
-                'average_speed'     => $lap['avg_speed'] ?? ($moving > 0 ? round($distance / $moving, 3) : null),
-                'max_speed'         => $lap['max_speed'] ?? null,
-                'average_heartrate' => $lap['avg_heart_rate'] ?? null,
-                'max_heartrate'     => $lap['max_heart_rate'] ?? null,
-                'pace_zone'         => null,
-            ];
-        }
-        if ($laps !== []) {
-            $attributes['laps'] = $laps;
-        }
-
-        // Krafttraining: dieselbe `set`-Nachricht wie bei Garmin.
-        $sets = \App\Services\Strength\StrengthSets::fromFit($decoded['sets'] ?? [], \App\Models\Activity::SOURCE_COROS);
-        if ($sets !== []) {
-            $attributes['strength_sets'] = $sets;
-        }
-
-        return $attributes;
+        return FitActivityAttributes::fromDecoded($decoded, Activity::SOURCE_COROS);
     }
 
     /** [Sekunden, Meter gesamt] fuer die Bestzeiten. */
     private function stream(array $records): array
     {
-        $points = [];
-        foreach ($records as $r) {
-            if (isset($r['timestamp'], $r['distance'])) {
-                $points[] = [(int) $r['timestamp'], (float) $r['distance']];
-            }
-        }
-        usort($points, fn ($a, $b) => $a[0] <=> $b[0]);
-
-        return $points;
+        return FitActivityAttributes::stream($records);
     }
 
     /** Beim Trennen: was COROS angelegt hat, geht (Entscheidung von Jan, 06.11.2026). */

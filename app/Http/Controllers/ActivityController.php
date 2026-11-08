@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Activity;
 use App\Models\TrainingSession;
 use App\Services\ActivityDeletionService;
+use App\Services\Fit\FitUploadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -33,6 +34,30 @@ class ActivityController extends Controller
             'restored' => $result['sessions_restored'],
             'deleted'  => $result['sessions_deleted'],
         ]);
+    }
+
+    /**
+     * Eine FIT-Datei hochladen (Jan, 08.11.2026): für Fahrten, die keine
+     * Quelle liefert — vor allem Zwift ohne Strava. Danach geht es direkt in
+     * die Aktivität; war sie schon da, in die vorhandene.
+     */
+    public function upload(Request $request, FitUploadService $uploads)
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'max:20480', 'extensions:fit'],
+        ], [
+            'file.extensions' => 'Bitte eine .fit-Datei wählen.',
+            'file.max'        => 'Die Datei ist größer als 20 MB.',
+        ]);
+
+        $result = $uploads->import($request->user(), (string) file_get_contents($request->file('file')->getRealPath()));
+
+        return match ($result['result']) {
+            FitUploadService::RESULT_IMPORTED,
+            FitUploadService::RESULT_KNOWN      => redirect()->route('activities.show', $result['activity']),
+            FitUploadService::RESULT_TOMBSTONED => back()->withErrors(['file' => 'Diese Aktivität hast du gelöscht. Sie bleibt draußen.']),
+            default                             => back()->withErrors(['file' => 'Die Datei ließ sich nicht lesen. Ist es eine FIT-Datei einer Aktivität?']),
+        };
     }
 
     public function show(Activity $activity)

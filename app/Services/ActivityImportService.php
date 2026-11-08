@@ -97,7 +97,7 @@ class ActivityImportService
      * Die Neuberechnung des Plans löst der Aufrufer aus, nach dem letzten
      * Import eines Durchgangs — sie soll alles Neue sehen.
      */
-    public function processNew(Activity $activity, ?callable $syncBestEfforts = null): void
+    public function processNew(Activity $activity, ?callable $syncBestEfforts = null, bool $notify = true): void
     {
         $userId = $activity->user_id;
         $isRun  = $activity->type === 'Run';
@@ -120,7 +120,8 @@ class ActivityImportService
             }
         }
 
-        $user = User::find($userId);
+        // Wer die Datei selbst hochlädt, braucht keine Push-Nachricht dazu.
+        $user = $notify ? User::find($userId) : null;
         if ($user && $user->push_notifications_enabled) {
             $distKm = $activity->distance > 0 ? round($activity->distance / 1000, 1) . ' km' : '';
             $body   = trim($activity->name . ($distKm ? " · {$distKm}" : ''));

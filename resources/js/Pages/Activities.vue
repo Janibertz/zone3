@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, nextTick } from 'vue';
-import { router, Link, Head } from '@inertiajs/vue3';
+import { router, Link, Head, usePage } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { activityType, SPORT_FILTERS } from '@/Composables/useActivityTypes';
 import { fmtNum, clock, speedOf, distanceOf } from '@/Composables/useFormat';
@@ -53,6 +53,32 @@ async function toggleSearch() {
         search.value = '';
         reload();
     }
+}
+
+/**
+ * FIT-Datei hochladen (08.11.2026): für alles, was keine Quelle liefert —
+ * etwa eine Zwift-Fahrt ohne Strava. Der Server leitet in die Aktivität
+ * weiter; ein Fehler steht unter der Überschrift.
+ */
+const fileInput = ref(null);
+const uploading = ref(false);
+const uploadError = computed(() => usePage().props.errors?.file ?? null);
+
+function pickFile() {
+    fileInput.value?.click();
+}
+
+function upload(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    uploading.value = true;
+    router.post(route('activities.upload'), { file }, {
+        forceFormData: true,
+        preserveScroll: true,
+        onFinish: () => { uploading.value = false; },
+    });
 }
 
 const loadingMore = ref(false);
@@ -170,16 +196,26 @@ const filtered = computed(() => sport.value !== 'all' || !!search.value);
         <div class="min-h-screen bg-canvas">
             <PageHeader width="max-w-3xl" title="Aktivitäten" :eyebrow="subtitle">
                 <template #action>
-                    <button type="button" :aria-label="searchOpen ? 'Suche schließen' : 'Suchen'"
-                        class="flex h-11 w-11 items-center justify-center rounded-full text-accent transition-transform active:scale-90"
-                        @click="toggleSearch">
-                        <svg v-if="!searchOpen" class="h-[22px] w-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
-                        <span v-else class="text-[17px]">Fertig</span>
-                    </button>
+                    <div class="flex items-center">
+                        <input ref="fileInput" type="file" accept=".fit" class="hidden" @change="upload" />
+                        <button v-if="!searchOpen" type="button" aria-label="FIT-Datei hochladen" :disabled="uploading"
+                            class="inline-flex h-11 w-11 items-center justify-center rounded-full text-accent transition-transform active:scale-90 disabled:opacity-40"
+                            @click="pickFile">
+                            <svg v-if="!uploading" class="h-[22px] w-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4m0 0-4 4m4-4 4 4" /><path d="M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" /></svg>
+                            <svg v-else class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity=".25" stroke-width="3" /><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
+                        </button>
+                        <button type="button" :aria-label="searchOpen ? 'Suche schließen' : 'Suchen'"
+                            class="flex h-11 w-11 items-center justify-center rounded-full text-accent transition-transform active:scale-90"
+                            @click="toggleSearch">
+                            <svg v-if="!searchOpen" class="h-[22px] w-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
+                            <span v-else class="text-[17px]">Fertig</span>
+                        </button>
+                    </div>
                 </template>
             </PageHeader>
 
             <div class="mx-auto max-w-3xl space-y-6 px-4 pb-8 pt-3 lg:px-8">
+                <p v-if="uploadError" role="alert" class="rounded-field bg-danger-soft px-3 py-2 text-[15px] text-danger-ink">{{ uploadError }}</p>
                 <div v-if="searchOpen" class="relative">
                     <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
                     <label for="activity-search" class="sr-only">Aktivität suchen</label>

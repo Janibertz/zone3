@@ -9,6 +9,7 @@ use App\Services\BestEffortService;
 use App\Services\StravaImportService;
 use App\Services\StravaService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -65,9 +66,12 @@ class SyncStravaActivities extends Command
                 continue;
             }
 
-            // Eine Quelle pro Athlet: kommen die Aktivitaeten von Garmin,
-            // holt Strava nichts — sonst stuende jeder Lauf zweimal da.
-            if ($account->user?->activitySource() !== Activity::SOURCE_STRAVA) {
+            // Eine Quelle pro Athlet: kommen die Aktivitaeten von Garmin
+            // oder COROS, holt Strava nichts — sonst stuende jeder Lauf
+            // zweimal da. Ausnahme: bei Garmin die Zwift-Uploads, die
+            // Garmin nicht weitergibt (StravaImportService::accepts()).
+            $source = $account->user?->activitySource();
+            if ($source !== Activity::SOURCE_STRAVA && $source !== Activity::SOURCE_GARMIN) {
                 continue;
             }
 
@@ -156,10 +160,27 @@ class SyncStravaActivities extends Command
                 continue;
             }
 
+            // Garmin-Athlet: nur, was ein Zwift-Upload sein kann. Ein Lauf
+            // von der Uhr kostet so keinen Detailaufruf. Was die Details
+            // schon einmal verneint haben, wird nicht alle 15 Minuten neu
+            // gefragt.
+            $zwiftOnly  = $account->user?->activitySource() === Activity::SOURCE_GARMIN;
+            $notZwiftKey = "strava:not-zwift:{$stravaId}";
+
+            if ($zwiftOnly && (! $importer->mayBeZwiftUpload($summary) || Cache::has($notZwiftKey))) {
+                continue;
+            }
+
             // Die Detailansicht, nicht der Listeneintrag: `best_efforts`
             // und `laps` stehen nur dort.
             $detail = $strava->fetchActivity($account, (int) $stravaId);
             if (! $detail) {
+                continue;
+            }
+
+            if (! $importer->accepts($account->user, $detail)) {
+                Cache::put($notZwiftKey, true, now()->addDays(7));
+
                 continue;
             }
 

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Activity;
 use App\Models\IgnoredActivity;
+use App\Models\User;
 
 /**
  * Stravas Antwort in eine Aktivität übersetzen.
@@ -84,6 +85,62 @@ class StravaImportService
         }
 
         return $attributes;
+    }
+
+    /**
+     * Darf Strava diese Aktivität für den Athleten anlegen?
+     *
+     * Eine Quelle pro Athlet — mit einer Ausnahme (Jan, 08.11.2026): Garmin
+     * gibt nur weiter, was eine Garmin-Uhr aufgezeichnet hat oder was von
+     * Hand angelegt wurde. Eine Fahrt, die Zwift selbst in Garmin Connect
+     * hochlädt, kommt per Push nie an (am 08.11. geprüft: nur `dailies` und
+     * `stressDetails`). Für Garmin-Athleten füllt Strava deshalb genau diese
+     * Lücke: Zwift-Uploads, sonst nichts. Alles von der Uhr kommt weiter
+     * über Garmin.
+     */
+    public function accepts(?User $user, array $activityData): bool
+    {
+        return match ($user?->activitySource()) {
+            Activity::SOURCE_STRAVA => true,
+            Activity::SOURCE_GARMIN => $this->isZwiftUpload($activityData),
+            default                 => false,
+        };
+    }
+
+    /**
+     * Hat Zwift die Aktivität zu Strava hochgeladen?
+     *
+     * Erkannt an Stravas `external_id` (Zwift nennt dort seine Datei) oder
+     * am Gerät „Zwift" — das steht nur in der Detailantwort. Was über Garmin
+     * kam (`garmin_push_…`), ist nie ein Zwift-Upload, auch wenn die Uhr
+     * eine Zwift-Fahrt mitgeschrieben hat: die liefert Garmin selbst.
+     */
+    public function isZwiftUpload(array $activityData): bool
+    {
+        if ($this->garminIdFrom($activityData) !== null) {
+            return false;
+        }
+
+        $external = strtolower((string) ($activityData['external_id'] ?? ''));
+        $device   = strtolower((string) ($activityData['device_name'] ?? ''));
+
+        return str_contains($external, 'zwift') || str_contains($device, 'zwift');
+    }
+
+    /**
+     * Könnte ein Listeneintrag ein Zwift-Upload sein? Die Liste trägt kein
+     * Gerät, also lohnt die Detailabfrage bei allem Virtuellen, das nicht
+     * über Garmin kam. Ein Lauf von der Uhr kostet so keinen Aufruf.
+     */
+    public function mayBeZwiftUpload(array $summary): bool
+    {
+        if ($this->garminIdFrom($summary) !== null) {
+            return false;
+        }
+
+        return $this->isZwiftUpload($summary)
+            || in_array($summary['type'] ?? null, ['VirtualRide', 'VirtualRun'], true)
+            || in_array($summary['sport_type'] ?? null, ['VirtualRide', 'VirtualRun'], true);
     }
 
     /**
