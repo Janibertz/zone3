@@ -11,6 +11,7 @@ import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import TrainingModelFields from '@/Components/Settings/TrainingModelFields.vue';
 import BikeFields from '@/Components/Settings/BikeFields.vue';
 import AppleHealthCard from '@/Components/Settings/AppleHealthCard.vue';
+import AppleWatchCard from '@/Components/Settings/AppleWatchCard.vue';
 import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
@@ -45,6 +46,7 @@ const props = defineProps({
     coros:                 { type: Object, default: () => ({ available: false, connection: null }) },
     activitySource:        { type: Object, default: () => ({ current: 'strava', usable: [] }) },
     appleHealth:           { type: Object, default: () => ({ consent_at: null, watch_metrics: false, synced_at: null }) },
+    appleWatch:            { type: Object, default: null },
 });
 
 const page = usePage();
@@ -1272,6 +1274,9 @@ const inputClass = 'z-input';
                                  Browser nicht); widerrufen geht auch hier. -->
                             <AppleHealthCard v-if="nativeApp || props.appleHealth?.consent_at" :state="props.appleHealth"
                                 :activity-source="props.activitySource?.current" />
+
+                            <!-- Apple Watch per WorkoutKit: nur in der iOS-App, nicht mit Garmin. -->
+                            <AppleWatchCard v-if="nativeApp && props.appleWatch" :state="props.appleWatch" />
 
                             <!-- Strava: nur nach Freischaltung durch einen Admin (Jan, 03.11.2026). -->
                             <div v-if="stravaOffered" class="flex min-h-[60px] items-center gap-3 px-4 py-2">

@@ -80,6 +80,8 @@ class ProfileController extends Controller
                 'watch_metrics' => $user->receivesWatchHealthMetrics(),
                 'synced_at'     => $user->apple_health_synced_at?->toIso8601String(),
             ],
+            // Apple Watch per WorkoutKit aus der iOS-App (null mit Garmin).
+            'appleWatch'       => \App\Http\Controllers\AppleWatchController::state($user),
             // Woher Aktivitäten kommen. Wählbar nur, wenn beide liefern können.
             'activitySource'   => [
                 'current' => $user->activitySource(),

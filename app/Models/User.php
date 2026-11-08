@@ -20,7 +20,7 @@ use Illuminate\Notifications\Notifiable;
     'push_notifications_enabled', 'wellbeing_reminder_time', 'notify_threshold_pace', 'notify_plan_updated',
     'notify_monthly_review',
     'avatar', 'bio', 'location', 'birth_year', 'favorite_distance', 'coach_id',
-    'ai_daily_limit', 'ai_daily_budget_eur', 'activity_source', 'garmin_workout_sync', 'strava_allowed',
+    'ai_daily_limit', 'ai_daily_budget_eur', 'activity_source', 'garmin_workout_sync', 'apple_watch_sync', 'strava_allowed',
     'newsletter_opt_in', 'unsubscribe_token',
     'telegram_chat_id', 'telegram_link_token', 'telegram_linked_at', 'calendar_token',
     'dashboard_layout', 'apple_health_consent_at', 'apple_health_synced_at', 'apple_activities_synced_at'])]
@@ -69,6 +69,7 @@ class User extends Authenticatable
             'telegram_linked_at'            => 'datetime',
             'dashboard_layout'              => 'array',
             'garmin_workout_sync'           => 'boolean',
+            'apple_watch_sync'              => 'boolean',
             'strava_allowed'                => 'boolean',
             'starter_plan_viewed_at'        => 'datetime',
             'starter_dismissed_at'          => 'datetime',

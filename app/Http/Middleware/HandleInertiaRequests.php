@@ -94,6 +94,9 @@ class HandleInertiaRequests extends Middleware
                 // Apple Health: was die iOS-App lesen und schicken soll (null =
                 // keine Einwilligung, dann liest sie nichts).
                 'appleHealth'    => \App\Http\Controllers\AppleHealthController::state($request->user()),
+                // Apple Watch per WorkoutKit: null = keine Watch-Einheiten (Garmin
+                // ist verbunden), sonst ob die App die nächsten Tage selbst einplant.
+                'appleWatch'     => \App\Http\Controllers\AppleWatchController::state($request->user()),
                 // Laeuft gerade eine Uebernahme? Dann gehoert das sichtbar
                 // auf jede Seite — sonst haelt man fremde Daten fuer eigene
                 // und aendert im Zweifel etwas am falschen Account.

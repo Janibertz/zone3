@@ -5,6 +5,7 @@ import WellbeingSheet from '@/Components/WellbeingSheet.vue';
 import UserAvatar from '@/Components/UserAvatar.vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
+import WatchButton from '@/Components/Native/WatchButton.vue';
 import GarminSendSheet from '@/Components/UI/GarminSendSheet.vue';
 import GarminRecovery from '@/Components/GarminRecovery.vue';
 import StarterChecklistCard from '@/Components/StarterChecklistCard.vue';
@@ -1478,11 +1479,12 @@ async function resetLayout() {
                                     class="!px-4" aria-label="Für Zwift herunterladen" title="Für Zwift herunterladen">
                                     Zwift
                                 </AppButton>
-                                <AppButton v-else-if="props.todayPlanSession.watch_url && props.todayPlanSession.status === 'planned'"
-                                    :href="props.todayPlanSession.watch_url" external download variant="secondary"
-                                    class="!w-12 !px-0" aria-label="Auf die Apple Watch" title="Auf die Apple Watch">
-                                    <svg class="h-[22px] w-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="3" /><path d="M9 6l.6-3h4.8L15 6M9 18l.6 3h4.8l.6-3" /></svg>
-                                </AppButton>
+                                <WatchButton v-else-if="props.todayPlanSession.watch_url && props.todayPlanSession.status === 'planned'"
+                                    :session-id="props.todayPlanSession.id" :href="props.todayPlanSession.watch_url" variant="secondary"
+                                    class="!w-12 !px-0" v-slot="{ done }">
+                                    <svg v-if="done" class="h-[22px] w-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                                    <svg v-else class="h-[22px] w-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="3" /><path d="M9 6l.6-3h4.8L15 6M9 18l.6 3h4.8l.6-3" /></svg>
+                                </WatchButton>
                             </div>
                         </SessionCard>
                         <AppCard v-else>
