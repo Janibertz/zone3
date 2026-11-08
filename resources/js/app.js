@@ -6,6 +6,7 @@ import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
+import { listenForAppLinks } from './Composables/useNativeApp';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -47,6 +48,9 @@ async function resolveWithRetry(name) {
         return new Promise(() => {});
     }
 }
+
+// iOS-App: Rückwege von Garmin, COROS und Strava (Universal Links).
+listenForAppLinks();
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

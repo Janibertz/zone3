@@ -178,6 +178,12 @@ jobs:
             echo "::error::Push-Berechtigung (aps-environment) fehlt im signierten Build"
             exit 1
           fi
+          # Universal Links: ohne associated-domains öffnen die Rückwege von
+          # Garmin, COROS und Strava weiter Safari statt der App.
+          if ! grep -q "applinks:zone3.run" "$RUNNER_TEMP/entitlements.plist"; then
+            echo "::error::Universal Links (associated-domains) fehlen im signierten Build"
+            exit 1
+          fi
 
           write_options upload
           export_archive export

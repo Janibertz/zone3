@@ -52,6 +52,23 @@ Route::get('/', function () {
 // /support war die alte Adresse (u. a. in den Strava-App-Einstellungen) und
 // leitet dauerhaft weiter; der Routenname bleibt, damit alte Verweise halten.
 Route::get('/privacy', fn() => Inertia::render('Privacy'))->name('privacy');
+
+// Universal Links der iOS-App: nur die Rückwege der Verbindungen öffnen die
+// App statt Safari. Alles andere auf zone3.run bleibt im Browser — sonst
+// landete z. B. das Kalender-Abo (.ics) in der App. Als Route statt Datei,
+// weil Apple application/json erwartet und der Datei die Endung fehlt.
+Route::get('/.well-known/apple-app-site-association', fn () => response()->json([
+    'applinks' => [
+        'details' => [[
+            'appIDs'     => [(config('services.apns.team_id') ?: 'Y7NR92XBVK') . '.' . (config('services.apns.bundle_id') ?: 'run.zone3.app')],
+            'components' => [
+                ['/' => '/garmin/callback*'],
+                ['/' => '/coros/callback*'],
+                ['/' => '/strava/callback*'],
+            ],
+        ]],
+    ],
+]))->name('apple-app-site-association');
 Route::permanentRedirect('/support', '/privacy')->name('support');
 
 // Newsletter unsubscribe — public, no auth required
