@@ -855,7 +855,7 @@ Gewünscht am 25.10.2026: Einheiten als strukturiertes Training auf die Watch. S
 
 Entscheidungen von Jan (27.10.): **Capacitor-Hülle statt Neubau**, zuerst nur iOS über **TestFlight** (Beta bleibt kostenlos), mit Apple Health; Android später. **Kein Mac** — Xcode läuft ausschliesslich auf GitHub Actions (`.github/workflows/ios.yml`).
 
-- `capacitor.config.json` → `server.url = https://zone3.run/dashboard`. Die App lädt die Live-Seite, Session-Login und alle Vue-Seiten bleiben unverändert, es gibt **keine API**. Eine Änderung an Laravel oder Vue braucht keinen neuen App-Build; nur `ios/`, Capacitor-Pakete und native Plugins.
+- `capacitor.config.json` → `server.url = https://zone3.run`, Start auf `appStartPath = dashboard`. **`server.url` muss die blanke Domain sein:** Capacitor hält nur Adressen in der App, die mit `server.url` *beginnen* — mit `/dashboard` darin öffnete schon die Weiterleitung auf `/login` Safari (08.11.2026, erster TestFlight-Build). Die App lädt die Live-Seite, Session-Login und alle Vue-Seiten bleiben unverändert, es gibt **keine API**. Eine Änderung an Laravel oder Vue braucht keinen neuen App-Build; nur `ios/`, Capacitor-Pakete und native Plugins.
 - `mobile/www/` ist nur die Ausweichseite ohne Netz — Capacitor verlangt ein `webDir`.
 - Bundle-ID `run.zone3.app`. Sie ist fest, sobald sie in App Store Connect registriert ist.
 - Der iOS-Workflow läuft nur bei Änderungen an `ios/`, Capacitor oder per Hand: macOS-Minuten zählen in privaten Repositories zehnfach.
