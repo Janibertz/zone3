@@ -3,7 +3,11 @@
     "appName": "Zone3",
     "webDir": "mobile/www",
     "server": {
-        "url": "https://zone3.run/dashboard",
+        "url": "https://zone3.run",
+        "appStartPath": "dashboard",
+        "allowNavigation": [
+            "zone3.run"
+        ],
         "cleartext": false
     },
     "ios": {
