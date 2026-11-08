@@ -108,10 +108,14 @@ jobs:
           printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/asc/key.p8"
 
       - name: Archiv bauen
-        # Unsigniert: automatisches Signieren will beim Archivieren ein
-        # Entwickler-Profil, und das gibt es nur mit registriertem Gerät
-        # („Your team has no devices"). Signiert wird erst beim Export, mit
-        # Distributionszertifikat und App-Store-Profil — die brauchen keins.
+        # Ad-hoc signiert („-"), ohne Profil: automatisches Signieren will
+        # beim Archivieren ein Entwickler-Profil, und das gibt es nur mit
+        # registriertem Gerät („Your team has no devices"). Richtig signiert
+        # wird erst beim Export, mit Distributionszertifikat und
+        # App-Store-Profil. Ganz unsigniert (CODE_SIGNING_ALLOWED=NO) ging
+        # auch, verlor aber die Berechtigungen aus App.entitlements — der
+        # Export übernimmt nur, was im Archiv signiert steht, und ohne
+        # aps-environment kommt kein Push an.
         # Die Build-Nummer muss bei jedem Upload steigen; die Laufnummer tut das.
         run: |
           xcodebuild \
@@ -122,8 +126,14 @@ jobs:
             -archivePath "$RUNNER_TEMP/Zone3.xcarchive" \
             DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            PROVISIONING_PROFILE_SPECIFIER= \
             archive
+
+      - name: Berechtigungen im Archiv
+        run: codesign -d --entitlements - --xml "$RUNNER_TEMP"/Zone3.xcarchive/Products/Applications/*.app | plutil -p - || true
 
       - name: Exportieren und hochladen
         # Zuerst als IPA exportieren und prüfen, dass die Push-Berechtigung
