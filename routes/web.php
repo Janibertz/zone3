@@ -84,6 +84,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/profile/telegram', [\App\Http\Controllers\TelegramLinkController::class, 'store'])->name('telegram.link');
     Route::post('/push/subscribe', [PushSubscriptionController::class, 'store'])->name('push.subscribe');
     Route::post('/push/unsubscribe', [PushSubscriptionController::class, 'destroy'])->name('push.unsubscribe');
+    Route::post('/push/native', [PushSubscriptionController::class, 'storeNative'])->name('push.native');
 
     // Verbinden geht schon im Onboarding (letzter Schritt), darum ohne die
     // Onboarding-Pruefung. Der Rueckweg fuehrt dorthin zurueck, solange es

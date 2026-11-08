@@ -1137,9 +1137,9 @@ const inputClass = 'z-input';
                     <!-- ── BENACHRICHTIGUNGEN ── -->
                     <template v-else-if="activeTab === 'notifications'">
                         <FormGroup title="Auf diesem Gerät">
-                            <FormRow v-if="!pushSupported" label="Push" :hint="nativeApp ? 'In der App noch nicht verfügbar.' : 'Dieser Browser unterstützt keine Mitteilungen. Auf dem iPhone geht es nur aus der Homescreen-App.'" />
+                            <FormRow v-if="!pushSupported" label="Push" :hint="nativeApp ? 'Mitteilungen kommen mit der neuesten App aus TestFlight. Bitte dort aktualisieren.' : 'Dieser Browser unterstützt keine Mitteilungen. Auf dem iPhone geht es nur aus der Homescreen-App.'" />
                             <template v-else>
-                                <FormRow label="Mitteilungen" :hint="pushPermission === 'denied' ? 'Im Browser blockiert' : (pushSubscribed ? 'Aktiv auf diesem Gerät' : 'Aus')">
+                                <FormRow label="Mitteilungen" :hint="pushPermission === 'denied' ? (nativeApp ? 'In den iPhone-Einstellungen aus (Mitteilungen → Zone3)' : 'Im Browser blockiert') : (pushSubscribed ? 'Aktiv auf diesem Gerät' : 'Aus')">
                                     <svg v-if="pushLoading" class="h-5 w-5 animate-spin text-ink-3" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                                     <Toggle :model-value="pushSubscribed" label="Mitteilungen auf diesem Gerät" :disabled="pushLoading || pushPermission === 'denied'"
                                         @update:model-value="v => v ? subscribePush() : unsubscribePush()" />

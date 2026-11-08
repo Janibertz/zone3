@@ -39,6 +39,35 @@ class PushSubscriptionController extends Controller
     }
 
     /**
+     * Gerätetoken aus der iOS-App (APNs). Dasselbe Token kann nach einem
+     * Kontowechsel auf dem Gerät einem anderen Athleten gehören — es wandert
+     * dann mit, statt beiden Pushs zu schicken.
+     */
+    public function storeNative(Request $request)
+    {
+        $request->validate([
+            'token' => ['required', 'string', 'max:200', 'regex:/^[0-9a-fA-F]+$/'],
+        ]);
+
+        $user = Auth::user();
+
+        PushSubscription::updateOrCreate(
+            ['endpoint' => strtolower($request->token)],
+            [
+                'user_id'    => $user->id,
+                'kind'       => PushSubscription::KIND_APNS,
+                'public_key' => null,
+                'auth_token' => null,
+                'user_agent' => $request->userAgent(),
+            ]
+        );
+
+        $user->update(['push_notifications_enabled' => true]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
      * Remove a push subscription (when user unsubscribes in browser).
      */
     public function destroy(Request $request)
@@ -46,7 +75,7 @@ class PushSubscriptionController extends Controller
         $request->validate(['endpoint' => 'required|string']);
 
         PushSubscription::where('user_id', Auth::id())
-            ->where('endpoint', $request->endpoint)
+            ->whereIn('endpoint', [$request->endpoint, strtolower($request->endpoint)])
             ->delete();
 
         // If no subscriptions left, mark push as disabled

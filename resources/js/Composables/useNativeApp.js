@@ -4,7 +4,7 @@
  * Capacitor spritzt seine Brücke auch in die geladene Live-Seite ein, darum
  * reicht `window.Capacitor`. Im Browser und in der Homescreen-App fehlt es.
  * Hier entscheidet sich alles, was in der App anders sein muss: kein
- * „Zum Home-Bildschirm"-Hinweis, kein Web-Push (WKWebView kennt keinen).
+ * „Zum Home-Bildschirm"-Hinweis, Push über APNs statt Web-Push.
  */
 export function isNativeApp() {
     if (typeof window === 'undefined') return false;
@@ -12,5 +12,20 @@ export function isNativeApp() {
         return !!window.Capacitor?.isNativePlatform?.();
     } catch {
         return false;
+    }
+}
+
+/**
+ * Ein natives Plugin, falls dieser App-Build es mitbringt. Die Seite kommt
+ * live von zone3.run und ist oft neuer als die installierte App — ein Build
+ * ohne das Plugin bekommt null statt eines Fehlers.
+ */
+export function nativePlugin(name) {
+    if (!isNativeApp()) return null;
+    try {
+        if (!window.Capacitor.isPluginAvailable?.(name)) return null;
+        return window.Capacitor.Plugins?.[name] ?? null;
+    } catch {
+        return null;
     }
 }
