@@ -12,6 +12,7 @@ import { router } from '@inertiajs/vue3';
 import FormGroup from '@/Components/UI/FormGroup.vue';
 import Toggle from '@/Components/UI/Toggle.vue';
 import { usePush } from '@/Composables/usePush';
+import { isNativeApp } from '@/Composables/useNativeApp';
 
 const props = defineProps({
     vapidPublicKey: { type: String, default: '' },
@@ -42,7 +43,7 @@ onMounted(() => document.addEventListener('visibilitychange', onVisible));
 onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisible));
 
 const pushHint = computed(() => {
-    if (!push.supported.value) return 'Auf dem iPhone nur aus der Homescreen-App';
+    if (!push.supported.value) return isNativeApp() ? 'In der App noch nicht verfügbar' : 'Auf dem iPhone nur aus der Homescreen-App';
     if (push.permission.value === 'denied') return 'Im Browser blockiert';
     return push.subscribed.value ? 'Aktiv auf diesem Gerät' : 'Mitteilungen auf diesem Gerät';
 });
