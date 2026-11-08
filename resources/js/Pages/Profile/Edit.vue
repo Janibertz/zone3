@@ -10,6 +10,7 @@ import AppButton from '@/Components/UI/AppButton.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import TrainingModelFields from '@/Components/Settings/TrainingModelFields.vue';
 import BikeFields from '@/Components/Settings/BikeFields.vue';
+import AppleHealthCard from '@/Components/Settings/AppleHealthCard.vue';
 import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
@@ -1264,6 +1265,9 @@ const inputClass = 'z-input';
                                 <p v-if="props.coros.status" class="px-4 py-3 text-[13px]"
                                     :class="props.coros.status.type === 'error' ? 'text-danger' : 'text-success-ink'">{{ props.coros.status.message }}</p>
                             </template>
+
+                            <!-- Apple Health: nur in der iOS-App (HealthKit gibt es im Browser nicht). -->
+                            <AppleHealthCard v-if="nativeApp" />
 
                             <!-- Strava: nur nach Freischaltung durch einen Admin (Jan, 03.11.2026). -->
                             <div v-if="stravaOffered" class="flex min-h-[60px] items-center gap-3 px-4 py-2">

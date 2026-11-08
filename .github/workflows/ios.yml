@@ -184,6 +184,11 @@ jobs:
             echo "::error::Universal Links (associated-domains) fehlen im signierten Build"
             exit 1
           fi
+          # Apple Health: ohne die Berechtigung bricht requestAuthorization ab.
+          if ! grep -q "com.apple.developer.healthkit" "$RUNNER_TEMP/entitlements.plist"; then
+            echo "::error::HealthKit-Berechtigung fehlt im signierten Build"
+            exit 1
+          fi
 
           write_options upload
           export_archive export

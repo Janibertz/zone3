@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Zone3 liest Schlafdauer, HRV, Ruhepuls und VO2max, damit dein Coach Tagesform und Plan an deine Erholung anpassen kann.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Zone3 schreibt nichts in Apple Health.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
   <key>CAPACITOR_DEBUG</key>
