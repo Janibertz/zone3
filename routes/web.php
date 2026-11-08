@@ -560,6 +560,12 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::patch('/coros/workout-sync', [\App\Http\Controllers\CorosController::class, 'updateWorkoutSync'])->name('coros.workout-sync');
     Route::patch('/coros/data-import', [\App\Http\Controllers\CorosController::class, 'updateDataImport'])->name('coros.data-import');
 
+    // Apple Health aus der iOS-App (08.11.2026): die App liest, der Server
+    // nimmt nur mit Einwilligung an.
+    Route::patch('/health/apple/consent', [\App\Http\Controllers\AppleHealthController::class, 'consent'])->name('apple-health.consent');
+    Route::post('/health/apple/metrics', [\App\Http\Controllers\AppleHealthController::class, 'metrics'])->name('apple-health.metrics');
+    Route::post('/health/apple/workouts', [\App\Http\Controllers\AppleHealthController::class, 'workouts'])->name('apple-health.workouts');
+
 
     Route::get('/activities', [ActivityController::class, 'index'])->name('activities.index');
     Route::post('/activities/upload', [ActivityController::class, 'upload'])->name('activities.upload');

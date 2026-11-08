@@ -44,6 +44,7 @@ const props = defineProps({
     garminOfficial:        { type: Object, default: () => ({ available: false, connection: null }) },
     coros:                 { type: Object, default: () => ({ available: false, connection: null }) },
     activitySource:        { type: Object, default: () => ({ current: 'strava', usable: [] }) },
+    appleHealth:           { type: Object, default: () => ({ consent_at: null, watch_metrics: false, synced_at: null }) },
 });
 
 const page = usePage();
@@ -808,9 +809,10 @@ function toggleCorosWorkoutSync() {
 
 // ── Aktivitäten kommen von ───────────────────────────────────────────────────
 // Eine Quelle pro Athlet. Wählbar nur, wenn mindestens zwei liefern können
-// (Strava verbunden, Garmin mit Freigabe, COROS mit Einwilligung).
+// (Strava verbunden, Garmin mit Freigabe, COROS oder Apple Health mit Einwilligung).
 const activitySourceOptions = computed(() => [
     { value: 'strava', label: 'Strava' }, { value: 'garmin', label: 'Garmin' }, { value: 'coros', label: 'COROS' },
+    { value: 'apple', label: 'Apple' },
 ].filter((o) => (props.activitySource?.usable ?? []).includes(o.value)));
 const activitySourceChoosable = computed(() => (props.activitySource?.usable ?? []).length > 1);
 const activitySourceValue = ref(props.activitySource?.current ?? 'strava');
@@ -1266,8 +1268,10 @@ const inputClass = 'z-input';
                                     :class="props.coros.status.type === 'error' ? 'text-danger' : 'text-success-ink'">{{ props.coros.status.message }}</p>
                             </template>
 
-                            <!-- Apple Health: nur in der iOS-App (HealthKit gibt es im Browser nicht). -->
-                            <AppleHealthCard v-if="nativeApp" />
+                            <!-- Apple Health: lesen nur in der iOS-App (HealthKit gibt es im
+                                 Browser nicht); widerrufen geht auch hier. -->
+                            <AppleHealthCard v-if="nativeApp || props.appleHealth?.consent_at" :state="props.appleHealth"
+                                :activity-source="props.activitySource?.current" />
 
                             <!-- Strava: nur nach Freischaltung durch einen Admin (Jan, 03.11.2026). -->
                             <div v-if="stravaOffered" class="flex min-h-[60px] items-center gap-3 px-4 py-2">

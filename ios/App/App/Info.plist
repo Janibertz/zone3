@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Zone3 liest Schlafdauer, HRV, Ruhepuls und VO2max, damit dein Coach Tagesform und Plan an deine Erholung anpassen kann.</string>
+	<string>Zone3 liest Schlaf, HRV, Ruhepuls, VO2max, Blutsauerstoff, Atemfrequenz und deine Trainings, damit dein Coach Plan und Tagesform an deine Läufe und deine Erholung anpassen kann.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Zone3 schreibt nichts in Apple Health.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>

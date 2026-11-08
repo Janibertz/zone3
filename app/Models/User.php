@@ -23,7 +23,7 @@ use Illuminate\Notifications\Notifiable;
     'ai_daily_limit', 'ai_daily_budget_eur', 'activity_source', 'garmin_workout_sync', 'strava_allowed',
     'newsletter_opt_in', 'unsubscribe_token',
     'telegram_chat_id', 'telegram_link_token', 'telegram_linked_at', 'calendar_token',
-    'dashboard_layout'])]
+    'dashboard_layout', 'apple_health_consent_at', 'apple_health_synced_at', 'apple_activities_synced_at'])]
 #[Hidden(['password', 'remember_token', 'unsubscribe_token',
     'telegram_chat_id', 'telegram_link_token', 'calendar_token'])]
 class User extends Authenticatable
@@ -73,6 +73,9 @@ class User extends Authenticatable
             'starter_plan_viewed_at'        => 'datetime',
             'starter_dismissed_at'          => 'datetime',
             'beta_badge_at'                 => 'datetime',
+            'apple_health_consent_at'       => 'datetime',
+            'apple_health_synced_at'        => 'datetime',
+            'apple_activities_synced_at'    => 'datetime',
         ];
     }
 
@@ -152,15 +155,27 @@ class User extends Authenticatable
             $this->garminConnection?->allows(GarminConnection::ACTIVITY) ? Activity::SOURCE_GARMIN : null,
             // COROS liest nur mit Einwilligung (Schalter „Daten übernehmen“).
             $this->corosConnection?->readsData() ? Activity::SOURCE_COROS : null,
+            // Apple Health liest die iOS-App, mit Einwilligung.
+            $this->apple_health_consent_at ? Activity::SOURCE_APPLE : null,
         ]));
     }
 
     /**
-     * Kommen Erholungswerte an — von Garmin per Push (Health-Freigabe) oder
-     * von COROS per Abruf (Einwilligung). Beide schreiben in
-     * `garmin_daily_metrics`.
+     * Kommen Erholungswerte an — von Garmin per Push (Health-Freigabe), von
+     * COROS per Abruf oder aus Apple Health über die iOS-App (beide mit
+     * Einwilligung). Alle schreiben in `garmin_daily_metrics`.
      */
     public function receivesHealthMetrics(): bool
+    {
+        return $this->receivesWatchHealthMetrics() || $this->apple_health_consent_at !== null;
+    }
+
+    /**
+     * Erholungswerte von einer Uhr mit eigener Anbindung (Garmin, COROS).
+     * Die haben Vorrang vor Apple Health: zwei Quellen messen eine Nacht nie
+     * gleich, und Apple misst die HRV anders (SDNN statt RMSSD).
+     */
+    public function receivesWatchHealthMetrics(): bool
     {
         return (bool) $this->garminConnection?->allows(GarminConnection::HEALTH)
             || (bool) $this->corosConnection?->readsData();

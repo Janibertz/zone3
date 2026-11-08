@@ -74,6 +74,12 @@ class ProfileController extends Controller
                 'connection' => $user->corosConnection?->summary(),
                 'status'     => session('coros_status'),
             ],
+            // Apple Health aus der iOS-App: Einwilligung und wer Vorrang hat.
+            'appleHealth'      => [
+                'consent_at'    => $user->apple_health_consent_at?->toIso8601String(),
+                'watch_metrics' => $user->receivesWatchHealthMetrics(),
+                'synced_at'     => $user->apple_health_synced_at?->toIso8601String(),
+            ],
             // Woher Aktivitäten kommen. Wählbar nur, wenn beide liefern können.
             'activitySource'   => [
                 'current' => $user->activitySource(),
