@@ -21,6 +21,8 @@ class GarminDailyMetric extends Model
         'vo2max',
         'vo2max_cycling',
         'fitness_age',
+        'spo2',
+        'respiration_rate',
     ];
 
     protected $casts = [
@@ -29,6 +31,8 @@ class GarminDailyMetric extends Model
         'sleep_hours'    => 'float',
         'vo2max'         => 'float',
         'vo2max_cycling' => 'float',
+        'spo2'           => 'float',
+        'respiration_rate' => 'float',
     ];
 
     public function user()

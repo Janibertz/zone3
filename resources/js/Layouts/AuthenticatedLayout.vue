@@ -12,6 +12,7 @@ import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 import Wordmark from '@/Components/Brand/Wordmark.vue';
 import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
 import NativePushPrompt from '@/Components/Native/NativePushPrompt.vue';
+import AppleHealthSync from '@/Components/Native/AppleHealthSync.vue';
 import { isNativeApp, nativePlugin } from '@/Composables/useNativeApp';
 
 const { updateReady, startVersionPolling, reload } = useVersionCheck();
@@ -257,6 +258,7 @@ const sideNavItems = computed(() => [
         </Transition>
 
         <NativePushPrompt v-if="nativeApp" />
+        <AppleHealthSync v-if="nativeApp && $page.props.auth?.appleHealth" />
 
         <!-- ══════════════════════════════════════
              DESKTOP SIDEBAR (hidden on mobile)

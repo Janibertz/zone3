@@ -103,6 +103,28 @@ class GarminHealthSummary
             }
         }
 
+        // Atemfrequenz und Blutsauerstoff kommen bisher nur aus Apple Health
+        // (seit 08.11.2026). Eine steigende Atemfrequenz in der Nacht zeigt
+        // einen Infekt oft vor dem ersten Symptom.
+        $resp = $this->compare($rows, $recent, 'respiration_rate');
+        if ($resp) {
+            $lines[] = sprintf(
+                'Atemfrequenz nachts: %s/min im 7-Tage-Schnitt (Grundlinie %s/min, %s)',
+                $resp['recent'], $resp['baseline'], $this->deltaLabel($resp['pct'])
+            );
+            if ($resp['pct'] >= self::NOTABLE_PCT) {
+                $flags[] = 'Atemfrequenz liegt über der Grundlinie';
+            }
+        }
+
+        $spo2 = $this->average($recent, 'spo2');
+        if ($spo2 !== null) {
+            $lines[] = sprintf('Blutsauerstoff: %.0f %% im 7-Tage-Schnitt', $spo2);
+            if ($spo2 < 94) {
+                $flags[] = sprintf('Blutsauerstoff niedrig (%.0f %%)', $spo2);
+            }
+        }
+
         return [
             'has_data' => ! empty($lines),
             'days'     => $rows->count(),

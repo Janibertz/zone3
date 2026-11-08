@@ -91,6 +91,9 @@ class HandleInertiaRequests extends Middleware
                 'strava'         => (bool) $request->user()?->canUseStrava(),
                 // Irgendeine Garmin-Verbindung, unabhängig von den Freigaben.
                 'garminLinked'   => (bool) $request->user()?->garminConnection,
+                // Apple Health: was die iOS-App lesen und schicken soll (null =
+                // keine Einwilligung, dann liest sie nichts).
+                'appleHealth'    => \App\Http\Controllers\AppleHealthController::state($request->user()),
                 // Laeuft gerade eine Uebernahme? Dann gehoert das sichtbar
                 // auf jede Seite — sonst haelt man fremde Daten fuer eigene
                 // und aendert im Zweifel etwas am falschen Account.

@@ -10,7 +10,7 @@ import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
  * personenbezogene Daten bekommt, trägt ihn in `empfaenger` ein. Die Seite
  * ist eine Zusage an Fremde, keine Beschreibung von Absichten.
  */
-const STAND = '7. November 2026';
+const STAND = '8. November 2026';
 const MAIL = 'jan.anders@zone3.run';
 
 const empfaenger = [
@@ -42,7 +42,7 @@ const empfaenger = [
     {
         name: 'OpenAI, L.L.C.',
         ort: 'USA',
-        zweck: 'Erzeugung von Trainingsplänen, Auswertungen und Antworten des Coachs. Übermittelt werden die dafür nötigen Trainingsdaten (Aktivitäten, Pace, Herzfrequenz, Ziele und Rennen, Trainingsprofil), deine Tagesform-Einträge, Coach-Notizen und deine Chat-Nachrichten sowie dein Name. Hast du Garmin verbunden oder bei COROS in die Datenübernahme eingewilligt, außerdem Wochenmittel und Tageswerte deiner Erholung (Schlaf, HRV, Ruhepuls, Stress, Body Battery). Nicht zum Training von KI-Modellen, siehe Abschnitt 7. E-Mail-Adresse, Passwort und Zugangsdaten werden nicht übermittelt.',
+        zweck: 'Erzeugung von Trainingsplänen, Auswertungen und Antworten des Coachs. Übermittelt werden die dafür nötigen Trainingsdaten (Aktivitäten, Pace, Herzfrequenz, Ziele und Rennen, Trainingsprofil), deine Tagesform-Einträge, Coach-Notizen und deine Chat-Nachrichten sowie dein Name. Hast du Garmin verbunden oder bei COROS oder Apple Health in die Datenübernahme eingewilligt, außerdem Wochenmittel und Tageswerte deiner Erholung (Schlaf, HRV, Ruhepuls, Stress, Body Battery, Blutsauerstoff, Atemfrequenz). Nicht zum Training von KI-Modellen, siehe Abschnitt 7. E-Mail-Adresse, Passwort und Zugangsdaten werden nicht übermittelt.',
     },
     {
         name: 'Telegram',
@@ -203,7 +203,7 @@ const empfaenger = [
             </section>
 
             <section>
-                <h2 class="mb-3 text-[22px] font-bold text-ink">6. Garmin und COROS</h2>
+                <h2 class="mb-3 text-[22px] font-bold text-ink">6. Garmin, COROS und Apple Health</h2>
                 <p>
                     Verbindest du dein Garmin-Konto, liest Zone3 die Daten, die du dabei freigibst: deine
                     Erholungswerte und, wenn du Garmin als Quelle für Aktivitäten wählst, deine Aktivitäten.
@@ -233,6 +233,21 @@ const empfaenger = [
                     Zone3 nie ab. Ausschalten widerruft die Einwilligung und löscht die übernommenen Aktivitäten und Werte.
                     Beim Trennen widerruft Zone3 den Zugang bei COROS und löscht alles, was von COROS kam.
                 </p>
+                <p class="mt-3">
+                    In der iOS-App kannst du Zone3 erlauben, Daten aus Apple Health zu lesen. Gelesen werden nur
+                    Schlafdauer, HRV, Ruhepuls, VO2max, Blutsauerstoff, Atemfrequenz und deine Trainings mit
+                    Herzfrequenz und Strecke; welche davon, entscheidest du im Dialog von iOS. Zyklusdaten, Gewicht
+                    und alle anderen Arten liest Zone3 nie. Solange du nicht zusätzlich einwilligst, bleiben die Werte
+                    auf deinem iPhone und werden nur in der App angezeigt. Mit deiner Einwilligung (unter
+                    <strong class="text-ink">Profil → Verbindungen → Apple Health</strong>) schickt die App sie beim
+                    Öffnen an Zone3; sie werden wie die Garmin-Daten für Plan, Auswertungen und Coach verwendet und
+                    dafür an OpenAI übermittelt (Abschnitt 7). Trainings übernimmt Zone3 nur, wenn Apple Health deine
+                    Quelle für Aktivitäten ist. Daten aus Apple Health werden nicht für Werbung genutzt, nicht verkauft
+                    und nicht zum Training von KI-Modellen verwendet. „Übertragung beenden“ widerruft die Einwilligung
+                    und löscht die übernommenen Erholungswerte; übernommene Trainings bleiben als Teil deiner
+                    Trainingshistorie stehen. Den Lesezugriff selbst nimmst du in den iPhone-Einstellungen unter
+                    Health → Datenzugriff &amp; Geräte → Zone3 zurück.
+                </p>
             </section>
 
             <section>
@@ -259,6 +274,10 @@ const empfaenger = [
                     Für Daten von COROS gilt dasselbe: sie gehen nur mit deiner Einwilligung an OpenAI, die du beim
                     Verbinden oder unter <strong class="text-ink">Profil → Verbindungen → COROS → Daten übernehmen</strong>
                     erteilst. Ausschalten widerruft sie und löscht die übernommenen Aktivitäten und Werte.
+                </p>
+                <p class="mt-3">
+                    Daten aus Apple Health gehen ebenfalls nur mit deiner gesonderten Einwilligung an OpenAI
+                    (<strong class="text-ink">Profil → Verbindungen → Apple Health</strong>). „Übertragung beenden“ widerruft sie.
                 </p>
             </section>
 
