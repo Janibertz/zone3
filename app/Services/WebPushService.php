@@ -4,12 +4,17 @@ namespace App\Services;
 
 use App\Models\PushSubscription;
 use App\Models\User;
+use App\Services\Push\ApnsClient;
 use Illuminate\Support\Facades\Log;
 use Minishlink\WebPush\Subscription;
 use Minishlink\WebPush\WebPush;
 
 class WebPushService
 {
+    public function __construct(private readonly ApnsClient $apns)
+    {
+    }
+
     private function client(): WebPush
     {
         return new WebPush([
@@ -29,11 +34,25 @@ class WebPushService
         $subscriptions = $user->pushSubscriptions;
         if ($subscriptions->isEmpty()) return;
 
+        $stale = [];
+
+        // iOS-App: APNs statt Web-Push
+        foreach ($subscriptions->where('kind', PushSubscription::KIND_APNS) as $sub) {
+            if ($this->apns->send($sub->endpoint, $title, $body, $url) === ApnsClient::GONE) {
+                $stale[] = $sub->id;
+            }
+        }
+
+        $web = $subscriptions->where('kind', '!=', PushSubscription::KIND_APNS);
+        if ($web->isEmpty()) {
+            if ($stale) PushSubscription::whereIn('id', $stale)->delete();
+            return;
+        }
+
         $client  = $this->client();
         $payload = json_encode(['title' => $title, 'body' => $body, 'url' => $url]);
-        $stale   = [];
 
-        foreach ($subscriptions as $sub) {
+        foreach ($web as $sub) {
             $result = $client->sendOneNotification(
                 Subscription::create([
                     'endpoint'        => $sub->endpoint,

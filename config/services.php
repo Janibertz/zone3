@@ -93,6 +93,16 @@ return [
         'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
     ],
 
+    // Push an die iOS-App (Apple Push Notification service). Schlüssel unter
+    // developer.apple.com → Keys, Inhalt der .p8-Datei in APNS_KEY.
+    'apns' => [
+        'key_id'     => env('APNS_KEY_ID'),
+        'team_id'    => env('APNS_TEAM_ID'),
+        'key'        => env('APNS_KEY'),
+        'bundle_id'  => env('APNS_BUNDLE_ID', 'run.zone3.app'),
+        'production' => env('APNS_PRODUCTION', true),
+    ],
+
     'webpush' => [
         'public_key'  => env('VAPID_PUBLIC_KEY'),
         'private_key' => env('VAPID_PRIVATE_KEY'),

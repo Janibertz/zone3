@@ -1,15 +1,100 @@
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
+import { isNativeApp, nativePlugin } from '@/Composables/useNativeApp';
+
+/**
+ * iOS-App: Push über APNs. Das Plugin meldet das Gerätetoken über ein
+ * Ereignis; einmal registrieren reicht, danach schickt jeder Aufruf von
+ * register() dasselbe Token (oder ein erneuertes) erneut.
+ */
+function nativeToken(plugin) {
+    return new Promise((resolve, reject) => {
+        const handles = [];
+        const done = (fn, value) => {
+            handles.forEach(h => h.then?.(x => x.remove()));
+            fn(value);
+        };
+        handles.push(plugin.addListener('registration', t => done(resolve, t.value)));
+        handles.push(plugin.addListener('registrationError', e => done(reject, new Error(e?.error ?? 'Registrierung fehlgeschlagen'))));
+        plugin.register().catch(e => done(reject, e));
+    });
+}
+
+const NATIVE_TOKEN_KEY = 'apns_token';
+
+function useNativePush(plugin) {
+    const supported  = ref(true);
+    const permission = ref('default');
+    const subscribed = ref(false);
+    const loading    = ref(false);
+    const error      = ref('');
+
+    async function sendToken() {
+        const token = await nativeToken(plugin);
+        await axios.post(route('push.native'), { token });
+        try { localStorage.setItem(NATIVE_TOKEN_KEY, token); } catch {}
+        subscribed.value = true;
+    }
+
+    onMounted(async () => {
+        try {
+            const { receive } = await plugin.checkPermissions();
+            permission.value = receive === 'granted' ? 'granted' : receive === 'denied' ? 'denied' : 'default';
+            // Erlaubt und nicht ausdrücklich abgemeldet: Token auffrischen.
+            if (receive === 'granted' && localStorage.getItem(NATIVE_TOKEN_KEY) !== 'off') await sendToken();
+        } catch {}
+    });
+
+    async function subscribe() {
+        loading.value = true; error.value = '';
+        try {
+            const { receive } = await plugin.requestPermissions();
+            permission.value = receive === 'granted' ? 'granted' : 'denied';
+            if (receive !== 'granted') {
+                error.value = 'Mitteilungen sind für Zone3 aus. Einschalten unter Einstellungen → Mitteilungen → Zone3.';
+                return false;
+            }
+            await sendToken();
+            return true;
+        } catch (e) {
+            error.value = 'Fehler: ' + (e?.message ?? 'Unbekannt');
+            return false;
+        } finally {
+            loading.value = false;
+        }
+    }
+
+    async function unsubscribe() {
+        loading.value = true; error.value = '';
+        try {
+            const token = localStorage.getItem(NATIVE_TOKEN_KEY);
+            if (token && token !== 'off') await axios.post(route('push.unsubscribe'), { endpoint: token });
+            await plugin.unregister().catch(() => {});
+            try { localStorage.setItem(NATIVE_TOKEN_KEY, 'off'); } catch {}
+            subscribed.value = false;
+        } catch (e) {
+            error.value = 'Fehler: ' + (e?.message ?? '');
+        } finally {
+            loading.value = false;
+        }
+    }
+
+    return { supported, permission, subscribed, loading, error, subscribe, unsubscribe, native: true };
+}
 
 /**
  * Web-Push auf diesem Gerät: Stand, einschalten, ausschalten.
  *
  * Eine Stelle für Profil, Onboarding und die Einsteiger-Checkliste. Auf dem
- * iPhone gibt es Push nur aus der Homescreen-App; in Safari ist
+ * iPhone gibt es Web-Push nur aus der Homescreen-App; in Safari ist
  * `supported` false.
  */
 export function usePush(vapidPublicKey) {
-    const supported  = ref(typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window);
+    const plugin = nativePlugin('PushNotifications');
+    if (plugin) return useNativePush(plugin);
+
+    // In einem App-Build ohne Push-Plugin gibt es auch keinen Web-Push.
+    const supported  = ref(!isNativeApp() && typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window);
     const permission = ref(typeof Notification !== 'undefined' ? Notification.permission : 'default');
     const subscribed = ref(false);
     const loading    = ref(false);
@@ -63,5 +148,5 @@ export function usePush(vapidPublicKey) {
         }
     }
 
-    return { supported, permission, subscribed, loading, error, subscribe, unsubscribe };
+    return { supported, permission, subscribed, loading, error, subscribe, unsubscribe, native: false };
 }

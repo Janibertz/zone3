@@ -43,8 +43,8 @@ onMounted(() => document.addEventListener('visibilitychange', onVisible));
 onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisible));
 
 const pushHint = computed(() => {
-    if (!push.supported.value) return isNativeApp() ? 'In der App noch nicht verfügbar' : 'Auf dem iPhone nur aus der Homescreen-App';
-    if (push.permission.value === 'denied') return 'Im Browser blockiert';
+    if (!push.supported.value) return isNativeApp() ? 'Erst mit der neuesten App aus TestFlight' : 'Auf dem iPhone nur aus der Homescreen-App';
+    if (push.permission.value === 'denied') return push.native ? 'In den iPhone-Einstellungen aus' : 'Im Browser blockiert';
     return push.subscribed.value ? 'Aktiv auf diesem Gerät' : 'Mitteilungen auf diesem Gerät';
 });
 </script>

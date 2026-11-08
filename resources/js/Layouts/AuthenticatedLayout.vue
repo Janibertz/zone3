@@ -11,6 +11,8 @@ import CoachSlideOver from '@/Components/CoachSlideOver.vue';
 import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 import Wordmark from '@/Components/Brand/Wordmark.vue';
 import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
+import NativePushPrompt from '@/Components/Native/NativePushPrompt.vue';
+import { isNativeApp, nativePlugin } from '@/Composables/useNativeApp';
 
 const { updateReady, startVersionPolling, reload } = useVersionCheck();
 onMounted(() => startVersionPolling());
@@ -26,6 +28,22 @@ onMounted(() => startVersionPolling());
 const { pullDistance, refreshing, threshold: ptrThreshold } = usePullToRefresh();
 
 const { isInstallable, isIOSHint, installApp, dismiss: dismissInstall } = useInstallPrompt();
+
+// iOS-App: ein Tipp auf eine Mitteilung öffnet ihre Seite. Das Plugin hält
+// das Ereignis fest, bis jemand zuhört — auch beim Kaltstart aus der
+// Mitteilung heraus. Nur App-Pfade, nie eine fremde Adresse.
+const nativeApp = isNativeApp();
+onMounted(() => {
+    const pushPlugin = nativePlugin('PushNotifications');
+    if (!pushPlugin || window.__zone3PushTapListener) return;
+    window.__zone3PushTapListener = true;
+    pushPlugin.addListener('pushNotificationActionPerformed', (action) => {
+        const url = action?.notification?.data?.url;
+        if (typeof url === 'string' && url.startsWith('/') && !url.startsWith('//')) {
+            router.visit(url);
+        }
+    });
+});
 
 const page = usePage();
 const user       = computed(() => page.props.auth.user);
@@ -237,6 +255,8 @@ const sideNavItems = computed(() => [
                 </button>
             </div>
         </Transition>
+
+        <NativePushPrompt v-if="nativeApp" />
 
         <!-- ══════════════════════════════════════
              DESKTOP SIDEBAR (hidden on mobile)
