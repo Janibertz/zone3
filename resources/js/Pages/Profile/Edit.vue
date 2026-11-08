@@ -1,5 +1,6 @@
 <script setup>
 import { usePush } from '@/Composables/usePush';
+import { isNativeApp } from '@/Composables/useNativeApp';
 import { zoneRange } from '@/Composables/usePaceZones';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm, usePage, Link, router } from '@inertiajs/vue3';
@@ -247,6 +248,7 @@ const initials = computed(() => {
 });
 
 // ── Push Notification state ──────────────────────────────────────────────────
+const nativeApp = isNativeApp();
 const {
     supported: pushSupported, permission: pushPermission, subscribed: pushSubscribed,
     loading: pushLoading, error: pushError, subscribe: subscribePush, unsubscribe: unsubscribePush,
@@ -1135,7 +1137,7 @@ const inputClass = 'z-input';
                     <!-- ── BENACHRICHTIGUNGEN ── -->
                     <template v-else-if="activeTab === 'notifications'">
                         <FormGroup title="Auf diesem Gerät">
-                            <FormRow v-if="!pushSupported" label="Push" hint="Dieser Browser unterstützt keine Mitteilungen. Auf dem iPhone geht es nur aus der Homescreen-App." />
+                            <FormRow v-if="!pushSupported" label="Push" :hint="nativeApp ? 'In der App noch nicht verfügbar.' : 'Dieser Browser unterstützt keine Mitteilungen. Auf dem iPhone geht es nur aus der Homescreen-App.'" />
                             <template v-else>
                                 <FormRow label="Mitteilungen" :hint="pushPermission === 'denied' ? 'Im Browser blockiert' : (pushSubscribed ? 'Aktiv auf diesem Gerät' : 'Aus')">
                                     <svg v-if="pushLoading" class="h-5 w-5 animate-spin text-ink-3" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>

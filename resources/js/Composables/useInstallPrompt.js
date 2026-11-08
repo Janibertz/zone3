@@ -1,4 +1,5 @@
 import { ref, onMounted, onUnmounted } from 'vue';
+import { isNativeApp } from '@/Composables/useNativeApp';
 
 const DISMISS_KEY = 'pwa_install_dismissed_at';
 const DISMISS_DAYS = 30;
@@ -63,6 +64,12 @@ export function useInstallPrompt() {
     }
 
     onMounted(() => {
+        // In der iOS-App ist Zone3 schon installiert.
+        if (isNativeApp()) {
+            isInstalled.value = true;
+            return;
+        }
+
         const mode = getPWADisplayMode();
         if (mode === 'standalone' || mode === 'twa' || mode === 'minimal-ui' || mode === 'fullscreen') {
             isInstalled.value = true;
