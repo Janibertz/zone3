@@ -108,6 +108,10 @@ jobs:
           printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/asc/key.p8"
 
       - name: Archiv bauen
+        # Unsigniert: automatisches Signieren will beim Archivieren ein
+        # Entwickler-Profil, und das gibt es nur mit registriertem Gerät
+        # („Your team has no devices"). Signiert wird erst beim Export, mit
+        # Distributionszertifikat und App-Store-Profil — die brauchen keins.
         # Die Build-Nummer muss bei jedem Upload steigen; die Laufnummer tut das.
         run: |
           xcodebuild \
@@ -116,12 +120,9 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Zone3.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/asc/key.p8" \
-            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
-            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
             DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO \
             archive
 
       - name: Exportieren und hochladen
