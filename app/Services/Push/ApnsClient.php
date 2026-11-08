@@ -96,7 +96,7 @@ class ApnsClient
 
             $key = openssl_pkey_get_private($this->pem());
             if ($key === false || ! openssl_sign($input, $der, $key, OPENSSL_ALGO_SHA256)) {
-                throw new \RuntimeException('APNs: APNS_KEY ist kein gültiger .p8-Schlüssel.');
+                throw new \RuntimeException('APNs: APNS_KEY ist kein gültiger .p8-Schlüssel.' . $this->keyHint());
             }
 
             return $input . '.' . $this->base64url(self::derToRaw($der));
@@ -104,20 +104,54 @@ class ApnsClient
     }
 
     /**
-     * Coolify speichert mehrzeilige Werte manchmal mit "\n" statt Umbruch,
-     * und manche kopieren nur den Base64-Teil. Beides wird hier ein PEM.
+     * Coolify speichert mehrzeilige Werte je nach Eingabe anders: mit "\n"
+     * statt Umbruch, mit Anführungszeichen, mit \r, oder jemand kopiert nur
+     * den Base64-Teil oder die ganze Datei Base64-kodiert. Darum wird der
+     * Schlüssel hier immer aus dem reinen Base64-Kern neu zusammengesetzt.
      */
-    private function pem(): string
+    public static function normalizePem(?string $raw): string
     {
-        $key = trim(str_replace('\n', "\n", (string) config('services.apns.key')));
+        $key = str_replace(['\\n', '\n', '\r', "\r"], ["\n", "\n", '', ''], (string) $raw);
+        $key = trim($key, " \t\n\"'");
 
+        // Die ganze .p8-Datei als Base64 eingetragen?
         if (! str_contains($key, '-----BEGIN')) {
-            $key = "-----BEGIN PRIVATE KEY-----\n"
-                . chunk_split(preg_replace('/\s+/', '', $key), 64, "\n")
-                . "-----END PRIVATE KEY-----";
+            $decoded = base64_decode(preg_replace('/\s+/', '', $key), true);
+            if ($decoded !== false && str_contains($decoded, '-----BEGIN')) {
+                $key = $decoded;
+            }
         }
 
-        return $key;
+        $label = 'PRIVATE KEY';
+        if (preg_match('/-----BEGIN ([A-Z ]+)-----/', $key, $m)) {
+            $label = $m[1];
+        }
+
+        $body = preg_replace('/-----(BEGIN|END) [A-Z ]+-----/', '', $key);
+        $body = preg_replace('#[^A-Za-z0-9+/=]#', '', $body);
+
+        return "-----BEGIN {$label}-----\n"
+            . chunk_split($body, 64, "\n")
+            . "-----END {$label}-----\n";
+    }
+
+    private function pem(): string
+    {
+        return self::normalizePem(config('services.apns.key'));
+    }
+
+    /** Was am Schlüssel nicht stimmt, ohne ihn preiszugeben. */
+    private function keyHint(): string
+    {
+        $raw  = (string) config('services.apns.key');
+        $body = preg_replace('#[^A-Za-z0-9+/=]#', '', preg_replace('/-----(BEGIN|END) [A-Z ]+-----/', '', self::normalizePem($raw)));
+
+        return sprintf(
+            ' (Länge %d Zeichen, BEGIN-Zeile %s, Base64-Kern %d Zeichen; ein .p8 von Apple hat etwa 200)',
+            strlen($raw),
+            str_contains($raw, '-----BEGIN') ? 'vorhanden' : 'fehlt',
+            strlen($body),
+        );
     }
 
     /**

@@ -165,4 +165,27 @@ class NativePushTest extends TestCase
         $public = openssl_pkey_get_details(openssl_pkey_get_private(config('services.apns.key')))['key'];
         $this->assertSame(1, openssl_verify("{$h}.{$c}", $der, $public, OPENSSL_ALGO_SHA256));
     }
+
+    /** So kommen .p8-Schlüssel aus Coolify-Feldern tatsächlich an. */
+    public function test_the_key_survives_what_coolify_does_to_it(): void
+    {
+        $pem  = config('services.apns.key');
+        $body = trim(preg_replace('/-----[A-Z ]+-----/', '', $pem));
+
+        $variants = [
+            'Umbrüche als Leerzeichen' => preg_replace('/\s+/', ' ', $pem),
+            'Umbrüche als \\n'         => str_replace("\n", '\n', $pem),
+            'Windows-Umbrüche'         => str_replace("\n", "\r\n", $pem),
+            'in Anführungszeichen'     => '"' . $pem . '"',
+            'nur der Base64-Teil'      => $body,
+            'ganze Datei als Base64'   => base64_encode($pem),
+        ];
+
+        foreach ($variants as $name => $raw) {
+            $this->assertNotFalse(
+                openssl_pkey_get_private(ApnsClient::normalizePem($raw)),
+                "Schlüssel nicht lesbar: {$name}",
+            );
+        }
+    }
 }
