@@ -124,11 +124,18 @@ class StravaController extends Controller
                     $user->id, Activity::SOURCE_STRAVA, (int) $activityData['id'],
                     $this->importer->attributes($activityData, detail: false),
                 );
-            } elseif ($user->activitySource() === Activity::SOURCE_STRAVA) {
+            } elseif ($user->activitySource() === Activity::SOURCE_STRAVA
+                || ($user->activitySource() === Activity::SOURCE_GARMIN && $this->importer->mayBeZwiftUpload($activityData))) {
                 // Neu: die Detailansicht traegt Runden, Bestzeiten und den
                 // Verweis auf Garmin. Ist dieselbe Einheit schon aus Garmin
                 // da, haengt der Import die Strava-ID nur an.
-                $detail   = $strava->fetchActivity($account, (int) $activityData['id']);
+                $detail = $strava->fetchActivity($account, (int) $activityData['id']);
+
+                // Garmin-Athlet: nur Zwift-Uploads, den Rest liefert Garmin.
+                if (! $this->importer->accepts($user, $detail ?: $activityData)) {
+                    continue;
+                }
+
                 $activity = $this->importer->importFromDetail($user->id, $detail ?: $activityData);
 
                 if (! $activity) {
@@ -137,7 +144,8 @@ class StravaController extends Controller
 
                 $isNew = $activity->wasRecentlyCreated;
             } else {
-                // Aktivitaeten kommen von Garmin; Strava legt nichts an.
+                // Aktivitaeten kommen von Garmin oder COROS; Strava legt
+                // nichts an (ausser Zwift-Uploads, siehe oben).
                 continue;
             }
 
@@ -483,9 +491,14 @@ class StravaController extends Controller
             return response('OK');
         }
 
-        // Eine Quelle pro Athlet: kommen die Aktivitaeten von Garmin, legt
-        // Strava nichts an — sonst stuende jeder Lauf zweimal im Plan.
-        if ($account->user?->activitySource() !== Activity::SOURCE_STRAVA) {
+        // Eine Quelle pro Athlet: kommen die Aktivitaeten von Garmin oder
+        // COROS, legt Strava nichts an — sonst stuende jeder Lauf zweimal im
+        // Plan. Ausnahme: Zwift-Uploads bei Garmin-Athleten, die liefert
+        // Garmin nicht (StravaImportService::accepts()). Ob es einer ist,
+        // sagt erst die Detailantwort.
+        $source = $account->user?->activitySource();
+
+        if ($source !== Activity::SOURCE_STRAVA && $source !== Activity::SOURCE_GARMIN) {
             $event->update([
                 'user_id' => $account->user_id,
                 'outcome' => StravaWebhookEvent::OUTCOME_OTHER_SOURCE,
@@ -495,6 +508,16 @@ class StravaController extends Controller
         }
 
         $activityData = $strava->fetchActivity($account, (int) $data['object_id']);
+
+        if ($activityData && ! $this->importer->accepts($account->user, $activityData)) {
+            $event->update([
+                'user_id' => $account->user_id,
+                'outcome' => StravaWebhookEvent::OUTCOME_OTHER_SOURCE,
+                'note'    => $activityData['name'] ?? null,
+            ]);
+
+            return response('OK');
+        }
 
         if (! $activityData) {
             Log::warning('Strava-Webhook: Aktivitaet nicht abrufbar', [

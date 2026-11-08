@@ -12,12 +12,15 @@ class Activity extends Model
     public const SOURCE_STRAVA = 'strava';
     public const SOURCE_GARMIN = 'garmin';
     public const SOURCE_COROS = 'coros';
+    /** Von Hand hochgeladene FIT-Datei (Zwift, Garmin-Connect-Export …). */
+    public const SOURCE_FILE = 'file';
 
     /** Je Quelle die Spalte mit ihrer ID. Eine Zeile kann beide tragen. */
     public const ID_COLUMNS = [
         self::SOURCE_STRAVA => 'strava_id',
         self::SOURCE_GARMIN => 'garmin_activity_id',
         self::SOURCE_COROS  => 'coros_label_id',
+        self::SOURCE_FILE   => 'file_start',
     ];
 
     /** Wie die Quelle in der Oberfläche heißt. */
@@ -25,6 +28,7 @@ class Activity extends Model
         self::SOURCE_STRAVA => 'Strava',
         self::SOURCE_GARMIN => 'Garmin',
         self::SOURCE_COROS  => 'COROS',
+        self::SOURCE_FILE   => 'FIT-Datei',
     ];
 
     /**
@@ -43,6 +47,7 @@ class Activity extends Model
         'strava_id',
         'garmin_activity_id',
         'coros_label_id',
+        'file_start',
         'source',
         'device_name',
         'name',

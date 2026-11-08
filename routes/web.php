@@ -545,6 +545,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
 
 
     Route::get('/activities', [ActivityController::class, 'index'])->name('activities.index');
+    Route::post('/activities/upload', [ActivityController::class, 'upload'])->name('activities.upload');
     Route::get('/activities/{activity}', [ActivityController::class, 'show'])->name('activities.show');
     Route::delete('/activities/{activity}', [ActivityController::class, 'destroy'])->name('activities.destroy');
     Route::get('/statistics', [StatisticsController::class, 'index'])->name('statistics.index');

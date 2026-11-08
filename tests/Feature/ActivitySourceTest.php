@@ -232,7 +232,15 @@ class ActivitySourceTest extends TestCase
         $this->connectGarmin();
         $this->user->forceFill(['activity_source' => Activity::SOURCE_GARMIN])->save();
 
-        // Kein Http::fake — ein Abruf bei Strava würde hier werfen.
+        // Seit 08.11.2026 fragt der Webhook die Details ab: nur ein
+        // Zwift-Upload käme durch (StravaZwiftGapTest). Ein Lauf von der Uhr
+        // bleibt draußen.
+        Http::fake(['www.strava.com/api/v3/activities/*' => Http::response([
+            'id' => 998877, 'name' => 'Hannover Laufen', 'type' => 'Run',
+            'distance' => 10000, 'moving_time' => 3000, 'elapsed_time' => 3000,
+            'start_date' => now()->toIso8601String(), 'external_id' => 'garmin_push_123456',
+        ])]);
+
         $this->postJson('/strava/webhook', [
             'object_type' => 'activity', 'aspect_type' => 'create',
             'owner_id' => 4711, 'object_id' => 998877,
