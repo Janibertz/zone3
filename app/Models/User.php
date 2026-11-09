@@ -188,6 +188,18 @@ class User extends Authenticatable
         return (bool) $this->garminConnection?->allows(GarminConnection::WORKOUTS);
     }
 
+    /**
+     * Die Apple Watch als Ziel für Einheiten (Knopf, WorkoutKit). Nicht,
+     * solange Zone3 den Plan selbst auf die Garmin-Uhr legt — sonst stünden
+     * dieselben Läufe auf zwei Uhren. Ist „Plan automatisch auf die Uhr“
+     * bei Garmin aus, gibt es die Watch auch neben Garmin (Jan, 09.11.2026;
+     * vorher sperrte schon die Workout-Freigabe allein).
+     */
+    public function offersAppleWatch(): bool
+    {
+        return ! $this->syncsPlanToGarmin();
+    }
+
     /** Haelt Zone3 die naechsten Plantage selbst im Garmin-Kalender aktuell? */
     public function syncsPlanToGarmin(): bool
     {

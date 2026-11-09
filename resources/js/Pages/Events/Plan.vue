@@ -1923,20 +1923,21 @@ const lapHeightPct = computed(() => {
                         <svg class="h-5 w-5 shrink-0 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
                         <p class="text-[15px] text-ink-2">Steht automatisch auf deiner COROS-Uhr.</p>
                     </div>
-                    <AppButton v-else-if="garminConnected" block @click="openGarminModal">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-                        </svg>
-                        Zu Garmin senden
-                    </AppButton>
                     <template v-else>
                         <!-- In der App per WorkoutKit direkt auf die Watch, sonst .workout-Datei
-                             (auf dem iPhone antippen → Fitness → Hinzufügen). -->
+                             (auf dem iPhone antippen → Fitness → Hinzufügen). Neben Garmin
+                             nur, wenn dort „Plan automatisch auf die Uhr“ aus ist. -->
                         <WatchButton v-if="detailSession.watch_url" :key="detailSession.id" :session-id="detailSession.id"
                             :href="detailSession.watch_url" block v-slot="{ done, note }">
                             {{ done ? 'Auf der Apple Watch ✓' : (note || 'Auf die Apple Watch') }}
                         </WatchButton>
-                        <AppButton :href="route('profile.edit', { section: 'connections' })" variant="plain" block>
+                        <AppButton v-if="garminConnected" :variant="detailSession.watch_url ? 'secondary' : 'primary'" block @click="openGarminModal">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                            </svg>
+                            Zu Garmin senden
+                        </AppButton>
+                        <AppButton v-else :href="route('profile.edit', { section: 'connections' })" variant="plain" block>
                             Garmin-Uhr verbinden
                         </AppButton>
                     </template>

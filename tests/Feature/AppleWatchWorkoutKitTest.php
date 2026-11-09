@@ -145,6 +145,23 @@ class AppleWatchWorkoutKitTest extends TestCase
         $this->actingAs($user)->getJson(route('apple-watch.workouts'))->assertJson(['enabled' => false]);
     }
 
+    public function test_with_the_garmin_plan_sync_off_the_watch_comes_back(): void
+    {
+        $this->plannedSession();
+        GarminConnection::create([
+            'user_id' => $this->user->id, 'garmin_user_id' => 'g-1', 'access_token' => 'tok', 'refresh_token' => 'ref',
+            'access_token_expires_at' => now()->addHours(20), 'permissions' => [GarminConnection::WORKOUTS],
+            'ai_consent_at' => now(),
+        ]);
+        $this->user->update(['garmin_workout_sync' => false]);
+        $user = $this->user->fresh();
+
+        $this->assertTrue($user->offersAppleWatch());
+        $this->actingAs($user)->get('/dashboard')
+            ->assertInertia(fn ($page) => $page->where('auth.appleWatch.sync', true));
+        $this->assertCount(1, $this->actingAs($user)->getJson(route('apple-watch.workouts'))->json('workouts'));
+    }
+
     public function test_a_single_session_for_the_button(): void
     {
         $session = $this->plannedSession();

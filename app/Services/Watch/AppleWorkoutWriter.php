@@ -59,14 +59,14 @@ class AppleWorkoutWriter
     }
 
     /**
-     * Ob der Knopf erscheint. Wer Garmin verbunden hat, schickt seine
-     * Einheiten an die Garmin-Uhr — ein zweiter Weg zu einer zweiten Uhr
-     * wäre dort nur ein Knopf mehr (Entscheidung von Jan, 25.10.2026).
-     * Die Route selbst bleibt offen; sie hängt nicht an der Verbindung.
+     * Ob der Knopf erscheint. Legt Zone3 den Plan selbst auf die Garmin-Uhr,
+     * wäre die Watch eine zweite Uhr mit denselben Läufen — dann nicht
+     * (`User::offersAppleWatch()`, Jan 25.10. und 09.11.2026). Die Route
+     * selbst bleibt offen; sie hängt nicht an der Verbindung.
      */
-    public static function offered(TrainingSession $session, bool $garminConnected): bool
+    public static function offered(TrainingSession $session, bool $blocked): bool
     {
-        return ! $garminConnected && self::supports($session);
+        return ! $blocked && self::supports($session);
     }
 
     /**

@@ -15,16 +15,15 @@ use Illuminate\Http\Request;
  * (seit 08.11.2026). Die Seite holt das JSON, das Plugin
  * `WatchWorkouts` legt es in die Training-App.
  *
- * Wer Garmin mit Workout-Freigabe verbunden hat, bekommt nichts: dort gehen
- * die Einheiten an die Garmin-Uhr (dieselbe Regel wie beim .workout-Knopf,
- * Entscheidung von Jan vom 25.10.2026).
+ * Wer den Plan automatisch auf die Garmin-Uhr legen lässt, bekommt nichts:
+ * dort gehen die Einheiten an die Garmin-Uhr (`User::offersAppleWatch()`).
  */
 class AppleWatchController extends Controller
 {
     /** Was die App wissen muss — null heißt: keine Watch-Einheiten. */
     public static function state(?User $user): ?array
     {
-        if (! $user || $user->sendsWorkoutsViaGarminApi()) {
+        if (! $user || ! $user->offersAppleWatch()) {
             return null;
         }
 

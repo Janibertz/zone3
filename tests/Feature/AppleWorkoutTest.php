@@ -150,8 +150,8 @@ class AppleWorkoutTest extends TestCase
     {
         $session = $this->plannedRun(User::factory()->onboarded()->create());
 
-        $this->assertTrue(AppleWorkoutWriter::offered($session, garminConnected: false));
-        $this->assertFalse(AppleWorkoutWriter::offered($session, garminConnected: true));
+        $this->assertTrue(AppleWorkoutWriter::offered($session, blocked: false));
+        $this->assertFalse(AppleWorkoutWriter::offered($session, blocked: true));
     }
 
     public function test_the_plan_page_hides_the_button_once_garmin_is_connected(): void
