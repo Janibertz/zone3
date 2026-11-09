@@ -344,13 +344,6 @@ const headerEyebrow = computed(() => {
     return parts.filter(Boolean).join(' · ');
 });
 
-const timeLeftLabel = computed(() => {
-    const d = props.event.days_until;
-    if (d == null || d < 0) return '—';
-    if (d === 0) return 'heute';
-    return d >= 14 ? `${Math.round(d / 7)} Wochen` : `${d} ${d === 1 ? 'Tag' : 'Tage'}`;
-});
-
 /** Aus den Details in ein anderes Sheet: zwei offene Sheets übereinander gehen nicht. */
 function switchFromDetail(action) {
     const s = detailSession.value;
@@ -1093,32 +1086,49 @@ const lapHeightPct = computed(() => {
                         darunter nicht ankam (29.10.2026).
                     -->
                     <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_1fr]">
-                    <section v-if="!isPastEvent && (event.phase_segments?.length || prediction)" class="rounded-card bg-surface p-5 lg:col-start-2 lg:row-start-1 lg:self-start">
-                        <div class="flex items-baseline justify-between gap-4">
-                            <div>
-                                <p class="text-[13px] text-ink-3">Phase</p>
-                                <p class="text-[22px] font-bold leading-7 tracking-tight text-ink">{{ PHASE_LABELS[event.phase] ?? '—' }}</p>
-                            </div>
-                            <div class="text-right">
-                                <p class="text-[13px] text-ink-3">noch</p>
-                                <p class="font-rounded text-[22px] font-bold leading-7 tabular-nums text-ink">{{ timeLeftLabel }}</p>
+                    <!--
+                        Mit Foto wie die Rennkarte unter „Rennen“ (09.11.2026, Jan:
+                        „Die Rennkarte sieht so noch aus“): oben Countdown, Phase
+                        und Fortschritt auf dem Foto, darunter Prognose und Ziel
+                        auf der Karte — die Zahlen bleiben auf ruhigem Grund.
+                    -->
+                    <section v-if="!isPastEvent && (event.phase_segments?.length || prediction)" class="overflow-hidden rounded-card bg-surface lg:col-start-2 lg:row-start-1 lg:self-start">
+                        <div class="relative bg-black text-white">
+                            <img src="/images/moments/rennen.jpg" alt="" aria-hidden="true"
+                                class="absolute inset-0 h-full w-full object-cover object-[center_40%]" />
+                            <div class="absolute inset-0" aria-hidden="true"
+                                style="background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.35) 45%, rgba(0,0,0,0.88) 100%);" />
+                            <div class="relative flex min-h-[230px] flex-col p-5">
+                                <div class="flex items-start justify-between gap-3">
+                                    <span class="rounded-full bg-white/20 px-2.5 py-1 text-[13px] font-semibold backdrop-blur-md">{{ PHASE_LABELS[event.phase] ?? 'Plan' }}</span>
+                                </div>
+                                <div class="flex-1" />
+                                <p class="flex items-baseline gap-2">
+                                    <span class="font-rounded text-[56px] font-extrabold leading-none tracking-[-0.05em] tabular-nums">{{ event.days_until }}</span>
+                                    <span class="text-[17px] font-semibold text-white/80">{{ event.days_until === 1 ? 'Tag' : 'Tage' }} bis zum Rennen</span>
+                                </p>
+
+                                <div v-if="event.phase_segments?.length" class="mt-4">
+                                    <div class="flex gap-[3px]" role="img" :aria-label="'Phasen bis zum Rennen: ' + event.phase_segments.map(p => PHASE_LABELS[p.key]).join(', ')">
+                                        <i v-for="(seg, i) in event.phase_segments" :key="seg.key"
+                                            class="block h-1.5 rounded-full"
+                                            :class="i === 0 ? PHASE_COLORS[seg.key] : 'bg-white/25'"
+                                            :style="{ flex: Math.max(seg.days, 3) }" />
+                                    </div>
+                                    <div class="mt-1.5 flex gap-[3px] text-[12px] text-white/70">
+                                        <span v-for="seg in event.phase_segments" :key="seg.key" class="min-w-0 truncate"
+                                            :style="{ flex: Math.max(seg.days, 3) }">{{ seg.days >= 14 ? PHASE_LABELS[seg.key] : '' }}</span>
+                                    </div>
+                                </div>
+                                <p v-if="event.progress" class="mt-2 text-[13px] font-semibold text-white/85">
+                                    <template v-if="event.progress.starts_in > 0">Plan startet in {{ event.progress.starts_in }} {{ event.progress.starts_in === 1 ? 'Tag' : 'Tagen' }} · {{ event.progress.weeks }} Wochen</template>
+                                    <template v-else>Woche {{ event.progress.week }} von {{ event.progress.weeks }} · {{ event.progress.percent }} %</template>
+                                </p>
                             </div>
                         </div>
 
-                        <div v-if="event.phase_segments?.length" class="mt-4">
-                            <div class="flex gap-[3px]" role="img" :aria-label="'Phasen bis zum Rennen: ' + event.phase_segments.map(p => PHASE_LABELS[p.key]).join(', ')">
-                                <i v-for="(seg, i) in event.phase_segments" :key="seg.key"
-                                    class="block h-2 rounded-full"
-                                    :class="i === 0 ? PHASE_COLORS[seg.key] : 'bg-surface-2'"
-                                    :style="{ flex: Math.max(seg.days, 3) }" />
-                            </div>
-                            <div class="mt-1.5 flex gap-[3px] text-[12px] text-ink-3">
-                                <span v-for="seg in event.phase_segments" :key="seg.key" class="min-w-0 truncate"
-                                    :style="{ flex: Math.max(seg.days, 3) }">{{ seg.days >= 14 ? PHASE_LABELS[seg.key] : '' }}</span>
-                            </div>
-                        </div>
-
-                        <div v-if="prediction && !backyard" class="mt-4 grid grid-cols-2 gap-2 border-t border-line pt-4">
+                        <div v-if="prediction && !backyard" class="px-5 pb-5">
+                        <div v-if="prediction && !backyard" class="grid grid-cols-2 gap-2 pt-4">
                             <div>
                                 <p class="text-[13px] text-ink-3">Prognose</p>
                                 <p class="font-rounded text-[30px] font-bold leading-9 tracking-tight tabular-nums text-ink">{{ prediction.time }}</p>
@@ -1134,6 +1144,7 @@ const lapHeightPct = computed(() => {
                             </div>
                         </div>
                         <p v-if="prediction?.text && !backyard" class="mt-3 text-[15px] leading-snug text-ink-2">{{ prediction.text }}</p>
+                        </div>
                     </section>
 
 

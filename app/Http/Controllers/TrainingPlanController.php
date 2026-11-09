@@ -131,6 +131,7 @@ class TrainingPlanController extends Controller
                 'days_until'            => $event->days_until,
                 'phase'                 => $event->training_phase['key'],
                 'phase_segments'        => app(\App\Services\PeriodizationService::class)->segments($event),
+                'progress'              => $plan && $event->days_until >= 0 ? app(\App\Services\PeriodizationService::class)->progress($event) : null,
                 'plan_generating'       => $event->isGeneratingPlan(),
                 'plan_error'            => $event->plan_error,
                 // Nur ein Start in der Zukunft — ein vergangener ist erledigt.

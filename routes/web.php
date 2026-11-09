@@ -367,6 +367,8 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             ->whereNull('rating')
             ->whereNull('effort_perceived')
             ->where(fn ($q) => $q->whereNull('feeling_notes')->orWhere('feeling_notes', ''))
+            // „Nicht bewerten“ — bewusst ohne Bewertung (09.11.2026).
+            ->whereNull('rating_skipped_at')
             ->whereHas('trainingPlan')
             ->with('activity:id,name')
             ->orderByDesc('planned_date')
@@ -731,6 +733,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     // Bild einer Kraftübung aus der Datenbank (Versionsanhang ?v= im Link).
     Route::get('/exercise-images/{exercise}', \App\Http\Controllers\StrengthExerciseImageController::class)->name('exercise-images.show');
     Route::patch('/training-sessions/{session}/rate', [TrainingSessionController::class, 'rate'])->name('training-sessions.rate');
+    Route::patch('/training-sessions/skip-rating', [TrainingSessionController::class, 'skipRating'])->name('training-sessions.skip-rating');
     Route::patch('/training-sessions/{session}/review-feedback', [TrainingSessionController::class, 'reviewFeedback'])->name('training-sessions.review-feedback');
     // Das kurze Gespraech vor dem naechsten Block. Fragt nur, was die Daten
     // nicht hergeben — alles andere steht schon in den Aktivitaeten.

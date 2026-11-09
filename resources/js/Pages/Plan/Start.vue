@@ -2,9 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
-import AppCard from '@/Components/UI/AppCard.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
-import EmptyState from '@/Components/UI/EmptyState.vue';
 
 /**
  * Der Plan-Tab ohne aktiven Plan.
@@ -25,24 +23,34 @@ defineProps({
             <PageHeader width="max-w-2xl" title="Plan" />
 
             <div class="mx-auto max-w-2xl px-4 pb-8 pt-3 lg:px-8">
-                <AppCard>
-                    <EmptyState v-if="event"
-                        title="Noch kein Trainingsplan"
-                        :description="`Für ${event.name} (${event.distance}, ${event.date_label}) baut dein Coach dir einen Plan. Vorher fragt er kurz, was die Daten nicht wissen.`">
-                        <template #icon>
-                            <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08M8.25 8.25H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z" /></svg>
+                <!-- Mit Foto (09.11.2026, Mockup 6): der Anfang eines Plans ist ein
+                     Moment, keine leere Liste. „Fitter werden“ ohne Rennen gibt
+                     es noch nicht — darum nur der Weg über das Rennen. -->
+                <section class="relative overflow-hidden rounded-card bg-black text-white">
+                    <img src="/images/moments/beine.jpg" alt="" aria-hidden="true"
+                        class="absolute inset-0 h-full w-full object-cover object-[center_45%]" />
+                    <div class="absolute inset-0" aria-hidden="true"
+                        style="background: linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0.92) 100%);" />
+
+                    <div class="relative flex min-h-[460px] flex-col p-5 lg:min-h-[420px]">
+                        <div class="flex-1" />
+                        <template v-if="event">
+                            <p class="text-[15px] font-semibold text-white/80">{{ event.name }} · {{ event.distance }} · {{ event.date_label }}</p>
+                            <h2 class="mt-1 text-[34px] font-extrabold leading-[1.05] tracking-[-0.035em]">Dein Plan wartet<span class="text-accent">.</span></h2>
+                            <p class="mt-2 text-[17px] leading-snug text-white/80">
+                                Dein Coach fragt kurz, was die Daten nicht wissen. Dann steht dein Weg bis zum Renntag.
+                            </p>
+                            <AppButton class="mt-5" block :href="route('plan-interview.show', { event: event.id })">Plan erstellen</AppButton>
                         </template>
-                        <AppButton :href="route('plan-interview.show', { event: event.id })">Plan erstellen</AppButton>
-                    </EmptyState>
-                    <EmptyState v-else
-                        title="Noch kein Rennen"
-                        description="Ein Plan arbeitet auf ein Rennen hin. Trag dein nächstes Rennen ein, dann baut dein Coach den Plan dazu.">
-                        <template #icon>
-                            <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5" /></svg>
+                        <template v-else>
+                            <h2 class="text-[34px] font-extrabold leading-[1.05] tracking-[-0.035em]">Worauf läufst du hin<span class="text-accent">?</span></h2>
+                            <p class="mt-2 text-[17px] leading-snug text-white/80">
+                                Sag dem Coach dein Ziel. Den Rest rechnet er aus deinen Läufen.
+                            </p>
+                            <AppButton class="mt-5" block :href="route('events.index', { new: 1 })">Rennen eintragen</AppButton>
                         </template>
-                        <AppButton :href="route('events.index', { new: 1 })">Rennen eintragen</AppButton>
-                    </EmptyState>
-                </AppCard>
+                    </div>
+                </section>
             </div>
         </div>
     </AuthenticatedLayout>

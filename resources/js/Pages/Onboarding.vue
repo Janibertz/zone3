@@ -9,7 +9,7 @@ import AppButton from '@/Components/UI/AppButton.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
 import FormRow from '@/Components/UI/FormRow.vue';
 import Toggle from '@/Components/UI/Toggle.vue';
-import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
+import Wordmark from '@/Components/Brand/Wordmark.vue';
 import CoachBubble from '@/Components/Onboarding/CoachBubble.vue';
 import NotificationChoice from '@/Components/Settings/NotificationChoice.vue';
 import { clockInput } from '@/Composables/useFormat';
@@ -538,27 +538,46 @@ const bar = computed(() => {
 
         <main class="mx-auto max-w-xl space-y-7 px-4 pb-44 pt-8">
 
-            <!-- ── Willkommen ── -->
+            <!-- ── Willkommen ──
+                 Vollbild mit Foto (09.11.2026, Mockup 5): der erste Eindruck
+                 nach der Anmeldung. Liegt über Kopfzeile und Knopfleiste und
+                 bringt beides selbst mit. -->
             <template v-if="stepKey === 'welcome'">
-                <header>
-                    <ZoneIcon class="h-14 w-14" />
-                    <h1 class="mt-6 text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Willkommen, {{ user?.name?.split(' ')[0] }}</h1>
-                    <p class="mt-2 text-[17px] leading-snug text-ink-3">Ein paar Fragen, dann baut dein Coach den ersten Plan. Alles lässt sich später im Profil ändern.</p>
-                </header>
-                <FormGroup>
-                    <div v-for="(row, i) in [
-                            ['Coach und Trainingsmodell', 'Wer dich begleitet und wie du trainierst'],
-                            ['Deine Werte', 'Puls und Schwellenpace, bekannt oder geschätzt'],
-                            ['Zeit und Ziel', 'Wann du trainieren kannst und worauf'],
-                            [stravaOffered ? 'Garmin oder Strava' : 'Deine Garmin-Uhr', 'Damit Zone3 deine Läufe sieht'],
-                        ]" :key="i" class="flex items-center gap-3 px-4 py-3">
-                        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[13px] font-bold text-accent-ink">{{ i + 1 }}</span>
-                        <span class="min-w-0 flex-1">
-                            <span class="block text-[17px]">{{ row[0] }}</span>
-                            <span class="block text-[13px] text-ink-3">{{ row[1] }}</span>
-                        </span>
+                <div class="fixed inset-0 z-20 overflow-y-auto bg-black text-white">
+                    <img src="/images/moments/bestzeit.jpg" alt="" aria-hidden="true"
+                        class="pointer-events-none fixed inset-0 h-full w-full object-cover object-[30%_center]" />
+                    <div class="pointer-events-none fixed inset-0" aria-hidden="true"
+                        style="background: linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0) 22%, rgba(0,0,0,0.25) 42%, rgba(0,0,0,0.9) 66%, #000 100%);" />
+
+                    <div class="relative mx-auto flex min-h-full max-w-xl flex-col px-5 pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),16px)]">
+                        <div class="mt-2 grid gap-1" :style="{ gridTemplateColumns: `repeat(${totalSteps}, minmax(0, 1fr))` }">
+                            <i v-for="st in steps" :key="st.key" class="block h-1 rounded-full" :class="st.number <= currentStep ? 'bg-white' : 'bg-white/30'" />
+                        </div>
+
+                        <div class="min-h-[30vh] flex-1" />
+
+                        <Wordmark class="h-6 text-white" />
+                        <h1 class="mt-4 text-[40px] font-extrabold leading-[1.02] tracking-[-0.04em]">Schön, dass du da bist, {{ user?.name?.split(' ')[0] }}.</h1>
+                        <p class="mt-3 text-[17px] leading-snug text-white/80">
+                            Ein paar Fragen, dann steht dein erster Plan. Er richtet sich nach deiner Zeit, deiner Uhr und deinem Ziel.
+                        </p>
+                        <ul class="mt-5 space-y-2.5">
+                            <li v-for="line in ['Ein Coach, der mitdenkt', 'Jede Einheit direkt auf der Uhr', 'Der Plan passt sich deiner Tagesform an']" :key="line"
+                                class="flex items-center gap-3 text-[17px]">
+                                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/25 text-[#2997ff]">
+                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg>
+                                </span>
+                                {{ line }}
+                            </li>
+                        </ul>
+
+                        <button type="button"
+                            class="mt-8 flex h-[54px] w-full items-center justify-center rounded-full bg-white text-[19px] font-bold text-black transition active:scale-[0.97]"
+                            @click="nextStep">
+                            Los geht’s
+                        </button>
                     </div>
-                </FormGroup>
+                </div>
             </template>
 
             <!-- ── Coach ── -->
