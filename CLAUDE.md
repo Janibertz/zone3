@@ -94,7 +94,9 @@ Jan nach dem neuen Anmeldebildschirm: „Ich will mit mehr Emotionen arbeiten.�
 - **Story-Bild:** `Composables/useStoryImage.js` zeichnet 1080 × 1920 im Browser (Canvas, kein Server, kein Modell) und teilt per Web-Share mit Datei, sonst Download. Ob das Teilen aus der iOS-App heraus klappt, ist ungeprüft.
 - **Startseite:** Foto im Aufmacher und hinter „Mitmachen“ (`feld.jpg`), Apple Watch / Apple Health neben Garmin und COROS — nur als Name, keine Apple-Logos.
 - Fotos von Unsplash (Unsplash-Lizenz, keine Namensnennung nötig), lokal gespeichert, ohne erkennbare Gesichter im Vordergrund und ohne Marken. Ein Foto mit Logo (361°) hat Jan geschickt, es ist bewusst nicht drin.
-- Offen als Mockup: Rennen gelaufen, Woche geschafft, Onboarding-Start, „Noch kein Plan“ (braucht einen Plan ohne Rennen, den es noch nicht gibt).
+- **Woche geschafft** und **Rennen gelaufen** (Mockups 4 und 3): Vollbilder auf Heute aus `App\Services\Moments\MomentService`, ohne Modellaufruf, Hülle `Components/Moments/MomentScreen.vue`. Die Woche: jede Planeinheit (ohne Ruhetage, mindestens zwei) der letzten Woche erledigt, mit Punkten je Tag, Laufkilometern, Serie und einem Satz zur neuen Woche aus `PeriodizationService::forWeek()`. Das Rennen: in den sieben Tagen danach, sobald der Lauf da ist (an der Renneinheit, sonst der längste Lauf des Tages ab 90 % der Distanz); Zeit = `elapsed_time` gegen die Zielzeit. Immer nur ein Moment, Bestzeit vor Rennen vor Woche. Gesehen merkt sich das Konto (`users.moment_week_seen`, `moment_race_seen`, `POST /moments/seen`).
+- **Noch kein Plan** (`Plan/Start.vue`, Foto `beine.jpg`) und der **Onboarding-Start** sind Fotomomente; die **Planseite** zeigt die Rennkarte mit Foto, Countdown und „Woche X von Y“ (`PeriodizationService::progress()`, vor einem späteren Start „Plan startet in N Tagen“).
+- **„Wie lief's?“ verlangt keine Bewertung** (Jan, 09.11.2026): × je Zeile, „Alle überspringen“, `training_sessions.rating_skipped_at`.
 
 ### Sprache und Fehlerseiten (seit 03.11.2026)
 

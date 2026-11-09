@@ -19,6 +19,8 @@ import { ref, watch, computed, onMounted } from 'vue';
 import axios from 'axios';
 import SessionCard from '@/Components/UI/SessionCard.vue';
 import PersonalRecordMoment from '@/Components/Moments/PersonalRecordMoment.vue';
+import WeekDoneMoment from '@/Components/Moments/WeekDoneMoment.vue';
+import RaceDoneMoment from '@/Components/Moments/RaceDoneMoment.vue';
 import { activityHref, completedActivityHref } from '@/Composables/useActivityLink';
 import AppCard from '@/Components/UI/AppCard.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
@@ -118,6 +120,9 @@ const props = defineProps({
         default: null,
     },
     // Neue Bestzeit als Vollbild — siehe PersonalRecordMoment.
+    // „Woche geschafft“ und „Rennen gelaufen“ — siehe MomentService.
+    weekDone: { type: Object, default: null },
+    raceRun:  { type: Object, default: null },
     personalRecord: {
         type: Object,
         default: null,
@@ -159,6 +164,21 @@ const props = defineProps({
 
 // PR banner dismissed state (local — dismissal is persisted server-side)
 const prDismissed = ref(false);
+
+// Immer nur ein Moment: Bestzeit, dann Rennen, dann Woche.
+const raceSeen = ref(false);
+const weekSeen = ref(false);
+const showPr   = computed(() => props.personalRecord && !prDismissed.value);
+const showRace = computed(() => !showPr.value && props.raceRun && !raceSeen.value);
+const showWeek = computed(() => !showPr.value && !showRace.value && props.weekDone && !weekSeen.value);
+function closeRace() {
+    raceSeen.value = true;
+    axios.post(route('moments.seen'), { kind: 'race', event_id: props.raceRun.event_id });
+}
+function closeWeek() {
+    weekSeen.value = true;
+    axios.post(route('moments.seen'), { kind: 'week', week_start: props.weekDone.week_start });
+}
 
 async function dismissPr() {
     prDismissed.value = true;
@@ -2492,6 +2512,8 @@ async function resetLayout() {
 
         <PersonalRecordMoment v-if="personalRecord && !prDismissed"
             :record="personalRecord" :message="coachPrMessage" @close="dismissPr" />
+        <RaceDoneMoment v-if="showRace" :race="raceRun" @close="closeRace" />
+        <WeekDoneMoment v-if="showWeek" :week="weekDone" @close="closeWeek" />
     </AuthenticatedLayout>
 </template>
 

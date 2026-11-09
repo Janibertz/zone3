@@ -437,6 +437,12 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             ];
         })(),
 
+        // „Woche geschafft“ und „Rennen gelaufen“ (09.11.2026) — ohne
+        // Modellaufruf, aus Plan und Aktivitäten. Die Bestzeit hat Vorrang;
+        // die Seite zeigt immer nur einen Moment.
+        'weekDone' => app(\App\Services\Moments\MomentService::class)->weekDone($user),
+        'raceRun'  => app(\App\Services\Moments\MomentService::class)->raceRun($user),
+
         'aiUsage' => (function () use ($user) {
             $limit = $user->ai_daily_limit ?? 20;
             return ['used' => \App\Models\AiLog::todayCountForUser($user->id), 'limit' => $limit];
@@ -790,6 +796,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::delete('/api/coach/messages', [CoachChatController::class, 'destroyMessages'])->name('coach.messages.destroy');
     Route::delete('/api/coach/notes',    [CoachChatController::class, 'destroyNotes'])->name('coach.notes.destroy');
     Route::post('/api/coach/pr-dismiss', [AIController::class, 'dismissPr'])->name('coach.pr.dismiss');
+    Route::post('/moments/seen', [\App\Http\Controllers\MomentController::class, 'seen'])->name('moments.seen');
 });
 
 // Zurueck aus einer Uebernahme in den eigenen Admin-Account.
