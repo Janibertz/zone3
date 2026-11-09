@@ -104,6 +104,10 @@ Bis zum Usability-Befund gab es kein `lang/`, und `APP_LOCALE` stand auf `en`: L
 
 `resources/views/errors/` ersetzt Laravels englische Fehlerseiten (401–503) durch eine Karte im App-Stil mit „Zu Heute“. Bewusst ohne Vite: eine 500 kann gerade daran liegen, dass der Build fehlt.
 
+### Impressum und Kontaktformular (seit 09.11.2026)
+
+`/impressum` (öffentlich, auch für Konten auf der Warteliste) mit Kontaktformular als zweitem Kontaktweg nach § 5 DDG (Jans Wahl statt Telefonnummer). **Die Anschrift ist eine c/o-Adresse von „Dein Impressum“**, nicht Jans Wohnadresse; der Anbieter hat schriftlich bestätigt, dass sie für Website, App, Instagram und die Händleradresse im Apple-Developer-Konto gilt und Zustellungen nach § 171 ZPO annimmt. Name, Anschrift und Mail stehen **nur** in `resources/js/legal.js` — Impressum und Datenschutz lesen beide daraus. Die Wohnadresse kommt nirgends mehr hin. Nachrichten landen in `contact_messages`, die Admins bekommen Mail (Reply-To = Absender) und Push, Liste unter `/admin/contact`; erledigte werden dort gelöscht (so steht es in /privacy). Honigtopf-Feld `website`, `throttle:5,10`.
+
 ### Schwelle aus dem VDOT, Zone als Spanne (seit 03.11.2026)
 
 **Die Schwelle, die der Athlet sieht, kommt aus dem VDOT** (Jan: „Überall die aus dem VDOT mit der Quelle“). `RunnerProfile::thresholdDisplay()` liefert Pace, Herkunft („aus Garmins VO2max vom …“) und die gemessene, wenn sie abweicht. Heute, Mehr und Profil zeigen diese Zahl; `threshold_speed` bleibt die gemessene Eingabe und eine der drei VDOT-Quellen. Vorher standen drei Schwellen nebeneinander (gemessen 4:35, Zonen aus dem VDOT, Tempolauf).

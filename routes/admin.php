@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\AdminCoachController;
 use App\Http\Controllers\Admin\AdminCorosProbeController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminImpersonationController;
+use App\Http\Controllers\Admin\AdminContactMessageController;
 use App\Http\Controllers\Admin\AdminInvitationController;
 use App\Http\Controllers\Admin\AdminNewsletterController;
 use App\Http\Controllers\Admin\AdminOnboardingTextController;
@@ -89,6 +90,11 @@ Route::get('/settings',                    [AdminSettingsController::class, 'ind
 Route::post('/settings/test-push',         [AdminSettingsController::class, 'sendTestPush'])   ->name('settings.test-push');
 Route::post('/settings/maintenance',       [AdminSettingsController::class, 'toggleMaintenance'])->name('settings.maintenance');
 Route::post('/settings/broadcast-push',    [AdminSettingsController::class, 'broadcastPush'])  ->name('settings.broadcast-push');
+
+// Kontaktformular aus dem Impressum
+Route::get('/contact',                        [AdminContactMessageController::class, 'index'])  ->name('contact.index');
+Route::patch('/contact/{contact}/handled',    [AdminContactMessageController::class, 'handle']) ->name('contact.handle');
+Route::delete('/contact/{contact}',           [AdminContactMessageController::class, 'destroy'])->name('contact.destroy');
 
 // Support Tickets
 Route::get('/support',                     [AdminSupportController::class, 'index'])       ->name('support.index');

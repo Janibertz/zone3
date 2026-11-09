@@ -189,6 +189,7 @@ function submit() {
             <p class="mt-5 text-center text-[13px] leading-snug text-white/60">
                 Mit der Anmeldung akzeptierst du unsere
                 <Link :href="route('privacy')" class="underline underline-offset-2">Datenschutzerklärung</Link>.
+                <Link :href="route('impressum')" class="ml-1 underline underline-offset-2">Impressum</Link>
             </p>
             <p v-if="panel !== 'password'" class="mt-3 text-center text-[15px] text-white/80">
                 Schon ein Konto mit Passwort?

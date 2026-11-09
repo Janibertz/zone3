@@ -365,6 +365,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                 <span>Zone3 · zone3.run</span>
                 <div class="flex gap-5">
                     <Link :href="route('privacy')" class="transition hover:text-ink-2">Datenschutz</Link>
+                    <Link :href="route('impressum')" class="transition hover:text-ink-2">Impressum</Link>
                     <Link v-if="canLogin" :href="route('login')" class="transition hover:text-ink-2">Anmelden</Link>
                 </div>
             </div>
