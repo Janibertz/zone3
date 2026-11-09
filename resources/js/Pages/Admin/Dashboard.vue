@@ -238,6 +238,16 @@ const maxCoach  = computed(() => Math.max(...(props.coachDistribution?.map(c => 
 
             <!-- ── Bestand ───────────────────────────────────────── -->
             <section>
+                <SectionHeader title="Genutzt in den letzten 7 Tagen" />
+                <div class="grid grid-cols-3 gap-3">
+                    <StatTile label="App"       :value="stats.seen_app" hint="iOS-App" />
+                    <StatTile label="Homescreen" :value="stats.seen_homescreen" hint="Web-App" />
+                    <StatTile label="Browser"   :value="stats.seen_browser" hint="Safari, Chrome, Desktop" />
+                </div>
+                <p class="mt-2 text-[13px] text-ink-3">Athleten je Weg; wer beides nutzt, zählt doppelt. Gezählt wird seit dem 09.11.2026.</p>
+            </section>
+
+            <section>
                 <SectionHeader title="Bestand" />
 
                 <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">

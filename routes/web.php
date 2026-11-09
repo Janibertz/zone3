@@ -88,6 +88,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 // ── Onboarding (auth required, no onboarding-complete check) ──────────────
 Route::middleware('auth')->group(function () {
     Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
+    // Worin Zone3 läuft (App, Homescreen, Browser) — einmal am Tag, für den Admin.
+    Route::post('/usage/seen', [\App\Http\Controllers\UsageController::class, 'seen'])->name('usage.seen');
     Route::post('/onboarding/coach', [OnboardingController::class, 'saveCoach'])->name('onboarding.coach');
     Route::post('/onboarding/estimate-profile', [OnboardingController::class, 'estimateProfile'])->name('onboarding.estimate-profile');
     Route::post('/onboarding/profile', [OnboardingController::class, 'saveProfile'])->name('onboarding.profile');

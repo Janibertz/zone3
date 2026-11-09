@@ -27,6 +27,10 @@ class AdminDashboardController extends Controller
             'onboarded_users'  => User::whereNotNull('onboarding_completed_at')->count(),
             'admin_users'      => User::where('is_admin', true)->count(),
             'strava_users'     => User::has('stravaAccount')->count(),
+            // Worin Zone3 in den letzten sieben Tagen benutzt wurde (seit 09.11.2026).
+            'seen_app'         => User::whereDate('seen_app_on', '>=', now()->subDays(6)->toDateString())->count(),
+            'seen_homescreen'  => User::whereDate('seen_homescreen_on', '>=', now()->subDays(6)->toDateString())->count(),
+            'seen_browser'     => User::whereDate('seen_browser_on', '>=', now()->subDays(6)->toDateString())->count(),
             'total_activities' => Activity::count(),
             'total_events'     => Event::count(),
             'upcoming_events'  => Event::where('event_date', '>=', $today)->count(),
