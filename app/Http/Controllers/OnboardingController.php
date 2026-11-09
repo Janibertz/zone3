@@ -75,6 +75,12 @@ class OnboardingController extends Controller
             'coros'           => $user->corosConnection?->summary(),
             'corosAvailable'  => app(\App\Services\Coros\CorosClient::class)->enabled(),
             'corosStatus'     => session('coros_status'),
+            // Apple Health nur in der iOS-App; die Seite entscheidet, ob sie es zeigt.
+            'appleHealth'     => [
+                'consent_at'    => $user->apple_health_consent_at?->toIso8601String(),
+                'watch_metrics' => $user->receivesWatchHealthMetrics(),
+                'synced_at'     => $user->apple_health_synced_at?->toIso8601String(),
+            ],
             'source'          => [
                 'current' => $user->activitySource(),
                 'usable'  => $user->usableActivitySources(),
