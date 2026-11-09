@@ -17,6 +17,7 @@ use App\Notifications\ResetPasswordNotification;
 use Illuminate\Notifications\Notifiable;
 
 #[Fillable(['name', 'email', 'password', 'onboarding_completed_at', 'is_admin', 'is_active',
+    'apple_sub', 'waitlisted_at',
     'push_notifications_enabled', 'wellbeing_reminder_time', 'notify_threshold_pace', 'notify_plan_updated',
     'notify_monthly_review',
     'avatar', 'bio', 'location', 'birth_year', 'favorite_distance', 'coach_id',
@@ -24,7 +25,7 @@ use Illuminate\Notifications\Notifiable;
     'newsletter_opt_in', 'unsubscribe_token',
     'telegram_chat_id', 'telegram_link_token', 'telegram_linked_at', 'calendar_token',
     'dashboard_layout', 'apple_health_consent_at', 'apple_health_synced_at', 'apple_activities_synced_at'])]
-#[Hidden(['password', 'remember_token', 'unsubscribe_token',
+#[Hidden(['password', 'remember_token', 'unsubscribe_token', 'apple_sub',
     'telegram_chat_id', 'telegram_link_token', 'calendar_token'])]
 class User extends Authenticatable
 {
@@ -60,6 +61,7 @@ class User extends Authenticatable
             'onboarding_completed_at'       => 'datetime',
             'is_admin'                      => 'boolean',
             'is_active'                     => 'boolean',
+            'waitlisted_at'                 => 'datetime',
             'password'                      => 'hashed',
             'push_notifications_enabled'    => 'boolean',
             'notify_threshold_pace'         => 'boolean',
@@ -78,6 +80,12 @@ class User extends Authenticatable
             'apple_health_synced_at'        => 'datetime',
             'apple_activities_synced_at'    => 'datetime',
         ];
+    }
+
+    /** Wartet das Konto auf die Freischaltung? Siehe {@see \App\Services\Auth\Access}. */
+    public function isWaitlisted(): bool
+    {
+        return $this->waitlisted_at !== null && ! $this->is_admin;
     }
 
     /**

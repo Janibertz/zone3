@@ -861,6 +861,7 @@ Entscheidungen von Jan (27.10.): **Capacitor-Hülle statt Neubau**, zuerst nur i
 - `mobile/www/` ist nur die Ausweichseite ohne Netz — Capacitor verlangt ein `webDir`. **`mobile/www/dashboard/` muss existieren:** Capacitor prüft beim Start, ob `appStartPath` *lokal* im `webDir` liegt, auch wenn es die Seite von `server.url` lädt, und beendet die App sonst mit `exit(1)` (`CAPBridgeViewController::loadWebView()`). Build 6 ging so auf und sofort wieder zu. Wer `appStartPath` ändert, legt den Ordner mit.
 - **In der App erkennen:** `Composables/useNativeApp.js` — `isNativeApp()` liest `window.Capacitor` (Capacitor spritzt die Brücke auch in die Live-Seite), `nativePlugin(name)` gibt ein Plugin nur zurück, wenn der installierte Build es hat. Die Seite ist oft neuer als die App; ein alter Build bekommt null statt eines Fehlers. In der App entfällt der Banner „Zum Home-Bildschirm“.
 - **Push in der App läuft über APNs** (seit 08.11.2026), nicht über Web-Push — WKWebView kennt keinen. `@capacitor/push-notifications`, das Gerätetoken geht an `POST /push/native` und steht in `push_subscriptions` mit `kind = apns` (Token in `endpoint`, keine Schlüssel). Dieselbe Tabelle, damit jede Stelle, die nach `pushSubscriptions` fragt, die App mitzählt; `WebPushService::sendToUser()` schickt `apns`-Zeilen über `App\Services\Push\ApnsClient` (HTTP/2, ES256-Token aus dem .p8, `APNS_KEY_ID`/`APNS_TEAM_ID`/`APNS_KEY`). TestFlight hängt am **Produktions**-Gateway. Ein abgelaufenes Token (410/`Unregistered`) wird gelöscht. In der App fragt `Components/Native/NativePushPrompt.vue` einmal mit Grund, bevor der iOS-Dialog kommt (den zeigt iOS nur ein einziges Mal); ein Tipp auf die Mitteilung öffnet `url` aus der Nutzlast. Der iOS-Workflow prüft nach dem Export, dass `aps-environment` mitsigniert ist — das Archiv ist unsigniert.
+- **Mit Apple anmelden** (seit 09.11.2026): eigenes Plugin `AppleSignInPlugin.swift` im App-Target, Berechtigung `com.apple.developer.applesignin` (prüft der Workflow). Am App-Identifier muss „Sign In with Apple“ angehakt sein. Siehe „Anmelden ohne Passwort und Warteliste“.
 - Bundle-ID `run.zone3.app`. Sie ist fest, sobald sie in App Store Connect registriert ist.
 - Der iOS-Workflow läuft nur bei Änderungen an `ios/`, Capacitor oder per Hand: macOS-Minuten zählen in privaten Repositories zehnfach.
 - **Universal Links** (seit 08.11.2026): Die Rückwege `/garmin/callback`, `/coros/callback` und `/strava/callback` öffnen die App statt Safari. `/.well-known/apple-app-site-association` ist eine Route (Apple will `application/json`, die Datei hat keine Endung) und nennt **nur** diese drei Pfade — alles andere auf zone3.run, etwa das Kalender-Abo, bleibt im Browser. `App.entitlements` trägt `applinks:zone3.run`, der iOS-Workflow prüft es wie `aps-environment`. In der Seite lädt `listenForAppLinks()` (`useNativeApp.js`, aus `app.js`) die Adresse über `@capacitor/app` als ganze Seite, damit der Callback serverseitig läuft. Apple holt die Datei über sein CDN und cacht sie; eine Änderung an den Pfaden kommt erst nach Stunden an.
@@ -967,6 +968,15 @@ Seit 27.10.2026 kommt niemand mehr ohne Einladung auf die Plattform (Entscheidun
 - `RegisteredUserController::store()` prüft beim Absenden **noch einmal** und sperrt die Zeile (`lockForUpdate`) — zwei gleichzeitige Absendungen mit demselben Link bekommen nicht beide ein Konto. Eine Absendung mit falschem Passwort verbraucht den Link nicht.
 - Ohne gültigen Link zeigt `/register` den Hinweis „Nur auf Einladung" statt des Formulars. Die Startseite und der Login bieten kein Registrieren mehr an.
 - Strava ist kein zweiter Weg hinein: es wird erst nach dem Login verbunden.
+
+### Anmelden ohne Passwort und Warteliste (seit 09.11.2026)
+
+Jans Wunsch nach dem Startbildschirm einer anderen Lauf-App: großes Foto, **„Mit Apple fortfahren“** und **Link per E-Mail**, neue Konten landen auf einer **Warteliste** (Entscheidung von Jan: Warteliste mit Schalter, Push an die Admins). `/login` ist zugleich Neu-Anmeldung; der Passwort-Login bleibt dahinter für bestehende Konten. Das Foto ist von Unsplash (Martin Gleizes, Unsplash-Lizenz) und liegt in `public/images/login/hero.jpg` — kein Abruf bei Unsplash.
+
+- **`users.waitlisted_at`** gesetzt = wartet, null = drin. Bestehende Konten brauchten so keine Datenmigration. `EnsureNotWaitlisted` hängt an der ganzen `web`-Gruppe und lässt nur Warteliste, Abmelden, Push-Anmeldung und Datenschutz durch. Admins warten nie.
+- **`App\Services\Auth\Access`**: `mode()` (`app_settings.registration_mode`, `waitlist` Vorgabe oder `open`, Schalter unter `/admin/invitations`, im Menü „Zugang“), `register()` legt ohne Passwort an (zufälliger Hash; wer eins will, nimmt „Passwort vergessen“) und schickt **jedem Admin einen Push**, `approve()` schickt Mail + Push „Du bist dabei“. Ablehnen löscht das Konto. Ein Einladungslink umgeht die Warteliste.
+- **Link per Mail** (`MagicLinkController`): das Konto entsteht erst beim Einlösen, 30 min, einmal, Token nur gehasht im Cache. Der Link öffnet eine Seite mit Knopf, angemeldet wird per POST — Mail-Scanner öffnen Links vorab. `/login/link/*` steht in der apple-app-site-association und öffnet die iOS-App. Ohne Namen wird er aus der Adresse geraten.
+- **Mit Apple** (`AppleSignInController`, `AppleIdToken` prüft RS256 gegen Apples JWKS ohne Paket): in der App das native Sheet (`ios/App/App/AppleSignInPlugin.swift`, JS-Name `AppleSignIn`, Nonce aus der Session), im Browser Weiterleitung mit `form_post`-Rückweg (state + nonce im Cache, weil der POST von appleid.apple.com ohne Lax-Cookie kommt; CSRF-Ausnahme). Kein Schlüssel nötig — Zone3 tauscht keinen Code, es prüft nur das id_token. Audience: Bundle-ID (App) bzw. `APPLE_SIGNIN_CLIENT_ID` (Services-ID, Web; ohne sie gibt es den Knopf nur in der App). Konto über `users.apple_sub`, sonst über die von Apple bestätigte Adresse. **Private Relay:** Mails an `@privaterelay.appleid.com` kommen nur an, wenn die Absenderdomain im Developer-Konto unter „Sign in with Apple for Email Communication“ eingetragen ist.
 
 ### Impersonation — `Als … ansehen`
 
@@ -1107,6 +1117,10 @@ STRAVA_WEBHOOK_VERIFY_TOKEN=
 # Telegram-Bot (@BotFather). Das Geheimnis ist optional — ohne wird es aus APP_KEY abgeleitet.
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_WEBHOOK_SECRET=
+
+# Mit Apple anmelden im Browser: Services-ID (z. B. run.zone3.signin). Ohne
+# gibt es den Knopf nur in der iOS-App.
+APPLE_SIGNIN_CLIENT_ID=
 
 # Garmin Connect Developer Program (OAuth2 PKCE). Ohne ID/Secret gibt es
 # keine Garmin-Verbindung.

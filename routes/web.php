@@ -65,6 +65,8 @@ Route::get('/.well-known/apple-app-site-association', fn () => response()->json(
                 ['/' => '/garmin/callback*'],
                 ['/' => '/coros/callback*'],
                 ['/' => '/strava/callback*'],
+                // Anmeldelink aus der Mail: öffnet die App, dort wird angemeldet.
+                ['/' => '/login/link/*'],
             ],
         ]],
     ],

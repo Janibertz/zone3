@@ -38,7 +38,7 @@ const submit = () => {
                     <Wordmark class="mt-1 h-6 text-ink" />
                 </Link>
                 <h1 class="mt-6 text-[34px] font-extrabold leading-[41px] tracking-[-0.035em] text-ink">
-                    {{ invite ? 'Konto erstellen' : 'Nur auf Einladung' }}
+                    {{ invite ? 'Konto erstellen' : 'Mitmachen' }}
                 </h1>
                 <p v-if="invite" class="mt-1 text-[17px] text-ink-3">Du wurdest zu Zone3 eingeladen</p>
             </div>
@@ -50,9 +50,12 @@ const submit = () => {
                     ist abgelaufen oder wurde zurückgezogen. Frag nach einem neuen.
                 </p>
                 <p v-else>
-                    Zone3 ist im Moment nur auf Einladung. Wenn du einen Einladungslink
-                    bekommen hast, öffne ihn direkt.
+                    Ohne Einladungslink meldest du dich mit Apple oder einem Link per Mail an
+                    und landest auf der Warteliste.
                 </p>
+                <Link :href="route('login')" class="mt-4 flex h-[50px] w-full items-center justify-center rounded-full bg-accent text-[17px] font-semibold text-white active:scale-[0.97]">
+                    Zur Anmeldung
+                </Link>
             </div>
 
             <!-- Card -->

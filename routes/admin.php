@@ -40,6 +40,9 @@ Route::post('/users/{user}/impersonate',           [AdminImpersonationController
 // Einladungen — Registrieren geht nur mit einem gueltigen Link.
 Route::get('/invitations',                         [AdminInvitationController::class, 'index'])  ->name('invitations.index');
 Route::post('/invitations',                        [AdminInvitationController::class, 'store'])  ->name('invitations.store');
+Route::post('/invitations/mode',                   [AdminInvitationController::class, 'mode'])   ->name('invitations.mode');
+Route::post('/waitlist/{user}/approve',            [AdminInvitationController::class, 'approve'])->name('waitlist.approve');
+Route::delete('/waitlist/{user}',                  [AdminInvitationController::class, 'reject']) ->name('waitlist.reject');
 Route::post('/invitations/{invitation}/revoke',    [AdminInvitationController::class, 'revoke']) ->name('invitations.revoke');
 
 // Aktivitaeten ueber alle Athleten — inklusive Loeschen, das es im

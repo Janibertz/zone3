@@ -103,6 +103,15 @@ return [
         'production' => env('APNS_PRODUCTION', true),
     ],
 
+    // „Mit Apple fortfahren“. In der iOS-App gilt die Bundle-ID, im Browser
+    // die Services-ID (Developer-Konto → Identifiers → Services IDs). Ohne
+    // Services-ID gibt es den Knopf nur in der App. Ein Schlüssel ist nicht
+    // nötig: Zone3 prüft nur das id_token, es tauscht keinen Code.
+    'apple_signin' => [
+        'client_id' => env('APPLE_SIGNIN_CLIENT_ID'),
+        'bundle_id' => env('APNS_BUNDLE_ID', 'run.zone3.app'),
+    ],
+
     'webpush' => [
         'public_key'  => env('VAPID_PUBLIC_KEY'),
         'private_key' => env('VAPID_PRIVATE_KEY'),

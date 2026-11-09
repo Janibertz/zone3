@@ -1,9 +1,11 @@
 <?php
 
+use App\Http\Controllers\Auth\AppleSignInController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
+use App\Http\Controllers\Auth\MagicLinkController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -21,6 +23,16 @@ Route::middleware('guest')->group(function () {
         ->name('login');
 
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
+
+    // Ohne Passwort: Link per Mail und „Mit Apple fortfahren“ (seit 09.11.2026)
+    Route::post('login/link', [MagicLinkController::class, 'send'])->middleware('throttle:10,1')->name('login.link');
+    Route::get('login/link/{token}', [MagicLinkController::class, 'show'])->name('login.link.show');
+    Route::post('login/link/{token}', [MagicLinkController::class, 'consume'])->middleware('throttle:10,1')->name('login.link.consume');
+
+    Route::get('auth/apple', [AppleSignInController::class, 'redirect'])->name('auth.apple');
+    Route::post('auth/apple/callback', [AppleSignInController::class, 'callback'])->name('auth.apple.callback');
+    Route::get('auth/apple/nonce', [AppleSignInController::class, 'nonce'])->name('auth.apple.nonce');
+    Route::post('auth/apple/native', [AppleSignInController::class, 'native'])->middleware('throttle:10,1')->name('auth.apple.native');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');
@@ -53,6 +65,8 @@ Route::middleware('auth')->group(function () {
     Route::post('confirm-password', [ConfirmablePasswordController::class, 'store']);
 
     Route::put('password', [PasswordController::class, 'update'])->name('password.update');
+
+    Route::get('warteliste', [\App\Http\Controllers\WaitlistController::class, 'show'])->name('waitlist');
 
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout');

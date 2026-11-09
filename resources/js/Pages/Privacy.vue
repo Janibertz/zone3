@@ -10,7 +10,7 @@ import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
  * personenbezogene Daten bekommt, trägt ihn in `empfaenger` ein. Die Seite
  * ist eine Zusage an Fremde, keine Beschreibung von Absichten.
  */
-const STAND = '8. November 2026';
+const STAND = '9. November 2026';
 const MAIL = 'jan.anders@zone3.run';
 
 const empfaenger = [
@@ -70,6 +70,11 @@ const empfaenger = [
         zweck: 'Nur wenn du ein Übungsvideo antippst: Erst dann lädt dein Browser den Player von youtube-nocookie.com. Dabei werden deine IP-Adresse und technische Angaben deines Geräts an Google übertragen, und YouTube kann eigene Cookies oder lokale Speicherung setzen. Vorher wird nichts von YouTube geladen; das Vorschaubild kommt von Zone3.',
     },
     {
+        name: 'Apple Inc. (Mit Apple anmelden)',
+        ort: 'USA',
+        zweck: 'Nur wenn du „Mit Apple fortfahren“ wählst: Apple bestätigt dich und schickt uns eine Kennung, deine E-Mail-Adresse (oder eine Weiterleitungsadresse von Apple) und beim ersten Mal deinen Namen. Ein Passwort von Apple bekommen wir nie.',
+    },
+    {
         name: 'Apple, Google, Mozilla',
         ort: 'je nach Browser',
         zweck: 'Nur wenn du Push-Mitteilungen erlaubst: Zustellung über den Push-Dienst deines Browsers. Der Inhalt ist Ende-zu-Ende verschlüsselt.',
@@ -122,7 +127,7 @@ const empfaenger = [
             <section>
                 <h2 class="mb-3 text-[22px] font-bold text-ink">2. Welche Daten wir verarbeiten</h2>
                 <ul class="list-disc space-y-2 pl-5">
-                    <li><strong class="text-ink">Konto:</strong> Name, E-Mail-Adresse, Passwort (nur als Hash gespeichert), optional ein Profilbild.</li>
+                    <li><strong class="text-ink">Konto:</strong> Name, E-Mail-Adresse, Passwort (nur als Hash gespeichert), optional ein Profilbild. Meldest du dich mit Apple an, dazu Apples Kennung für dich; meldest du dich mit einem Link per Mail an, schicken wir dir dafür eine Mail.</li>
                     <li><strong class="text-ink">Trainingsprofil:</strong> deine Angaben aus Onboarding und Profil, z. B. Erfahrung, verfügbare Trainingszeiten, Trainingsmodell, Schwellenpace, Herzfrequenz- und Pace-Zonen, FTP.</li>
                     <li><strong class="text-ink">Aktivitäten von Strava oder Garmin:</strong> Sportart, Datum, Distanz, Dauer, Pace, Herzfrequenz, Leistung, Höhenmeter, Runden, Bestzeiten und die GPS-Strecke.</li>
                     <li><strong class="text-ink">Erholungswerte von Garmin:</strong> nur wenn du Garmin verbindest. Tageswerte für Schlafdauer und Schlafscore, HRV, Ruhepuls, Stress, Body Battery, Schritte und VO2max.</li>

@@ -6,5 +6,6 @@ import Capacitor
 class ZoneBridgeViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(WatchWorkoutsPlugin())
+        bridge?.registerPluginInstance(AppleSignInPlugin())
     }
 }

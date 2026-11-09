@@ -101,7 +101,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                         class="whitespace-nowrap rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 active:opacity-80">
                         Dashboard
                     </Link>
-                    <!-- Registrieren nur per Einladungslink — kein offener Einstieg. -->
+                    <!-- Anmelden und Neu-Anmelden sind dieselbe Seite (Apple, Link per Mail). -->
                     <Link v-else-if="canLogin" :href="route('login')"
                         class="whitespace-nowrap rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-surface-3 active:bg-surface-3">
                         Anmelden
@@ -143,7 +143,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                             Wie es arbeitet
                         </a>
                     </div>
-                    <p class="mt-4 text-[13px] text-ink-3">Beta · kostenlos · auf Einladung</p>
+                    <p class="mt-4 text-[13px] text-ink-3">Beta · kostenlos · mit Warteliste</p>
                 </div>
 
                 <!-- Die Heute-Karte aus dem Dashboard -->
@@ -318,23 +318,23 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
         <section id="mitmachen" class="scroll-mt-20 px-5 pb-24 pt-16">
             <div class="mx-auto max-w-5xl">
                 <span class="inline-block rounded-full bg-accent-soft px-3.5 py-1.5 text-[13px] font-semibold text-accent-ink">
-                    Beta · kostenlos · auf Einladung
+                    Beta · kostenlos · mit Warteliste
                 </span>
                 <h2 class="mt-5 text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.035em] sm:text-6xl">
                     <span class="block">Garmin oder COROS?</span>
                     <span class="block text-ink-3">Verbinden. Loslegen.</span>
                 </h2>
-                <p class="mt-4 text-[17px] text-ink-3">Schreib mir einfach. Web-App fürs Handy, ohne App Store.</p>
+                <p class="mt-4 text-[17px] text-ink-3">Mit Apple oder deiner Mail anmelden, wir schalten dich frei. Fragen? Schreib mir einfach.</p>
 
                 <div class="mt-8 flex flex-col gap-3 sm:flex-row">
-                    <a :href="KONTAKT.href"
+                    <Link v-if="canLogin && !$page.props.auth.user" :href="route('login')"
                         class="inline-flex h-12 items-center justify-center rounded-full bg-accent px-8 font-semibold text-white transition hover:opacity-90 active:scale-[0.98]">
+                        Jetzt mitmachen
+                    </Link>
+                    <a :href="KONTAKT.href"
+                        class="inline-flex h-12 items-center justify-center rounded-full bg-surface-2 px-8 font-semibold text-ink transition hover:bg-surface-3 active:scale-[0.98]">
                         {{ KONTAKT.label }}
                     </a>
-                    <Link v-if="canLogin && !$page.props.auth.user" :href="route('login')"
-                        class="inline-flex h-12 items-center justify-center rounded-full bg-surface-2 px-8 font-semibold text-ink transition hover:bg-surface-3 active:scale-[0.98]">
-                        Ich habe schon ein Konto
-                    </Link>
                 </div>
 
                 <!-- Die Adresse ausgeschrieben: ohne Mail-App am Rechner führt der Knopf ins Leere. -->
