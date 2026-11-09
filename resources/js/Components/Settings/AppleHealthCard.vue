@@ -16,6 +16,8 @@ import { fmtNum } from '@/Composables/useFormat';
 const props = defineProps({
     state:          { type: Object, default: () => ({ consent_at: null, watch_metrics: false, synced_at: null }) },
     activitySource: { type: String, default: null },
+    // Wo die Wahl der Aktivitätsquelle steht (im Onboarding nicht „unten“).
+    sourceHint:     { type: String, default: null },
 });
 
 const page = usePage();
@@ -49,6 +51,8 @@ function setConsent(enabled) {
     saving.value = true;
     router.patch(route('apple-health.consent'), { enabled, ai_consent: enabled }, {
         preserveScroll: true,
+        // Im Onboarding bliebe sonst nicht der Verbinden-Schritt stehen.
+        preserveState: true,
         onSuccess: async () => {
             if (!enabled) return;
             syncNote.value = 'Wird übertragen …';
@@ -56,7 +60,7 @@ function setConsent(enabled) {
                 const res = await syncAppleHealth(page.props.auth?.appleHealth, { force: true });
                 const days = Object.values(res?.metrics?.written ?? {}).reduce((a, b) => Math.max(a, b), 0);
                 const runs = res?.workouts?.outcomes?.imported ?? 0;
-                syncNote.value = `Übertragen: ${days} Tage Erholung` + (res?.workouts ? `, ${runs} neue Trainings.` : '.');
+                syncNote.value = `Übertragen: ${days} ${days === 1 ? 'Tag' : 'Tage'} Erholung` + (res?.workouts ? `, ${runs} neue Trainings.` : '.');
             } catch {
                 syncNote.value = 'Übertragen hat nicht geklappt. Zone3 versucht es beim nächsten Öffnen wieder.';
             }
@@ -157,6 +161,7 @@ function setConsent(enabled) {
             <p v-if="state.watch_metrics">Deine Erholungswerte kommen von deiner Uhr (Garmin oder COROS) — die haben Vorrang. Aus Apple Health kommen nur Trainings, wenn Apple die Aktivitätsquelle ist.</p>
             <p v-else>Schlaf, HRV, Ruhepuls, VO2max, Blutsauerstoff und Atemfrequenz gehen beim Öffnen der App an Zone3.</p>
             <p v-if="activitySource === 'apple'">Deine Trainings kommen aus Apple Health.</p>
+            <p v-else-if="sourceHint">{{ sourceHint }}</p>
             <p v-else>Trainings aus Apple Health übernimmt Zone3, wenn du unten bei „Aktivitäten kommen von“ Apple wählst.</p>
             <p v-if="!native">Übertragen wird nur aus der iOS-App.</p>
             <button type="button" :disabled="saving" class="text-[15px] text-danger active:opacity-60 disabled:opacity-40" @click="setConsent(false)">

@@ -110,6 +110,30 @@ class AppleHealthImportTest extends TestCase
         $this->assertNotNull($this->user->fresh()->apple_health_consent_at);
     }
 
+    /** Freigeben geht schon im Verbinden-Schritt des Onboardings (09.11.2026). */
+    public function test_consent_works_during_onboarding(): void
+    {
+        $fresh = User::factory()->create(['onboarding_completed_at' => null]);
+
+        $this->actingAs($fresh)
+            ->from('/onboarding')
+            ->patch('/health/apple/consent', ['enabled' => true, 'ai_consent' => true])
+            ->assertRedirect('/onboarding');
+
+        $this->assertNotNull($fresh->fresh()->apple_health_consent_at);
+
+        $this->actingAs($fresh)
+            ->postJson('/health/apple/metrics', ['days' => [$this->day()]])
+            ->assertOk()
+            ->assertJson(['accepted' => true]);
+
+        $this->actingAs($fresh)->get('/onboarding')
+            ->assertInertia(fn ($page) => $page
+                ->where('connections.appleHealth.watch_metrics', false)
+                ->whereNot('connections.appleHealth.consent_at', null)
+                ->where('connections.source.current', 'apple'));
+    }
+
     public function test_metrics_land_in_the_daily_metrics_as_apple(): void
     {
         $this->consent();

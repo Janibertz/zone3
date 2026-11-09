@@ -113,6 +113,13 @@ Route::middleware('auth')->group(function () {
     Route::post('/garmin/connect', [\App\Http\Controllers\GarminController::class, 'connect'])->name('garmin.connect');
     Route::post('/coros/connect', [\App\Http\Controllers\CorosController::class, 'connect'])->name('coros.connect');
     Route::patch('/profile/activity-source', [ProfileController::class, 'updateActivitySource'])->name('profile.activity-source');
+
+    // Apple Health aus der iOS-App (08.11.2026): die App liest, der Server
+    // nimmt nur mit Einwilligung an. Freigeben geht schon im Verbinden-Schritt
+    // des Onboardings (09.11.2026), darum ohne die Onboarding-Pruefung.
+    Route::patch('/health/apple/consent', [\App\Http\Controllers\AppleHealthController::class, 'consent'])->name('apple-health.consent');
+    Route::post('/health/apple/metrics', [\App\Http\Controllers\AppleHealthController::class, 'metrics'])->name('apple-health.metrics');
+    Route::post('/health/apple/workouts', [\App\Http\Controllers\AppleHealthController::class, 'workouts'])->name('apple-health.workouts');
 });
 
 Route::get('/dashboard', function (ProgressService $progressService, TrainingLoadService $trainingLoadService, ReturnToRunService $returnToRunService) {
@@ -600,11 +607,6 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::patch('/coros/workout-sync', [\App\Http\Controllers\CorosController::class, 'updateWorkoutSync'])->name('coros.workout-sync');
     Route::patch('/coros/data-import', [\App\Http\Controllers\CorosController::class, 'updateDataImport'])->name('coros.data-import');
 
-    // Apple Health aus der iOS-App (08.11.2026): die App liest, der Server
-    // nimmt nur mit Einwilligung an.
-    Route::patch('/health/apple/consent', [\App\Http\Controllers\AppleHealthController::class, 'consent'])->name('apple-health.consent');
-    Route::post('/health/apple/metrics', [\App\Http\Controllers\AppleHealthController::class, 'metrics'])->name('apple-health.metrics');
-    Route::post('/health/apple/workouts', [\App\Http\Controllers\AppleHealthController::class, 'workouts'])->name('apple-health.workouts');
 
     // Apple Watch per WorkoutKit (08.11.2026): die App holt die Einheiten als
     // JSON und plant sie selbst ein. Kein Modellaufruf.

@@ -12,6 +12,8 @@ import Toggle from '@/Components/UI/Toggle.vue';
 import Wordmark from '@/Components/Brand/Wordmark.vue';
 import CoachBubble from '@/Components/Onboarding/CoachBubble.vue';
 import NotificationChoice from '@/Components/Settings/NotificationChoice.vue';
+import AppleHealthCard from '@/Components/Settings/AppleHealthCard.vue';
+import { isNativeApp } from '@/Composables/useNativeApp';
 import { clockInput } from '@/Composables/useFormat';
 
 const props = defineProps({
@@ -405,7 +407,11 @@ const stravaLinked = computed(() => !!props.connections?.strava);
 // Plätze, neue Athleten kommen über Garmin.
 const stravaOffered = computed(() => !!page.props.auth?.strava);
 const garminLinked = computed(() => !!props.connections?.garmin);
-const anyLinked    = computed(() => stravaLinked.value || garminLinked.value || !!props.connections?.coros);
+// Apple Health gibt es nur in der iOS-App (HealthKit), darum nur dort
+// (09.11.2026). Im Browser bleibt der Schritt wie er war.
+const nativeApp     = isNativeApp();
+const appleConsent  = computed(() => !!props.connections?.appleHealth?.consent_at);
+const anyLinked    = computed(() => stravaLinked.value || garminLinked.value || !!props.connections?.coros || appleConsent.value);
 const garminGranted = computed(() => {
     const c = props.connections?.garmin;
     if (!c) return '';
@@ -447,6 +453,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', refreshCo
 // Eine Quelle pro Athlet; wählbar, sobald beide liefern können.
 const sourceOptions    = computed(() => [
     { value: 'strava', label: 'Strava' }, { value: 'garmin', label: 'Garmin' }, { value: 'coros', label: 'COROS' },
+    { value: 'apple', label: 'Apple' },
 ].filter((o) => (props.connections?.source?.usable ?? []).includes(o.value)));
 const sourceChoosable  = computed(() => (props.connections?.source?.usable ?? []).length > 1);
 const sourceValue      = ref(props.connections?.source?.current ?? 'strava');
@@ -890,6 +897,9 @@ const bar = computed(() => {
                         <p class="text-[13px] leading-snug text-ink-3">Die Anmeldung läuft direkt bei COROS. Ohne Haken schreibt Zone3 nur deinen Plan in den COROS-Kalender.</p>
                     </div>
                     <p v-if="connections.corosStatus?.type === 'error'" class="px-4 py-3 text-[13px] text-danger">{{ connections.corosStatus.message }}</p>
+                    <AppleHealthCard v-if="nativeApp && connections.appleHealth" :state="connections.appleHealth"
+                        :activity-source="connections.source?.current"
+                        source-hint="Trainings aus Apple Health übernimmt Zone3, wenn du darunter bei „Neue Aktivitäten kommen von“ Apple wählst." />
                     <template v-if="garminLinked && !stravaLinked" #footer>
                         <template v-if="stravaOffered">Garmin schickt nur neue Läufe. Verbinde zusätzlich Strava, damit Zone3 auch deine bisherigen kennt — daraus kommen Schwellenpace, Wochenumfang und Bestzeiten vom ersten Tag an.</template>
                         <template v-else>Garmin schickt nur neue Läufe. Bis genug davon da sind, plant Zone3 mit den Werten, die du eben eingetragen hast.</template>
