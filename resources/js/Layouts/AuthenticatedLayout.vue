@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { reportUsage } from '@/Composables/useUsageBeacon';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { useDarkMode } from '@/Composables/useDarkMode';
 import { useCoachChat } from '@/Composables/useCoachChat';
@@ -17,7 +18,7 @@ import WatchWorkoutSync from '@/Components/Native/WatchWorkoutSync.vue';
 import { isNativeApp, nativePlugin } from '@/Composables/useNativeApp';
 
 const { updateReady, startVersionPolling, reload } = useVersionCheck();
-onMounted(() => startVersionPolling());
+onMounted(() => { startVersionPolling(); reportUsage(); });
 
 /*
  * Hier stand ein schwebender Hilfe-Knopf. Er lag in jeder Scrollposition

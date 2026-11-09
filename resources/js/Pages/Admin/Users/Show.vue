@@ -221,6 +221,7 @@ const zoneColors = [
                             <span v-if="user.onboarding_completed_at">✓ Onboarding abgeschlossen</span>
                             <span v-if="user.strava_account">🔗 Strava: {{ user.strava_account.username }}</span>
                             <span v-if="user.coach">🤖 Coach: {{ user.coach.name }}</span>
+                            <span>Genutzt: App {{ user.seen_app_on ? formatDate(user.seen_app_on) : '–' }} · Homescreen {{ user.seen_homescreen_on ? formatDate(user.seen_homescreen_on) : '–' }} · Browser {{ user.seen_browser_on ? formatDate(user.seen_browser_on) : '–' }}</span>
                         </div>
                     </div>
                     <!-- Konto-Aktionen -->

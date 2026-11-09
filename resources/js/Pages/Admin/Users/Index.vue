@@ -48,6 +48,15 @@ function deleteUser() {
     });
 }
 
+// Worin der Athlet Zone3 benutzt hat, neuester Weg zuerst (seit 09.11.2026).
+function usedVia(u) {
+    return [
+        { label: 'App', on: u.seen_app_on },
+        { label: 'Homescreen', on: u.seen_homescreen_on },
+        { label: 'Browser', on: u.seen_browser_on },
+    ].filter((w) => w.on).sort((a, b) => (a.on < b.on ? 1 : -1));
+}
+
 function formatDate(d) {
     if (!d) return '—';
     return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -138,6 +147,7 @@ const filterOptions = [
                                         <span v-if="u.email_verified_at"          class="badge bg-success-soft text-success-ink">✓ Mail</span>
                                         <span v-if="u.onboarding_completed_at"    class="badge bg-accent-soft text-accent-ink">Onboarded</span>
                                         <span v-if="u.strava_account"             class="badge bg-warn-soft text-warn-ink">Strava</span>
+                                        <span v-for="w in usedVia(u)" :key="w.label" class="badge bg-surface-2 text-ink-2" :title="`Zuletzt ${formatDate(w.on)}`">{{ w.label }}</span>
                                     </div>
                                 </td>
 

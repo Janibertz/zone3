@@ -998,6 +998,10 @@ Jans Wunsch nach dem Startbildschirm einer anderen Lauf-App: großes Foto, **„
 
 `php artisan demo:create [email] [--password=] [--reset]` legt ein freigeschaltetes Konto mit Passwort an (Vorgabe `demo@zone3.run`, Passwort wird ausgegeben): Rennen in 20 Wochen, zwei Wochen Plan aus dem Workout-Katalog, kein Modellaufruf. Für Apples Prüfer — mit Apple oder per Link landete er auf der Warteliste. Ein Admin-Konto fasst der Befehl nie an. Zugangsdaten nur in App Store Connect, nicht ins Repo.
 
+### App, Homescreen oder Browser (seit 09.11.2026)
+
+Jan: „Kann ich im Admin sehen, wer die App oder die normale Seite nutzt?“ Am Server nicht erkennbar — die iOS-App schickt keine eigene Kennung, ihr WebView sieht aus wie Safari. Darum meldet die Seite selbst (`Composables/useUsageBeacon.js`, aus `AuthenticatedLayout`) einmal am Tag `POST /usage/seen` mit `app` (`isNativeApp()`), `homescreen` (`display-mode: standalone`) oder `browser`. Gespeichert wird je Weg nur der letzte Tag (`users.seen_app_on`, `seen_homescreen_on`, `seen_browser_on`), kein Gerät, keine Adresse. Admin: Markierungen in der Nutzerliste, Daten auf der Athletenseite, Zählung der letzten 7 Tage in der Übersicht. Kein App-Build nötig.
+
 ### Impersonation — `Als … ansehen`
 
 `POST /admin/users/{user}/impersonate` logs the admin in as that athlete; `POST /impersonate/stop` comes back. The fastest way to understand a report is to see the page the athlete sees — "there is a gap in my plan today" cost hours of database queries that one click would have answered.
