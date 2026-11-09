@@ -238,6 +238,36 @@ class PeriodizationService
         ];
     }
 
+    /**
+     * Wie weit der Weg zum Rennen ist: Woche X von Y und die Phase. Für die
+     * Fortschrittsleiste auf den Fotokarten der Rennen- und der Planseite. Der Planstart
+     * kommt aus {@see planBegan()} — dieselbe Stelle, an der auch der
+     * Entlastungsrhythmus beginnt.
+     *
+     * @return array{week: int, weeks: int, percent: int, phase: string, starts_in: int}|null
+     */
+    public function progress(Event $e): ?array
+    {
+        $began   = $this->planBegan($e);
+        $race    = CarbonImmutable::parse($e->event_date->toDateString());
+        $total   = (int) $began->diffInDays($race, false);
+        if ($total <= 0) {
+            return null;
+        }
+
+        $done  = max(0, min($total, (int) $began->diffInDays(CarbonImmutable::today(), false)));
+        $weeks = max(1, (int) ceil($total / 7));
+
+        return [
+            'week'    => min($weeks, intdiv($done, 7) + 1),
+            'weeks'   => $weeks,
+            'percent' => (int) round($done / $total * 100),
+            'phase'   => $this->phaseOn($e)['label'],
+            // Ein Plan, der erst später beginnt, ist noch in keiner Woche.
+            'starts_in' => max(0, (int) CarbonImmutable::today()->diffInDays($began, false)),
+        ];
+    }
+
     /** Die Woche mit dem längsten Lauf — die einzige Definition dafür. */
     /**
      * Der erste Tag des Plans: das Startdatum aus dem Interview, sonst die

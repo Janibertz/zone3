@@ -246,7 +246,8 @@ watch(() => form.race_distance, (val) => {
 
                             <div v-if="featured.progress" class="mt-5">
                                 <div class="flex justify-between text-[13px] font-medium text-white/75">
-                                    <span>Woche {{ featured.progress.week }} von {{ featured.progress.weeks }} · {{ featured.progress.phase }}</span>
+                                    <span v-if="featured.progress.starts_in > 0">Plan startet in {{ featured.progress.starts_in }} {{ featured.progress.starts_in === 1 ? 'Tag' : 'Tagen' }} · {{ featured.progress.weeks }} Wochen</span>
+                                    <span v-else>Woche {{ featured.progress.week }} von {{ featured.progress.weeks }} · {{ featured.progress.phase }}</span>
                                     <span class="tabular-nums">{{ featured.progress.percent }} %</span>
                                 </div>
                                 <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white/20">

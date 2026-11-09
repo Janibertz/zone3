@@ -134,4 +134,17 @@ class EmotionMomentsTest extends TestCase
         $this->actingAs($user)->get('/events')->assertInertia(fn (Assert $page) => $page
             ->where('events.0.progress', null));
     }
+
+    public function test_the_plan_page_card_shows_progress_and_a_later_start(): void
+    {
+        $user  = User::factory()->create(['onboarding_completed_at' => now()]);
+        $event = Event::create(['user_id' => $user->id, 'name' => 'HM', 'event_date' => '2027-04-11',
+            'plan_start_date' => '2026-11-30', 'race_distance' => 'half_marathon', 'priority' => 'A',
+            'target_time_hours' => 1, 'target_time_minutes' => 25]);
+        TrainingPlan::create(['user_id' => $user->id, 'event_id' => $event->id, 'is_active' => true, 'name' => 'Plan', 'sessions' => '[]']);
+
+        $this->actingAs($user)->get("/events/{$event->id}/plan")->assertInertia(fn (Assert $page) => $page
+            ->where('event.progress.starts_in', 21)
+            ->where('event.progress.week', 1));
+    }
 }
