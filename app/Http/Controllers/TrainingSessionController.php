@@ -200,6 +200,22 @@ class TrainingSessionController extends Controller
     }
 
     /**
+     * „Nicht bewerten“: die Einheiten verschwinden aus „Wie lief's?“ und
+     * bleiben ohne Bewertung. Eine oder alle offenen auf einmal (`ids`).
+     */
+    public function skipRating(Request $request)
+    {
+        $request->validate(['ids' => 'required|array|max:50', 'ids.*' => 'integer']);
+
+        TrainingSession::where('user_id', Auth::id())
+            ->whereIn('id', $request->input('ids'))
+            ->whereNull('rating_skipped_at')
+            ->update(['rating_skipped_at' => now()]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
      * Die Radeinheit als .zwo-Datei für Zwift.
      *
      * Nur für Einheiten, deren Schritte in % FTP stehen — eine Laufstruktur

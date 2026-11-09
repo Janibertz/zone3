@@ -396,6 +396,13 @@ async function submitRating(sessionId) {
         ratingSavingId.value = null;
     }
 }
+// „Nicht bewerten“ (09.11.2026): einzeln oder alle offenen auf einmal.
+async function skipRating(ids) {
+    ratedIds.value = new Set([...ratedIds.value, ...ids]);
+    if (ids.includes(ratingOpenId.value)) ratingOpenId.value = null;
+    await axios.patch(route('training-sessions.skip-rating'), { ids });
+    router.reload({ only: ['unratedSessions'] });
+}
 const showWellbeingModal = ref(false);
 const wellbeingEnteredToday = ref(props.hasWellbeingToday);
 const wellbeingToast = ref(null);
@@ -1678,12 +1685,17 @@ async function resetLayout() {
                      NOCH ZU BEWERTEN
                      ══════════════════════════════════════════════════ -->
                 <section v-if="pendingRatingSessions.length > 0">
-                    <SectionHeader title="Wie lief's?" />
+                    <SectionHeader title="Wie lief's?">
+                        <template v-if="pendingRatingSessions.length > 1" #action>
+                            <AppButton variant="plain" size="sm" @click="skipRating(pendingRatingSessions.map(s => s.id))">Alle überspringen</AppButton>
+                        </template>
+                    </SectionHeader>
                     <AppCard flush>
                         <div class="divide-y divide-line">
                             <div v-for="session in pendingRatingSessions" :key="session.id">
-                                <button v-if="ratingOpenId !== session.id" @click="openRating(session)"
-                                    class="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-surface-2">
+                                <div v-if="ratingOpenId !== session.id" class="flex items-center">
+                                <button @click="openRating(session)"
+                                    class="flex min-w-0 flex-1 items-center justify-between gap-3 py-4 pl-5 pr-2 text-left transition-colors hover:bg-surface-2">
                                     <div class="flex min-w-0 items-center gap-3">
                                         <svg class="h-5 w-5 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true" v-html="sessionType(session.type).icon" />
                                         <div class="min-w-0">
@@ -1696,6 +1708,12 @@ async function resetLayout() {
                                     </div>
                                     <span class="shrink-0 rounded-full bg-surface-2 px-3 py-1.5 text-[13px] font-semibold text-ink">Bewerten</span>
                                 </button>
+                                <button type="button" :aria-label="'Nicht bewerten: ' + (session.activity_name || session.title || 'Einheit')"
+                                    class="mr-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-3 transition active:scale-90 hover:text-ink"
+                                    @click="skipRating([session.id])">
+                                    <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                </button>
+                                </div>
 
                                 <div v-else class="px-5 py-4">
                                     <div class="mb-4 flex items-center justify-between">
@@ -1741,6 +1759,7 @@ async function resetLayout() {
                                             :loading="ratingSavingId === session.id"
                                             :disabled="!ratingStars && !ratingEffort && !ratingNotes"
                                             @click="submitRating(session.id)">Speichern</AppButton>
+                                        <button type="button" class="shrink-0 text-[13px] font-semibold text-ink-3 hover:text-ink" @click="skipRating([session.id])">Nicht bewerten</button>
                                         <a v-if="session.activity_id" :href="activityHref(session.activity_id, '/dashboard')" class="shrink-0 text-[13px] text-ink-3 hover:text-ink">Details</a>
                                     </div>
                                 </div>

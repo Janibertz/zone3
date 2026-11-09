@@ -182,6 +182,7 @@ class TrainingSession extends Model
         'rating',
         'effort_perceived',
         'feeling_notes',
+        'rating_skipped_at',
         'coach_review',
         'review_question',
         'review_options',
