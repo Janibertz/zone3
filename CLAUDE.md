@@ -993,6 +993,10 @@ Jans Wunsch nach dem Startbildschirm einer anderen Lauf-App: großes Foto, **„
 - **Link per Mail** (`MagicLinkController`): das Konto entsteht erst beim Einlösen, 30 min, einmal, Token nur gehasht im Cache. Der Link öffnet eine Seite mit Knopf, angemeldet wird per POST — Mail-Scanner öffnen Links vorab. `/login/link/*` steht in der apple-app-site-association und öffnet die iOS-App. Ohne Namen wird er aus der Adresse geraten.
 - **Mit Apple** (`AppleSignInController`, `AppleIdToken` prüft RS256 gegen Apples JWKS ohne Paket): in der App das native Sheet (`ios/App/App/AppleSignInPlugin.swift`, JS-Name `AppleSignIn`, Nonce aus der Session), im Browser Weiterleitung mit `form_post`-Rückweg (state + nonce im Cache, weil der POST von appleid.apple.com ohne Lax-Cookie kommt; CSRF-Ausnahme). Kein Schlüssel nötig — Zone3 tauscht keinen Code, es prüft nur das id_token. Audience: Bundle-ID (App) bzw. `APPLE_SIGNIN_CLIENT_ID` (Services-ID, Web; ohne sie gibt es den Knopf nur in der App). Konto über `users.apple_sub`, sonst über die von Apple bestätigte Adresse. **Private Relay:** Mails an `@privaterelay.appleid.com` kommen nur an, wenn die Absenderdomain im Developer-Konto unter „Sign in with Apple for Email Communication“ eingetragen ist.
 
+### Demo-Konto für die App-Prüfung (seit 09.11.2026)
+
+`php artisan demo:create [email] [--password=] [--reset]` legt ein freigeschaltetes Konto mit Passwort an (Vorgabe `demo@zone3.run`, Passwort wird ausgegeben): Rennen in 20 Wochen, zwei Wochen Plan aus dem Workout-Katalog, kein Modellaufruf. Für Apples Prüfer — mit Apple oder per Link landete er auf der Warteliste. Ein Admin-Konto fasst der Befehl nie an. Zugangsdaten nur in App Store Connect, nicht ins Repo.
+
 ### Impersonation — `Als … ansehen`
 
 `POST /admin/users/{user}/impersonate` logs the admin in as that athlete; `POST /impersonate/stop` comes back. The fastest way to understand a report is to see the page the athlete sees — "there is a gap in my plan today" cost hours of database queries that one click would have answered.
