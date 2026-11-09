@@ -245,7 +245,7 @@ class PeriodizationService
      * {@see Event::planStartsOn()} — das rückt bei einem laufenden Plan jeden
      * Tag auf heute vor, und die erste Entlastung käme nie.
      */
-    private function planBegan(Event $event): CarbonImmutable
+    public function planBegan(Event $event): CarbonImmutable
     {
         if (! $event->exists) {
             return CarbonImmutable::today();

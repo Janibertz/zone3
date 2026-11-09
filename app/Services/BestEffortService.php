@@ -140,6 +140,50 @@ class BestEffortService
     }
 
     /**
+     * Die Bestzeit, die eine Aktivität aufgestellt hat — für das Vollbild
+     * „Neue Bestzeit“ auf dem Dashboard und das Story-Bild dazu.
+     *
+     * Hat ein Lauf mehrere Bestzeiten (5 km und 10 km), zählt die längste:
+     * sie ist die größere Leistung. Verglichen wird mit dem besten Wert vor
+     * diesem Lauf; gab es keinen, ist es keine neue Bestzeit, sondern eine
+     * erste Zeit, und es gibt nichts zu feiern.
+     *
+     * @return array{distance: string, seconds: int, previous_seconds: int, pace: string, activity_id: int, activity_name: ?string, date: string}|null
+     */
+    public function celebration(int $userId, int $activityId): ?array
+    {
+        $efforts = BestEffort::where('user_id', $userId)
+            ->where('activity_id', $activityId)
+            ->with('activity:id,name,start_date')
+            ->get()
+            ->sortByDesc('distance_m');
+
+        foreach ($efforts as $effort) {
+            $previous = BestEffort::where('user_id', $userId)
+                ->where('distance_key', $effort->distance_key)
+                ->where('activity_id', '!=', $activityId)
+                ->where('achieved_at', '<', $effort->achieved_at)
+                ->min('elapsed_time');
+
+            if ($previous === null || $effort->elapsed_time >= $previous) {
+                continue;
+            }
+
+            return [
+                'distance'         => self::LABELS[$effort->distance_key] ?? $effort->distance_key,
+                'seconds'          => $effort->elapsed_time,
+                'previous_seconds' => (int) $previous,
+                'pace'             => $this->pacePerKm($effort->elapsed_time, $effort->distance_m),
+                'activity_id'      => $activityId,
+                'activity_name'    => $effort->activity?->name,
+                'date'             => $effort->achieved_at->toDateString(),
+            ];
+        }
+
+        return null;
+    }
+
+    /**
      * Per-distance time series of every effort (oldest → newest) for the chart.
      *
      * @return array<string, array<int, array{date:string,elapsed_time:int,time_formatted:string}>>

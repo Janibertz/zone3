@@ -30,10 +30,16 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
  * Werbung mit Strava-Bezug ohne schriftliche Zustimmung, und Strava-Daten
  * dürfen nicht in KI. Angesprochen werden Garmin- und COROS-Läufer.
  *
- * COROS (05.11.2026) nur so weit, wie es heute trägt: der Plan geht auf die
- * Uhr. Läufe, Schlaf und HRV liest Zone3 von COROS noch nicht — deshalb
- * bleibt der Abschnitt „Körper" bei Garmin, und COROS steht nur als Name,
- * ohne Logo (keine Markenrichtlinie von COROS für Drittanbieter gefunden).
+ * COROS steht nur als Name, ohne Logo (keine Markenrichtlinie von COROS
+ * für Drittanbieter gefunden). Seit 06.11.2026 liest Zone3 auch von COROS
+ * Läufe, Schlaf und HRV.
+ *
+ * Apple Watch und Apple Health (seit 09.11.2026, Jan): über die iOS-App,
+ * ebenfalls nur als Name — Apples Richtlinien erlauben Produktnamen im
+ * Fließtext, keine Apple-Logos.
+ *
+ * Mehr Emotion (09.11.2026, Jan): Fotos im Aufmacher und bei „Mitmachen“,
+ * dieselben wie auf dem Anmeldebildschirm (Unsplash-Lizenz, lokal).
  */
 
 // „Schreib mir einfach" — eine E-Mail, kein Formular (Jan, 28.10.2026).
@@ -111,10 +117,15 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
         </nav>
 
         <!-- ══ AUFMACHER ══════════════════════════════════════════ -->
-        <section class="px-5 pb-20 pt-28 sm:pt-36">
-            <div class="mx-auto grid max-w-5xl items-center gap-12 lg:grid-cols-2 lg:gap-16">
-                <div>
-                    <p class="text-[17px] font-semibold text-ink-3">Der Coach, der mitläuft.</p>
+        <section class="relative px-5 pb-20 pt-28 sm:pt-36">
+            <!-- Foto oben, läuft nach unten in den Grund aus. -->
+            <div class="pointer-events-none absolute inset-x-0 top-0 h-[640px] sm:h-[760px]" aria-hidden="true">
+                <img src="/images/login/hero.jpg" alt="" class="h-full w-full object-cover object-[center_35%] opacity-80" />
+                <div class="absolute inset-0" style="background: linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.15) 30%, rgba(0,0,0,0.55) 65%, rgb(var(--z-bg)) 100%);" />
+            </div>
+            <div class="relative mx-auto grid max-w-5xl items-center gap-12 lg:grid-cols-2 lg:gap-16">
+                <div class="pt-[140px] sm:pt-[180px] lg:pt-0">
+                    <p class="text-[17px] font-semibold text-white/80">Der Coach, der mitläuft.</p>
                     <!--
                         Zwei Blöcke statt <br>: Vue faltet den Zeilenumbruch im
                         Quelltext weg, und ein ausgeblendetes <br> klebte Wörter
@@ -126,7 +137,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                         <span class="block whitespace-nowrap">unter <span class="text-accent">2 Stunden.</span></span>
                     </h1>
                     <p class="mt-6 max-w-md text-[20px] font-medium leading-snug text-ink-2">
-                        Garmin oder COROS? Verbinde deine Uhr und leg direkt mit deinem Ziel los.
+                        Garmin, COROS oder Apple Watch? Verbinde deine Uhr und leg direkt mit deinem Ziel los.
                     </p>
                     <p class="mt-3 max-w-md text-[15px] leading-relaxed text-ink-3">
                         Zone3 rechnet deine Tempi aus und baut einen Plan bis zum Renntag.
@@ -199,15 +210,15 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                 <!-- 1 — Körper -->
                 <div class="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
                     <div>
-                        <p class="text-[17px] font-semibold text-ink-3">Von deiner Garmin, heute 06:42</p>
+                        <p class="text-[17px] font-semibold text-ink-3">Von deiner Uhr, heute 06:42</p>
                         <h2 class="mt-2 text-[2.5rem] font-extrabold leading-[1.02] tracking-[-0.035em] sm:text-5xl">
                             <span class="block">Schlecht geschlafen?</span>
                             <span class="block text-ink-3">Er sieht es.</span>
                         </h2>
                         <p class="mt-5 max-w-md text-[15px] leading-relaxed text-ink-2">
-                            Schlaf, HRV und Ruhepuls von deiner Garmin-Uhr, gemessen gegen deine
-                            eigene Grundlinie. Passt die geplante Einheit nicht zur Nacht, kommt
-                            ein Vorschlag.
+                            Schlaf, HRV und Ruhepuls von Garmin, COROS oder Apple Health, gemessen
+                            gegen deine eigene Grundlinie. Passt die geplante Einheit nicht zur
+                            Nacht, kommt ein Vorschlag.
                         </p>
                         <p class="mt-6 text-[22px] font-bold tracking-tight">
                             Er schlägt vor. <span class="text-ink-3">Du entscheidest.</span>
@@ -315,16 +326,21 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
         </section>
 
         <!-- ══ MITMACHEN ══════════════════════════════════════════ -->
-        <section id="mitmachen" class="scroll-mt-20 px-5 pb-24 pt-16">
-            <div class="mx-auto max-w-5xl">
+        <section id="mitmachen" class="relative scroll-mt-20 overflow-hidden px-5 pb-24 pt-[300px] sm:pt-[360px]">
+            <div class="pointer-events-none absolute inset-0" aria-hidden="true">
+                <img src="/images/moments/feld.jpg" alt="" class="h-full w-full object-cover object-[center_55%] opacity-75" />
+                <div class="absolute inset-0" style="background: linear-gradient(to bottom, rgb(var(--z-bg)) 0%, rgba(0,0,0,0.3) 22%, rgba(0,0,0,0.72) 50%, rgb(var(--z-bg)) 100%);" />
+            </div>
+            <div class="relative mx-auto max-w-5xl">
                 <span class="inline-block rounded-full bg-accent-soft px-3.5 py-1.5 text-[13px] font-semibold text-accent-ink">
                     Beta · kostenlos · mit Warteliste
                 </span>
                 <h2 class="mt-5 text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.035em] sm:text-6xl">
-                    <span class="block">Garmin oder COROS?</span>
-                    <span class="block text-ink-3">Verbinden. Loslegen.</span>
+                    <span class="block">Deine Uhr.</span>
+                    <span class="block">Dein Ziel.</span>
+                    <span class="block text-white/70">Verbinden. Loslegen.</span>
                 </h2>
-                <p class="mt-4 text-[17px] text-ink-3">Mit Apple oder deiner Mail anmelden, wir schalten dich frei. Fragen? Schreib mir einfach.</p>
+                <p class="mt-4 max-w-lg text-[17px] text-white/75">Garmin, COROS oder Apple Watch. Mit Apple oder deiner Mail anmelden, wir schalten dich frei. Fragen? Schreib mir einfach.</p>
 
                 <div class="mt-8 flex flex-col gap-3 sm:flex-row">
                     <Link v-if="canLogin && !$page.props.auth.user" :href="route('login')"
@@ -338,9 +354,9 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                 </div>
 
                 <!-- Die Adresse ausgeschrieben: ohne Mail-App am Rechner führt der Knopf ins Leere. -->
-                <p class="mt-4 select-text text-[15px] text-ink-3">{{ KONTAKT.adresse }}</p>
+                <p class="mt-4 select-text text-[15px] text-white/70">{{ KONTAKT.adresse }}</p>
 
-                <p class="mt-14 text-[15px] font-semibold text-ink-3">Für Garmin- und COROS-Läufer</p>
+                <p class="mt-14 text-[15px] font-semibold text-white/70">Für Läufer mit Garmin, COROS oder Apple Watch · Apple Health über die iOS-App</p>
             </div>
         </section>
 

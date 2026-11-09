@@ -18,6 +18,7 @@ import { router } from '@inertiajs/vue3';
 import { ref, watch, computed, onMounted } from 'vue';
 import axios from 'axios';
 import SessionCard from '@/Components/UI/SessionCard.vue';
+import PersonalRecordMoment from '@/Components/Moments/PersonalRecordMoment.vue';
 import { activityHref, completedActivityHref } from '@/Composables/useActivityLink';
 import AppCard from '@/Components/UI/AppCard.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
@@ -113,6 +114,11 @@ const props = defineProps({
         default: null,
     },
     intensityDistribution: {
+        type: Object,
+        default: null,
+    },
+    // Neue Bestzeit als Vollbild — siehe PersonalRecordMoment.
+    personalRecord: {
         type: Object,
         default: null,
     },
@@ -1343,8 +1349,8 @@ async function resetLayout() {
                     will: eine neue Bestzeit feiern oder nach der Tagesform fragen.
                     Das Wetter steht in der Datumszeile darüber.
                 -->
-                <AppCard v-if="(coachPrMessage && !prDismissed) || !checkinDone">
-                    <template v-if="coachPrMessage && !prDismissed">
+                <AppCard v-if="(coachPrMessage && !personalRecord && !prDismissed) || !checkinDone">
+                    <template v-if="coachPrMessage && !personalRecord && !prDismissed">
                         <h2 class="text-[22px] font-bold leading-7 tracking-tight text-ink">Stark gelaufen, {{ firstName }}!</h2>
                         <p class="mt-2 text-[15px] leading-relaxed text-ink-2">{{ coachPrMessage }}</p>
                         <AppButton size="md" variant="secondary" class="mt-4" @click="dismissPr">Danke, gesehen</AppButton>
@@ -2465,6 +2471,8 @@ async function resetLayout() {
             </div>
         </AppSheet>
 
+        <PersonalRecordMoment v-if="personalRecord && !prDismissed"
+            :record="personalRecord" :message="coachPrMessage" @close="dismissPr" />
     </AuthenticatedLayout>
 </template>
 
