@@ -237,6 +237,28 @@ class User extends Authenticatable
         return $this->hasOne(TrainingPlan::class)->where('is_active', true)->latest();
     }
 
+    /**
+     * Der aktive Plan beginnt erst später (Planstart aus dem Interview): bis
+     * dahin überbrückt der Tagesvorschlag (09.11.2026). Null, wenn kein
+     * Plan aktiv ist oder er schon läuft.
+     *
+     * @return array{race: string, date: string, days: int}|null
+     */
+    public function planStartsLater(): ?array
+    {
+        $event = $this->activeTrainingPlan?->event;
+        $start = $event?->plan_start_date;
+        if (! $start || ! $start->isAfter(today())) {
+            return null;
+        }
+
+        return [
+            'race' => $event->name,
+            'date' => $start->locale('de')->isoFormat('dd, D. MMMM'),
+            'days' => (int) today()->diffInDays($start),
+        ];
+    }
+
     public function activities()
     {
         return $this->hasMany(Activity::class);

@@ -348,6 +348,8 @@ Die Umfangskorrektur sitzt in `PlanContextBuilder::applyInterviewToVolume()` und
 
 **`flash` wurde nie geteilt.** Beim Prüfen der Quittung fiel auf, dass `HandleInertiaRequests::share()` kein `flash` enthält — während **20 Controller** `->with('success', …)` setzen und **14 Vue-Seiten** `props.flash` lesen. Jede Bestätigung der ganzen Anwendung ist seit jeher still verschluckt worden: „Freigabe zurückgenommen", „Plan-Lücken geschlossen", „Messwerte verworfen". Gemeldet hat es niemand, weil eine fehlende Meldung wie eine Aktion ohne Nachricht aussieht und nicht wie ein Fehler. Jetzt als Closure geteilt, damit die Session erst beim Rendern gelesen wird.
 
+**Bis zum Planstart überbrückt der Tagesvorschlag** (09.11.2026, Jan: Plan ab 30.11., „ich bekomme aber keine täglichen Vorschläge mehr“). `User::planStartsLater()` sagt, ob der aktive Plan erst später beginnt; ohne Planeinheit heute zeigt „Heute“ dann denselben Vorschlag wie ohne Plan (`bridgeToPlan`), und der Prompt bekommt eine Zeile `PLANSTART` (Form halten, Umfang nicht steigern). Eine Planeinheit heute (etwa vom Coach) geht vor.
+
 **Ein Interview altert.** Nach acht Wochen liefert `forPlan()` nichts mehr — es beschreibt dann einen anderen Athleten, und ab da zählen die Daten allein. Jedes Feld ist optional: ein halb beantwortetes Interview ist mehr wert als eines, das an einem Pflichtfeld abgebrochen wurde.
 
 ### When the plan may change (and when it may not)

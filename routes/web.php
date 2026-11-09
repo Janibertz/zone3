@@ -272,9 +272,18 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         ];
     }
 
+    // Vor dem Planstart (Planstart aus dem Interview liegt in der Zukunft)
+    // und ohne Planeinheit heute gibt es den Tagesvorschlag wie ohne Plan
+    // (09.11.2026, Jan: „Das wäre doch nice, wenn es bis zum Trainingsstart
+    // gehen würde“).
+    $planStartsLater = $activePlan ? $user->planStartsLater() : null;
+    $bridgeToPlan = $planStartsLater && ! TrainingSession::where('training_plan_id', $activePlan->id)
+        ->whereDate('planned_date', $todayStr)
+        ->exists();
+
     // Standalone recommendation session (accepted by user, no active plan)
     $todayRecommendationSession = null;
-    if (! $activePlan) {
+    if (! $activePlan || $bridgeToPlan) {
         $sr = TrainingSession::where('user_id', $user->id)
             ->whereDate('planned_date', $todayStr)
             ->whereNull('training_plan_id')
@@ -322,6 +331,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         'todayRecommendationSession' => $todayRecommendationSession,
         'coachRecommendation'        => $coachRecommendation,
         'hasActivePlan' => (bool) $activePlan,
+        'bridgeToPlan'  => $bridgeToPlan ? $planStartsLater : null,
         'weekPlan' => $weekPlan,
         // Reihenfolge und Sichtbarkeit der Module, siehe App\Services\DashboardLayout.
         'dashboardLayout' => \App\Services\DashboardLayout::resolve($user->dashboard_layout),

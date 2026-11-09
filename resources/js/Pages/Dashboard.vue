@@ -87,6 +87,8 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    // Plan beginnt später: bis dahin der Tagesvorschlag ({race, date, days}).
+    bridgeToPlan: { type: Object, default: null },
     hasActivePlan: {
         type: Boolean,
         default: false,
@@ -1486,7 +1488,7 @@ async function resetLayout() {
                     </SectionHeader>
 
                     <!-- ── Mit aktivem Plan ─────────────────────────── -->
-                    <template v-if="props.hasActivePlan">
+                    <template v-if="props.hasActivePlan && !props.bridgeToPlan">
                         <!--
                             Die Aktionen stehen in der Karte (Story-Look): „Details"
                             breit, der Download zur Uhr bzw. zu Zwift als kleiner
@@ -1529,6 +1531,9 @@ async function resetLayout() {
 
                     <!-- ── Ohne Plan: Empfehlung ────────────────────── -->
                     <template v-else>
+                        <p v-if="props.bridgeToPlan" class="mb-3 px-1 text-[15px] leading-snug text-ink-2">
+                            Dein Plan startet am {{ props.bridgeToPlan.date }}. Bis dahin schlägt dir der Coach jeden Tag etwas vor, das die Form hält.
+                        </p>
                         <div v-if="props.todayRecommendationSession" class="space-y-3">
                             <SessionCard :session="props.todayRecommendationSession" badge="Geplant" badge-tone="success" />
 

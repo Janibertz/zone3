@@ -42,7 +42,7 @@ class CoachingTextService
         return "Wetter heute am Trainingsort: {$line}.{$hint}\n";
     }
 
-    public function generateTodayRecommendation(?array $runnerProfile, ?array $yesterdayActivity, ?array $wellbeingEntry, ?array $goal, array $progress, array $upcomingEvents = [], ?array $todayAvailability = null, ?array $weather = null, ?array $returnToRun = null): ?array
+    public function generateTodayRecommendation(?array $runnerProfile, ?array $yesterdayActivity, ?array $wellbeingEntry, ?array $goal, array $progress, array $upcomingEvents = [], ?array $todayAvailability = null, ?array $weather = null, ?array $returnToRun = null, ?array $planStart = null): ?array
     {
         $profileText = $runnerProfile ? "Runner Profile:\n- LTHR: {$runnerProfile['threshold_heart_rate']} bpm\n- Max HR: {$runnerProfile['max_heart_rate']} bpm\n- Schwellenpace: {$runnerProfile['threshold_speed']} min/km\n" : "Kein Runner Profile vorhanden.\n";
         $activityText = $yesterdayActivity ? "Letzte Aktivität (gestern):\n- " . round($yesterdayActivity['distance']/1000,2) . " km in " . PaceFormat::hms($yesterdayActivity['moving_time']) . " · Pace: " . ($yesterdayActivity['average_speed'] ? PaceFormat::fromSpeed($yesterdayActivity['average_speed']) : '—') . "\n" : "Keine Aktivität von gestern.\n";
@@ -108,6 +108,14 @@ class CoachingTextService
             }
         }
 
+        // Die Zeit bis zum Planstart (09.11.2026, Jan: „Ich beginne erst zum
+        // 30.11. … ich bekomme aber keine täglichen Vorschläge mehr"). Bis
+        // dahin schreibt der Plan nichts; der Tagesvorschlag überbrückt —
+        // ohne den Plan vorwegzunehmen.
+        $planStartText = $planStart
+            ? "PLANSTART: Der Trainingsplan für {$planStart['race']} beginnt am {$planStart['date']} (in {$planStart['days']} Tagen). Bis dahin die Form halten: überwiegend locker, Umfang nicht steigern, nichts, was den Start gefährdet. Eine kurze lebhafte Einheit ist in Ordnung, wenn die Tagesform es hergibt.\n"
+            : '';
+
         $prompt = <<<PROMPT
 Du bist ein präziser Lauf-Coach. Erstelle eine Trainingsempfehlung für heute als JSON-Objekt.
 
@@ -119,6 +127,7 @@ Du bist ein präziser Lauf-Coach. Erstelle eine Trainingsempfehlung für heute a
 {$taperWarning}
 {$availabilityText}
 {$returnToRunText}
+{$planStartText}
 {$weatherText}
 Antworte NUR mit einem JSON-Objekt (kein Markdown, kein Text davor/danach):
 {
