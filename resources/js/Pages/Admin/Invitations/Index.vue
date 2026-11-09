@@ -8,7 +8,39 @@ import { computed, ref } from 'vue';
 const props = defineProps({
     invitations: Array,
     validDays:   Number,
+    mode:        String,
+    waiting:     Array,
 });
+
+// ── Warteliste ──────────────────────────────────────────────────────
+function setMode(mode) {
+    if (mode === props.mode) return;
+    router.post(route('admin.invitations.mode'), { mode }, { preserveScroll: true });
+}
+
+const approvingId = ref(null);
+function approve(u) {
+    approvingId.value = u.id;
+    router.post(route('admin.waitlist.approve', u.id), {}, {
+        preserveScroll: true,
+        onFinish: () => { approvingId.value = null; },
+    });
+}
+
+const toReject = ref(null);
+function confirmReject() {
+    if (!toReject.value) return;
+    busy.value = true;
+    router.delete(route('admin.waitlist.reject', toReject.value.id), {
+        preserveScroll: true,
+        onFinish: () => { busy.value = false; toReject.value = null; },
+    });
+}
+
+function since(value) {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
 
 const page  = usePage();
 const flash = computed(() => page.props.flash ?? {});
@@ -64,11 +96,11 @@ function when(value) {
 </script>
 
 <template>
-    <Head title="Einladungen" />
+    <Head title="Zugang" />
 
     <AdminLayout>
         <template #header>
-            <PageHeader title="Einladungen" />
+            <PageHeader title="Zugang" />
         </template>
         <div class="px-4 py-4 lg:px-8 lg:py-6 space-y-6">
 
@@ -76,12 +108,61 @@ function when(value) {
                 {{ flash.success }}
             </div>
 
+            <!-- ── Zugang: Warteliste oder offen ───────────────────────── -->
+            <div class="bg-surface rounded-card shadow-card">
+                <div class="px-6 py-4 border-b border-line">
+                    <h2 class="text-sm font-semibold text-ink-2">Neue Konten über Apple oder Link per Mail</h2>
+                    <p class="text-xs text-ink-3 mt-0.5">
+                        Bei jeder neuen Anmeldung bekommst du einen Push. Wer über einen Einladungslink kommt, ist immer sofort drin.
+                    </p>
+                </div>
+                <div class="px-6 py-4 grid grid-cols-2 gap-2">
+                    <button
+                        v-for="opt in [{ key: 'waitlist', label: 'Warteliste', hint: 'Du schaltest frei' }, { key: 'open', label: 'Offen', hint: 'Sofort drin' }]"
+                        :key="opt.key"
+                        type="button"
+                        class="rounded-field px-4 py-3 text-left transition active:scale-[0.98]"
+                        :class="mode === opt.key ? 'bg-accent text-white' : 'bg-surface-2 text-ink'"
+                        @click="setMode(opt.key)">
+                        <span class="block text-sm font-semibold">{{ opt.label }}</span>
+                        <span class="block text-xs" :class="mode === opt.key ? 'text-white/80' : 'text-ink-3'">{{ opt.hint }}</span>
+                    </button>
+                </div>
+
+                <div class="border-t border-line">
+                    <p v-if="!waiting.length" class="px-6 py-6 text-sm text-ink-3">
+                        Niemand wartet.
+                    </p>
+                    <div v-else class="divide-y divide-line">
+                        <div v-for="u in waiting" :key="u.id" class="px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="text-sm font-medium text-ink truncate">{{ u.name }}</p>
+                                <p class="text-xs text-ink-3 truncate">{{ u.email }} · {{ u.via }} · seit {{ since(u.since) }}</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button
+                                    class="rounded-field bg-accent px-3 py-1.5 text-xs font-semibold text-white active:opacity-80 disabled:opacity-50"
+                                    :disabled="approvingId === u.id"
+                                    @click="approve(u)">
+                                    Freischalten
+                                </button>
+                                <button
+                                    class="rounded-field px-3 py-1.5 text-xs text-ink-3 hover:text-danger-ink active:opacity-60"
+                                    @click="toReject = u">
+                                    Ablehnen
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- ── Neuer Link ────────────────────────────────────────── -->
             <div class="bg-surface rounded-card shadow-card">
                 <div class="px-6 py-4 border-b border-line">
                     <h2 class="text-sm font-semibold text-ink-2">Einladungslink erstellen</h2>
                     <p class="text-xs text-ink-3 mt-0.5">
-                        Registrieren geht nur mit einem Link von hier. Er gilt für jeden, der ihn hat,
+                        Wer über diesen Link kommt, ist sofort drin, an der Warteliste vorbei. Er gilt für jeden, der ihn hat,
                         aber nur einmal und höchstens {{ validDays }} Tage. Die Notiz ist nur für dich.
                     </p>
                 </div>
@@ -168,5 +249,14 @@ function when(value) {
             :loading="busy"
             @confirm="confirmRevoke"
             @close="toRevoke = null" />
+
+        <ConfirmSheet
+            :show="!!toReject"
+            title="Anmeldung ablehnen"
+            :message="toReject ? `Das Konto von ${toReject.name} (${toReject.email}) wird gelöscht.` : ''"
+            confirm-label="Ablehnen"
+            :loading="busy"
+            @confirm="confirmReject"
+            @close="toReject = null" />
     </AdminLayout>
 </template>

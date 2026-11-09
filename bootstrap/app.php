@@ -25,12 +25,16 @@ return Application::configure(basePath: dirname(__DIR__))
             'garmin/webhook/*',
             'telegram/webhook',
             'webhook/github',
+            // Apple schickt die Anmeldung als Formular von appleid.apple.com;
+            // geschützt über state + nonce im Cache.
+            'auth/apple/callback',
         ]);
 
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
             \App\Http\Middleware\CheckMaintenanceMode::class,
+            \App\Http\Middleware\EnsureNotWaitlisted::class,
         ]);
 
         $middleware->alias([

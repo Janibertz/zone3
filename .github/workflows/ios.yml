@@ -184,6 +184,11 @@ jobs:
             echo "::error::Universal Links (associated-domains) fehlen im signierten Build"
             exit 1
           fi
+          # Mit Apple anmelden: ohne die Berechtigung meldet das Sheet Fehler 1000.
+          if ! grep -q "com.apple.developer.applesignin" "$RUNNER_TEMP/entitlements.plist"; then
+            echo "::error::Sign in with Apple (com.apple.developer.applesignin) fehlt im signierten Build"
+            exit 1
+          fi
           # Apple Health: ohne die Berechtigung bricht requestAuthorization ab.
           if ! grep -q "com.apple.developer.healthkit" "$RUNNER_TEMP/entitlements.plist"; then
             echo "::error::HealthKit-Berechtigung fehlt im signierten Build"

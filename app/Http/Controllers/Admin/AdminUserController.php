@@ -37,6 +37,7 @@ class AdminUserController extends Controller
                 'verified'  => $query->whereNotNull('email_verified_at'),
                 'onboarded' => $query->whereNotNull('onboarding_completed_at'),
                 'strava'    => $query->has('stravaAccount'),
+                'waiting'   => $query->whereNotNull('waitlisted_at'),
                 default     => null,
             };
         }

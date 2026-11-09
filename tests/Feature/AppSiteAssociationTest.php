@@ -9,7 +9,7 @@ class AppSiteAssociationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_only_the_connection_callbacks_open_the_app(): void
+    public function test_only_the_callbacks_and_the_mail_link_open_the_app(): void
     {
         config(['services.apns.team_id' => 'Y7NR92XBVK', 'services.apns.bundle_id' => 'run.zone3.app']);
 
@@ -21,7 +21,7 @@ class AppSiteAssociationTest extends TestCase
         $details = $response->json('applinks.details.0');
         $this->assertSame(['Y7NR92XBVK.run.zone3.app'], $details['appIDs']);
         $this->assertSame(
-            ['/garmin/callback*', '/coros/callback*', '/strava/callback*'],
+            ['/garmin/callback*', '/coros/callback*', '/strava/callback*', '/login/link/*'],
             array_column($details['components'], '/'),
         );
     }

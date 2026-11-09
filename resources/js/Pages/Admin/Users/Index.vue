@@ -68,6 +68,7 @@ const filterOptions = [
     { value: 'verified',  label: 'Verifiziert' },
     { value: 'onboarded', label: 'Onboarded' },
     { value: 'strava',    label: 'Strava' },
+    { value: 'waiting',   label: 'Warteliste' },
 ];
 </script>
 
