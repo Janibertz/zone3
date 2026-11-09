@@ -19,6 +19,8 @@ import { ref, watch, computed, onMounted } from 'vue';
 import axios from 'axios';
 import SessionCard from '@/Components/UI/SessionCard.vue';
 import PersonalRecordMoment from '@/Components/Moments/PersonalRecordMoment.vue';
+import WeekDoneMoment from '@/Components/Moments/WeekDoneMoment.vue';
+import RaceDoneMoment from '@/Components/Moments/RaceDoneMoment.vue';
 import { activityHref, completedActivityHref } from '@/Composables/useActivityLink';
 import AppCard from '@/Components/UI/AppCard.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
@@ -85,6 +87,8 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    // Plan beginnt später: bis dahin der Tagesvorschlag ({race, date, days}).
+    bridgeToPlan: { type: Object, default: null },
     hasActivePlan: {
         type: Boolean,
         default: false,
@@ -118,6 +122,9 @@ const props = defineProps({
         default: null,
     },
     // Neue Bestzeit als Vollbild — siehe PersonalRecordMoment.
+    // „Woche geschafft“ und „Rennen gelaufen“ — siehe MomentService.
+    weekDone: { type: Object, default: null },
+    raceRun:  { type: Object, default: null },
     personalRecord: {
         type: Object,
         default: null,
@@ -159,6 +166,21 @@ const props = defineProps({
 
 // PR banner dismissed state (local — dismissal is persisted server-side)
 const prDismissed = ref(false);
+
+// Immer nur ein Moment: Bestzeit, dann Rennen, dann Woche.
+const raceSeen = ref(false);
+const weekSeen = ref(false);
+const showPr   = computed(() => props.personalRecord && !prDismissed.value);
+const showRace = computed(() => !showPr.value && props.raceRun && !raceSeen.value);
+const showWeek = computed(() => !showPr.value && !showRace.value && props.weekDone && !weekSeen.value);
+function closeRace() {
+    raceSeen.value = true;
+    axios.post(route('moments.seen'), { kind: 'race', event_id: props.raceRun.event_id });
+}
+function closeWeek() {
+    weekSeen.value = true;
+    axios.post(route('moments.seen'), { kind: 'week', week_start: props.weekDone.week_start });
+}
 
 async function dismissPr() {
     prDismissed.value = true;
@@ -1466,7 +1488,7 @@ async function resetLayout() {
                     </SectionHeader>
 
                     <!-- ── Mit aktivem Plan ─────────────────────────── -->
-                    <template v-if="props.hasActivePlan">
+                    <template v-if="props.hasActivePlan && !props.bridgeToPlan">
                         <!--
                             Die Aktionen stehen in der Karte (Story-Look): „Details"
                             breit, der Download zur Uhr bzw. zu Zwift als kleiner
@@ -1509,6 +1531,9 @@ async function resetLayout() {
 
                     <!-- ── Ohne Plan: Empfehlung ────────────────────── -->
                     <template v-else>
+                        <p v-if="props.bridgeToPlan" class="mb-3 px-1 text-[15px] leading-snug text-ink-2">
+                            Dein Plan startet am {{ props.bridgeToPlan.date }}. Bis dahin schlägt dir der Coach jeden Tag etwas vor, das die Form hält.
+                        </p>
                         <div v-if="props.todayRecommendationSession" class="space-y-3">
                             <SessionCard :session="props.todayRecommendationSession" badge="Geplant" badge-tone="success" />
 
@@ -2492,6 +2517,8 @@ async function resetLayout() {
 
         <PersonalRecordMoment v-if="personalRecord && !prDismissed"
             :record="personalRecord" :message="coachPrMessage" @close="dismissPr" />
+        <RaceDoneMoment v-if="showRace" :race="raceRun" @close="closeRace" />
+        <WeekDoneMoment v-if="showWeek" :week="weekDone" @close="closeWeek" />
     </AuthenticatedLayout>
 </template>
 

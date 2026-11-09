@@ -126,7 +126,8 @@ class AIController extends Controller
                     $upcomingEvents,
                     $todayAvailability,
                     $this->weather->forUser($user),
-                    $this->returnToRun->statusFor($user)
+                    $this->returnToRun->statusFor($user),
+                    $user->planStartsLater()
                 );
 
                 if ($runnerProfile && $recommendation) {

@@ -24,7 +24,8 @@ use Illuminate\Notifications\Notifiable;
     'ai_daily_limit', 'ai_daily_budget_eur', 'activity_source', 'garmin_workout_sync', 'apple_watch_sync', 'strava_allowed',
     'newsletter_opt_in', 'unsubscribe_token',
     'telegram_chat_id', 'telegram_link_token', 'telegram_linked_at', 'calendar_token',
-    'dashboard_layout', 'apple_health_consent_at', 'apple_health_synced_at', 'apple_activities_synced_at'])]
+    'dashboard_layout', 'apple_health_consent_at', 'apple_health_synced_at', 'apple_activities_synced_at',
+    'moment_week_seen', 'moment_race_seen'])]
 #[Hidden(['password', 'remember_token', 'unsubscribe_token', 'apple_sub',
     'telegram_chat_id', 'telegram_link_token', 'calendar_token'])]
 class User extends Authenticatable
@@ -76,6 +77,7 @@ class User extends Authenticatable
             'starter_plan_viewed_at'        => 'datetime',
             'starter_dismissed_at'          => 'datetime',
             'beta_badge_at'                 => 'datetime',
+            'moment_week_seen'              => 'date',
             'apple_health_consent_at'       => 'datetime',
             'apple_health_synced_at'        => 'datetime',
             'apple_activities_synced_at'    => 'datetime',
@@ -233,6 +235,28 @@ class User extends Authenticatable
     public function activeTrainingPlan()
     {
         return $this->hasOne(TrainingPlan::class)->where('is_active', true)->latest();
+    }
+
+    /**
+     * Der aktive Plan beginnt erst später (Planstart aus dem Interview): bis
+     * dahin überbrückt der Tagesvorschlag (09.11.2026). Null, wenn kein
+     * Plan aktiv ist oder er schon läuft.
+     *
+     * @return array{race: string, date: string, days: int}|null
+     */
+    public function planStartsLater(): ?array
+    {
+        $event = $this->activeTrainingPlan?->event;
+        $start = $event?->plan_start_date;
+        if (! $start || ! $start->isAfter(today())) {
+            return null;
+        }
+
+        return [
+            'race' => $event->name,
+            'date' => $start->locale('de')->isoFormat('dd, D. MMMM'),
+            'days' => (int) today()->diffInDays($start),
+        ];
     }
 
     public function activities()
