@@ -415,6 +415,26 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             return null;
         })(),
 
+        // Das Vollbild „Neue Bestzeit“ (seit 09.11.2026). Hängt an derselben
+        // Markierung wie die Coach-Nachricht und verschwindet mit ihr.
+        'personalRecord' => (function () use ($user) {
+            $profile = $user->runnerProfile;
+            if (! $profile || ! $profile->pending_pr_activity_id) return null;
+
+            $record = app(\App\Services\BestEffortService::class)
+                ->celebration($user->id, (int) $profile->pending_pr_activity_id);
+            if (! $record) return null;
+
+            $race = \App\Models\Event::where('user_id', $user->id)
+                ->where('event_date', '>=', now()->toDateString())
+                ->orderBy('event_date')
+                ->first();
+
+            return $record + [
+                'race' => $race ? ['name' => $race->name, 'days' => $race->days_until] : null,
+            ];
+        })(),
+
         'aiUsage' => (function () use ($user) {
             $limit = $user->ai_daily_limit ?? 20;
             return ['used' => \App\Models\AiLog::todayCountForUser($user->id), 'limit' => $limit];

@@ -218,39 +218,60 @@ watch(() => form.race_distance, (val) => {
                     </EmptyState>
                 </AppCard>
 
-                <!-- ══ Das nächste Rennen ══════════════════════════════════ -->
-                <section v-if="featured" class="rounded-card bg-surface p-5">
-                    <div class="flex items-center justify-between gap-3">
-                        <span class="flex items-center gap-1.5 text-[15px] font-semibold text-danger">
-                            <span class="h-2 w-2 rounded-full bg-danger" />{{ featuredLabel(featured) }}
-                        </span>
-                        <span v-if="featured.plan_is_active" class="rounded-full bg-accent/15 px-2.5 py-1 text-[13px] font-semibold text-accent">Plan aktiv</span>
+                <!-- ══ Das nächste Rennen ══════════════════════════════════
+                     Mit Foto und großem Countdown (seit 09.11.2026, Jan: „mehr
+                     Emotion“). Das Ziel ist der eine Ort der App, an dem es um
+                     das Gefühl geht und nicht um die Zahl von heute. -->
+                <section v-if="featured" class="space-y-3">
+                    <div class="relative overflow-hidden rounded-card bg-black text-white">
+                        <img src="/images/moments/rennen.jpg" alt="" aria-hidden="true"
+                            class="absolute inset-0 h-full w-full object-cover object-[center_30%]" />
+                        <div class="absolute inset-0" aria-hidden="true"
+                            style="background: linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.25) 50%, rgba(0,0,0,0.88) 100%);" />
+
+                        <div class="relative flex min-h-[440px] flex-col p-5 lg:min-h-[400px]">
+                            <div class="flex items-center justify-between gap-3">
+                                <span class="rounded-full bg-black/35 px-3 py-1 text-[13px] font-semibold backdrop-blur-md">{{ featuredLabel(featured) }}</span>
+                                <span v-if="featured.plan_is_active" class="rounded-full bg-accent px-3 py-1 text-[13px] font-semibold">Plan aktiv</span>
+                            </div>
+
+                            <div class="flex-1" />
+
+                            <p class="text-[15px] font-semibold text-white/80">{{ longDate(featured.event_date) }} · {{ distance(featured) }}</p>
+                            <h2 class="mt-1 text-[34px] font-extrabold leading-[1.05] tracking-[-0.035em] [overflow-wrap:anywhere]">{{ featured.name }}<span class="text-accent">.</span></h2>
+                            <p class="mt-4 flex items-baseline gap-2.5">
+                                <span class="font-rounded text-[88px] font-extrabold leading-[0.9] tracking-[-0.05em]">{{ countdown(featured.days_until).value }}</span>
+                                <span class="text-[20px] font-semibold text-white/75">{{ countdown(featured.days_until).unit ? countdown(featured.days_until).unit + ' noch' : '' }}</span>
+                            </p>
+
+                            <div v-if="featured.progress" class="mt-5">
+                                <div class="flex justify-between text-[13px] font-medium text-white/75">
+                                    <span>Woche {{ featured.progress.week }} von {{ featured.progress.weeks }} · {{ featured.progress.phase }}</span>
+                                    <span class="tabular-nums">{{ featured.progress.percent }} %</span>
+                                </div>
+                                <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white/20">
+                                    <div class="h-full rounded-full bg-accent transition-[width] duration-500 ease-out-strong" :style="{ width: featured.progress.percent + '%' }" />
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <h2 class="mt-2 text-[28px] font-extrabold leading-tight tracking-[-0.03em] text-ink">{{ featured.name }}</h2>
-                    <p class="mt-0.5 text-[15px] text-ink-3">{{ longDate(featured.event_date) }} · {{ distance(featured) }}</p>
 
-                    <p class="mt-5 flex items-baseline gap-2.5">
-                        <span class="font-rounded text-[64px] font-extrabold leading-none tracking-[-0.04em] text-ink">{{ countdown(featured.days_until).value }}</span>
-                        <span class="text-[20px] font-semibold text-ink-2">{{ countdown(featured.days_until).unit }}</span>
-                    </p>
-
-                    <div v-if="featured.target_seconds || featured.predicted_seconds"
-                        class="mt-5 grid grid-cols-3 gap-2 border-t border-line pt-4">
-                        <div>
-                            <p class="text-[13px] font-semibold text-ink-3">Ziel</p>
+                    <div v-if="featured.target_seconds || featured.predicted_seconds" class="grid grid-cols-3 gap-3">
+                        <div class="rounded-card bg-surface p-4">
+                            <p class="text-[13px] font-semibold text-warn">Ziel</p>
                             <p class="font-rounded text-[22px] font-bold tabular-nums text-ink">{{ featured.target_seconds ? clock(featured.target_seconds) : '–' }}</p>
                         </div>
-                        <div>
-                            <p class="text-[13px] font-semibold text-ink-3">Prognose</p>
+                        <div class="rounded-card bg-surface p-4">
+                            <p class="text-[13px] font-semibold text-fitness">Prognose</p>
                             <p class="font-rounded text-[22px] font-bold tabular-nums text-ink">{{ featured.predicted_seconds ? clock(featured.predicted_seconds) : '–' }}</p>
                         </div>
-                        <div>
+                        <div class="rounded-card bg-surface p-4">
                             <p class="text-[13px] font-semibold text-ink-3">Pace</p>
                             <p class="font-rounded text-[22px] font-bold tabular-nums text-ink">{{ featured.target_pace ?? '–' }}</p>
                         </div>
                     </div>
 
-                    <div class="mt-5 grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-2 gap-3">
                         <AppButton variant="secondary" block @click="openDetail(featured)">Details</AppButton>
                         <AppButton v-if="!anotherEventHasPlan(featured)" block :href="planHref(featured)">
                             {{ featured.plan_generated_at ? 'Zum Plan' : 'Plan erstellen' }}

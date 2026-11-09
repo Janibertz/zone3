@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Event;
 use App\Models\TrainingPlan;
 use App\Services\PaceFormat;
+use App\Services\PeriodizationService;
 use App\Services\RacePredictionService;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -124,6 +126,36 @@ class EventController extends Controller
             'target_pace'            => $e->target_pace_seconds ? PaceFormat::target($e->target_pace_seconds) : null,
             'predicted_seconds'      => $prediction['total_sec'] ?? null,
             'result_seconds'         => $resultMin ? $resultMin * 60 : null,
+            'progress'               => $plan && $e->days_until >= 0 ? $this->progress($e) : null,
+        ];
+    }
+
+    /**
+     * Wie weit der Weg zum Rennen ist: Woche X von Y und die Phase. Für die
+     * Fortschrittsleiste unter dem Foto auf der Rennen-Seite. Der Planstart
+     * kommt aus {@see PeriodizationService::planBegan()} — dieselbe Stelle,
+     * an der auch der Entlastungsrhythmus beginnt.
+     *
+     * @return array{week: int, weeks: int, percent: int, phase: string}|null
+     */
+    private function progress(Event $e): ?array
+    {
+        $periods = app(PeriodizationService::class);
+        $began   = $periods->planBegan($e);
+        $race    = CarbonImmutable::parse($e->event_date->toDateString());
+        $total   = (int) $began->diffInDays($race, false);
+        if ($total <= 0) {
+            return null;
+        }
+
+        $done  = max(0, min($total, (int) $began->diffInDays(CarbonImmutable::today(), false)));
+        $weeks = max(1, (int) ceil($total / 7));
+
+        return [
+            'week'    => min($weeks, intdiv($done, 7) + 1),
+            'weeks'   => $weeks,
+            'percent' => (int) round($done / $total * 100),
+            'phase'   => $periods->phaseOn($e)['label'],
         ];
     }
 }
