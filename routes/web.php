@@ -3,6 +3,7 @@
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\AIController;
 use App\Http\Controllers\CoachChatController;
+use App\Http\Controllers\ContactController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\GoalController;
 use App\Http\Controllers\LiveTrackController;
@@ -52,6 +53,10 @@ Route::get('/', function () {
 // /support war die alte Adresse (u. a. in den Strava-App-Einstellungen) und
 // leitet dauerhaft weiter; der Routenname bleibt, damit alte Verweise halten.
 Route::get('/privacy', fn() => Inertia::render('Privacy'))->name('privacy');
+
+// Impressum mit Kontaktformular — öffentlich wie /privacy.
+Route::get('/impressum', [ContactController::class, 'show'])->name('impressum');
+Route::post('/kontakt', [ContactController::class, 'store'])->middleware('throttle:5,10')->name('contact.store');
 
 // Universal Links der iOS-App: nur die Rückwege der Verbindungen öffnen die
 // App statt Safari. Alles andere auf zone3.run bleibt im Browser — sonst

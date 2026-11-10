@@ -2,6 +2,7 @@
 import { Head, Link } from '@inertiajs/vue3';
 import Wordmark from '@/Components/Brand/Wordmark.vue';
 import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
+import { LEGAL } from '@/legal';
 
 /**
  * Öffentliche Datenschutzerklärung (/privacy, vorher /support).
@@ -10,8 +11,8 @@ import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
  * personenbezogene Daten bekommt, trägt ihn in `empfaenger` ein. Die Seite
  * ist eine Zusage an Fremde, keine Beschreibung von Absichten.
  */
-const STAND = '9. November 2026';
-const MAIL = 'jan.anders@zone3.run';
+const STAND = '10. November 2026';
+const MAIL = LEGAL.email;
 
 const empfaenger = [
     {
@@ -115,10 +116,8 @@ const empfaenger = [
             <section>
                 <h2 class="mb-3 text-[22px] font-bold text-ink">1. Verantwortlicher</h2>
                 <p>
-                    Jan Anders<br>
-                    Hunaeusstr. 7<br>
-                    30177 Hannover<br>
-                    Deutschland<br>
+                    {{ LEGAL.name }}<br>
+                    <template v-for="line in LEGAL.address" :key="line">{{ line }}<br></template>
                     E-Mail: <a :href="`mailto:${MAIL}`" class="text-accent">{{ MAIL }}</a>
                 </p>
                 <p class="mt-3">Ein Datenschutzbeauftragter ist nicht bestellt und gesetzlich nicht vorgeschrieben.</p>
@@ -135,7 +134,7 @@ const empfaenger = [
                     <li><strong class="text-ink">Tagesform:</strong> freiwillige Selbsteinschätzung (Energie, Schlaf, Muskelkater, Stress, krank oder verletzt, Notiz).</li>
                     <li><strong class="text-ink">Coach:</strong> deine Nachrichten an den Coach, seine Antworten und Notizen, die er sich über dich merkt.</li>
                     <li><strong class="text-ink">Verbindungen:</strong> Zugangstoken für Strava, Garmin und COROS, deine Telegram-Chat-ID, das Token deines Kalender-Abos, Push-Abonnements.</li>
-                    <li><strong class="text-ink">Support:</strong> Inhalt deiner Support-Anfragen.</li>
+                    <li><strong class="text-ink">Support und Kontakt:</strong> Inhalt deiner Support-Anfragen; über das Kontaktformular im Impressum außerdem Name (freiwillig), E-Mail-Adresse und Nachricht.</li>
                     <li><strong class="text-ink">Technische Daten:</strong> IP-Adresse, Zeitpunkt und aufgerufene Adresse in Server-Logs.</li>
                 </ul>
                 <p class="mt-3">
@@ -312,6 +311,11 @@ const empfaenger = [
                     Server-Logs bewahren wir nur kurz zur Fehlersuche auf.
                 </p>
                 <p class="mt-3">
+                    Nachrichten aus dem Kontaktformular nutzen wir nur, um dir zu antworten (Art. 6 Abs. 1 lit. f DSGVO,
+                    berechtigtes Interesse an der Beantwortung; bei Fragen zu deinem Konto lit. b). Sie werden gelöscht,
+                    sobald die Anfrage erledigt ist.
+                </p>
+                <p class="mt-3">
                     Kannst du dich nicht mehr anmelden, schreib an <a :href="`mailto:${MAIL}`" class="text-accent">{{ MAIL }}</a>,
                     dann löschen wir das Konto für dich.
                 </p>
@@ -361,7 +365,7 @@ const empfaenger = [
 
         <footer class="border-t border-line px-5 py-8">
             <div class="mx-auto flex max-w-3xl items-center justify-between text-[13px] text-ink-3">
-                <span>Zone3</span>
+                <Link :href="route('impressum')" class="transition hover:text-ink-2 active:opacity-60">Impressum</Link>
                 <Link href="/" class="transition hover:text-ink-2 active:opacity-60">Zur Startseite</Link>
             </div>
         </footer>

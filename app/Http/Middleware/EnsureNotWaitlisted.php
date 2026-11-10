@@ -16,7 +16,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class EnsureNotWaitlisted
 {
-    private const ALLOWED = ['waitlist', 'logout', 'push.subscribe', 'push.unsubscribe', 'push.native', 'privacy', 'impersonate.stop'];
+    private const ALLOWED = ['waitlist', 'logout', 'push.subscribe', 'push.unsubscribe', 'push.native', 'privacy', 'impressum', 'contact.store', 'impersonate.stop'];
 
     public function handle(Request $request, Closure $next): Response
     {

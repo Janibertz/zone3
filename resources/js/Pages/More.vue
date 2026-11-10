@@ -60,6 +60,7 @@ const P = {
     gear:  'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 12l2-1-1-3-2 .5-1.5-1.5.5-2-3-1-1 2h-2l-1-2-3 1 .5 2L6 7.5 4 7l-1 3 2 1v2l-2 1 1 3 2-.5L7.5 18 7 20l3 1 1-2h2l1 2 3-1-.5-2 1.5-1.5 2 .5 1-3-2-1z',
     help:  'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17v.1',
     shield:'M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z',
+    doc:   'M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5',
 };
 
 const groups = computed(() => [
@@ -92,6 +93,8 @@ const groups = computed(() => [
     ] },
     { title: 'Hilfe', rows: [
         { name: 'Hilfe & Feedback', href: route('support.tickets.index'), icon: P.help, tint: 'bg-accent', value: '' },
+        { name: 'Datenschutz',      href: route('privacy'),               icon: P.shield, tint: 'bg-ink-3', value: '' },
+        { name: 'Impressum',        href: route('impressum'),             icon: P.doc, tint: 'bg-ink-3', value: '' },
         ...(isAdmin.value ? [{ name: 'Admin-Bereich', href: route('admin.dashboard'), icon: P.shield, tint: 'bg-danger', value: '' }] : []),
     ] },
 ]);
