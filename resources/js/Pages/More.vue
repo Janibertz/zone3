@@ -7,8 +7,7 @@ import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 import UserAvatar from '@/Components/UserAvatar.vue';
 import { useDarkMode } from '@/Composables/useDarkMode';
 import { fmtNum } from '@/Composables/useFormat';
-import { isNativeApp } from '@/Composables/useNativeApp';
-import DeviceTiles from '@/Components/Settings/DeviceTiles.vue';
+import { useDeviceStatus } from '@/Composables/useDeviceStatus';
 
 /**
  * „Mehr" als iOS-Einstellungsliste (Redesign Paket 3, 28.10.2026).
@@ -37,16 +36,8 @@ const themeOptions = [
 
 const profile = (section) => route('profile.edit', { section });
 
-// Geräte & Apps als Kacheln. Apple gibt es nur in der iOS-App (HealthKit,
-// WorkoutKit) — im Browser nur, solange eine Health-Einwilligung steht.
-const nativeApp = isNativeApp();
-const appleWatchOn = computed(() => nativeApp && s.value.apple_watch === true);
-const apple = computed(() => (nativeApp || s.value.apple_health)
-    ? (s.value.apple_health || appleWatchOn.value)
-    : null);
-const appleDetail = computed(() => s.value.apple_health && appleWatchOn.value ? 'Plan & Health'
-    : appleWatchOn.value ? 'Plan auf der Uhr'
-    : s.value.apple_health ? 'Health verbunden' : '');
+const devices = useDeviceStatus(computed(() => s.value.devices));
+const devicesValue = computed(() => devices.value.connected ? `${devices.value.connected} verbunden` : 'keine');
 const on = (v) => (v ? 'verbunden' : 'aus');
 
 /** Symbolpfade im Stil der Tab-Leiste: 24er Raster, runde Enden. */
@@ -81,9 +72,9 @@ const groups = computed(() => [
           foot: [s.value.model, s.value.days ? `${s.value.days} Tage` : null, s.value.bike ? 'Rad' : null].filter(Boolean).join(' · ') },
         { name: 'Coach',           href: profile('coach'),          icon: P.coach, tint: 'bg-success', value: s.value.coach ?? '' },
     ] },
-    // Uhren und Datenquellen stehen als Kacheln darüber (DeviceTiles).
-    { title: 'Geräte & Apps', tiles: true, rows: [] },
     { title: 'Verbindungen', rows: [
+        // Uhren und Datenquellen als Kacheln auf einer eigenen Seite.
+        { name: 'Geräte & Apps', href: route('more.devices'), icon: P.watch, tint: 'bg-ink-3', value: devicesValue.value },
         { name: 'Telegram',     href: profile('connections'), icon: P.send,  tint: 'bg-info',   value: on(s.value.telegram) },
         { name: 'Kalender-Abo', href: profile('connections'), icon: P.cal,   tint: 'bg-danger', value: s.value.calendar ? 'an' : 'aus' },
     ] },
@@ -136,13 +127,7 @@ const groups = computed(() => [
 
                 <section v-for="g in groups" :key="g.title">
                     <h2 class="mx-4 mb-1.5 text-[13px] text-ink-3">{{ g.title }}</h2>
-                    <DeviceTiles v-if="g.tiles"
-                        :garmin="s.garmin"
-                        :coros="s.coros"
-                        :strava="usePage().props.auth?.strava ? s.strava : null"
-                        :apple="apple"
-                        :apple-detail="appleDetail" />
-                    <nav v-else class="overflow-hidden rounded-card bg-surface">
+                    <nav class="overflow-hidden rounded-card bg-surface">
                         <Link v-for="(r, i) in g.rows" :key="r.name" :href="r.href"
                             class="flex min-h-[48px] items-center gap-3 pl-4 transition-colors active:bg-surface-2">
                             <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] text-white" :class="r.tint">
