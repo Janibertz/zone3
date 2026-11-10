@@ -1,5 +1,16 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+
+/**
+ * `immersive`: am Telefon beginnt die Seite mit einem Foto bis unter die
+ * Statusleiste (Heute, Mockup „Zone3 mit mehr Leben“). Die Kopfleiste ist
+ * dann erst sichtbar, wenn das Foto weggescrollt ist.
+ */
+const layoutProps = defineProps({ immersive: { type: Boolean, default: false } });
+const scrolledPastHero = ref(false);
+function onScroll() { scrolledPastHero.value = window.scrollY > 380; }
+onMounted(() => { onScroll(); window.addEventListener('scroll', onScroll, { passive: true }); });
+onBeforeUnmount(() => window.removeEventListener('scroll', onScroll));
 import { reportUsage } from '@/Composables/useUsageBeacon';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { useDarkMode } from '@/Composables/useDarkMode';
@@ -366,7 +377,8 @@ const sideNavItems = computed(() => [
             Avatar: er führt zur Mehr-Seite (Profil, Rennen, Einstellungen).
             Der Coach sitzt seit 10.11.2026 unten neben der Tab-Leiste.
         -->
-        <header class="fixed inset-x-0 top-0 z-20 flex h-mobile-header items-end justify-between border-b border-line/70 bg-canvas/80 px-4 pb-2 pt-safe backdrop-blur-xl backdrop-saturate-150 lg:hidden">
+        <header class="fixed inset-x-0 top-0 z-20 flex h-mobile-header items-end justify-between border-b border-line/70 bg-canvas/80 px-4 pb-2 pt-safe backdrop-blur-xl backdrop-saturate-150 transition-opacity duration-200 ease-out-strong lg:hidden"
+            :class="layoutProps.immersive && !scrolledPastHero ? 'pointer-events-none opacity-0' : ''">
             <Wordmark class="mb-2 h-[17px] text-ink" />
             <div class="flex items-center gap-2">
                 <!-- Mehr: Profil, Rennen, Workouts, Einstellungen -->
@@ -402,7 +414,8 @@ const sideNavItems = computed(() => [
                 dreispaltigen Bloecke und schmal genug, dass eine Zeile noch
                 lesbar bleibt. Auf dem Telefon aendert sich dadurch nichts.
             -->
-            <main class="mx-auto w-full min-w-0 max-w-[1280px] flex-1 overflow-x-clip pb-mobile-tabbar pt-mobile-header lg:pb-0 lg:pt-0">
+            <main class="mx-auto w-full min-w-0 max-w-[1280px] flex-1 overflow-x-clip pb-mobile-tabbar lg:pb-0 lg:pt-0"
+                :class="layoutProps.immersive ? '' : 'pt-mobile-header'">
                 <slot />
             </main>
         </div>

@@ -62,10 +62,10 @@ const tiles = computed(() => {
 </script>
 
 <template>
-    <div class="no-scrollbar -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto px-4 lg:mx-0 lg:px-0"
+    <div class="no-scrollbar -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-3.5 lg:overflow-visible lg:px-0"
         role="list" aria-label="Nächste Einheiten">
         <Link v-for="t in tiles" :key="t.id" :href="t.href" role="listitem"
-            class="relative flex h-[200px] w-[236px] shrink-0 snap-start flex-col overflow-hidden rounded-[20px] p-4 text-white transition active:scale-[0.98]"
+            class="relative flex h-[200px] w-[236px] shrink-0 snap-start lg:h-[220px] lg:w-auto lg:[&:nth-child(n+4)]:hidden flex-col overflow-hidden rounded-[20px] p-4 text-white transition active:scale-[0.98]"
             :class="[t.photo ? 'bg-[#1C1C1E]' : t.meta.dot, t.ring]">
             <template v-if="t.photo">
                 <img :src="t.photo.src" alt="" decoding="async"

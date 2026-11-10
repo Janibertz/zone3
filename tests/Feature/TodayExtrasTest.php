@@ -72,6 +72,20 @@ class TodayExtrasTest extends TestCase
             app(TodayExtras::class)->coachLine($user, $week, null));
     }
 
+    public function test_before_the_plan_starts_the_week_is_not_called_done(): void
+    {
+        // Gemeldet am 10.11.2026 (Dienstag): Plan ab 30.11., gelaufen 4,2 km,
+        // der Coach sagte „Diese Woche steht". Vor dem Planstart kennt die
+        // Woche nur, was gelaufen wurde.
+        $user = User::factory()->create();
+        $week = [['date' => '2026-11-09', 'type' => 'easy_run', 'distance_km' => 4.2, 'status' => 'completed', 'sport_type' => null]];
+
+        $this->assertSame('Diese Woche bisher 4,2 km gelaufen.', app(TodayExtras::class)->coachLine($user, $week, null));
+
+        $week[] = ['date' => '2026-11-15', 'type' => 'rest', 'distance_km' => null, 'status' => 'planned', 'sport_type' => null];
+        $this->assertSame('Diese Woche steht: 4,2 km gelaufen. Gut gemacht.', app(TodayExtras::class)->coachLine($user, $week, null));
+    }
+
     public function test_the_last_run_is_drawn_inside_its_frame(): void
     {
         $user = User::factory()->create();

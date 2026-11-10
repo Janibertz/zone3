@@ -695,15 +695,46 @@ const weekDots = computed(() => {
 
 // ── „Mehr Leben“ (Mockup vom 10.11.2026) ─────────────────────────────────
 /** Der Aufmacher zeigt die Planeinheit; ohne Plan bleibt es bei der Empfehlung. */
-const heroSession = computed(() =>
-    props.hasActivePlan && !props.bridgeToPlan ? props.todayPlanSession : null);
+/**
+ * Was oben im Foto steht (Mockup „mehr Leben“): die Planeinheit von heute,
+ * sonst die eingeplante Empfehlung, sonst der Vorschlag des Coaches — so
+ * bekommt auch die Zeit vor einem späteren Planstart den Aufmacher.
+ */
+const heroKind = computed(() => {
+    if (props.hasActivePlan && !props.bridgeToPlan && props.todayPlanSession) return 'plan';
+    if (props.todayRecommendationSession) return 'scheduled';
+    if (showRecommendation.value && trainingRecommendation.value) return 'proposal';
+    return null;
+});
+const heroSession = computed(() => ({
+    plan: props.todayPlanSession,
+    scheduled: props.todayRecommendationSession,
+    proposal: trainingRecommendation.value,
+})[heroKind.value] ?? null);
 const heroBadge = computed(() => {
     const s = heroSession.value;
     if (!s) return null;
+    if (heroKind.value === 'proposal') return coach.value ? `Vorschlag von ${coach.value.name}` : 'Vorschlag';
+    if (heroKind.value === 'scheduled') return 'Eingeplant';
     if (s.status === 'completed') return 'Erledigt';
     if (s.is_today) return null;
     return new Date(s.session_date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
 });
+/** Kurze Datumszeile im Foto: „Di, 10. Nov · 8°“. */
+const heroDateLine = computed(() => {
+    const d = new Date().toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\.(?=,)/, '').replace(/\.$/, '');
+    const t = weather.value?.temp_c;
+    return t == null ? d : `${d} · ${Math.round(t)}°`;
+});
+const greeting = computed(() => {
+    const h = new Date().getHours();
+    const part = h < 11 ? 'Guten Morgen' : h < 18 ? 'Hallo' : 'Guten Abend';
+    return `${part}, ${firstName.value}`;
+});
+/** Woche, Als Nächstes und Zuletzt stehen fest im Aufbau des Mockups — sofern nicht ausgeblendet. */
+const initials = (name) => (name ?? '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'Z';
+const LEBEN_KEYS = ['woche', 'naechste', 'zuletzt'];
+const shows = (key) => layout.value.some(m => m.key === key && !m.hidden);
 const heroContext = computed(() => {
     const r = props.raceCard;
     const p = r?.progress;
@@ -724,6 +755,12 @@ const weekColumns = computed(() => {
         date.setDate(date.getDate() - ((date.getDay() + 6) % 7) + i);
         const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
         const km = weekStrip.value[i]?.km ?? 0;
+        // Vor dem Planstart: heute steht der Vorschlag des Coaches als
+        // blasse Säule da, sonst wäre die Woche leer, obwohl etwas ansteht.
+        if (d.isToday && !minutes.has(iso) && km <= 0 && heroKind.value === 'proposal' && heroSession.value?.type !== 'rest') {
+            const s = heroSession.value;
+            return { ...d, dot: sessionType(s.type).dot, state: 'today', size: s.duration_min || (s.distance_km ? s.distance_km * 6 : 0) };
+        }
         return { ...d, size: minutes.get(iso) ?? (km > 0 ? km * 6 : 0) };
     });
     const max = Math.max(1, ...days.map(d => d.size));
@@ -1256,7 +1293,7 @@ const moduleHasData = computed(() => ({
 }));
 
 const visibleModules = computed(() =>
-    layout.value.filter(m => !m.hidden && moduleHasData.value[m.key] !== false));
+    layout.value.filter(m => !m.hidden && !LEBEN_KEYS.includes(m.key) && moduleHasData.value[m.key] !== false));
 
 /**
  * Die halben Module stehen ab lg zu zweit, ab 2xl zu dritt nebeneinander,
@@ -1334,7 +1371,7 @@ async function resetLayout() {
 <template>
     <Head title="Übersicht" />
 
-    <AuthenticatedLayout>
+    <AuthenticatedLayout :immersive="!!heroSession">
 
         <!--
             Grosser Titel mit dem Datum darueber, wie „Übersicht" in Health.
@@ -1342,9 +1379,90 @@ async function resetLayout() {
             noch dort, wo sie etwas bedeutet.
         -->
         <div class="min-h-screen">
-            <PageHeader :eyebrow="headerLine" title="Heute" />
+            <PageHeader v-if="!heroSession" :eyebrow="headerLine" title="Heute" class="lg:hidden" />
+            <PageHeader :eyebrow="headerLine" :title="greeting" class="hidden lg:block">
+                <template #action>
+                    <button type="button" @click="openChat()"
+                        class="inline-flex h-11 items-center gap-2 rounded-full bg-accent px-[18px] text-[15px] font-semibold text-white transition active:scale-95">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
+                        Coach
+                    </button>
+                </template>
+            </PageHeader>
 
-            <div class="space-y-7 px-4 pb-8 pt-2 lg:px-8">
+            <div class="space-y-7 px-4 pb-8 pt-2 lg:space-y-6 lg:px-8" :class="heroSession ? 'max-lg:!pt-0 max-lg:!space-y-[22px]' : ''">
+                <!-- ══════════════════════════════════════════════════
+                     REIHE 1: HEUTE MIT FOTO + RENNEN (Mockup „Zone3 mit mehr
+                     Leben", 10.11.2026). Am Telefon randlos bis unter die
+                     Statusleiste, mit Datum, „Heute" und Avatar im Foto.
+                     ══════════════════════════════════════════════════ -->
+                <div v-if="heroSession" class="grid gap-5 lg:grid-cols-3">
+                    <TodayHero :session="heroSession" :badge="heroBadge" :context="heroContext" immersive
+                        :class="props.raceCard ? 'lg:col-span-2' : 'lg:col-span-3'">
+                        <template #top>
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-[13px] font-semibold text-white/85">{{ heroDateLine }}</p>
+                                    <h1 class="text-[28px] font-extrabold leading-tight tracking-[-0.03em]">Heute</h1>
+                                </div>
+                                <Link :href="route('more')" aria-label="Mehr" class="transition active:scale-95">
+                                    <UserAvatar v-if="page.props.auth.user.avatar" :user="page.props.auth.user" size="md" />
+                                    <span v-else class="flex h-10 w-10 items-center justify-center rounded-full bg-white/25 text-[15px] font-bold text-white backdrop-blur-md">{{ initials(page.props.auth.user.name) }}</span>
+                                </Link>
+                            </div>
+                        </template>
+
+                        <div v-if="heroSession.type !== 'rest'" class="flex flex-wrap items-center gap-2.5">
+                            <!-- Vorschlag des Coaches: Einplanen ist die Entscheidung -->
+                            <template v-if="heroKind === 'proposal'">
+                                <button type="button" @click="acceptRecommendation()" :disabled="acceptingRecommendation || adjustingDirection !== null"
+                                    class="inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 text-[15px] font-bold text-black transition active:scale-95 disabled:opacity-50">
+                                    <span v-if="acceptingRecommendation" class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                    Einplanen
+                                </button>
+                                <button type="button" @click="adjustRecommendation('softer')" :disabled="adjustingDirection !== null || acceptingRecommendation"
+                                    class="inline-flex h-11 items-center gap-2 rounded-full bg-white/20 px-4 text-[15px] font-semibold text-white backdrop-blur-md transition active:scale-95 disabled:opacity-50">
+                                    <span v-if="adjustingDirection === 'softer'" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                    Leichter
+                                </button>
+                                <button type="button" @click="adjustRecommendation('harder')" :disabled="adjustingDirection !== null || acceptingRecommendation"
+                                    class="inline-flex h-11 items-center gap-2 rounded-full bg-white/20 px-4 text-[15px] font-semibold text-white backdrop-blur-md transition active:scale-95 disabled:opacity-50">
+                                    <span v-if="adjustingDirection === 'harder'" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                    Schwerer
+                                </button>
+                            </template>
+                            <template v-else>
+                                <Link v-if="heroKind === 'plan'" :href="todaySessionHref"
+                                    class="inline-flex h-11 items-center rounded-full bg-white px-5 text-[15px] font-bold text-black transition active:scale-95">
+                                    Details
+                                </Link>
+                                <button v-if="heroKind === 'plan' && heroSession.status === 'planned'" type="button" @click="openSwap"
+                                    class="inline-flex h-11 items-center rounded-full bg-white/20 px-5 text-[15px] font-semibold text-white backdrop-blur-md transition active:scale-95">
+                                    Tauschen
+                                </button>
+                                <a v-if="heroSession.zwo_url && heroSession.status === 'planned'" :href="heroSession.zwo_url" download
+                                    class="inline-flex h-11 items-center rounded-full bg-white/20 px-5 text-[15px] font-semibold text-white backdrop-blur-md transition active:scale-95">
+                                    Für Zwift
+                                </a>
+                                <span v-else-if="$page.props.auth.garminSync && heroSession.status === 'planned'"
+                                    class="inline-flex h-11 items-center gap-2 rounded-full bg-white/20 px-4 text-[15px] font-semibold text-white backdrop-blur-md">
+                                    <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="3" /><path d="M9 6l.6-3h4.8L15 6M9 18l.6 3h4.8l.6-3" /></svg>
+                                    Steht auf deiner Garmin
+                                </span>
+                                <WatchButton v-else-if="heroSession.watch_url && heroSession.status === 'planned'"
+                                    :session-id="heroSession.id" :href="heroSession.watch_url" variant="secondary"
+                                    class="!h-11 !rounded-full !border-0 !bg-white/20 !px-4 !text-white backdrop-blur-md" v-slot="{ done }">
+                                    <span class="inline-flex items-center gap-2 text-[15px] font-semibold">
+                                        <svg v-if="done" class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                                        <svg v-else class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="3" /><path d="M9 6l.6-3h4.8L15 6M9 18l.6 3h4.8l.6-3" /></svg>
+                                        {{ done ? 'Auf der Watch' : 'Auf die Watch' }}
+                                    </span>
+                                </WatchButton>
+                            </template>
+                        </div>
+                    </TodayHero>
+                    <RaceCard v-if="props.raceCard" :race="props.raceCard" class="max-lg:hidden" />
+                </div>
 
                 <!-- Einsteiger-Checkliste — fest oben, bis alles erledigt ist. -->
                 <StarterChecklistCard v-if="starterChecklist" :checklist="starterChecklist" @action="starterAction" />
@@ -1524,41 +1642,6 @@ async function resetLayout() {
                 </div>
 
                 <!-- ══════════════════════════════════════════════════
-                     HEUTE MIT FOTO (Mockup „Zone3 mit mehr Leben", 10.11.2026)
-                     Foto passend zum Typ, daneben Rennen und ein Satz vom
-                     Coach. Am Telefon untereinander: Foto, Coach, Rennen.
-                     ══════════════════════════════════════════════════ -->
-                <div v-if="heroSession" class="grid gap-3 lg:grid-cols-3 lg:gap-4">
-                    <TodayHero :session="heroSession" :badge="heroBadge" :context="heroContext"
-                        :class="sideCards === 2 ? 'lg:col-span-2 lg:row-span-2' : sideCards === 1 ? 'lg:col-span-2' : 'lg:col-span-3'">
-                        <template v-if="heroSession.type !== 'rest'">
-                            <Link :href="todaySessionHref"
-                                class="inline-flex h-11 items-center rounded-full bg-white px-5 text-[15px] font-semibold text-black transition active:scale-95">
-                                Details
-                            </Link>
-                            <button v-if="heroSession.status === 'planned'" type="button" @click="openSwap"
-                                class="inline-flex h-11 items-center rounded-full bg-white/20 px-5 text-[15px] font-semibold text-white backdrop-blur-md transition active:scale-95">
-                                Tauschen
-                            </button>
-                            <a v-if="heroSession.zwo_url && heroSession.status === 'planned'" :href="heroSession.zwo_url" download
-                                class="inline-flex h-11 items-center rounded-full bg-white/20 px-5 text-[15px] font-semibold text-white backdrop-blur-md transition active:scale-95">
-                                Zwift
-                            </a>
-                            <WatchButton v-else-if="heroSession.watch_url && heroSession.status === 'planned'"
-                                :session-id="heroSession.id" :href="heroSession.watch_url" variant="secondary"
-                                class="!h-11 !w-11 !rounded-full !border-0 !bg-white/20 !px-0 !text-white backdrop-blur-md" v-slot="{ done }">
-                                <svg v-if="done" class="h-[22px] w-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
-                                <svg v-else class="h-[22px] w-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="3" /><path d="M9 6l.6-3h4.8L15 6M9 18l.6 3h4.8l.6-3" /></svg>
-                            </WatchButton>
-                        </template>
-                    </TodayHero>
-                    <CoachLine v-if="props.coachLine" :text="props.coachLine" :coach="coach"
-                        class="lg:col-start-3 lg:row-start-2" @reply="openChat()" />
-                    <RaceCard v-if="props.raceCard" :race="props.raceCard"
-                        class="lg:col-start-3 lg:row-start-1"/>
-                </div>
-
-                <!-- ══════════════════════════════════════════════════
                      HEUTIGES TRAINING (ohne Plan oder ohne Einheit)
                      ══════════════════════════════════════════════════ -->
                 <section v-if="!heroSession">
@@ -1728,9 +1811,72 @@ async function resetLayout() {
                     </template>
                 </section>
 
-                <div v-if="!heroSession && (props.coachLine || props.raceCard)" class="grid gap-3 lg:grid-cols-2 lg:gap-4">
-                    <CoachLine v-if="props.coachLine" :text="props.coachLine" :coach="coach" @reply="openChat()" />
-                    <RaceCard v-if="props.raceCard" :race="props.raceCard" />
+                <!-- Ohne Aufmacher: das Rennen am Desktop als eigene Reihe -->
+                <RaceCard v-if="!heroSession && props.raceCard" :race="props.raceCard" class="max-lg:hidden lg:!h-auto" />
+
+                <!-- ══════════════════════════════════════════════════
+                     REIHE 2: WOCHE + COACH. Am Telefon: Coach, Woche, Rennen.
+                     ══════════════════════════════════════════════════ -->
+                <div v-if="props.coachLine || (shows('woche') && weekPlan.length) || props.raceCard" class="grid gap-[22px] lg:grid-cols-3 lg:gap-5">
+                    <CoachLine v-if="props.coachLine" :text="props.coachLine" :coach="coach" class="lg:col-start-3 lg:row-start-1" @reply="openChat()" />
+                    <section v-if="shows('woche')" aria-label="Deine Woche" class="rounded-[20px] bg-surface p-[18px] lg:col-span-2 lg:col-start-1 lg:row-start-1 lg:rounded-[24px] lg:px-7 lg:py-[26px]"
+                        :class="props.coachLine ? '' : 'lg:col-span-3'">
+                        <div class="flex items-baseline justify-between gap-4">
+                            <Link href="/statistics" class="text-[20px] font-extrabold tracking-[-0.02em] text-ink lg:text-[22px]">
+                                <span class="lg:hidden">Woche</span><span class="hidden lg:inline">Deine Woche</span>
+                            </Link>
+                            <p class="whitespace-nowrap text-[13px] tabular-nums text-ink-3 lg:text-[15px]">
+                                <span class="text-[22px] font-extrabold tracking-[-0.03em] text-ink lg:text-[28px]">{{ fmtNum(weekPlannedKm && !props.bridgeToPlan ? weekRunKm : weekStats.km) }}</span>
+                                <template v-if="weekPlannedKm && !props.bridgeToPlan"> von {{ fmtNum(weekPlannedKm) }} km</template><template v-else> km</template>
+                            </p>
+                        </div>
+                        <!-- Säulen: Höhe = geplante Minuten, voll = erledigt, blass = geplant, Ring = heute -->
+                        <div class="mt-3.5 grid h-24 grid-cols-7 items-end gap-2 lg:mt-[22px] lg:h-[150px] lg:gap-3" role="list" aria-label="Diese Woche">
+                            <div v-for="d in weekColumns" :key="d.key" role="listitem" class="flex h-full flex-col justify-end"
+                                :aria-label="`${d.label}: ${d.km ?? 'nichts'}`">
+                                <div class="rounded-[7px] transition-[height] duration-500 ease-out-strong lg:rounded-[10px]"
+                                    :style="{ height: d.height + '%' }"
+                                    :class="[
+                                        !d.dot || d.rest ? 'bg-surface-3' : d.dot,
+                                        d.dot && !d.rest && d.state !== 'done' && d.state !== 'today' ? 'opacity-25' : '',
+                                        d.state === 'today' && d.dot && !d.rest ? 'ring-2 ring-offset-2 ring-offset-surface ' + (TODAY_RING[d.dot] ?? 'ring-accent') : '',
+                                    ]" />
+                            </div>
+                        </div>
+                        <div class="mt-2 grid grid-cols-7 gap-2 text-center text-[12px] text-ink-3 lg:mt-2.5 lg:gap-3 lg:text-[13px]">
+                            <span v-for="d in weekColumns" :key="d.key" :class="d.isToday ? 'font-extrabold text-ink' : ''">
+                                <span class="lg:hidden">{{ d.label.charAt(0) }}</span><span class="hidden lg:inline">{{ d.label }}</span>
+                            </span>
+                        </div>
+                        <div v-if="weekLegend.length" class="mt-4 hidden flex-wrap gap-x-4 gap-y-1.5 lg:flex">
+                            <span v-for="l in weekLegend" :key="l.dot" class="inline-flex items-center gap-1.5 text-[13px] text-ink-2">
+                                <span class="h-2 w-2 rounded-full" :class="l.dot" />{{ l.label }}
+                            </span>
+                        </div>
+                    </section>
+                    <RaceCard v-if="props.raceCard" :race="props.raceCard" class="lg:hidden" />
+                </div>
+
+                <!-- ══════════════════════════════════════════════════
+                     REIHE 3: ALS NÄCHSTES + ZULETZT
+                     ══════════════════════════════════════════════════ -->
+                <div v-if="(shows('naechste') && props.upcomingSessions.length) || (shows('zuletzt') && props.lastRun)" class="grid gap-[22px] lg:grid-cols-3 lg:gap-5">
+                    <section v-if="shows('naechste') && props.upcomingSessions.length" aria-label="Als Nächstes" class="min-w-0"
+                        :class="shows('zuletzt') && props.lastRun ? 'lg:col-span-2' : 'lg:col-span-3'">
+                        <div class="mx-1 mb-2.5 flex items-baseline justify-between lg:mx-0 lg:mb-3">
+                            <h2 class="text-[20px] font-extrabold tracking-[-0.02em] text-ink lg:text-[22px]">Als Nächstes</h2>
+                            <Link :href="props.todayPlanSession?.event_id ? `/events/${props.todayPlanSession.event_id}/plan` : '/events'" class="text-[15px] font-semibold text-accent">Plan</Link>
+                        </div>
+                        <UpcomingSessions :sessions="props.upcomingSessions" />
+                    </section>
+                    <section v-if="shows('zuletzt') && props.lastRun" aria-label="Zuletzt"
+                        :class="shows('naechste') && props.upcomingSessions.length ? '' : 'lg:col-span-3'">
+                        <div class="mx-1 mb-2.5 flex items-baseline justify-between lg:mx-0 lg:mb-3">
+                            <h2 class="text-[20px] font-extrabold tracking-[-0.02em] text-ink lg:text-[22px]">Zuletzt</h2>
+                            <Link href="/activities" class="text-[15px] font-semibold text-accent">Alle</Link>
+                        </div>
+                        <LastRunCard :run="props.lastRun" />
+                    </section>
                 </div>
 
                 <!-- Wiedereinstieg -->
@@ -1865,90 +2011,6 @@ async function resetLayout() {
                 -->
                 <div class="grid grid-cols-1 gap-x-5 gap-y-7 lg:grid-flow-row-dense lg:grid-cols-2 2xl:grid-cols-3">
                     <template v-for="m in visibleModules" :key="m.key">
-                        <div v-if="m.key === 'naechste'" :class="moduleClass(m)">
-                            <section>
-                                <SectionHeader title="Als Nächstes">
-                                    <template #action>
-                                        <AppButton variant="plain" :href="props.todayPlanSession?.event_id ? `/events/${props.todayPlanSession.event_id}/plan` : '/events'">Plan</AppButton>
-                                    </template>
-                                </SectionHeader>
-                                <UpcomingSessions :sessions="props.upcomingSessions" />
-                            </section>
-                        </div>
-
-                        <div v-if="m.key === 'woche'" :class="moduleClass(m)">
-                            <!-- ══════════════════════════════════════════════════
-                                 DEINE WOCHE
-                                 ══════════════════════════════════════════════════ -->
-                            <section>
-                                <SectionHeader title="Woche">
-                                    <template #action>
-                                        <AppButton variant="plain" href="/statistics">Statistik</AppButton>
-                                    </template>
-                                </SectionHeader>
-
-                                <!--
-                                    Seit dem Mockup vom 28.10.2026: oben die Kilometer
-                                    gegen den Plan, darunter die Woche als Punktleiste
-                                    in den Farben der Einheiten. Der Sportfilter ist zur
-                                    Statistik gezogen — auf „Heute" geht es um diese Woche.
-                                -->
-                                <AppCard>
-                                    <div class="flex items-baseline justify-between gap-3">
-                                        <p class="whitespace-nowrap">
-                                            <span class="font-rounded text-[36px] font-extrabold leading-10 tracking-[-0.035em] tabular-nums text-ink">{{ fmtNum(weekPlannedKm ? weekRunKm : weekStats.km) }}</span>
-                                            <span class="ml-1 text-[17px] font-semibold text-ink-3">km</span>
-                                        </p>
-                                        <p v-if="weekPlannedKm" class="text-[13px] text-ink-3">von {{ fmtNum(weekPlannedKm) }} km geplant</p>
-                                        <p v-else-if="weekTrend !== null" class="text-[13px] font-semibold"
-                                            :class="weekTrend >= 0 ? 'text-success' : 'text-ink-3'">
-                                            {{ weekTrend >= 0 ? '+' : '−' }}{{ Math.abs(weekTrend) }} % zur Vorwoche
-                                        </p>
-                                    </div>
-                                    <div v-if="weekPlannedKm" class="mt-2.5 h-2 overflow-hidden rounded-full bg-surface-2">
-                                        <div class="h-full rounded-full bg-accent transition-[width] duration-500 ease-out-strong" :style="{ width: weekProgressPct + '%' }" />
-                                    </div>
-
-                                    <!--
-                                        Säulen statt Punkte (Mockup „mehr Leben", 10.11.2026):
-                                        Höhe = geplante Minuten, Farbe = Typ, voll = erledigt,
-                                        blass = geplant, Ring = heute, grau = Ruhetag.
-                                    -->
-                                    <div class="mt-5 grid grid-cols-7 gap-1.5 text-center" role="list" aria-label="Diese Woche">
-                                        <div v-for="d in weekColumns" :key="d.key" role="listitem" class="flex flex-col items-center gap-1.5">
-                                            <div class="flex h-[88px] w-full items-end justify-center lg:h-[110px]">
-                                                <div class="w-full max-w-[44px] rounded-[8px] transition-[height] duration-500 ease-out-strong"
-                                                    :style="{ height: d.height + '%' }"
-                                                    :class="[
-                                                        !d.dot || d.rest ? 'bg-surface-3' : d.dot,
-                                                        d.dot && !d.rest && d.state !== 'done' ? 'opacity-25' : '',
-                                                        d.state === 'today' && d.dot && !d.rest ? '!opacity-60 ring-2 ring-offset-2 ring-offset-surface ' + (TODAY_RING[d.dot] ?? 'ring-accent') : '',
-                                                    ]" />
-                                            </div>
-                                            <span class="text-[13px] leading-4" :class="d.isToday ? 'font-bold text-ink' : 'text-ink-3'">{{ d.label }}</span>
-                                            <span class="text-[12px] leading-4 tabular-nums" :class="d.state === 'done' ? 'font-semibold text-ink' : 'text-ink-3'">{{ d.km ?? '–' }}</span>
-                                        </div>
-                                    </div>
-                                    <div v-if="weekLegend.length" class="mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
-                                        <span v-for="l in weekLegend" :key="l.dot" class="inline-flex items-center gap-1.5 text-[13px] text-ink-3">
-                                            <span class="h-2.5 w-2.5 rounded-full" :class="l.dot" />{{ l.label }}
-                                        </span>
-                                    </div>
-                                </AppCard>
-                            </section>
-                        </div>
-
-                        <div v-if="m.key === 'zuletzt' && props.lastRun" :class="moduleClass(m)">
-                            <section>
-                                <SectionHeader title="Zuletzt">
-                                    <template #action>
-                                        <AppButton variant="plain" href="/activities">Alle</AppButton>
-                                    </template>
-                                </SectionHeader>
-                                <LastRunCard :run="props.lastRun" />
-                            </section>
-                        </div>
-
                         <div v-if="m.key === 'koerper'" :class="moduleClass(m)">
                             <!-- ══════════════════════════════════════════════════
                                  KÖRPERWERTE — Garmin, sonst der Check-in

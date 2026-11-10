@@ -155,7 +155,18 @@ class TodayExtras
         $fmt     = fn (float $v) => str_replace('.', ',', (string) round($v, 1));
 
         if ($open === 0) {
-            return $done > 0 ? "Diese Woche steht: {$fmt($done)} km gelaufen. Gut gemacht." : null;
+            if ($done <= 0) {
+                return null;
+            }
+            // „Steht" nur, wenn der Plan die Woche bis Sonntag kennt (auch
+            // mit Ruhetagen) — vor einem späteren Planstart stehen dort nur
+            // die gelaufenen Einheiten, und am Dienstag ist nichts fertig.
+            $sunday  = CarbonImmutable::today()->endOfWeek()->toDateString();
+            $planned = max(array_merge([''], array_column($weekPlan, 'date'))) >= $sunday || CarbonImmutable::today()->isSunday();
+
+            return $planned
+                ? "Diese Woche steht: {$fmt($done)} km gelaufen. Gut gemacht."
+                : "Diese Woche bisher {$fmt($done)} km gelaufen.";
         }
         if ($done <= 0) {
             return "Diese Woche sind {$fmt($planned)} km geplant, in " . ($open === 1 ? 'einer Einheit' : "{$open} Einheiten") . '. Fang locker an.';
