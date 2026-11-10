@@ -1182,8 +1182,8 @@ const inputClass = 'z-input';
                     <!-- ── VERBINDUNGEN ── -->
                     <template v-else-if="activeTab === 'connections'">
                         <FormGroup title="Dienste">
-                            <!-- Garmin -->
-                            <div class="flex min-h-[60px] items-center gap-3 px-4 py-2">
+                            <!-- Garmin (Anker für die Kacheln auf der Mehr-Seite) -->
+                            <div id="conn-garmin" class="flex min-h-[60px] scroll-mt-[calc(4.5rem+env(safe-area-inset-top))] items-center gap-3 px-4 py-2">
                                 <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-ink text-canvas">
                                     <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="7" y="6" width="10" height="12" rx="2" /><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l.5-2.5h5L15 6M9 18l.5 2.5h5L15 18" /></svg>
                                 </span>
@@ -1232,7 +1232,7 @@ const inputClass = 'z-input';
 
                             <!-- COROS (MCP): Workouts auf die Uhr, mit Einwilligung Erholungswerte. -->
                             <template v-if="props.coros.available">
-                                <div class="flex min-h-[60px] items-center gap-3 px-4 py-2">
+                                <div id="conn-coros" class="flex min-h-[60px] scroll-mt-[calc(4.5rem+env(safe-area-inset-top))] items-center gap-3 px-4 py-2">
                                     <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-ink text-canvas text-[13px] font-bold" aria-hidden="true">C</span>
                                     <span class="min-w-0 flex-1">
                                         <span class="block text-[17px] text-ink">COROS</span>
@@ -1272,6 +1272,7 @@ const inputClass = 'z-input';
 
                             <!-- Apple Health: lesen nur in der iOS-App (HealthKit gibt es im
                                  Browser nicht); widerrufen geht auch hier. -->
+                            <div id="conn-apple" class="scroll-mt-[calc(4.5rem+env(safe-area-inset-top))]" />
                             <AppleHealthCard v-if="nativeApp || props.appleHealth?.consent_at" :state="props.appleHealth"
                                 :activity-source="props.activitySource?.current" />
 
@@ -1279,7 +1280,7 @@ const inputClass = 'z-input';
                             <AppleWatchCard v-if="nativeApp && props.appleWatch" :state="props.appleWatch" />
 
                             <!-- Strava: nur nach Freischaltung durch einen Admin (Jan, 03.11.2026). -->
-                            <div v-if="stravaOffered" class="flex min-h-[60px] items-center gap-3 px-4 py-2">
+                            <div v-if="stravaOffered" id="conn-strava" class="flex min-h-[60px] scroll-mt-[calc(4.5rem+env(safe-area-inset-top))] items-center gap-3 px-4 py-2">
                                 <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-warn text-white">
                                     <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" /></svg>
                                 </span>
