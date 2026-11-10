@@ -88,6 +88,12 @@ return [
     // Telegram-Bot fuer den Coach. Das Webhook-Geheimnis wird aus APP_KEY
     // abgeleitet, wenn es nicht gesetzt ist — eine Variable weniger, die in
     // Coolify fehlen kann.
+    // Empfänger des Kontaktformulars im Impressum (dieselbe Adresse wie in
+    // resources/js/legal.js).
+    'contact' => [
+        'address' => env('CONTACT_MAIL_ADDRESS', 'jan.anders@zone3.run'),
+    ],
+
     'telegram' => [
         'bot_token'      => env('TELEGRAM_BOT_TOKEN'),
         'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),

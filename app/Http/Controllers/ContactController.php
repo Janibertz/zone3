@@ -8,6 +8,7 @@ use App\Notifications\ContactMessageNotification;
 use App\Services\WebPushService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -43,12 +44,16 @@ class ContactController extends Controller
             'user_id' => $request->user()?->id,
         ]);
 
+        // Die Mail geht an die Kontaktadresse aus dem Impressum, nicht an die
+        // Konto-Adressen der Admins — die sind privat und nicht die, die dort steht.
+        try {
+            Notification::route('mail', config('services.contact.address'))
+                ->notify(new ContactMessageNotification($contact));
+        } catch (\Throwable $e) {
+            Log::warning('Kontaktformular: Mail fehlgeschlagen', ['contact_id' => $contact->id, 'error' => $e->getMessage()]);
+        }
+
         foreach (User::where('is_admin', true)->get() as $admin) {
-            try {
-                $admin->notify(new ContactMessageNotification($contact));
-            } catch (\Throwable $e) {
-                Log::warning('Kontaktformular: Mail fehlgeschlagen', ['contact_id' => $contact->id, 'error' => $e->getMessage()]);
-            }
             try {
                 $this->push->sendToUser($admin, 'Kontaktformular', Str::limit($contact->email . ': ' . $contact->message, 120), '/admin/contact');
             } catch (\Throwable $e) {

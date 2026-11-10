@@ -44,9 +44,11 @@ class ContactFormTest extends TestCase
         $this->assertSame('lea@example.com', $msg->email);
         $this->assertNull($msg->user_id);
 
-        Notification::assertSentTo($admin, ContactMessageNotification::class, function ($n) use ($admin) {
-            return $n->toMail($admin)->replyTo[0][0] === 'lea@example.com';
+        Notification::assertSentOnDemand(ContactMessageNotification::class, function ($n, $channels, $notifiable) {
+            return $notifiable->routes['mail'] === 'jan.anders@zone3.run'
+                && $n->toMail($notifiable)->replyTo[0][0] === 'lea@example.com';
         });
+        Notification::assertNotSentTo($admin, ContactMessageNotification::class);
         Notification::assertCount(1);
     }
 
