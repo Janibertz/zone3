@@ -8,11 +8,10 @@
  */
 export const LEGAL = {
     name: 'Jan Anders',
-    // TODO: c/o-Adresse von Dein Impressum eintragen, sobald sie freigeschaltet ist.
     address: [
-        'c/o ADRESSE FOLGT',
-        'Straße Hausnummer',
-        'PLZ Ort',
+        'c/o Impressumservice Dein-Impressum',
+        'Stettiner Str. 41',
+        '35410 Hungen',
         'Deutschland',
     ],
     email: 'jan.anders@zone3.run',

@@ -11,7 +11,7 @@ import { LEGAL } from '@/legal';
  * personenbezogene Daten bekommt, trägt ihn in `empfaenger` ein. Die Seite
  * ist eine Zusage an Fremde, keine Beschreibung von Absichten.
  */
-const STAND = '9. November 2026';
+const STAND = '10. November 2026';
 const MAIL = LEGAL.email;
 
 const empfaenger = [
