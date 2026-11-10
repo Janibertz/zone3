@@ -85,7 +85,8 @@ class GoalCheckService
         $spec  = self::NEEDS[$event->race_distance] ?? null;
 
         // Backyard hat keine Zielzeit, die man verfehlen könnte.
-        if (! $spec || $event->isBackyard()) {
+        // Ein Ziel ohne Rennen hat keine Zielzeit.
+        if (! $spec || $event->isBackyard() || $event->isOpen()) {
             return null;
         }
 

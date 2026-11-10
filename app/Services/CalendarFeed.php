@@ -82,7 +82,7 @@ class CalendarFeed
     /** @return Collection<int, Event> */
     public function races(User $user): Collection
     {
-        return $user->events()
+        return $user->events()->races()
             ->whereDate('event_date', '>=', now()->subDays(self::PAST_RACE_DAYS)->toDateString())
             ->orderBy('event_date')
             ->get();

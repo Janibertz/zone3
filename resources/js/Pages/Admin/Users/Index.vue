@@ -147,6 +147,7 @@ const filterOptions = [
                                         <span v-if="u.email_verified_at"          class="badge bg-success-soft text-success-ink">✓ Mail</span>
                                         <span v-if="u.onboarding_completed_at"    class="badge bg-accent-soft text-accent-ink">Onboarded</span>
                                         <span v-if="u.strava_account"             class="badge bg-warn-soft text-warn-ink">Strava</span>
+                                        <span v-if="u.signup_source" class="badge bg-info-soft text-info-ink" title="Anmeldung über">↳ {{ u.signup_source }}</span>
                                         <span v-for="w in usedVia(u)" :key="w.label" class="badge bg-surface-2 text-ink-2" :title="`Zuletzt ${formatDate(w.on)}`">{{ w.label }}</span>
                                     </div>
                                 </td>

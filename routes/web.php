@@ -132,7 +132,7 @@ Route::middleware('auth')->group(function () {
 Route::get('/dashboard', function (ProgressService $progressService, TrainingLoadService $trainingLoadService, ReturnToRunService $returnToRunService) {
     $user = auth()->user();
 
-    $upcomingEvents = $user->events()
+    $upcomingEvents = $user->events()->races()
         ->where('event_date', '>=', now()->toDateString())
         ->orderBy('event_date')
         ->get()
@@ -230,6 +230,39 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         }
     }
 
+    // „Als Nächstes“ (Jan, 10.11.2026): die folgenden Einheiten als wischbare
+    // Kacheln unter der heutigen. Ohne Ruhetage, ohne die oben schon gezeigte,
+    // höchstens zwei Wochen voraus — weiter vorn ändert der Plan sich noch.
+    $upcomingSessions = [];
+    if ($activePlan) {
+        $upcomingSessions = TrainingSession::where(fn ($q) => $q
+                ->where('training_plan_id', $activePlan->id)
+                ->orWhere(fn ($q) => $q->whereNull('training_plan_id')->where('user_id', $user->id)))
+            ->whereDate('planned_date', '>=', $todayStr)
+            ->whereDate('planned_date', '<=', now()->addDays(14)->toDateString())
+            ->where('status', 'planned')
+            ->where('type', '!=', 'rest')
+            ->when($todayPlanSession, fn ($q) => $q->where('id', '!=', $todayPlanSession['id']))
+            ->orderBy('planned_date')
+            ->orderBy('sort_order')
+            ->limit(6)
+            ->get(['id', 'training_plan_id', 'planned_date', 'type', 'sport_type', 'title', 'distance_km', 'duration_min'])
+            ->map(fn ($t) => [
+                'id'           => $t->id,
+                'date'         => $t->planned_date->format('Y-m-d'),
+                'type'         => $t->type,
+                'sport_type'   => $t->sport_type,
+                'title'        => $t->title,
+                'distance_km'  => $t->distance_km ? (float) $t->distance_km : null,
+                'duration_min' => $t->duration_min ? (int) $t->duration_min : null,
+                'href'         => $t->training_plan_id && $activePlan->event_id
+                    ? "/events/{$activePlan->event_id}/plan?open={$t->id}"
+                    : '/calendar',
+            ])
+            ->values()
+            ->all();
+    }
+
     // Die Woche als Leiste: je Tag die Einheit des Plans (Mo–So), damit die
     // Übersicht zeigt, was ansteht und was erledigt ist — nicht nur, was
     // gelaufen wurde. Geplante Kilometer kommen aus dem Plan, gelaufene aus
@@ -244,13 +277,14 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             ->whereDate('planned_date', '<=', $monday->copy()->endOfWeek()->toDateString())
             ->orderBy('planned_date')
             ->orderBy('sort_order')
-            ->get(['planned_date', 'type', 'sport_type', 'distance_km', 'status'])
+            ->get(['planned_date', 'type', 'sport_type', 'distance_km', 'duration_min', 'status'])
             ->map(fn ($t) => [
-                'date'        => $t->planned_date->format('Y-m-d'),
-                'type'        => $t->type,
-                'sport_type'  => $t->sport_type,
-                'distance_km' => $t->distance_km ? (float) $t->distance_km : null,
-                'status'      => $t->status,
+                'date'         => $t->planned_date->format('Y-m-d'),
+                'type'         => $t->type,
+                'sport_type'   => $t->sport_type,
+                'distance_km'  => $t->distance_km ? (float) $t->distance_km : null,
+                'duration_min' => $t->duration_min ? (int) $t->duration_min : null,
+                'status'       => $t->status,
             ])
             ->values()
             ->all();
@@ -347,6 +381,18 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         'hasActivePlan' => (bool) $activePlan,
         'bridgeToPlan'  => $bridgeToPlan ? $planStartsLater : null,
         'weekPlan' => $weekPlan,
+        // „Mehr Leben“ (10.11.2026): Rennkarte, Coach-Satz, letzter Lauf — ohne Modellaufruf.
+        ...(function () use ($user, $weekPlan) {
+            $extras = app(\App\Services\Today\TodayExtras::class);
+            $race   = $extras->raceCard($user);
+
+            return [
+                'raceCard'  => $race,
+                'coachLine' => $extras->coachLine($user, $weekPlan, $race),
+                'lastRun'   => $extras->lastRun($user),
+            ];
+        })(),
+        'upcomingSessions' => $upcomingSessions,
         // Reihenfolge und Sichtbarkeit der Module, siehe App\Services\DashboardLayout.
         'dashboardLayout' => \App\Services\DashboardLayout::resolve($user->dashboard_layout),
         // Einsteiger-Checkliste, fest oben (Jan, 07.11.2026); null = geschlossen.
@@ -451,7 +497,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 ->celebration($user->id, (int) $profile->pending_pr_activity_id);
             if (! $record) return null;
 
-            $race = \App\Models\Event::where('user_id', $user->id)
+            $race = \App\Models\Event::races()->where('user_id', $user->id)
                 ->where('event_date', '>=', now()->toDateString())
                 ->orderBy('event_date')
                 ->first();
@@ -577,6 +623,7 @@ Route::post('/api/return-to-run/dismiss', [\App\Http\Controllers\ReturnToRunCont
 
 Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/mehr', \App\Http\Controllers\MoreController::class)->name('more');
+    Route::get('/mehr/geraete', [\App\Http\Controllers\MoreController::class, 'devices'])->name('more.devices');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar');
@@ -727,6 +774,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
                 'date_label' => $next->event_date->locale('de')->translatedFormat('j. F Y'),
                 'distance'   => $next->distance_label,
                 'days_until' => $next->days_until,
+                'open'       => $next->isOpen(),
             ] : null,
         ]);
     })->name('plan.home');

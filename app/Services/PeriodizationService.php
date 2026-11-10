@@ -97,6 +97,11 @@ class PeriodizationService
     public function phaseOn(Event $event, ?CarbonImmutable $day = null): array
     {
         $day   = ($day ?? CarbonImmutable::today())->startOfDay();
+        if ($event->isOpen()) {
+            $key = $this->openWeek($event, $day)['phase'];
+
+            return ['key' => $key, 'label' => self::PHASES[$key]['label'], 'color' => self::PHASES[$key]['color']];
+        }
         $race  = CarbonImmutable::parse($event->event_date)->startOfDay();
         $days  = (int) round($day->diffInDays($race, false));
         $taper = LongRunPlanService::taperDays($event->race_distance);
@@ -126,6 +131,10 @@ class PeriodizationService
         $left  = (int) round($day->diffInDays(CarbonImmutable::parse($event->event_date)->startOfDay(), false));
         if ($left < 0) {
             return [];
+        }
+
+        if ($event->isOpen()) {
+            return $this->openSegments($event, $day, $left);
         }
 
         $taper = LongRunPlanService::taperDays($event->race_distance);
@@ -181,6 +190,10 @@ class PeriodizationService
      */
     public function forWeek(Event $event, CarbonImmutable $day): array
     {
+        if ($event->isOpen()) {
+            return $this->openWeek($event, $day);
+        }
+
         $week     = $day->startOfWeek();
         $race     = CarbonImmutable::parse($event->event_date)->startOfDay();
         $raceWeek = $race->startOfWeek();
@@ -248,6 +261,10 @@ class PeriodizationService
      */
     public function progress(Event $e): ?array
     {
+        if ($e->isOpen()) {
+            return $this->openProgress($e);
+        }
+
         $began   = $this->planBegan($e);
         $race    = CarbonImmutable::parse($e->event_date->toDateString());
         $total   = (int) $began->diffInDays($race, false);
@@ -290,6 +307,114 @@ class PeriodizationService
         return $first ? CarbonImmutable::parse($first)->startOfDay() : CarbonImmutable::today();
     }
 
+    /**
+     * Phasen eines Blocks ohne Rennen, je Woche des Blocks (0 bis 11).
+     *
+     * Grundlage aufbauen: zwölf Wochen Grundlage. Schneller werden: vier
+     * Wochen Grundlage, vier Aufbau, drei Spitze, dann die Testwoche. Form
+     * halten: Aufbau ohne Steigerung (siehe {@see progressionPct()}).
+     * Entlastet wird 3:1 ab Blockbeginn (Woche 4 und 8); die zwölfte Woche
+     * ist mit Testlauf eine leichte Testwoche, ohne Testlauf Entlastung.
+     */
+    private function openPhaseAt(string $focus, int $idx): string
+    {
+        return match ($focus) {
+            'speed'    => match (true) {
+                $idx < 4  => 'base',
+                $idx < 8  => 'build',
+                default   => 'peak',
+            },
+            'maintain' => 'build',
+            default    => 'base',
+        };
+    }
+
+    /** Umfang der Testwoche: leichter, damit der Test etwas über die Form sagt. */
+    private const OPEN_TEST_WEEK_FACTOR = 0.7;
+
+    private function openWeek(Event $event, CarbonImmutable $day): array
+    {
+        $week  = $day->startOfWeek();
+        $last  = Event::BLOCK_WEEKS - 1;
+        $idx   = (int) round($event->openBlockStart()->diffInDays($week, false) / 7);
+        // Vor dem Block (nur theoretisch) und nach ihm (der nächste Block,
+        // bevor die Nacht ihn umgestellt hat) zählt im Zwölferrhythmus weiter.
+        $idx   = (($idx % Event::BLOCK_WEEKS) + Event::BLOCK_WEEKS) % Event::BLOCK_WEEKS;
+        $phase = $this->openPhaseAt((string) $event->open_focus, $idx);
+
+        $testWeek = $idx === $last && $event->hasOpenTest();
+        $recovery = ! $testWeek && $idx % self::RECOVERY_EVERY === self::RECOVERY_EVERY - 1;
+        $factor   = $testWeek ? self::OPEN_TEST_WEEK_FACTOR : ($recovery ? self::RECOVERY_FACTOR : 1.0);
+        $spec     = self::PHASES[$testWeek ? 'race_week' : $phase];
+
+        return [
+            'phase'         => $testWeek ? 'race_week' : $phase,
+            'label'         => $testWeek ? 'Testwoche' : $spec['label'],
+            'recovery'      => $recovery,
+            'volume_factor' => $factor,
+            'quality'       => $spec['quality'],
+            'max_hard'      => $recovery ? 1 : $spec['max_hard'],
+            'weeks_to_race' => $last - $idx,
+        ];
+    }
+
+    /** Phasenbalken für einen Block ohne Rennen, Woche für Woche. */
+    private function openSegments(Event $event, CarbonImmutable $day, int $left): array
+    {
+        $out = [];
+        for ($d = $day; $d->lte($day->addDays($left)); $d = $d->addDay()) {
+            $key = $this->openWeek($event, $d)['phase'];
+            if ($out && $out[array_key_last($out)]['key'] === $key) {
+                $out[array_key_last($out)]['days']++;
+            } else {
+                $out[] = ['key' => $key, 'days' => 1];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Woche X von 12 im laufenden Block. Der erste Block beginnt beim
+     * Planstart, alle weiteren am Montag nach dem vorigen Blockende.
+     */
+    private function openProgress(Event $e): ?array
+    {
+        $end   = CarbonImmutable::parse($e->event_date->toDateString());
+        $began = $e->openBlockStart();
+        if ((int) $e->block_number <= 1) {
+            $began = $began->max($this->planBegan($e));
+        }
+        $total = (int) $began->diffInDays($end, false) + 1;
+        if ($total <= 0) {
+            return null;
+        }
+
+        $today = CarbonImmutable::today();
+        $done  = max(0, min($total, (int) $began->diffInDays($today, false)));
+        $weeks = max(1, (int) ceil($total / 7));
+
+        return [
+            'week'      => min($weeks, intdiv($done, 7) + 1),
+            'weeks'     => $weeks,
+            'percent'   => (int) round($done / $total * 100),
+            'phase'     => $this->openWeek($e, $today->max($began))['label'],
+            'starts_in' => max(0, (int) $today->diffInDays($began, false)),
+            'block'     => (int) $e->block_number,
+        ];
+    }
+
+    /**
+     * Wie stark der Umfang je Belastungswoche wachsen darf. „Form halten"
+     * steigert nicht — sonst wäre es nur ein langsamerer Aufbau.
+     */
+    public static function progressionPct(Event $event): float
+    {
+        return $event->isOpen() && $event->open_focus === 'maintain'
+            ? 0.0
+            : (float) WeeklyVolumeService::MAX_PROGRESSION_PCT;
+    }
+
     public static function peakWeek(CarbonImmutable $raceDate, int $taperDays): CarbonImmutable
     {
         return $raceDate->startOfDay()->subDays($taperDays)->startOfWeek();
@@ -311,7 +436,7 @@ class PeriodizationService
      *
      * @param  array<string, array>  $weeks  Ergebnis von {@see forWindow()}
      */
-    public function toPromptSection(array $weeks, int $weeksLeft): string
+    public function toPromptSection(array $weeks, int $weeksLeft, bool $open = false): string
     {
         if (! $weeks) {
             return '';
@@ -331,7 +456,16 @@ class PeriodizationService
             $phases[$w['phase']] = true;
         }
 
-        $rules = array_map(fn ($p) => '- ' . self::RULES[$p], array_keys($phases));
+        $rules = array_map(fn ($p) => '- ' . ($open && $p === 'race_week'
+            ? 'Testwoche: Umfang zurück, zwei, drei Tage vor dem Test nur locker mit ein paar Steigerungen. Der 5-km-Test am Blockende zeigt, wo die Form steht.'
+            : self::RULES[$p]), array_keys($phases));
+
+        if ($open) {
+            return "\n\n**Periodisierung (Block zu 12 Wochen, BINDEND)** — noch {$weeksLeft} Wochen bis zum Blockende:\n"
+                . implode("\n", $lines)
+                . "\n\n" . implode("\n", $rules)
+                . "\n- Entlastung ist im Wochengerüst bereits eingerechnet: die Zielumfänge dort sind schon reduziert. Reduziere nicht noch einmal und fülle die Woche nicht auf.";
+        }
 
         return "\n\n**Periodisierung (vom Renntag rückwärts gerechnet, BINDEND)** — noch {$weeksLeft} Wochen bis zum Rennen:\n"
             . implode("\n", $lines)

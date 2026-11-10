@@ -17,7 +17,7 @@ use App\Notifications\ResetPasswordNotification;
 use Illuminate\Notifications\Notifiable;
 
 #[Fillable(['name', 'email', 'password', 'onboarding_completed_at', 'is_admin', 'is_active',
-    'apple_sub', 'waitlisted_at',
+    'apple_sub', 'waitlisted_at', 'signup_source',
     'push_notifications_enabled', 'wellbeing_reminder_time', 'notify_threshold_pace', 'notify_plan_updated',
     'notify_monthly_review',
     'avatar', 'bio', 'location', 'birth_year', 'favorite_distance', 'coach_id',

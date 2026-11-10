@@ -31,7 +31,7 @@ class MorePageTest extends TestCase
 
     public function test_more_shows_what_is_set_up(): void
     {
-        $user = User::factory()->onboarded()->create();
+        $user = User::factory()->onboarded()->create(['strava_allowed' => true]);
         RunnerProfile::create(['user_id' => $user->id, 'threshold_speed' => 4.2, 'training_model' => 'polarized']);
         Event::create(['user_id' => $user->id, 'name' => 'HM', 'event_date' => '2027-04-11', 'race_distance' => 'half_marathon', 'priority' => 'A', 'target_time_hours' => 1, 'target_time_minutes' => 29]);
 
@@ -41,7 +41,7 @@ class MorePageTest extends TestCase
                 ->where('summary.events', 1)
                 ->where('summary.threshold', '4:12')
                 ->where('summary.model', '80/20')
-                ->where('summary.strava', false)
+                ->where('summary.devices.strava', false)
                 ->where('summary.telegram', false));
     }
 
@@ -51,11 +51,24 @@ class MorePageTest extends TestCase
 
         config(['services.coros.enabled' => false]);
         $this->actingAs($user)->get(route('more'))
-            ->assertInertia(fn ($page) => $page->where('summary.coros', null));
+            ->assertInertia(fn ($page) => $page->where('summary.devices.coros', null));
 
         config(['services.coros.enabled' => true]);
         $this->actingAs($user)->get(route('more'))
-            ->assertInertia(fn ($page) => $page->where('summary.coros', false));
+            ->assertInertia(fn ($page) => $page->where('summary.devices.coros', false));
+    }
+
+    public function test_devices_page_shows_the_tiles_data(): void
+    {
+        $user = User::factory()->onboarded()->create(['strava_allowed' => false]);
+
+        $this->actingAs($user)->get(route('more.devices'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('More/Devices')
+                ->where('devices.garmin', false)
+                ->where('devices.strava', null)
+                ->where('devices.apple_health', false));
     }
 
     public function test_races_carry_target_prediction_and_pace_in_seconds(): void

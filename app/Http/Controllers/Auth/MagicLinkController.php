@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Notifications\MagicLinkNotification;
 use App\Services\Auth\Access;
+use App\Services\Auth\SignupSource;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -51,6 +52,11 @@ class MagicLinkController extends Controller
 
         $token = Str::random(48);
         Cache::put(self::cacheKey($token), $email, now()->addMinutes(self::MINUTES));
+        // Der Link wird oft in einem anderen Browser geöffnet (Mail-App →
+        // Safari); die Quelle reist deshalb im Cache mit.
+        if ($source = SignupSource::current()) {
+            Cache::put(self::cacheKey($token) . ':source', $source, now()->addMinutes(self::MINUTES));
+        }
 
         try {
             Notification::route('mail', $email)->notify(new MagicLinkNotification(route('login.link.show', $token), self::MINUTES));
@@ -76,6 +82,7 @@ class MagicLinkController extends Controller
     public function consume(Request $request, string $token): RedirectResponse
     {
         $email = Cache::pull(self::cacheKey($token));
+        $source = Cache::pull(self::cacheKey($token) . ':source');
         if (! $email) {
             return redirect()->route('login')->withErrors(['email' => 'Der Link ist abgelaufen oder schon benutzt. Fordere bitte einen neuen an.']);
         }
@@ -86,7 +93,7 @@ class MagicLinkController extends Controller
                 $user->forceFill(['email_verified_at' => now()])->save();
             }
         } else {
-            $user = $this->access->register($email, null);
+            $user = $this->access->register($email, null, array_filter(['signup_source' => $source ?: SignupSource::current()]));
         }
 
         return redirect($this->signIn($request, $user));

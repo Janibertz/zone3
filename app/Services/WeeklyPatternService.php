@@ -189,7 +189,10 @@ class WeeklyPatternService
     ): array {
         $days      = $this->availabilityPerDate($from, $to, $weeklyAvailability, $overrides, $finalizedDates, $races);
         $norwegian = ($model['name'] ?? 'polarized') === 'norwegian';
-        $priority = self::PRIORITIES[$event->race_distance] ?? self::DEFAULT_PRIORITY;
+        // Grundlage ohne Rennen: lang und locker vor Tempo, wie beim Backyard.
+        $priority = $event->isOpen() && $event->open_focus === 'base'
+            ? self::PRIORITIES['backyard_ultra']
+            : (self::PRIORITIES[$event->race_distance] ?? self::DEFAULT_PRIORITY);
         $maxHard  = self::MAX_HARD_PER_WEEK[$event->race_distance] ?? 2;
         $periods  = $this->periodization->forWindow($event, $from, $to);
 
@@ -259,7 +262,7 @@ class WeeklyPatternService
         // Wochenumfang. Muss NACH der Leiter laufen: der lange Lauf geht vor,
         // der Rest teilt sich, was übrig bleibt.
         if ($volume && ! empty($volume['has_data']) && $planningPaceSec > 0) {
-            $this->applyVolumeBudget($days, $volume, $planningPaceSec, $norwegian ? self::NORWEGIAN_PRIORITY : $priority, $periods);
+            $this->applyVolumeBudget($days, $volume, $planningPaceSec, $norwegian ? self::NORWEGIAN_PRIORITY : $priority, $periods, PeriodizationService::progressionPct($event));
         }
 
         if ($norwegian) {
@@ -475,7 +478,7 @@ class WeeklyPatternService
      *
      * @param  list<string>  $priority  Wunschreihenfolge; von hinten wird gestrichen.
      */
-    private function applyVolumeBudget(array &$days, array $volume, int $paceSec, array $priority, array $periods = []): void
+    private function applyVolumeBudget(array &$days, array $volume, int $paceSec, array $priority, array $periods = [], float $progressionPct = WeeklyVolumeService::MAX_PROGRESSION_PCT): void
     {
         $budgetKm = (float) ($volume['next_week_max'] ?? 0);
         if ($budgetKm <= 0) {
@@ -501,7 +504,7 @@ class WeeklyPatternService
                 $days,
                 $dates,
                 $budgetKm
-                    * (1 + WeeklyVolumeService::MAX_PROGRESSION_PCT / 100) ** $loadWeeks
+                    * (1 + $progressionPct / 100) ** $loadWeeks
                     * ($periods[$weekKey]['volume_factor'] ?? 1.0),
                 $paceSec,
                 $priority,

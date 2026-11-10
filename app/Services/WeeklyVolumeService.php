@@ -213,7 +213,7 @@ class WeeklyVolumeService
             ->pluck('activity_id')
             ->all();
 
-        $raceDays = Event::where('user_id', $userId)
+        $raceDays = Event::races()->where('user_id', $userId)
             ->pluck('event_date')
             ->map(fn ($d) => CarbonImmutable::parse($d)->toDateString())
             ->flip();

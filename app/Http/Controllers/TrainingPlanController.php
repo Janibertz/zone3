@@ -25,6 +25,12 @@ class TrainingPlanController extends Controller
     {
         abort_if($event->user_id !== Auth::id(), 403);
 
+        // Ein Ziel ohne Rennen erst in seinen laufenden Block ruecken, sonst
+        // gilt es unten als vorbei und der Plan wird abgeschaltet.
+        if ($event->isOpen() && TrainingPlan::where('event_id', $event->id)->where('is_active', true)->exists()) {
+            $event->rollOpenBlock();
+        }
+
         $isPastEvent = $event->days_until < 0;
 
         $plan = TrainingPlan::where('event_id', $event->id)
@@ -80,7 +86,7 @@ class TrainingPlanController extends Controller
 
         // Keep AI prediction text fresh via async job (only the text, not the numbers).
         // Skipped for Backyard Ultra — it uses the deterministic yard-readiness estimate.
-        if ($plan && $plan->is_active && ! $isPastEvent && ! $event->isBackyard()) {
+        if ($plan && $plan->is_active && ! $isPastEvent && ! $event->isBackyard() && ! $event->isOpen()) {
             $stale = $plan->prediction_updated_at === null
                 || now()->diffInHours($plan->prediction_updated_at) > 12;
             if ($stale) {
@@ -92,7 +98,8 @@ class TrainingPlanController extends Controller
         // Backyard Ultra uses a separate yard-readiness estimate instead.
         $profile    = RunnerProfile::where('user_id', Auth::id())->first();
         $threshPred = (! $event->isBackyard() && $profile?->vdot())
-            ? app(RacePredictionService::class)->forVdot($profile->vdot(), $event->race_distance, $event->distance_km)
+            // Ohne Rennen: die Prognose für den 5-km-Test.
+            ? app(RacePredictionService::class)->forVdot($profile->vdot(), $event->isOpen() ? '5km' : $event->race_distance, $event->distance_km)
             : null;
 
         // Delta vs. target time (positive = faster than goal)
@@ -119,6 +126,9 @@ class TrainingPlanController extends Controller
             'event' => [
                 'id'                    => $event->id,
                 'name'                  => $event->name,
+                'goal_type'             => $event->goal_type ?? 'race',
+                'open_test'             => (bool) $event->open_test,
+                'block_number'          => $event->block_number,
                 'event_date'            => $event->event_date->format('Y-m-d'),
                 'race_distance'         => $event->race_distance,
                 'distance_label'        => $event->distance_label,
@@ -252,10 +262,21 @@ class TrainingPlanController extends Controller
             return response()->json(['error' => 'Dieses Event liegt in der Vergangenheit. Bitte erstelle ein neues Event für einen neuen Plan.'], 422);
         }
 
+        // Ein Ziel ohne Rennen blockiert nichts: der Rennplan uebernimmt ab
+        // dem naechsten Montag. Abgeloest wird erst, wenn der neue Plan steht
+        // (GenerateEventTrainingPlanJob) — bis dahin gilt das Startdatum.
+        if (! $event->isOpen() && \App\Services\Plan\OpenGoalHandover::activeOpenPlan(Auth::id(), $event->id)) {
+            $monday = now()->startOfWeek()->addWeek()->startOfDay();
+            if (! $event->plan_start_date || $event->plan_start_date->lt($monday)) {
+                $event->update(['plan_start_date' => $monday->toDateString()]);
+            }
+        }
+
         // Block if a different event already has an active plan
         $otherActivePlan = TrainingPlan::where('user_id', Auth::id())
             ->where('is_active', true)
             ->where('event_id', '!=', $event->id)
+            ->whereHas('event', fn ($q) => $q->where('goal_type', '!=', 'open'))
             ->first();
 
         if ($otherActivePlan) {
@@ -278,6 +299,8 @@ class TrainingPlanController extends Controller
             'plan_generating_at' => now(),
             'plan_error'         => null,
         ]);
+        \App\Services\PlanBuildProgress::forget($event->id);
+        \App\Services\PlanBuildProgress::mark($event->id, 'start');
         GenerateEventTrainingPlanJob::dispatch($event->id, Auth::id());
 
         return response()->json(['generating' => true]);
@@ -291,7 +314,10 @@ class TrainingPlanController extends Controller
         abort_if($event->user_id !== Auth::id(), 403);
 
         if ($event->isGeneratingPlan()) {
-            return response()->json(['status' => 'generating']);
+            return response()->json([
+                'status'   => 'generating',
+                'progress' => \App\Services\PlanBuildProgress::get($event->id),
+            ]);
         }
 
         // Sonst wartet die Oberflaeche endlos auf ein Ende, das nicht kommt.

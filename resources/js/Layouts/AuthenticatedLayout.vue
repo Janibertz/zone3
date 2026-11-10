@@ -1,5 +1,16 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+
+/**
+ * `immersive`: am Telefon beginnt die Seite mit einem Foto bis unter die
+ * Statusleiste (Heute, Mockup „Zone3 mit mehr Leben“). Die Kopfleiste ist
+ * dann erst sichtbar, wenn das Foto weggescrollt ist.
+ */
+const layoutProps = defineProps({ immersive: { type: Boolean, default: false } });
+const scrolledPastHero = ref(false);
+function onScroll() { scrolledPastHero.value = window.scrollY > 380; }
+onMounted(() => { onScroll(); window.addEventListener('scroll', onScroll, { passive: true }); });
+onBeforeUnmount(() => window.removeEventListener('scroll', onScroll));
 import { reportUsage } from '@/Composables/useUsageBeacon';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { useDarkMode } from '@/Composables/useDarkMode';
@@ -105,10 +116,8 @@ const navItems = [
     },
 ];
 
-// Tab-Leiste: Heute · Plan (bzw. Events) · Kalender · Aktivitäten · Mehr.
-// Das Profil sitzt als Avatar oben rechts, wie in den Apple-Apps — es ist
-// eine Einstellung, kein Ort, an den man täglich geht. Mit aktivem Plan
-// fuehrt der zweite Tab direkt dorthin, sonst zur Event-Uebersicht.
+// Tab-Leiste: Heute · Plan · Kalender · Aktivitäten, daneben der Coach. „Mehr“ ist
+// am Telefon der Avatar oben rechts, am Desktop eine Zeile der Seitenleiste.
 const planTabIcon = `<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />`;
 
 /** Nach Routennamen statt nach Index — sonst verschiebt jeder neue
@@ -130,7 +139,7 @@ const mobileNavItems = computed(() => [
 const isCurrent = (item) => route().current(item.routeName) || (item.also ?? []).some(r => route().current(r));
 
 /** Was über „Mehr" erreicht wird, lässt den Tab aktiv — wie in iOS. */
-const MORE_ROUTES = ['more', 'profile.edit', 'workouts.*', 'statistics.index', 'live.*', 'wrapped.index', 'support.*', 'admin.*'];
+const MORE_ROUTES = ['more', 'more.*', 'profile.edit', 'workouts.*', 'statistics.index', 'live.*', 'wrapped.index', 'support.*', 'admin.*'];
 
 const moreActive = computed(() =>
     MORE_ROUTES.some(r => route().current(r)) || route().current('events.index'));
@@ -364,33 +373,19 @@ const sideNavItems = computed(() => [
         <!--
             Kopfleiste als iOS-Material: durchscheinend und unscharf, der
             Inhalt scrollt sichtbar darunter weg. Kein Logo-Kachel-Branding —
-            der grosse Seitentitel darunter sagt, wo man ist. Rechts Coach
-            und Profil; Abmelden ist ins Mehr-Sheet gewandert, wo es nicht
-            aus Versehen getroffen wird.
+            der grosse Seitentitel darunter sagt, wo man ist. Rechts der
+            Avatar: er führt zur Mehr-Seite (Profil, Rennen, Einstellungen).
+            Der Coach sitzt seit 10.11.2026 unten neben der Tab-Leiste.
         -->
-        <header class="fixed inset-x-0 top-0 z-20 flex h-mobile-header items-end justify-between border-b border-line/70 bg-canvas/80 px-4 pb-2 pt-safe backdrop-blur-xl backdrop-saturate-150 lg:hidden">
+        <header class="fixed inset-x-0 top-0 z-20 flex h-mobile-header items-end justify-between border-b border-line/70 bg-canvas/80 px-4 pb-2 pt-safe backdrop-blur-xl backdrop-saturate-150 transition-opacity duration-200 ease-out-strong lg:hidden"
+            :class="layoutProps.immersive && !scrolledPastHero ? 'pointer-events-none opacity-0' : ''">
             <Wordmark class="mb-2 h-[17px] text-ink" />
             <div class="flex items-center gap-2">
-                <!-- Coach chat button (mobile) -->
-                <button
-                    v-if="coach"
-                    @click="openChat()"
-                    :aria-label="`Chat mit ${coach.name}`"
-                    class="relative flex h-10 w-10 items-center justify-center rounded-full transition-transform duration-150 ease-out-strong active:scale-[0.94]"
-                >
-                    <div
-                        class="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold text-white"
-                        :style="`background-color: ${coach.avatar_color}`"
-                    >
-                        {{ coach.avatar_initials }}
-                    </div>
-                    <span class="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full border-2 border-canvas bg-success" />
-                </button>
-
-                <!-- Profil -->
+                <!-- Mehr: Profil, Rennen, Workouts, Einstellungen -->
                 <Link
-                    :href="route('profile.edit')"
-                    aria-label="Profil"
+                    :href="route('more')"
+                    aria-label="Mehr"
+                    :aria-current="moreActive ? 'page' : undefined"
                     class="flex h-10 w-10 items-center justify-center rounded-full transition-transform duration-150 ease-out-strong active:scale-[0.94]"
                 >
                     <UserAvatar :user="user" size="md" />
@@ -419,7 +414,8 @@ const sideNavItems = computed(() => [
                 dreispaltigen Bloecke und schmal genug, dass eine Zeile noch
                 lesbar bleibt. Auf dem Telefon aendert sich dadurch nichts.
             -->
-            <main class="mx-auto w-full min-w-0 max-w-[1280px] flex-1 overflow-x-clip pb-mobile-tabbar pt-mobile-header lg:pb-0 lg:pt-0">
+            <main class="mx-auto w-full min-w-0 max-w-[1280px] flex-1 overflow-x-clip pb-mobile-tabbar lg:pb-0 lg:pt-0"
+                :class="layoutProps.immersive ? '' : 'pt-mobile-header'">
                 <slot />
             </main>
         </div>
@@ -431,39 +427,41 @@ const sideNavItems = computed(() => [
              MOBILE BOTTOM TAB BAR
              ══════════════════════════════════════ -->
         <!--
-            Tab-Leiste wie in iOS: Material statt Flaeche, Haarlinie oben,
-            Symbol 24 Punkt ueber 10-Punkt-Beschriftung, der aktive Tab nur
-            ueber die Akzentfarbe — kein zusaetzlicher Strich.
+            Schwebende Leiste (Jan, 10.11.2026, nach dem Vorbild einer anderen
+            Lauf-App): vier Tabs in einer Pille aus Material, daneben ein
+            eigener runder Knopf für den Coach — von jeder Seite einen Tipp
+            entfernt. „Mehr“ ist dafür aus der Leiste hinter den Avatar oben
+            rechts gewandert. Der aktive Tab bekommt eine helle Fläche, nicht
+            nur die Akzentfarbe: in der Pille wäre die Farbe allein zu leise.
         -->
-        <nav class="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface/85 pb-safe-tabbar backdrop-blur-xl backdrop-saturate-150 lg:hidden" aria-label="Hauptnavigation">
-            <div class="flex h-[52px] items-center">
+        <div class="pointer-events-none fixed inset-x-3 z-30 flex items-center gap-2.5 bottom-floating-tabbar lg:hidden">
+            <nav class="pointer-events-auto flex h-[60px] min-w-0 flex-1 items-center rounded-full bg-surface/95 px-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.18)] ring-1 ring-line/70 backdrop-blur-xl backdrop-saturate-150" aria-label="Hauptnavigation">
                 <Link
                     v-for="item in mobileNavItems"
                     :key="item.routeName"
                     :href="route(item.routeName)"
                     :aria-current="isCurrent(item) ? 'page' : undefined"
-                    class="flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-0.5 transition-colors"
-                    :class="isCurrent(item) ? 'text-accent' : 'text-ink-3'"
+                    class="flex h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-full transition-colors"
+                    :class="isCurrent(item) ? 'bg-ink/[0.07] text-accent' : 'text-ink-3'"
                 >
                     <svg class="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="isCurrent(item) ? 2.1 : 1.7" v-html="item.icon" />
                     <span class="max-w-full truncate px-0.5 text-[10px] font-semibold leading-none">{{ item.label }}</span>
                 </Link>
+            </nav>
 
-                <!-- Mehr: eine eigene Seite, aktiv auch auf allem, was von dort aus erreicht wird -->
-                <Link
-                    :href="route('more')"
-                    :aria-current="moreActive ? 'page' : undefined"
-                    class="flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-0.5 transition-colors"
-                    :class="moreActive ? 'text-accent' : 'text-ink-3'"
-                >
-                    <svg class="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="moreActive ? 2.1 : 1.7">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                    </svg>
-                    <span class="text-[10px] font-semibold leading-none">Mehr</span>
-                </Link>
-            </div>
-        </nav>
+            <!-- Coach -->
+            <button
+                v-if="coach"
+                type="button"
+                @click="openChat()"
+                :aria-label="`Chat mit ${coach.name}`"
+                class="pointer-events-auto flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-full bg-accent text-white shadow-[0_8px_24px_rgb(var(--z-accent)/0.35)] transition-transform duration-150 ease-out-strong active:scale-[0.94]"
+            >
+                <svg class="h-[26px] w-[26px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
+                </svg>
+            </button>
+        </div>
 
 
     </div>

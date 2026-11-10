@@ -130,6 +130,32 @@ class PlanGenerationSmokeTest extends TestCase
         $this->assertLessThan(12000, mb_strlen($prompt));
     }
 
+    /** Plan ohne Rennen: der Prompt spricht vom Block, nicht von einem Renntag. */
+    public function test_an_open_goal_prompt_names_the_block_and_the_test(): void
+    {
+        $user  = $this->athlete();
+        $event = Event::create(array_merge(
+            Event::openAttributes('speed', '5km', true),
+            ['user_id' => $user->id],
+        ));
+
+        $this->fakeReply([]);
+
+        $context = app(PlanContextBuilder::class)->build($user, $event);
+        app(TrainingPlanGenerator::class)->withCoach(null)->forUser($user->id)->generateEventTrainingPlan($context);
+
+        $prompt = '';
+        Http::assertSent(function ($request) use (&$prompt) {
+            $prompt = collect($request['messages'] ?? [])->firstWhere('role', 'user')['content'] ?? '';
+
+            return true;
+        });
+
+        $this->assertStringContainsString('Schneller werden', $prompt);
+        $this->assertStringContainsString('5-km-Test', $prompt);
+        $this->assertStringNotContainsString('Zielzeit 0:00', $prompt);
+    }
+
     /**
      * Der Coach-Chat ruft OpenAI mit Werkzeugen auf und ging deshalb einen
      * eigenen Weg am Transport vorbei — beim Zerlegen fiel ihm dabei der

@@ -59,6 +59,10 @@ class Event extends Model
 
     protected $fillable = [
         'user_id',
+        'goal_type',
+        'open_focus',
+        'open_test',
+        'block_number',
         'name',
         'event_date',
         'plan_start_date',
@@ -79,6 +83,8 @@ class Event extends Model
 
     protected $casts = [
         'event_date'          => 'date',
+        'open_test'           => 'boolean',
+        'block_number'        => 'integer',
         'plan_start_date'     => 'date',
         'early_recovery_week' => 'date',
         'distance_km'         => 'float',
@@ -89,6 +95,142 @@ class Event extends Model
         'plan_generating'     => 'boolean',
         'plan_generating_at'  => 'datetime',
     ];
+
+    /** Ein Block ohne Rennen dauert zwölf Wochen (Jan, 10.11.2026). */
+    public const BLOCK_WEEKS = 12;
+
+    /** Der Testlauf am Blockende: 5 km, so schnell es gleichmäßig geht. */
+    public const OPEN_TEST_KM = 5.0;
+
+    /**
+     * Ausrichtungen eines Plans ohne Rennen. `distance` ist die Distanz, an
+     * der sich Leiter, Gerüst und Prognose orientieren — dieselbe Maschine
+     * wie bei einem Rennen, nur ohne Renntag.
+     */
+    public const OPEN_FOCI = [
+        'base'     => ['label' => 'Grundlage aufbauen', 'distance' => '10km'],
+        'speed'    => ['label' => 'Schneller werden',   'distance' => '10km'],
+        'maintain' => ['label' => 'Form halten',        'distance' => '10km'],
+    ];
+
+    /** Nur echte Rennen — ohne Ziele ohne Rennen. */
+    public function scopeRaces($query)
+    {
+        return $query->where('goal_type', '!=', 'open');
+    }
+
+    public function isOpen(): bool
+    {
+        return $this->goal_type === 'open';
+    }
+
+    /** Am Blockende steht ein Testlauf — nur dann ist der Tag ein „Rennen". */
+    public function hasOpenTest(): bool
+    {
+        return $this->isOpen() && (bool) $this->open_test;
+    }
+
+    public function openFocusLabel(): ?string
+    {
+        return $this->isOpen() ? (self::OPEN_FOCI[$this->open_focus]['label'] ?? 'Ohne Rennen') : null;
+    }
+
+    /**
+     * Das Ende des ersten Blocks: der Sonntag nach zwölf Wochen, gezählt ab
+     * der Woche des Starts. Ein Start mitten in der Woche macht den ersten
+     * Block ein paar Tage kürzer, dafür liegt jeder Testlauf auf einem
+     * Sonntag.
+     */
+    public static function openBlockEnd(\Carbon\CarbonInterface $start): \Carbon\CarbonImmutable
+    {
+        return \Carbon\CarbonImmutable::parse($start->toDateString())
+            ->startOfWeek()
+            ->addWeeks(self::BLOCK_WEEKS)
+            ->subDay();
+    }
+
+    /**
+     * Die Felder eines neuen Ziels ohne Rennen — eine Stelle für Onboarding
+     * und Rennen-Seite. Beim schneller Werden zählt die gewählte Distanz
+     * (5 oder 10 km), sonst orientiert sich alles an 10 km.
+     *
+     * @return array<string, mixed>
+     */
+    public static function openAttributes(string $focus, ?string $distance, bool $test, ?string $start = null): array
+    {
+        $focus    = array_key_exists($focus, self::OPEN_FOCI) ? $focus : 'base';
+        $distance = $focus === 'speed' && in_array($distance, ['5km', '10km'], true)
+            ? $distance
+            : self::OPEN_FOCI[$focus]['distance'];
+
+        $today = \Carbon\CarbonImmutable::today();
+        $begin = $start ? \Carbon\CarbonImmutable::parse($start) : $today;
+        if ($begin->lt($today)) {
+            $begin = $today;
+        }
+
+        $label = self::OPEN_FOCI[$focus]['label'];
+        if ($focus === 'speed') {
+            $label .= ' auf ' . ($distance === '5km' ? '5' : '10') . ' km';
+        }
+
+        return [
+            'goal_type'           => 'open',
+            'open_focus'          => $focus,
+            'open_test'           => $test,
+            'block_number'        => 1,
+            'name'                => $label,
+            'race_distance'       => $distance,
+            'distance_km'         => null,
+            'event_date'          => self::openBlockEnd($begin)->toDateString(),
+            'plan_start_date'     => $begin->gt($today) ? $begin->toDateString() : null,
+            'priority'            => 'A',
+            'target_time_hours'   => 0,
+            'target_time_minutes' => 0,
+            'target_yards'        => null,
+        ];
+    }
+
+    /** Montag der ersten Woche des laufenden Blocks. */
+    public function openBlockStart(): \Carbon\CarbonImmutable
+    {
+        return \Carbon\CarbonImmutable::parse($this->event_date->toDateString())
+            ->startOfWeek()
+            ->subWeeks(self::BLOCK_WEEKS - 1);
+    }
+
+    /**
+     * Den nächsten Block beginnen, sobald der laufende vorbei ist. Gibt
+     * zurück, ob sich etwas geändert hat. Läuft nachts über
+     * `plan:roll-blocks` und vor dem Planen, damit ein Plan nie an einem
+     * vergangenen Blockende hängen bleibt.
+     */
+    public function rollOpenBlock(?\Carbon\CarbonInterface $today = null): bool
+    {
+        if (! $this->isOpen()) {
+            return false;
+        }
+
+        $today = \Carbon\CarbonImmutable::parse(($today ?? now())->toDateString());
+        $end   = \Carbon\CarbonImmutable::parse($this->event_date->toDateString());
+        if ($end->gte($today)) {
+            return false;
+        }
+
+        $blocks = 0;
+        while ($end->lt($today)) {
+            $end = $end->addWeeks(self::BLOCK_WEEKS);
+            $blocks++;
+        }
+
+        $this->forceFill([
+            'event_date'          => $end->toDateString(),
+            'block_number'        => (int) $this->block_number + $blocks,
+            'early_recovery_week' => null,
+        ])->save();
+
+        return true;
+    }
 
     public function isBackyard(): bool
     {
@@ -134,6 +276,11 @@ class Event extends Model
     {
         if ($this->isBackyard()) {
             return $this->target_distance_km;
+        }
+
+        // Ohne Rennen ist der einzige „Renntag" der Testlauf.
+        if ($this->isOpen()) {
+            return self::OPEN_TEST_KM;
         }
 
         $anchor = RacePredictionService::ANCHORS[$this->race_distance] ?? null;
@@ -184,6 +331,10 @@ class Event extends Model
 
     public function getDistanceLabelAttribute(): string
     {
+        if ($this->isOpen()) {
+            return $this->openFocusLabel();
+        }
+
         return match ($this->race_distance) {
             '5km'           => '5 km',
             '10km'          => '10 km',

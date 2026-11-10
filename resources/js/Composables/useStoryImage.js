@@ -12,12 +12,12 @@
  * heruntergeladen.
  */
 
-const W = 1080;
-const H = 1920;
-const ACCENT = '#2997ff';
-const FONT = "'Inter Variable', Inter, system-ui, sans-serif";
+export const W = 1080;
+export const H = 1920;
+export const ACCENT = '#2997ff';
+export const FONT = "'Inter Variable', Inter, system-ui, sans-serif";
 
-function loadImage(src) {
+export function loadImage(src) {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => resolve(img);
@@ -27,14 +27,14 @@ function loadImage(src) {
 }
 
 /** Das Bild randlos füllen, wie `object-fit: cover`; `focusX` 0–1 verschiebt den Ausschnitt. */
-function cover(ctx, img, focusX = 0.5) {
+export function cover(ctx, img, focusX = 0.5) {
     const scale = Math.max(W / img.width, H / img.height);
     const w = img.width * scale;
     const h = img.height * scale;
     ctx.drawImage(img, (W - w) * focusX, (H - h) / 2, w, h);
 }
 
-function text(ctx, value, x, y, { size, weight = 800, color = '#fff', tracking = 0 }) {
+export function text(ctx, value, x, y, { size, weight = 800, color = '#fff', tracking = 0 }) {
     ctx.font = `${weight} ${size}px ${FONT}`;
     ctx.fillStyle = color;
     if ('letterSpacing' in ctx) ctx.letterSpacing = `${tracking * size}px`;

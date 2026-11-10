@@ -51,6 +51,7 @@ class Access
             'email'             => Str::lower($email),
             'password'          => Hash::make(Str::random(48)),
             'waitlisted_at'     => $waiting ? now() : null,
+            'signup_source'     => SignupSource::current(),
         ]);
         // Die Adresse ist bestätigt: Apple hat sie geprüft bzw. der Link kam an.
         $user->forceFill(['email_verified_at' => now()])->save();
@@ -82,6 +83,9 @@ class Access
         $body  = $waiting
             ? "{$user->name} ({$user->email}) wartet auf Freischaltung."
             : "{$user->name} ({$user->email}) ist jetzt dabei.";
+        if ($user->signup_source) {
+            $body .= " Über: {$user->signup_source}.";
+        }
 
         foreach (User::where('is_admin', true)->get() as $admin) {
             $this->safePush($admin, $title, $body, '/admin/invitations');

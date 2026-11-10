@@ -45,6 +45,10 @@ class WriteWeeklyPlans extends Command
             return self::SUCCESS;
         }
 
+        // Ziele ohne Rennen zuerst in ihren laufenden Block ruecken — sonst
+        // faellt ein abgelaufener Block aus der Abfrage.
+        RollOpenBlocks::rollAll($this->option('user') ?: []);
+
         $userIds = $this->option('user');
 
         $query = TrainingPlan::where('is_active', true)

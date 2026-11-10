@@ -7,6 +7,7 @@ import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 import UserAvatar from '@/Components/UserAvatar.vue';
 import { useDarkMode } from '@/Composables/useDarkMode';
 import { fmtNum } from '@/Composables/useFormat';
+import { useDeviceStatus } from '@/Composables/useDeviceStatus';
 
 /**
  * „Mehr" als iOS-Einstellungsliste (Redesign Paket 3, 28.10.2026).
@@ -34,6 +35,9 @@ const themeOptions = [
 
 
 const profile = (section) => route('profile.edit', { section });
+
+const devices = useDeviceStatus(computed(() => s.value.devices));
+const devicesValue = computed(() => devices.value.connected ? `${devices.value.connected} verbunden` : 'keine');
 const on = (v) => (v ? 'verbunden' : 'aus');
 
 /** Symbolpfade im Stil der Tab-Leiste: 24er Raster, runde Enden. */
@@ -70,10 +74,8 @@ const groups = computed(() => [
         { name: 'Coach',           href: profile('coach'),          icon: P.coach, tint: 'bg-success', value: s.value.coach ?? '' },
     ] },
     { title: 'Verbindungen', rows: [
-        { name: 'Garmin',       href: profile('connections'), icon: P.watch, tint: 'bg-ink-3',  value: on(s.value.garmin) },
-        ...(s.value.coros !== null ? [{ name: 'COROS', href: profile('connections'), icon: P.watch, tint: 'bg-ink-3', value: on(s.value.coros) }] : []),
-        // Strava nur nach Freischaltung (Jan, 03.11.2026).
-        ...(usePage().props.auth?.strava ? [{ name: 'Strava', href: profile('connections'), icon: P.link, tint: 'bg-warn', value: on(s.value.strava) }] : []),
+        // Uhren und Datenquellen als Kacheln auf einer eigenen Seite.
+        { name: 'Geräte & Apps', href: route('more.devices'), icon: P.watch, tint: 'bg-ink-3', value: devicesValue.value },
         { name: 'Telegram',     href: profile('connections'), icon: P.send,  tint: 'bg-info',   value: on(s.value.telegram) },
         { name: 'Kalender-Abo', href: profile('connections'), icon: P.cal,   tint: 'bg-danger', value: s.value.calendar ? 'an' : 'aus' },
     ] },
