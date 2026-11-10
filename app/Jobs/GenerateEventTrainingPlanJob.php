@@ -7,6 +7,7 @@ use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\AI\TrainingPlanGenerator;
+use App\Services\PlanBuildProgress;
 use App\Services\PlanContextBuilder;
 use App\Services\WebPushService;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -63,6 +64,10 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
         $context  = $contextBuilder->build($user, $event, $existingPlan?->availability_overrides ?? []);
         $skeleton = $context->skeleton;
 
+        // Für die Schritt-Anzeige auf der Planseite (PlanBuildProgress).
+        PlanBuildProgress::mark($event->id, 'form', PlanBuildProgress::formFacts($context));
+        PlanBuildProgress::mark($event->id, 'weeks', PlanBuildProgress::weekFacts($context));
+
         $existingPlanIds   = TrainingPlan::where('event_id', $event->id)->where('user_id', $user->id)->pluck('id');
         $preservedSessions = TrainingSession::whereIn('training_plan_id', $existingPlanIds)
             ->whereIn('status', ['skipped', 'completed'])
@@ -76,6 +81,7 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
             ->get();
 
         // ── Call AI ──────────────────────────────────────────────────────────
+        PlanBuildProgress::mark($event->id, 'model');
         $planner->withCoach($user->coach?->personality_prompt)->forUser($user->id);
         try {
             $aiSessions = $planner->generateEventTrainingPlan($context);
@@ -99,6 +105,7 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
         $checked    = app(\App\Services\TrainingPlanValidator::class)
             ->validate($aiSessions, $skeleton, $eventDateStr);
         $aiSessions = $checked['sessions'];
+        PlanBuildProgress::mark($event->id, 'check', ['corrections' => count($checked['report'] ?? [])]);
 
         if ($checked['report']) {
             Log::info('Plan validator corrected the AI output', [
@@ -106,6 +113,8 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
                 'corrections' => $checked['report'],
             ]);
         }
+
+        PlanBuildProgress::mark($event->id, 'save', ['sessions' => count($aiSessions)]);
 
         try {
             // One-active-plan rule: deactivate all other plans

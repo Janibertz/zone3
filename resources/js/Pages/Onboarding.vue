@@ -11,6 +11,7 @@ import FormRow from '@/Components/UI/FormRow.vue';
 import Toggle from '@/Components/UI/Toggle.vue';
 import Wordmark from '@/Components/Brand/Wordmark.vue';
 import CoachBubble from '@/Components/Onboarding/CoachBubble.vue';
+import { availabilityFeedback, goalFeedback } from '@/Composables/useOnboardingFeedback';
 import NotificationChoice from '@/Components/Settings/NotificationChoice.vue';
 import AppleHealthCard from '@/Components/Settings/AppleHealthCard.vue';
 import { isNativeApp } from '@/Composables/useNativeApp';
@@ -339,6 +340,10 @@ const targetTimeFormatted = computed(() => {
 const selectedRace = computed(() =>
     raceOptions.find(r => r.value === goalForm.value.race_distance)
 );
+
+// Der Coach antwortet beim Eintragen (Idee B, 10.11.2026).
+const goalReply = computed(() => goalFeedback(goalForm.value, selectedRace.value));
+const availabilityReply = computed(() => availabilityFeedback(availability.value, days));
 
 // ── Strength & Core (Step 5) ─────────────────────────────────────────────
 const equipmentOptions = [
@@ -721,6 +726,7 @@ const bar = computed(() => {
                         </div>
                     </div>
                 </FormGroup>
+                <CoachBubble v-if="availabilityReply" :coach="activeCoach" :name="firstName" :text="availabilityReply" aria-live="polite" />
             </template>
 
             <!-- ── Kraft ── -->
@@ -808,6 +814,7 @@ const bar = computed(() => {
                         </select>
                     </FormRow>
                 </FormGroup>
+                <CoachBubble v-if="goalReply" :coach="activeCoach" :name="firstName" :text="goalReply" aria-live="polite" />
                 <p v-for="msg in goalErrorList" :key="msg" class="z-error mx-4">{{ msg }}</p>
             </template>
 

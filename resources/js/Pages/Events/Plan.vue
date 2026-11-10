@@ -2,6 +2,8 @@
 import ExerciseVideo from '@/Components/UI/ExerciseVideo.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import AppSheet from '@/Components/UI/AppSheet.vue';
+import PlanBuildSteps from '@/Components/Plan/PlanBuildSteps.vue';
+import { drawStory, shareStory } from '@/Composables/useStoryImage';
 import { paceValue, paceWithUnit, sessionType, stepAmount, stepRows, zoneSpan, ZONE_BAR } from '@/Composables/useSessionTypes';
 import AppButton from '@/Components/UI/AppButton.vue';
 import WatchButton from '@/Components/Native/WatchButton.vue';
@@ -54,6 +56,7 @@ const revisionTone = {
 const currentPlan     = ref(props.plan);
 const currentSessions = ref(props.sessions ?? []);
 const generating      = ref(props.event.plan_generating ?? false);
+const buildProgress   = ref(null);
 const errorMsg        = ref(props.event.plan_error ?? '');
 const todayWellbeing  = ref(null);
 const wellbeingLoaded = ref(false);
@@ -167,12 +170,45 @@ let pollTimer = null;
  * zurück, und der Bau startet von selbst. „Plan aktualisieren" bei einem
  * laufenden Plan bleibt ein direkter Neubau.
  */
+// ── Plan als Story teilen (Idee F, 10.11.2026) ───────────────────────────
+// Dasselbe Story-Bild wie nach einer Bestzeit: im Browser gezeichnet, ohne Server.
+const sharingPlan   = ref(false);
+const sharePlanNote = ref(null);
+
+async function sharePlan() {
+    sharingPlan.value = true;
+    sharePlanNote.value = null;
+    try {
+        const e = props.event;
+        const target = e.target_time_formatted?.replace(/\s*Std\.?$/, '');
+        const stats = [{ value: String(e.days_until), label: e.days_until === 1 ? 'Tag bis zum Start' : 'Tage bis zum Start' }];
+        if (e.progress && !(e.progress.starts_in > 0)) stats.push({ value: `${e.progress.week}/${e.progress.weeks}`, label: 'Planwoche' });
+        else if (e.progress?.weeks) stats.push({ value: String(e.progress.weeks), label: 'Wochen Plan' });
+        if (prediction.value?.time && !props.backyard) stats.push({ value: prediction.value.time, label: 'Prognose' });
+
+        const blob = await drawStory({
+            photo: '/images/moments/rennen.jpg', focusX: 0.4,
+            eyebrow: 'Mein Weg zum Rennen',
+            label: e.name,
+            value: target || `${e.days_until} Tage`,
+            stats: stats.slice(0, 3),
+        });
+        const how = await shareStory(blob, `zone3-plan-${e.event_date}.png`);
+        if (how === 'downloaded') sharePlanNote.value = 'Bild gespeichert. Du findest es in deinen Downloads.';
+    } catch {
+        sharePlanNote.value = 'Das Bild konnte nicht erstellt werden.';
+    } finally {
+        sharingPlan.value = false;
+    }
+}
+
 function startNewPlan() {
     router.visit(route('plan-interview.show', { event: props.event.id }));
 }
 
 async function generatePlan() {
     generating.value = true;
+    buildProgress.value = null;
     errorMsg.value   = '';
     try {
         await axios.post(route('events.plan.generate', props.event.id));
@@ -198,6 +234,7 @@ function pollGenerateStatus() {
         }
         try {
             const { data } = await axios.get(route('events.plan.generate-status', props.event.id));
+            if (data.progress) buildProgress.value = data.progress;
             if (data.status === 'ready') {
                 clearInterval(pollTimer);
                 // Reload so the new plan, sessions and readiness card render fresh
@@ -211,7 +248,7 @@ function pollGenerateStatus() {
         } catch (e) {
             // transient network error → keep polling until the timeout guard fires
         }
-    }, 4000);
+    }, 2500);
 }
 
 // ── Complete session ──────────────────────────────────────────────────────────
@@ -1039,17 +1076,8 @@ const lapHeightPct = computed(() => {
                 </div>
 
                 <!-- ══ GENERIERUNG LÄUFT ═════════════════════════════ -->
-                <AppCard v-if="generating">
-                    <div class="flex flex-col items-center px-6 py-12 text-center">
-                        <svg class="mb-4 h-9 w-9 animate-spin text-accent" viewBox="0 0 24 24" fill="none">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                        </svg>
-                        <p class="text-base font-semibold text-ink">{{ coachName }} analysiert deine Daten</p>
-                        <p class="mt-1.5 max-w-sm text-sm text-ink-3">
-                            Aktivitäten, Tagesform, Erholungswerte und Athletenprofil fließen in den Plan ein.
-                        </p>
-                    </div>
+                <AppCard v-if="generating" flush>
+                    <PlanBuildSteps :progress="buildProgress" :coach-name="coachName" />
                 </AppCard>
 
                 <!-- ══ NOCH KEIN PLAN ════════════════════════════════ -->
@@ -1101,6 +1129,13 @@ const lapHeightPct = computed(() => {
                             <div class="relative flex min-h-[230px] flex-col p-5">
                                 <div class="flex items-start justify-between gap-3">
                                     <span class="rounded-full bg-white/20 px-2.5 py-1 text-[13px] font-semibold backdrop-blur-md">{{ PHASE_LABELS[event.phase] ?? 'Plan' }}</span>
+                                    <!-- Plan als Story teilen (Idee F, 10.11.2026). -->
+                                    <button type="button" :disabled="sharingPlan" @click="sharePlan"
+                                        class="-mr-1 -mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-white/20 backdrop-blur-md transition active:scale-90 disabled:opacity-60"
+                                        aria-label="Plan als Story teilen">
+                                        <svg v-if="!sharingPlan" class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></svg>
+                                        <svg v-else class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
+                                    </button>
                                 </div>
                                 <div class="flex-1" />
                                 <p class="flex items-baseline gap-2">
@@ -1120,6 +1155,7 @@ const lapHeightPct = computed(() => {
                                             :style="{ flex: Math.max(seg.days, 3) }">{{ seg.days >= 14 ? PHASE_LABELS[seg.key] : '' }}</span>
                                     </div>
                                 </div>
+                                <p v-if="sharePlanNote" class="mt-2 text-[13px] text-white/85">{{ sharePlanNote }}</p>
                                 <p v-if="event.progress" class="mt-2 text-[13px] font-semibold text-white/85">
                                     <template v-if="event.progress.starts_in > 0">Plan startet in {{ event.progress.starts_in }} {{ event.progress.starts_in === 1 ? 'Tag' : 'Tagen' }} · {{ event.progress.weeks }} Wochen</template>
                                     <template v-else>Woche {{ event.progress.week }} von {{ event.progress.weeks }} · {{ event.progress.percent }} %</template>

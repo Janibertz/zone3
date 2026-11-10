@@ -278,6 +278,8 @@ class TrainingPlanController extends Controller
             'plan_generating_at' => now(),
             'plan_error'         => null,
         ]);
+        \App\Services\PlanBuildProgress::forget($event->id);
+        \App\Services\PlanBuildProgress::mark($event->id, 'start');
         GenerateEventTrainingPlanJob::dispatch($event->id, Auth::id());
 
         return response()->json(['generating' => true]);
@@ -291,7 +293,10 @@ class TrainingPlanController extends Controller
         abort_if($event->user_id !== Auth::id(), 403);
 
         if ($event->isGeneratingPlan()) {
-            return response()->json(['status' => 'generating']);
+            return response()->json([
+                'status'   => 'generating',
+                'progress' => \App\Services\PlanBuildProgress::get($event->id),
+            ]);
         }
 
         // Sonst wartet die Oberflaeche endlos auf ein Ende, das nicht kommt.
