@@ -102,9 +102,10 @@ class SessionStructure
             ->orderBy('event_date')
             ->first();
 
-        if (! $event) {
-            return [];
-        }
+        // Ohne Rennen gibt es kein Renntempo, die Trainingstempi gelten
+        // trotzdem — sonst behielt ein Tagesvorschlag ohne Ziel die Pace,
+        // die das Modell geschrieben hatte.
+        $event ??= new Event();
 
         return $this->paces->forEvent($event, $vdot['value'], $vdot['label'] ?? null) ?? [];
     }
