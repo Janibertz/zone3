@@ -234,6 +234,8 @@
   .pt-mobile-header  { padding-top: calc(3.5rem + env(safe-area-inset-top)); }
   /* Padding-bottom for page content = tab bar (64px) + home indicator */
   .pb-mobile-tabbar  { padding-bottom: calc(4rem + env(safe-area-inset-bottom)); }
+  /* Schwebende Tab-Leiste: über dem Home-Indikator, ohne ihn ganz zu meiden */
+  .bottom-floating-tabbar { bottom: max(0.75rem, calc(env(safe-area-inset-bottom) - 0.5rem)); }
   /* Tab bar itself gets safe-area padding at the bottom */
   .pb-safe-tabbar    { padding-bottom: env(safe-area-inset-bottom); }
 

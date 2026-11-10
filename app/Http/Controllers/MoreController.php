@@ -44,6 +44,9 @@ class MoreController extends Controller
                 // null = auf diesem Server nicht eingeschaltet (COROS_ENABLED).
                 'coros'       => config('services.coros.enabled') ? (bool) $user->corosConnection : null,
                 'strava'      => (bool) $user->stravaAccount,
+                'apple_health' => $user->apple_health_consent_at !== null,
+                // null = nicht angeboten (Plan geht automatisch auf die Garmin-Uhr).
+                'apple_watch' => $user->offersAppleWatch() ? (bool) ($user->apple_watch_sync ?? true) : null,
                 'telegram'    => $user->telegram_chat_id !== null,
                 'calendar'    => $user->calendar_token !== null,
                 'push'        => (bool) $user->push_notifications_enabled,
