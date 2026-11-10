@@ -216,7 +216,7 @@ const zoneColors = [
                         </div>
                         <p class="text-ink-3">{{ user.email }}</p>
                         <div class="flex flex-wrap gap-3 mt-2 text-xs text-ink-3">
-                            <span>Registriert: {{ formatDate(user.created_at) }}</span>
+                            <span>Registriert: {{ formatDate(user.created_at) }}<template v-if="user.signup_source"> über „{{ user.signup_source }}“</template></span>
                             <span v-if="user.email_verified_at">✓ E-Mail verifiziert</span>
                             <span v-if="user.onboarding_completed_at">✓ Onboarding abgeschlossen</span>
                             <span v-if="user.strava_account">🔗 Strava: {{ user.strava_account.username }}</span>

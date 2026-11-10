@@ -78,7 +78,16 @@ class AdminDashboardController extends Controller
             ->limit(5)
             ->get(['id', 'name', 'email', 'is_admin', 'is_active', 'created_at']);
 
+        // Woher neue Konten kamen (seit 10.11.2026): 30 Tage und gesamt.
+        $signupSources = User::selectRaw('COALESCE(signup_source, ?) as source, COUNT(*) as total, SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) as recent', ['ohne', now()->subDays(29)->startOfDay()])
+            ->where('created_at', '>=', '2026-11-10')
+            ->groupBy('source')
+            ->orderByDesc('total')
+            ->get()
+            ->map(fn ($r) => ['source' => $r->source, 'total' => (int) $r->total, 'recent' => (int) $r->recent]);
+
         return Inertia::render('Admin/Dashboard', [
+            'signupSources'         => $signupSources,
             'stats'                 => $stats,
             'registrationsPerMonth' => $registrationsPerMonth,
             'activitiesPerMonth'    => $activitiesPerMonth,

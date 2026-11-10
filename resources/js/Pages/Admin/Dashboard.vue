@@ -16,6 +16,7 @@ const props = defineProps({
     wellbeingTrend:        Array,
     recentUsers:           Array,
     systemHealth:          Object,
+    signupSources:         { type: Array, default: () => [] },
 });
 
 /**
@@ -245,6 +246,19 @@ const maxCoach  = computed(() => Math.max(...(props.coachDistribution?.map(c => 
                     <StatTile label="Browser"   :value="stats.seen_browser" hint="Safari, Chrome, Desktop" />
                 </div>
                 <p class="mt-2 text-[13px] text-ink-3">Athleten je Weg; wer beides nutzt, zählt doppelt. Gezählt wird seit dem 09.11.2026.</p>
+            </section>
+
+            <section>
+                <SectionHeader title="Woher Anmeldungen kommen" />
+                <AppCard v-if="signupSources.length" class="!p-0">
+                    <div v-for="s in signupSources" :key="s.source"
+                        class="flex items-center justify-between border-b border-line px-4 py-3 text-[15px] last:border-0">
+                        <span :class="s.source === 'ohne' ? 'text-ink-3' : 'font-semibold'">{{ s.source === 'ohne' ? 'Ohne Quelle' : s.source }}</span>
+                        <span class="font-rounded text-ink-2">{{ s.recent }} <span class="text-ink-3">· 30 Tage</span> &nbsp; {{ s.total }} <span class="text-ink-3">· gesamt</span></span>
+                    </div>
+                </AppCard>
+                <p v-else class="text-[15px] text-ink-3">Noch keine neuen Konten seit dem 10.11.2026.</p>
+                <p class="mt-2 text-[13px] text-ink-3">Aus <code>?ref=</code> oder <code>utm_source</code> im Link, z. B. zone3.run/register?ref=instagram. „einladung“ = Einladungslink.</p>
             </section>
 
             <section>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\Auth\Access;
+use App\Services\Auth\SignupSource;
 use App\Services\Auth\AppleIdToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -33,6 +34,9 @@ class AppleSignInController extends Controller
     use PasswordlessLogin;
 
     private const AUTHORIZE_URL = 'https://appleid.apple.com/auth/authorize';
+
+    /** Quelle aus dem Cache, wenn der Web-Rückweg ohne Session kommt. */
+    private ?string $source = null;
 
     public function __construct(private readonly AppleIdToken $tokens, private readonly Access $access) {}
 
@@ -79,6 +83,10 @@ class AppleSignInController extends Controller
         $state = Str::random(40);
         $nonce = Str::random(40);
         Cache::put("apple-signin:state:$state", $nonce, now()->addMinutes(10));
+        // Apples Rückweg ist ein Formular ohne Session-Cookie.
+        if ($source = SignupSource::current()) {
+            Cache::put("apple-signin:source:$state", $source, now()->addMinutes(10));
+        }
 
         return redirect()->away(self::AUTHORIZE_URL . '?' . http_build_query([
             'client_id'     => config('services.apple_signin.client_id'),
@@ -101,6 +109,7 @@ class AppleSignInController extends Controller
         }
 
         $nonce = Cache::pull('apple-signin:state:' . (string) $request->input('state'));
+        $this->source = Cache::pull('apple-signin:source:' . (string) $request->input('state'));
         if (! $nonce) {
             return redirect()->route('login')->withErrors(['apple' => 'Die Anmeldung mit Apple ist abgelaufen. Versuch es bitte noch einmal.']);
         }
@@ -146,7 +155,10 @@ class AppleSignInController extends Controller
             return $existing;
         }
 
-        return $this->access->register($email, $name, ['apple_sub' => $claims['sub']]);
+        return $this->access->register($email, $name, array_filter([
+            'apple_sub'     => $claims['sub'],
+            'signup_source' => $this->source,
+        ]));
     }
 
     private function message(RuntimeException $e): string
