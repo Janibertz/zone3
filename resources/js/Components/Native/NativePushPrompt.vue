@@ -32,6 +32,7 @@ const dismissed = ref(wasDismissed());
 
 const visible = computed(() =>
     push.native === true
+    && push.checked.value
     && !dismissed.value
     && push.permission.value === 'default'
     && !push.subscribed.value

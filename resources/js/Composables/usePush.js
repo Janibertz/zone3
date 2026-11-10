@@ -22,12 +22,20 @@ function nativeToken(plugin) {
 
 const NATIVE_TOKEN_KEY = 'apns_token';
 
+// Das Layout wird bei jedem Seitenwechsel neu aufgebaut. Das Token reicht
+// einmal pro Laden der Seite, nicht bei jedem Tipp auf einen Tab.
+let nativeTokenRefreshed = false;
+
 function useNativePush(plugin) {
     const supported  = ref(true);
     const permission = ref('default');
     const subscribed = ref(false);
     const loading    = ref(false);
     const error      = ref('');
+    // Bis iOS geantwortet hat, ist die Erlaubnis unbekannt. Ohne das stand
+    // sie kurz auf 'default', und die Frage „Mitteilungen einschalten?“
+    // blitzte bei jedem Seitenwechsel auf.
+    const checked    = ref(false);
 
     async function sendToken() {
         const token = await nativeToken(plugin);
@@ -41,7 +49,13 @@ function useNativePush(plugin) {
             const { receive } = await plugin.checkPermissions();
             permission.value = receive === 'granted' ? 'granted' : receive === 'denied' ? 'denied' : 'default';
             // Erlaubt und nicht ausdrücklich abgemeldet: Token auffrischen.
-            if (receive === 'granted' && localStorage.getItem(NATIVE_TOKEN_KEY) !== 'off') await sendToken();
+            checked.value = true;
+            if (receive === 'granted' && !nativeTokenRefreshed && localStorage.getItem(NATIVE_TOKEN_KEY) !== 'off') {
+                nativeTokenRefreshed = true;
+                await sendToken();
+            } else if (receive === 'granted' && localStorage.getItem(NATIVE_TOKEN_KEY) !== 'off') {
+                subscribed.value = true;
+            }
         } catch {}
     });
 
@@ -79,7 +93,7 @@ function useNativePush(plugin) {
         }
     }
 
-    return { supported, permission, subscribed, loading, error, subscribe, unsubscribe, native: true };
+    return { supported, permission, subscribed, loading, error, subscribe, unsubscribe, checked, native: true };
 }
 
 /**
