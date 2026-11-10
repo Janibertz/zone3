@@ -18,6 +18,7 @@ import { router } from '@inertiajs/vue3';
 import { ref, watch, computed, onMounted } from 'vue';
 import axios from 'axios';
 import SessionCard from '@/Components/UI/SessionCard.vue';
+import UpcomingSessions from '@/Components/Plan/UpcomingSessions.vue';
 import PersonalRecordMoment from '@/Components/Moments/PersonalRecordMoment.vue';
 import WeekDoneMoment from '@/Components/Moments/WeekDoneMoment.vue';
 import RaceDoneMoment from '@/Components/Moments/RaceDoneMoment.vue';
@@ -93,6 +94,7 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    upcomingSessions: { type: Array, default: () => [] },
     weekPlan: {
         type: Array,
         default: () => [],
@@ -1184,6 +1186,7 @@ const layoutError  = ref('');
 
 // Ein Modul ohne Daten bleibt weg, statt eine leere Zelle ins Raster zu legen.
 const moduleHasData = computed(() => ({
+    naechste:    (props.upcomingSessions || []).length > 0,
     form:        !!props.trainingLoad,
     intensitaet: !!props.intensityDistribution,
     rueckblick:  !!props.weeklyReview,
@@ -1219,7 +1222,7 @@ function moduleClass(m) {
 function moduleHint(m) {
     if (moduleHasData.value[m.key] !== false) return null;
     return { form: 'erscheint mit genug Trainingsdaten', intensitaet: 'erscheint mit genug Läufen',
-        rueckblick: 'erscheint montags', erholung: 'nur mit Garmin' }[m.key];
+        rueckblick: 'erscheint montags', erholung: 'nur mit Garmin', naechste: 'erscheint mit einem Plan' }[m.key];
 }
 
 function openLayoutSheet() {
@@ -1806,6 +1809,17 @@ async function resetLayout() {
                 -->
                 <div class="grid grid-cols-1 gap-x-5 gap-y-7 lg:grid-flow-row-dense lg:grid-cols-2 2xl:grid-cols-3">
                     <template v-for="m in visibleModules" :key="m.key">
+                        <div v-if="m.key === 'naechste'" :class="moduleClass(m)">
+                            <section>
+                                <SectionHeader title="Als Nächstes">
+                                    <template #action>
+                                        <AppButton variant="plain" :href="props.todayPlanSession?.event_id ? `/events/${props.todayPlanSession.event_id}/plan` : '/events'">Plan</AppButton>
+                                    </template>
+                                </SectionHeader>
+                                <UpcomingSessions :sessions="props.upcomingSessions" />
+                            </section>
+                        </div>
+
                         <div v-if="m.key === 'woche'" :class="moduleClass(m)">
                             <!-- ══════════════════════════════════════════════════
                                  DEINE WOCHE

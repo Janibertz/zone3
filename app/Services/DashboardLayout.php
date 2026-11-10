@@ -26,6 +26,7 @@ class DashboardLayout
      * liegen zwei (ab 2xl drei) Module nebeneinander.
      */
     public const MODULES = [
+        'naechste'     => ['label' => 'Als Nächstes',               'wide' => true],
         'woche'        => ['label' => 'Woche',                      'wide' => true],
         'koerper'      => ['label' => 'Körper',                     'wide' => true],
         'form'         => ['label' => 'Form (Belastung)',           'wide' => false],

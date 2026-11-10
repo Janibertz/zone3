@@ -225,6 +225,39 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         }
     }
 
+    // „Als Nächstes“ (Jan, 10.11.2026): die folgenden Einheiten als wischbare
+    // Kacheln unter der heutigen. Ohne Ruhetage, ohne die oben schon gezeigte,
+    // höchstens zwei Wochen voraus — weiter vorn ändert der Plan sich noch.
+    $upcomingSessions = [];
+    if ($activePlan) {
+        $upcomingSessions = TrainingSession::where(fn ($q) => $q
+                ->where('training_plan_id', $activePlan->id)
+                ->orWhere(fn ($q) => $q->whereNull('training_plan_id')->where('user_id', $user->id)))
+            ->whereDate('planned_date', '>=', $todayStr)
+            ->whereDate('planned_date', '<=', now()->addDays(14)->toDateString())
+            ->where('status', 'planned')
+            ->where('type', '!=', 'rest')
+            ->when($todayPlanSession, fn ($q) => $q->where('id', '!=', $todayPlanSession['id']))
+            ->orderBy('planned_date')
+            ->orderBy('sort_order')
+            ->limit(6)
+            ->get(['id', 'training_plan_id', 'planned_date', 'type', 'sport_type', 'title', 'distance_km', 'duration_min'])
+            ->map(fn ($t) => [
+                'id'           => $t->id,
+                'date'         => $t->planned_date->format('Y-m-d'),
+                'type'         => $t->type,
+                'sport_type'   => $t->sport_type,
+                'title'        => $t->title,
+                'distance_km'  => $t->distance_km ? (float) $t->distance_km : null,
+                'duration_min' => $t->duration_min ? (int) $t->duration_min : null,
+                'href'         => $t->training_plan_id && $activePlan->event_id
+                    ? "/events/{$activePlan->event_id}/plan?open={$t->id}"
+                    : '/calendar',
+            ])
+            ->values()
+            ->all();
+    }
+
     // Die Woche als Leiste: je Tag die Einheit des Plans (Mo–So), damit die
     // Übersicht zeigt, was ansteht und was erledigt ist — nicht nur, was
     // gelaufen wurde. Geplante Kilometer kommen aus dem Plan, gelaufene aus
@@ -342,6 +375,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         'hasActivePlan' => (bool) $activePlan,
         'bridgeToPlan'  => $bridgeToPlan ? $planStartsLater : null,
         'weekPlan' => $weekPlan,
+        'upcomingSessions' => $upcomingSessions,
         // Reihenfolge und Sichtbarkeit der Module, siehe App\Services\DashboardLayout.
         'dashboardLayout' => \App\Services\DashboardLayout::resolve($user->dashboard_layout),
         // Einsteiger-Checkliste, fest oben (Jan, 07.11.2026); null = geschlossen.

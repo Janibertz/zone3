@@ -8,6 +8,7 @@ import SectionHeader from '@/Components/UI/SectionHeader.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import MuscleMap from '@/Components/Strength/MuscleMap.vue';
 import RouteMap from '@/Components/Map/RouteMap.vue';
+import ShareRunSheet from '@/Components/Share/ShareRunSheet.vue';
 import { activityType } from '@/Composables/useActivityTypes';
 import { sessionType } from '@/Composables/useSessionTypes';
 import { fmtNum, clock, speedOf, distanceOf, paceFromSpeed } from '@/Composables/useFormat';
@@ -276,6 +277,42 @@ const reviewedAt = computed(() => {
     return `${d.toLocaleDateString('de-DE', { day: 'numeric', month: 'long' })}, ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
 });
 
+// ── Teilen ────────────────────────────────────────────────────────────────────
+// Die Zahlen fürs Story-Bild (useRunStory): oben die Strecke, sonst die Zeit.
+const shareOpen = ref(false);
+const COLOR_HEX = { success: '#248A3D', warn: '#C93400', danger: '#D70015', info: '#5856D6', accent: '#0071E3', neutral: '#636366' };
+
+const shareData = computed(() => {
+    const a = props.activity;
+    const d = new Date(a.start_date);
+    const dateShort = d.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '');
+    const typeLabel = planned.value ? sessionType(props.linkedSession.type).label : activityType(a.type).label;
+
+    const metrics = bigMetrics.value;
+    const first = metrics[0];
+    const big = first && first.k === 'Distanz' ? { value: String(first.v), unit: first.u } : { value: clock(a.moving_time), unit: null };
+    const rest = big.unit ? metrics.slice(1) : metrics.filter(m => m.k !== 'Zeit');
+    const stats = rest.map(m => ({ value: String(m.v), unit: m.u, label: m.k }));
+    if (a.average_heartrate && stats.length < 3) stats.push({ value: String(Math.round(a.average_heartrate)), unit: null, label: 'Puls' });
+
+    const extra = [];
+    if (a.average_heartrate && !stats.some(s => s.label === 'Puls')) extra.push({ value: String(Math.round(a.average_heartrate)), label: 'Puls' });
+    if (a.total_elevation_gain > 0) extra.push({ value: fmtNum(a.total_elevation_gain, 0), label: 'Höhenmeter' });
+
+    return {
+        eyebrow:   `${typeLabel} · ${dateShort}`,
+        title:     planned.value ? (props.linkedSession.title || typeLabel) : a.name,
+        color:     planned.value ? (COLOR_HEX[sessionType(props.linkedSession.type).accent] ?? '#0071E3') : '#0071E3',
+        place:     a.location_city || null,
+        dateShort,
+        big,
+        stats:     stats.slice(0, 3),
+        extra,
+        zones:     zoneShare.value?.map(z => ({ pct: z.pct })) ?? null,
+        coords:    routeCoords.value,
+    };
+});
+
 // ── Google Encoded Polyline decoder ──────────────────────────────────────────
 
 function decodePolyline(encoded) {
@@ -384,7 +421,12 @@ const routeSegments = computed(() => {
                         Runde {{ lapRows[pickedLap].n }} · {{ lapRows[pickedLap].distance }} km · {{ lapRows[pickedLap].value }}{{ isCycling ? ' km/h' : ' /km' }}<template v-if="lapRows[pickedLap].hr"> · {{ lapRows[pickedLap].hr }} bpm</template>
                         <span class="text-ink-3">✕</span>
                     </button>
-                    <Link :href="backHref" aria-label="Zurück"
+                    <button v-if="!shareOpen" type="button" aria-label="Lauf teilen" @click="shareOpen = true"
+                        class="absolute right-4 top-4 z-[500] flex h-10 items-center gap-1.5 rounded-full bg-surface/80 px-3.5 text-[15px] font-semibold text-ink backdrop-blur-xl transition-transform active:scale-95">
+                        <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></svg>
+                        Teilen
+                    </button>
+                    <Link v-if="!shareOpen" :href="backHref" aria-label="Zurück"
                         class="absolute left-4 top-4 z-[500] flex h-10 w-10 items-center justify-center rounded-full bg-surface/80 text-ink backdrop-blur-xl transition-transform active:scale-90">
                         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
                     </Link>
@@ -637,5 +679,6 @@ const routeSegments = computed(() => {
                 @close="confirmDelete = false"
             />
         </div>
+        <ShareRunSheet :show="shareOpen" :data="shareData" @close="shareOpen = false" />
     </AuthenticatedLayout>
 </template>
