@@ -1405,9 +1405,11 @@ async function resetLayout() {
                                     <p class="text-[13px] font-semibold text-white/85">{{ heroDateLine }}</p>
                                     <h1 class="text-[28px] font-extrabold leading-tight tracking-[-0.03em]">Heute</h1>
                                 </div>
-                                <Link :href="route('more')" aria-label="Mehr" class="transition active:scale-95">
-                                    <UserAvatar v-if="page.props.auth.user.avatar" :user="page.props.auth.user" size="md" />
-                                    <span v-else class="flex h-10 w-10 items-center justify-center rounded-full bg-white/25 text-[15px] font-bold text-white backdrop-blur-md">{{ initials(page.props.auth.user.name) }}</span>
+                                <!-- Weiße Scheibe mit Schatten: hinter dem Avatar liegt „Mehr",
+                                     auf einem hellen Foto ging der Glaskreis unter (Jan, 10.11.2026). -->
+                                <Link :href="route('more')" aria-label="Mehr" class="rounded-full shadow-[0_2px_14px_rgba(0,0,0,0.45)] transition active:scale-95">
+                                    <UserAvatar v-if="page.props.auth.user.avatar" :user="page.props.auth.user" size="md" class="ring-[2.5px] ring-white" />
+                                    <span v-else class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[15px] font-extrabold tracking-[-0.02em] text-black">{{ initials(page.props.auth.user.name) }}</span>
                                 </Link>
                             </div>
                         </template>
