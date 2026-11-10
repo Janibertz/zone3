@@ -44,8 +44,17 @@ class CoachingTextService
 
     public function generateTodayRecommendation(?array $runnerProfile, ?array $yesterdayActivity, ?array $wellbeingEntry, ?array $goal, array $progress, array $upcomingEvents = [], ?array $todayAvailability = null, ?array $weather = null, ?array $returnToRun = null, ?array $planStart = null): ?array
     {
-        $profileText = $runnerProfile ? "Runner Profile:\n- LTHR: {$runnerProfile['threshold_heart_rate']} bpm\n- Max HR: {$runnerProfile['max_heart_rate']} bpm\n- Schwellenpace: {$runnerProfile['threshold_speed']} min/km\n" : "Kein Runner Profile vorhanden.\n";
-        $activityText = $yesterdayActivity ? "Letzte Aktivität (gestern):\n- " . round($yesterdayActivity['distance']/1000,2) . " km in " . PaceFormat::hms($yesterdayActivity['moving_time']) . " · Pace: " . ($yesterdayActivity['average_speed'] ? PaceFormat::fromSpeed($yesterdayActivity['average_speed']) : '—') . "\n" : "Keine Aktivität von gestern.\n";
+        $profileText = $runnerProfile ? "Runner Profile:\n- LTHR: {$runnerProfile['threshold_heart_rate']} bpm\n- Max HR: {$runnerProfile['max_heart_rate']} bpm\n" : "Kein Runner Profile vorhanden.\n";
+        // Die Tempi aus dem VDOT, wie im Plan. Vorher stand hier nur die
+        // gemessene Schwelle — oft leer —, und das Modell erfand für einen
+        // HM-unter-1:30-Läufer „locker 9:00–10:00".
+        if (! empty($runnerProfile['paces'])) {
+            $p = $runnerProfile['paces'];
+            $profileText .= "- Trainingstempi (aus dem VDOT, verbindlich): locker {$p['easy']} min/km, Schwelle {$p['threshold']} min/km, Intervalle {$p['interval']} min/km\n";
+        } elseif (! empty($runnerProfile['threshold_speed'])) {
+            $profileText .= "- Schwellenpace: {$runnerProfile['threshold_speed']} min/km\n";
+        }
+        $activityText = $yesterdayActivity ? "Letzte Aktivität (gestern, " . ($yesterdayActivity['type'] ?? 'unbekannt') . "):\n- " . round($yesterdayActivity['distance']/1000,2) . " km in " . PaceFormat::hms($yesterdayActivity['moving_time']) . " · Pace: " . ($yesterdayActivity['average_speed'] ? PaceFormat::fromSpeed($yesterdayActivity['average_speed']) : '—') . "\n" : "Keine Aktivität von gestern.\n";
         $wellbeingText = $wellbeingEntry ? "Tagesform heute: Energie {$wellbeingEntry['energy_level']}/10, Schlaf {$wellbeingEntry['sleep_quality']}/10, Muskelkater {$wellbeingEntry['muscle_soreness']}/10, Stress {$wellbeingEntry['stress_level']}/10\n" : "Keine Tagesform eingetragen.\n";
         // Die Notiz stand nie im Prompt. Was der Athlet dort schreibt
         // („Weisheitszahn-OP"), ist oft das Wichtigste des Tages.
@@ -83,8 +92,12 @@ class CoachingTextService
             if ($todayAvailability['available'] ?? false) {
                 $maxMin = $todayAvailability['duration_min'] ?? null;
                 $availabilityText = $maxMin
-                    ? "Heutige Verfügbarkeit: maximal {$maxMin} Minuten. Passe duration_min entsprechend an.\n"
+                    ? "Heutige Verfügbarkeit: maximal {$maxMin} Minuten. duration_min darf das NICHT überschreiten.\n"
                     : "Heute verfügbar für Training.\n";
+                if (! empty($todayAvailability['fixed'])) {
+                    $f = $todayAvailability['fixed'];
+                    $availabilityText .= "Heute steht ein fester Termin an: " . ($f['label'] ?? 'Fester Termin') . " (" . ($f['type'] ?? 'interval') . "). Schlage genau diesen Termin vor (gleicher type, Titel = Name des Termins) und keine zweite Laufeinheit.\n";
+                }
             } else {
                 $availabilityText = "Heute laut Profil kein Training geplant. Empfehle rest.\n";
             }
