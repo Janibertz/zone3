@@ -272,13 +272,14 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             ->whereDate('planned_date', '<=', $monday->copy()->endOfWeek()->toDateString())
             ->orderBy('planned_date')
             ->orderBy('sort_order')
-            ->get(['planned_date', 'type', 'sport_type', 'distance_km', 'status'])
+            ->get(['planned_date', 'type', 'sport_type', 'distance_km', 'duration_min', 'status'])
             ->map(fn ($t) => [
-                'date'        => $t->planned_date->format('Y-m-d'),
-                'type'        => $t->type,
-                'sport_type'  => $t->sport_type,
-                'distance_km' => $t->distance_km ? (float) $t->distance_km : null,
-                'status'      => $t->status,
+                'date'         => $t->planned_date->format('Y-m-d'),
+                'type'         => $t->type,
+                'sport_type'   => $t->sport_type,
+                'distance_km'  => $t->distance_km ? (float) $t->distance_km : null,
+                'duration_min' => $t->duration_min ? (int) $t->duration_min : null,
+                'status'       => $t->status,
             ])
             ->values()
             ->all();
@@ -375,6 +376,17 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         'hasActivePlan' => (bool) $activePlan,
         'bridgeToPlan'  => $bridgeToPlan ? $planStartsLater : null,
         'weekPlan' => $weekPlan,
+        // „Mehr Leben“ (10.11.2026): Rennkarte, Coach-Satz, letzter Lauf — ohne Modellaufruf.
+        ...(function () use ($user, $weekPlan) {
+            $extras = app(\App\Services\Today\TodayExtras::class);
+            $race   = $extras->raceCard($user);
+
+            return [
+                'raceCard'  => $race,
+                'coachLine' => $extras->coachLine($user, $weekPlan, $race),
+                'lastRun'   => $extras->lastRun($user),
+            ];
+        })(),
         'upcomingSessions' => $upcomingSessions,
         // Reihenfolge und Sichtbarkeit der Module, siehe App\Services\DashboardLayout.
         'dashboardLayout' => \App\Services\DashboardLayout::resolve($user->dashboard_layout),

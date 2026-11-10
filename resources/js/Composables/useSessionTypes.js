@@ -216,3 +216,30 @@ export function zoneSpan(session, steps = null) {
     const lo = Math.min(...zones), hi = Math.max(...zones);
     return lo === hi ? String(lo) : `${lo}–${hi}`;
 }
+
+/**
+ * Der Ablauf als Band (Mockup „Zone3 mit mehr Leben“, 10.11.2026): jeder
+ * Abschnitt ein Stück, so breit wie er dauert. Wiederholungen werden
+ * ausgeschrieben, Strecken zählen mit 5:00/km als Zeit (wie im Builder).
+ *
+ * @returns {{ flex: number, kind: string, zone: number|null }[]}
+ */
+export function stepBand(steps) {
+    if (!Array.isArray(steps) || !steps.length) return [];
+    const minutes = (s) => Number(s.duration_min) || (Number(s.distance_m) ? Number(s.distance_m) / 1000 * 5 : 0) || 1;
+
+    const out = [];
+    for (let i = 0; i < steps.length; i++) {
+        const s = steps[i];
+        const reps = Number(s.repetitions) > 1 ? Number(s.repetitions) : 1;
+        const pause = s.type === 'work' && steps[i + 1]?.type === 'rest' ? steps[i + 1] : null;
+        for (let r = 0; r < reps; r++) {
+            out.push({ flex: minutes(s), kind: s.type, zone: Number(s.zone) || null });
+            if (pause && (reps > 1 ? r < reps - 1 || Number(pause.repetitions) >= reps : true)) {
+                out.push({ flex: minutes(pause), kind: 'rest', zone: null });
+            }
+        }
+        if (pause) i++;
+    }
+    return out;
+}

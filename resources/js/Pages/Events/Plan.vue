@@ -12,6 +12,7 @@ import EmptyState from '@/Components/UI/EmptyState.vue';
 import AppCard from '@/Components/UI/AppCard.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import SectionHeader from '@/Components/UI/SectionHeader.vue';
+import PlanDesktopOverview from '@/Components/Plan/PlanDesktopOverview.vue';
 import GarminSendSheet from '@/Components/UI/GarminSendSheet.vue';
 import SwipeRow from '@/Components/SwipeRow.vue';
 import DragGhost from '@/Components/UI/DragGhost.vue';
@@ -1116,14 +1117,19 @@ const lapHeightPct = computed(() => {
                         Karte oben lief über eine Breite, an der die Liste
                         darunter nicht ankam (29.10.2026).
                     -->
-                    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_1fr]">
+                    <!-- Am Desktop: Fotoband, diese Woche, nächste Wochen (Mockup „mehr Leben“, 10.11.2026). -->
+                    <PlanDesktopOverview v-if="!isPastEvent" :event="event" :sessions="currentSessions"
+                        :prediction="backyard ? null : prediction" :is-open-goal="isOpenGoal" :sharing="sharingPlan"
+                        class="mb-8" @open="openDetail" @share="sharePlan" />
+                    <h2 v-if="!isPastEvent" class="mb-3 hidden text-[22px] font-extrabold tracking-[-0.02em] text-ink lg:block">Alle Einheiten</h2>
+                    <div class="grid grid-cols-1 gap-5">
                     <!--
                         Mit Foto wie die Rennkarte unter „Rennen“ (09.11.2026, Jan:
                         „Die Rennkarte sieht so noch aus“): oben Countdown, Phase
                         und Fortschritt auf dem Foto, darunter Prognose und Ziel
                         auf der Karte — die Zahlen bleiben auf ruhigem Grund.
                     -->
-                    <section v-if="!isPastEvent && (event.phase_segments?.length || prediction)" class="overflow-hidden rounded-card bg-surface lg:col-start-2 lg:row-start-1 lg:self-start">
+                    <section v-if="!isPastEvent && (event.phase_segments?.length || prediction)" class="overflow-hidden rounded-card bg-surface lg:hidden">
                         <div class="relative bg-black text-white">
                             <img src="/images/moments/rennen.jpg" alt="" aria-hidden="true"
                                 class="absolute inset-0 h-full w-full object-cover object-[center_40%]" />

@@ -4,14 +4,16 @@
  * Lauf teilen“): die folgenden Einheiten als wischbare Kacheln. Typ in
  * Farbe, Tag, Titel groß, Strecke und Dauer — wer die Details will, tippt.
  *
- * Das Straßenmuster im Hintergrund ist eine eigene Zeichnung und rein
- * dekorativ. Die nächste harte Einheit bekommt einen Rand in ihrer Farbe,
- * damit man sieht, worauf die Woche zuläuft.
+ * Seit dem Mockup „Zone3 mit mehr Leben“ (10.11.2026) mit Foto je Typ
+ * (`useMomentPhotos.js`), Kraft, Rumpf und Mobilität als volle Typfarbe.
+ * Die nächste harte Einheit bekommt einen Rand in ihrer Farbe, damit man
+ * sieht, worauf die Woche zuläuft.
  */
 import { computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import { sessionType } from '@/Composables/useSessionTypes';
 import { fmtNum } from '@/Composables/useFormat';
+import { tilePhoto } from '@/Composables/useMomentPhotos';
 
 const props = defineProps({
     sessions: { type: Array, default: () => [] },
@@ -19,8 +21,8 @@ const props = defineProps({
 
 const HARD = ['tempo_run', 'interval', 'race_prep', 'test_run'];
 const RING = {
-    warn: 'ring-warn/60', danger: 'ring-danger/60', accent: 'ring-accent/60',
-    info: 'ring-info/60', success: 'ring-success/60', neutral: 'ring-line-strong',
+    warn: 'ring-warn', danger: 'ring-danger', accent: 'ring-accent',
+    info: 'ring-info', success: 'ring-success', neutral: 'ring-white',
 };
 const RIDES = ['Ride', 'VirtualRide'];
 
@@ -52,7 +54,8 @@ const tiles = computed(() => {
             day: dayLabel(s.date),
             km: s.distance_km && !ride ? fmtNum(s.distance_km) : null,
             dur: duration(s.duration_min),
-            ring: s.id === firstHard ? `ring-[1.5px] ring-inset ${RING[meta.accent] ?? RING.accent}` : '',
+            photo: tilePhoto(s.type),
+            ring: s.id === firstHard ? `ring-[3px] ring-inset ${RING[meta.accent] ?? RING.accent}` : '',
         };
     });
 });
@@ -62,40 +65,32 @@ const tiles = computed(() => {
     <div class="no-scrollbar -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto px-4 lg:mx-0 lg:px-0"
         role="list" aria-label="Nächste Einheiten">
         <Link v-for="t in tiles" :key="t.id" :href="t.href" role="listitem"
-            class="relative flex h-[168px] w-[236px] shrink-0 snap-start flex-col overflow-hidden rounded-[18px] bg-surface p-3.5 transition active:scale-[0.98]"
-            :class="t.ring">
-            <!-- Straßenmuster, eigene Zeichnung -->
-            <svg class="pointer-events-none absolute inset-0 h-full w-full text-ink/[0.06]" viewBox="0 0 220 150"
-                preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-                <g fill="none" stroke="currentColor" stroke-width="1.2">
-                    <path d="M-10 40 C40 30 70 70 120 55 S200 20 240 35" />
-                    <path d="M-10 95 C30 100 60 80 110 100 S190 130 240 110" />
-                    <path d="M60 -10 C55 40 85 80 70 160" />
-                    <path d="M150 -10 C160 50 130 90 160 160" />
-                    <path d="M-10 130 L240 125" />
-                    <path d="M100 -10 L115 160" stroke-width="0.7" />
-                    <path d="M-10 70 L240 80" stroke-width="0.7" />
-                </g>
-            </svg>
+            class="relative flex h-[200px] w-[236px] shrink-0 snap-start flex-col overflow-hidden rounded-[20px] p-4 text-white transition active:scale-[0.98]"
+            :class="[t.photo ? 'bg-[#1C1C1E]' : t.meta.dot, t.ring]">
+            <template v-if="t.photo">
+                <img :src="t.photo.src" alt="" decoding="async"
+                    class="pointer-events-none absolute inset-0 h-full w-full object-cover" :style="{ objectPosition: t.photo.pos }" />
+                <span aria-hidden="true" class="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/45 via-black/10 to-black/75" />
+            </template>
 
             <span class="relative flex items-center justify-between gap-2">
-                <span class="inline-flex min-w-0 items-center gap-1.5 text-[13px] font-bold" :class="t.meta.text">
-                    <span class="h-2 w-2 shrink-0 rounded-full" :class="t.meta.dot" />
+                <span class="inline-flex min-w-0 items-center gap-1.5 text-[13px] font-bold">
+                    <span v-if="t.photo" class="h-2 w-2 shrink-0 rounded-full" :class="t.meta.dot" />
                     <span class="truncate">{{ t.label }}</span>
                 </span>
-                <span class="shrink-0 text-[12px] font-semibold text-ink-3">{{ t.day }}</span>
+                <span class="shrink-0 text-[12px] font-semibold text-white/80">{{ t.day }}</span>
             </span>
 
-            <span class="relative mt-3 line-clamp-2 text-[21px] font-extrabold leading-[25px] tracking-[-0.025em] text-ink">{{ t.title }}</span>
+            <span class="relative mt-3 line-clamp-2 text-[21px] font-extrabold leading-[25px] tracking-[-0.025em]">{{ t.title }}</span>
 
             <span class="relative mt-auto flex items-baseline gap-4 tabular-nums">
                 <span v-if="t.km">
-                    <span class="font-rounded text-[24px] font-bold text-ink">{{ t.km }}</span>
-                    <span class="ml-0.5 text-[13px] text-ink-3">km</span>
+                    <span class="font-rounded text-[24px] font-bold">{{ t.km }}</span>
+                    <span class="ml-0.5 text-[13px] text-white/75">km</span>
                 </span>
                 <span v-if="t.dur">
-                    <span class="font-rounded text-[24px] font-bold text-ink">{{ t.dur.value }}</span>
-                    <span class="ml-0.5 text-[13px] text-ink-3">{{ t.dur.unit }}</span>
+                    <span class="font-rounded text-[24px] font-bold">{{ t.dur.value }}</span>
+                    <span class="ml-0.5 text-[13px] text-white/75">{{ t.dur.unit }}</span>
                 </span>
             </span>
         </Link>

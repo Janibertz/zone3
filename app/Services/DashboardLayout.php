@@ -27,7 +27,8 @@ class DashboardLayout
      */
     public const MODULES = [
         'naechste'     => ['label' => 'Als Nächstes',               'wide' => true],
-        'woche'        => ['label' => 'Woche',                      'wide' => true],
+        'woche'        => ['label' => 'Woche',                      'wide' => false],
+        'zuletzt'      => ['label' => 'Zuletzt',                    'wide' => false],
         'koerper'      => ['label' => 'Körper',                     'wide' => true],
         'form'         => ['label' => 'Form (Belastung)',           'wide' => false],
         'intensitaet'  => ['label' => 'Locker / Hart',              'wide' => false],

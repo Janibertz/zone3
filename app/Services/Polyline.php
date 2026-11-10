@@ -32,6 +32,36 @@ class Polyline
         return $encoded;
     }
 
+    /** @return list<array{0: float, 1: float}>  [lat, lng] */
+    public static function decode(string $encoded): array
+    {
+        $points = [];
+        $index  = 0;
+        $len    = strlen($encoded);
+        $lat    = 0;
+        $lng    = 0;
+
+        while ($index < $len) {
+            foreach (['lat', 'lng'] as $axis) {
+                $shift  = 0;
+                $result = 0;
+                do {
+                    if ($index >= $len) {
+                        return $points;
+                    }
+                    $b       = ord($encoded[$index++]) - 63;
+                    $result |= ($b & 0x1f) << $shift;
+                    $shift  += 5;
+                } while ($b >= 0x20);
+                $delta = ($result & 1) ? ~($result >> 1) : ($result >> 1);
+                $$axis += $delta;
+            }
+            $points[] = [$lat / 1e5, $lng / 1e5];
+        }
+
+        return $points;
+    }
+
     private static function value(int $value): string
     {
         $value = $value < 0 ? ~($value << 1) : $value << 1;

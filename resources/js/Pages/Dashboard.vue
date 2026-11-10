@@ -10,7 +10,7 @@ import GarminSendSheet from '@/Components/UI/GarminSendSheet.vue';
 import GarminRecovery from '@/Components/GarminRecovery.vue';
 import StarterChecklistCard from '@/Components/StarterChecklistCard.vue';
 import NotificationChoice from '@/Components/Settings/NotificationChoice.vue';
-import { Head, usePage } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import { activityType, matchesSport } from '@/Composables/useActivityTypes';
 import { useCoachChat } from '@/Composables/useCoachChat';
 import { Inertia } from '@inertiajs/inertia';
@@ -19,6 +19,10 @@ import { ref, watch, computed, onMounted } from 'vue';
 import axios from 'axios';
 import SessionCard from '@/Components/UI/SessionCard.vue';
 import UpcomingSessions from '@/Components/Plan/UpcomingSessions.vue';
+import TodayHero from '@/Components/Today/TodayHero.vue';
+import RaceCard from '@/Components/Today/RaceCard.vue';
+import CoachLine from '@/Components/Today/CoachLine.vue';
+import LastRunCard from '@/Components/Today/LastRunCard.vue';
 import PersonalRecordMoment from '@/Components/Moments/PersonalRecordMoment.vue';
 import WeekDoneMoment from '@/Components/Moments/WeekDoneMoment.vue';
 import RaceDoneMoment from '@/Components/Moments/RaceDoneMoment.vue';
@@ -95,6 +99,9 @@ const props = defineProps({
         default: false,
     },
     upcomingSessions: { type: Array, default: () => [] },
+    raceCard: { type: Object, default: null },
+    coachLine: { type: String, default: null },
+    lastRun: { type: Object, default: null },
     weekPlan: {
         type: Array,
         default: () => [],
@@ -686,10 +693,64 @@ const weekDots = computed(() => {
     });
 });
 
+// ── „Mehr Leben“ (Mockup vom 10.11.2026) ─────────────────────────────────
+/** Der Aufmacher zeigt die Planeinheit; ohne Plan bleibt es bei der Empfehlung. */
+const heroSession = computed(() =>
+    props.hasActivePlan && !props.bridgeToPlan ? props.todayPlanSession : null);
+const heroBadge = computed(() => {
+    const s = heroSession.value;
+    if (!s) return null;
+    if (s.status === 'completed') return 'Erledigt';
+    if (s.is_today) return null;
+    return new Date(s.session_date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+});
+const heroContext = computed(() => {
+    const r = props.raceCard;
+    const p = r?.progress;
+    if (!p || p.starts_in > 0) return null;
+    return r.open ? `Block ${r.block} · Woche ${p.week} von ${p.weeks}` : `Woche ${p.week} von ${p.weeks} · ${p.phase}`;
+});
+const sideCards = computed(() => (props.coachLine ? 1 : 0) + (props.raceCard ? 1 : 0));
+
+/** Säulenhöhe je Tag: geplante Minuten (ohne Ruhetag), sonst gelaufene Kilometer. */
+const weekColumns = computed(() => {
+    const minutes = new Map();
+    (props.weekPlan || []).forEach((p) => {
+        if (p.type === 'rest') return;
+        minutes.set(p.date, (minutes.get(p.date) ?? 0) + (p.duration_min || (p.distance_km ? p.distance_km * 6 : 0)));
+    });
+    const days = weekDots.value.map((d, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - ((date.getDay() + 6) % 7) + i);
+        const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const km = weekStrip.value[i]?.km ?? 0;
+        return { ...d, size: minutes.get(iso) ?? (km > 0 ? km * 6 : 0) };
+    });
+    const max = Math.max(1, ...days.map(d => d.size));
+    return days.map(d => ({ ...d, height: d.size > 0 ? Math.max(14, Math.round(d.size / max * 100)) : 10 }));
+});
+
+/** Legende: nur die Farben, die diese Woche vorkommen. */
+const weekLegend = computed(() => {
+    const seen = new Map();
+    (props.weekPlan || []).forEach((p) => {
+        if (p.type === 'rest') return;
+        const meta = sessionType(p.type);
+        if (!seen.has(meta.dot)) seen.set(meta.dot, { dot: meta.dot, label: meta.label });
+    });
+    return [...seen.values()];
+});
+
 /** Ring für „heute" in derselben Farbe — ausgeschrieben, damit Tailwind die Klassen findet. */
 const RING = {
     'bg-success': 'border-success', 'bg-warn': 'border-warn', 'bg-danger': 'border-danger',
     'bg-info': 'border-info', 'bg-accent': 'border-accent', 'bg-ink-3': 'border-ink-3',
+};
+
+/** Dasselbe als Ring um die Säule von heute. */
+const TODAY_RING = {
+    'bg-success': 'ring-success', 'bg-warn': 'ring-warn', 'bg-danger': 'ring-danger',
+    'bg-info': 'ring-info', 'bg-accent': 'ring-accent', 'bg-ink-3': 'ring-ink-3',
 };
 
 /** Gelaufene Kilometer dieser Woche — nur Läufe, denn der Plan zählt nur Läufe. */
@@ -1187,6 +1248,7 @@ const layoutError  = ref('');
 // Ein Modul ohne Daten bleibt weg, statt eine leere Zelle ins Raster zu legen.
 const moduleHasData = computed(() => ({
     naechste:    (props.upcomingSessions || []).length > 0,
+    zuletzt:     !!props.lastRun,
     form:        !!props.trainingLoad,
     intensitaet: !!props.intensityDistribution,
     rueckblick:  !!props.weeklyReview,
@@ -1222,7 +1284,7 @@ function moduleClass(m) {
 function moduleHint(m) {
     if (moduleHasData.value[m.key] !== false) return null;
     return { form: 'erscheint mit genug Trainingsdaten', intensitaet: 'erscheint mit genug Läufen',
-        rueckblick: 'erscheint montags', erholung: 'nur mit Garmin', naechste: 'erscheint mit einem Plan' }[m.key];
+        rueckblick: 'erscheint montags', erholung: 'nur mit Garmin', naechste: 'erscheint mit einem Plan', zuletzt: 'erscheint nach einem Lauf mit Strecke' }[m.key];
 }
 
 function openLayoutSheet() {
@@ -1462,27 +1524,50 @@ async function resetLayout() {
                 </div>
 
                 <!-- ══════════════════════════════════════════════════
-                     HEUTIGES TRAINING
+                     HEUTE MIT FOTO (Mockup „Zone3 mit mehr Leben", 10.11.2026)
+                     Foto passend zum Typ, daneben Rennen und ein Satz vom
+                     Coach. Am Telefon untereinander: Foto, Coach, Rennen.
                      ══════════════════════════════════════════════════ -->
-                <section>
+                <div v-if="heroSession" class="grid gap-3 lg:grid-cols-3 lg:gap-4">
+                    <TodayHero :session="heroSession" :badge="heroBadge" :context="heroContext"
+                        :class="sideCards === 2 ? 'lg:col-span-2 lg:row-span-2' : sideCards === 1 ? 'lg:col-span-2' : 'lg:col-span-3'">
+                        <template v-if="heroSession.type !== 'rest'">
+                            <Link :href="todaySessionHref"
+                                class="inline-flex h-11 items-center rounded-full bg-white px-5 text-[15px] font-semibold text-black transition active:scale-95">
+                                Details
+                            </Link>
+                            <button v-if="heroSession.status === 'planned'" type="button" @click="openSwap"
+                                class="inline-flex h-11 items-center rounded-full bg-white/20 px-5 text-[15px] font-semibold text-white backdrop-blur-md transition active:scale-95">
+                                Tauschen
+                            </button>
+                            <a v-if="heroSession.zwo_url && heroSession.status === 'planned'" :href="heroSession.zwo_url" download
+                                class="inline-flex h-11 items-center rounded-full bg-white/20 px-5 text-[15px] font-semibold text-white backdrop-blur-md transition active:scale-95">
+                                Zwift
+                            </a>
+                            <WatchButton v-else-if="heroSession.watch_url && heroSession.status === 'planned'"
+                                :session-id="heroSession.id" :href="heroSession.watch_url" variant="secondary"
+                                class="!h-11 !w-11 !rounded-full !border-0 !bg-white/20 !px-0 !text-white backdrop-blur-md" v-slot="{ done }">
+                                <svg v-if="done" class="h-[22px] w-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                                <svg v-else class="h-[22px] w-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="3" /><path d="M9 6l.6-3h4.8L15 6M9 18l.6 3h4.8l.6-3" /></svg>
+                            </WatchButton>
+                        </template>
+                    </TodayHero>
+                    <CoachLine v-if="props.coachLine" :text="props.coachLine" :coach="coach"
+                        class="lg:col-start-3 lg:row-start-2" @reply="openChat()" />
+                    <RaceCard v-if="props.raceCard" :race="props.raceCard"
+                        class="lg:col-start-3 lg:row-start-1"/>
+                </div>
+
+                <!-- ══════════════════════════════════════════════════
+                     HEUTIGES TRAINING (ohne Plan oder ohne Einheit)
+                     ══════════════════════════════════════════════════ -->
+                <section v-if="!heroSession">
                     <SectionHeader title="Training">
                         <template #action>
-                            <AppButton
-                                v-if="props.todayPlanSession && props.todayPlanSession.status === 'planned'"
-                                variant="plain" @click="openSwap">
-                                Tauschen
-                            </AppButton>
                             <AppButton v-if="props.hasActivePlan" variant="plain"
                                 :href="props.todayPlanSession?.event_id ? `/events/${props.todayPlanSession.event_id}/plan` : '/events'">
                                 Plan
                             </AppButton>
-                            <!--
-                                Hier stand „2/200 KI" — eine Zahl ohne Satz.
-                                Was gemeint ist: so viele Coach-Anfragen sind
-                                heute noch frei. Der Rest-Wert ist die Zahl, die
-                                interessiert, nicht der Verbrauch — und erst,
-                                wenn er knapp wird.
-                            -->
                             <span v-else-if="props.aiUsage.limit - props.aiUsage.used <= 5" class="text-[13px] text-ink-3"
                                 :title="`${props.aiUsage.used} von ${props.aiUsage.limit} Coach-Anfragen heute verbraucht`">
                                 noch {{ Math.max(0, props.aiUsage.limit - props.aiUsage.used) }} Coach-Anfragen
@@ -1490,42 +1575,8 @@ async function resetLayout() {
                         </template>
                     </SectionHeader>
 
-                    <!-- ── Mit aktivem Plan ─────────────────────────── -->
                     <template v-if="props.hasActivePlan && !props.bridgeToPlan">
-                        <!--
-                            Die Aktionen stehen in der Karte (Story-Look): „Details"
-                            breit, der Download zur Uhr bzw. zu Zwift als kleiner
-                            Knopf daneben. Vorher stand darunter ein zweiter, gleich
-                            breiter Knopf, der die Karte optisch verdoppelte.
-                            Downloads sind echte <a>, keine Inertia-Links.
-                        -->
-                        <SessionCard v-if="props.todayPlanSession" wide
-                            :session="props.todayPlanSession"
-                            :badge="props.todayPlanSession.status === 'completed' ? 'Erledigt'
-                                : props.todayPlanSession.is_today ? 'Heute'
-                                : new Date(props.todayPlanSession.session_date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' })"
-                            :badge-tone="props.todayPlanSession.status === 'completed' ? 'success' : props.todayPlanSession.is_today ? 'accent' : 'neutral'"
-                        >
-                            <!-- Ein Ruhetag hat keine Details, die nicht schon dastehen. -->
-                            <div v-if="props.todayPlanSession.type !== 'rest'" class="mt-5 flex gap-2">
-                                <AppButton variant="secondary" class="flex-1"
-                                    :href="todaySessionHref">
-                                    Details
-                                </AppButton>
-                                <AppButton v-if="props.todayPlanSession.zwo_url && props.todayPlanSession.status === 'planned'"
-                                    :href="props.todayPlanSession.zwo_url" external download variant="secondary"
-                                    class="!px-4" aria-label="Für Zwift herunterladen" title="Für Zwift herunterladen">
-                                    Zwift
-                                </AppButton>
-                                <WatchButton v-else-if="props.todayPlanSession.watch_url && props.todayPlanSession.status === 'planned'"
-                                    :session-id="props.todayPlanSession.id" :href="props.todayPlanSession.watch_url" variant="secondary"
-                                    class="!w-12 !px-0" v-slot="{ done }">
-                                    <svg v-if="done" class="h-[22px] w-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
-                                    <svg v-else class="h-[22px] w-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="3" /><path d="M9 6l.6-3h4.8L15 6M9 18l.6 3h4.8l.6-3" /></svg>
-                                </WatchButton>
-                            </div>
-                        </SessionCard>
-                        <AppCard v-else>
+                        <AppCard>
                             <EmptyState title="Heute steht nichts an" description="Erholung gehört zum Training. Genieß den freien Tag.">
                                 <AppButton href="/events" variant="secondary">Zum Plan</AppButton>
                             </EmptyState>
@@ -1676,6 +1727,11 @@ async function resetLayout() {
                         </template>
                     </template>
                 </section>
+
+                <div v-if="!heroSession && (props.coachLine || props.raceCard)" class="grid gap-3 lg:grid-cols-2 lg:gap-4">
+                    <CoachLine v-if="props.coachLine" :text="props.coachLine" :coach="coach" @reply="openChat()" />
+                    <RaceCard v-if="props.raceCard" :race="props.raceCard" />
+                </div>
 
                 <!-- Wiedereinstieg -->
                 <AppCard v-if="returnToRun && !returnToRunDismissed" title="Wiedereinstieg" :subtitle="`nach ${returnToRun.trigger_label} · Stufe ${returnToRun.step} von ${returnToRun.total_steps}`">
@@ -1853,19 +1909,43 @@ async function resetLayout() {
                                         <div class="h-full rounded-full bg-accent transition-[width] duration-500 ease-out-strong" :style="{ width: weekProgressPct + '%' }" />
                                     </div>
 
-                                    <div class="mt-5 grid grid-cols-7 gap-1 text-center" role="list" aria-label="Diese Woche">
-                                        <div v-for="d in weekDots" :key="d.key" role="listitem" class="flex flex-col items-center">
+                                    <!--
+                                        Säulen statt Punkte (Mockup „mehr Leben", 10.11.2026):
+                                        Höhe = geplante Minuten, Farbe = Typ, voll = erledigt,
+                                        blass = geplant, Ring = heute, grau = Ruhetag.
+                                    -->
+                                    <div class="mt-5 grid grid-cols-7 gap-1.5 text-center" role="list" aria-label="Diese Woche">
+                                        <div v-for="d in weekColumns" :key="d.key" role="listitem" class="flex flex-col items-center gap-1.5">
+                                            <div class="flex h-[88px] w-full items-end justify-center lg:h-[110px]">
+                                                <div class="w-full max-w-[44px] rounded-[8px] transition-[height] duration-500 ease-out-strong"
+                                                    :style="{ height: d.height + '%' }"
+                                                    :class="[
+                                                        !d.dot || d.rest ? 'bg-surface-3' : d.dot,
+                                                        d.dot && !d.rest && d.state !== 'done' ? 'opacity-25' : '',
+                                                        d.state === 'today' && d.dot && !d.rest ? '!opacity-60 ring-2 ring-offset-2 ring-offset-surface ' + (TODAY_RING[d.dot] ?? 'ring-accent') : '',
+                                                    ]" />
+                                            </div>
                                             <span class="text-[13px] leading-4" :class="d.isToday ? 'font-bold text-ink' : 'text-ink-3'">{{ d.label }}</span>
-                                            <span class="flex h-8 items-center justify-center">
-                                                <span v-if="!d.dot || d.rest" class="h-1.5 w-1.5 rounded-full bg-ink-3/50" />
-                                                <span v-else-if="d.state === 'today'" class="h-3.5 w-3.5 rounded-full border-[3px]"
-                                                    :class="RING[d.dot] ?? 'border-accent'" />
-                                                <span v-else class="h-3 w-3 rounded-full" :class="[d.dot, d.state === 'done' ? '' : 'opacity-40']" />
-                                            </span>
                                             <span class="text-[12px] leading-4 tabular-nums" :class="d.state === 'done' ? 'font-semibold text-ink' : 'text-ink-3'">{{ d.km ?? '–' }}</span>
                                         </div>
                                     </div>
+                                    <div v-if="weekLegend.length" class="mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
+                                        <span v-for="l in weekLegend" :key="l.dot" class="inline-flex items-center gap-1.5 text-[13px] text-ink-3">
+                                            <span class="h-2.5 w-2.5 rounded-full" :class="l.dot" />{{ l.label }}
+                                        </span>
+                                    </div>
                                 </AppCard>
+                            </section>
+                        </div>
+
+                        <div v-if="m.key === 'zuletzt' && props.lastRun" :class="moduleClass(m)">
+                            <section>
+                                <SectionHeader title="Zuletzt">
+                                    <template #action>
+                                        <AppButton variant="plain" href="/activities">Alle</AppButton>
+                                    </template>
+                                </SectionHeader>
+                                <LastRunCard :run="props.lastRun" />
                             </section>
                         </div>
 
