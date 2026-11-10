@@ -359,8 +359,11 @@ const routeSegments = computed(() => {
                         class="z-0 h-[460px] w-full overflow-hidden bg-surface-2 lg:h-[520px] lg:rounded-card" />
                     <div v-else class="h-16" />
 
-                    <!-- Die Kopfdaten liegen auf der Karte (wie eine Story-Karte) und sparen den Block darunter. -->
-                    <div v-if="hasMap" class="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-canvas via-canvas/90 to-transparent px-4 pb-4 pt-20 lg:rounded-b-card lg:px-6 lg:pb-5">
+                    <!-- Die Kopfdaten liegen auf der Karte (wie eine Story-Karte) und sparen den Block darunter.
+                         Sie fangen die Berührung selbst ab und scrollen die Seite: mit
+                         pointer-events-none ging der Wisch an die Karte und verschob sie
+                         (Jan, 10.11.2026: „Ich scrolle dann immer auf der Karte“). -->
+                    <div v-if="hasMap" class="touch-pan-y absolute inset-x-0 bottom-0 bg-gradient-to-t from-canvas via-canvas/90 to-transparent px-4 pb-4 pt-20 lg:rounded-b-card lg:px-6 lg:pb-5">
                         <p class="flex items-center gap-1.5 text-[15px] font-semibold" :class="label.color">
                             <span class="h-2 w-2 shrink-0 rounded-full" :class="label.dot" />{{ label.text }}
                         </p>
