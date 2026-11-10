@@ -572,6 +572,7 @@ Route::post('/api/return-to-run/dismiss', [\App\Http\Controllers\ReturnToRunCont
 
 Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/mehr', \App\Http\Controllers\MoreController::class)->name('more');
+    Route::get('/mehr/geraete', [\App\Http\Controllers\MoreController::class, 'devices'])->name('more.devices');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar');

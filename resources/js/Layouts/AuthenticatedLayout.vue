@@ -128,7 +128,7 @@ const mobileNavItems = computed(() => [
 const isCurrent = (item) => route().current(item.routeName) || (item.also ?? []).some(r => route().current(r));
 
 /** Was über „Mehr" erreicht wird, lässt den Tab aktiv — wie in iOS. */
-const MORE_ROUTES = ['more', 'profile.edit', 'workouts.*', 'statistics.index', 'live.*', 'wrapped.index', 'support.*', 'admin.*'];
+const MORE_ROUTES = ['more', 'more.*', 'profile.edit', 'workouts.*', 'statistics.index', 'live.*', 'wrapped.index', 'support.*', 'admin.*'];
 
 const moreActive = computed(() =>
     MORE_ROUTES.some(r => route().current(r)) || route().current('events.index'));

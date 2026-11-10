@@ -40,18 +40,38 @@ class MoreController extends Controller
                 'days'        => $days,
                 'bike'        => (bool) $profile?->bike_enabled,
                 'coach'       => $user->coach?->name,
-                'garmin'      => (bool) $user->garminConnection,
-                // null = auf diesem Server nicht eingeschaltet (COROS_ENABLED).
-                'coros'       => config('services.coros.enabled') ? (bool) $user->corosConnection : null,
-                'strava'      => (bool) $user->stravaAccount,
-                'apple_health' => $user->apple_health_consent_at !== null,
-                // null = nicht angeboten (Plan geht automatisch auf die Garmin-Uhr).
-                'apple_watch' => $user->offersAppleWatch() ? (bool) ($user->apple_watch_sync ?? true) : null,
+                'devices'     => $this->deviceStatus($user),
                 'telegram'    => $user->telegram_chat_id !== null,
                 'calendar'    => $user->calendar_token !== null,
                 'push'        => (bool) $user->push_notifications_enabled,
                 'reminder'    => $user->wellbeing_reminder_time ? substr($user->wellbeing_reminder_time, 0, 5) : null,
             ],
         ]);
+    }
+
+    /**
+     * „Geräte & Apps" als eigene Seite hinter einer Zeile auf Mehr (Jan,
+     * 10.11.2026: die Kacheln mitten in der Liste machten das Menü unstimmig).
+     */
+    public function devices()
+    {
+        return Inertia::render('More/Devices', [
+            'devices' => $this->deviceStatus(Auth::user()),
+        ]);
+    }
+
+    /** Stand der Uhren und Datenquellen — für die Kacheln und die Zeile auf Mehr. */
+    private function deviceStatus($user): array
+    {
+        return [
+            'garmin'       => (bool) $user->garminConnection,
+            // null = auf diesem Server nicht eingeschaltet (COROS_ENABLED).
+            'coros'        => config('services.coros.enabled') ? (bool) $user->corosConnection : null,
+            // null = Strava für diesen Athleten nicht freigeschaltet.
+            'strava'       => $user->canUseStrava() ? (bool) $user->stravaAccount : null,
+            'apple_health' => $user->apple_health_consent_at !== null,
+            // null = nicht angeboten (Plan geht automatisch auf die Garmin-Uhr).
+            'apple_watch'  => $user->offersAppleWatch() ? (bool) ($user->apple_watch_sync ?? true) : null,
+        ];
     }
 }
