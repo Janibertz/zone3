@@ -314,19 +314,26 @@ const backyardGoalKm = computed(() =>
 const goalErrors  = ref({});
 const goalLoading = ref(false);
 
-// Auto-fill name when race + date chosen
+// Name aus Distanz und Datum vorschlagen. Der Vorschlag folgt jeder
+// Änderung, solange der Athlet ihn nicht selbst überschrieben hat — vorher
+// blieb der erste Zwischenstand stehen: der Datums-Picker meldet beim Drehen
+// schon Werte, und aus dem Mai 2027 wurde „Halbmarathon Dezember 2026“
+// (Jan, 10.11.2026).
+let autoName = '';
 watch([() => goalForm.value.race_distance, () => goalForm.value.race_date], () => {
     const race = raceOptions.find(r => r.value === goalForm.value.race_distance);
-    if (!race || goalForm.value.name) return; // don't overwrite if user typed something
+    if (!race) return;
+    if (goalForm.value.name && goalForm.value.name !== autoName) return; // selbst geschrieben
     const dateLabel = goalForm.value.race_date
-        ? new Date(goalForm.value.race_date).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
+        ? new Date(goalForm.value.race_date + 'T00:00:00').toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
         : '';
-    goalForm.value.name = dateLabel ? `${race.label} ${dateLabel}` : race.label;
+    autoName = dateLabel ? `${race.label} ${dateLabel}` : race.label;
+    goalForm.value.name = autoName;
 });
 
 function selectRace(opt) {
+    if (goalForm.value.name === autoName) goalForm.value.name = ''; // Vorschlag neu bilden
     goalForm.value.race_distance = opt.value;
-    goalForm.value.name = ''; // reset so auto-fill kicks in
     goalForm.value.distance_km = opt.distance ?? null;
 }
 
