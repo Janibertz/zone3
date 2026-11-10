@@ -132,7 +132,7 @@ class TrainingPlanGenerator
         // das über eine Phasengrenze reichen kann.
         $weeksLeft = $event->weeks_until;
         $phaseText = app(\App\Services\PeriodizationService::class)
-            ->toPromptSection($c->skeleton['periods'] ?? [], $weeksLeft);
+            ->toPromptSection($c->skeleton['periods'] ?? [], $weeksLeft, $event->isOpen());
 
         // Ob die lockeren Läufe auch locker gelaufen werden. Steht bei der
         // Periodisierung, weil es dieselbe Frage von der anderen Seite ist:
@@ -494,6 +494,14 @@ WARN;
         $endRuleStandard = $reachesRace
             ? "Am Renntag ({$eventDate}): type=\"race_prep\", title=\"{$event->name}\", beschreibe das Rennen selbst."
             : "Das Rennen ist noch {$daysUntil} Tage entfernt — plane NUR bis {$planEndDate}, KEIN Renntag-Eintrag, KEIN race_prep. Der Plan wird später automatisch verlängert. Plane den dem Zeitraum entsprechenden Trainingsblock.";
+        // Ohne Rennen: am Blockende ein 5-km-Test oder einfach der letzte Tag des Blocks.
+        if ($event->isOpen()) {
+            $endRuleStandard = match (true) {
+                $reachesRace && $event->hasOpenTest() => "Am Blockende ({$eventDate}): type=\"race_prep\", title=\"5-km-Test\", beschreibe den Testlauf: 5 km so schnell, wie es gleichmäßig geht, mit Einlaufen davor. Das Ergebnis setzt die Tempi für den nächsten Block.",
+                $reachesRace => "Der Block endet am {$eventDate}, danach beginnt der nächste von selbst. Plane NUR bis {$planEndDate}, KEIN race_prep.",
+                default => "Plane NUR bis {$planEndDate}, KEIN race_prep. Der Plan wird später automatisch verlängert.",
+            };
+        }
 
         // ── Strength & core context + rules (only when the athlete enabled it) ──
         $strength = $profile['strength'] ?? null;
@@ -617,6 +625,10 @@ PROMPT;
         // Leiter, Belastung, Rennergebnisse, Bewertungen, Distanzfokus,
         // Verfuegbarkeit (steckt im Geruest), alte Rennregel.
         $goalLine = $this->goalLine($c->paces, $targetTime);
+        $goalBlock = $event->isOpen()
+            ? $this->openGoalBlock($event, $c->paces)
+            : "**Rennen:** {$event->name}, {$eventDate} (noch {$daysUntil} Tage), {$distLabel}, Zielzeit {$targetTime}.\n"
+                . "Es gilt diese Zielzeit — auch wenn eine Notiz unten eine andere nennt.{$goalLine}";
         $notesBlock = $this->recentNotes($c->coachNotes, $c->windowFrom);
         $easyHint = $this->easyHint($c->intensity);
         // Ohne Kraftwunsch sagte der Prompt „plane KEINE Mobility", während
@@ -628,8 +640,7 @@ PROMPT;
         $prompt = <<<PROMPT
 Du bist ein professioneller Lauf-Coach. Das System hat den Plan fuer {$totalDays} Tage ab {$today} schon gebaut: welcher Tag welche Einheit bekommt, Umfang, Distanz, Paces und den Ablauf jeder Laufeinheit. Deine Aufgabe ist nur: je Tag den Baustein aus den erlaubten waehlen, einen Titel und eine kurze Beschreibung schreiben.
 
-**Rennen:** {$event->name}, {$eventDate} (noch {$daysUntil} Tage), {$distLabel}, Zielzeit {$targetTime}.
-Es gilt diese Zielzeit — auch wenn eine Notiz unten eine andere nennt.{$goalLine}{$phaseText}
+{$goalBlock}{$phaseText}
 
 **{$wellbeingText}**{$garminBlock}{$notesBlock}{$finalizedText}{$pinnedText}{$keptText}{$recoveryWarning}{$perDateAvailText}{$strengthRule}
 
@@ -683,6 +694,30 @@ PROMPT;
     }
 
     /** Ziel gegen Form in einem Satz — die einzige Stelle, an der der Prompt über Tempo spricht. */
+    /**
+     * Ziel ohne Rennen: Ausrichtung, Block und was am Ende steht. Keine
+     * Zielzeit — die Tempi kommen aus der heutigen Form.
+     */
+    private function openGoalBlock(\App\Models\Event $event, ?array $paces): string
+    {
+        $progress = app(\App\Services\PeriodizationService::class)->progress($event);
+        $where    = $progress ? "Block {$progress['block']}, Woche {$progress['week']} von {$progress['weeks']}" : "Block {$event->block_number}";
+        $end      = $event->event_date->format('Y-m-d');
+        $test     = $event->hasOpenTest()
+            ? "Am Blockende ({$end}) steht ein 5-km-Test."
+            : "Am Blockende ({$end}) steht kein Test; der nächste Block schließt direkt an.";
+        $focus    = match ($event->open_focus) {
+            'speed'    => 'Schneller werden auf ' . ($event->race_distance === '5km' ? '5 km' : '10 km') . ': Schwelle und Intervalle sind der Kern, der lange Lauf hält die Grundlage.',
+            'maintain' => 'Form halten: Umfang und langer Lauf bleiben, wo sie sind; die harten Einheiten halten die Schärfe.',
+            default    => 'Grundlage aufbauen: viel locker, der lange Lauf wächst, Tempo nur als kurzer Reiz. Keine Bahnintervalle.',
+        };
+        $form = ! empty($paces['predicted_time'])
+            ? "\nHeutige Form: {$paces['predicted_time']} auf " . ($event->race_distance === '5km' ? '5 km' : '10 km') . '.'
+            : '';
+
+        return "**Ziel ohne Rennen:** {$focus}\n{$where}. {$test}{$form}";
+    }
+
     private function goalLine(?array $paces, string $targetTime): string
     {
         if (! $paces || empty($paces['predicted_time']) || empty($paces['target_pace'])) {

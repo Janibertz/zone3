@@ -28,7 +28,7 @@ class OnboardingTexts
         'availability' => ['label' => 'Verfügbarkeit',     'text' => 'Wann hast du Zeit? Ich plane nur an diesen Tagen und nie länger als hier angegeben.'],
         'strength'     => ['label' => 'Kraft & Rumpf',     'text' => 'Zwei kurze Krafteinheiten pro Woche machen dich robuster und schneller. Sag mir, was du zu Hause hast.'],
         'bike'         => ['label' => 'Rad / Zwift',       'text' => 'Fährst du Rad? Dann tausche ich im Winter gern mal einen lockeren Lauf gegen eine Fahrt – das schont die Beine.'],
-        'goal'         => ['label' => 'Ziel',              'text' => 'Worauf trainieren wir hin? Mit Rennen und Zielzeit baue ich den Plan rückwärts vom Renntag.'],
+        'goal'         => ['label' => 'Ziel',              'text' => 'Worauf trainieren wir hin? Mit Rennen und Zielzeit baue ich den Plan rückwärts vom Renntag. Ohne Rennen trainieren wir in Blöcken zu zwölf Wochen.'],
         'notify'       => ['label' => 'Benachrichtigungen', 'text' => 'Fast geschafft! Wo soll ich dich erreichen? Morgens deine Einheit, nach dem Lauf mein Feedback – sonst nichts.'],
         'connect'      => ['label' => 'Verbindungen',      'text' => 'Zum Schluss deine Uhr. Dann sehe ich jeden Lauf und gleiche ihn mit dem Plan ab.'],
     ];

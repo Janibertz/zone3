@@ -355,6 +355,17 @@ Die Umfangskorrektur sitzt in `PlanContextBuilder::applyInterviewToVolume()` und
 
 **Ein Interview altert.** Nach acht Wochen liefert `forPlan()` nichts mehr — es beschreibt dann einen anderen Athleten, und ab da zählen die Daten allein. Jedes Feld ist optional: ein halb beantwortetes Interview ist mehr wert als eines, das an einem Pflichtfeld abgebrochen wurde.
 
+### Plan ohne Rennen (seit 10.11.2026)
+
+Jans Entscheidungen: drei Ausrichtungen (**Grundlage aufbauen**, **Schneller werden** auf 5 oder 10 km, **Form halten**), **Blöcke zu 12 Wochen im 3:1**, am Blockende ein **5-km-Test, abschaltbar**, danach der **nächste Block von selbst**; ein später eingetragenes Rennen **übernimmt ab dem nächsten Montag**.
+
+- **Kein eigener Plantyp, sondern ein Event** mit `goal_type = open` (`open_focus`, `open_test`, `block_number`). `event_date` ist das **Ende des laufenden Blocks** (Sonntag), `race_distance` die Distanz für Leiter und Gerüst (10 km, beim schneller Werden die gewählte), `race_km` 5 (der Test). So laufen Fenster, Leiter, Gerüst und Validator unverändert. `Event::openAttributes()` ist die eine Stelle, die ein solches Ziel anlegt (Onboarding, Rennen-Seite).
+- **Periodisierung** (`PeriodizationService::openWeek()`): Woche im Block modulo 12 ab `openBlockStart()`, jede vierte Entlastung, Woche 12 mit Test = „Testwoche" (Phase `race_week`, Umfang 70 %), ohne Test Entlastung. Phase je Ausrichtung: schneller = 4 Wochen Grundlage, 4 Aufbau, dann Spitze; halten = Aufbau; Grundlage = Grundlage. „Form halten" steigert den Umfang nicht (`progressionPct()`), die Leiter bleibt beim bisher längsten Lauf.
+- **Der Test ist ein Renntag im Gerüst** (`PlanContextBuilder::races()`: nur das eigene offene Ziel und nur mit Test, Name „5-km-Test"). Ohne Test endet der Block ohne Renntag. Überall sonst sind offene Ziele **keine Rennen**: `Event::races()` filtert sie aus Rennliste im Coach-Chat, Tagesempfehlung, Dashboard, Kalender-Abo, Zielprüfung, Momente, Umfang (`WeeklyVolumeService`) und Interview-Rückblick. Der Coach bekommt stattdessen eine Zeile `ZIEL OHNE RENNEN` (`CoachChatService::openGoalLine()`).
+- **Blockwechsel:** `plan:roll-blocks` um 00:05 (und vor `plan:auto-update`, `plan:write-week`, der Rennen-Seite und der Planseite) rückt `event_date` um 12 Wochen und zählt `block_number` hoch — **nur mit aktivem Plan**. Danach sieht `plan:auto-update` die Lücke und schreibt weiter.
+- **Übergabe an ein Rennen** (`App\Services\Plan\OpenGoalHandover`): ein offener Plan sperrt „Plan erstellen" nicht. Beim Erstellen setzt der Controller den Start des Rennens auf frühestens nächsten Montag (das Interview bietet nichts Früheres an); erst wenn der Rennplan steht, schaltet der Job den offenen Plan ab, die laufende Woche bleibt als gepinnte Einheiten ohne Plan, alles ab Montag fällt weg, das offene Ziel endet am Sonntag ohne Test.
+- Ein späterer Start im Interview verschiebt das Ende des ersten Blocks mit (solange kein Plan läuft). Prognose auf der Planseite ist die für 5 km; der KI-Prognosetext läuft nicht.
+
 ### When the plan may change (and when it may not)
 
 A regeneration deletes every `planned` session and has the model invent them again. The model is not deterministic, so **every regeneration is a fresh roll of the dice** — rest days vanished, a threshold run became twenty easy minutes. Two of the seven triggers were "the athlete did what the plan said", the worst possible reason to redraw a plan.

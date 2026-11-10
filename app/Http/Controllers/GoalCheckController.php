@@ -50,7 +50,7 @@ class GoalCheckController extends Controller
 
         // Ohne aktiven Plan zaehlt die Prioritaet vor dem Datum: ein A-Event
         // ist das Hauptrennen, auch wenn ein B-Event frueher liegt.
-        return Event::where('user_id', $user->id)
+        return Event::races()->where('user_id', $user->id)
             ->whereDate('event_date', '>=', now()->toDateString())
             ->whereIn('priority', ['A', 'B'])
             ->orderByRaw("CASE priority WHEN 'A' THEN 0 ELSE 1 END")

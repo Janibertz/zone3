@@ -128,6 +128,11 @@ class LongRunPlanService
         // nicht bei null an, sondern bei einer Stunde auf den Beinen.
         $current = max($volume['longest_run'] ?? 0, round(60 * 60 / $longSec, 1));
 
+        // „Form halten" klettert nicht: der längste Lauf bleibt, wo er ist.
+        if ($event->isOpen() && $event->open_focus === 'maintain') {
+            $idealPeak = min($idealPeak, round($current, 1));
+        }
+
         $periods = array_map(
             fn (string $key) => $this->periods->forWeek($event, self::weekStart($key)),
             $weeks['build'],
@@ -138,7 +143,7 @@ class LongRunPlanService
         // derselben Rate wie im Gerüst (WeeklyPatternService::applyVolumeBudget),
         // gerechnet ab der ersten Woche der Leiter. Unter einer Stunde auf
         // den Beinen geht er nie — sonst wäre der lange Lauf keiner.
-        $ceilings = $this->volumeCeilings($volume, count($weeks['build']), round(60 * 60 / $longSec, 1));
+        $ceilings = $this->volumeCeilings($volume, count($weeks['build']), round(60 * 60 / $longSec, 1), PeriodizationService::progressionPct($event));
         if ($ceilings !== null) {
             $current = min($current, $ceilings[0]);
         }
@@ -253,7 +258,7 @@ class LongRunPlanService
      *
      * @return list<float>|null
      */
-    private function volumeCeilings(array $volume, int $weeks, float $floorKm): ?array
+    private function volumeCeilings(array $volume, int $weeks, float $floorKm, float $progressionPct = WeeklyVolumeService::MAX_PROGRESSION_PCT): ?array
     {
         $base = (float) ($volume['next_week_max'] ?? 0);
         if ($base <= 0) {
@@ -262,7 +267,7 @@ class LongRunPlanService
 
         $ceilings = [];
         for ($i = 0; $i < $weeks; $i++) {
-            $week       = $base * (1 + WeeklyVolumeService::MAX_PROGRESSION_PCT / 100) ** $i;
+            $week       = $base * (1 + $progressionPct / 100) ** $i;
             $ceilings[] = round(max($floorKm, $week * self::MAX_SHARE_OF_WEEK), 1);
         }
 
@@ -324,6 +329,13 @@ class LongRunPlanService
     {
         $needed = $steps > 0 ? ($idealPeak - $current) / $steps : 0;
         $label  = $event->distance_label;
+
+        // Ohne Rennen gibt es keine nötige Höhe, nur einen Weg.
+        if ($event->isOpen()) {
+            return $event->open_focus === 'maintain'
+                ? "Form halten: der lange Lauf bleibt bei rund {$peak} km. Nicht steigern."
+                : "Der lange Lauf wächst in diesem Block bis {$peak} km. Die Leiter trägt — halte dich daran.";
+        }
 
         // Zwei ganz verschiedene Gründe, warum der lange Lauf zu kurz bleibt:
         // zu wenig Wochen — oder zu wenig Zeit an einem einzigen Tag. Der

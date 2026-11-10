@@ -125,7 +125,7 @@ class CoachChatService
             ->get();
 
         // ── Upcoming events (all) ─────────────────────────────────────────
-        $events = $user->events()
+        $events = $user->events()->races()
             ->where('event_date', '>=', $today)
             ->orderBy('event_date')
             ->limit(4)
@@ -291,7 +291,7 @@ class CoachChatService
         $upcoming = \App\Models\TrainingSession::where('user_id',$user->id)->whereDate('planned_date','>',$today)->whereDate('planned_date','<=',now()->addDays(7)->toDateString())->where('type','!=','rest')->orderBy('planned_date')->orderBy('sort_order')->limit(8)->get();
 
         // Events (include ID for tool use)
-        $events = $user->events()->where('event_date','>=',$today)->orderBy('event_date')->limit(4)->get();
+        $events = $user->events()->races()->where('event_date','>=',$today)->orderBy('event_date')->limit(4)->get();
 
         // Wellbeing
         $wellbeing = $user->wellbeingEntries()->whereDate('date',$today)->first();
@@ -338,6 +338,7 @@ class CoachChatService
                 return "- [ID:{$e->id}] {$e->name} ({$e->distance_label}) {$e->event_date->format('d.m.Y')} (in {$days}d) [".match($e->priority){'A'=>'★A','B'=>'B',default=>'C'}."{$target}]";
             })->implode("\n");
         }
+        if ($open = self::openGoalLine($user)) $ctx[] = $open;
         if ($wellbeing) $ctx[] = "TAGESFORM (Selbsteinschätzung): Energie {$wellbeing->energy_level}/10, Schlaf {$wellbeing->sleep_quality}/10, Stimmung {$wellbeing->mood}/10";
 
         $contextBlock = "\n\n=== ATHLETEN-DATEN ({$today}) ===\n".implode("\n\n",$ctx)."\n=== ENDE ===";
@@ -452,6 +453,29 @@ class CoachChatService
      * ein englischer Fachbegriff in einer deutschen Antwort („Easy Run",
      * „Zwift") kippt das nicht.
      */
+    /**
+     * Plan ohne Rennen: eine Zeile, damit der Coach den Block kennt — die
+     * Rennliste lässt solche Ziele aus, ein Blockende ist kein Renntag.
+     */
+    public static function openGoalLine(\App\Models\User $user): ?string
+    {
+        $plan = \App\Models\TrainingPlan::where('user_id', $user->id)->where('is_active', true)
+            ->whereHas('event', fn ($q) => $q->where('goal_type', 'open'))
+            ->with('event')->first();
+        $e = $plan?->event;
+        if (! $e) {
+            return null;
+        }
+
+        $p    = app(\App\Services\PeriodizationService::class)->progress($e);
+        $week = $p ? ", Woche {$p['week']} von {$p['weeks']} ({$p['phase']})" : '';
+        $end  = $e->open_test
+            ? "am {$e->event_date->format('d.m.Y')} steht ein 5-km-Test"
+            : "Blockende {$e->event_date->format('d.m.Y')}, kein Test";
+
+        return "ZIEL OHNE RENNEN: {$e->name}, Block {$e->block_number}{$week}; {$end}. Danach beginnt der nächste Block von selbst. Ein eingetragenes Rennen übernimmt ab dem folgenden Montag.";
+    }
+
     public static function looksLikeLeakedReasoning(string $reply): bool
     {
         $text = mb_strtolower(trim($reply));

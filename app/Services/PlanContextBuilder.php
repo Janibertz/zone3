@@ -448,6 +448,7 @@ class PlanContextBuilder
     {
         return Event::where('user_id', $user->id)
             ->where('id', '!=', $event->id)
+            ->where('goal_type', '!=', 'open')
             ->where('event_date', '>=', now()->toDateString())
             ->where('event_date', '<=', $windowTo->toDateString())
             ->get()
@@ -558,9 +559,12 @@ class PlanContextBuilder
             ->whereDate('event_date', '<=', $windowTo->toDateString())
             ->orderBy('event_date')
             ->get()
+            // Ein Ziel ohne Rennen hat nur einen „Renntag", wenn am Blockende
+            // ein Testlauf steht — und nur im eigenen Plan.
+            ->filter(fn (Event $e) => ! $e->isOpen() || ($e->id === $event->id && $e->hasOpenTest()))
             ->mapWithKeys(fn (Event $e) => [$e->event_date->format('Y-m-d') => [
                 'date'       => $e->event_date->format('Y-m-d'),
-                'name'       => $e->name,
+                'name'       => $e->isOpen() ? '5-km-Test' : $e->name,
                 'km'         => $e->race_km,
                 'priority'   => $e->priority,
                 // Die eingetragene Zielzeit schlaegt jede Schaetzung aus der
@@ -583,6 +587,7 @@ class PlanContextBuilder
     {
         $next = Event::where('user_id', $user->id)
             ->where('id', '!=', $event->id)
+            ->where('goal_type', '!=', 'open')
             ->whereDate('event_date', '>', $event->event_date->toDateString())
             ->whereIn('priority', ['A', 'B'])
             ->orderBy('event_date')

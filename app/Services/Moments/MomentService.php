@@ -92,7 +92,7 @@ class MomentService
     {
         $today = ($today ?? CarbonImmutable::today())->startOfDay();
 
-        $events = Event::where('user_id', $user->id)
+        $events = Event::races()->where('user_id', $user->id)
             ->whereDate('event_date', '<=', $today->toDateString())
             ->whereDate('event_date', '>=', $today->subDays(self::RACE_DAYS)->toDateString())
             ->orderByDesc('event_date')

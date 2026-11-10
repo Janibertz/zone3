@@ -34,6 +34,10 @@ Schedule::command('push:goal-check')->weeklyOn(0, '16:00');
 // ist billig: hat sich nichts geaendert, wird das Modell nicht gefragt.
 Schedule::command('plan:write-week')->weeklyOn(0, '19:00');
 
+// Plan ohne Rennen: kurz nach Mitternacht den naechsten Block beginnen,
+// damit plan:auto-update um 05:00 die Luecke sieht.
+Schedule::command('plan:roll-blocks')->dailyAt('00:05');
+
 // Every day at 05:00: detect plan gaps and queue regeneration for athletes with upcoming races
 Schedule::command('plan:auto-update')->dailyAt('05:00');
 

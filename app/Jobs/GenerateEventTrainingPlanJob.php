@@ -117,6 +117,12 @@ class GenerateEventTrainingPlanJob implements ShouldQueue
         PlanBuildProgress::mark($event->id, 'save', ['sessions' => count($aiSessions)]);
 
         try {
+            // Ein laufendes Ziel ohne Rennen uebergibt an das Rennen: die
+            // laufende Woche bleibt, ab Montag gilt dieser Plan.
+            if (! $event->isOpen() && ($open = \App\Services\Plan\OpenGoalHandover::activeOpenPlan($user->id, $event->id))) {
+                app(\App\Services\Plan\OpenGoalHandover::class)->handOver($open, $event);
+            }
+
             // One-active-plan rule: deactivate all other plans
             TrainingPlan::where('user_id', $user->id)->update(['is_active' => false]);
 

@@ -7,6 +7,8 @@ import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import AppCard from '@/Components/UI/AppCard.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
 import ListRow from '@/Components/UI/ListRow.vue';
+import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
+import OpenGoalFields from '@/Components/Goal/OpenGoalFields.vue';
 import { fmtNum, clock } from '@/Composables/useFormat';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import { ref, computed, watch, onMounted } from 'vue';
@@ -15,6 +17,7 @@ const props = defineProps({
     events: Array,
     status: String,
     active_plan_event_id: { type: Number, default: null },
+    active_plan_is_open:  { type: Boolean, default: false },
 });
 
 // ── Gliederung wie im Mockup: das nächste Rennen groß, dann „Danach“ und „Gelaufen“ ──
@@ -44,11 +47,28 @@ const form = useForm({
     target_time_minutes: 0,
     target_yards:        '',
     notes:               '',
+    // Plan ohne Rennen (10.11.2026)
+    goal_type:           'race',
+    open_focus:          'base',
+    open_test:           true,
+    plan_start_date:     null,
 });
 
-function openCreate() {
+const isOpenForm = computed(() => form.goal_type === 'open');
+const openFields = computed({
+    get: () => ({ open_focus: form.open_focus, race_distance: form.race_distance, open_test: form.open_test, plan_start_date: form.plan_start_date }),
+    set: (v) => { form.open_focus = v.open_focus; form.race_distance = v.race_distance; form.open_test = v.open_test; form.plan_start_date = v.plan_start_date; },
+});
+watch(() => form.goal_type, (t) => {
+    if (editingEvent.value) return;
+    form.race_distance = '10km';
+    if (t === 'race') form.name = '';
+});
+
+function openCreate(type = 'race') {
     editingEvent.value = null;
     form.reset();
+    form.goal_type = type;
     form.race_distance = '10km';
     form.priority = 'B';
     form.target_time_hours = 0;
@@ -59,7 +79,9 @@ function openCreate() {
 
 // `?new=1` (vom leeren Plan-Tab) öffnet gleich das Formular.
 onMounted(() => {
-    if (new URLSearchParams(window.location.search).get('new') === '1') openCreate();
+    const q = new URLSearchParams(window.location.search).get('new');
+    if (q === '1') openCreate();
+    if (q === 'open') openCreate('open');
 });
 
 function openEdit(event) {
@@ -73,6 +95,9 @@ function openEdit(event) {
     form.target_time_minutes = event.target_time_minutes;
     form.target_yards        = event.target_yards ?? '';
     form.notes               = event.notes ?? '';
+    form.goal_type           = event.goal_type ?? 'race';
+    form.open_focus          = event.open_focus ?? 'base';
+    form.open_test           = event.open_test ?? true;
     showModal.value = true;
 }
 
@@ -99,8 +124,17 @@ function submitForm() {
 // thisEventHasPlan: this event owns the active plan
 // anotherEventHasPlan: a *different* event owns the active plan → block
 function anotherEventHasPlan(event) {
+    // Ein Plan ohne Rennen sperrt nichts: das Rennen übernimmt ab Montag.
+    if (props.active_plan_is_open && event.goal_type !== 'open') return false;
     return props.active_plan_event_id !== null && props.active_plan_event_id !== event.id;
 }
+
+/** Das Rennen löst beim Erstellen den laufenden Plan ohne Rennen ab. */
+function takesOverOpenPlan(event) {
+    return props.active_plan_is_open && event.goal_type !== 'open' && !event.plan_generated_at;
+}
+
+const isOpen = (e) => e?.goal_type === 'open';
 
 // ── Delete ───────────────────────────────────────────────────────────────────
 const confirmingDelete = ref(null);
@@ -131,6 +165,7 @@ const backyardTargetKm = computed(() =>
 const PRIORITY_LABEL = { A: 'Hauptrennen', B: 'Wichtiges Rennen', C: 'Trainingsrennen' };
 
 function featuredLabel(e) {
+    if (isOpen(e)) return `Ohne Rennen · Block ${e.block_number ?? 1}`;
     return e.id === props.active_plan_event_id ? 'Zielrennen' : PRIORITY_LABEL[e.priority];
 }
 
@@ -152,6 +187,10 @@ function distance(e) {
 
 /** „21,1 km · Ziel 1:30:00" — die Zeile unter dem Namen. */
 function foot(e) {
+    if (isOpen(e)) {
+        const end = new Date(e.event_date + 'T00:00:00').toLocaleDateString('de-DE', { day: 'numeric', month: 'long' });
+        return `Block ${e.block_number ?? 1} · ${e.open_test ? `5-km-Test am ${end}` : `bis ${end}`}`;
+    }
     const parts = [distance(e)];
     if (e.target_seconds) parts.push(`Ziel ${clock(e.target_seconds)}`);
     else if (e.target_yards) parts.push(`Ziel ${e.target_yards} Yards`);
@@ -199,7 +238,7 @@ watch(() => form.race_distance, (val) => {
                 <template #action>
                     <button type="button" aria-label="Rennen hinzufügen"
                         class="flex h-11 w-11 items-center justify-center rounded-full text-accent transition-transform active:scale-90"
-                        @click="openCreate">
+                        @click="openCreate()">
                         <svg class="h-[22px] w-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
                     </button>
                 </template>
@@ -212,9 +251,12 @@ watch(() => form.race_distance, (val) => {
                 </div>
 
                 <AppCard v-if="events.length === 0">
-                    <EmptyState title="Noch kein Rennen"
-                        description="Trag dein nächstes Rennen ein, daraus entsteht dein Trainingsplan.">
-                        <AppButton @click="openCreate">Rennen eintragen</AppButton>
+                    <EmptyState title="Noch kein Ziel"
+                        description="Trag dein nächstes Rennen ein, daraus entsteht dein Trainingsplan. Ohne Rennen trainierst du in Blöcken zu zwölf Wochen.">
+                        <div class="flex flex-col gap-2 sm:flex-row">
+                            <AppButton @click="openCreate()">Rennen eintragen</AppButton>
+                            <AppButton variant="secondary" @click="openCreate('open')">Ohne Rennen trainieren</AppButton>
+                        </div>
                     </EmptyState>
                 </AppCard>
 
@@ -237,11 +279,12 @@ watch(() => form.race_distance, (val) => {
 
                             <div class="flex-1" />
 
-                            <p class="text-[15px] font-semibold text-white/80">{{ longDate(featured.event_date) }} · {{ distance(featured) }}</p>
+                            <p v-if="isOpen(featured)" class="text-[15px] font-semibold text-white/80">{{ foot(featured) }}</p>
+                            <p v-else class="text-[15px] font-semibold text-white/80">{{ longDate(featured.event_date) }} · {{ distance(featured) }}</p>
                             <h2 class="mt-1 text-[34px] font-extrabold leading-[1.05] tracking-[-0.035em] [overflow-wrap:anywhere]">{{ featured.name }}<span class="text-accent">.</span></h2>
                             <p class="mt-4 flex items-baseline gap-2.5">
                                 <span class="font-rounded text-[88px] font-extrabold leading-[0.9] tracking-[-0.05em]">{{ countdown(featured.days_until).value }}</span>
-                                <span class="text-[20px] font-semibold text-white/75">{{ countdown(featured.days_until).unit ? countdown(featured.days_until).unit + ' noch' : '' }}</span>
+                                <span class="text-[20px] font-semibold text-white/75">{{ countdown(featured.days_until).unit ? countdown(featured.days_until).unit + (isOpen(featured) ? (featured.open_test ? ' bis zum Test' : ' im Block') : ' noch') : '' }}</span>
                             </p>
 
                             <div v-if="featured.progress" class="mt-5">
@@ -330,8 +373,12 @@ watch(() => form.race_distance, (val) => {
         <!-- ── Details ───────────────────────────────────────────────────── -->
         <AppSheet :show="!!detail" :title="detail?.name ?? ''" max-width="lg" @close="detail = null">
             <template v-if="detail">
-                <p class="text-[15px] text-ink-3">{{ longDate(detail.event_date) }} · {{ foot(detail) }}</p>
-                <p class="mt-1 text-[15px] text-ink-3">{{ PRIORITY_LABEL[detail.priority] }} ({{ detail.priority }})</p>
+                <p v-if="isOpen(detail)" class="text-[15px] text-ink-3">{{ foot(detail) }}. Danach beginnt der nächste Block von selbst.</p>
+                <template v-else>
+                    <p class="text-[15px] text-ink-3">{{ longDate(detail.event_date) }} · {{ foot(detail) }}</p>
+                    <p class="mt-1 text-[15px] text-ink-3">{{ PRIORITY_LABEL[detail.priority] }} ({{ detail.priority }})</p>
+                </template>
+                <p v-if="takesOverOpenPlan(detail) && detail.days_until >= 0" class="mt-3 text-[15px] text-ink-2">Der Plan für dieses Rennen löst ab dem nächsten Montag deinen Plan ohne Rennen ab. Die laufende Woche bleibt, wie sie ist.</p>
                 <p v-if="detail.notes" class="mt-3 whitespace-pre-line text-[15px] text-ink-2">{{ detail.notes }}</p>
 
                 <div class="mt-5 divide-y divide-line overflow-hidden rounded-card bg-surface-2/60">
@@ -349,11 +396,20 @@ watch(() => form.race_distance, (val) => {
         <!-- ── Create/Edit Sheet ─────────────────────────────────────────── -->
         <AppSheet
             :show="showModal"
-            :title="editingEvent ? 'Rennen bearbeiten' : 'Neues Rennen'"
+            :title="isOpenForm ? (editingEvent ? 'Ziel bearbeiten' : 'Ohne Rennen trainieren') : (editingEvent ? 'Rennen bearbeiten' : 'Neues Rennen')"
             max-width="lg"
             @close="closeModal"
         >
             <form id="event-form" @submit.prevent="submitForm" class="space-y-4 pt-1">
+                <SegmentedControl v-if="!editingEvent" v-model="form.goal_type"
+                    :options="[{ value: 'race', label: 'Ein Rennen' }, { value: 'open', label: 'Ohne Rennen' }]" />
+
+                <template v-if="isOpenForm">
+                    <OpenGoalFields v-model="openFields" :with-start="!editingEvent" />
+                    <p v-for="(msg, key) in form.errors" :key="key" class="z-error">{{ msg }}</p>
+                </template>
+
+                <template v-else>
                 <!-- Priority -->
                 <div>
                     <label class="z-label">Priorität</label>
@@ -431,6 +487,7 @@ watch(() => form.race_distance, (val) => {
                     <label class="z-label">Notizen <span class="font-normal text-ink-3">(optional)</span></label>
                     <textarea v-model="form.notes" rows="2" placeholder="z.B. Kurs, Hotel, Motivation..." class="z-input resize-none" />
                 </div>
+                </template>
             </form>
 
             <template #footer>

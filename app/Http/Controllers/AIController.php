@@ -67,7 +67,7 @@ class AIController extends Controller
         ];
 
         // Upcoming events/races (today onwards, nearest first)
-        $upcomingEvents = $user->events()
+        $upcomingEvents = $user->events()->races()
             ->where('event_date', '>=', $today)
             ->orderBy('event_date')
             ->limit(5)
@@ -293,7 +293,7 @@ class AIController extends Controller
             ->where('status', 'planned')
             ->first();
 
-        $upcomingEvents = $user->events()
+        $upcomingEvents = $user->events()->races()
             ->where('event_date', '>=', $today)
             ->orderBy('event_date')
             ->limit(3)

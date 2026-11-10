@@ -15,6 +15,10 @@ class AutoUpdatePlans extends Command
 
     public function handle(): void
     {
+        // Ziele ohne Rennen zuerst in ihren laufenden Block ruecken — sonst
+        // faellt ein abgelaufener Block aus der Abfrage.
+        RollOpenBlocks::rollAll($this->option('user') ?: []);
+
         $today   = now()->startOfDay();
         $todayStr = $today->toDateString();
         $userIds = $this->option('user');

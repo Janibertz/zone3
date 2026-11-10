@@ -65,6 +65,7 @@ class PlanInterviewService
     private function lastBlock(User $user): ?array
     {
         $event = Event::where('user_id', $user->id)
+            ->where('goal_type', '!=', 'open')
             ->whereDate('event_date', '<', now()->toDateString())
             ->whereDate('event_date', '>=', now()->subMonths(3)->toDateString())
             ->orderByDesc('event_date')

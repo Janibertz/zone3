@@ -127,7 +127,7 @@ Route::middleware('auth')->group(function () {
 Route::get('/dashboard', function (ProgressService $progressService, TrainingLoadService $trainingLoadService, ReturnToRunService $returnToRunService) {
     $user = auth()->user();
 
-    $upcomingEvents = $user->events()
+    $upcomingEvents = $user->events()->races()
         ->where('event_date', '>=', now()->toDateString())
         ->orderBy('event_date')
         ->get()
@@ -480,7 +480,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 ->celebration($user->id, (int) $profile->pending_pr_activity_id);
             if (! $record) return null;
 
-            $race = \App\Models\Event::where('user_id', $user->id)
+            $race = \App\Models\Event::races()->where('user_id', $user->id)
                 ->where('event_date', '>=', now()->toDateString())
                 ->orderBy('event_date')
                 ->first();
@@ -757,6 +757,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
                 'date_label' => $next->event_date->locale('de')->translatedFormat('j. F Y'),
                 'distance'   => $next->distance_label,
                 'days_until' => $next->days_until,
+                'open'       => $next->isOpen(),
             ] : null,
         ]);
     })->name('plan.home');

@@ -359,6 +359,30 @@ class OnboardingController extends Controller
      */
     public function saveGoal(Request $request)
     {
+        // Ohne Rennen: Ausrichtung statt Rennen (Jan, 10.11.2026).
+        if ($request->input('goal_type') === 'open') {
+            $open = $request->validate([
+                'open_focus'    => 'required|in:base,speed,maintain',
+                'race_distance' => 'nullable|in:5km,10km',
+                'open_test'     => 'boolean',
+            ]);
+
+            $event = Event::where('user_id', Auth::id())
+                ->find($request->session()->get(self::GOAL_EVENT_KEY))
+                ?? new Event(['user_id' => Auth::id()]);
+            $event->fill(Event::openAttributes(
+                $open['open_focus'],
+                $open['race_distance'] ?? null,
+                (bool) ($open['open_test'] ?? true),
+            ));
+            $event->user_id = Auth::id();
+            $event->save();
+
+            $request->session()->put(self::GOAL_EVENT_KEY, $event->id);
+
+            return response()->json(['success' => true]);
+        }
+
         $validated = $request->validate([
             'name'                => 'nullable|string|max:150',
             'race_distance'       => 'required|string|in:5km,10km,half_marathon,marathon,custom,backyard_ultra',
@@ -370,6 +394,8 @@ class OnboardingController extends Controller
         ]);
 
         $attributes = [
+            'goal_type'           => 'race',
+            'open_focus'          => null,
             'name'                => $validated['name'] ?? null,
             'event_date'          => $validated['race_date'],
             'race_distance'       => $validated['race_distance'],

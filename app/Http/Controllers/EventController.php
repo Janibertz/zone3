@@ -15,6 +15,9 @@ class EventController extends Controller
 {
     public function index()
     {
+        // Ziele ohne Rennen zuerst in ihren laufenden Block ruecken.
+        \App\Console\Commands\RollOpenBlocks::rollAll([Auth::id()]);
+
         // Deactivate any plans whose event has already passed
         TrainingPlan::where('user_id', Auth::id())
             ->where('is_active', true)
@@ -41,11 +44,26 @@ class EventController extends Controller
             'events'              => $events,
             'status'              => session('status'),
             'active_plan_event_id' => $activePlan?->event_id,
+            'active_plan_is_open'  => (bool) $activePlan?->event?->isOpen(),
         ]);
     }
 
     public function store(Request $request)
     {
+        // Plan ohne Rennen: Ausrichtung, Testlauf, Start — Name und Blockende
+        // ergeben sich daraus.
+        if ($request->input('goal_type') === 'open') {
+            $open = $this->validateOpen($request);
+            Auth::user()->events()->create(Event::openAttributes(
+                $open['open_focus'],
+                $open['race_distance'] ?? null,
+                (bool) ($open['open_test'] ?? true),
+                $open['plan_start_date'] ?? null,
+            ));
+
+            return redirect()->route('events.index')->with('status', 'event-created');
+        }
+
         $validated = $request->validate([
             'name'                => 'required|string|max:150',
             'event_date'          => 'required|date|after:today',
@@ -66,6 +84,21 @@ class EventController extends Controller
     public function update(Request $request, Event $event)
     {
         abort_if($event->user_id !== Auth::id(), 403);
+
+        // Ein Ziel ohne Rennen ändert Ausrichtung und Testlauf; der laufende
+        // Block bleibt, wo er ist.
+        if ($event->isOpen()) {
+            $open = $this->validateOpen($request);
+            $attrs = Event::openAttributes($open['open_focus'], $open['race_distance'] ?? null, (bool) ($open['open_test'] ?? true));
+            $event->update([
+                'open_focus'    => $attrs['open_focus'],
+                'open_test'     => $attrs['open_test'],
+                'race_distance' => $attrs['race_distance'],
+                'name'          => $attrs['name'],
+            ]);
+
+            return redirect()->route('events.index')->with('status', 'event-updated');
+        }
 
         $validated = $request->validate([
             'name'                => 'required|string|max:150',
@@ -92,12 +125,23 @@ class EventController extends Controller
         return redirect()->route('events.index');
     }
 
+    /** @return array<string, mixed> */
+    private function validateOpen(Request $request): array
+    {
+        return $request->validate([
+            'open_focus'      => 'required|in:base,speed,maintain',
+            'race_distance'   => 'nullable|in:5km,10km',
+            'open_test'       => 'boolean',
+            'plan_start_date' => 'nullable|date|after_or_equal:today',
+        ]);
+    }
+
     private function formatEvent(Event $e, ?float $vdot = null): array
     {
         $plan = $e->latestPlan;
 
         // Alles in Sekunden — die Seite schreibt es wie eine Uhr (1:29:59).
-        $prediction = ($vdot && $e->days_until >= 0 && ! $e->isBackyard())
+        $prediction = ($vdot && $e->days_until >= 0 && ! $e->isBackyard() && ! $e->isOpen())
             ? app(RacePredictionService::class)->forVdot($vdot, $e->race_distance, $e->distance_km)
             : null;
         $resultMin = $plan && ($plan->actual_time_hours || $plan->actual_time_minutes)
@@ -107,6 +151,10 @@ class EventController extends Controller
         return [
             'id'                     => $e->id,
             'name'                   => $e->name,
+            'goal_type'              => $e->goal_type ?? 'race',
+            'open_focus'             => $e->open_focus,
+            'open_test'              => (bool) $e->open_test,
+            'block_number'           => $e->block_number,
             'event_date'             => $e->event_date->format('Y-m-d'),
             'race_distance'          => $e->race_distance,
             'distance_km'            => $e->distance_km,

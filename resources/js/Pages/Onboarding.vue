@@ -9,9 +9,10 @@ import AppButton from '@/Components/UI/AppButton.vue';
 import FormGroup from '@/Components/UI/FormGroup.vue';
 import FormRow from '@/Components/UI/FormRow.vue';
 import Toggle from '@/Components/UI/Toggle.vue';
+import OpenGoalFields from '@/Components/Goal/OpenGoalFields.vue';
 import Wordmark from '@/Components/Brand/Wordmark.vue';
 import CoachBubble from '@/Components/Onboarding/CoachBubble.vue';
-import { availabilityFeedback, goalFeedback } from '@/Composables/useOnboardingFeedback';
+import { availabilityFeedback, goalFeedback, openGoalFeedback } from '@/Composables/useOnboardingFeedback';
 import NotificationChoice from '@/Components/Settings/NotificationChoice.vue';
 import AppleHealthCard from '@/Components/Settings/AppleHealthCard.vue';
 import { isNativeApp } from '@/Composables/useNativeApp';
@@ -306,6 +307,10 @@ const goalForm = ref({
     race_date:           '',
 });
 
+// Plan ohne Rennen (10.11.2026): statt eines Rennens eine Ausrichtung.
+const goalMode = ref('race');
+const openGoal = ref({ open_focus: 'base', race_distance: '10km', open_test: true });
+
 const goalErrorList = computed(() => [...new Set(Object.values(goalErrors.value ?? {}).map(e => e?.[0]).filter(Boolean))]);
 const isBackyardGoal = computed(() => goalForm.value.race_distance === 'backyard_ultra');
 const backyardGoalKm = computed(() =>
@@ -349,7 +354,9 @@ const selectedRace = computed(() =>
 );
 
 // Der Coach antwortet beim Eintragen (Idee B, 10.11.2026).
-const goalReply = computed(() => goalFeedback(goalForm.value, selectedRace.value));
+const goalReply = computed(() => goalMode.value === 'open'
+    ? openGoalFeedback(openGoal.value)
+    : goalFeedback(goalForm.value, selectedRace.value));
 const availabilityReply = computed(() => availabilityFeedback(availability.value, days));
 
 // ── Strength & Core (Step 5) ─────────────────────────────────────────────
@@ -388,10 +395,9 @@ async function submitGoal() {
     goalErrors.value  = {};
     goalLoading.value = true;
     try {
-        await axios.post(route('onboarding.goal'), {
-            ...goalForm.value,
-            race_date: goalForm.value.race_date,
-        });
+        await axios.post(route('onboarding.goal'), goalMode.value === 'open'
+            ? { goal_type: 'open', ...openGoal.value }
+            : { ...goalForm.value, race_date: goalForm.value.race_date });
         nextStep();
     } catch (err) {
         if (err.response?.status === 422) {
@@ -788,6 +794,9 @@ const bar = computed(() => {
                     <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Was ist dein Ziel?</h1>
                     <CoachBubble class="mt-4" :coach="activeCoach" :name="firstName" :text="say('goal')" />
                 </header>
+                <SegmentedControl v-model="goalMode" :options="[{ value: 'race', label: 'Ein Rennen' }, { value: 'open', label: 'Ohne Rennen' }]" />
+                <OpenGoalFields v-if="goalMode === 'open'" v-model="openGoal" />
+                <template v-else>
                 <FormGroup title="Rennen">
                     <button v-for="opt in raceOptions" :key="opt.value" type="button" role="radio" :aria-checked="goalForm.race_distance === opt.value"
                         class="flex min-h-[48px] w-full items-center gap-3 px-4 py-2 text-left transition-colors active:bg-surface-2"
@@ -821,6 +830,7 @@ const bar = computed(() => {
                         </select>
                     </FormRow>
                 </FormGroup>
+                </template>
                 <CoachBubble v-if="goalReply" :coach="activeCoach" :name="firstName" :text="goalReply" aria-live="polite" />
                 <p v-for="msg in goalErrorList" :key="msg" class="z-error mx-4">{{ msg }}</p>
             </template>

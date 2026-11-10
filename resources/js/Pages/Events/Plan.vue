@@ -188,7 +188,7 @@ async function sharePlan() {
 
         const blob = await drawStory({
             photo: '/images/moments/rennen.jpg', focusX: 0.4,
-            eyebrow: 'Mein Weg zum Rennen',
+            eyebrow: isOpenGoal.value ? `Block ${props.event.block_number ?? 1}` : 'Mein Weg zum Rennen',
             label: e.name,
             value: target || `${e.days_until} Tage`,
             stats: stats.slice(0, 3),
@@ -831,6 +831,9 @@ const workoutTypeLabel = {
 };
 
 // ── Race Prediction ───────────────────────────────────────────────────────────
+// Plan ohne Rennen (10.11.2026): Block statt Renntag, Prognose für den Test.
+const isOpenGoal = computed(() => props.event?.goal_type === 'open');
+
 const prediction = computed(() => {
     const p = currentPlan.value;
     if (!p || !p.predicted_finish_time) return null;
@@ -1128,7 +1131,7 @@ const lapHeightPct = computed(() => {
                                 style="background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.35) 45%, rgba(0,0,0,0.88) 100%);" />
                             <div class="relative flex min-h-[230px] flex-col p-5">
                                 <div class="flex items-start justify-between gap-3">
-                                    <span class="rounded-full bg-white/20 px-2.5 py-1 text-[13px] font-semibold backdrop-blur-md">{{ PHASE_LABELS[event.phase] ?? 'Plan' }}</span>
+                                    <span class="rounded-full bg-white/20 px-2.5 py-1 text-[13px] font-semibold backdrop-blur-md">{{ isOpenGoal ? `Block ${event.block_number ?? 1} · ${event.progress?.phase ?? 'Plan'}` : (PHASE_LABELS[event.phase] ?? 'Plan') }}</span>
                                     <!-- Plan als Story teilen (Idee F, 10.11.2026). -->
                                     <button type="button" :disabled="sharingPlan" @click="sharePlan"
                                         class="-mr-1 -mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-white/20 backdrop-blur-md transition active:scale-90 disabled:opacity-60"
@@ -1140,7 +1143,7 @@ const lapHeightPct = computed(() => {
                                 <div class="flex-1" />
                                 <p class="flex items-baseline gap-2">
                                     <span class="font-rounded text-[56px] font-extrabold leading-none tracking-[-0.05em] tabular-nums">{{ event.days_until }}</span>
-                                    <span class="text-[17px] font-semibold text-white/80">{{ event.days_until === 1 ? 'Tag' : 'Tage' }} bis zum Rennen</span>
+                                    <span class="text-[17px] font-semibold text-white/80">{{ event.days_until === 1 ? 'Tag' : 'Tage' }} {{ isOpenGoal ? (event.open_test ? 'bis zum 5-km-Test' : `bis Block ${(event.block_number ?? 1) + 1}`) : 'bis zum Rennen' }}</span>
                                 </p>
 
                                 <div v-if="event.phase_segments?.length" class="mt-4">
@@ -1166,7 +1169,7 @@ const lapHeightPct = computed(() => {
                         <div v-if="prediction && !backyard" class="px-5 pb-5">
                         <div v-if="prediction && !backyard" class="grid grid-cols-2 gap-2 pt-4">
                             <div>
-                                <p class="text-[13px] text-ink-3">Prognose</p>
+                                <p class="text-[13px] text-ink-3">{{ isOpenGoal ? 'Prognose 5 km' : 'Prognose' }}</p>
                                 <p class="font-rounded text-[30px] font-bold leading-9 tracking-tight tabular-nums text-ink">{{ prediction.time }}</p>
                             </div>
                             <div v-if="event.target_time_formatted">

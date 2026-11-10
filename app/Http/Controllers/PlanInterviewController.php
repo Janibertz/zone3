@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\PlanInterview;
+use App\Models\TrainingPlan;
+use App\Models\Event;
 use App\Services\PlanInterviewService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -42,6 +44,13 @@ class PlanInterviewController extends Controller
             $event = Auth::user()->events()->find($request->integer('event'));
         }
 
+        // Löst das Rennen einen laufenden Plan ohne Rennen ab, beginnt es
+        // frühestens am nächsten Montag (Jan, 10.11.2026).
+        $earliest = now()->startOfDay();
+        if ($event && ! $event->isOpen() && \App\Services\Plan\OpenGoalHandover::activeOpenPlan(Auth::id(), $event->id)) {
+            $earliest = now()->startOfWeek()->addWeek()->startOfDay();
+        }
+
         return Inertia::render('Plan/Interview', [
             'prefill' => $service->prefill(Auth::user()),
             'latest'  => $this->latest(),
@@ -52,9 +61,12 @@ class PlanInterviewController extends Controller
                 'distance'   => $event->distance_label,
                 'days_until' => $event->days_until,
                 // Frühestens heute, spätestens am Vortag des Rennens.
-                'start_min'  => now()->toDateString(),
-                'start_max'  => $event->event_date->copy()->subDay()->toDateString(),
-                'start_date' => $event->planStartsOn()->toDateString(),
+                'start_min'  => $earliest->toDateString(),
+                // Ohne Rennen verschiebt ein späterer Start den Block mit.
+                'start_max'  => $event->isOpen()
+                    ? now()->addWeeks(8)->toDateString()
+                    : $event->event_date->copy()->subDay()->toDateString(),
+                'start_date' => max($event->planStartsOn()->toDateString(), $earliest->toDateString()),
             ] : null,
         ]);
     }
@@ -105,8 +117,9 @@ class PlanInterviewController extends Controller
         // Vor dem Speichern prüfen — sonst stünde ein Interview doppelt da,
         // sobald der Athlet das Datum korrigiert.
         if ($startDate && ! empty($data['event_id'])) {
-            $raceDay = Auth::user()->events()->findOrFail($data['event_id'])->event_date->toDateString();
-            if ($startDate >= $raceDay) {
+            $target  = Auth::user()->events()->findOrFail($data['event_id']);
+            $raceDay = $target->event_date->toDateString();
+            if (! $target->isOpen() && $startDate >= $raceDay) {
                 return back()->withErrors(['plan_start_date' => 'Der Plan muss vor dem Renntag beginnen.']);
             }
         }
@@ -136,6 +149,13 @@ class PlanInterviewController extends Controller
             $event->update([
                 'plan_start_date' => $startDate && $startDate > now()->toDateString() ? $startDate : null,
             ]);
+
+            // Ohne Rennen hängt das Blockende am Start: der erste Block hat
+            // zwölf Wochen ab der Startwoche, solange noch kein Plan läuft.
+            if ($event->isOpen() && (int) $event->block_number <= 1
+                && ! TrainingPlan::where('event_id', $event->id)->where('is_active', true)->exists()) {
+                $event->update(['event_date' => Event::openBlockEnd($event->planStartsOn())->toDateString()]);
+            }
 
             $when = $event->plan_start_date
                 ? ' Der Plan beginnt am ' . $event->plan_start_date->format('d.m.Y') . '.'

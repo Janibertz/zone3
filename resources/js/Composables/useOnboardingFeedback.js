@@ -44,6 +44,20 @@ export function goalFeedback(form, race) {
     return parts.join(' ');
 }
 
+/** Plan ohne Rennen: was der Block bringt, in zwei Sätzen. */
+export function openGoalFeedback(goal) {
+    const focus = {
+        base:     'Wir bauen erst Grundlage: viel locker, die Kilometer steigen langsam, eine ruhige harte Einheit pro Woche.',
+        speed:    `Wir arbeiten an deiner Zeit über ${goal.race_distance === '5km' ? '5' : '10'} km: erst Grundlage, dann Schwelle und Intervalle.`,
+        maintain: 'Wir halten, was du hast: gleicher Umfang, genug Reize, keine Steigerung um jeden Preis.',
+    }[goal.open_focus] ?? '';
+    const test = goal.open_test
+        ? 'Nach zwölf Wochen läufst du 5 km auf Zeit, dann sehen wir, was es gebracht hat.'
+        : 'Nach zwölf Wochen geht es ohne Test mit dem nächsten Block weiter.';
+
+    return `${focus} ${test}`.trim();
+}
+
 export function availabilityFeedback(availability, days) {
     const open = days.filter(d => availability[d.key]?.available);
     if (!open.length) return '';
