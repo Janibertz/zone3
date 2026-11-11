@@ -363,7 +363,9 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
         <footer class="border-t border-line px-5 pt-8 pb-[calc(2rem+env(safe-area-inset-bottom))]">
             <div class="mx-auto flex max-w-5xl flex-col items-center justify-between gap-3 text-[13px] text-ink-3 sm:flex-row">
                 <span>Zone3 · zone3.run</span>
-                <div class="flex gap-5">
+                <div class="flex flex-wrap justify-center gap-x-5 gap-y-2">
+                    <a href="/ratgeber" class="transition hover:text-ink-2">Ratgeber</a>
+                    <a href="/blog" class="transition hover:text-ink-2">Neu in Zone3</a>
                     <Link :href="route('privacy')" class="transition hover:text-ink-2">Datenschutz</Link>
                     <Link :href="route('impressum')" class="transition hover:text-ink-2">Impressum</Link>
                     <Link v-if="canLogin" :href="route('login')" class="transition hover:text-ink-2">Anmelden</Link>

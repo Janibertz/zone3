@@ -54,6 +54,14 @@ Route::get('/', function () {
 // leitet dauerhaft weiter; der Routenname bleibt, damit alte Verweise halten.
 Route::get('/privacy', fn() => Inertia::render('Privacy'))->name('privacy');
 
+// Ratgeber und Blog — öffentlich, als Blade-Seiten für Suchmaschinen.
+Route::get('/{kind}', [\App\Http\Controllers\ArticleController::class, 'index'])
+    ->whereIn('kind', array_keys(\App\Services\Content\Articles::KINDS))->name('articles.index');
+Route::get('/{kind}/{slug}', [\App\Http\Controllers\ArticleController::class, 'show'])
+    ->whereIn('kind', array_keys(\App\Services\Content\Articles::KINDS))
+    ->where('slug', '[a-z0-9-]+')->name('articles.show');
+Route::get('/sitemap.xml', [\App\Http\Controllers\ArticleController::class, 'sitemap'])->name('sitemap');
+
 // Impressum mit Kontaktformular — öffentlich wie /privacy.
 Route::get('/impressum', [ContactController::class, 'show'])->name('impressum');
 Route::post('/kontakt', [ContactController::class, 'store'])->middleware('throttle:5,10')->name('contact.store');
