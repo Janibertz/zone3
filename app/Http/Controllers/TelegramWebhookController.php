@@ -60,13 +60,23 @@ class TelegramWebhookController extends Controller
         $chatId = (int) ($message['chat']['id'] ?? 0);
         $text   = trim((string) ($message['text'] ?? ''));
 
-        if (! $chatId || $text === '') {
+        if (! $chatId) {
             return;
         }
 
         // Nur Einzelchats. In einer Gruppe läsen andere mit, was der Coach
         // über Ruhepuls und Schlaf schreibt.
         if (($message['chat']['type'] ?? 'private') !== 'private') {
+            return;
+        }
+
+        // Bild, Sprache, Datei: der Coach liest nur Text. Vorher verschwand
+        // so eine Nachricht ohne Antwort (Jan, 11.11.2026: Hinweis + „in Planung“).
+        if ($text === '') {
+            if ($this->isMedia($message) && User::where('telegram_chat_id', $chatId)->exists()) {
+                $this->telegram->sendMessage($chatId, self::MEDIA_HINT);
+            }
+
             return;
         }
 
@@ -92,7 +102,20 @@ class TelegramWebhookController extends Controller
         };
     }
 
-    private const HELP = "Schreib mir einfach, wie bei einem Trainer — ich kann deinen Plan auch ändern.\n\n"
+    private const MEDIA_HINT = "Bilder und Sprachnachrichten kann ich noch nicht lesen — das ist in Planung. Schreib mir bis dahin bitte kurz als Text.";
+
+    private const MEDIA_KEYS = ['photo', 'voice', 'audio', 'video', 'video_note', 'document', 'sticker', 'animation'];
+
+    private function isMedia(array $message): bool
+    {
+        foreach (self::MEDIA_KEYS as $key) {
+            if (isset($message[$key])) return true;
+        }
+
+        return false;
+    }
+
+    private const HELP ="Schreib mir einfach, wie bei einem Trainer — ich kann deinen Plan auch ändern.\n\n"
         . "/heute — was heute ansteht\n"
         . "/stop — Telegram von Zone3 trennen";
 
