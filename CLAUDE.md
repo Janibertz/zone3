@@ -1005,6 +1005,7 @@ Seit 27.10.2026 kommt niemand mehr ohne Einladung auf die Plattform (Entscheidun
 - `RegisteredUserController::store()` prüft beim Absenden **noch einmal** und sperrt die Zeile (`lockForUpdate`) — zwei gleichzeitige Absendungen mit demselben Link bekommen nicht beide ein Konto. Eine Absendung mit falschem Passwort verbraucht den Link nicht.
 - Ohne gültigen Link zeigt `/register` den Hinweis „Nur auf Einladung" statt des Formulars. Die Startseite und der Login bieten kein Registrieren mehr an.
 - Strava ist kein zweiter Weg hinein: es wird erst nach dem Login verbunden.
+- **Links für mehrere** (seit 11.11.2026, Jan: „ein öffentlicher Einladungslink, der für mehrere gültig ist“): im Admin „Für mehrere“ wählen, dann höchstens N Konten (`max_uses`, leer = beliebig viele), Laufzeit bis 365 Tage und eine Quelle (`source`, z. B. `freunde`), die als `signup_source` am Konto landet. `uses_count` zählt unter derselben Zeilensperre hoch (`Invitation::redeem()`), `users.invitation_id` sagt, wer über welchen Link kam. Zurückziehen geht, solange Plätze frei sind; die Konten bleiben. Auch ein Link für mehrere umgeht die Warteliste.
 
 ### Anmelden ohne Passwort und Warteliste (seit 09.11.2026)
 

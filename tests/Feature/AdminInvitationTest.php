@@ -61,11 +61,60 @@ class AdminInvitationTest extends TestCase
     {
         $user = User::factory()->create();
         $invite = Invitation::issue(null);
-        $invite->update(['used_at' => now(), 'used_by' => $user->id]);
+        $invite->redeem($user);
 
         $this->actingAs($this->admin())->post("/admin/invitations/{$invite->id}/revoke");
 
         $this->assertNull($invite->fresh()->revoked_at);
         $this->assertSame('used', $invite->fresh()->status());
+    }
+
+    public function test_admin_creates_a_link_for_several_people(): void
+    {
+        $this->actingAs($this->admin())->post('/admin/invitations', [
+            'note' => 'Freunde', 'multi' => true, 'max_uses' => 3, 'days' => 90, 'source' => 'Freunde',
+        ])->assertRedirect();
+
+        $invite = Invitation::sole();
+        $this->assertSame(3, $invite->max_uses);
+        $this->assertSame('freunde', $invite->source);
+        $this->assertTrue($invite->expires_at->between(now()->addDays(90)->subMinute(), now()->addDays(90)->addMinute()));
+    }
+
+    public function test_a_link_for_several_people_admits_up_to_its_limit(): void
+    {
+        $invite = Invitation::issue(null, 'Freunde', 2, 90, 'freunde');
+
+        foreach (['a', 'b'] as $n) {
+            $this->post('/register', [
+                'invite' => $invite->token, 'name' => "Läufer {$n}", 'email' => "{$n}@example.com",
+                'password' => 'secret-pass-123', 'password_confirmation' => 'secret-pass-123',
+            ])->assertRedirect();
+            auth()->logout();
+        }
+
+        $this->post('/register', [
+            'invite' => $invite->token, 'name' => 'Läufer c', 'email' => 'c@example.com',
+            'password' => 'secret-pass-123', 'password_confirmation' => 'secret-pass-123',
+        ])->assertSessionHasErrors('invite');
+
+        $invite->refresh();
+        $this->assertSame(2, $invite->uses_count);
+        $this->assertSame('used', $invite->status());
+        $this->assertSame(['freunde', 'freunde'], User::where('invitation_id', $invite->id)->pluck('signup_source')->all());
+        $this->assertNull(User::where('email', 'c@example.com')->first());
+    }
+
+    public function test_a_link_without_limit_stays_open_and_can_be_revoked_after_use(): void
+    {
+        $invite = Invitation::issue(null, null, null, 30);
+        $invite->redeem(User::factory()->create());
+        $invite->redeem(User::factory()->create());
+
+        $this->assertTrue($invite->fresh()->isUsable());
+
+        $this->actingAs($this->admin())->post("/admin/invitations/{$invite->id}/revoke");
+        $this->assertSame('revoked', $invite->fresh()->status());
+        $this->assertSame(2, User::where('invitation_id', $invite->id)->count());
     }
 }

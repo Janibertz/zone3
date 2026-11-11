@@ -45,12 +45,18 @@ function since(value) {
 const page  = usePage();
 const flash = computed(() => page.props.flash ?? {});
 
-const form = useForm({ note: '' });
+const form = useForm({ note: '', multi: false, max_uses: '', days: 14, source: '' });
+
+function pickKind(multi) {
+    form.multi = multi;
+    form.days = multi ? 90 : 14;
+}
 
 function create() {
     form.post(route('admin.invitations.store'), {
         preserveScroll: true,
         onSuccess: () => form.reset(),
+        transform: (d) => ({ ...d, max_uses: d.max_uses === '' ? null : Number(d.max_uses) }),
     });
 }
 
@@ -162,17 +168,48 @@ function when(value) {
                 <div class="px-6 py-4 border-b border-line">
                     <h2 class="text-sm font-semibold text-ink-2">Einladungslink erstellen</h2>
                     <p class="text-xs text-ink-3 mt-0.5">
-                        Wer über diesen Link kommt, ist sofort drin, an der Warteliste vorbei. Er gilt für jeden, der ihn hat,
-                        aber nur einmal und höchstens {{ validDays }} Tage. Die Notiz ist nur für dich.
+                        Wer über diesen Link kommt, ist sofort drin, an der Warteliste vorbei. Er gilt für jeden, der ihn hat.
+                        Für eine Person einmal und {{ validDays }} Tage; für mehrere so oft und so lange, wie du einstellst.
+                        Die Notiz ist nur für dich, die Quelle steht später am Konto.
                     </p>
                 </div>
-                <form class="px-6 py-4 flex flex-col gap-3 sm:flex-row" @submit.prevent="create">
+                <form class="px-6 py-4 space-y-3" @submit.prevent="create">
+                    <div class="grid grid-cols-2 gap-2">
+                        <button
+                            v-for="opt in [{ multi: false, label: 'Für eine Person', hint: 'Einmal, 14 Tage' }, { multi: true, label: 'Für mehrere', hint: 'z. B. Freunde, Lauftreff' }]"
+                            :key="opt.label"
+                            type="button"
+                            class="rounded-field px-4 py-3 text-left transition active:scale-[0.98]"
+                            :class="form.multi === opt.multi ? 'bg-accent text-white' : 'bg-surface-2 text-ink'"
+                            @click="pickKind(opt.multi)">
+                            <span class="block text-sm font-semibold">{{ opt.label }}</span>
+                            <span class="block text-xs" :class="form.multi === opt.multi ? 'text-white/80' : 'text-ink-3'">{{ opt.hint }}</span>
+                        </button>
+                    </div>
                     <input
                         v-model="form.note"
                         type="text"
                         maxlength="120"
-                        placeholder="Notiz, z. B. „für Christopher“"
-                        class="flex-1 rounded-field border-line bg-canvas text-base sm:text-sm text-ink placeholder:text-ink-3" />
+                        :placeholder="form.multi ? 'Notiz, z. B. „Freunde per DM“' : 'Notiz, z. B. „für Christopher“'"
+                        class="w-full rounded-field border-line bg-canvas text-base sm:text-sm text-ink placeholder:text-ink-3" />
+                    <div v-if="form.multi" class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <label class="block">
+                            <span class="block text-xs text-ink-3 mb-1">Höchstens Konten</span>
+                            <input v-model="form.max_uses" type="number" min="2" inputmode="numeric" placeholder="beliebig viele"
+                                class="w-full rounded-field border-line bg-canvas text-base sm:text-sm text-ink placeholder:text-ink-3" />
+                        </label>
+                        <label class="block">
+                            <span class="block text-xs text-ink-3 mb-1">Gültig (Tage)</span>
+                            <input v-model.number="form.days" type="number" min="1" max="365" inputmode="numeric"
+                                class="w-full rounded-field border-line bg-canvas text-base sm:text-sm text-ink" />
+                        </label>
+                        <label class="block">
+                            <span class="block text-xs text-ink-3 mb-1">Quelle</span>
+                            <input v-model="form.source" type="text" maxlength="40" placeholder="z. B. freunde"
+                                class="w-full rounded-field border-line bg-canvas text-base sm:text-sm text-ink placeholder:text-ink-3" />
+                        </label>
+                    </div>
+                    <p v-for="(msg, key) in form.errors" :key="key" class="text-xs text-danger-ink">{{ msg }}</p>
                     <button
                         type="submit"
                         :disabled="form.processing"
@@ -195,9 +232,22 @@ function when(value) {
                 <div v-else class="divide-y divide-line">
                     <div v-for="inv in open" :key="inv.id" class="px-6 py-3 space-y-2">
                         <div class="flex flex-wrap items-baseline justify-between gap-2">
-                            <span class="text-sm font-medium text-ink">{{ inv.note || 'Ohne Notiz' }}</span>
+                            <span class="text-sm font-medium text-ink">
+                                {{ inv.note || 'Ohne Notiz' }}
+                                <span v-if="inv.multi" class="ml-1 text-xs font-normal text-accent-ink">für mehrere</span>
+                            </span>
                             <span class="text-xs text-ink-3">gültig bis {{ when(inv.expires_at) }}</span>
                         </div>
+                        <p v-if="inv.multi" class="text-xs text-ink-3">
+                            {{ inv.uses_count }} {{ inv.max_uses ? 'von ' + inv.max_uses : '' }} {{ inv.uses_count === 1 ? 'Konto' : 'Konten' }}
+                            <template v-if="inv.source"> · Quelle „{{ inv.source }}“</template>
+                            <template v-if="inv.redeemers.length">
+                                ·
+                                <template v-for="(r, idx) in inv.redeemers" :key="r.id">
+                                    <Link :href="route('admin.users.show', r.id)" class="hover:text-accent-ink">{{ r.name }}</Link><span v-if="idx < inv.redeemers.length - 1">, </span>
+                                </template>
+                            </template>
+                        </p>
                         <p class="text-xs text-ink-3 font-mono break-all select-all">{{ inv.url }}</p>
                         <div class="flex gap-2">
                             <button
@@ -228,7 +278,10 @@ function when(value) {
                         </div>
                         <span class="text-xs" :class="statusLabels[inv.status]?.cls">
                             {{ statusLabels[inv.status]?.text }}
-                            <template v-if="inv.redeemer">
+                            <template v-if="inv.multi">
+                                · {{ inv.uses_count }} {{ inv.uses_count === 1 ? 'Konto' : 'Konten' }}
+                            </template>
+                            <template v-else-if="inv.redeemer">
                                 von
                                 <Link :href="route('admin.users.show', inv.redeemer.id)" class="hover:text-accent-ink">
                                     {{ inv.redeemer.name }}

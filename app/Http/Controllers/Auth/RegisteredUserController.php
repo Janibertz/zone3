@@ -65,10 +65,10 @@ class RegisteredUserController extends Controller
                 'name' => $request->name,
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
-                'signup_source' => SignupSource::current() ?? SignupSource::INVITATION,
+                'signup_source' => $invitation->source ?? SignupSource::current() ?? SignupSource::INVITATION,
             ]);
 
-            $invitation->update(['used_at' => now(), 'used_by' => $user->id]);
+            $invitation->redeem($user);
 
             return $user;
         });

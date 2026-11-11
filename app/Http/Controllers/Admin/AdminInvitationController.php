@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Invitation;
 use App\Models\User;
 use App\Services\Auth\Access;
+use App\Services\Auth\SignupSource;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -25,7 +26,7 @@ class AdminInvitationController extends Controller
 {
     public function index(): Response
     {
-        $invitations = Invitation::with(['creator:id,name', 'redeemer:id,name'])
+        $invitations = Invitation::with(['creator:id,name', 'redeemer:id,name', 'redeemers:id,name,invitation_id'])
             ->latest()
             ->limit(100)
             ->get()
@@ -39,6 +40,13 @@ class AdminInvitationController extends Controller
                 'used_at'    => $i->used_at?->toIso8601String(),
                 'creator'    => $i->creator?->name,
                 'redeemer'   => $i->redeemer ? ['id' => $i->redeemer->id, 'name' => $i->redeemer->name] : null,
+                'multi'      => $i->isMulti(),
+                'max_uses'   => $i->max_uses,
+                'uses_count' => $i->uses_count,
+                'source'     => $i->source,
+                'redeemers'  => $i->isMulti()
+                    ? $i->redeemers->map(fn (User $u) => ['id' => $u->id, 'name' => $u->name])->values()
+                    : [],
             ]);
 
         $waiting = User::whereNotNull('waitlisted_at')
@@ -63,12 +71,24 @@ class AdminInvitationController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'note' => 'nullable|string|max:120',
+            'note'     => 'nullable|string|max:120',
+            'multi'    => 'nullable|boolean',
+            'max_uses' => 'nullable|integer|min:2|max:10000',
+            'days'     => 'nullable|integer|min:1|max:' . Invitation::MAX_DAYS,
+            'source'   => 'nullable|string|max:40',
         ]);
 
-        Invitation::issue($request->user(), $data['note'] ?? null);
+        $multi = (bool) ($data['multi'] ?? false);
 
-        return back()->with('success', 'Einladungslink erstellt.');
+        Invitation::issue(
+            $request->user(),
+            $data['note'] ?? null,
+            $multi ? ($data['max_uses'] ?? null) : 1,
+            (int) ($data['days'] ?? Invitation::VALID_DAYS),
+            SignupSource::clean($data['source'] ?? null),
+        );
+
+        return back()->with('success', $multi ? 'Link für mehrere erstellt.' : 'Einladungslink erstellt.');
     }
 
     /** Warteliste oder offen — gilt für Apple und den Link per Mail. */
@@ -99,10 +119,13 @@ class AdminInvitationController extends Controller
         return back()->with('success', "{$name} wurde abgelehnt und gelöscht.");
     }
 
-    /** Zurückziehen, solange er nicht eingelöst ist. Ein Konto bleibt bestehen. */
+    /**
+     * Zurückziehen, solange er noch Plätze hat. Ein Link für mehrere lässt
+     * sich auch nach dem ersten Konto zurückziehen; Konten bleiben bestehen.
+     */
     public function revoke(Invitation $invitation): RedirectResponse
     {
-        if ($invitation->used_at === null && $invitation->revoked_at === null) {
+        if (! $invitation->isFull() && $invitation->revoked_at === null) {
             $invitation->update(['revoked_at' => now()]);
         }
 
