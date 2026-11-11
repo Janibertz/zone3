@@ -23,11 +23,11 @@ use Illuminate\Notifications\Notifiable;
     'avatar', 'bio', 'location', 'birth_year', 'favorite_distance', 'coach_id',
     'ai_daily_limit', 'ai_daily_budget_eur', 'activity_source', 'garmin_workout_sync', 'apple_watch_sync', 'strava_allowed',
     'newsletter_opt_in', 'unsubscribe_token',
-    'telegram_chat_id', 'telegram_link_token', 'telegram_linked_at', 'calendar_token',
+    'telegram_chat_id', 'telegram_link_token', 'telegram_linked_at', 'calendar_token', 'widget_token',
     'dashboard_layout', 'apple_health_consent_at', 'apple_health_synced_at', 'apple_activities_synced_at',
     'moment_week_seen', 'moment_race_seen'])]
 #[Hidden(['password', 'remember_token', 'unsubscribe_token', 'apple_sub',
-    'telegram_chat_id', 'telegram_link_token', 'calendar_token'])]
+    'telegram_chat_id', 'telegram_link_token', 'calendar_token', 'widget_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */

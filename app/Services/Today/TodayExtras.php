@@ -48,6 +48,7 @@ class TodayExtras
             'open_test'  => (bool) $event->open_test,
             'block'      => (int) $event->block_number,
             'days'       => $event->days_until,
+            'date'       => $event->event_date->toDateString(),
             'date_label' => $event->event_date->locale('de')->translatedFormat('j. F Y'),
             'target'     => $event->target_time_formatted,
             'progress'   => $plan && $plan->event_id === $event->id ? app(PeriodizationService::class)->progress($event) : null,

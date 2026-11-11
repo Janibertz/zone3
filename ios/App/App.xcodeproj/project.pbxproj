@@ -19,7 +19,45 @@
 		9582B6912FE993A70072D4E8 /* ZoneBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6902FE993A70072D4E8 /* ZoneBridgeViewController.swift */; };
 		9582B6932FE993A70072D4E8 /* WatchWorkoutsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6922FE993A70072D4E8 /* WatchWorkoutsPlugin.swift */; };
 		9582B6952FE993A70072D4E8 /* AppleSignInPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6942FE993A70072D4E8 /* AppleSignInPlugin.swift */; };
+		7A3E000000112FF2A0C1D00D /* Feed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A3E000000012FF2A0C1D00D /* Feed.swift */; };
+		7A3E000000122FF2A0C1D00D /* Style.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A3E000000022FF2A0C1D00D /* Style.swift */; };
+		7A3E000000132FF2A0C1D00D /* TodayViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A3E000000032FF2A0C1D00D /* TodayViews.swift */; };
+		7A3E000000142FF2A0C1D00D /* Zone3Widget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A3E000000042FF2A0C1D00D /* Zone3Widget.swift */; };
+		7A3E000000152FF2A0C1D00D /* WidgetFeedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A3E000000052FF2A0C1D00D /* WidgetFeedStore.swift */; };
+		7A3E000000162FF2A0C1D00D /* WidgetFeedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A3E000000052FF2A0C1D00D /* WidgetFeedStore.swift */; };
+		7A3E000000172FF2A0C1D00D /* ZoneWidgetPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A3E000000062FF2A0C1D00D /* ZoneWidgetPlugin.swift */; };
+		7A3E000000182FF2A0C1D00D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7A3E000000072FF2A0C1D00D /* Assets.xcassets */; };
+		7A3E000000192FF2A0C1D00D /* Inter-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7A3E0000000A2FF2A0C1D00D /* Inter-SemiBold.ttf */; };
+		7A3E0000001A2FF2A0C1D00D /* Inter-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7A3E0000000B2FF2A0C1D00D /* Inter-Bold.ttf */; };
+		7A3E0000001B2FF2A0C1D00D /* Inter-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7A3E0000000C2FF2A0C1D00D /* Inter-ExtraBold.ttf */; };
+		7A3E0000001C2FF2A0C1D00D /* Zone3Widget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7A3E0000000E2FF2A0C1D00D /* Zone3Widget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		7A3E0000001D2FF2A0C1D00D /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A3E0000000F2FF2A0C1D00D /* WidgetKit.framework */; };
+		7A3E0000001E2FF2A0C1D00D /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A3E000000102FF2A0C1D00D /* SwiftUI.framework */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		7A3E0000002C2FF2A0C1D00D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7A3E000000232FF2A0C1D00D;
+			remoteInfo = Zone3Widget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		7A3E0000002A2FF2A0C1D00D /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				7A3E0000001C2FF2A0C1D00D /* Zone3Widget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
@@ -36,6 +74,22 @@
 		9582B6902FE993A70072D4E8 /* ZoneBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneBridgeViewController.swift; sourceTree = "<group>"; };
 		9582B6922FE993A70072D4E8 /* WatchWorkoutsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchWorkoutsPlugin.swift; sourceTree = "<group>"; };
 		9582B6942FE993A70072D4E8 /* AppleSignInPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInPlugin.swift; sourceTree = "<group>"; };
+		7A3E000000012FF2A0C1D00D /* Feed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Feed.swift; sourceTree = "<group>"; };
+		7A3E000000022FF2A0C1D00D /* Style.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Style.swift; sourceTree = "<group>"; };
+		7A3E000000032FF2A0C1D00D /* TodayViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayViews.swift; sourceTree = "<group>"; };
+		7A3E000000042FF2A0C1D00D /* Zone3Widget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Zone3Widget.swift; sourceTree = "<group>"; };
+		7A3E000000052FF2A0C1D00D /* WidgetFeedStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetFeedStore.swift; sourceTree = "<group>"; };
+		7A3E000000062FF2A0C1D00D /* ZoneWidgetPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneWidgetPlugin.swift; sourceTree = "<group>"; };
+		7A3E000000072FF2A0C1D00D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		7A3E000000082FF2A0C1D00D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		7A3E000000092FF2A0C1D00D /* Zone3Widget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Zone3Widget.entitlements; sourceTree = "<group>"; };
+		7A3E0000000A2FF2A0C1D00D /* Inter-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Inter-SemiBold.ttf"; sourceTree = "<group>"; };
+		7A3E0000000B2FF2A0C1D00D /* Inter-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Inter-Bold.ttf"; sourceTree = "<group>"; };
+		7A3E0000000C2FF2A0C1D00D /* Inter-ExtraBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Inter-ExtraBold.ttf"; sourceTree = "<group>"; };
+		7A3E0000000D2FF2A0C1D00D /* Inter-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Inter-LICENSE.txt"; sourceTree = "<group>"; };
+		7A3E0000000E2FF2A0C1D00D /* Zone3Widget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = Zone3Widget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		7A3E0000000F2FF2A0C1D00D /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		7A3E000000102FF2A0C1D00D /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -47,6 +101,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		7A3E000000292FF2A0C1D00D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7A3E0000001E2FF2A0C1D00D /* SwiftUI.framework in Frameworks */,
+				7A3E0000001D2FF2A0C1D00D /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -55,6 +118,9 @@
 			children = (
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
+				7A3E0000001F2FF2A0C1D00D /* Zone3Widget */,
+				7A3E000000202FF2A0C1D00D /* Shared */,
+				7A3E000000222FF2A0C1D00D /* Frameworks */,
 				504EC3051FED79650016851F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -63,6 +129,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				7A3E0000000E2FF2A0C1D00D /* Zone3Widget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -73,6 +140,7 @@
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
 				9582B6922FE993A70072D4E8 /* WatchWorkoutsPlugin.swift */,
 				9582B6942FE993A70072D4E8 /* AppleSignInPlugin.swift */,
+				7A3E000000062FF2A0C1D00D /* ZoneWidgetPlugin.swift */,
 				9582B6902FE993A70072D4E8 /* ZoneBridgeViewController.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
@@ -86,6 +154,49 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		7A3E0000001F2FF2A0C1D00D /* Zone3Widget */ = {
+			isa = PBXGroup;
+			children = (
+				7A3E000000042FF2A0C1D00D /* Zone3Widget.swift */,
+				7A3E000000012FF2A0C1D00D /* Feed.swift */,
+				7A3E000000032FF2A0C1D00D /* TodayViews.swift */,
+				7A3E000000022FF2A0C1D00D /* Style.swift */,
+				7A3E000000072FF2A0C1D00D /* Assets.xcassets */,
+				7A3E000000212FF2A0C1D00D /* Fonts */,
+				7A3E000000082FF2A0C1D00D /* Info.plist */,
+				7A3E000000092FF2A0C1D00D /* Zone3Widget.entitlements */,
+			);
+			path = Zone3Widget;
+			sourceTree = "<group>";
+		};
+		7A3E000000212FF2A0C1D00D /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				7A3E0000000A2FF2A0C1D00D /* Inter-SemiBold.ttf */,
+				7A3E0000000B2FF2A0C1D00D /* Inter-Bold.ttf */,
+				7A3E0000000C2FF2A0C1D00D /* Inter-ExtraBold.ttf */,
+				7A3E0000000D2FF2A0C1D00D /* Inter-LICENSE.txt */,
+			);
+			path = Fonts;
+			sourceTree = "<group>";
+		};
+		7A3E000000202FF2A0C1D00D /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				7A3E000000052FF2A0C1D00D /* WidgetFeedStore.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		7A3E000000222FF2A0C1D00D /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				7A3E0000000F2FF2A0C1D00D /* WidgetKit.framework */,
+				7A3E000000102FF2A0C1D00D /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -96,10 +207,12 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				7A3E0000002A2FF2A0C1D00D /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				7A3E0000002B2FF2A0C1D00D /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -108,6 +221,23 @@
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
+		};
+		7A3E000000232FF2A0C1D00D /* Zone3Widget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7A3E000000242FF2A0C1D00D /* Build configuration list for PBXNativeTarget "Zone3Widget" */;
+			buildPhases = (
+				7A3E000000272FF2A0C1D00D /* Sources */,
+				7A3E000000292FF2A0C1D00D /* Frameworks */,
+				7A3E000000282FF2A0C1D00D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Zone3Widget;
+			productName = Zone3Widget;
+			productReference = 7A3E0000000E2FF2A0C1D00D /* Zone3Widget.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -121,6 +251,10 @@
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
 						LastSwiftMigration = 1100;
+						ProvisioningStyle = Automatic;
+					};
+					7A3E000000232FF2A0C1D00D = {
+						CreatedOnToolsVersion = 15.0;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -142,6 +276,7 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				7A3E000000232FF2A0C1D00D /* Zone3Widget */,
 			);
 		};
 /* End PBXProject section */
@@ -160,6 +295,17 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		7A3E000000282FF2A0C1D00D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7A3E000000182FF2A0C1D00D /* Assets.xcassets in Resources */,
+				7A3E000000192FF2A0C1D00D /* Inter-SemiBold.ttf in Resources */,
+				7A3E0000001A2FF2A0C1D00D /* Inter-Bold.ttf in Resources */,
+				7A3E0000001B2FF2A0C1D00D /* Inter-ExtraBold.ttf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -172,10 +318,32 @@
 				9582B6932FE993A70072D4E8 /* WatchWorkoutsPlugin.swift in Sources */,
 				9582B6952FE993A70072D4E8 /* AppleSignInPlugin.swift in Sources */,
 				9582B6912FE993A70072D4E8 /* ZoneBridgeViewController.swift in Sources */,
+				7A3E000000172FF2A0C1D00D /* ZoneWidgetPlugin.swift in Sources */,
+				7A3E000000162FF2A0C1D00D /* WidgetFeedStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7A3E000000272FF2A0C1D00D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7A3E000000142FF2A0C1D00D /* Zone3Widget.swift in Sources */,
+				7A3E000000112FF2A0C1D00D /* Feed.swift in Sources */,
+				7A3E000000132FF2A0C1D00D /* TodayViews.swift in Sources */,
+				7A3E000000122FF2A0C1D00D /* Style.swift in Sources */,
+				7A3E000000152FF2A0C1D00D /* WidgetFeedStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		7A3E0000002B2FF2A0C1D00D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7A3E000000232FF2A0C1D00D /* Zone3Widget */;
+			targetProxy = 7A3E0000002C2FF2A0C1D00D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		504EC30B1FED79650016851F /* Main.storyboard */ = {
@@ -352,6 +520,56 @@
 			};
 			name = Release;
 		};
+		7A3E000000252FF2A0C1D00D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Zone3Widget/Zone3Widget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Zone3Widget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = run.zone3.app.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		7A3E000000262FF2A0C1D00D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Zone3Widget/Zone3Widget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Zone3Widget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = run.zone3.app.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -369,6 +587,15 @@
 			buildConfigurations = (
 				504EC3171FED79650016851F /* Debug */,
 				504EC3181FED79650016851F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7A3E000000242FF2A0C1D00D /* Build configuration list for PBXNativeTarget "Zone3Widget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7A3E000000252FF2A0C1D00D /* Debug */,
+				7A3E000000262FF2A0C1D00D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

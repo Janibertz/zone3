@@ -12,6 +12,11 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)run.zone3.app</string>
+		<string>$(AppIdentifierPrefix)run.zone3.shared</string>
+	</array>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:zone3.run</string>

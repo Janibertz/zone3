@@ -1,4 +1,5 @@
 <script setup>
+import { clearWidget } from '@/Composables/useWidget';
 import { computed } from 'vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
@@ -155,7 +156,7 @@ const groups = computed(() => [
                 </section>
 
                 <div class="overflow-hidden rounded-card bg-surface">
-                    <Link :href="route('logout')" method="post" as="button"
+                    <Link :href="route('logout')" method="post" as="button" @click="clearWidget"
                         class="flex min-h-[48px] w-full items-center justify-center text-[17px] text-danger transition-colors active:bg-surface-2">
                         Abmelden
                     </Link>

@@ -642,6 +642,8 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::delete('/profile/telegram', [\App\Http\Controllers\TelegramLinkController::class, 'destroy'])->name('telegram.unlink');
     Route::post('/profile/calendar', [\App\Http\Controllers\CalendarFeedController::class, 'store'])->name('calendar-feed.store');
     Route::delete('/profile/calendar', [\App\Http\Controllers\CalendarFeedController::class, 'destroy'])->name('calendar-feed.destroy');
+    // iOS-Widget: die App holt den Token und legt ihn für das Widget ab.
+    Route::post('/widget/token', [\App\Http\Controllers\WidgetController::class, 'token'])->name('widget.token');
     Route::patch('/profile/garmin-workout-sync', [ProfileController::class, 'updateGarminWorkoutSync'])->name('profile.garmin-workout-sync');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
@@ -908,6 +910,11 @@ Route::get('/calendar/{token}.ics', [\App\Http\Controllers\CalendarFeedControlle
     ->where('token', '[A-Za-z0-9]{48}')
     ->middleware('throttle:60,1')
     ->name('calendar-feed.show');
+// iOS-Widget: ohne Login wie das Kalender-Abo, der Token ist der Schutz (WidgetController).
+Route::get('/widget/{token}.json', [\App\Http\Controllers\WidgetController::class, 'show'])
+    ->where('token', '[A-Za-z0-9]{48}')
+    ->middleware('throttle:60,1')
+    ->name('widget.show');
 Route::post('/telegram/webhook', [\App\Http\Controllers\TelegramWebhookController::class, 'handle'])->name('telegram.webhook');
 
 // ── LiveTrack ────────────────────────────────────────────────────────────────

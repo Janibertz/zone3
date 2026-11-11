@@ -1,4 +1,5 @@
 <script setup>
+import { clearWidget } from '@/Composables/useWidget';
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 
 /**
@@ -26,6 +27,7 @@ import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
 import NativePushPrompt from '@/Components/Native/NativePushPrompt.vue';
 import AppleHealthSync from '@/Components/Native/AppleHealthSync.vue';
 import WatchWorkoutSync from '@/Components/Native/WatchWorkoutSync.vue';
+import WidgetSync from '@/Components/Native/WidgetSync.vue';
 import { isNativeApp, nativePlugin } from '@/Composables/useNativeApp';
 
 const { updateReady, startVersionPolling, reload } = useVersionCheck();
@@ -271,6 +273,7 @@ const sideNavItems = computed(() => [
         <NativePushPrompt v-if="nativeApp" />
         <AppleHealthSync v-if="nativeApp && $page.props.auth?.appleHealth" />
         <WatchWorkoutSync v-if="nativeApp && $page.props.auth?.appleWatch?.sync" />
+        <WidgetSync v-if="nativeApp" />
 
         <!-- ══════════════════════════════════════
              DESKTOP SIDEBAR (hidden on mobile)
@@ -357,6 +360,7 @@ const sideNavItems = computed(() => [
                     :href="route('logout')"
                     method="post"
                     as="button"
+                    @click="clearWidget"
                     class="flex w-full items-center gap-2.5 rounded-field px-3 py-2 text-sm text-ink-3 transition-colors hover:bg-danger-soft hover:text-danger"
                 >
                     <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">

@@ -348,7 +348,7 @@ class AIController extends Controller
      * @param  array<string, mixed>  $rec
      * @return array<string, mixed>
      */
-    private function withStructure(array $rec, \App\Models\User $user): array
+    public function withStructure(array $rec, \App\Models\User $user): array
     {
         if (($rec['type'] ?? 'rest') === 'rest') {
             return $rec;

@@ -195,6 +195,23 @@ jobs:
             exit 1
           fi
 
+          # Widget: die Erweiterung muss mit, und beide Teile brauchen die
+          # geteilte Schlüsselbund-Gruppe, sonst findet das Widget seinen Zugang nicht.
+          if [ ! -d "$RUNNER_TEMP"/ipa/unzipped/Payload/*.app/PlugIns/Zone3Widget.appex ]; then
+            echo "::error::Widget-Erweiterung (Zone3Widget.appex) fehlt im Build"
+            exit 1
+          fi
+          if ! grep -q "run.zone3.shared" "$RUNNER_TEMP/entitlements.plist"; then
+            echo "::error::Schlüsselbund-Gruppe run.zone3.shared fehlt in der App"
+            exit 1
+          fi
+          codesign -d --entitlements - --xml "$RUNNER_TEMP"/ipa/unzipped/Payload/*.app/PlugIns/Zone3Widget.appex > "$RUNNER_TEMP/widget-entitlements.plist"
+          plutil -p "$RUNNER_TEMP/widget-entitlements.plist"
+          if ! grep -q "run.zone3.shared" "$RUNNER_TEMP/widget-entitlements.plist"; then
+            echo "::error::Schlüsselbund-Gruppe run.zone3.shared fehlt im Widget"
+            exit 1
+          fi
+
           write_options upload
           export_archive export
 
