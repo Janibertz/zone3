@@ -51,15 +51,17 @@ class CoachReplyJob implements ShouldQueue
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->limit(self::HISTORY)
-            ->get(['role', 'content'])
+            ->get(['role', 'content', 'kind', 'media_text', 'media_foreign'])
             ->reverse()
             ->values()
-            ->map(fn ($m) => ['role' => $m->role, 'content' => $m->content])
+            ->map(fn ($m) => ['role' => $m->role, 'content' => $m->forModel()])
             ->all();
 
         $chat->withCoach($user->coach?->personality_prompt)->forUser($user->id);
 
-        $result  = $chat->chatWithCoachTools($user, $history, $question->content);
+        // Steckt Fremdtext in der Frage (Bild, weitergeleitete Sprachnachricht),
+        // darf der Coach in dieser Runde nur vorschlagen, nicht ändern.
+        $result  = $chat->chatWithCoachTools($user, $history, $question->forModel(), foreignText: $question->carriesForeignText());
         $reply   = $result['reply'] ?? null;
         $actions = $result['actions'] ?? [];
 

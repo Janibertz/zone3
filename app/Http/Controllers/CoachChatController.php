@@ -27,13 +27,14 @@ class CoachChatController extends Controller
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->limit(self::HISTORY_LIMIT)
-            ->get(['role', 'content', 'actions', 'created_at'])
+            ->get(['role', 'content', 'kind', 'actions', 'created_at'])
             ->reverse()
             ->values();
 
         $messages = self::withProposalStatus($messages->map(fn ($m) => [
             'role'       => $m->role,
-            'content'    => $m->content,
+            // Aus Telegram gesprochen: die Abschrift, mit Mikrofon davor.
+            'content'    => $m->kind === CoachMessage::KIND_VOICE ? '🎤 ' . $m->content : $m->content,
             'actions'    => $m->actions ?? [],
             'created_at' => $m->created_at,
         ])->all());

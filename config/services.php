@@ -73,6 +73,11 @@ return [
         'model_mid'  => env('OPENAI_MODEL_MID',  'gpt-5.6-terra'),   // Coach-Chat, Schwellenpace
         'model_mini' => env('OPENAI_MODEL_MINI', 'gpt-5.6-luna'),    // alles Kurze
 
+        // Bilder und Sprachnachrichten an den Coach (Telegram). Ohne Angabe
+        // liest das kleine Modell die Bilder.
+        'model_vision'     => env('OPENAI_MODEL_VISION'),
+        'model_transcribe' => env('OPENAI_MODEL_TRANSCRIBE', 'gpt-4o-mini-transcribe'),
+
         // Hintergrund-Aufrufe ueber Flex: halber Preis, langsamer.
         'flex'       => env('OPENAI_FLEX', true),
 

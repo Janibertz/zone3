@@ -155,14 +155,14 @@ class TelegramCoachTest extends TestCase
     }
 
     /** Bild oder Sprachnachricht: kein Modellaufruf, aber ein Hinweis statt Stille. */
-    public function test_a_voice_message_gets_a_hint_instead_of_silence(): void
+    public function test_a_video_gets_a_hint_instead_of_silence(): void
     {
         $this->athlete();
 
-        $this->update(['message' => ['message_id' => 6, 'chat' => ['id' => self::CHAT, 'type' => 'private'], 'voice' => ['file_id' => 'x', 'duration' => 4]]])->assertOk();
+        $this->update(['message' => ['message_id' => 6, 'chat' => ['id' => self::CHAT, 'type' => 'private'], 'video' => ['file_id' => 'x', 'duration' => 4]]])->assertOk();
 
         $this->assertSame(0, CoachMessage::count());
-        $this->assertStringContainsString('in Planung', $this->sentTexts()[0]['text']);
+        $this->assertStringContainsString('Videos', $this->sentTexts()[0]['text']);
         Http::assertNotSent(fn (Request $r) => str_contains($r->url(), 'api.openai.com'));
     }
 

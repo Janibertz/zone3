@@ -57,6 +57,8 @@ class OpenAIClient
     protected string $model;
     protected string $modelMid;
     protected string $modelMini;
+    protected string $modelVision;
+    protected string $modelTranscribe;
     protected string $baseUrl = 'https://api.openai.com/v1';
     protected ?string $coachPersonality = null;
     protected ?int $userId = null;
@@ -75,6 +77,20 @@ class OpenAIClient
         $this->model     = config('services.openai.model')      ?: 'gpt-5.6-sol';
         $this->modelMid  = config('services.openai.model_mid')  ?: 'gpt-5.6-terra';
         $this->modelMini = config('services.openai.model_mini') ?: 'gpt-5.6-luna';
+        $this->modelVision     = config('services.openai.model_vision')     ?: $this->modelMini;
+        $this->modelTranscribe = config('services.openai.model_transcribe') ?: 'gpt-4o-mini-transcribe';
+    }
+
+    /** Liest Bilder, die der Athlet dem Coach schickt. Vorgabe: das kleine Modell. */
+    public function vision(): string
+    {
+        return $this->modelVision;
+    }
+
+    /** Schreibt Sprachnachrichten ab. */
+    public function transcriber(): string
+    {
+        return $this->modelTranscribe;
     }
 
     /** Das grosse Modell — nur noch fuer den Plan. */
@@ -252,7 +268,7 @@ class OpenAIClient
 
         $userContent = '';
         foreach (array_reverse($messages) as $m) {
-            if ($m['role'] === 'user') { $userContent = $m['content']; break; }
+            if ($m['role'] === 'user') { $userContent = self::textOf($m['content']); break; }
         }
 
         if ($blocked = $this->blockReason($callType)) {
@@ -445,6 +461,110 @@ class OpenAIClient
         }
 
         return implode("\n", $parts);
+    }
+
+    /**
+     * Eine Sprachnachricht abschreiben (`/v1/audio/transcriptions`).
+     *
+     * Dieselben Bremsen und dieselbe `ai_logs`-Zeile wie jeder andere
+     * Aufruf. Die Datei geht an OpenAI und wird von Zone3 nicht gespeichert;
+     * im Protokoll steht nur die Abschrift.
+     *
+     * @param  int|null  $seconds  Länge laut Telegram — für die Kosten, falls
+     *                             die Antwort keine Token nennt
+     */
+    public function transcribe(string $audio, string $filename, ?int $seconds = null, string $callType = 'voice_transcription'): ?string
+    {
+        $model = $this->modelTranscribe;
+
+        if ($blocked = $this->blockReason($callType)) {
+            $this->logSkipped($callType, $model, $blocked);
+
+            return null;
+        }
+
+        $startMs = (int) round(microtime(true) * 1000);
+
+        try {
+            $response = Http::withHeaders(['Authorization' => 'Bearer ' . $this->apiKey])
+                ->timeout(60)
+                ->attach('file', $audio, $filename)
+                ->post($this->baseUrl . '/audio/transcriptions', [
+                    'model'           => $model,
+                    'language'        => 'de',
+                    'response_format' => 'json',
+                ]);
+
+            $body = $response->json() ?? [];
+            $text = trim((string) ($body['text'] ?? ''));
+
+            // gpt-4o-*-transcribe rechnet in Token, whisper-1 in Sekunden.
+            $usage  = $body['usage'] ?? [];
+            $in     = (int) ($usage['input_tokens'] ?? 0);
+            $out    = (int) ($usage['output_tokens'] ?? 0);
+            $billed = ($usage['type'] ?? null) === 'duration' ? (int) ($usage['seconds'] ?? $seconds) : $seconds;
+
+            AiLog::create([
+                'user_id'           => $this->userId,
+                'call_type'         => $callType,
+                'model'             => $model,
+                'prompt_tokens'     => $in,
+                'completion_tokens' => $out,
+                'total_tokens'      => (int) ($usage['total_tokens'] ?? $in + $out),
+                'cost_eur'          => ($in + $out) > 0
+                    ? AiLog::calculateCost($model, $in, $out)
+                    : AiLog::transcriptionCost($model, (int) $billed),
+                'duration_ms'       => (int) round(microtime(true) * 1000) - $startMs,
+                'prompt_preview'    => '[Sprachnachricht' . ($seconds ? ", {$seconds} s" : '') . ']',
+                'full_prompt'       => '[Sprachnachricht' . ($seconds ? ", {$seconds} s" : '') . ']',
+                'response_preview'  => mb_substr($text, 0, 500),
+                'full_response'     => $text,
+                'status'            => $response->failed() || $text === '' ? 'error' : 'success',
+                'error_message'     => $response->failed()
+                    ? 'HTTP ' . $response->status() . ': ' . mb_substr($response->body(), 0, 500)
+                    : ($text === '' ? 'Leere Abschrift' : null),
+            ]);
+
+            if ($response->failed()) {
+                $this->tripIfQuotaExhausted($response);
+                Log::error("OpenAI {$callType} Error", ['status' => $response->status()]);
+
+                return null;
+            }
+
+            return $text !== '' ? $text : null;
+        } catch (\Exception $e) {
+            AiLog::create([
+                'user_id'       => $this->userId,
+                'call_type'     => $callType,
+                'model'         => $model,
+                'duration_ms'   => (int) round(microtime(true) * 1000) - $startMs,
+                'status'        => 'error',
+                'error_message' => $e->getMessage(),
+            ]);
+
+            Log::error("OpenAI {$callType} Exception", ['error' => $e->getMessage()]);
+
+            return null;
+        }
+    }
+
+    /**
+     * Der Text einer Nachricht, auch wenn sie aus Teilen besteht (Text + Bild).
+     * Ein Bild steht im Protokoll als `[Bild]` — die Datei gehört nicht in
+     * `ai_logs`.
+     */
+    private static function textOf(mixed $content): string
+    {
+        if (! is_array($content)) {
+            return (string) $content;
+        }
+
+        return collect($content)->map(fn ($part) => match ($part['type'] ?? null) {
+            'text'      => (string) ($part['text'] ?? ''),
+            'image_url' => '[Bild]',
+            default     => '',
+        })->filter()->implode("\n");
     }
 
     // ── Transport, Kosten, Bremsen ──────────────────────────────────────

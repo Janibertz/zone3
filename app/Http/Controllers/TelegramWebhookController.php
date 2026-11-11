@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\CoachReplyJob;
+use App\Jobs\TelegramMediaJob;
 use App\Models\CoachMessage;
 use App\Models\SessionRecommendation;
 use App\Models\User;
@@ -70,11 +71,12 @@ class TelegramWebhookController extends Controller
             return;
         }
 
-        // Bild, Sprache, Datei: der Coach liest nur Text. Vorher verschwand
-        // so eine Nachricht ohne Antwort (Jan, 11.11.2026: Hinweis + „in Planung“).
+        // Sprache und Bilder werden zu Text (TelegramMediaJob), alles andere
+        // bekommt einen Hinweis statt Stille. Vor dem 11.11.2026 verschwand
+        // jede solche Nachricht ohne Antwort.
         if ($text === '') {
-            if ($this->isMedia($message) && User::where('telegram_chat_id', $chatId)->exists()) {
-                $this->telegram->sendMessage($chatId, self::MEDIA_HINT);
+            if ($this->isMedia($message) && ($user = User::where('telegram_chat_id', $chatId)->first())) {
+                $this->media($user, $chatId, $message);
             }
 
             return;
@@ -102,9 +104,12 @@ class TelegramWebhookController extends Controller
         };
     }
 
-    private const MEDIA_HINT = "Bilder und Sprachnachrichten kann ich noch nicht lesen — das ist in Planung. Schreib mir bis dahin bitte kurz als Text.";
+    private const MEDIA_HINT = "Sprachnachrichten und Fotos verstehe ich — Videos, Sticker und andere Dateien leider nicht. Schreib mir dazu bitte kurz als Text.";
 
     private const MEDIA_KEYS = ['photo', 'voice', 'audio', 'video', 'video_note', 'document', 'sticker', 'animation'];
+
+    /** Länger hört der Coach nicht zu — fünf Minuten kosten etwa anderthalb Cent. */
+    public const MAX_VOICE_SECONDS = 300;
 
     private function isMedia(array $message): bool
     {
@@ -115,7 +120,92 @@ class TelegramWebhookController extends Controller
         return false;
     }
 
-    private const HELP ="Schreib mir einfach, wie bei einem Trainer — ich kann deinen Plan auch ändern.\n\n"
+    /**
+     * Eine Sprachnachricht oder ein Bild an den Coach — über die Queue.
+     *
+     * Die Grenzen prüft der Webhook schon hier, damit eine Sperre sofort
+     * gemeldet wird und nichts heruntergeladen wird, was nicht gelesen werden darf.
+     */
+    private function media(User $user, int $chatId, array $message): void
+    {
+        $caption   = trim((string) ($message['caption'] ?? '')) ?: null;
+        $forwarded = isset($message['forward_origin']) || isset($message['forward_from']) || isset($message['forward_sender_name']);
+
+        $job = match (true) {
+            isset($message['voice']) || isset($message['audio']) => $this->voiceJob($user, $chatId, $message['voice'] ?? $message['audio'], $forwarded),
+            isset($message['photo']) => $this->imageJob($user, $chatId, self::bestPhoto($message['photo']), 'image/jpeg', $caption),
+            isset($message['document']) && in_array($message['document']['mime_type'] ?? '', self::IMAGE_MIMES, true)
+                => $this->imageJob($user, $chatId, $message['document'], (string) $message['document']['mime_type'], $caption),
+            default => null,
+        };
+
+        if ($job === false) {
+            return; // schon beantwortet
+        }
+
+        if (! $job) {
+            $this->telegram->sendMessage($chatId, self::MEDIA_HINT);
+
+            return;
+        }
+
+        if ($reason = app(CoachChatService::class)->forUser($user->id)->chatBlockReason()) {
+            Log::info('Telegram: Coach gesperrt', ['user_id' => $user->id, 'reason' => $reason]);
+            $this->telegram->sendMessage($chatId, self::blockedMessage($reason));
+
+            return;
+        }
+
+        $this->telegram->typing($chatId);
+
+        dispatch($job);
+    }
+
+    /** OpenAI liest diese Bildformate; HEIC vom iPhone schickt Telegram als Foto (JPEG). */
+    private const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+    private function voiceJob(User $user, int $chatId, array $voice, bool $forwarded): TelegramMediaJob|false|null
+    {
+        $seconds = (int) ($voice['duration'] ?? 0);
+        if ($seconds > self::MAX_VOICE_SECONDS) {
+            $this->telegram->sendMessage($chatId, 'Sprachnachrichten höre ich mir bis fünf Minuten an. Magst du es kürzer sagen?');
+
+            return false;
+        }
+
+        if (empty($voice['file_id'])) {
+            return null;
+        }
+
+        return new TelegramMediaJob($user->id, $chatId, CoachMessage::KIND_VOICE, (string) $voice['file_id'],
+            (string) ($voice['mime_type'] ?? 'audio/ogg'), null, $seconds ?: null, $forwarded);
+    }
+
+    private function imageJob(User $user, int $chatId, ?array $file, string $mime, ?string $caption): ?TelegramMediaJob
+    {
+        if (empty($file['file_id']) || (int) ($file['file_size'] ?? 0) > TelegramClient::MAX_DOWNLOAD_BYTES) {
+            return null;
+        }
+
+        return new TelegramMediaJob($user->id, $chatId, CoachMessage::KIND_IMAGE, (string) $file['file_id'], $mime, $caption);
+    }
+
+    /**
+     * Telegram schickt ein Foto in mehreren Größen. Genommen wird die größte
+     * bis 1600 px Kantenlänge: genug, um eine Uhr abzulesen, ohne dass das
+     * Bildmodell für Pixel bezahlt wird, die nichts zeigen.
+     */
+    private static function bestPhoto(array $sizes): ?array
+    {
+        $sizes = array_values(array_filter($sizes, 'is_array'));
+        usort($sizes, fn ($a, $b) => max($a['width'] ?? 0, $a['height'] ?? 0) <=> max($b['width'] ?? 0, $b['height'] ?? 0));
+
+        $fitting = array_filter($sizes, fn ($s) => max($s['width'] ?? 0, $s['height'] ?? 0) <= 1600);
+
+        return $fitting ? end($fitting) : ($sizes[0] ?? null);
+    }
+
+    private const HELP ="Schreib mir einfach, wie bei einem Trainer — ich kann deinen Plan auch ändern. Sprachnachrichten und Fotos (z. B. ein Screenshot deiner Uhr) verstehe ich auch.\n\n"
         . "/heute — was heute ansteht\n"
         . "/stop — Telegram von Zone3 trennen";
 

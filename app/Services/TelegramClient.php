@@ -81,6 +81,44 @@ class TelegramClient
         $this->call('sendChatAction', ['chat_id' => $chatId, 'action' => 'typing']);
     }
 
+    /**
+     * Eine Datei herunterladen, die der Athlet geschickt hat (Sprache, Bild).
+     *
+     * Telegram gibt Bots höchstens 20 MB heraus; Zone3 nimmt weniger an,
+     * denn alles, was hier ankommt, geht an OpenAI. Die Datei bleibt im
+     * Speicher und wird nirgends abgelegt.
+     *
+     * @return array{bytes:string, path:string}|null
+     */
+    public function downloadFile(string $fileId, int $maxBytes = self::MAX_DOWNLOAD_BYTES): ?array
+    {
+        $file = $this->call('getFile', ['file_id' => $fileId]);
+        $path = $file['file_path'] ?? null;
+
+        if (! $path || (int) ($file['file_size'] ?? 0) > $maxBytes) {
+            return null;
+        }
+
+        try {
+            $response = Http::timeout(30)->get(self::API . '/file/bot' . config('services.telegram.bot_token') . '/' . $path);
+
+            if (! $response->successful() || strlen($response->body()) > $maxBytes) {
+                Log::warning('Telegram-Datei nicht geladen', ['status' => $response->status()]);
+
+                return null;
+            }
+
+            return ['bytes' => $response->body(), 'path' => (string) $path];
+        } catch (\Throwable $e) {
+            Log::warning('Telegram-Datei nicht erreichbar', ['error' => $e->getMessage()]);
+
+            return null;
+        }
+    }
+
+    /** Was Zone3 aus Telegram höchstens lädt. */
+    public const MAX_DOWNLOAD_BYTES = 10 * 1024 * 1024;
+
     public function setWebhook(string $url): ?array
     {
         return $this->call('setWebhook', [

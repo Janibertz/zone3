@@ -1135,7 +1135,9 @@ Was der Bot schickt:
 - **Reviews** nach jedem Lauf — über den Observer, ohne eigenen Code.
 - **Wellbeing-Vorschläge** mit Annehmen/Ablehnen.
 - Jede andere Nachricht geht an den Coach, mit denselben Werkzeugen und demselben Tageskontingent wie im Web.
-- **Bilder, Sprache, Dateien** liest der Coach noch nicht; ein verbundener Chat bekommt den Hinweis „in Planung“ statt Stille (Jan, 11.11.2026). Transkription und Bilder stehen auf der Ideenliste.
+- **Sprachnachrichten und Fotos** (seit 11.11.2026, Jan). Der Webhook prüft nur Grenzen (Sprache bis 5 min, Datei bis 10 MB, Kontingent) und startet `TelegramMediaJob`: Datei über `TelegramClient::downloadFile()` laden (nur im Speicher, nie abgelegt), dann `CoachMediaService` — Sprache über `OpenAIClient::transcribe()` (`/v1/audio/transcriptions`, `OPENAI_MODEL_TRANSCRIBE`, Vorgabe `gpt-4o-mini-transcribe`), ein Foto (größte Fassung bis 1600 px, auch Bilddateien jpeg/png/webp/gif) über einen Aufruf **ohne Werkzeuge** an `OPENAI_MODEL_VISION` (Vorgabe das kleine Modell), der es nur beschreibt. Danach geht es als `CoachMessage` (`kind` = `voice`/`image`) in `CoachReplyJob`. Beide Aufrufe haben eigene `ai_logs`-Typen (`voice_transcription`, `image_description`), zählen ins Tagesbudget und in `ai_daily_limit`; Abschriften rechnet `AiLog` nach Token, sonst nach Minuten (`transcriptionCost()`). Videos, Sticker und andere Dateien bekommen einen Hinweis.
+  - **Ein Bild ist Fremdtext.** Der Coach hat Werkzeuge, die den Plan ändern, und auf einem Screenshot kann alles stehen. Die Beschreibung steht getrennt in `media_text` und geht nur markiert ans Modell (`CoachMessage::forModel()`: `[BILD VOM ATHLETEN … ] … [ENDE BILD]`), der Systemprompt sagt, dass das Daten sind. Steckt Fremdtext in der Frage (Bild oder **weitergeleitete** Sprachnachricht, `media_foreign`), bekommt der Coach in dieser Runde **nur `propose_session_change`** (`CoachChatService::proposalOnly()`), und ein trotzdem aufgerufenes anderes Werkzeug wird abgelehnt — `TelegramMediaTest::test_text_in_a_photo_cannot_delete_a_session`. Die eigene Sprachnachricht ist die Nachricht des Athleten und hat alle Werkzeuge.
+  - Im Web-Chat steht eine Sprachnachricht als „🎤 Abschrift“, ein Bild als Bildunterschrift oder „📷 Bild“. Anhängen geht dort noch nicht.
 
 Regeln, alle getestet in `TelegramCoachTest`:
 
@@ -1170,6 +1172,9 @@ OPENAI_API_KEY=
 OPENAI_MODEL=gpt-5.6-sol
 OPENAI_MODEL_MID=gpt-5.6-terra
 OPENAI_MODEL_MINI=gpt-5.6-luna
+# Bilder und Sprachnachrichten an den Coach (optional)
+OPENAI_MODEL_VISION=
+OPENAI_MODEL_TRANSCRIBE=gpt-4o-mini-transcribe
 # Kostenbremsen (Vorgaben in config/services.php)
 OPENAI_FLEX=true
 OPENAI_BUDGET_DAILY_EUR=1.00

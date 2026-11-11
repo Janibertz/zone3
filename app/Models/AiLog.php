@@ -98,7 +98,38 @@ class AiLog extends Model
         'gpt-5.6-luna'  => [ 0.20,  1.20],
         'gpt-4o'        => [ 2.50, 10.00],
         'gpt-4o-mini'   => [ 0.15,  0.60],
+
+        // Sprachnachrichten (seit 11.11.2026). Eingabe sind Audio-Token —
+        // eingetragen ist deren Preis, nicht der fuer Text-Eingabe.
+        'gpt-4o-mini-transcribe' => [3.00,  5.00],
+        'gpt-4o-transcribe'      => [6.00, 10.00],
     ];
+
+    /**
+     * USD je Minute, fuer Abschriften, die OpenAI in Sekunden abrechnet
+     * (whisper-1) oder deren Antwort keine Token nennt — dann nach der
+     * Laenge, die Telegram meldet.
+     */
+    private const TRANSCRIBE_USD_PER_MINUTE = [
+        'whisper-1'              => 0.006,
+        'gpt-4o-transcribe'      => 0.006,
+        'gpt-4o-mini-transcribe' => 0.003,
+    ];
+
+    /** Kosten einer Abschrift nach ihrer Laenge in Sekunden. */
+    public static function transcriptionCost(string $model, int $seconds): float
+    {
+        $key  = preg_replace('/-\d{4}-\d{2}-\d{2}$/', '', strtolower(trim($model)));
+        $rate = self::TRANSCRIBE_USD_PER_MINUTE[$key] ?? null;
+
+        if ($rate === null) {
+            Log::warning('Kein Minutenpreis fuer dieses Abschrift-Modell hinterlegt', ['model' => $model]);
+
+            return 0.0;
+        }
+
+        return round(max($seconds, 0) / 60 * $rate * self::USD_TO_EUR, 6);
+    }
 
     /** Gecachte Eingabe-Token kosten ein Zehntel des Eingabepreises. */
     private const CACHED_INPUT_FACTOR = 0.10;
@@ -186,6 +217,8 @@ class AiLog extends Model
             'adjust_session'       => 'Session anpassen',
             'goal_analysis'        => 'Ziel-Analyse',
             'coach_chat'           => 'Coach-Chat',
+            'voice_transcription'  => 'Sprachnachricht',
+            'image_description'    => 'Bild an den Coach',
             'session_review'       => 'Einheit-Review',
             'suggestions'          => 'Vorschläge',
             default                => $this->call_type,
