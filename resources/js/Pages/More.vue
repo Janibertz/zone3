@@ -62,6 +62,7 @@ const P = {
     help:  'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17v.1',
     shield:'M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z',
     doc:   'M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5',
+    gift:  'M4 11h16v10H4zM3 7h18v4H3zM12 7v14M12 7c-1.5-3-5-3-5-1s3 1 5 1c2 0 5 1 5-1s-3.5-2-5 1',
 };
 
 const groups = computed(() => [
@@ -73,6 +74,9 @@ const groups = computed(() => [
           value: s.value.vdot ? `VDOT ${fmtNum(s.value.vdot)}` : 'unvollständig',
           foot: [s.value.model, s.value.days ? `${s.value.days} Tage` : null, s.value.bike ? 'Rad' : null].filter(Boolean).join(' · ') },
         { name: 'Coach',           href: profile('coach'),          icon: P.coach, tint: 'bg-success', value: s.value.coach ?? '' },
+    ] },
+    { title: 'Zone3', rows: [
+        { name: 'Freunde einladen', href: route('more.invite'), icon: P.gift, tint: 'bg-accent', value: '' },
     ] },
     { title: 'Verbindungen', rows: [
         // Uhren und Datenquellen als Kacheln auf einer eigenen Seite.

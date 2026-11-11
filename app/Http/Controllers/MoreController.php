@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Invitation;
 use App\Models\Workout;
 use App\Services\PaceFormat;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 /**
@@ -57,6 +59,26 @@ class MoreController extends Controller
     {
         return Inertia::render('More/Devices', [
             'devices' => $this->deviceStatus(Auth::user()),
+        ]);
+    }
+
+    /** „Freunde einladen“: der eigene Link und wer schon darüber kam. */
+    public function invite()
+    {
+        $user   = Auth::user();
+        $invite = Invitation::referralFor($user);
+
+        return Inertia::render('More/Invite', [
+            'invite' => [
+                'url'       => $invite->isUsable() ? $invite->url() : null,
+                'status'    => $invite->status(),
+                'used'      => $invite->uses_count,
+                'max'       => $invite->max_uses,
+                'expires'   => $invite->expires_at->toDateString(),
+                // Nur Vornamen: die Freunde sind anderer Leute Konten.
+                'friends'   => $invite->redeemers()->orderBy('id')->pluck('name')
+                    ->map(fn ($n) => Str::before(trim($n), ' '))->values(),
+            ],
         ]);
     }
 

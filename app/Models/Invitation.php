@@ -23,6 +23,16 @@ class Invitation extends Model
     public const VALID_DAYS = 14;
     public const MAX_DAYS = 365;
 
+    /**
+     * „Freunde einladen“ (11.11.2026, Jan: „jeder Tester kann weitere
+     * einladen“): jeder Athlet hat einen eigenen Link für höchstens so viele
+     * Freunde. Die Grenze hält die Beta klein genug, um Feedback persönlich
+     * zu beantworten (Ziel: 50 Tester bis Weihnachten).
+     */
+    public const REFERRAL_SOURCE = 'empfehlung';
+    public const REFERRAL_USES = 5;
+    public const REFERRAL_DAYS = 365;
+
     protected $fillable = ['token', 'note', 'max_uses', 'uses_count', 'source', 'created_by', 'expires_at', 'used_at', 'used_by', 'revoked_at'];
 
     protected $casts = [
@@ -47,6 +57,30 @@ class Invitation extends Model
             'created_by' => $by?->id,
             'expires_at' => now()->addDays(max(1, min($days, self::MAX_DAYS))),
         ]);
+    }
+
+    /**
+     * Der eigene Link des Athleten. Ein abgelaufener wird ersetzt, ein voller
+     * oder vom Admin zurückgezogener bleibt, wie er ist — sonst wäre die
+     * Grenze keine.
+     */
+    public static function referralFor(User $user): self
+    {
+        $current = self::where('created_by', $user->id)
+            ->where('source', self::REFERRAL_SOURCE)
+            ->latest('id')
+            ->first();
+
+        if ($current && $current->status() !== 'expired') {
+            return $current;
+        }
+
+        return self::issue($user, "Freunde von {$user->name}", self::REFERRAL_USES, self::REFERRAL_DAYS, self::REFERRAL_SOURCE);
+    }
+
+    public function isReferral(): bool
+    {
+        return $this->source === self::REFERRAL_SOURCE && $this->created_by !== null;
     }
 
     public function scopeUsable(Builder $query): Builder
