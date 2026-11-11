@@ -41,9 +41,9 @@ export function heroPhoto(type, sportType = null) {
     return PHOTOS[key(type, sportType)];
 }
 
-/** Foto für eine Kachel: Kraft, Rumpf und Mobilität sind Farbe statt Bild. */
+/** Foto für eine Kachel: jede Einheit außer dem Ruhetag (der steht nie in „Als Nächstes“). */
 export function tilePhoto(type, sportType = null) {
-    if (['strength', 'core', 'mobility', 'rest'].includes(type)) return null;
+    if (type === 'rest') return null;
     return PHOTOS[key(type, sportType)];
 }
 

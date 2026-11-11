@@ -5,7 +5,7 @@
  * Farbe, Tag, Titel groß, Strecke und Dauer — wer die Details will, tippt.
  *
  * Seit dem Mockup „Zone3 mit mehr Leben“ (10.11.2026) mit Foto je Typ
- * (`useMomentPhotos.js`), Kraft, Rumpf und Mobilität als volle Typfarbe.
+ * (`useMomentPhotos.js`), seit 11.11.2026 auch Kraft, Rumpf und Mobilität (Studio).
  * Die nächste harte Einheit bekommt einen Rand in ihrer Farbe, damit man
  * sieht, worauf die Woche zuläuft.
  */
