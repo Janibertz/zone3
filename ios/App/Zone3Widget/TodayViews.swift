@@ -224,12 +224,24 @@ struct TodayMedium: View {
                     .clipped()
 
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(day.kind == .planStart ? "Plan startet" : "Als Nächstes")
+                    // Vor dem Planstart steht der links schon im Foto; rechts
+                    // dann das Rennen (Jan, 11.11.2026), sonst „Als Nächstes“.
+                    Text(raceInstead.map { $0.0.name } ?? (day.kind == .planStart ? "Plan startet" : "Als Nächstes"))
                         .font(Z.font(12, .bold))
+                        .lineLimit(1)
                         .foregroundStyle(.white.opacity(0.55))
                         .padding(.bottom, 9)
 
-                    if day.kind == .planStart, let n = day.planStartDays {
+                    if let r = raceInstead {
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Text("\(r.1)").font(Z.font(44)).tracking(-2.2).monospacedDigit()
+                            Text(r.1 == 1 ? "Tag" : "Tage").font(Z.font(13, .semibold)).foregroundStyle(.white.opacity(0.7))
+                        }
+                        .foregroundStyle(.white)
+                        if let target = r.0.target {
+                            Text("Ziel \(target)").font(Z.font(12, .semibold)).foregroundStyle(.white.opacity(0.7))
+                        }
+                    } else if day.kind == .planStart, let n = day.planStartDays {
                         HStack(alignment: .firstTextBaseline, spacing: 4) {
                             Text("\(n)").font(Z.font(44)).tracking(-2.2).monospacedDigit()
                             Text("Tage").font(Z.font(13, .semibold)).foregroundStyle(.white.opacity(0.7))
@@ -261,9 +273,16 @@ struct TodayMedium: View {
         .widgetURL(day.heroURL)
     }
 
+    private var raceInstead: (WidgetFeed.Race, Int)? {
+        guard day.kind == .planStart, let race = day.race, let d = day.raceDays, d >= 0 else { return nil }
+        return (race, d)
+    }
+
     /// Erledigt: die Woche statt des Rennens (Mockup „Mittel: Zustände“).
     @ViewBuilder private var footer: some View {
-        if day.kind == .done, let week = day.week {
+        if raceInstead != nil {
+            EmptyView()
+        } else if day.kind == .done, let week = day.week {
             WeekFooter(week: week)
         } else if let race = day.race, let d = day.raceDays {
             RaceFooter(race: race, days: d)
