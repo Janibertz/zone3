@@ -21,7 +21,7 @@ const props = defineProps({
 });
 
 const meta  = computed(() => sessionType(props.session.type));
-const photo = computed(() => heroPhoto(props.session.type));
+const photo = computed(() => heroPhoto(props.session.type, props.session.sport_type));
 const rest  = computed(() => props.session.type === 'rest');
 const RIDES = ['Ride', 'VirtualRide'];
 const ride  = computed(() => RIDES.includes(props.session.sport_type));

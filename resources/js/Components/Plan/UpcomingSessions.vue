@@ -54,7 +54,7 @@ const tiles = computed(() => {
             day: dayLabel(s.date),
             km: s.distance_km && !ride ? fmtNum(s.distance_km) : null,
             dur: duration(s.duration_min),
-            photo: tilePhoto(s.type),
+            photo: tilePhoto(s.type, s.sport_type),
             ring: s.id === firstHard ? `ring-[3px] ring-inset ${RING[meta.accent] ?? RING.accent}` : '',
         };
     });
