@@ -1,6 +1,6 @@
 <script setup>
 import { usePush } from '@/Composables/usePush';
-import { isNativeApp } from '@/Composables/useNativeApp';
+import { isAndroidApp, isIosApp, isNativeApp } from '@/Composables/useNativeApp';
 import { zoneRange } from '@/Composables/usePaceZones';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm, usePage, Link, router } from '@inertiajs/vue3';
@@ -253,6 +253,8 @@ const initials = computed(() => {
 
 // ── Push Notification state ──────────────────────────────────────────────────
 const nativeApp = isNativeApp();
+const iosApp = isIosApp();
+const androidApp = isAndroidApp();
 const {
     supported: pushSupported, permission: pushPermission, subscribed: pushSubscribed,
     loading: pushLoading, error: pushError, subscribe: subscribePush, unsubscribe: unsubscribePush,
@@ -1142,9 +1144,9 @@ const inputClass = 'z-input';
                     <!-- ── BENACHRICHTIGUNGEN ── -->
                     <template v-else-if="activeTab === 'notifications'">
                         <FormGroup title="Auf diesem Gerät">
-                            <FormRow v-if="!pushSupported" label="Push" :hint="nativeApp ? 'Mitteilungen kommen mit der neuesten App aus TestFlight. Bitte dort aktualisieren.' : 'Dieser Browser unterstützt keine Mitteilungen. Auf dem iPhone geht es nur aus der Homescreen-App.'" />
+                            <FormRow v-if="!pushSupported" label="Push" :hint="androidApp ? 'Mitteilungen kommen mit einem der nächsten Updates der Android-App.' : nativeApp ? 'Mitteilungen kommen mit der neuesten App aus TestFlight. Bitte dort aktualisieren.' : 'Dieser Browser unterstützt keine Mitteilungen. Auf dem iPhone geht es nur aus der Homescreen-App.'" />
                             <template v-else>
-                                <FormRow label="Mitteilungen" :hint="pushPermission === 'denied' ? (nativeApp ? 'In den iPhone-Einstellungen aus (Mitteilungen → Zone3)' : 'Im Browser blockiert') : (pushSubscribed ? 'Aktiv auf diesem Gerät' : 'Aus')">
+                                <FormRow label="Mitteilungen" :hint="pushPermission === 'denied' ? (androidApp ? 'In den Android-Einstellungen aus (Apps → Zone3 → Benachrichtigungen)' : nativeApp ? 'In den iPhone-Einstellungen aus (Mitteilungen → Zone3)' : 'Im Browser blockiert') : (pushSubscribed ? 'Aktiv auf diesem Gerät' : 'Aus')">
                                     <svg v-if="pushLoading" class="h-5 w-5 animate-spin text-ink-3" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                                     <Toggle :model-value="pushSubscribed" label="Mitteilungen auf diesem Gerät" :disabled="pushLoading || pushPermission === 'denied'"
                                         @update:model-value="v => v ? subscribePush() : unsubscribePush()" />
@@ -1273,11 +1275,11 @@ const inputClass = 'z-input';
                             <!-- Apple Health: lesen nur in der iOS-App (HealthKit gibt es im
                                  Browser nicht); widerrufen geht auch hier. -->
                             <div id="conn-apple" class="scroll-mt-[calc(4.5rem+env(safe-area-inset-top))]" />
-                            <AppleHealthCard v-if="nativeApp || props.appleHealth?.consent_at" :state="props.appleHealth"
+                            <AppleHealthCard v-if="iosApp || props.appleHealth?.consent_at" :state="props.appleHealth"
                                 :activity-source="props.activitySource?.current" />
 
                             <!-- Apple Watch per WorkoutKit: nur in der iOS-App, nicht mit Garmin. -->
-                            <AppleWatchCard v-if="nativeApp && props.appleWatch" :state="props.appleWatch" />
+                            <AppleWatchCard v-if="iosApp && props.appleWatch" :state="props.appleWatch" />
 
                             <!-- Strava: nur nach Freischaltung durch einen Admin (Jan, 03.11.2026). -->
                             <div v-if="stravaOffered" id="conn-strava" class="flex min-h-[60px] scroll-mt-[calc(4.5rem+env(safe-area-inset-top))] items-center gap-3 px-4 py-2">

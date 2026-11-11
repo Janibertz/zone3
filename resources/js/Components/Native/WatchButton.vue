@@ -10,6 +10,7 @@
 import { onMounted, ref } from 'vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import { scheduleOnWatch, watchAvailable } from '@/Composables/useWatchWorkouts';
+import { isAndroidApp } from '@/Composables/useNativeApp';
 
 defineOptions({ inheritAttrs: false });
 
@@ -19,6 +20,8 @@ const props = defineProps({
     href:      { type: String, required: true },
 });
 
+// Eine Apple Watch koppelt nur mit dem iPhone — in der Android-App kein Knopf.
+const android = isAndroidApp();
 const native = ref(false);
 const busy = ref(false);
 const done = ref(false);
@@ -51,7 +54,7 @@ async function send() {
     <AppButton v-if="native" v-bind="$attrs" :loading="busy" :aria-label="note || 'Auf die Apple Watch'" :title="note || 'Auf die Apple Watch'" @click="send">
         <slot :done="done" :busy="busy" :note="note" />
     </AppButton>
-    <AppButton v-else v-bind="$attrs" :href="href" external download>
+    <AppButton v-else-if="!android" v-bind="$attrs" :href="href" external download>
         <slot :done="false" :busy="false" :note="null" />
     </AppButton>
 </template>

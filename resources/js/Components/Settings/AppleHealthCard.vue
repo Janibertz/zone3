@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { syncAppleHealth, useAppleHealth } from '@/Composables/useAppleHealth';
-import { isNativeApp } from '@/Composables/useNativeApp';
+import { isIosApp } from '@/Composables/useNativeApp';
 import { fmtNum } from '@/Composables/useFormat';
 
 /**
@@ -21,7 +21,7 @@ const props = defineProps({
 });
 
 const page = usePage();
-const native = isNativeApp();
+const native = isIosApp();
 const health = useAppleHealth();
 const consent = ref(false);
 const saving = ref(false);

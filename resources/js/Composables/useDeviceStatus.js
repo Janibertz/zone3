@@ -1,5 +1,5 @@
 import { computed, unref } from 'vue';
-import { isNativeApp } from '@/Composables/useNativeApp';
+import { isIosApp } from '@/Composables/useNativeApp';
 
 /**
  * Stand der Geräte & Apps aus `MoreController::devices()`, für die Kacheln
@@ -9,7 +9,7 @@ import { isNativeApp } from '@/Composables/useNativeApp';
  * solange eine Health-Einwilligung steht. Watch und Health sind eine Kachel.
  */
 export function useDeviceStatus(devices) {
-    const nativeApp = isNativeApp();
+    const nativeApp = isIosApp();
 
     return computed(() => {
         const d = unref(devices) ?? {};

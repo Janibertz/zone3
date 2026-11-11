@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { isNativeApp, nativePlugin } from '@/Composables/useNativeApp';
+import { isIosApp, isNativeApp, nativePlugin } from '@/Composables/useNativeApp';
 
 /**
  * „Mit Apple fortfahren“ (seit 09.11.2026).
@@ -14,7 +14,7 @@ let plugin;
 function signInPlugin() {
     if (plugin !== undefined) return plugin;
     plugin = nativePlugin('AppleSignIn');
-    if (!plugin && isNativeApp()) {
+    if (!plugin && isIosApp()) {
         try {
             plugin = window.Capacitor?.registerPlugin?.('AppleSignIn') ?? null;
         } catch {

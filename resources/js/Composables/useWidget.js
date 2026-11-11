@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { isNativeApp, nativePlugin } from '@/Composables/useNativeApp';
+import { isIosApp, nativePlugin } from '@/Composables/useNativeApp';
 
 /**
  * iOS-Widget (11.11.2026, Mockup „Zone3 Widget“).
@@ -18,7 +18,7 @@ let plugin;
 function widgetPlugin() {
     if (plugin !== undefined) return plugin;
     plugin = nativePlugin('ZoneWidget');
-    if (!plugin && isNativeApp()) {
+    if (!plugin && isIosApp()) {
         try {
             plugin = window.Capacitor?.registerPlugin?.('ZoneWidget') ?? null;
         } catch {

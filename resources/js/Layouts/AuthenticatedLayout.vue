@@ -28,7 +28,7 @@ import NativePushPrompt from '@/Components/Native/NativePushPrompt.vue';
 import AppleHealthSync from '@/Components/Native/AppleHealthSync.vue';
 import WatchWorkoutSync from '@/Components/Native/WatchWorkoutSync.vue';
 import WidgetSync from '@/Components/Native/WidgetSync.vue';
-import { isNativeApp, nativePlugin } from '@/Composables/useNativeApp';
+import { isIosApp, isNativeApp, nativePlugin } from '@/Composables/useNativeApp';
 
 const { updateReady, startVersionPolling, reload } = useVersionCheck();
 onMounted(() => { startVersionPolling(); reportUsage(); });
@@ -49,6 +49,8 @@ const { isInstallable, isIOSHint, installApp, dismiss: dismissInstall } = useIns
 // das Ereignis fest, bis jemand zuhört — auch beim Kaltstart aus der
 // Mitteilung heraus. Nur App-Pfade, nie eine fremde Adresse.
 const nativeApp = isNativeApp();
+// Apple Health, Apple Watch und das Widget gibt es nur in der iOS-App.
+const iosApp = isIosApp();
 onMounted(() => {
     const pushPlugin = nativePlugin('PushNotifications');
     if (!pushPlugin || window.__zone3PushTapListener) return;
@@ -271,9 +273,9 @@ const sideNavItems = computed(() => [
         </Transition>
 
         <NativePushPrompt v-if="nativeApp" />
-        <AppleHealthSync v-if="nativeApp && $page.props.auth?.appleHealth" />
-        <WatchWorkoutSync v-if="nativeApp && $page.props.auth?.appleWatch?.sync" />
-        <WidgetSync v-if="nativeApp" />
+        <AppleHealthSync v-if="iosApp && $page.props.auth?.appleHealth" />
+        <WatchWorkoutSync v-if="iosApp && $page.props.auth?.appleWatch?.sync" />
+        <WidgetSync v-if="iosApp" />
 
         <!-- ══════════════════════════════════════
              DESKTOP SIDEBAR (hidden on mobile)

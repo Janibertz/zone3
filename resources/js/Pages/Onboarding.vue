@@ -15,7 +15,7 @@ import CoachBubble from '@/Components/Onboarding/CoachBubble.vue';
 import { availabilityFeedback, goalFeedback, openGoalFeedback } from '@/Composables/useOnboardingFeedback';
 import NotificationChoice from '@/Components/Settings/NotificationChoice.vue';
 import AppleHealthCard from '@/Components/Settings/AppleHealthCard.vue';
-import { isNativeApp } from '@/Composables/useNativeApp';
+import { isIosApp } from '@/Composables/useNativeApp';
 import { clockInput } from '@/Composables/useFormat';
 
 const props = defineProps({
@@ -427,7 +427,7 @@ const stravaOffered = computed(() => !!page.props.auth?.strava);
 const garminLinked = computed(() => !!props.connections?.garmin);
 // Apple Health gibt es nur in der iOS-App (HealthKit), darum nur dort
 // (09.11.2026). Im Browser bleibt der Schritt wie er war.
-const nativeApp     = isNativeApp();
+const iosApp        = isIosApp();
 const appleConsent  = computed(() => !!props.connections?.appleHealth?.consent_at);
 const anyLinked    = computed(() => stravaLinked.value || garminLinked.value || !!props.connections?.coros || appleConsent.value);
 const garminGranted = computed(() => {
@@ -921,7 +921,7 @@ const bar = computed(() => {
                         <p class="text-[13px] leading-snug text-ink-3">Die Anmeldung läuft direkt bei COROS. Ohne Haken schreibt Zone3 nur deinen Plan in den COROS-Kalender.</p>
                     </div>
                     <p v-if="connections.corosStatus?.type === 'error'" class="px-4 py-3 text-[13px] text-danger">{{ connections.corosStatus.message }}</p>
-                    <AppleHealthCard v-if="nativeApp && connections.appleHealth" :state="connections.appleHealth"
+                    <AppleHealthCard v-if="iosApp && connections.appleHealth" :state="connections.appleHealth"
                         :activity-source="connections.source?.current"
                         source-hint="Trainings aus Apple Health übernimmt Zone3, wenn du darunter bei „Neue Aktivitäten kommen von“ Apple wählst." />
                     <template v-if="garminLinked && !stravaLinked" #footer>

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { isNativeApp, nativePlugin } from '@/Composables/useNativeApp';
+import { isIosApp, nativePlugin } from '@/Composables/useNativeApp';
 
 /**
  * Einheiten per WorkoutKit auf die Apple Watch (seit 08.11.2026).
@@ -20,7 +20,7 @@ function watchPlugin() {
     plugin = nativePlugin('WatchWorkouts');
     // Plugins aus dem App-Target stehen nicht immer in der Liste, die
     // Capacitor beim Laden einspritzt; registerPlugin findet sie trotzdem.
-    if (!plugin && isNativeApp()) {
+    if (!plugin && isIosApp()) {
         try {
             plugin = window.Capacitor?.registerPlugin?.('WatchWorkouts') ?? null;
         } catch {

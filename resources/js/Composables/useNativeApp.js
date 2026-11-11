@@ -1,10 +1,15 @@
 /**
- * Läuft die Seite in der iOS-App (Capacitor-Hülle um zone3.run)?
+ * Läuft die Seite in einer der Apps (Capacitor-Hülle um zone3.run, iOS oder
+ * Android)?
  *
  * Capacitor spritzt seine Brücke auch in die geladene Live-Seite ein, darum
  * reicht `window.Capacitor`. Im Browser und in der Homescreen-App fehlt es.
- * Hier entscheidet sich alles, was in der App anders sein muss: kein
- * „Zum Home-Bildschirm"-Hinweis, Push über APNs statt Web-Push.
+ * Hier entscheidet sich, was in jeder App anders ist als im Browser: kein
+ * „Zum Home-Bildschirm"-Hinweis, kein Web-Push.
+ *
+ * Alles, was es nur auf dem iPhone gibt (Apple Health, Apple Watch, Widget,
+ * Mit Apple anmelden), fragt `isIosApp()` — `isNativeApp()` ist seit der
+ * Android-App (11.11.2026) auch dort wahr.
  */
 export function isNativeApp() {
     if (typeof window === 'undefined') return false;
@@ -13,6 +18,25 @@ export function isNativeApp() {
     } catch {
         return false;
     }
+}
+
+/** 'ios' | 'android' | null (Browser und Homescreen-App). */
+export function nativePlatform() {
+    if (!isNativeApp()) return null;
+    try {
+        const platform = window.Capacitor.getPlatform?.();
+        return platform === 'ios' || platform === 'android' ? platform : null;
+    } catch {
+        return null;
+    }
+}
+
+export function isIosApp() {
+    return nativePlatform() === 'ios';
+}
+
+export function isAndroidApp() {
+    return nativePlatform() === 'android';
 }
 
 /**

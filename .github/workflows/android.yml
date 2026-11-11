@@ -1,0 +1,72 @@
+name: Android
+
+# Baut die Capacitor-Hülle (android/) auf Ubuntu. Wie bei iOS lädt die App
+# zone3.run (capacitor.config.json → server.url): eine Änderung an Vue oder
+# Laravel braucht keinen neuen Build, nur was unter android/ oder an den
+# Capacitor-Paketen ändert.
+#
+# Stufe 1: Debug-APK ohne Play-Signatur, als Artefakt zum Herunterladen und
+# direkt Installieren. Signiertes Bundle für die Play Console folgt, sobald
+# das Konto steht.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'capacitor.config.json'
+      - 'mobile/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'capacitor.config.json'
+      - 'mobile/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/android.yml'
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Debug-APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Java einrichten
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Node einrichten
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Abhängigkeiten
+        run: npm ci
+
+      - name: Capacitor synchronisieren
+        run: npx cap sync android
+
+      - name: Bauen
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: APK hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: zone3-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
