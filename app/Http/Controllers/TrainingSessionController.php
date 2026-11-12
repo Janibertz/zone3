@@ -158,15 +158,7 @@ class TrainingSessionController extends Controller
             'feedback' => 'required|string|max:300',
         ]);
 
-        $answer = trim($request->input('feedback'));
-        $session->update(['review_feedback' => $answer]);
-
-        // Die Notiz landet im Gedächtnis des Coaches — und seit dem
-        // PlanContextBuilder auch im Prompt der Planerstellung.
-        $date = $session->planned_date->format('d.m.Y');
-        \App\Models\RunnerProfile::firstOrCreate(['user_id' => Auth::id()])->rememberNote(
-            "Rückmeldung zu \"{$session->review_question}\" ({$session->title}, {$date}): {$answer}"
-        );
+        $session->answerReview($request->input('feedback'));
 
         // Die Antwort fliesst ueber coach_notes in die naechste planmaessige
         // Neuberechnung ein — sie loest keine eigene aus. Wer schreibt, dass

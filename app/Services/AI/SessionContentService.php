@@ -141,65 +141,127 @@ class SessionContentService
     }
 
     /**
-     * Post-session coach review from the real data of a completed session.
-     * The job assembles $factsBlock (actual metrics, baseline comparison, aerobic
-     * decoupling, wellbeing, training load, weather, athlete rating). The coach
-     * writes a short personal review, highlights anything unusual (e.g. HR higher
-     * than usual) with a plausible cause, and — when a deviation has several
-     * possible reasons — asks ONE follow-up question with tap-answer options.
+     * Die Nachricht des Coaches nach einer Einheit.
      *
+     * Bis 12.11.2026 bekam das kleinste Modell alle Messwerte und die
+     * Anweisung „konkret mit Zahlen, beginne mit der Einordnung" — es las die
+     * Daten vor, samt der Steuerzeilen, die nur für das Modell gedacht waren
+     * (Jan: „hört sich nicht so an, als käme sie von einem echten Trainer").
+     * Jetzt sagt der Code, worüber geschrieben wird
+     * ({@see \App\Services\Review\SessionHighlights}), das mittlere Modell
+     * formuliert, und {@see \App\Services\Review\ReviewText} prüft danach.
+     *
+     * @param  array{key: string, main: string, side: ?string, length: string, emoji: bool}  $highlight
      * @return array{review:string, question:?string, options:array<string>}|null
      */
-    public function generateSessionReview(\App\Models\User $user, string $sessionLabel, string $factsBlock): ?array
-    {
-        $prompt = <<<PROMPT
-Der Athlet hat gerade eine Trainingseinheit absolviert. Analysiere sie ausschließlich auf Basis der ECHTEN Daten unten und schreibe ein kurzes, persönliches Review.
-
-Absolvierte Einheit: {$sessionLabel}
-
-**Daten:**
-{$factsBlock}
-
-Aufgabe:
-- Steht in den Daten eine Zeile "SPORTART", war das KEIN Lauf. Sprich ueber genau diese Sportart und benutze ihre Sprache — bei Schwimmen Bahnen und Technik, beim Radfahren Watt, Trittfrequenz und Dauer. Bewerte dort NIEMALS Pace in min/km, Laufzonen oder die Schwellenpace, und frage auch nicht nach dem Lauf. Ordne die Einheit als Ergaenzung zum Lauftraining ein: was sie dem Athleten bringt und ob sie neben dem Laufpensum sinnvoll liegt.
-- Beginne mit der EINORDNUNG aus den Daten:
-  · Stand die Einheit im Plan und wurde sie im Rahmen umgesetzt, sag das kurz und geh weiter.
-  · Steht dort eine "Abweichung vom Plan", benenne sie mit den Zahlen und ordne sie ein — deutlich länger oder schneller als vorgesehen ist nicht automatisch gut, sondern kostet Erholung und kann die nächste Schlüsseleinheit gefährden. Zu kurz oder zu langsam ist ebenfalls kein Drama, wenn der Kontext (Schlaf, Stress, Belastung) es erklärt.
-  · Ist die Einheit als UNGEPLANT ausgewiesen, sag das ausdrücklich und bewerte sie als Zusatzbelastung: passt sie zum Trainingsstand, oder geht sie auf Kosten der nächsten geplanten Einheit? War der Tag als RUHETAG vorgesehen, benenne das offen.
-- 2–4 Sätze Review in direkter Ansprache (du). Konkret mit Zahlen aus den Daten, ehrlich und motivierend — niemals generisch.
-- Hebe AUFFÄLLIGKEITEN hervor (z.B. Puls deutlich höher/niedriger als sonst, ungewöhnliche Pace, starke aerobe Entkopplung/Puls-Drift) und nenne eine plausible Ursache aus den Kontextdaten (Schlaf, Stress, Wetter, Ermüdung/Belastung).
-- Stehen Zeilen zu "Wochenumfang", "Umsetzung der letzten 4 Wochen" oder "Entwicklung bei …" in den Daten, ordne die Einheit darin ein — EIN Satz, nicht mehr. Derselbe Lauf bedeutet etwas anderes in einer Woche mit halbem Umfang als im dritten harten Block, und "gleicher Puls, aber schneller als vor zwei Monaten" ist die Aussage, auf die ein Athlet wochenlang hinarbeitet. Übernimm die Zahlen wie sie dastehen und rechne nichts dazu. Ändert der Verlauf nichts an der Einordnung, lass ihn weg statt ihn zu referieren.
-- Hat eine Auffälligkeit MEHRERE plausible Ursachen, stelle dem Athleten EINE kurze, konkrete Rückfrage ("question") und biete 2–4 knappe Antwortoptionen ("options") an (z.B. "Schlecht geschlafen", "Wetter", "Müde Beine", "Alles normal").
-- Gibt es nichts Auffälliges, setze "question" auf null und "options" auf [].
-
-Antworte AUSSCHLIESSLICH mit einem JSON-Objekt, alle Texte auf Deutsch:
-{"review": "…", "question": "… oder null", "options": ["…", "…"]}
-PROMPT;
+    public function generateSessionReview(
+        \App\Models\User $user,
+        string $sessionLabel,
+        array $highlight,
+        string $context,
+        string $factsBlock,
+    ): ?array {
+        $messages = [
+            ['role' => 'system', 'content' => $this->ai->systemPrompt(self::REVIEW_SYSTEM)],
+            ['role' => 'user',   'content' => self::reviewPrompt($sessionLabel, $highlight, $context, $factsBlock)],
+        ];
 
         $this->forUser($user->id);
 
-        $text = $this->ai->chat('session_review', [
-            ['role' => 'system', 'content' => $this->ai->systemPrompt('Antworte ausschließlich mit dem angeforderten JSON-Objekt. Alle Texte auf Deutsch.')],
-            ['role' => 'user',   'content' => $prompt],
-        ], 0.6, 1200, 60, $this->ai->mini(), background: true);
+        $max   = \App\Services\Review\SessionHighlights::SENTENCES[$highlight['length']] ?? 3;
+        $data  = $this->askForReview($messages);
+        $issues = $data ? \App\Services\Review\ReviewText::problems($data['review'], $max, $highlight['emoji']) : [];
 
-        $data = $this->ai->jsonObject($text);
-        if ($data !== null) {
-            if (! empty($data['review'])) {
-                $question = ! empty($data['question']) && $data['question'] !== 'null' ? trim($data['question']) : null;
-                $options  = (! empty($data['options']) && is_array($data['options']))
-                    ? array_values(array_filter(array_map('trim', $data['options'])))
-                    : [];
-                // A question without options (or vice versa) is not a usable dialog — drop both.
-                if (! $question || empty($options)) {
-                    $question = null;
-                    $options  = [];
-                }
-                return ['review' => trim($data['review']), 'question' => $question, 'options' => $options];
-            }
+        // Einmal nachbessern lassen; die zweite Antwort gilt, auch wenn sie
+        // nicht perfekt ist — eine etwas lange Nachricht ist besser als keine.
+        if ($data && $issues) {
+            $retry = $this->askForReview([
+                ...$messages,
+                ['role' => 'assistant', 'content' => json_encode($data, JSON_UNESCAPED_UNICODE)],
+                ['role' => 'user', 'content' => 'Das klingt noch nicht wie ein Trainer: ' . implode('; ', $issues)
+                    . '. Schreib die Nachricht neu, gleiche Form.'],
+            ]);
+            $data = $retry ?? $data;
         }
 
-        return null;
+        return $data;
+    }
+
+    /** @return array{review:string, question:?string, options:array<string>}|null */
+    private function askForReview(array $messages): ?array
+    {
+        $text = $this->ai->chat('session_review', $messages, 0.7, 1500, 60, $this->ai->mid(), background: true);
+        $data = $this->ai->jsonObject($text);
+
+        if (empty($data['review'])) {
+            return null;
+        }
+
+        $question = ! empty($data['question']) && $data['question'] !== 'null' ? trim($data['question']) : null;
+        $options  = (! empty($data['options']) && is_array($data['options']))
+            ? array_values(array_slice(array_filter(array_map(fn ($o) => trim((string) $o), $data['options'])), 0, 4))
+            : [];
+
+        // Eine Frage ohne Antworten (oder umgekehrt) ist kein Dialog.
+        if (! $question || count($options) < 2) {
+            $question = null;
+            $options  = [];
+        }
+
+        return ['review' => trim($data['review']), 'question' => $question, 'options' => $options];
+    }
+
+    private const REVIEW_SYSTEM = <<<'TXT'
+Du schreibst deinem Athleten nach dem Training eine kurze Nachricht, so wie ein guter Trainer per Messenger schreibt: persönlich, kurz, auf Deutsch, in der Du-Form. Antworte nur mit dem verlangten JSON.
+TXT;
+
+    /**
+     * Der Prompt für die Nachricht nach einer Einheit. Öffentlich, damit der
+     * Vergleichsbefehl und die Tests ihn ohne Modellaufruf ansehen können.
+     */
+    public static function reviewPrompt(string $sessionLabel, array $highlight, string $context, string $factsBlock): string
+    {
+        $max  = \App\Services\Review\SessionHighlights::SENTENCES[$highlight['length']] ?? 3;
+        $side = $highlight['side'] ? "\nNebenpunkt (nur wenn er in einen Halbsatz passt): {$highlight['side']}" : '';
+        $emoji = $highlight['emoji'] ? 'Höchstens ein Emoji, wenn es passt.' : 'Kein Emoji.';
+        $banned = implode(', ', array_map('trim', \App\Services\Review\ReviewText::BANNED));
+
+        return <<<PROMPT
+Einheit: {$sessionLabel}
+
+WORÜBER DU SCHREIBST
+Hauptpunkt: {$highlight['main']}{$side}
+
+WAS DU ÜBER DEN ATHLETEN WEISST
+{$context}
+
+MESSWERTE (nur zum Nachschlagen, NICHT aufzählen)
+{$factsBlock}
+
+SO SCHREIBST DU
+- Höchstens {$max} Sätze. Jeder Satz kurz, höchstens 20 Wörter. Alltagssprache.
+- Schreib über den Hauptpunkt. Was er bedeutet, nicht welche Werte gemessen wurden.
+- Höchstens zwei Zahlen in der ganzen Nachricht, und nur, wenn sie etwas sagen. Lieber "sechs Schläge weniger" als "132 statt 138 bpm".
+- Wenn es passt, ein Blick nach vorn: die nächste Einheit oder das Ziel. Nicht jedes Mal.
+- Den Vornamen höchstens ab und zu, nicht als Anrede am Anfang.
+- Fang nicht so an wie deine letzten Nachrichten. Kein "Starke Leistung", kein "Super gemacht" als Einstieg, keine Wiederholung des Einheitennamens am Anfang.
+- Diese Wörter benutzt du nicht: {$banned}. Keine Abkürzungen wie "Ø".
+- Ist eine Pause oder ein späterer Planstart genannt, wertest du nichts als Lücke oder Unzuverlässigkeit.
+- {$emoji}
+- Ehrlich, aber nie belehrend oder abwertend.
+
+RÜCKFRAGE
+Nur wenn die Antwort etwas für das weitere Training ändert (Ursache für hohen Puls, Gefühl nach dem ersten Lauf nach einer Pause, zu schnelle Schlüsseleinheit): genau eine kurze Frage als letzter Satz der Nachricht in "question" (nicht in "review"), dazu 2–4 Antworten mit höchstens drei Wörtern. Sonst question null und options [].
+
+SO KLINGT ES (Beispiele für den Ton, nicht zum Abschreiben)
+- "Gleiches Tempo wie vor einem Monat, aber sechs Schläge weniger Puls. Genau daraus wird deine Zielzeit. Donnerstag kommt die Schwelle, bis dahin nichts Schnelles."
+- "Stark gelaufen, aber zu schnell. Die Schwelle wirkt über die Dauer, nicht über das Tempo. Nächstes Mal genau auf Zielpace." Frage: "Wie fühlen sich die Beine an?" Antworten: Frisch, Schwer, Geht so
+- "Erster Lauf nach der Pause, ganz ruhig. Genau so." Frage: "Wie geht es dir danach?" Antworten: Gut, Etwas müde, Hat gezwickt
+- "Ruhige Runde auf dem Rad, das tut den Beinen gut. Morgen der lange Lauf, heute früh ins Bett."
+
+Antworte nur mit diesem JSON:
+{"review": "…", "question": "… oder null", "options": ["…"]}
+PROMPT;
     }
 
     /**

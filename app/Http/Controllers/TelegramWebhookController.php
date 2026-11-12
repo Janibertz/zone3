@@ -6,6 +6,7 @@ use App\Jobs\CoachReplyJob;
 use App\Jobs\TelegramMediaJob;
 use App\Models\CoachMessage;
 use App\Models\SessionRecommendation;
+use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\AI\CoachChatService;
 use App\Services\TelegramBriefing;
@@ -287,6 +288,12 @@ class TelegramWebhookController extends Controller
         $messageId = (int) ($callback['message']['message_id'] ?? 0);
         $user      = User::where('telegram_chat_id', $chatId)->first();
 
+        if ($user && preg_match('/^rv:(\d+):(\d+)$/', (string) ($callback['data'] ?? ''), $rv)) {
+            $this->reviewAnswer($user, $callback, (int) $rv[1], (int) $rv[2]);
+
+            return;
+        }
+
         if (! $user || ! preg_match('/^rec:(accept|reject):(\d+)$/', (string) ($callback['data'] ?? ''), $m)) {
             $this->telegram->answerCallback((string) ($callback['id'] ?? ''));
 
@@ -312,5 +319,30 @@ class TelegramWebhookController extends Controller
         $this->telegram->answerCallback((string) $callback['id']);
         $this->telegram->clearButtons($chatId, $messageId);
         $this->telegram->sendMessage($chatId, $reply);
+    }
+
+    /**
+     * Ein Knopf unter der Rückfrage nach einer Einheit: `rv:<Einheit>:<Nummer>`.
+     * Die Antwort landet wie in der App an der Einheit und in den Notizen, und
+     * der Coach antwortet darauf — so wird aus der Frage ein Gespräch.
+     */
+    private function reviewAnswer(User $user, array $callback, int $sessionId, int $index): void
+    {
+        $chatId    = (int) ($callback['message']['chat']['id'] ?? 0);
+        $messageId = (int) ($callback['message']['message_id'] ?? 0);
+        $session   = TrainingSession::where('id', $sessionId)->where('user_id', $user->id)->first();
+        $answer    = $session?->review_options[$index] ?? null;
+
+        $this->telegram->clearButtons($chatId, $messageId);
+
+        if (! $session || ! $answer || $session->review_feedback) {
+            $this->telegram->answerCallback((string) ($callback['id'] ?? ''), 'Schon beantwortet.');
+
+            return;
+        }
+
+        $session->answerReview($answer);
+        $this->telegram->answerCallback((string) ($callback['id'] ?? ''), $answer);
+        $this->ask($user, $chatId, "Zu deiner Frage „{$session->review_question}\u{201C}: {$answer}");
     }
 }

@@ -11,6 +11,13 @@ class CoachMessage extends Model
     public const CHANNEL_WEB      = 'web';
     public const CHANNEL_TELEGRAM = 'telegram';
 
+    /**
+     * Die Rückfrage aus dem Review nach einer Einheit. Trägt `session_id`;
+     * Telegram zeigt die Antworten als Knöpfe, der Web-Chat blendet die
+     * Aktion aus (die Frage steht im Text).
+     */
+    public const ACTION_REVIEW_QUESTION = 'review_question';
+
     /** Gesprochen und von OpenAI abgeschrieben. */
     public const KIND_VOICE = 'voice';
 

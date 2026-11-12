@@ -11,6 +11,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
 use App\Services\PaceFormat;
+use App\Services\Review\SessionHighlights;
 
 /**
  * Generate the coach's post-session review from the real data of a completed
@@ -58,13 +59,16 @@ class GenerateSessionReviewJob implements ShouldQueue
             }
         }
 
-        $facts = $this->buildFacts($session, $loadService);
-        $label = $this->sessionLabel($session);
+        // Spaziergang, Yoga, kurzes Wandern: Alltag, kein Training. Ein
+        // Trainer schreibt dazu nichts (Jan, 12.11.2026).
+        $minutes = $activity && $activity->moving_time > 0 ? (int) round($activity->moving_time / 60) : null;
+        if (SessionHighlights::silent($session->sport_type ?? $activity?->type, $minutes)) {
+            $session->update(['reviewed_at' => now()]);
 
-        $result = $sessions
-            ->withCoach($user->coach?->personality_prompt)
-            ->forUser($user->id)
-            ->generateSessionReview($user, $label, $facts);
+            return;
+        }
+
+        $result = $this->draft($session, $sessions, $loadService);
 
         if (! $result) {
             Log::warning('Session review generation returned null', ['session_id' => $session->id]);
@@ -79,6 +83,8 @@ class GenerateSessionReviewJob implements ShouldQueue
         ]);
 
         // Surface in the coach chat as an assistant message (natural dialogue).
+        // Die Rückfrage trägt ihre Einheit mit, damit Telegram die Antworten
+        // als Knöpfe zeigen kann ({@see \App\Observers\CoachMessageObserver}).
         $chatContent = $result['review'];
         if ($result['question']) {
             $chatContent .= "\n\n" . $result['question'];
@@ -87,10 +93,35 @@ class GenerateSessionReviewJob implements ShouldQueue
             'user_id' => $user->id,
             'role'    => 'assistant',
             'content' => $chatContent,
+            'actions' => $result['question']
+                ? [['type' => CoachMessage::ACTION_REVIEW_QUESTION, 'session_id' => $session->id]]
+                : null,
         ]);
 
         // Die Benachrichtigung haengt am Anlegen der Chat-Nachricht
         // (CoachMessageObserver) — hier waere sie die zweite.
+    }
+
+    /**
+     * Die Nachricht, ohne sie zu speichern — für den Job und für
+     * `review:compare`, der alt und neu nebeneinanderlegt.
+     *
+     * @return array{review:string, question:?string, options:array<string>, highlight:string}|null
+     */
+    public function draft(TrainingSession $session, SessionContentService $sessions, TrainingLoadService $loadService): ?array
+    {
+        $user      = $session->user;
+        $facts     = $this->buildFacts($session, $loadService);
+        $label     = $this->sessionLabel($session);
+        $highlight = SessionHighlights::pick($this->signals($session));
+        $context   = $this->coachContext($session);
+
+        $result = $sessions
+            ->withCoach($user->coach?->personality_prompt)
+            ->forUser($user->id)
+            ->generateSessionReview($user, $label, $highlight, $context, $facts);
+
+        return $result ? [...$result, 'highlight' => $highlight['key']] : null;
     }
 
     /**
@@ -127,10 +158,9 @@ class GenerateSessionReviewJob implements ShouldQueue
         // "easy_run" herein. Ohne diese Zeile hielt der Coach jede
         // Schwimmeinheit fuer einen Lauf und fragte entsprechend.
         if (! $s->isRun()) {
-            $lines[] = 'SPORTART: ' . $s->sportLabel()
-                . ' — KEIN Lauf. Sprich ueber diese Sportart, nicht ueber Laufen.';
-            $lines[] = 'Pace, Laufzonen und Schwellenwerte sind hier NICHT aussagekraeftig'
-                . ' und duerfen nicht bewertet werden.';
+            // Nur Fakten, keine Anweisungen: was hier steht, liest das
+            // Modell gern vor (12.11.2026). Die Regeln stehen im Prompt.
+            $lines[] = 'Sportart: ' . $s->sportLabel() . ' (kein Lauf; Pace und Laufzonen sagen hier nichts)';
             $typeLabel = $s->sportLabel();
         }
 
@@ -144,18 +174,16 @@ class GenerateSessionReviewJob implements ShouldQueue
         if ($s->isCrossTraining()) {
             // Fremdsport steht nie im Laufplan — ihn als "ungeplant" zu
             // fuehren, liest sich wie eine Planabweichung. Das war er nicht.
-            $lines[] = 'EINORDNUNG: ' . $s->sportLabel() . ' — Alternativtraining. Steht naturgemaess'
-                . ' nicht im Laufplan und ist KEINE Abweichung davon. Frag nicht nach dem Lauf.';
+            $lines[] = 'Plan: Ergänzung zum Laufen, steht nicht im Laufplan (das ist normal)';
 
             if (($snapshot['type'] ?? null) === 'rest') {
-                $lines[] = 'Fuer diesen Tag war im Laufplan ein Ruhetag vorgesehen — ordne ein, ob'
-                    . ' die Einheit die Erholung stoert oder als lockere Bewegung durchgeht.';
+                $lines[] = 'Plan: an diesem Tag war ein Ruhetag vorgesehen';
             }
         } elseif ($s->was_unplanned) {
             $wasRest = ($snapshot['type'] ?? null) === 'rest';
             $lines[] = $wasRest
-                ? 'EINORDNUNG: Ungeplant — fuer diesen Tag war ein RUHETAG vorgesehen.'
-                : 'EINORDNUNG: Ungeplant — fuer diesen Tag stand keine Einheit im Plan.';
+                ? 'Plan: ungeplant, an diesem Tag war ein Ruhetag vorgesehen'
+                : 'Plan: ungeplant, an diesem Tag stand nichts im Plan';
         } elseif ($snapshot) {
             $plannedType = $this->typeLabels()[$snapshot['type'] ?? ''] ?? ($snapshot['type'] ?? $typeLabel);
 
@@ -165,12 +193,12 @@ class GenerateSessionReviewJob implements ShouldQueue
             if (! empty($snapshot['pace_target']))  $planned[] = "Pace {$snapshot['pace_target']}";
             if (! empty($snapshot['zone']))         $planned[] = "Zone {$snapshot['zone']}";
 
-            $lines[] = 'EINORDNUNG: Geplante Einheit.';
+            $lines[] = 'Plan: geplante Einheit';
             $lines[] = 'Geplant war: ' . $plannedType . (empty($planned) ? '' : ' (' . implode(', ', $planned) . ')');
         } else {
             // Aeltere Einheiten, die vor Einfuehrung des Schnappschusses
             // importiert wurden. Lieber offen sagen als etwas behaupten.
-            $lines[] = 'EINORDNUNG: Geplante Einheit — die urspruenglichen Planwerte liegen nicht mehr vor.';
+            $lines[] = 'Plan: geplante Einheit, die ursprünglichen Planwerte liegen nicht mehr vor';
         }
 
         $activity = $s->activity;
@@ -201,8 +229,8 @@ class GenerateSessionReviewJob implements ShouldQueue
             if (! $s->was_unplanned && $snapshot) {
                 $deltas = $this->planDeltas($snapshot, $km, $min, (float) $activity->average_speed);
                 $lines[] = $deltas
-                    ? 'Abweichung vom Plan: ' . implode(', ', $deltas)
-                    : 'Abweichung vom Plan: wie geplant umgesetzt.';
+                    ? 'Gegen den Plan: ' . implode(', ', $deltas)
+                    : 'Gegen den Plan: wie geplant umgesetzt';
             }
 
             // Baseline: same session type over the last 90 days (excluding this one).
@@ -235,7 +263,7 @@ class GenerateSessionReviewJob implements ShouldQueue
                 if (isset($w['apparent_c'])) $wl .= " (gefühlt {$w['apparent_c']}°C)";
                 if (! empty($w['wind_kmh'])) $wl .= ", Wind {$w['wind_kmh']} km/h";
                 if (isset($w['precip_mm']) && $w['precip_mm'] > 0) $wl .= ", Niederschlag {$w['precip_mm']} mm";
-                $lines[] = 'Wetter beim Lauf: ' . trim($wl);
+                $lines[] = 'Wetter: ' . trim($wl);
             }
         } else {
             $lines[] = 'Absolviert: manuell abgehakt, keine Aktivitätsdaten (Puls/Pace nicht verfügbar).';
@@ -285,6 +313,198 @@ class GenerateSessionReviewJob implements ShouldQueue
         }
 
         return implode("\n", array_map(fn ($l) => "- {$l}", $lines));
+    }
+
+    /**
+     * Die Rohsignale für {@see SessionHighlights::pick()} — alles gerechnet,
+     * nichts geschätzt.
+     */
+    private function signals(TrainingSession $s): array
+    {
+        $activity = $s->activity;
+        $snapshot = $s->planned_snapshot ?? [];
+        $run      = $s->isRun();
+
+        $out = [
+            'run'          => $run,
+            'type'         => $s->type,
+            'sport'        => $s->sport_type,
+            'unplanned'    => (bool) $s->was_unplanned,
+            'rest_ignored' => ($snapshot['type'] ?? null) === 'rest',
+        ];
+
+        if ($s->type === 'race_prep' || ($snapshot['type'] ?? null) === 'race_prep') {
+            $out['race'] = $s->title ?: 'Rennen';
+        }
+
+        if (! $activity) {
+            return $out;
+        }
+
+        $km  = $activity->distance > 0 ? $activity->distance / 1000 : null;
+        $min = $activity->moving_time > 0 ? (int) round($activity->moving_time / 60) : null;
+        $out['minutes'] = $min;
+
+        if ($run) {
+            $pb = app(\App\Services\BestEffortService::class)->celebration($s->user_id, $activity->id);
+            if ($pb) {
+                $out['pb'] = [
+                    'distance' => $pb['distance'],
+                    'time'     => $this->clock((int) $pb['seconds']),
+                    'previous' => $this->clock((int) $pb['previous_seconds']),
+                ];
+            }
+
+            $previous = \App\Models\Activity::where('user_id', $s->user_id)
+                ->whereIn('type', TrainingSession::RUN_SPORTS)
+                ->where('id', '!=', $activity->id)
+                ->where('start_date', '<', $activity->start_date)
+                ->max('start_date');
+            if ($previous) {
+                $out['comeback_days'] = (int) \Carbon\Carbon::parse($previous)->startOfDay()
+                    ->diffInDays(\Carbon\Carbon::parse($activity->start_date)->startOfDay());
+            }
+
+            $pausedUntil = $s->user->runnerProfile?->training_paused_until;
+            $out['pause_ended'] = $pausedUntil
+                && $pausedUntil->lt($s->planned_date)
+                && $pausedUntil->gte($s->planned_date->copy()->subDays(14))
+                && ($out['comeback_days'] ?? 99) >= 5;
+        }
+
+        if ($snapshot && ! $s->was_unplanned) {
+            $target = $this->paceRangeSeconds($snapshot['pace_target'] ?? null);
+            if ($run && $target && $activity->average_speed > 0) {
+                $actual = 1000 / $activity->average_speed;
+                if ($actual < $target['min'] - 5) {
+                    $out['pace_off_s'] = (int) round($actual - $target['min']);
+                } elseif ($actual > $target['max'] + 5) {
+                    $out['pace_off_s'] = (int) round($actual - $target['max']);
+                }
+            }
+            if (($snapshot['distance_km'] ?? 0) > 0 && $km) {
+                $out['km_off_pct'] = (int) round(($km - $snapshot['distance_km']) / $snapshot['distance_km'] * 100);
+            } elseif (($snapshot['duration_min'] ?? 0) > 0 && $min) {
+                $out['min_off_pct'] = (int) round(($min - $snapshot['duration_min']) / $snapshot['duration_min'] * 100);
+            }
+            $out['as_planned'] = ! $this->planDeltas($snapshot, $km ? round($km, 2) : null, $min, (float) $activity->average_speed);
+        }
+
+        if ($w = $this->trendWindows($s)) {
+            $out['trend_pace_s'] = (int) round(1000 / $w['then']['speed'] - 1000 / $w['now']['speed']);
+            if ($w['now']['hr'] && $w['then']['hr']) {
+                $out['trend_hr'] = (int) round($w['now']['hr'] - $w['then']['hr']);
+            }
+        }
+
+        if ($drift = $this->hrDrift($activity->laps ?? [])) {
+            $out['drift'] = $drift['second'] - $drift['first'];
+        }
+
+        $weather = $activity->weather ?? [];
+        $out['temp']     = isset($weather['temp_c']) ? (float) $weather['temp_c'] : null;
+        $out['apparent'] = isset($weather['apparent_c']) ? (float) $weather['apparent_c'] : null;
+        $out['wind']     = ! empty($weather['wind_kmh']) ? (float) $weather['wind_kmh'] : null;
+
+        return $out;
+    }
+
+    /** 46:22 oder 1:28:40 — wie eine Uhr, nicht „00:46:22". */
+    private function clock(int $seconds): string
+    {
+        $h = intdiv($seconds, 3600);
+        $m = intdiv($seconds % 3600, 60);
+        $sec = $seconds % 60;
+
+        return $h > 0 ? sprintf('%d:%02d:%02d', $h, $m, $sec) : sprintf('%d:%02d', $m, $sec);
+    }
+
+    /** Pause an diesem Tag oder ein Plan, der erst später beginnt. */
+    private function breakOrLaterStart(TrainingSession $s): bool
+    {
+        $profile = $s->user->runnerProfile;
+        if ($profile?->isPausedOn($s->planned_date)) {
+            return true;
+        }
+        $until = $profile?->training_paused_until;
+        if ($until && $until->gte($s->planned_date->copy()->subWeeks(4))) {
+            return true;
+        }
+
+        return $s->user->planStartsLater() !== null;
+    }
+
+    /**
+     * Was ein Trainer über seinen Athleten im Kopf hat: Name, Ziel, Pause,
+     * die nächste Einheit — und was er zuletzt geschrieben hat, damit er
+     * nicht jedes Mal gleich anfängt. Bis 12.11.2026 fehlte all das; der
+     * Coach las Jans OP-Pause als „1 von 6 Läufen".
+     */
+    private function coachContext(TrainingSession $s): string
+    {
+        $user    = $s->user;
+        $profile = $user->runnerProfile;
+        $lines   = [];
+
+        if ($first = trim(strtok((string) $user->name, ' ') ?: '')) {
+            $lines[] = "Vorname: {$first}";
+        }
+
+        $event = $user->activeTrainingPlan?->event
+            ?? \App\Models\Event::where('user_id', $user->id)->races()
+                ->whereDate('event_date', '>=', $s->planned_date)->orderBy('event_date')->first();
+
+        if ($event) {
+            if ($event->isOpen()) {
+                $lines[] = 'Ziel ohne Rennen: ' . $event->openFocusLabel();
+            } else {
+                $goal = "Ziel: {$event->name}, {$event->distance_label}";
+                if ($event->target_time_formatted) $goal .= ", Zielzeit {$event->target_time_formatted}";
+                $goal .= ', in ' . $event->weeks_until . ' Wochen';
+                $lines[] = $goal;
+            }
+            try {
+                $lines[] = 'Phase: ' . app(\App\Services\PeriodizationService::class)
+                    ->phaseOn($event, \Carbon\CarbonImmutable::parse($s->planned_date->toDateString()))['label'];
+            } catch (\Throwable $e) {
+                // Phase ist nur Beiwerk.
+            }
+        }
+
+        if ($profile?->isPausedOn($s->planned_date)) {
+            $lines[] = 'Trainingspause bis ' . $profile->training_paused_until->format('d.m.')
+                . ($profile->training_pause_reason ? " ({$profile->training_pause_reason})" : '');
+        } elseif ($profile?->training_paused_until && $profile->training_paused_until->gte($s->planned_date->copy()->subWeeks(4))) {
+            $lines[] = 'Trainingspause beendet am ' . $profile->training_paused_until->format('d.m.')
+                . ($profile->training_pause_reason ? " ({$profile->training_pause_reason})" : '');
+        }
+
+        if ($later = $user->planStartsLater()) {
+            $lines[] = "Der Plan startet erst am {$later['date']}; bis dahin geht es ums Formhalten";
+        }
+
+        $next = TrainingSession::where('user_id', $user->id)
+            ->where('status', 'planned')
+            ->whereNotIn('type', ['rest'])
+            ->whereDate('planned_date', '>', $s->planned_date)
+            ->orderBy('planned_date')->orderBy('sort_order')
+            ->first();
+        if ($next) {
+            $label = $next->isRun() ? (TrainingSession::TYPE_LABELS[$next->type] ?? $next->type) : $next->sportLabel();
+            $lines[] = 'Nächste Einheit: ' . $next->planned_date->locale('de')->isoFormat('dddd')
+                . ", {$label}" . ($next->title && $next->title !== $label ? " ({$next->title})" : '');
+        }
+
+        $recent = CoachMessage::where('user_id', $user->id)
+            ->where('role', 'assistant')
+            ->latest('id')->limit(3)->pluck('content')
+            ->map(fn ($c) => '„' . mb_strimwidth(preg_replace('/\s+/', ' ', $c), 0, 140, '…') . '"')
+            ->all();
+        if ($recent) {
+            $lines[] = 'Deine letzten Nachrichten (nicht wiederholen, anders anfangen): ' . implode(' · ', $recent);
+        }
+
+        return $lines ? implode("\n", array_map(fn ($l) => "- {$l}", $lines)) : '- (nichts weiter bekannt)';
     }
 
     /**
@@ -448,7 +668,10 @@ class GenerateSessionReviewJob implements ShouldQueue
             ->where('planned_date', '<=', $s->planned_date->toDateString())
             ->count();
 
-        if ($planned > 0) {
+        // In einer Pause oder vor dem Planstart ist die Quote kein Zeichen
+        // von Unzuverlässigkeit — so las der Coach sie aber (12.11.2026,
+        // „1 von 6 geplanten Laufeinheiten" mitten in Jans OP-Pause).
+        if ($planned > 0 && ! $this->breakOrLaterStart($s)) {
             $quote = (int) round(($done / $planned) * 100);
             $line  = "Umsetzung der letzten 4 Wochen: {$done} von {$planned} geplanten Laufeinheiten absolviert ({$quote} %)";
             if ($skipped > 0)   $line .= ", {$skipped} ausgelassen";
@@ -457,8 +680,7 @@ class GenerateSessionReviewJob implements ShouldQueue
         }
 
         if ($crossCount > 0) {
-            $lines[] = "Alternativtraining im selben Zeitraum: {$crossCount} Einheiten "
-                . '(Schwimmen, Rad o.ä. — zaehlen als Belastung, nicht als Laufumfang)';
+            $lines[] = "Rad, Schwimmen und Ähnliches im selben Zeitraum: {$crossCount} Einheiten";
         }
 
         if ($trend = $this->typeTrend($s)) {
@@ -466,10 +688,8 @@ class GenerateSessionReviewJob implements ShouldQueue
         }
 
         if (! $s->isRun()) {
-            $lines[] = 'Die Zahlen oben sind LAUF-Kilometer. Diese Einheit war '
-                . $s->sportLabel() . ' und zaehlt dort nicht mit — ordne sie als '
-                . 'Ergaenzung zum Lauftraining ein (Belastung fuer den Koerper, '
-                . 'aber kein Laufumfang).';
+            $lines[] = 'Die Wochenkilometer oben zählen nur Läufe; diese Einheit ('
+                . $s->sportLabel() . ') ist dort nicht dabei.';
         }
 
         return $lines;
@@ -483,7 +703,7 @@ class GenerateSessionReviewJob implements ShouldQueue
      * schneller". Dafür braucht es beide Werte aus beiden Zeiträumen —
      * die Pace allein sagt nichts, weil sie auch Tagesform sein kann.
      */
-    private function typeTrend(TrainingSession $s): ?string
+    private function trendWindows(TrainingSession $s): ?array
     {
         // Eine Schwimmeinheit traegt den Platzhalter-Typ "easy_run" aus dem
         // Import. Ohne diese Sperre wuerde sie gegen echte lockere Laeufe
@@ -525,6 +745,17 @@ class GenerateSessionReviewJob implements ShouldQueue
         if ($now['count'] < 2 || $then['count'] < 2 || ! $now['speed'] || ! $then['speed']) {
             return null;
         }
+
+        return ['now' => $now, 'then' => $then];
+    }
+
+    private function typeTrend(TrainingSession $s): ?string
+    {
+        $w = $this->trendWindows($s);
+        if (! $w) {
+            return null;
+        }
+        ['now' => $now, 'then' => $then] = $w;
 
         $secNow  = 1000 / $now['speed'];
         $secThen = 1000 / $then['speed'];

@@ -150,9 +150,9 @@ class SessionPlanAdherenceTest extends TestCase
 
         $facts = $this->facts($session->refresh());
 
-        $this->assertStringContainsString('EINORDNUNG: Geplante Einheit', $facts);
+        $this->assertStringContainsString('Plan: geplante Einheit', $facts);
         $this->assertStringContainsString('Geplant war:', $facts);
-        $this->assertStringContainsString('Abweichung vom Plan:', $facts);
+        $this->assertStringContainsString('Gegen den Plan:', $facts);
         $this->assertStringContainsString('schneller als vorgesehen', $facts);
         $this->assertStringContainsString('+64 %', $facts, 'Der Umfang lag 64 Prozent ueber dem Plan');
     }
@@ -210,8 +210,8 @@ class SessionPlanAdherenceTest extends TestCase
 
         $facts = $this->facts($session);
 
-        $this->assertStringContainsString('Ungeplant', $facts);
-        $this->assertStringContainsString('RUHETAG', $facts);
+        $this->assertStringContainsString('ungeplant', $facts);
+        $this->assertStringContainsString('Ruhetag', $facts);
     }
 
     // ── Benachrichtigungen ───────────────────────────────────────────────

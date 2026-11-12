@@ -160,8 +160,8 @@ class SportAwareReviewTest extends TestCase
     {
         $facts = $this->facts($this->entry('Swim', 1500, 2400));
 
-        $this->assertStringContainsString('SPORTART: Schwimmen', $facts);
-        $this->assertStringContainsString('KEIN Lauf', $facts);
+        $this->assertStringContainsString('Sportart: Schwimmen', $facts);
+        $this->assertStringContainsString('kein Lauf', $facts);
     }
 
     /** Eine Pace in min/km ist beim Schwimmen keine Größe, die der Coach einordnen kann. */
@@ -177,7 +177,7 @@ class SportAwareReviewTest extends TestCase
         $facts = $this->facts($this->entry(null, 10000, 3000));
 
         $this->assertStringContainsString('Ø-Pace', $facts);
-        $this->assertStringNotContainsString('SPORTART:', $facts);
+        $this->assertStringNotContainsString('Sportart:', $facts);
     }
 
     /** Die Wochenkilometer sind Laufkilometer — das muss dabeistehen. */
@@ -187,7 +187,7 @@ class SportAwareReviewTest extends TestCase
 
         $facts = $this->facts($this->entry('Swim', 1500, 2400));
 
-        $this->assertStringContainsString('LAUF-Kilometer', $facts);
+        $this->assertStringContainsString('zählen nur Läufe', $facts);
     }
 
     /** Fremdsport ist keine Planabweichung — er steht nie im Laufplan. */
@@ -195,9 +195,8 @@ class SportAwareReviewTest extends TestCase
     {
         $facts = $this->facts($this->entry('Swim', 1500, 2400));
 
-        $this->assertStringContainsString('Alternativtraining', $facts);
-        $this->assertStringContainsString('KEINE Abweichung', $facts);
-        $this->assertStringNotContainsString('EINORDNUNG: Ungeplant', $facts);
+        $this->assertStringContainsString('Ergänzung zum Laufen', $facts);
+        $this->assertStringNotContainsString('Plan: ungeplant', $facts);
     }
 
     /** Schwimmer denken in Metern, nicht in Kilometern. */

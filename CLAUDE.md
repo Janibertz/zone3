@@ -686,6 +686,19 @@ The coach can really change the plan — `create_training_session`, `modify_trai
 
 Two rules learned the hard way and encoded in the system prompt: **never claim a change without calling the tool** (with only a today-tool available, the model would describe the change instead of making it), and **one running session per day** also applies here. `applySessionFields()` reconciles distance/duration/pace so the numbers can't contradict the title — a model that changes the type without supplying new numbers would otherwise leave the old ones standing.
 
+### Die Nachricht nach einer Einheit (seit 12.11.2026)
+
+Gemeldet von Jan mit einem Spaziergang: alle Messwerte aufgezählt, Steuerzeilen vorgelesen („Alternativtraining: nicht im Laufplan und keine Abweichung davon"), die OP-Pause als „1 von 6 geplanten Laufeinheiten" — „hört sich nicht an wie von einem echten Trainer". Der Prompt hatte es so bestellt („konkret mit Zahlen", „ordne ein"). Konzept im Dokument „Coach-Nachricht nach Einheiten".
+
+- **Worüber entscheidet der Code** (`App\Services\Review\SessionHighlights::pick()`), wie beim Plan: feste Reihenfolge Rennen → Bestzeit → Wiedereinstieg → Ruhetag missachtet → Schlüsseleinheit zu schnell/langsam (ab 8 s/km) → zu lang (ab 20 %) → fitter (gleiches Tempo, weniger Puls) → Pulsdrift → Wetter → sauber umgesetzt → Routine. Der erste ist der Hauptpunkt, der zweite höchstens Nebenpunkt; daraus folgen Länge (Routine 2 Sätze, sonst 3, Bestzeit/Rennen 4) und ob ein Emoji erlaubt ist (nur Bestzeit/Rennen, höchstens eins).
+- **Keine Nachricht** für Walk, Yoga, Pilates, Stretching, Meditation und Wandern unter 60 min (`silent()`): `reviewed_at` wird gesetzt, kein Modellaufruf.
+- **Kontext statt Quote:** Vorname, Ziel mit Wochen, nächste Einheit, Pause/später Planstart, die letzten Nachrichten des Coaches (gegen Wiederholung). In einer Pause oder vor dem Planstart fällt „Umsetzung der letzten 4 Wochen" weg. Die Messwerte stehen im Prompt nur zum Nachschlagen und sachlich formuliert — keine Anweisungszeile, die das Modell vorlesen könnte.
+- **Prüfung danach** (`ReviewText::problems()`): Satzzahl, 25 Wörter je Satz, höchstens zwei Zahlen, Systemwörter (`BANNED`: Alternativtraining, bpm, Ø, min/km …), Emojis. Schlägt etwas an, geht es **einmal** mit der Liste zurück ans Modell; die zweite Antwort gilt.
+- **Mittleres Modell** (`mid()`, Flex) statt des kleinen.
+- **Rückfrage mit Knöpfen:** fragt der Coach etwas (`review_question`/`review_options`), trägt die Chat-Nachricht `actions: [{type: review_question, session_id}]`. Telegram zeigt die Antworten als Knöpfe (`CoachMessageObserver::reviewButtons()`, `rv:{session}:{index}`); ein Tipp speichert über `TrainingSession::answerReview()` (dieselbe Methode wie das Dashboard) und gibt die Antwort an den Coach weiter. Der Web-Chat blendet diese Aktion aus.
+- **Coach-Persönlichkeiten auf Deutsch** mit typischen Sätzen (`CoachSeeder`, läuft bei jedem Deploy).
+- **`php artisan review:compare {user} --limit=10`** legt alte und neue Nachricht nebeneinander (`storage/app/private/review-compare/`), speichert nichts an der Einheit, kostet je Einheit ein bis zwei Aufrufe.
+
 ## Was am 09.10.2026 abgerissen wurde
 
 Eine vollständige Messung ergab 70.400 Zeilen für **zwei aktive Athleten** (Jan: 153 von 177 Coach-Nachrichten, 150 von 157 Wellbeing-Einträgen; Christopher der einzige zweite). Nicht der Kern war überengineert — der ist schwierig — sondern der Rand. Phase 1 nahm die Leichen, Phase 2 meinen eigenen Anbau.

@@ -96,7 +96,7 @@ function formatTime(dateStr) {
     return new Date(dateStr).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
 
-const changesOf   = (msg) => (msg.actions ?? []).filter(a => a.type !== 'proposal');
+const changesOf   = (msg) => (msg.actions ?? []).filter(a => a.type !== 'proposal' && a.type !== 'review_question');
 const proposalsOf = (msg) => (msg.actions ?? []).filter(a => a.type === 'proposal');
 
 const rows = computed(() => {

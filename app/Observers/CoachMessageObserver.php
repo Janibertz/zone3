@@ -37,7 +37,7 @@ class CoachMessageObserver
         // Antworten auf eine Frage aus dem Web-Chat bleiben im Web: dort
         // wartet der Athlet gerade auf sie.
         if ($user->hasTelegram() && $message->channel !== CoachMessage::CHANNEL_WEB) {
-            app(TelegramClient::class)->sendMessage((int) $user->telegram_chat_id, $message->content);
+            app(TelegramClient::class)->sendMessage((int) $user->telegram_chat_id, $message->content, self::reviewButtons($message));
 
             // Eigene Vorschläge des Coaches folgen der Antwort, mit Knöpfen.
             foreach ($message->actions ?? [] as $action) {
@@ -68,5 +68,37 @@ class CoachMessageObserver
                 'error'      => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Die Antworten auf die Rückfrage nach einer Einheit als Knöpfe
+     * (`rv:<Einheit>:<Nummer>`). Vorher kamen sie in Telegram gar nicht an —
+     * die Frage stand da, antworten konnte man nur durch Tippen.
+     *
+     * @return array<int, array<int, array{text: string, callback_data: string}>>|null
+     */
+    public static function reviewButtons(CoachMessage $message): ?array
+    {
+        foreach ($message->actions ?? [] as $action) {
+            if (($action['type'] ?? null) !== CoachMessage::ACTION_REVIEW_QUESTION) {
+                continue;
+            }
+
+            $session = \App\Models\TrainingSession::find($action['session_id'] ?? 0);
+            $options = $session?->review_options ?? [];
+            if (! $options || $session->review_feedback) {
+                return null;
+            }
+
+            $row = [];
+            foreach (array_values($options) as $i => $option) {
+                $row[] = ['text' => mb_substr((string) $option, 0, 40), 'callback_data' => "rv:{$session->id}:{$i}"];
+            }
+
+            // Mehr als zwei Antworten passen auf dem Telefon nicht nebeneinander.
+            return array_chunk($row, 2);
+        }
+
+        return null;
     }
 }

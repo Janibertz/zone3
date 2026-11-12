@@ -214,4 +214,20 @@ class TrainingSession extends Model
     public function trainingPlan(){ return $this->belongsTo(TrainingPlan::class); }
     public function event()       { return $this->belongsTo(Event::class); }
     public function activity()    { return $this->belongsTo(Activity::class); }
+
+    /**
+     * Die Antwort des Athleten auf die Rückfrage im Review: an der Einheit
+     * und als Notiz im Profil, damit Coach und Plan sie kennen. Ein Weg für
+     * die App und für die Telegram-Knöpfe.
+     */
+    public function answerReview(string $answer): void
+    {
+        $answer = mb_substr(trim($answer), 0, 300);
+        $this->update(['review_feedback' => $answer]);
+
+        $date = $this->planned_date->format('d.m.Y');
+        RunnerProfile::firstOrCreate(['user_id' => $this->user_id])->rememberNote(
+            "Rückmeldung zu \"{$this->review_question}\" ({$this->title}, {$date}): {$answer}"
+        );
+    }
 }
