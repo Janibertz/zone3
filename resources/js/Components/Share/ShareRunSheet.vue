@@ -112,7 +112,7 @@ const isSticker = computed(() => template.value === 'sticker');
                 <span class="flex h-[92px] w-[62px] items-center justify-center overflow-hidden rounded-[10px]"
                     :class="[template === t.key && !(t.key === 'photo' && ownPhoto) ? 'ring-[2.5px] ring-accent ring-offset-2 ring-offset-surface' : '',
                         { photo: 'bg-surface-2', route: 'bg-[#0B0E12]', numbers: 'bg-white', sticker: 'bg-[repeating-conic-gradient(#3a3a3c_0_25%,#2c2c2e_0_50%)] bg-[length:12px_12px]' }[t.key]]">
-                    <img v-if="t.key === 'photo'" :src="DEFAULT_PHOTO" alt="" class="h-full w-full object-cover" />
+                    <img v-if="t.key === 'photo'" :src="data.photo || DEFAULT_PHOTO" alt="" class="h-full w-full object-cover" />
                     <svg v-else-if="t.key === 'route'" class="h-10 w-10" viewBox="0 0 40 40" aria-hidden="true"><path d="M6 28 C10 16 18 14 22 9 S34 8 33 18 S24 30 14 31Z" fill="none" stroke="#2997ff" stroke-width="2.4" /></svg>
                     <span v-else-if="t.key === 'numbers'" class="font-rounded text-[17px] font-extrabold text-black">{{ data.big.value }}</span>
                     <span v-else class="text-center text-[10px] font-bold leading-tight text-white">ohne<br>Grund</span>

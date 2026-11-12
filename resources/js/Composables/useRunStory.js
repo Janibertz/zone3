@@ -136,7 +136,7 @@ async function drawPhoto(d, photo) {
     const [c, ctx] = canvas();
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
-    cover(ctx, await loadImage(photo || DEFAULT_PHOTO));
+    cover(ctx, await loadImage(photo || d.photo || DEFAULT_PHOTO));
 
     const shade = ctx.createLinearGradient(0, 0, 0, H);
     shade.addColorStop(0, 'rgba(0,0,0,0.2)');
@@ -264,7 +264,7 @@ async function drawSticker(d) {
  *           stats: Array<{ value: string, unit?: string, label: string }>,
  *           extra?: Array<{ value: string, label: string }>,
  *           zones?: Array<{ pct: number }>, coords?: Array<[number, number]> }} data
- * @param {string|null} photo  eigenes Foto als Object-URL
+ * @param {string|null} photo  eigenes Foto als Object-URL (sonst `data.photo`, die Vorlage der Sportart)
  * @returns {Promise<Blob>}
  */
 export async function drawRunStory(template, data, photo = null) {

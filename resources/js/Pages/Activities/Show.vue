@@ -13,6 +13,7 @@ import { activityType } from '@/Composables/useActivityTypes';
 import { sessionType } from '@/Composables/useSessionTypes';
 import { fmtNum, clock, speedOf, distanceOf, paceFromSpeed } from '@/Composables/useFormat';
 import { safeBack } from '@/Composables/useActivityLink';
+import { activityPhoto } from '@/Composables/useMomentPhotos';
 
 /**
  * Eine Aktivität im Story-Look (Redesign 28.10.2026).
@@ -310,6 +311,7 @@ const shareData = computed(() => {
         extra,
         zones:     zoneShare.value?.map(z => ({ pct: z.pct })) ?? null,
         coords:    routeCoords.value,
+        photo:     sportPhoto.value?.src ?? null,
     };
 });
 
@@ -339,6 +341,10 @@ const routeCoords = computed(() => (props.activity.polyline ? decodePolyline(pro
 const hasMap = computed(() => routeCoords.value.length > 1);
 /** Unten liegen Titel und Kennzahlen auf der Karte; die Route bleibt darüber frei. */
 const MAP_PADDING = { top: 64, bottom: 200, left: 32, right: 32 };
+/** Ohne Strecke steht oben das Foto der Sportart (Schwimmen, Jan 12.11.2026), wenn es eins gibt. */
+const sportPhoto = computed(() => activityPhoto(props.activity.type));
+const headerPhoto = computed(() => !hasMap.value && !!sportPhoto.value);
+const onVisual = computed(() => hasMap.value || headerPhoto.value);
 
 
 // Great-circle distance between two [lat,lng] points in metres.
@@ -394,13 +400,15 @@ const routeSegments = computed(() => {
                     <RouteMap v-if="hasMap" :coords="routeCoords" :segments="routeSegments" :active="activeLap" :focus="pickedLap"
                         mode="calm" :distance="activity.distance || 0" :padding="MAP_PADDING"
                         class="z-0 h-[460px] w-full overflow-hidden bg-surface-2 lg:h-[520px] lg:rounded-card" />
+                    <img v-else-if="headerPhoto" :src="sportPhoto.src" alt="" :style="{ objectPosition: sportPhoto.pos }"
+                        class="h-[400px] w-full bg-surface-2 object-cover lg:h-[460px] lg:rounded-card" />
                     <div v-else class="h-16" />
 
                     <!-- Die Kopfdaten liegen auf der Karte (wie eine Story-Karte) und sparen den Block darunter.
                          Sie fangen die Berührung selbst ab und scrollen die Seite: mit
                          pointer-events-none ging der Wisch an die Karte und verschob sie
                          (Jan, 10.11.2026: „Ich scrolle dann immer auf der Karte“). -->
-                    <div v-if="hasMap" class="touch-pan-y absolute inset-x-0 bottom-0 bg-gradient-to-t from-canvas via-canvas/90 to-transparent px-4 pb-4 pt-20 lg:rounded-b-card lg:px-6 lg:pb-5">
+                    <div v-if="onVisual" class="touch-pan-y absolute inset-x-0 bottom-0 bg-gradient-to-t from-canvas via-canvas/90 to-transparent px-4 pb-4 pt-20 lg:rounded-b-card lg:px-6 lg:pb-5">
                         <p class="flex items-center gap-1.5 text-[15px] font-semibold" :class="label.color">
                             <span class="h-2 w-2 shrink-0 rounded-full" :class="label.dot" />{{ label.text }}
                         </p>
@@ -421,7 +429,7 @@ const routeSegments = computed(() => {
                         Runde {{ lapRows[pickedLap].n }} · {{ lapRows[pickedLap].distance }} km · {{ lapRows[pickedLap].value }}{{ isCycling ? ' km/h' : ' /km' }}<template v-if="lapRows[pickedLap].hr"> · {{ lapRows[pickedLap].hr }} bpm</template>
                         <span class="text-ink-3">✕</span>
                     </button>
-                    <button v-if="!shareOpen" type="button" aria-label="Lauf teilen" @click="shareOpen = true"
+                    <button v-if="!shareOpen" type="button" aria-label="Teilen" @click="shareOpen = true"
                         class="absolute right-4 top-4 z-[500] flex h-10 items-center gap-1.5 rounded-full bg-surface/80 px-3.5 text-[15px] font-semibold text-ink backdrop-blur-xl transition-transform active:scale-95">
                         <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></svg>
                         Teilen
@@ -434,7 +442,7 @@ const routeSegments = computed(() => {
 
                 <div class="space-y-7 px-4 pt-5 lg:px-0">
                     <!-- ── Kopf ───────────────────────────────────── -->
-                    <header v-if="!hasMap">
+                    <header v-if="!onVisual">
                         <p class="flex items-center gap-1.5 text-[15px] font-semibold" :class="label.color">
                             <span class="h-2 w-2 shrink-0 rounded-full" :class="label.dot" />{{ label.text }}
                         </p>
@@ -442,7 +450,7 @@ const routeSegments = computed(() => {
                         <p class="mt-1 text-[15px] text-ink-3">{{ dateLine }}</p>
                     </header>
 
-                    <div v-if="!hasMap" class="grid grid-cols-3 gap-3">
+                    <div v-if="!onVisual" class="grid grid-cols-3 gap-3">
                         <div v-for="m in bigMetrics" :key="m.k" class="min-w-0">
                             <p class="text-[13px] text-ink-3">{{ m.k }}</p>
                             <p class="whitespace-nowrap font-rounded text-[30px] font-extrabold leading-9 tracking-[-0.035em] tabular-nums text-ink">{{ m.v }}<span v-if="m.u" class="ml-0.5 text-[15px] font-semibold tracking-normal text-ink-3">{{ m.u }}</span></p>
