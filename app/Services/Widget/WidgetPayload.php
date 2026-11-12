@@ -171,6 +171,12 @@ class WidgetPayload
      *
      * @return array<string, mixed>|null
      */
+    /** Der gespeicherte Tagesvorschlag von heute (Live Activity), ohne Modellaufruf. */
+    public function suggestionFor(User $user, CarbonImmutable $day): ?array
+    {
+        return $this->suggestion($user, $day);
+    }
+
     private function suggestion(User $user, CarbonImmutable $today): ?array
     {
         $profile = $user->runnerProfile;

@@ -26,8 +26,28 @@ class AIController extends Controller
 
     public function recommendToday(Request $request)
     {
-        $user = $request->user();
+        [$recommendation, $message, $wellbeingExists] = $this->todayFor($request->user());
 
+        return response()->json([
+            'recommendation'         => $recommendation,
+            'recommendation_message' => $message,
+            'wellbeing_exists'       => $wellbeingExists,
+        ]);
+    }
+
+    /**
+     * Der Tagesvorschlag für heute: [Vorschlag, Hinweis, Tagesform da?].
+     *
+     * Ohne `$requireWellbeing` entsteht er auch ohne Tagesform — so erzeugt
+     * ihn die Live Activity vor dem Start, wenn noch kein Plan läuft
+     * (12.11.2026, Jan). Trägt der Athlet danach die Tagesform ein, passt
+     * der Cache nicht mehr (andere Wellbeing-ID), und der Vorschlag wird
+     * mit ihr neu geschrieben.
+     *
+     * @return array{0: ?array, 1: ?string, 2: bool}
+     */
+    public function todayFor(\App\Models\User $user, bool $requireWellbeing = true): array
+    {
         $runnerProfile = $user->runnerProfile;
 
         $yesterday = Carbon::yesterday()->toDateString();
@@ -90,18 +110,14 @@ class AIController extends Controller
         // sehen und schrieb — vom Wiedereinstieg-Hinweis gedrängt — einen
         // lockeren Lauf für jemanden, der am Morgen operiert worden war.
         if ($rest = $this->restRecommendation($runnerProfile, $todayWellbeing, $todayAvailability)) {
-            return response()->json([
-                'recommendation'         => $rest,
-                'recommendation_message' => null,
-                'wellbeing_exists'       => $wellbeingExists,
-            ]);
+            return [$rest, null, $wellbeingExists];
         }
 
-        if ($wellbeingExists) {
+        if ($wellbeingExists || ! $requireWellbeing) {
             // Check cached recommendation (same day + same entry) — stored as JSON string
             if ($runnerProfile &&
                 $runnerProfile->recommendation_date == $today &&
-                $runnerProfile->recommendation_wellbeing_id == $todayWellbeing->id &&
+                $runnerProfile->recommendation_wellbeing_id == $todayWellbeing?->id &&
                 !empty($runnerProfile->today_recommendation))
             {
                 $decoded = json_decode($runnerProfile->today_recommendation, true);
@@ -133,7 +149,7 @@ class AIController extends Controller
                 if ($runnerProfile && $recommendation) {
                     $runnerProfile->today_recommendation = json_encode($recommendation, JSON_UNESCAPED_UNICODE);
                     $runnerProfile->recommendation_date = $today;
-                    $runnerProfile->recommendation_wellbeing_id = $todayWellbeing->id;
+                    $runnerProfile->recommendation_wellbeing_id = $todayWellbeing?->id;
                     $runnerProfile->save();
                 }
             }
@@ -147,11 +163,7 @@ class AIController extends Controller
             $recommendation = $this->withStructure($recommendation, $user);
         }
 
-        return response()->json([
-            'recommendation' => $recommendation,
-            'recommendation_message' => $recommendationMessage,
-            'wellbeing_exists' => $wellbeingExists,
-        ]);
+        return [$recommendation, $recommendationMessage, $wellbeingExists];
     }
 
     /**

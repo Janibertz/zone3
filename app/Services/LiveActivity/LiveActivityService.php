@@ -12,7 +12,9 @@ use App\Services\PaceFormat;
 use App\Services\Push\ApnsClient;
 use App\Services\Widget\WidgetPayload;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\AIController;
 
 /**
  * Live Activity „Heute steht an“ (Mockup „Zone3 Live Activities“, Jan am
@@ -102,11 +104,16 @@ class LiveActivityService
             $this->payload->itemsOn($user, $day),
             fn ($i) => $i['type'] !== 'rest',
         ));
+        // Ohne Einheit im Kalender: der Tagesvorschlag (ohne Plan oder vor
+        // dem Planstart), sofern er heute schon geschrieben ist.
+        if (! $items && ($suggestion = $this->payload->suggestionFor($user, $day))) {
+            $items = [$suggestion];
+        }
         if (! $items) {
             return null;
         }
 
-        $planned = array_values(array_filter($items, fn ($i) => $i['status'] === 'planned'));
+        $planned = array_values(array_filter($items, fn ($i) => in_array($i['status'], ['planned', 'suggested'], true)));
         $base    = rtrim(config('app.url'), '/');
 
         if (! $planned) {
@@ -117,12 +124,15 @@ class LiveActivityService
 
         $lead = collect($planned)->first(fn ($i) => $i['run'] || $i['label'] === 'Rad') ?? $planned[0];
         $rest = array_values(array_filter($planned, fn ($i) => $i['id'] !== $lead['id']));
+        $suggested = $lead['status'] === 'suggested';
 
         $foot = null;
         $url  = $base . $lead['url'];
         if (! WellbeingEntry::where('user_id', $user->id)->whereDate('date', $day->toDateString())->exists()) {
             $foot = 'Tagesform noch offen · Antippen zum Eintragen';
             $url  = $base . '/dashboard?tagesform=1';
+        } elseif ($suggested) {
+            $foot = 'Vorschlag vom Coach';
         } elseif ($rest) {
             $foot = 'Danach: ' . $rest[0]['label'] . ($this->amount($rest[0]) ? ' · ' . $this->amount($rest[0]) : '');
         }
@@ -209,6 +219,7 @@ class LiveActivityService
                 continue;
             }
 
+            $this->ensureSuggestion($user, $today);
             $state = $this->state($user, $today);
             if (! $state || $state['done']) {
                 continue;
@@ -237,6 +248,33 @@ class LiveActivityService
         }
 
         return $count;
+    }
+
+    /**
+     * Ohne Plan oder vor dem Planstart steht heute nichts im Kalender. Dann
+     * schreibt der Server den Tagesvorschlag selbst (kleines Modell), damit
+     * die Activity etwas zeigen kann, bevor der Athlet die App öffnet
+     * (Jan, 12.11.2026). Höchstens ein Versuch am Tag, auch wenn er nichts
+     * liefert (Ruhetag, Budget, Fehler).
+     */
+    private function ensureSuggestion(User $user, CarbonImmutable $today): void
+    {
+        if (! $user->runnerProfile || ($user->activeTrainingPlan && ! $user->planStartsLater())) {
+            return;
+        }
+        if ($this->payload->itemsOn($user, $today) || $this->payload->suggestionFor($user, $today)) {
+            return;
+        }
+        if (! Cache::add("live-activity:suggestion:{$user->id}:{$today->toDateString()}", true, 86400)) {
+            return;
+        }
+
+        try {
+            app(AIController::class)->todayFor($user, requireWellbeing: false);
+            $user->unsetRelation('runnerProfile');
+        } catch (\Throwable $e) {
+            Log::warning('Live Activity: Tagesvorschlag fehlgeschlagen', ['user_id' => $user->id, 'error' => $e->getMessage()]);
+        }
     }
 
     /** @return array{0: int, 1: int} */

@@ -6,6 +6,8 @@ use App\Models\Activity;
 use App\Models\Event;
 use App\Models\LiveActivity;
 use App\Models\LiveActivityDevice;
+use App\Models\RunnerProfile;
+use App\Services\AI\CoachingTextService;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
@@ -213,6 +215,46 @@ class LiveActivityTest extends TestCase
         $state = $this->livePushes()[0]->data()['aps']['content-state'];
         $this->assertSame('Krafttraining', $state['name']);
         $this->assertSame([['v' => '30', 'u' => 'min']], $state['metrics']);
+    }
+
+    public function test_before_the_plan_starts_the_server_writes_the_daily_suggestion_once(): void
+    {
+        [$user, $plan] = $this->athlete();
+        $plan->event->update(['plan_start_date' => '2026-11-30']);
+        RunnerProfile::create(['user_id' => $user->id]);
+        $this->register($user);
+
+        $text = $this->mock(CoachingTextService::class);
+        $text->shouldReceive('withCoach')->andReturnSelf();
+        $text->shouldReceive('forUser')->andReturnSelf();
+        $text->shouldReceive('generateTodayRecommendation')->once()->andReturn([
+            'type' => 'easy_run', 'title' => 'Locker halten', 'description' => 'Form halten bis zum Planstart.',
+            'distance_km' => 8, 'duration_min' => 45, 'pace_target' => null, 'zone' => 2, 'intensity' => 'low',
+        ]);
+
+        $service = app(LiveActivityService::class);
+        $service->tick();
+        $service->tick();
+
+        $pushes = $this->livePushes();
+        $this->assertCount(1, $pushes);
+        $state = $pushes[0]->data()['aps']['content-state'];
+        $this->assertSame('Locker halten', $state['title']);
+        // Ohne Tagesform zeigt sie zuerst den Hinweis darauf.
+        $this->assertSame('Tagesform noch offen · Antippen zum Eintragen', $state['foot']);
+        $this->assertFalse($state['done']);
+    }
+
+    public function test_with_a_running_plan_and_nothing_today_no_suggestion_is_written(): void
+    {
+        [$user] = $this->athlete();
+        RunnerProfile::create(['user_id' => $user->id]);
+        $this->register($user);
+
+        $this->mock(CoachingTextService::class)->shouldNotReceive('generateTodayRecommendation');
+
+        app(LiveActivityService::class)->tick();
+        $this->assertCount(0, $this->livePushes());
     }
 
     public function test_after_the_import_it_shows_done_with_the_real_numbers_and_ends(): void
