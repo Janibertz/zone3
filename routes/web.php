@@ -217,6 +217,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             $todayPlanSession = [
                 'id'           => $s->id,
                 'type'         => $s->type,
+                'sport_type'   => $s->sport_type,
                 'title'        => $s->title,
                 'description'  => $s->description,
                 'steps'        => $s->steps,
@@ -349,6 +350,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             $todayRecommendationSession = [
                 'id'           => $sr->id,
                 'type'         => $sr->type,
+                'sport_type'   => $sr->sport_type,
                 'title'        => $sr->title,
                 'description'  => $sr->description,
                 'distance_km'  => $sr->distance_km,
