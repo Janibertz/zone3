@@ -13,7 +13,11 @@
   <key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
+	<string>de</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>de</string>
+	</array>
 	<key>CFBundleDisplayName</key>
         <string>Zone3</string>
 	<key>CFBundleExecutable</key>
