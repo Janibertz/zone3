@@ -6,10 +6,17 @@ name: Android
 # Capacitor-Paketen ändert.
 #
 # Stufe 1: Debug-APK ohne Play-Signatur, als Artefakt zum Herunterladen und
-# direkt Installieren. Signiertes Bundle für die Play Console folgt, sobald
-# das Konto steht.
+# direkt Installieren.
+# Stufe 2 (Job play): signiertes App-Bundle für die Play Console, nur per
+# Hand gestartet. Braucht die Secrets ANDROID_KEYSTORE_BASE64,
+# ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
 on:
   workflow_dispatch:
+    inputs:
+      play:
+        description: 'Signiertes Bundle (.aab) für Google Play bauen'
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths:
@@ -69,4 +76,62 @@ jobs:
         with:
           name: zone3-android-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+  play:
+    name: Bundle für Google Play
+    if: github.event_name == 'workflow_dispatch' && inputs.play
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Java einrichten
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Node einrichten
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Abhängigkeiten
+        run: npm ci
+
+      - name: Capacitor synchronisieren
+        run: npx cap sync android
+
+      - name: Upload-Schlüssel
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Secret ANDROID_KEYSTORE_BASE64 fehlt"; exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+
+      - name: Bundle bauen
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_NAME: '1.0.${{ github.run_number }}'
+        run: ./gradlew bundleRelease --no-daemon
+
+      - name: Signatur prüfen
+        run: jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab | tail -1
+
+      - name: Bundle hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: zone3-android-play
+          path: android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
