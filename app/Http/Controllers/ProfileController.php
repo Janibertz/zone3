@@ -52,6 +52,7 @@ class ProfileController extends Controller
         return Inertia::render('Profile/Edit', [
             'mustVerifyEmail'  => $user instanceof MustVerifyEmail,
             'status'           => session('status'),
+            'hasPassword'      => (bool) ($user->has_password ?? true),
             'runnerProfile'    => $user->runnerProfile,
             // Woher Zonen und Prognosen kommen — siehe VdotService.
             'vdot'             => $user->runnerProfile?->vdotInfo(),
@@ -210,11 +211,21 @@ class ProfileController extends Controller
 
     public function destroy(Request $request): RedirectResponse
     {
-        $request->validate([
-            'password' => ['required', 'current_password'],
-        ]);
-
         $user = $request->user();
+
+        // Wer mit Apple oder per Link angemeldet ist, kennt kein Passwort und
+        // bestätigt mit dem Wort LÖSCHEN — sonst ginge Löschen in der App
+        // nicht (App Store 5.1.1(v)).
+        if ($user->has_password ?? true) {
+            $request->validate(['password' => ['required', 'current_password']]);
+        } else {
+            $request->validate(['confirm' => ['required', 'string']]);
+            if (mb_strtoupper(trim($request->input('confirm'))) !== 'LÖSCHEN') {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'confirm' => 'Bitte gib LÖSCHEN ein.',
+                ]);
+            }
+        }
 
         // Bei Garmin abmelden, solange der Token noch da ist — sonst bliebe
         // Zone3 dort als verbundene App stehen.

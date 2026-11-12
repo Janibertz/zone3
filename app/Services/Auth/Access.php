@@ -54,7 +54,8 @@ class Access
             'signup_source'     => SignupSource::current(),
         ]);
         // Die Adresse ist bestätigt: Apple hat sie geprüft bzw. der Link kam an.
-        $user->forceFill(['email_verified_at' => now()])->save();
+        // Kein eigenes Passwort: Konto löschen fragt dann keins ab (App Store 5.1.1(v)).
+        $user->forceFill(['email_verified_at' => now(), 'has_password' => false])->save();
 
         $this->tellAdmins($user, $waiting);
 

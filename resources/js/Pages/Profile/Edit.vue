@@ -23,6 +23,7 @@ import { clockInput } from '@/Composables/useFormat';
 
 const props = defineProps({
     mustVerifyEmail:       Boolean,
+    hasPassword:           { type: Boolean, default: true },
     status:                String,
     runnerProfile:         Object,
     vdot:                  Object,
@@ -688,7 +689,7 @@ const zoneColors = [
 // ── Delete account ───────────────────────────────────────────────────────────
 const confirmingDeletion  = ref(false);
 const deletePasswordInput = ref(null);
-const deleteForm = useForm({ password: '' });
+const deleteForm = useForm({ password: '', confirm: '' });
 
 const confirmDeletion = () => { confirmingDeletion.value = true; nextTick(() => deletePasswordInput.value?.focus()); };
 const deleteAccount = () => {
@@ -1418,7 +1419,9 @@ const inputClass = 'z-input';
         <ConfirmSheet
             :show="confirmingDeletion"
             title="Konto wirklich löschen?"
-            message="Diese Aktion kann nicht rückgängig gemacht werden. Gib zur Bestätigung dein Passwort ein."
+            :message="hasPassword
+                ? 'Dein Konto und alle Daten darin werden gelöscht. Das lässt sich nicht rückgängig machen. Gib zur Bestätigung dein Passwort ein.'
+                : 'Dein Konto und alle Daten darin werden gelöscht. Das lässt sich nicht rückgängig machen. Gib zur Bestätigung LÖSCHEN ein.'"
             confirm-label="Ja, löschen"
             :loading="deleteForm.processing"
             @confirm="deleteAccount"
@@ -1426,14 +1429,27 @@ const inputClass = 'z-input';
         >
             <div class="mt-4">
                 <input
+                    v-if="hasPassword"
                     ref="deletePasswordInput"
                     v-model="deleteForm.password"
                     type="password"
+                    autocomplete="current-password"
                     placeholder="Passwort eingeben"
                     class="z-input focus:border-danger focus:ring-danger/20"
                     @keyup.enter="deleteAccount"
                 />
-                <InputError :message="deleteForm.errors.password" class="mt-1.5" />
+                <input
+                    v-else
+                    ref="deletePasswordInput"
+                    v-model="deleteForm.confirm"
+                    type="text"
+                    autocapitalize="characters"
+                    autocomplete="off"
+                    placeholder="LÖSCHEN"
+                    class="z-input focus:border-danger focus:ring-danger/20"
+                    @keyup.enter="deleteAccount"
+                />
+                <InputError :message="deleteForm.errors.password || deleteForm.errors.confirm" class="mt-1.5" />
             </div>
         </ConfirmSheet>
 

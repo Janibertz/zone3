@@ -61,6 +61,7 @@ class User extends Authenticatable
             'email_verified_at'             => 'datetime',
             'onboarding_completed_at'       => 'datetime',
             'is_admin'                      => 'boolean',
+            'has_password'                  => 'boolean',
             'is_active'                     => 'boolean',
             'waitlisted_at'                 => 'datetime',
             'seen_app_on'                   => 'date',

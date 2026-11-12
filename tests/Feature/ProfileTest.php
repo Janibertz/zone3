@@ -96,4 +96,41 @@ class ProfileTest extends TestCase
 
         $this->assertNotNull($user->fresh());
     }
+    public function test_an_account_without_own_password_is_deleted_with_the_word(): void
+    {
+        // Mit Apple oder per Link angemeldet: kein Passwort, das man kennt.
+        $user = User::factory()->onboarded()->create();
+        $user->forceFill(['has_password' => false])->save();
+
+        $this->actingAs($user)->from('/profile')
+            ->delete('/profile', ['confirm' => 'falsch'])
+            ->assertSessionHasErrors('confirm');
+        $this->assertNotNull($user->fresh());
+
+        $this->actingAs($user)
+            ->delete('/profile', ['confirm' => 'löschen'])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect('/');
+
+        $this->assertGuest();
+        $this->assertNull($user->fresh());
+    }
+
+    public function test_an_account_with_password_cannot_be_deleted_with_the_word(): void
+    {
+        $user = User::factory()->onboarded()->create();
+
+        $this->actingAs($user)->from('/profile')
+            ->delete('/profile', ['confirm' => 'LÖSCHEN'])
+            ->assertSessionHasErrors('password');
+
+        $this->assertNotNull($user->fresh());
+    }
+
+    public function test_a_passwordless_signup_has_no_own_password(): void
+    {
+        $user = app(\App\Services\Auth\Access::class)->register('neu@example.com', 'Neu');
+
+        $this->assertFalse($user->fresh()->has_password);
+    }
 }
