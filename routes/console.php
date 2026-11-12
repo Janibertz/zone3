@@ -15,6 +15,10 @@ Schedule::command('push:wellbeing-reminders')->everyMinute();
 // dort die Erinnerung — push:wellbeing-reminders laesst diese Athleten aus.
 Schedule::command('telegram:briefing')->everyMinute();
 
+// Live Activity „Heute steht an“: starten (6 h vor der üblichen Laufzeit),
+// auf Erledigt stellen, beenden. Pusht nur, wenn sich etwas geändert hat.
+Schedule::command('live-activities:tick')->everyMinute()->withoutOverlapping();
+
 // Every Monday at 07:00: generate weekly AI review for all athletes
 Schedule::command('ai:weekly-review')->weeklyOn(1, '07:00');
 

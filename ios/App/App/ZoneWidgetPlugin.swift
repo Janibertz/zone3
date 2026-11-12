@@ -27,6 +27,8 @@ public class ZoneWidgetPlugin: CAPPlugin, CAPBridgedPlugin {
         let changed = WidgetFeedStore.load() != url
         let saved = changed ? WidgetFeedStore.save(url) : true
         WidgetCenter.shared.reloadAllTimelines()
+        // Tokens der Live Activity, die vor der Adresse da waren.
+        LiveActivityRegistrar.flush()
         call.resolve(["saved": saved, "changed": changed])
     }
 

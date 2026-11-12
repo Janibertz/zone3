@@ -28,6 +28,8 @@ return Application::configure(basePath: dirname(__DIR__))
             // Apple schickt die Anmeldung als Formular von appleid.apple.com;
             // geschützt über state + nonce im Cache.
             'auth/apple/callback',
+            // Die App meldet Live-Activity-Tokens ohne Session; der Widget-Token schützt.
+            'widget/*/live-activity',
         ]);
 
         $middleware->web(append: [

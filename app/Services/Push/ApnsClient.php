@@ -34,6 +34,32 @@ class ApnsClient
 
     public function send(string $deviceToken, string $title, string $body, string $url = '/dashboard'): string
     {
+        return $this->post($deviceToken, [
+            'aps' => [
+                'alert' => ['title' => $title, 'body' => $body],
+                'sound' => 'default',
+            ],
+            'url' => $url,
+        ], 'alert', (string) config('services.apns.bundle_id'));
+    }
+
+    /**
+     * Live Activity starten, aktualisieren oder beenden (`aps.event` =
+     * start/update/end). Eigener Push-Typ und eigenes Topic
+     * („<Bundle-ID>.push-type.liveactivity“); das Token ist entweder das
+     * Start-Token des Geräts oder das Update-Token einer Activity.
+     *
+     * @param  array<string, mixed>  $aps
+     */
+    public function liveActivity(string $token, array $aps): string
+    {
+        return $this->post($token, ['aps' => $aps + ['timestamp' => time()]], 'liveactivity',
+            config('services.apns.bundle_id') . '.push-type.liveactivity');
+    }
+
+    /** @param  array<string, mixed>  $payload */
+    private function post(string $deviceToken, array $payload, string $pushType, string $topic): string
+    {
         if (! $this->configured()) {
             return self::ERROR;
         }
@@ -47,19 +73,13 @@ class ApnsClient
                 ->timeout(10)
                 ->withHeaders([
                     'authorization'  => 'bearer ' . $this->jwt(),
-                    'apns-topic'     => config('services.apns.bundle_id'),
-                    'apns-push-type' => 'alert',
+                    'apns-topic'     => $topic,
+                    'apns-push-type' => $pushType,
                     'apns-priority'  => '10',
                 ])
-                ->post("{$host}/3/device/{$deviceToken}", [
-                    'aps' => [
-                        'alert' => ['title' => $title, 'body' => $body],
-                        'sound' => 'default',
-                    ],
-                    'url' => $url,
-                ]);
+                ->post("{$host}/3/device/{$deviceToken}", $payload);
         } catch (\Throwable $e) {
-            Log::warning('APNs: Versand fehlgeschlagen', ['error' => $e->getMessage()]);
+            Log::warning('APNs: Versand fehlgeschlagen', ['error' => $e->getMessage(), 'type' => $pushType]);
             return self::ERROR;
         }
 
@@ -77,7 +97,7 @@ class ApnsClient
             Cache::forget($this->cacheKey());
         }
 
-        Log::warning('APNs: abgelehnt', ['status' => $response->status(), 'reason' => $reason]);
+        Log::warning('APNs: abgelehnt', ['status' => $response->status(), 'reason' => $reason, 'type' => $pushType]);
 
         return self::ERROR;
     }

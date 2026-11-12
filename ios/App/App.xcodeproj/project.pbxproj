@@ -34,6 +34,10 @@
 		7A3E0000001C2FF2A0C1D00D /* Zone3Widget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7A3E0000000E2FF2A0C1D00D /* Zone3Widget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		7A3E0000001D2FF2A0C1D00D /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A3E0000000F2FF2A0C1D00D /* WidgetKit.framework */; };
 		7A3E0000001E2FF2A0C1D00D /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A3E000000102FF2A0C1D00D /* SwiftUI.framework */; };
+		7A3E000000412FF2A0C1D00D /* TrainingActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A3E000000402FF2A0C1D00D /* TrainingActivity.swift */; };
+		7A3E000000422FF2A0C1D00D /* TrainingActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A3E000000402FF2A0C1D00D /* TrainingActivity.swift */; };
+		7A3E000000442FF2A0C1D00D /* TrainingLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A3E000000432FF2A0C1D00D /* TrainingLiveActivity.swift */; };
+		7A3E000000462FF2A0C1D00D /* LiveActivityRegistrar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A3E000000452FF2A0C1D00D /* LiveActivityRegistrar.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -92,6 +96,9 @@
 		7A3E0000000E2FF2A0C1D00D /* Zone3Widget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = Zone3Widget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		7A3E0000000F2FF2A0C1D00D /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		7A3E000000102FF2A0C1D00D /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		7A3E000000402FF2A0C1D00D /* TrainingActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingActivity.swift; sourceTree = "<group>"; };
+		7A3E000000432FF2A0C1D00D /* TrainingLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingLiveActivity.swift; sourceTree = "<group>"; };
+		7A3E000000452FF2A0C1D00D /* LiveActivityRegistrar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityRegistrar.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -143,6 +150,7 @@
 				9582B6922FE993A70072D4E8 /* WatchWorkoutsPlugin.swift */,
 				9582B6942FE993A70072D4E8 /* AppleSignInPlugin.swift */,
 				7A3E000000062FF2A0C1D00D /* ZoneWidgetPlugin.swift */,
+				7A3E000000452FF2A0C1D00D /* LiveActivityRegistrar.swift */,
 				9582B6902FE993A70072D4E8 /* ZoneBridgeViewController.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
@@ -164,6 +172,7 @@
 				7A3E000000012FF2A0C1D00D /* Feed.swift */,
 				7A3E000000032FF2A0C1D00D /* TodayViews.swift */,
 				7A3E000000022FF2A0C1D00D /* Style.swift */,
+				7A3E000000432FF2A0C1D00D /* TrainingLiveActivity.swift */,
 				7A3E000000072FF2A0C1D00D /* Assets.xcassets */,
 				7A3E000000212FF2A0C1D00D /* Fonts */,
 				7A3E000000082FF2A0C1D00D /* Info.plist */,
@@ -187,6 +196,7 @@
 			isa = PBXGroup;
 			children = (
 				7A3E000000052FF2A0C1D00D /* WidgetFeedStore.swift */,
+				7A3E000000402FF2A0C1D00D /* TrainingActivity.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -324,6 +334,8 @@
 				9582B6912FE993A70072D4E8 /* ZoneBridgeViewController.swift in Sources */,
 				7A3E000000172FF2A0C1D00D /* ZoneWidgetPlugin.swift in Sources */,
 				7A3E000000162FF2A0C1D00D /* WidgetFeedStore.swift in Sources */,
+				7A3E000000412FF2A0C1D00D /* TrainingActivity.swift in Sources */,
+				7A3E000000462FF2A0C1D00D /* LiveActivityRegistrar.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -336,6 +348,8 @@
 				7A3E000000132FF2A0C1D00D /* TodayViews.swift in Sources */,
 				7A3E000000122FF2A0C1D00D /* Style.swift in Sources */,
 				7A3E000000152FF2A0C1D00D /* WidgetFeedStore.swift in Sources */,
+				7A3E000000422FF2A0C1D00D /* TrainingActivity.swift in Sources */,
+				7A3E000000442FF2A0C1D00D /* TrainingLiveActivity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -492,7 +506,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = run.zone3.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -515,7 +529,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = run.zone3.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
@@ -539,7 +553,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = run.zone3.app.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -564,7 +578,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = run.zone3.app.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;

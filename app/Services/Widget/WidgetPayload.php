@@ -84,27 +84,53 @@ class WidgetPayload
     /** @return list<array{date: string, items: list<array<string, mixed>>}> */
     private function days(User $user, $plan, CarbonImmutable $today): array
     {
-        $sessions = TrainingSession::with('activity')
+        return $this->sessions($user, $plan, $today, $today->addDays(self::DAYS))
+            ->groupBy(fn ($s) => $s->planned_date->toDateString())
+            ->map(fn ($group, $date) => [
+                'date'  => $date,
+                'items' => $group->map(fn ($s) => $this->item($s, $this->href($plan, $s)))->values()->all(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Die Einheiten eines Tages in derselben Form wie im Widget, auch ohne
+     * aktiven Plan (eingeplante Builder-Workouts). Für die Live Activity.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function itemsOn(User $user, CarbonImmutable $day): array
+    {
+        $plan = $user->activeTrainingPlan;
+
+        return $this->sessions($user, $plan, $day, $day->addDay())
+            ->map(fn ($s) => $this->item($s, $this->href($plan, $s)))
+            ->values()
+            ->all();
+    }
+
+    private function sessions(User $user, $plan, CarbonImmutable $from, CarbonImmutable $until)
+    {
+        return TrainingSession::with('activity')
             ->where(fn ($q) => $q
-                ->where('training_plan_id', $plan->id)
+                ->when($plan, fn ($q) => $q->where('training_plan_id', $plan->id))
                 ->orWhere(fn ($q) => $q->whereNull('training_plan_id')->where('user_id', $user->id)))
-            ->whereDate('planned_date', '>=', $today->toDateString())
-            ->whereDate('planned_date', '<', $today->addDays(self::DAYS)->toDateString())
+            ->whereDate('planned_date', '>=', $from->toDateString())
+            ->whereDate('planned_date', '<', $until->toDateString())
             ->where('status', '!=', 'skipped')
             ->orderBy('planned_date')
             ->orderBy('sort_order')
             ->get();
+    }
 
-        $href = $plan->event_id ? "/events/{$plan->event_id}/plan" : '/calendar';
+    private function href($plan, TrainingSession $s): string
+    {
+        if (! $s->training_plan_id || ! $plan) {
+            return '/dashboard';
+        }
 
-        return $sessions
-            ->groupBy(fn ($s) => $s->planned_date->toDateString())
-            ->map(fn ($group, $date) => [
-                'date'  => $date,
-                'items' => $group->map(fn ($s) => $this->item($s, $s->training_plan_id ? "{$href}?open={$s->id}" : '/dashboard'))->values()->all(),
-            ])
-            ->values()
-            ->all();
+        return ($plan->event_id ? "/events/{$plan->event_id}/plan" : '/calendar') . "?open={$s->id}";
     }
 
     /** @return array<string, mixed> */
@@ -116,6 +142,7 @@ class WidgetPayload
 
         return [
             'id'     => $s->id,
+            'activity_id' => $s->status === 'completed' ? $s->activity_id : null,
             'type'   => $s->type,
             'label'  => $ride ? 'Rad' : (self::LABELS[$s->type] ?? 'Training'),
             'accent' => self::ACCENTS[$s->type] ?? 'success',

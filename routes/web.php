@@ -929,6 +929,11 @@ Route::get('/widget/{token}.json', [\App\Http\Controllers\WidgetController::clas
     ->where('token', '[A-Za-z0-9]{48}')
     ->middleware('throttle:60,1')
     ->name('widget.show');
+// Live Activity: die App meldet ihre Tokens unter derselben Adresse (WidgetController).
+Route::post('/widget/{token}/live-activity', [\App\Http\Controllers\WidgetController::class, 'liveActivity'])
+    ->where('token', '[A-Za-z0-9]{48}')
+    ->middleware('throttle:30,1')
+    ->name('widget.live-activity');
 Route::post('/telegram/webhook', [\App\Http\Controllers\TelegramWebhookController::class, 'handle'])->name('telegram.webhook');
 
 // ── LiveTrack ────────────────────────────────────────────────────────────────

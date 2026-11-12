@@ -137,6 +137,7 @@ struct Zone3WidgetBundle: WidgetBundle {
         TodayWidget()
         RaceWidget()
         WeekWidget()
+        TrainingLiveActivity()
     }
 }
 
