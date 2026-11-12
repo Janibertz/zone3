@@ -13,6 +13,7 @@ import AppCard from '@/Components/UI/AppCard.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import SectionHeader from '@/Components/UI/SectionHeader.vue';
 import PlanDesktopOverview from '@/Components/Plan/PlanDesktopOverview.vue';
+import PlanWeeksOverview from '@/Components/Plan/PlanWeeksOverview.vue';
 import GarminSendSheet from '@/Components/UI/GarminSendSheet.vue';
 import SwipeRow from '@/Components/SwipeRow.vue';
 import DragGhost from '@/Components/UI/DragGhost.vue';
@@ -1191,6 +1192,9 @@ const lapHeightPct = computed(() => {
                         <p v-if="prediction?.text && !backyard" class="mt-3 text-[15px] leading-snug text-ink-2">{{ prediction.text }}</p>
                         </div>
                     </section>
+
+                    <!-- Woche und Wochenbalken auch am Telefon (Jan, 12.11.2026); am Desktop stehen sie in PlanDesktopOverview. -->
+                    <PlanWeeksOverview v-if="!isPastEvent" :event="event" :sessions="currentSessions" class="lg:hidden" @open="openDetail" />
 
 
                         <!-- ── Einheiten ───────────────────────────── -->
