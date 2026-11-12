@@ -17,6 +17,7 @@ import NotificationChoice from '@/Components/Settings/NotificationChoice.vue';
 import AppleHealthCard from '@/Components/Settings/AppleHealthCard.vue';
 import { isIosApp } from '@/Composables/useNativeApp';
 import { clockInput } from '@/Composables/useFormat';
+import AiConsentText from '@/Components/Consent/AiConsentText.vue';
 
 const props = defineProps({
     coaches:     Array,
@@ -67,6 +68,7 @@ const say = (key) => props.coachTexts?.[key] ?? '';
 const notifyChoice = ref(null);
 const notifyOn = computed(() => !!notifyChoice.value?.anyOn);
 function refreshNotify() { router.reload({ only: ['telegram'] }); }
+const aiConsent       = ref(!!user.value?.ai_coach_consent_at);
 const coachLoading    = ref(false);
 const coachError      = ref(null);
 
@@ -84,7 +86,7 @@ async function submitCoach() {
     coachLoading.value = true;
     coachError.value   = null;
     try {
-        await axios.post(route('onboarding.coach'), { coach_id: selectedCoachId.value });
+        await axios.post(route('onboarding.coach'), { coach_id: selectedCoachId.value, ai_consent: true });
         nextStep();
     } catch {
         coachError.value = 'Fehler beim Speichern. Bitte versuche es erneut.';
@@ -503,8 +505,9 @@ const bar = computed(() => {
             return { label: 'Los geht’s', run: nextStep };
         case 'coach': {
             const name = props.coaches?.find(c => c.id === selectedCoachId.value)?.name;
+            // Kein Überspringen: ohne Einwilligung in die KI gibt es keinen Plan (App Store 5.1.2(i)).
             return { label: name ? `Mit ${name} trainieren` : 'Coach wählen', run: submitCoach,
-                disabled: !selectedCoachId.value, loading: coachLoading.value, skip: nextStep };
+                disabled: !selectedCoachId.value || !aiConsent.value, loading: coachLoading.value };
         }
         case 'profile':
             if (!profileMode.value) return { skip: nextStep, skipLabel: 'Später eintragen' };
@@ -624,6 +627,7 @@ const bar = computed(() => {
                         <svg class="h-5 w-5 shrink-0 text-accent" :class="selectedCoachId === coach.id ? '' : 'invisible'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
                     </button>
                 </FormGroup>
+                <AiConsentText v-model="aiConsent" class="mx-1" />
                 <p v-if="coachError" class="z-error mx-4">{{ coachError }}</p>
             </template>
 

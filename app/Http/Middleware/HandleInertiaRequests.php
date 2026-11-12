@@ -78,6 +78,9 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user'           => $this->userProps($request->user()),
                 'isAdmin'        => (bool) $request->user()?->is_admin,
+                // Einwilligung in die KI-Auswertung (OpenAI). false = einmal fragen
+                // (AiConsentSheet), nur nach dem Onboarding — dort steht sie im Coach-Schritt.
+                'aiConsent'      => ! $request->user() || $request->user()->ai_coach_consent_at !== null || ! $request->user()->onboarding_completed_at,
                 // Einheiten koennen auf die Garmin-Uhr — ueber die Training
                 // API, mit Workout-Freigabe.
                 'garminConnected'=> (bool) $request->user()?->sendsWorkoutsViaGarminApi(),

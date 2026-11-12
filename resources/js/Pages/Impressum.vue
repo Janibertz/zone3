@@ -1,9 +1,13 @@
 <script setup>
+import { isIosApp } from '@/Composables/useNativeApp';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import Wordmark from '@/Components/Brand/Wordmark.vue';
 import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
 import { LEGAL } from '@/legal';
+
+// App Store (Guideline 2.2): in der iOS-App ist von keiner Beta die Rede.
+const inApp = isIosApp();
 
 /**
  * Impressum nach § 5 DDG und § 18 Abs. 2 MStV (/impressum), öffentlich.
@@ -57,7 +61,7 @@ const field = 'mt-1 block w-full rounded-field border-0 bg-surface-2 px-3.5 py-3
                     {{ LEGAL.name }}<br>
                     <template v-for="line in LEGAL.address" :key="line">{{ line }}<br></template>
                 </p>
-                <p class="mt-3">Zone3 ist ein privat betriebenes Projekt und befindet sich in einer kostenlosen Beta.</p>
+                <p class="mt-3">Zone3 ist ein privat betriebenes Projekt {{ inApp ? 'und kostenlos.' : 'und befindet sich in einer kostenlosen Beta.' }}</p>
             </section>
 
             <section>

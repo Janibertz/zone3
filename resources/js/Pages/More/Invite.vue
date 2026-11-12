@@ -1,9 +1,13 @@
 <script setup>
+import { isIosApp } from '@/Composables/useNativeApp';
 import { computed, ref } from 'vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
+
+// App Store (Guideline 2.2): in der iOS-App ist von keiner Beta die Rede.
+const inApp = isIosApp();
 
 /**
  * „Freunde einladen“ (11.11.2026, Jan: „jeder Tester kann weitere
@@ -20,7 +24,7 @@ const firstName = computed(() => (page.props.auth?.user?.name ?? '').trim().spli
 const left = computed(() => props.invite.max === null ? null : Math.max(0, props.invite.max - props.invite.used));
 
 const message = computed(() =>
-    `Ich trainiere gerade mit Zone3, einer Lauf-App mit KI-Coach. Sie baut dir einen Plan für dein Ziel und passt ihn an, wenn etwas dazwischenkommt. In der Beta ist sie kostenlos. Mit meinem Link kommst du direkt rein:`);
+    `Ich trainiere gerade mit Zone3, einer Lauf-App mit KI-Coach. Sie baut dir einen Plan für dein Ziel und passt ihn an, wenn etwas dazwischenkommt. ${inApp ? 'Sie ist kostenlos.' : 'In der Beta ist sie kostenlos.'} Mit meinem Link kommst du direkt rein:`);
 
 const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
 const copied = ref(false);
@@ -55,7 +59,7 @@ const until = computed(() => new Date(props.invite.expires).toLocaleDateString('
 
             <div class="mx-auto max-w-2xl space-y-6 px-4 pb-8 pt-3 lg:px-8">
                 <p class="mx-1 text-[17px] text-ink-2">
-                    Zone3 ist noch in der Beta. Mit deinem Link kommen Freunde, die laufen, sofort rein, ohne Warteliste.
+                    {{ inApp ? '' : 'Zone3 ist noch in der Beta. ' }}Mit deinem Link kommen Freunde, die laufen, sofort rein, ohne Warteliste.
                 </p>
 
                 <!-- Plätze -->

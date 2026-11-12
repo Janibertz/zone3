@@ -62,6 +62,7 @@ class User extends Authenticatable
             'onboarding_completed_at'       => 'datetime',
             'is_admin'                      => 'boolean',
             'has_password'                  => 'boolean',
+            'ai_coach_consent_at'           => 'datetime',
             'is_active'                     => 'boolean',
             'waitlisted_at'                 => 'datetime',
             'seen_app_on'                   => 'date',

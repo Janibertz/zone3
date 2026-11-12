@@ -1,8 +1,12 @@
 <script setup>
+import { isIosApp } from '@/Composables/useNativeApp';
 import GuestLayout from '@/Layouts/GuestLayout.vue';
 import Wordmark from '@/Components/Brand/Wordmark.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { usePush } from '@/Composables/usePush';
+
+// App Store (Guideline 2.2): in der iOS-App ist von keiner Beta die Rede.
+const inApp = isIosApp();
 
 /**
  * Warteliste (seit 09.11.2026): das Konto steht, der Admin schaltet frei.
@@ -33,7 +37,7 @@ function logout() {
                 <p class="text-[15px] font-semibold text-accent">Warteliste</p>
                 <h1 class="mt-1 text-[28px] font-extrabold leading-tight tracking-[-0.03em] text-ink">Du bist auf der Liste.</h1>
                 <p class="mt-3 text-[17px] leading-snug text-ink-2">
-                    Zone3 ist gerade in der Beta, und wir nehmen neue Läufer nach und nach auf.
+                    {{ inApp ? 'Wir nehmen' : 'Zone3 ist gerade in der Beta, und wir nehmen' }} neue Läufer nach und nach auf.
                     Sobald du dabei bist, bekommst du eine Mail an <span class="font-medium text-ink">{{ email }}</span>.
                 </p>
 

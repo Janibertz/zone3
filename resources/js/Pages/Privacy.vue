@@ -254,7 +254,7 @@ const empfaenger = [
                 </p>
             </section>
 
-            <section>
+            <section id="ki">
                 <h2 class="mb-3 text-[22px] font-bold text-ink">7. KI-Verarbeitung</h2>
                 <p>
                     Trainingspläne, Auswertungen deiner Einheiten, Vorschläge zur Tagesform und die Antworten des
@@ -271,6 +271,14 @@ const empfaenger = [
                     keine Fotos, auf denen andere Menschen zu erkennen sind. Text auf einem Bild behandelt der Coach
                     als Information, nicht als Auftrag: Änderungen am Plan, die sich aus einem Bild ergeben, schlägt
                     er nur vor, und du entscheidest.
+                </p>
+                <p class="mt-3">
+                    Dass deine Daten dafür an OpenAI gehen, bestätigst du <strong class="text-ink">ausdrücklich</strong>,
+                    bevor Zone3 sie zum ersten Mal schickt: im Onboarding bei der Wahl des Coachs, bei älteren Konten
+                    einmal beim nächsten Öffnen. Ohne diese Einwilligung kann Zone3 keinen Plan und keinen Coach
+                    anbieten. Widerrufen kannst du sie, indem du dein Konto unter
+                    <strong class="text-ink">Profil → Konto</strong> löschst oder eine formlose E-Mail an
+                    <a :href="`mailto:${MAIL}`" class="text-accent">{{ MAIL }}</a> schreibst.
                 </p>
                 <p class="mt-3">
                     Deine Daten werden nicht zum Training von KI-Modellen verwendet, weder von uns noch von OpenAI.

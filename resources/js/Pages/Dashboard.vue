@@ -240,6 +240,7 @@ const swapCategory = ref(null);
 async function openSwap() {
     swapOpen.value = true;
     swapDetail.value = null;
+    reportedName.value = null;
 
     if (Object.keys(swapGroups.value).length) return;
 
@@ -263,6 +264,31 @@ async function openSwap() {
  * wissen, was drinsteht, ist ein Blindkauf — und sie steht danach im Plan.
  */
 const swapDetail = ref(null);
+
+// Melden (App Store 1.2): danach verschwindet das Workout aus der eigenen
+// Auswahl, die Admins entscheiden über die Freigabe.
+const reportOpen   = ref(false);
+const reportReason = ref('');
+const reportBusy   = ref(false);
+const reportedName = ref(null);
+
+watch(swapDetail, () => { reportOpen.value = false; reportReason.value = ''; });
+
+async function reportWorkout(workout) {
+    if (reportBusy.value) return;
+    reportBusy.value = true;
+    try {
+        await axios.post(route('workouts.report', workout.id), { reason: reportReason.value || null });
+        for (const type of Object.keys(swapGroups.value)) {
+            swapGroups.value[type] = swapGroups.value[type].filter((w) => w.id !== workout.id);
+            if (!swapGroups.value[type].length) delete swapGroups.value[type];
+        }
+        reportedName.value = workout.name;
+        swapDetail.value = null;
+    } finally {
+        reportBusy.value = false;
+    }
+}
 
 function applyWorkout(workout) {
     const session = props.todayPlanSession;
@@ -2631,9 +2657,27 @@ async function resetLayout() {
                         Ersetzt deine heutige Einheit „{{ props.todayPlanSession?.title }}“ und bleibt dann stehen —
                         auch wenn der Plan neu berechnet wird.
                     </p>
+
+                    <div v-if="!swapDetail.is_mine" class="border-t border-line pt-3">
+                        <button v-if="!reportOpen" type="button" class="text-[13px] text-ink-3 active:opacity-60" @click="reportOpen = true">
+                            Workout melden
+                        </button>
+                        <div v-else class="space-y-2">
+                            <p class="text-[13px] text-ink-2">Was stimmt nicht? Wir sehen es uns an, und du siehst das Workout nicht mehr.</p>
+                            <textarea v-model="reportReason" rows="2" maxlength="500" placeholder="Grund (optional)"
+                                class="w-full rounded-field border-line bg-surface px-3 py-2 text-[16px] text-ink focus:border-accent focus:ring-accent/40" />
+                            <div class="flex gap-2">
+                                <AppButton variant="secondary" :disabled="reportBusy" @click="reportWorkout(swapDetail)">Melden</AppButton>
+                                <AppButton variant="plain" :disabled="reportBusy" @click="reportOpen = false">Abbrechen</AppButton>
+                            </div>
+                        </div>
+                    </div>
                 </template>
 
                 <template v-else>
+                    <p v-if="reportedName" class="rounded-field bg-success-soft px-3 py-2 text-[13px] text-success-ink">
+                        Danke. „{{ reportedName }}“ ist gemeldet und für dich ausgeblendet.
+                    </p>
                     <!-- Nach Lauftyp: die Frage lautet „ich habe Bock auf Intervalle", nicht
                          „ich suche Workout 47". -->
                     <div class="flex flex-wrap gap-2">

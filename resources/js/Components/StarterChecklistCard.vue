@@ -1,4 +1,5 @@
 <script setup>
+import { isIosApp } from '@/Composables/useNativeApp';
 /**
  * Einsteiger-Checkliste, fest oben auf „Heute“ (Jan, 07.11.2026).
  *
@@ -8,6 +9,10 @@
  */
 import { computed, ref } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
+
+// App Store (Guideline 2.2): in der iOS-App ist von keiner Beta die Rede.
+const inApp = isIosApp();
+const badge = inApp ? 'Pionier' : 'Beta';
 
 const props = defineProps({
     checklist: { type: Object, required: true },
@@ -57,7 +62,7 @@ function dismiss() {
             <span class="min-w-0 flex-1">
                 <span class="block text-[17px] font-semibold text-ink">{{ checklist.complete ? 'Alles erledigt' : 'Erste Schritte' }}</span>
                 <span class="block text-[13px] text-ink-3">
-                    {{ checklist.complete ? 'Du hast dein Beta-Abzeichen' : `${checklist.done} von ${checklist.total} erledigt · am Ende wartet dein Beta-Abzeichen` }}
+                    {{ checklist.complete ? `Du hast dein ${badge}-Abzeichen` : `${checklist.done} von ${checklist.total} erledigt · am Ende wartet dein ${badge}-Abzeichen` }}
                 </span>
             </span>
             <svg class="h-5 w-5 shrink-0 text-ink-3 transition-transform duration-200 ease-in-out-strong" :class="collapsed ? '' : 'rotate-180'"
@@ -70,8 +75,8 @@ function dismiss() {
                 <span class="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-white">
                     <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4l-5.2 2.7 1-5.8L3.5 9.2l5.9-.9L12 3z" /></svg>
                 </span>
-                <p class="mt-3 text-[20px] font-bold text-ink">Beta-Tester</p>
-                <p class="mt-1 max-w-xs text-[15px] leading-snug text-ink-3">Danke, dass du Zone3 als einer der Ersten testest. Das Abzeichen steht ab jetzt unter „Mehr“.</p>
+                <p class="mt-3 text-[20px] font-bold text-ink">{{ inApp ? 'Pionier' : 'Beta-Tester' }}</p>
+                <p class="mt-1 max-w-xs text-[15px] leading-snug text-ink-3">Danke, dass du Zone3 als einer der Ersten {{ inApp ? 'nutzt' : 'testest' }}. Das Abzeichen steht ab jetzt unter „Mehr“.</p>
                 <button type="button" :disabled="dismissing" class="mt-4 text-[17px] font-semibold text-accent active:opacity-60 disabled:opacity-40" @click="dismiss">Schließen</button>
             </div>
 

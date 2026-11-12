@@ -32,7 +32,8 @@ const typeLabels = {
     long_run: 'Langer Lauf', progressive_run: 'Progressiv',
 };
 
-const shared = computed(() => props.workouts.filter((w) => w.is_public));
+// Gemeldete zuerst: dort wartet eine Entscheidung.
+const shared = computed(() => props.workouts.filter((w) => w.is_public).sort((a, b) => (b.reports?.length ?? 0) - (a.reports?.length ?? 0)));
 const pulled = computed(() => props.workouts.filter((w) => !w.is_public));
 
 function when(value) {
@@ -87,6 +88,9 @@ function when(value) {
                                 <td class="px-6 py-3">
                                     <p class="font-medium text-ink">{{ w.name }}</p>
                                     <p v-if="w.description" class="text-xs text-ink-3 max-w-md truncate">{{ w.description }}</p>
+                                    <p v-for="(r, i) in w.reports" :key="i" class="mt-1 text-xs text-danger-ink">
+                                        Gemeldet von {{ r.by }} · {{ when(r.at) }}<template v-if="r.reason">: „{{ r.reason }}“</template>
+                                    </p>
                                 </td>
                                 <td class="px-3 py-3 text-ink-3 whitespace-nowrap">{{ typeLabels[w.type] ?? w.type }}</td>
                                 <td class="px-3 py-3 whitespace-nowrap">

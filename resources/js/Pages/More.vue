@@ -1,4 +1,5 @@
 <script setup>
+import { isIosApp } from '@/Composables/useNativeApp';
 import { clearWidget } from '@/Composables/useWidget';
 import { computed } from 'vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
@@ -9,6 +10,9 @@ import UserAvatar from '@/Components/UserAvatar.vue';
 import { useDarkMode } from '@/Composables/useDarkMode';
 import { fmtNum } from '@/Composables/useFormat';
 import { useDeviceStatus } from '@/Composables/useDeviceStatus';
+
+// App Store (Guideline 2.2): in der iOS-App ist von keiner Beta die Rede.
+const inApp = isIosApp();
 
 /**
  * „Mehr" als iOS-Einstellungsliste (Redesign Paket 3, 28.10.2026).
@@ -122,7 +126,7 @@ const groups = computed(() => [
                             <span class="truncate text-[20px] font-bold text-ink">{{ user.name }}</span>
                             <span v-if="s.beta_badge" class="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[12px] font-semibold text-white">
                                 <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4l-5.2 2.7 1-5.8L3.5 9.2l5.9-.9L12 3z" /></svg>
-                                Beta-Tester
+                                {{ inApp ? 'Pionier' : 'Beta-Tester' }}
                             </span>
                         </span>
                         <span class="block truncate text-[13px] text-ink-3">

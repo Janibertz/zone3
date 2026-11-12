@@ -28,6 +28,7 @@ import NativePushPrompt from '@/Components/Native/NativePushPrompt.vue';
 import AppleHealthSync from '@/Components/Native/AppleHealthSync.vue';
 import WatchWorkoutSync from '@/Components/Native/WatchWorkoutSync.vue';
 import WidgetSync from '@/Components/Native/WidgetSync.vue';
+import AiConsentSheet from '@/Components/Consent/AiConsentSheet.vue';
 import { isIosApp, isNativeApp, nativePlugin } from '@/Composables/useNativeApp';
 
 const { updateReady, startVersionPolling, reload } = useVersionCheck();
@@ -276,6 +277,8 @@ const sideNavItems = computed(() => [
         <AppleHealthSync v-if="iosApp && $page.props.auth?.appleHealth" />
         <WatchWorkoutSync v-if="iosApp && $page.props.auth?.appleWatch?.sync" />
         <WidgetSync v-if="iosApp" />
+        <!-- Eine Übernahme willigt nie im Namen des Athleten ein. -->
+        <AiConsentSheet v-if="$page.props.auth?.aiConsent === false && !$page.props.auth?.impersonating" />
 
         <!-- ══════════════════════════════════════
              DESKTOP SIDEBAR (hidden on mobile)

@@ -23,7 +23,7 @@ class AdminWorkoutController extends Controller
 {
     public function index(Request $request): Response
     {
-        $workouts = Workout::with('user:id,name')
+        $workouts = Workout::with(['user:id,name', 'reports' => fn ($q) => $q->latest()->with('user:id,name')])
             ->when($request->boolean('all') === false, fn ($q) => $q->where(
                 fn ($w) => $w->where('is_public', true)->orWhereNotNull('unpublished_reason')
             ))
@@ -43,6 +43,11 @@ class AdminWorkoutController extends Controller
                 'times_used'   => $w->times_used,
                 'blocks'       => count($w->blocks ?? []),
                 'reason'       => $w->unpublished_reason,
+                'reports'      => $w->reports->map(fn ($r) => [
+                    'by'     => $r->user?->name ?? 'unbekannt',
+                    'reason' => $r->reason,
+                    'at'     => $r->created_at?->toIso8601String(),
+                ])->values(),
             ]);
 
         return Inertia::render('Admin/Workouts/Index', [

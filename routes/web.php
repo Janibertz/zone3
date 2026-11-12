@@ -103,6 +103,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
     // Worin Zone3 läuft (App, Homescreen, Browser) — einmal am Tag, für den Admin.
     Route::post('/usage/seen', [\App\Http\Controllers\UsageController::class, 'seen'])->name('usage.seen');
+    // Einwilligung in die KI-Auswertung, für Konten von vor dem 12.11.2026.
+    Route::post('/ai-consent', [\App\Http\Controllers\AiConsentController::class, 'store'])->name('ai-consent.store');
     Route::post('/onboarding/coach', [OnboardingController::class, 'saveCoach'])->name('onboarding.coach');
     Route::post('/onboarding/estimate-profile', [OnboardingController::class, 'estimateProfile'])->name('onboarding.estimate-profile');
     Route::post('/onboarding/profile', [OnboardingController::class, 'saveProfile'])->name('onboarding.profile');
@@ -835,6 +837,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::get('/workouts/list',                   [\App\Http\Controllers\WorkoutController::class, 'list'])     ->name('workouts.list');
     // Geteilte Workouts: der Ersteller gibt frei, jeder darf anwenden.
     Route::get('/workouts/shared',                 [\App\Http\Controllers\WorkoutController::class, 'shared'])       ->name('workouts.shared');
+    Route::post('/workouts/{workout}/report',      [\App\Http\Controllers\WorkoutReportController::class, 'store']) ->name('workouts.report');
     Route::post('/workouts/{workout}/public',      [\App\Http\Controllers\WorkoutController::class, 'togglePublic']) ->name('workouts.toggle-public');
     Route::post('/training-sessions/{session}/workout/{workout}', [\App\Http\Controllers\WorkoutController::class, 'applyToSession'])->name('workouts.apply-to-session');
     Route::get('/workouts/{workout}/edit',         [\App\Http\Controllers\WorkoutController::class, 'edit'])     ->name('workouts.edit');

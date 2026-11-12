@@ -163,6 +163,8 @@ class WorkoutController extends Controller
         $profile = $request->user()->runnerProfile;
 
         $shared = Workout::shared()
+            // Was der Athlet gemeldet hat, sieht er nicht mehr.
+            ->whereDoesntHave('reports', fn ($q) => $q->where('user_id', $request->user()->id))
             ->with('user:id,name')
             ->orderByDesc('times_used')
             ->orderBy('name')

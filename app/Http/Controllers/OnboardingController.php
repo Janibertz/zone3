@@ -94,11 +94,13 @@ class OnboardingController extends Controller
     public function saveCoach(Request $request)
     {
         $validated = $request->validate([
-            'coach_id' => 'required|integer|exists:coaches,id',
+            'coach_id'   => 'required|integer|exists:coaches,id',
+            'ai_consent' => 'accepted',
         ]);
 
         $user = Auth::user();
         $user->coach_id = $validated['coach_id'];
+        $user->ai_coach_consent_at ??= now();
         $user->save();
 
         return response()->json(['success' => true]);

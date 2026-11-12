@@ -49,6 +49,11 @@ class Workout extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function reports()
+    {
+        return $this->hasMany(WorkoutReport::class);
+    }
+
     /**
      * Compute total distance in metres from blocks.
      */

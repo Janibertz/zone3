@@ -1,9 +1,13 @@
 <script setup>
+import { isIosApp } from '@/Composables/useNativeApp';
 import InputError from '@/Components/InputError.vue';
 import Wordmark from '@/Components/Brand/Wordmark.vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, ref } from 'vue';
 import { appleSignInMode, signInWithAppleNative } from '@/Composables/useAppleSignIn';
+
+// App Store (Guideline 2.2): in der iOS-App ist von keiner Beta die Rede.
+const inApp = isIosApp();
 
 /**
  * Startbildschirm (seit 09.11.2026, Muster aus einer anderen Lauf-App, von
@@ -91,7 +95,7 @@ function submit() {
                 Der Coach,<br>der mitläuft.
             </h1>
             <p class="mt-3 text-[17px] leading-snug text-white/75">
-                Dein Trainingsplan, der sich nach dir und deiner Uhr richtet. In der Beta kostenlos.
+                Dein Trainingsplan, der sich nach dir und deiner Uhr richtet. {{ inApp ? 'Kostenlos.' : 'In der Beta kostenlos.' }}
             </p>
 
             <div v-if="status" class="mt-5 rounded-field bg-white/15 px-4 py-3 text-[15px] backdrop-blur">
