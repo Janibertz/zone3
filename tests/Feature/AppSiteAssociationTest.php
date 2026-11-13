@@ -21,7 +21,7 @@ class AppSiteAssociationTest extends TestCase
         $details = $response->json('applinks.details.0');
         $this->assertSame(['Y7NR92XBVK.run.zone3.app'], $details['appIDs']);
         $this->assertSame(
-            ['/garmin/callback*', '/coros/callback*', '/strava/callback*', '/login/link/*'],
+            ['/garmin/callback*', '/coros/callback*', '/polar/callback*', '/strava/callback*', '/login/link/*'],
             array_column($details['components'], '/'),
         );
     }

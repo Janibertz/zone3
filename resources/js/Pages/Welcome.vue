@@ -38,6 +38,14 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
  * ebenfalls nur als Name — Apples Richtlinien erlauben Produktnamen im
  * Fließtext, keine Apple-Logos.
  *
+ * Polar (seit 13.11.2026): Name als Schrift, ohne Logo — Polar erlaubt
+ * Logo und Werbung mit Polar nur mit schriftlicher Zustimmung, den Hinweis
+ * auf Kompatibilität schon.
+ *
+ * „Funktioniert mit“ (13.11.2026, Jan nach dem Vorbild einer anderen
+ * Trainings-App): die Dienste rund um ein Handy, nur als Namen, und nur, was
+ * Zone3 wirklich anbindet.
+ *
  * Mehr Emotion (09.11.2026, Jan): Fotos im Aufmacher und bei „Mitmachen“,
  * dieselben wie auf dem Anmeldebildschirm (Unsplash-Lizenz, lokal).
  */
@@ -80,6 +88,22 @@ const woche = [
     { tag: 'Sa', art: 'easy',  text: 'Locker + Steigerungen', km: '5' },
     { tag: 'So', art: 'long',  text: 'Langer Lauf',           km: '15' },
 ];
+// „Funktioniert mit“: links die Uhren, rechts Apps und Wege.
+const dienste = {
+    links: [
+        { name: 'GARMIN',      track: 'tracking-[0.08em]', was: 'Läufe, Schlaf, HRV · Plan auf die Uhr' },
+        { name: 'COROS',       track: 'tracking-[0.12em]', was: 'Läufe, Schlaf, HRV · Plan auf die Uhr' },
+        { name: 'POLAR',       track: 'tracking-[0.14em]', was: 'Läufe, Schlaf, HRV' },
+        { name: 'Apple Watch', track: '',                  was: 'Plan auf die Uhr' },
+    ],
+    rechts: [
+        { name: 'Apple Health', track: '',                  was: 'Läufe, Schlaf, HRV · iOS-App' },
+        { name: 'ZWIFT',        track: 'tracking-[0.1em]',  was: 'Radeinheiten als Workout' },
+        { name: 'FIT-Datei',    track: '',                  was: 'Jede Uhr, auch alte Läufe' },
+        { name: 'Telegram',     track: '',                  was: 'Der Coach im Messenger' },
+    ],
+};
+
 const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg-danger', long: 'bg-info' };
 </script>
 
@@ -137,7 +161,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                         <span class="block whitespace-nowrap">unter <span class="text-accent">2 Stunden.</span></span>
                     </h1>
                     <p class="mt-6 max-w-md text-[20px] font-medium leading-snug text-ink-2">
-                        Garmin, COROS oder Apple Watch? Verbinde deine Uhr und leg direkt mit deinem Ziel los.
+                        Garmin, COROS, Polar oder Apple Watch? Verbinde deine Uhr und leg direkt mit deinem Ziel los.
                     </p>
                     <p class="mt-3 max-w-md text-[15px] leading-relaxed text-ink-3">
                         Zone3 rechnet deine Tempi aus und baut einen Plan bis zum Renntag.
@@ -216,7 +240,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                             <span class="block text-ink-3">Er sieht es.</span>
                         </h2>
                         <p class="mt-5 max-w-md text-[15px] leading-relaxed text-ink-2">
-                            Schlaf, HRV und Ruhepuls von Garmin, COROS oder Apple Health, gemessen
+                            Schlaf, HRV und Ruhepuls von Garmin, COROS, Polar oder Apple Health, gemessen
                             gegen deine eigene Grundlinie. Passt die geplante Einheit nicht zur
                             Nacht, kommt ein Vorschlag.
                         </p>
@@ -325,6 +349,67 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
             </div>
         </section>
 
+        <!-- ══ FUNKTIONIERT MIT ═══════════════════════════════════ -->
+        <section id="funktioniert-mit" class="relative scroll-mt-20 overflow-hidden px-5 py-20">
+            <div class="pointer-events-none absolute left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/20 blur-[120px]" aria-hidden="true" />
+            <div class="relative mx-auto max-w-5xl">
+                <div class="mx-auto max-w-2xl text-center">
+                    <p class="text-[17px] font-semibold text-ink-3">Funktioniert mit</p>
+                    <h2 class="mt-2 text-[2.5rem] font-extrabold leading-[1.02] tracking-[-0.035em] sm:text-5xl">
+                        <span class="block">Deine Uhr bleibt.</span>
+                        <span class="block text-ink-3">Zone3 kommt dazu.</span>
+                    </h2>
+                    <p class="mx-auto mt-5 max-w-lg text-[15px] leading-relaxed text-ink-2">
+                        Egal, womit du läufst: Zone3 holt Läufe, Schlaf und HRV von deiner Uhr und
+                        legt den Plan dorthin zurück, wo es geht.
+                    </p>
+                </div>
+
+                <div class="mt-12 grid items-center gap-6 lg:grid-cols-[1fr_auto_1fr] lg:gap-10">
+                    <ul class="order-2 grid grid-cols-2 gap-2 sm:gap-3 lg:order-1 lg:grid-cols-1">
+                        <li v-for="d in dienste.links" :key="d.name" class="relative flex items-center justify-between gap-3 rounded-2xl bg-surface px-4 py-3 lg:ml-auto lg:w-[300px] lg:rounded-full lg:pl-5 lg:pr-3">
+                            <span class="min-w-0">
+                                <span class="block text-[15px] font-extrabold leading-tight sm:text-[17px]" :class="d.track">{{ d.name }}</span>
+                                <span class="block text-[12px] leading-snug text-ink-3 lg:truncate">{{ d.was }}</span>
+                            </span>
+                            <span class="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-white lg:flex" aria-hidden="true">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                            </span>
+                            <span class="absolute left-full top-1/2 hidden h-px w-10 border-t border-dashed border-ink-3/60 lg:block" aria-hidden="true" />
+                        </li>
+                    </ul>
+
+                    <!-- Das Handy in der Mitte -->
+                    <div class="order-1 mx-auto lg:order-2" aria-hidden="true">
+                        <div class="relative h-[220px] w-[110px] rounded-[28px] bg-line-strong p-[5px] sm:h-[300px] sm:w-[150px] lg:h-[360px] lg:w-[180px] lg:rounded-[34px] lg:p-[6px]">
+                            <div class="flex h-full w-full flex-col items-center justify-center gap-3 rounded-[23px] bg-gradient-to-b from-[#0b1a33] to-black lg:gap-4 lg:rounded-[28px]">
+                                <div class="absolute top-[12px] h-[14px] w-[44px] rounded-full bg-black lg:top-[14px] lg:h-[18px] lg:w-[56px]" />
+                                <ZoneIcon class="h-10 w-10 sm:h-14 sm:w-14 lg:h-16 lg:w-16" />
+                                <Wordmark class="h-4 text-white lg:h-5" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <ul class="order-3 -mt-4 grid grid-cols-2 gap-2 sm:-mt-3 sm:gap-3 lg:mt-0 lg:grid-cols-1">
+                        <li v-for="d in dienste.rechts" :key="d.name" class="relative flex items-center gap-3 rounded-2xl bg-surface px-4 py-3 lg:w-[300px] lg:rounded-full lg:pl-3 lg:pr-5">
+                            <span class="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-white lg:flex" aria-hidden="true">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                            </span>
+                            <span class="min-w-0">
+                                <span class="block text-[15px] font-extrabold leading-tight sm:text-[17px]" :class="d.track">{{ d.name }}</span>
+                                <span class="block text-[12px] leading-snug text-ink-3 lg:truncate">{{ d.was }}</span>
+                            </span>
+                            <span class="absolute right-full top-1/2 hidden h-px w-10 border-t border-dashed border-ink-3/60 lg:block" aria-hidden="true" />
+                        </li>
+                    </ul>
+                </div>
+
+                <p class="mt-10 text-center text-[13px] text-ink-3">
+                    Alle Namen gehören ihren Herstellern. Zone3 ist mit ihnen kompatibel, aber nicht verbunden.
+                </p>
+            </div>
+        </section>
+
         <!-- ══ MITMACHEN ══════════════════════════════════════════ -->
         <section id="mitmachen" class="relative scroll-mt-20 overflow-hidden px-5 pb-24 pt-[300px] sm:pt-[360px]">
             <div class="pointer-events-none absolute inset-0" aria-hidden="true">
@@ -340,7 +425,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                     <span class="block">Dein Ziel.</span>
                     <span class="block text-white/70">Verbinden. Loslegen.</span>
                 </h2>
-                <p class="mt-4 max-w-lg text-[17px] text-white/75">Garmin, COROS oder Apple Watch. Mit Apple oder deiner Mail anmelden, wir schalten dich frei. Fragen? Schreib mir einfach.</p>
+                <p class="mt-4 max-w-lg text-[17px] text-white/75">Garmin, COROS, Polar oder Apple Watch. Mit Apple oder deiner Mail anmelden, wir schalten dich frei. Fragen? Schreib mir einfach.</p>
 
                 <div class="mt-8 flex flex-col gap-3 sm:flex-row">
                     <Link v-if="canLogin && !$page.props.auth.user" :href="route('login')"
@@ -356,7 +441,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                 <!-- Die Adresse ausgeschrieben: ohne Mail-App am Rechner führt der Knopf ins Leere. -->
                 <p class="mt-4 select-text text-[15px] text-white/70">{{ KONTAKT.adresse }}</p>
 
-                <p class="mt-14 text-[15px] font-semibold text-white/70">Für Läufer mit Garmin, COROS oder Apple Watch · Apple Health über die iOS-App</p>
+                <p class="mt-14 text-[15px] font-semibold text-white/70">Für Läufer mit Garmin, COROS, Polar oder Apple Watch · Apple Health über die iOS-App</p>
             </div>
         </section>
 

@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'strava/webhook',
             'garmin/webhook/*',
+            'polar/webhook',
             'telegram/webhook',
             'webhook/github',
             // Apple schickt die Anmeldung als Formular von appleid.apple.com;

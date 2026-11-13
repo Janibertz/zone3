@@ -140,6 +140,7 @@ class ActivityController extends Controller
                 'strava_id'            => $activity->strava_id,
                 'garmin_activity_id'   => $activity->garmin_activity_id,
                 'coros_label_id'       => $activity->coros_label_id ? (string) $activity->coros_label_id : null,
+                'from_polar'           => $activity->polar_start !== null,
                 'device_name'          => $activity->device_name,
                 'name'                 => $activity->name,
                 'description'          => $activity->description,

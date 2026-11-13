@@ -67,6 +67,18 @@ return [
         'redirect'  => env('COROS_REDIRECT_URI', env('APP_URL') . '/coros/callback'),
     ],
 
+    // Polar AccessLink (seit 13.11.2026). Client im Polar-Admin
+    // (admin.polaraccesslink.com), kein Antrag. Ohne ID/Secret ist die
+    // Verbindung ausgeblendet.
+    'polar' => [
+        'client_id'     => env('POLAR_CLIENT_ID'),
+        'client_secret' => env('POLAR_CLIENT_SECRET'),
+        'redirect'      => env('POLAR_REDIRECT_URI', env('APP_URL') . '/polar/callback'),
+        'auth_url'      => 'https://flow.polar.com/oauth2/authorization',
+        'token_url'     => 'https://polarremote.com/v2/oauth2/token',
+        'api_url'       => env('POLAR_API_URL', 'https://www.polaraccesslink.com'),
+    ],
+
     'openai' => [
         'api_key'    => env('OPENAI_API_KEY'),
         'model'      => env('OPENAI_MODEL',      'gpt-5.6-sol'),     // Plan

@@ -30,6 +30,7 @@ const t = computed(() => status.value.tiles);
                 <DeviceTiles
                     :garmin="t.garmin"
                     :coros="t.coros"
+                    :polar="t.polar"
                     :strava="t.strava"
                     :apple="t.apple"
                     :apple-detail="t.appleDetail" />

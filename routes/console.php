@@ -65,6 +65,14 @@ Schedule::command('coros:sync-workouts')->hourly()->withoutOverlapping();
 Schedule::command('coros:sync-health')->hourlyAt(20)->withoutOverlapping();
 Schedule::command('coros:sync-activities')->everyFifteenMinutes()->withoutOverlapping();
 
+// Polar AccessLink: der Webhook meldet Trainings in Sekunden, das hier ist das
+// Netz. Erholungswerte (Schlaf, Nightly Recharge, VO2max) stuendlich per Abruf.
+// polar:webhook haelt den einen Webhook des Clients eingerichtet — nicht in
+// startup.sh, weil Polar beim Anlegen sofort einen PING schickt.
+Schedule::command('polar:sync')->everyThirtyMinutes()->withoutOverlapping();
+Schedule::command('polar:sync --health')->hourlyAt(25)->withoutOverlapping();
+Schedule::command('polar:webhook')->hourlyAt(35)->withoutOverlapping();
+
 // Jede Minute: laufende LiveTrack-Sitzungen abfragen. Der Command prueft
 // selbst, ob ueberhaupt eine Sitzung im Zeitfenster liegt.
 Schedule::command('livetrack:poll')->everyMinute()->withoutOverlapping();

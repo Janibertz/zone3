@@ -19,8 +19,8 @@ export function useDeviceStatus(devices) {
             : watchOn ? 'Plan auf der Uhr'
             : d.apple_health ? 'Health verbunden' : '';
 
-        const tiles = { garmin: !!d.garmin, coros: d.coros ?? null, strava: d.strava ?? null, apple, appleDetail };
-        const connected = [tiles.garmin, tiles.coros, tiles.strava, tiles.apple].filter(v => v === true).length;
+        const tiles = { garmin: !!d.garmin, coros: d.coros ?? null, polar: d.polar ?? null, strava: d.strava ?? null, apple, appleDetail };
+        const connected = [tiles.garmin, tiles.coros, tiles.polar, tiles.strava, tiles.apple].filter(v => v === true).length;
 
         return { tiles, connected };
     });

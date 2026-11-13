@@ -109,6 +109,7 @@ class VdotService
             'label' => match ($metric->source) {
                 'apple' => 'aus der VO2max von Apple Health vom ',
                 'coros' => 'aus der VO2max deiner COROS-Uhr vom ',
+                'polar' => 'aus der VO2max deiner Polar-Uhr vom ',
                 default => 'aus Garmins VO2max vom ',
             } . $metric->date->format('d.m.'),
         ] : null;

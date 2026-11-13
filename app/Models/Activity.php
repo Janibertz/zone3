@@ -16,6 +16,8 @@ class Activity extends Model
     public const SOURCE_FILE = 'file';
     /** Trainings aus Apple Health, gelesen von der iOS-App (08.11.2026). */
     public const SOURCE_APPLE = 'apple';
+    /** Polar AccessLink (13.11.2026). Kennung = Startzeit, Polars ID ist ein Hash-String. */
+    public const SOURCE_POLAR = 'polar';
 
     /** Je Quelle die Spalte mit ihrer ID. Eine Zeile kann beide tragen. */
     public const ID_COLUMNS = [
@@ -24,6 +26,7 @@ class Activity extends Model
         self::SOURCE_COROS  => 'coros_label_id',
         self::SOURCE_FILE   => 'file_start',
         self::SOURCE_APPLE  => 'apple_start',
+        self::SOURCE_POLAR  => 'polar_start',
     ];
 
     /** Wie die Quelle in der Oberfläche heißt. */
@@ -33,6 +36,7 @@ class Activity extends Model
         self::SOURCE_COROS  => 'COROS',
         self::SOURCE_FILE   => 'FIT-Datei',
         self::SOURCE_APPLE  => 'Apple Health',
+        self::SOURCE_POLAR  => 'Polar',
     ];
 
     /**
@@ -53,6 +57,7 @@ class Activity extends Model
         'coros_label_id',
         'file_start',
         'apple_start',
+        'polar_start',
         'source',
         'device_name',
         'name',

@@ -18,6 +18,7 @@ import { Link } from '@inertiajs/vue3';
 const props = defineProps({
     garmin:      { type: Boolean, default: false },
     coros:       { type: Boolean, default: null },   // null = auf dem Server aus
+    polar:       { type: Boolean, default: null },   // null = auf dem Server nicht eingerichtet
     strava:      { type: Boolean, default: null },   // null = nicht freigeschaltet
     apple:       { type: Boolean, default: null },   // null = nicht angeboten (Browser)
     appleDetail: { type: String,  default: '' },
@@ -28,6 +29,7 @@ const connections = (anchor) => route('profile.edit', { section: 'connections' }
 const tiles = computed(() => [
     { key: 'garmin', name: 'GARMIN', track: 'tracking-[0.08em]', art: 'round', on: props.garmin, href: connections('conn-garmin') },
     ...(props.coros !== null ? [{ key: 'coros', name: 'COROS', track: 'tracking-[0.12em]', art: 'crown', on: props.coros, href: connections('conn-coros') }] : []),
+    ...(props.polar !== null ? [{ key: 'polar', name: 'POLAR', track: 'tracking-[0.14em]', art: 'band', on: props.polar, href: connections('conn-polar') }] : []),
     ...(props.apple !== null ? [{ key: 'apple', name: 'Apple Watch', track: '', art: 'square', on: props.apple, detail: props.appleDetail, href: connections('conn-apple') }] : []),
     ...(props.strava !== null ? [{ key: 'strava', name: 'STRAVA', track: 'tracking-[0.1em]', art: 'phone', on: props.strava, href: connections('conn-strava') }] : []),
     { key: 'file', name: 'FIT-Datei', track: '', art: 'file', on: null, detail: 'Zwift & Co. hochladen', href: route('activities.index') },
@@ -68,6 +70,18 @@ const tiles = computed(() => [
                 <path d="M48 32 A26 26 0 0 1 72 66" fill="none" stroke="#FF9F0A" stroke-width="3" stroke-linecap="round" />
                 <text x="48" y="63" text-anchor="middle" font-size="14" font-weight="700" fill="#FFFFFF">10,2</text>
                 <text x="48" y="76" text-anchor="middle" font-size="8" fill="#8E8E93">km</text>
+            </svg>
+
+            <!-- Schmale Sportuhr mit Herzfrequenz -->
+            <svg v-else-if="t.art === 'band'" class="h-[104px] w-[86px]" viewBox="0 0 96 116" aria-hidden="true">
+                <rect x="31" y="0" width="34" height="28" rx="6" class="fill-surface-3" />
+                <rect x="31" y="88" width="34" height="28" rx="6" class="fill-surface-3" />
+                <rect x="86" y="38" width="5" height="11" rx="2" class="fill-line-strong" />
+                <rect x="86" y="67" width="5" height="11" rx="2" class="fill-line-strong" />
+                <circle cx="48" cy="58" r="38" class="fill-line-strong" />
+                <circle cx="48" cy="58" r="31" fill="#0B0B0C" />
+                <path d="M27 56h9l4-8 6 16 4-8h19" fill="none" stroke="#FF375F" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+                <text x="48" y="80" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">142</text>
             </svg>
 
             <!-- Eckige Smartwatch -->

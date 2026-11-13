@@ -635,7 +635,7 @@ const routeSegments = computed(() => {
 
                     <!-- ── Herkunft und Löschen ───────────────────── -->
                     <section class="space-y-3">
-                        <div v-if="activity.strava_id || activity.garmin_activity_id || activity.coros_label_id" class="divide-y divide-line overflow-hidden rounded-card bg-surface">
+                        <div v-if="activity.strava_id || activity.garmin_activity_id || activity.coros_label_id || activity.from_polar" class="divide-y divide-line overflow-hidden rounded-card bg-surface">
                             <a v-if="activity.strava_id" :href="`https://www.strava.com/activities/${activity.strava_id}`" target="_blank" rel="noopener noreferrer"
                                 class="flex min-h-[44px] items-center gap-3 px-4 py-3 transition-colors active:bg-surface-2">
                                 <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-[#FC4C02] text-white">
@@ -661,6 +661,14 @@ const routeSegments = computed(() => {
                                 <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-ink text-canvas text-[13px] font-bold" aria-hidden="true">C</span>
                                 <span class="min-w-0 flex-1">
                                     <span class="block text-[17px] text-ink">Daten von COROS</span>
+                                    <span v-if="activity.device_name" class="block text-[13px] text-ink-3">Aufgezeichnet mit {{ activity.device_name }}</span>
+                                </span>
+                            </div>
+                            <!-- Polar verlangt die Herkunftsangabe, auch für Abgeleitetes (Vertrag §3.1.5). -->
+                            <div v-if="activity.from_polar" class="flex min-h-[44px] items-center gap-3 px-4 py-3">
+                                <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-ink text-canvas text-[13px] font-bold" aria-hidden="true">P</span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-[17px] text-ink">Daten von Polar</span>
                                     <span v-if="activity.device_name" class="block text-[13px] text-ink-3">Aufgezeichnet mit {{ activity.device_name }}</span>
                                 </span>
                             </div>

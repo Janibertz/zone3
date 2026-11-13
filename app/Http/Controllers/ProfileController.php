@@ -75,6 +75,12 @@ class ProfileController extends Controller
                 'connection' => $user->corosConnection?->summary(),
                 'status'     => session('coros_status'),
             ],
+            // Polar AccessLink: Trainings, Schlaf, Nightly Recharge, VO2max.
+            'polar'            => [
+                'available'  => app(\App\Services\Polar\PolarClient::class)->configured(),
+                'connection' => $user->polarConnection?->summary(),
+                'status'     => session('polar_status'),
+            ],
             // Apple Health aus der iOS-App: Einwilligung und wer Vorrang hat.
             'appleHealth'      => [
                 'consent_at'    => $user->apple_health_consent_at?->toIso8601String(),
@@ -234,6 +240,9 @@ class ProfileController extends Controller
         }
         if ($user->corosConnection) {
             app(\App\Services\Coros\CorosDisconnector::class)->disconnect($user);
+        }
+        if ($user->polarConnection) {
+            app(\App\Services\Polar\PolarDisconnector::class)->disconnect($user);
         }
 
         Auth::logout();

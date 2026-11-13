@@ -77,6 +77,7 @@ Route::get('/.well-known/apple-app-site-association', fn () => response()->json(
             'components' => [
                 ['/' => '/garmin/callback*'],
                 ['/' => '/coros/callback*'],
+                ['/' => '/polar/callback*'],
                 ['/' => '/strava/callback*'],
                 // Anmeldelink aus der Mail: öffnet die App, dort wird angemeldet.
                 ['/' => '/login/link/*'],
@@ -129,6 +130,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/strava/callback', [StravaController::class, 'callback'])->name('strava.callback');
     Route::post('/garmin/connect', [\App\Http\Controllers\GarminController::class, 'connect'])->name('garmin.connect');
     Route::post('/coros/connect', [\App\Http\Controllers\CorosController::class, 'connect'])->name('coros.connect');
+    Route::post('/polar/connect', [\App\Http\Controllers\PolarController::class, 'connect'])->name('polar.connect');
     Route::patch('/profile/activity-source', [ProfileController::class, 'updateActivitySource'])->name('profile.activity-source');
 
     // Apple Health aus der iOS-App (08.11.2026): die App liest, der Server
@@ -602,7 +604,12 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             ])->values();
 
             // Woher die Werte kommen — fuer die Beschriftung der Kacheln.
-            $source = $user->garminConnection?->allows(\App\Models\GarminConnection::HEALTH) ? 'Garmin' : 'COROS';
+            $source = match (true) {
+                (bool) $user->garminConnection?->allows(\App\Models\GarminConnection::HEALTH) => 'Garmin',
+                (bool) $user->corosConnection?->readsData()                                    => 'COROS',
+                (bool) $user->polarConnection?->readsData()                                    => 'Polar',
+                default                                                                        => 'Apple Health',
+            };
 
             return ['latest' => $series->last(), 'series' => $series, 'source' => $source];
         })(),
@@ -677,6 +684,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
 
     // COROS ueber MCP: nur Workouts auf die Uhr (seit 05.11.2026).
     Route::delete('/coros/connection', [\App\Http\Controllers\CorosController::class, 'disconnect'])->name('coros.connection.destroy');
+    Route::delete('/polar/connection', [\App\Http\Controllers\PolarController::class, 'disconnect'])->name('polar.connection.destroy');
     Route::patch('/coros/workout-sync', [\App\Http\Controllers\CorosController::class, 'updateWorkoutSync'])->name('coros.workout-sync');
     Route::patch('/coros/data-import', [\App\Http\Controllers\CorosController::class, 'updateDataImport'])->name('coros.data-import');
 
@@ -910,6 +918,11 @@ Route::get('/garmin/callback', [\App\Http\Controllers\GarminController::class, '
 
 // COROS-Rueckweg, aus demselben Grund ohne Anmeldung.
 Route::get('/coros/callback', [\App\Http\Controllers\CorosController::class, 'callback'])->name('coros.callback');
+
+// Polar: Rueckweg ohne Anmeldung wie oben, Webhook signiert (HMAC). Der
+// Webhook braucht in Cloudflare dieselbe WAF-Skip-Regel wie /strava/webhook.
+Route::get('/polar/callback', [\App\Http\Controllers\PolarController::class, 'callback'])->name('polar.callback');
+Route::post('/polar/webhook', [\App\Http\Controllers\PolarController::class, 'webhook'])->name('polar.webhook');
 
 // Garmin-Webhook fuer Deregistrierung und Freigaben — ohne Auth, Garmin ruft
 // von aussen an. Braucht in Cloudflare dieselbe WAF-Skip-Regel wie

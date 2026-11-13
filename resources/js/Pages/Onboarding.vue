@@ -15,6 +15,7 @@ import CoachBubble from '@/Components/Onboarding/CoachBubble.vue';
 import { availabilityFeedback, goalFeedback, openGoalFeedback } from '@/Composables/useOnboardingFeedback';
 import NotificationChoice from '@/Components/Settings/NotificationChoice.vue';
 import AppleHealthCard from '@/Components/Settings/AppleHealthCard.vue';
+import PolarConnection from '@/Components/Settings/PolarConnection.vue';
 import { isIosApp } from '@/Composables/useNativeApp';
 import { clockInput } from '@/Composables/useFormat';
 import AiConsentText from '@/Components/Consent/AiConsentText.vue';
@@ -433,7 +434,7 @@ const garminLinked = computed(() => !!props.connections?.garmin);
 // (09.11.2026). Im Browser bleibt der Schritt wie er war.
 const iosApp        = isIosApp();
 const appleConsent  = computed(() => !!props.connections?.appleHealth?.consent_at);
-const anyLinked    = computed(() => stravaLinked.value || garminLinked.value || !!props.connections?.coros || appleConsent.value);
+const anyLinked    = computed(() => stravaLinked.value || garminLinked.value || !!props.connections?.coros || !!props.connections?.polar || appleConsent.value);
 const garminGranted = computed(() => {
     const c = props.connections?.garmin;
     if (!c) return '';
@@ -475,7 +476,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', refreshCo
 // Eine Quelle pro Athlet; wählbar, sobald beide liefern können.
 const sourceOptions    = computed(() => [
     { value: 'strava', label: 'Strava' }, { value: 'garmin', label: 'Garmin' }, { value: 'coros', label: 'COROS' },
-    { value: 'apple', label: 'Apple' },
+    { value: 'polar', label: 'Polar' }, { value: 'apple', label: 'Apple' },
 ].filter((o) => (props.connections?.source?.usable ?? []).includes(o.value)));
 const sourceChoosable  = computed(() => (props.connections?.source?.usable ?? []).length > 1);
 const sourceValue      = ref(props.connections?.source?.current ?? 'strava');
@@ -985,6 +986,8 @@ const bar = computed(() => {
                         <p class="text-[13px] leading-snug text-ink-3">Die Anmeldung läuft direkt bei COROS. Ohne Haken schreibt Zone3 nur deinen Plan in den COROS-Kalender.</p>
                     </div>
                     <p v-if="connections.corosStatus?.type === 'error'" class="px-4 py-3 text-[13px] text-danger">{{ connections.corosStatus.message }}</p>
+                    <PolarConnection v-if="connections.polarAvailable" :connection="connections.polar"
+                        :status="connections.polarStatus?.type === 'error' ? connections.polarStatus : null" />
                     <AppleHealthCard v-if="iosApp && connections.appleHealth" :state="connections.appleHealth"
                         :activity-source="connections.source?.current"
                         source-hint="Trainings aus Apple Health übernimmt Zone3, wenn du darunter bei „Neue Aktivitäten kommen von“ Apple wählst." />
