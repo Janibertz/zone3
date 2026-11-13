@@ -536,6 +536,17 @@ Gemeldet von Jan: HM am 11.04.2027, Ziel 1:25, Planstart 30.11. nach OP-Pause, D
 - **Kraft so oft wie eingestellt** (`strength_days_per_week`, vorher nirgends gelesen). `WeeklyPatternService::applyStrength()` läuft nach der Laufwoche und **vor dem Rad** (sonst belegte die zusätzliche Fahrt den einzigen Tag mit Restzeit), setzt feste (nicht optionale) `strength`-Slots: zuerst freie verfügbare Tage (bis 45 min), dann neben einen lockeren Lauf, zuletzt hinter eine harte Einheit (je bis 30 min Restzeit). Nie am Tag vor langem Lauf oder harter Einheit, nicht in der Rennwoche, nicht ≤ 3 Tage vor einem Rennen, nicht in Stufe 1–2 eines Wiedereinstiegs; zwei Krafttage nicht nebeneinander, solange es anders geht. Optionale Kraft-Ergänzungen weichen der festen Zahl.
 
 
+### Erholung nach dem Rennen (seit 13.11.2026)
+
+Idee 4 aus der Ideenliste, Jans Antworten vom 13.11.2026. Vorher lief der Plan am Tag nach dem Rennen weiter, als wäre nichts gewesen. `App\Services\Plan\RaceRecovery` legt die Tage danach fest, im Gerüst und nicht im Prompt:
+
+- **Länge nach Daniels:** rund ein lockerer Tag je 3 km (`lengthFor()`): 5 km 2 Tage, 10 km 3, HM 7, Marathon 14, höchstens 21. Tag 1 ist Ruhetag, ab 21 km die ersten zwei. **C-Rennen halbe Dauer**, ein Ruhetag. Der **5-km-Test** im Plan ohne Rennen zählt wie ein 5-km-Rennen.
+- **Zustände je Tag:** `rest` (im Gerüst `available = false`, auch der Vereinstermin fällt aus), `short` bis zur Hälfte (Läufe höchstens 30 min, kein langer Lauf, keine Kraft), danach `easy` (normale Länge, langer Lauf erlaubt, aber ohne Renntempo). **Keine harte Einheit** in der ganzen Zeit, ein fester harter Termin fällt aus; die Bausteine sind nur `locker`/`lang_locker` (`RunWorkouts::variantsFor()` mit `recovery` am Slot). `pickDay()` meidet die Tage, `applyRaceRecovery()` macht locker, was trotzdem dort landet (Norwegisch, Wiedereinstieg; die Abend-Hälfte fällt weg), `capRecoveryRuns()` kürzt nach dem Budget.
+- **Ermüdung verlängert** (`FatigueCheck`, 2 von 4 Signalen): bis zu drei lockere Tage mehr, nur für eine Erholung, die gerade läuft. Verkürzt wird nie.
+- **Auch Rennen vor dem Fenster zählen** (`racesAround()`: Events und `race_prep`-Einheiten bis 24 Tage zurück) — nach dem Zielrennen beginnt der nächste Plan mit dem Rest der Erholung, und der Test bleibt sichtbar, obwohl `plan:roll-blocks` das Datum des offenen Ziels weiterschiebt.
+- **Tagesvorschlag ohne Plan:** `AIController::todayFor()` gibt in der Erholung ohne Modellaufruf einen Ruhetag oder einen lockeren Lauf aus dem Katalog (30 min kurz, sonst 45, höchstens das Tagesfenster).
+- Tests: `RaceRecoveryTest`.
+
 ### One verdict on the goal, not two
 
 `TrainingPaceService` judged the goal from threshold pace ("Das Ziel passt zur heutigen Form"); `LongRunPlanService` judged it from the ladder ("Mit dieser Vorbereitung ist die Zielzeit unwahrscheinlich"). Both landed in the same prompt as fact, with no precedence, and the model picked one at random for the description.

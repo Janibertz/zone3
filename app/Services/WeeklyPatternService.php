@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Event;
 use App\Services\Bike\BikeSchedule;
+use App\Services\Plan\RaceRecovery;
 use Carbon\CarbonImmutable;
 
 /**
@@ -186,8 +187,9 @@ class WeeklyPatternService
         ?array $model = null,
         ?array $bike = null,
         ?array $strength = null,
+        array $recovery = [],
     ): array {
-        $days      = $this->availabilityPerDate($from, $to, $weeklyAvailability, $overrides, $finalizedDates, $races);
+        $days      = $this->availabilityPerDate($from, $to, $weeklyAvailability, $overrides, $finalizedDates, $races, $recovery);
         $norwegian = ($model['name'] ?? 'polarized') === 'norwegian';
         // Grundlage ohne Rennen: lang und locker vor Tempo, wie beim Backyard.
         $priority = $event->isOpen() && $event->open_focus === 'base'
@@ -252,6 +254,10 @@ class WeeklyPatternService
             }
         }
 
+        // Nach einem Rennen: was trotz der gesperrten Tage noch hart ist
+        // (Norwegisch, Wiedereinstieg), wird locker.
+        $this->applyRaceRecovery($days);
+
         // Der lange Lauf bekommt seine Zieldistanz aus der Leiter — sie ist
         // rückwärts vom Renntag gerechnet und nicht Sache des Modells.
         if ($longRuns) {
@@ -264,6 +270,10 @@ class WeeklyPatternService
         if ($volume && ! empty($volume['has_data']) && $planningPaceSec > 0) {
             $this->applyVolumeBudget($days, $volume, $planningPaceSec, $norwegian ? self::NORWEGIAN_PRIORITY : $priority, $periods, PeriodizationService::progressionPct($event));
         }
+
+        // In der kurzen Hälfte der Erholung bleibt jeder Lauf kurz — auch wenn
+        // das Wochenbudget mehr hergäbe.
+        $this->capRecoveryRuns($days);
 
         if ($norwegian) {
             // Hat das Budget eine Hälfte eines Doppel-Tags gestrichen, ist
@@ -318,6 +328,7 @@ class WeeklyPatternService
         array $overrides,
         array $finalizedDates,
         array $races = [],
+        array $recovery = [],
     ): array {
         $finalized = array_flip($finalizedDates);
         $days      = [];
@@ -386,7 +397,21 @@ class WeeklyPatternService
                 ];
             }
 
+            // Erholung nach einem Rennen (RaceRecovery). Ein Ruhetag ist
+            // gesperrt wie eine Absage — auch für den Vereinstermin; danach
+            // fällt nur ein harter Termin aus, ein lockerer bleibt.
+            $recoveryDay = ! isset($races[$key]) ? ($recovery[$key] ?? null) : null;
+            if ($recoveryDay) {
+                if ($recoveryDay['state'] === RaceRecovery::STATE_REST) {
+                    $available = false;
+                }
+                if ($fixed && in_array($fixed['type'], self::HARD_TYPES, true)) {
+                    $fixed = null;
+                }
+            }
+
             $days[$key] = [
+                'recovery'    => $recoveryDay,
                 'date'        => $key,
                 'weekday'     => $date->isoWeekday(),
                 'available'   => $available,
@@ -1282,7 +1307,7 @@ class WeeklyPatternService
     {
         $free = array_values(array_filter(
             $usable,
-            fn ($d) => empty($days[$d]['slots']) && $this->hasQualityGap($days, $usable, $d),
+            fn ($d) => empty($days[$d]['slots']) && empty($days[$d]['recovery']) && $this->hasQualityGap($days, $usable, $d),
         ));
 
         if (! $free) {
@@ -1300,7 +1325,7 @@ class WeeklyPatternService
     {
         $free = array_values(array_filter(
             $usable,
-            fn ($d) => empty($days[$d]['slots']) && $this->hasQualityGap($days, $usable, $d),
+            fn ($d) => empty($days[$d]['slots']) && empty($days[$d]['recovery']) && $this->hasQualityGap($days, $usable, $d),
         ));
 
         if (! $free) {
@@ -1592,6 +1617,16 @@ class WeeklyPatternService
             return null;
         }
 
+        // Nach einem Rennen keine harte Einheit, und in der kurzen Hälfte
+        // der Erholung kein langer Lauf. Die Einheit sucht sich einen
+        // anderen Tag der Woche oder entfällt.
+        if ($isHard || $type === 'long_run') {
+            $free = array_values(array_filter($free, fn ($d) => ! $this->blocksRecovery($days[$d], $type, $isHard)));
+            if (! $free) {
+                return null;
+            }
+        }
+
         if ($isHard) {
             // Kein Tag mit Abstand mehr frei? Dann entfällt die Einheit.
             // Vorher wurde sie „lieber eng als gar nicht" trotzdem gelegt —
@@ -1627,6 +1662,101 @@ class WeeklyPatternService
         usort($free, fn ($a, $b) => $days[$a]['budget_min'] <=> $days[$b]['budget_min']);
 
         return $free[0];
+    }
+
+    /** Verbietet die Erholung nach einem Rennen diese Einheit an diesem Tag? */
+    private function blocksRecovery(array $day, string $type, bool $isHard): bool
+    {
+        $state = $day['recovery']['state'] ?? null;
+
+        return $state !== null
+            && ($isHard || ($type === 'long_run' && $state !== RaceRecovery::STATE_EASY));
+    }
+
+    /**
+     * Erholung nach einem Rennen durchsetzen, nachdem die Wochen belegt sind.
+     *
+     * Die Tagewahl meidet die Erholungstage schon; was trotzdem dort landet
+     * (Wiedereinstieg, norwegische Woche), wird hier locker. Aus einer
+     * Doppel-Schwelle bleibt ein lockerer Lauf, die Abend-Hälfte fällt weg —
+     * zwei lockere Läufe an einem Tag gibt es nicht.
+     */
+    private function applyRaceRecovery(array &$days): void
+    {
+        foreach ($days as $date => $day) {
+            if (empty($day['recovery'])) {
+                continue;
+            }
+
+            $slots = [];
+            foreach ($day['slots'] as $slot) {
+                if (! empty($slot['race']) || ! empty($slot['fixed'])) {
+                    $slots[] = $slot;
+                    continue;
+                }
+
+                $isRun = in_array($slot['type'], self::RUN_SLOT_TYPES, true);
+                if ($isRun && ($slot['double'] ?? null) === 'pm') {
+                    continue;
+                }
+
+                if ($this->blocksRecovery($days[$date], $slot['type'], (bool) ($slot['hard'] ?? false))
+                    || ! empty($slot['controlled']) || ! empty($slot['fast'])) {
+                    $slot['type'] = 'easy_run';
+                    $slot['hard'] = false;
+                    unset($slot['controlled'], $slot['fast'], $slot['double'], $slot['part'], $slot['hard_min'], $slot['comeback']);
+                }
+
+                if ($isRun || $slot['type'] === 'easy_run') {
+                    $slot['recovery'] = $day['recovery']['state'];
+                }
+                $slots[] = $slot;
+            }
+
+            $days[$date]['slots'] = $slots;
+        }
+    }
+
+    /**
+     * In der kurzen Hälfte der Erholung höchstens {@see RaceRecovery::SHORT_MAX_MIN}
+     * Minuten, und ein langer Lauf danach ohne Renntempo-Abschnitt.
+     */
+    private function capRecoveryRuns(array &$days): void
+    {
+        foreach ($days as $date => $day) {
+            $state = $day['recovery']['state'] ?? null;
+            if ($state === null) {
+                continue;
+            }
+
+            foreach ($day['slots'] as $i => $slot) {
+                if (! empty($slot['race']) || ! empty($slot['fixed'])
+                    || ! in_array($slot['type'], self::RUN_SLOT_TYPES, true)) {
+                    continue;
+                }
+
+                $days[$date]['slots'][$i]['recovery'] = $state;
+
+                if ($slot['type'] === 'long_run') {
+                    $days[$date]['slots'][$i]['race_km'] = 0.0;
+                }
+
+                if ($state !== RaceRecovery::STATE_SHORT) {
+                    continue;
+                }
+
+                $cap = RaceRecovery::SHORT_MAX_MIN;
+                $min = (int) ($slot['target_min'] ?? 0);
+                if ($min > $cap) {
+                    if (isset($slot['target_km'])) {
+                        $days[$date]['slots'][$i]['target_km'] = round($slot['target_km'] * $cap / $min, 1);
+                    }
+                    $days[$date]['slots'][$i]['target_min'] = $cap;
+                }
+                $max = (int) ($slot['max_min'] ?? 0);
+                $days[$date]['slots'][$i]['max_min'] = $max > 0 ? min($max, $cap) : $cap;
+            }
+        }
     }
 
     private function hasQualityGap(array $days, array $usable, string $candidate): bool
@@ -1791,6 +1921,10 @@ class WeeklyPatternService
             foreach ($weekDates as $d) {
                 $day = $days[$d];
                 if (! $day['available'] || $day['finalized'] || ! empty($day['kept'])) {
+                    continue;
+                }
+                // In der kurzen Hälfte der Erholung nach einem Rennen keine Kraft.
+                if (($day['recovery']['state'] ?? null) === RaceRecovery::STATE_SHORT) {
                     continue;
                 }
 
@@ -2018,8 +2152,12 @@ class WeeklyPatternService
                 continue;
             }
 
+            $recovery = $day['recovery'] ?? null;
+
             if (! $day['available']) {
-                $lines[] = "- {$date} ({$wd}): NICHT VERFÜGBAR → type=\"rest\"";
+                $lines[] = $recovery
+                    ? "- {$date} ({$wd}): RUHETAG nach dem Rennen {$recovery['race']} (Erholung Tag {$recovery['day']} von {$recovery['of']}) → type=\"rest\" PFLICHT"
+                    : "- {$date} ({$wd}): NICHT VERFÜGBAR → type=\"rest\"";
                 continue;
             }
 
@@ -2165,7 +2303,13 @@ class WeeklyPatternService
                 $parts[]  = "type=\"{$slot['type']}\" ({$label}{$slotCap}){$hard}{$optional}{$workouts}";
             }
 
-            $lines[] = "- {$date} ({$wd}): hoechstens {$cap} → " . implode(' + ', $parts);
+            $after = $recovery
+                ? " — ERHOLUNG nach dem Rennen {$recovery['race']} (Tag {$recovery['day']} von {$recovery['of']}): rein locker"
+                    . ($recovery['state'] === RaceRecovery::STATE_SHORT ? ' und kurz' : '')
+                    . ', kein Tempo, keine Steigerungen'
+                : '';
+
+            $lines[] = "- {$date} ({$wd}): hoechstens {$cap} → " . implode(' + ', $parts) . $after;
         }
 
         // Die Übersicht wird aus den TAGEN gebildet, nicht aus dem Ergebnis

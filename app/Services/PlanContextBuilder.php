@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\Plan\RaceRecovery;
 use App\Models\Activity;
 use App\Models\Event;
 use App\Models\TrainingPlan;
@@ -34,6 +35,7 @@ class PlanContextBuilder
         private readonly LongRunPlanService $longRuns,
         private readonly IntensityDistributionService $intensity,
         private readonly FatigueCheck $fatigue,
+        private readonly RaceRecovery $raceRecovery,
     ) {}
 
     /**
@@ -184,6 +186,9 @@ class PlanContextBuilder
                 'enabled'       => (bool) $user->runnerProfile?->strength_enabled,
                 'days_per_week' => $user->runnerProfile?->strength_days_per_week ?? 2,
             ],
+            // Erholung nach einem Rennen — auch nach einem, das vor dem
+            // Fenster lag (das Zielrennen des letzten Plans).
+            $this->raceRecovery->forWindow($user, $windowFrom, $windowTo, $today),
         );
 
         // Die Paces reisen mit dem Gerüst in den Validator: dort entsteht der

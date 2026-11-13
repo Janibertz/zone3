@@ -226,6 +226,12 @@ class RunWorkouts
             return ['steady'];
         }
 
+        // Erholung nach einem Rennen: nur locker, ohne Steigerungen oder
+        // Bergsprints ({@see \App\Services\Plan\RaceRecovery}).
+        if (! empty($slot['recovery'])) {
+            return $type === 'long_run' ? ['lang_locker'] : ['locker'];
+        }
+
         // Der lange Lauf hat keine Wahl: ob ein Renntempo-Abschnitt dazugehört,
         // hat die Leiter entschieden.
         // Neu ist nur die Wahl, wie er aussieht.

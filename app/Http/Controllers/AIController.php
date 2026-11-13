@@ -22,6 +22,7 @@ class AIController extends Controller
         protected WeatherService $weather,
         protected ReturnToRunService $returnToRun,
         protected SessionStructure $structure,
+        protected \App\Services\Plan\RaceRecovery $raceRecovery,
     ) {}
 
     public function recommendToday(Request $request)
@@ -113,6 +114,14 @@ class AIController extends Controller
             return [$rest, null, $wellbeingExists];
         }
 
+        // Erholung nach einem Rennen: das Gerüst entscheidet, nicht das
+        // Modell — ein Ruhetag oder ein lockerer Lauf aus dem Katalog.
+        if ($recovery = $this->raceRecovery->on($user, \Carbon\CarbonImmutable::today())) {
+            $rec = $this->recoveryRecommendation($recovery, $todayAvailability);
+
+            return [$rec['type'] === 'rest' ? $rec : $this->withStructure($rec, $user), null, $wellbeingExists];
+        }
+
         if ($wellbeingExists || ! $requireWellbeing) {
             // Check cached recommendation (same day + same entry) — stored as JSON string
             if ($runnerProfile &&
@@ -195,6 +204,39 @@ class AIController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Der Vorschlag in der Erholung nach einem Rennen, ohne Modellaufruf.
+     *
+     * @return array<string, mixed>
+     */
+    private function recoveryRecommendation(array $recovery, ?array $availability): array
+    {
+        $race = $recovery['race'];
+        $day  = "Tag {$recovery['day']} von {$recovery['of']}";
+
+        if ($recovery['state'] === \App\Services\Plan\RaceRecovery::STATE_REST) {
+            return $this->rest('Ruhetag nach dem Rennen', "{$race} steckt noch in den Beinen ({$day} der Erholung). Heute nicht laufen, gern spazieren gehen.");
+        }
+
+        $short   = $recovery['state'] === \App\Services\Plan\RaceRecovery::STATE_SHORT;
+        $minutes = $short ? \App\Services\Plan\RaceRecovery::SHORT_MAX_MIN : 45;
+        if ($budget = $availability['duration_min'] ?? null) {
+            $minutes = min($minutes, (int) $budget);
+        }
+
+        return [
+            'type'            => 'easy_run',
+            'title'           => $short ? 'Kurzer Erholungslauf' : 'Lockerer Erholungslauf',
+            'description'     => "Erholung nach {$race} ({$day}): ganz locker, ohne Tempo. Die Beine sollen sich danach besser anfühlen als vorher.",
+            'duration_min'    => $minutes,
+            'distance_km'     => 0,
+            'pace_target'     => null,
+            'zone'            => 2,
+            'intensity'       => 'low',
+            'workout_variant' => 'locker',
+        ];
     }
 
     /** @return array<string, mixed> */
