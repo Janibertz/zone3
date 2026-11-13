@@ -210,6 +210,23 @@ class WhoopIntegrationTest extends TestCase
         $this->assertSame(48, (int) $metric->resting_hr);
         $this->assertEquals(96.4, $metric->spo2);
         $this->assertEquals(15.2, $metric->respiration_rate);
+        $this->assertSame(61, (int) $metric->recovery_score);
+    }
+
+    public function test_the_coach_sees_the_recovery_and_a_red_one_is_flagged(): void
+    {
+        \App\Models\GarminDailyMetric::create([
+            'user_id' => $this->user->id, 'date' => now()->toDateString(), 'source' => 'whoop', 'recovery_score' => 28,
+        ]);
+
+        $summary = app(\App\Services\GarminHealthSummary::class);
+        $day  = $summary->forDay($this->user->id);
+        $week = $summary->forUser($this->user->id);
+
+        $this->assertContains('Recovery (WHOOP) heute: 28 %', $day['lines']);
+        $this->assertContains('recovery', $day['flagged']);
+        $this->assertContains('Recovery (WHOOP): 28 % im 7-Tage-Schnitt', $week['lines']);
+        $this->assertNotEmpty($week['flags']);
     }
 
     public function test_a_watch_with_its_own_connection_wins_over_whoop(): void

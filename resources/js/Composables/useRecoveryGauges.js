@@ -44,6 +44,13 @@ const BODY_BATTERY_ZONES = [
     { from: 75, to: 100, tone: 'accent', label: 'Hoch' },
 ];
 
+/** WHOOPs Recovery-Stufen (rot / gelb / grün). */
+const RECOVERY_ZONES = [
+    { from: 0,  to: 34,  tone: 'danger',  label: 'Niedrig' },
+    { from: 34, to: 67,  tone: 'warn',    label: 'Mittel' },
+    { from: 67, to: 100, tone: 'success', label: 'Hoch' },
+];
+
 /** Stufe, in die ein Wert fällt (obere Grenze gehört zur nächsten Stufe). */
 export function zoneOf(zones, v) {
     if (v == null) return null;
@@ -151,6 +158,20 @@ function bodyBatteryTile(series) {
     };
 }
 
+/** Nur mit WHOOP — ohne Wert keine Kachel. */
+function recoveryTile(series) {
+    const last = recent(series, 'recovery_score');
+    if (!last) return null;
+    const z = zoneOf(RECOVERY_ZONES, last.value);
+    return {
+        key: 'recovery', icon: 'energy', label: 'Recovery', mode: 'fill',
+        value: last.value, display: String(last.value), unit: '%',
+        min: 0, max: 100, zones: RECOVERY_ZONES,
+        status: { text: z.label, tone: z.tone },
+        hint: null,
+    };
+}
+
 function hrvTile(series) {
     const last = recent(series, 'hrv');
     const base = baseline(series, 'hrv');
@@ -227,7 +248,9 @@ export function garminGauges(metrics) {
 
     return [
         sleepTile(series),
-        bodyBatteryTile(series),
+        recoveryTile(series),
+        // WHOOP kennt keine Body Battery — dann keine leere Kachel daneben.
+        recent(series, 'recovery_score') && !recent(series, 'body_battery_high') ? null : bodyBatteryTile(series),
         hrvTile(series),
         restingHrTile(series),
         vo2maxTile(series),

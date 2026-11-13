@@ -145,6 +145,9 @@ class TelegramBriefing
         if (isset($values['body_battery'])) {
             $lines[] = "Body Battery {$values['body_battery']['value']}";
         }
+        if (isset($values['recovery'])) {
+            $lines[] = "Recovery {$values['recovery']['value']} %";
+        }
 
         if (! $lines) {
             return null;

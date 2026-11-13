@@ -21,9 +21,11 @@ use Throwable;
  * - Nur `score_state = SCORED`; „wird noch berechnet“ kommt per Webhook nach.
  * - **Kein `sleep_score`:** WHOOPs „Sleep Performance“ ist ein Anteil am
  *   Schlafbedarf, kein Schlafwert wie bei Garmin — die Kachel mit Garmins
- *   Stufen (60/80/90) würde ihn falsch einordnen. Den Recovery-Wert selbst
- *   speichert Zone3 auch nicht: es gibt dafür keine Spalte, und Body Battery
- *   ist etwas anderes.
+ *   Stufen (60/80/90) würde ihn falsch einordnen.
+ * - **Recovery-Wert** (0–100 %) in eigener Spalte `recovery_score`, nicht als
+ *   Body Battery (Jan, 13.11.2026): Kachel unter Erholung und Zeile für den
+ *   Coach, aber kein Signal in `FatigueCheck` — WHOOP rechnet ihn großteils
+ *   aus HRV und Ruhepuls, die dort schon zählen.
  *
  * Kommen schon Werte von Garmin, COROS oder Polar, bleibt WHOOP draußen —
  * zwei Geräte messen eine Nacht nie gleich.
@@ -124,6 +126,8 @@ class WhoopHealthImporter
                 'hrv'        => ($score['hrv_rmssd_milli'] ?? 0) > 0 ? (int) round($score['hrv_rmssd_milli']) : null,
                 'resting_hr' => ($score['resting_heart_rate'] ?? 0) > 0 ? (int) round($score['resting_heart_rate']) : null,
                 'spo2'       => ($score['spo2_percentage'] ?? 0) > 0 ? round((float) $score['spo2_percentage'], 1) : null,
+                'recovery_score' => is_numeric($score['recovery_score'] ?? null)
+                    ? max(0, min(100, (int) round($score['recovery_score']))) : null,
             ]);
         }
 

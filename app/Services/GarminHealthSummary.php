@@ -22,6 +22,9 @@ class GarminHealthSummary
     /** Ab dieser Abweichung vom eigenen Schnitt wird es erwähnenswert. */
     private const NOTABLE_PCT = 5.0;
 
+    /** Unter 34 % ist WHOOPs Recovery rot. */
+    public const RECOVERY_RED = 34;
+
     /**
      * @return array{
      *     has_data: bool, days: int,
@@ -92,6 +95,15 @@ class GarminHealthSummary
             );
             if ($battery < 60) {
                 $flags[] = sprintf('Body Battery erreicht nur %d — unvollständige Erholung', round($battery));
+            }
+        }
+
+        // WHOOPs Recovery: unter 34 % ist bei WHOOP Rot.
+        $recovery = $this->average($recent, 'recovery_score');
+        if ($recovery !== null) {
+            $lines[] = sprintf('Recovery (WHOOP): %d %% im 7-Tage-Schnitt', round($recovery));
+            if ($recovery < self::RECOVERY_RED) {
+                $flags[] = sprintf('Recovery im Schnitt nur %d %%', round($recovery));
             }
         }
 
@@ -227,6 +239,16 @@ class GarminHealthSummary
             if ($today->body_battery_high < 50) {
                 $flags[]   = sprintf('Body Battery nur bei %d', $today->body_battery_high);
                 $flagged[] = 'body_battery';
+            }
+        }
+
+        if ($today->recovery_score !== null) {
+            $values['recovery'] = ['value' => $today->recovery_score];
+            $lines[] = sprintf('Recovery (WHOOP) heute: %d %%', $today->recovery_score);
+
+            if ($today->recovery_score < self::RECOVERY_RED) {
+                $flags[]   = sprintf('Recovery nur %d %%', $today->recovery_score);
+                $flagged[] = 'recovery';
             }
         }
 

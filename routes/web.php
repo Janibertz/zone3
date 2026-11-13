@@ -586,7 +586,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 ->orderBy('date')
                 ->get([
                     'date', 'hrv', 'resting_hr', 'sleep_hours', 'sleep_score',
-                    'body_battery_low', 'body_battery_high', 'stress_avg',
+                    'body_battery_low', 'body_battery_high', 'recovery_score', 'stress_avg',
                     'steps', 'vo2max',
                 ]);
 
@@ -600,6 +600,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
                 'sleep_score'        => $r->sleep_score,
                 'body_battery_low'   => $r->body_battery_low,
                 'body_battery_high'  => $r->body_battery_high,
+                'recovery_score'     => $r->recovery_score,
                 'stress_avg'         => $r->stress_avg,
                 'steps'              => $r->steps,
                 'vo2max'             => $r->vo2max,

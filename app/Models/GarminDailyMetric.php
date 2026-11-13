@@ -16,6 +16,7 @@ class GarminDailyMetric extends Model
         'sleep_score',
         'body_battery_low',
         'body_battery_high',
+        'recovery_score',
         'stress_avg',
         'steps',
         'vo2max',
