@@ -81,6 +81,12 @@ class ProfileController extends Controller
                 'connection' => $user->polarConnection?->summary(),
                 'status'     => session('polar_status'),
             ],
+            // WHOOP: Trainings, Schlaf, Recovery (HRV, Ruhepuls, SpO2).
+            'whoop'            => [
+                'available'  => app(\App\Services\Whoop\WhoopClient::class)->configured(),
+                'connection' => $user->whoopConnection?->summary(),
+                'status'     => session('whoop_status'),
+            ],
             // Apple Health aus der iOS-App: Einwilligung und wer Vorrang hat.
             'appleHealth'      => [
                 'consent_at'    => $user->apple_health_consent_at?->toIso8601String(),
@@ -243,6 +249,9 @@ class ProfileController extends Controller
         }
         if ($user->polarConnection) {
             app(\App\Services\Polar\PolarDisconnector::class)->disconnect($user);
+        }
+        if ($user->whoopConnection) {
+            app(\App\Services\Whoop\WhoopDisconnector::class)->disconnect($user);
         }
 
         Auth::logout();

@@ -79,6 +79,17 @@ return [
         'api_url'       => env('POLAR_API_URL', 'https://www.polaraccesslink.com'),
     ],
 
+    // WHOOP (seit 13.11.2026). App im WHOOP Developer Dashboard, Sandbox =
+    // 10 Mitglieder ohne Freigabe. Ohne ID/Secret ist die Verbindung ausgeblendet.
+    'whoop' => [
+        'client_id'     => env('WHOOP_CLIENT_ID'),
+        'client_secret' => env('WHOOP_CLIENT_SECRET'),
+        'redirect'      => env('WHOOP_REDIRECT_URI', env('APP_URL') . '/whoop/callback'),
+        'auth_url'      => 'https://api.prod.whoop.com/oauth/oauth2/auth',
+        'token_url'     => 'https://api.prod.whoop.com/oauth/oauth2/token',
+        'api_url'       => env('WHOOP_API_URL', 'https://api.prod.whoop.com/developer'),
+    ],
+
     'openai' => [
         'api_key'    => env('OPENAI_API_KEY'),
         'model'      => env('OPENAI_MODEL',      'gpt-5.6-sol'),     // Plan

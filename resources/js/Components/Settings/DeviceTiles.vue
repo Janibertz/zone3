@@ -19,6 +19,7 @@ const props = defineProps({
     garmin:      { type: Boolean, default: false },
     coros:       { type: Boolean, default: null },   // null = auf dem Server aus
     polar:       { type: Boolean, default: null },   // null = auf dem Server nicht eingerichtet
+    whoop:       { type: Boolean, default: null },
     strava:      { type: Boolean, default: null },   // null = nicht freigeschaltet
     apple:       { type: Boolean, default: null },   // null = nicht angeboten (Browser)
     appleDetail: { type: String,  default: '' },
@@ -30,6 +31,7 @@ const tiles = computed(() => [
     { key: 'garmin', name: 'GARMIN', track: 'tracking-[0.08em]', art: 'round', on: props.garmin, href: connections('conn-garmin') },
     ...(props.coros !== null ? [{ key: 'coros', name: 'COROS', track: 'tracking-[0.12em]', art: 'crown', on: props.coros, href: connections('conn-coros') }] : []),
     ...(props.polar !== null ? [{ key: 'polar', name: 'POLAR', track: 'tracking-[0.14em]', art: 'band', on: props.polar, href: connections('conn-polar') }] : []),
+    ...(props.whoop !== null ? [{ key: 'whoop', name: 'WHOOP', track: 'tracking-[0.1em]', art: 'strap', on: props.whoop, href: connections('conn-whoop') }] : []),
     ...(props.apple !== null ? [{ key: 'apple', name: 'Apple Watch', track: '', art: 'square', on: props.apple, detail: props.appleDetail, href: connections('conn-apple') }] : []),
     ...(props.strava !== null ? [{ key: 'strava', name: 'STRAVA', track: 'tracking-[0.1em]', art: 'phone', on: props.strava, href: connections('conn-strava') }] : []),
     { key: 'file', name: 'FIT-Datei', track: '', art: 'file', on: null, detail: 'Zwift & Co. hochladen', href: route('activities.index') },
@@ -82,6 +84,15 @@ const tiles = computed(() => [
                 <circle cx="48" cy="58" r="31" fill="#0B0B0C" />
                 <path d="M27 56h9l4-8 6 16 4-8h19" fill="none" stroke="#FF375F" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
                 <text x="48" y="80" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">142</text>
+            </svg>
+
+            <!-- Band ohne Anzeige (Sensor am Handgelenk) -->
+            <svg v-else-if="t.art === 'strap'" class="h-[104px] w-[86px]" viewBox="0 0 96 116" aria-hidden="true">
+                <rect x="30" y="0" width="36" height="116" rx="14" class="fill-surface-3" />
+                <rect x="30" y="0" width="36" height="116" rx="14" fill="none" class="stroke-line-strong" stroke-width="1.5" />
+                <rect x="24" y="36" width="48" height="44" rx="12" class="fill-line-strong" />
+                <rect x="29" y="41" width="38" height="34" rx="9" fill="#0B0B0C" />
+                <path d="M36 58h6l3-6 5 12 3-6h7" fill="none" stroke="#30D158" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
 
             <!-- Eckige Smartwatch -->

@@ -31,6 +31,7 @@ const t = computed(() => status.value.tiles);
                     :garmin="t.garmin"
                     :coros="t.coros"
                     :polar="t.polar"
+                    :whoop="t.whoop"
                     :strava="t.strava"
                     :apple="t.apple"
                     :apple-detail="t.appleDetail" />

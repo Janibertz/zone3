@@ -1050,6 +1050,19 @@ Polar AccessLink v3 (Doku und Vertrag in `polar-suunto/` der Projektdateien). Ke
 - **Kennzeichnung:** Polar verlangt die Quelle auch an abgeleiteten Daten (Vertrag §3.1.5) — „Daten von Polar“ auf der Aktivitätsseite, Herkunft im VDOT-Label. **Kein Polar-Logo**, Werbung mit dem Namen nur als Kompatibilitätshinweis (§7.3/7.4).
 - **Ungeprüft gegen einen echten Aufruf:** alle Antworten stammen aus der Doku. Kommt etwas nicht an: zuerst `polar_webhook_events`, dann `/admin/system/logs` nach „Polar“.
 
+## WHOOP (seit 13.11.2026)
+
+WHOOP Developer API v2 (Bedingungen geprüft in `whoop-oura-antrag/befund.md` der Projektdateien). App im WHOOP Developer Dashboard, **Sandbox: höchstens 10 Mitglieder ohne Freigabe**; der Build-Antrag (100) erst, wenn die Anbindung mit einem echten Mitglied lief. Redirect `https://zone3.run/whoop/callback`, Webhook `https://zone3.run/whoop/webhook` (Modellversion v2), Scopes `offline read:recovery read:sleep read:workout read:profile` (kein `read:cycles`, kein `read:body_measurement` genutzt). **Eingeblendet nur mit `WHOOP_CLIENT_ID` und `WHOOP_CLIENT_SECRET`.** Reines Lesen.
+
+- **Kein öffentlicher Hinweis ohne schriftliche Zustimmung** (API Terms 5.2): WHOOP steht in Profil, Onboarding, Geräte & Apps und /privacy, aber **nicht** auf der Startseite („Funktioniert mit“), im Blog oder auf Instagram, bis WHOOP zustimmt. Kontakt mit WHOOP nur über das Dashboard. Kein Logo.
+- **Ohne Einwilligung keine Verbindung** (`whoop_connections.ai_consent_at`, `Components/Settings/WhoopConnection.vue`).
+- **OAuth mit Refresh-Token** (`WhoopClient`): Access-Token 1 h, Client-ID/Secret im Body. Jede Erneuerung liefert einen neuen Refresh-Token und macht den alten ungültig → `Cache::lock('whoop-refresh:<user>')` und frisch gelesene Zeile wie bei Garmin. `whoop:sync` alle 30 min hält ihn frisch. Ohne Scope `offline` kein Refresh-Token.
+- **Trainings** (`WhoopActivityImporter`, `Activity::SOURCE_WHOOP`): nur Zusammenfassung — Dauer, Strecke, Puls, Höhenmeter. **Keine Linie, keine Runden, keine Bestzeiten.** Kennung = Startzeit (`activities.whoop_start`, UTC-Sekunden), die UUID daneben (`whoop_workout_id`) für `workout.deleted`. Sportart aus `sport_name` (freier Text), sonst `sport_id`; Unbekanntes wird `Workout`, nie ein Lauf. Nach dem Verbinden einmal 42 Tage zurück, älter als 48 h nur speichern. Gelesen nur, wenn WHOOP die gewählte Quelle ist.
+- **Erholung** (`WhoopHealthImporter`, `garmin_daily_metrics` mit `source = whoop`): Schlaf ohne Nickerchen (Dauer = leicht + tief + REM, Atemfrequenz) am **Tag des Aufwachens in WHOOPs Ortszeit**; Recovery (HRV als RMSSD wie Garmin/Polar, Ruhepuls, SpO2) über `sleep_id` am Tag dieses Schlafs. Nur `score_state = SCORED`. **Kein `sleep_score`** (Sleep Performance ist ein Anteil am Schlafbedarf, kein Schlafwert) und kein Recovery-Wert (keine Spalte). Garmin, COROS und Polar haben Vorrang; WHOOP zählt in `receivesWatchHealthMetrics()`, Apple Health weicht.
+- **Webhook signiert:** `X-WHOOP-Signature` = Base64(HMAC-SHA256(`X-WHOOP-Signature-Timestamp` + Body, Client-Secret)); Zeitstempel höchstens 10 min alt, `trace_id` einen Tag gemerkt. Der Body trägt nur `user_id`, `id`, `type`: `workout.updated|deleted` → `ImportWhoopWorkoutJob`, `sleep.updated`/`recovery.updated` → `SyncWhoopJob` (nur Erholung, 2 min verzögert). Jeder Aufruf steht in `whoop_webhook_events` (30 Tage). `/whoop/webhook` braucht in Cloudflare dieselbe WAF-Skip-Regel wie `/strava/webhook`.
+- **Trennen** (`WhoopDisconnector`, auch beim Konto löschen): `DELETE /v2/user/access`, dann Zugang, WHOOP-Trainings (ohne Grabstein) und WHOOP-Erholungswerte löschen. WHOOP verbietet dauerhafte Kopien (4.2.2).
+- **Ungeprüft gegen einen echten Aufruf:** Feldnamen und Signatur stammen aus der Doku. Kommt nichts an: zuerst `whoop_webhook_events`, dann `/admin/system/logs` nach „WHOOP“.
+
 ## Admin Panel
 
 Routes in `routes/admin.php` — protected by `is_admin` on User. Manual threshold recalculation, AI log viewer (all OpenAI calls with tokens + duration), coach personality editor, push test sender, settings page showing both models.
@@ -1240,6 +1253,10 @@ APPLE_SIGNIN_CLIENT_ID=
 # Polar AccessLink (admin.polaraccesslink.com). Ohne beide keine Polar-Verbindung.
 POLAR_CLIENT_ID=
 POLAR_CLIENT_SECRET=
+
+# WHOOP Developer Dashboard (Sandbox). Ohne beide keine WHOOP-Verbindung.
+WHOOP_CLIENT_ID=
+WHOOP_CLIENT_SECRET=
 
 # Garmin Connect Developer Program (OAuth2 PKCE). Ohne ID/Secret gibt es
 # keine Garmin-Verbindung.

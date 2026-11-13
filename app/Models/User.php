@@ -138,6 +138,11 @@ class User extends Authenticatable
         return $this->hasOne(PolarConnection::class);
     }
 
+    public function whoopConnection()
+    {
+        return $this->hasOne(\App\Models\WhoopConnection::class);
+    }
+
     /** Legt Zone3 die naechsten Plantage selbst in den COROS-Kalender? */
     public function syncsPlanToCoros(): bool
     {
@@ -180,6 +185,8 @@ class User extends Authenticatable
             $this->apple_health_consent_at ? Activity::SOURCE_APPLE : null,
             // Polar: verbunden heisst eingewilligt (reines Lesen).
             $this->polarConnection?->readsData() ? Activity::SOURCE_POLAR : null,
+            // WHOOP: verbunden heisst eingewilligt (reines Lesen).
+            $this->whoopConnection?->readsData() ? Activity::SOURCE_WHOOP : null,
         ]));
     }
 
@@ -194,7 +201,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Erholungswerte von einer Uhr mit eigener Anbindung (Garmin, COROS, Polar).
+     * Erholungswerte von einer Uhr mit eigener Anbindung (Garmin, COROS, Polar, WHOOP).
      * Die haben Vorrang vor Apple Health: zwei Quellen messen eine Nacht nie
      * gleich, und Apple misst die HRV anders (SDNN statt RMSSD).
      */
@@ -202,7 +209,8 @@ class User extends Authenticatable
     {
         return (bool) $this->garminConnection?->allows(GarminConnection::HEALTH)
             || (bool) $this->corosConnection?->readsData()
-            || (bool) $this->polarConnection?->readsData();
+            || (bool) $this->polarConnection?->readsData()
+            || (bool) $this->whoopConnection?->readsData();
     }
 
     /** Workouts gehen ueber die Training API — offizielle Verbindung mit Workout-Freigabe. */

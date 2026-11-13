@@ -46,9 +46,14 @@ const empfaenger = [
         zweck: 'Nur wenn du Polar verbindest (mit deiner Einwilligung): Abruf deiner Trainings (samt FIT-Datei mit Strecke und Herzfrequenz), deines Schlafs, deiner Nightly-Recharge-Werte (HRV, Puls in der Nacht, Atemfrequenz) und deiner VO2max aus Polar Flow. Polar erfährt dabei, dass dein Konto mit Zone3 verbunden ist.',
     },
     {
+        name: 'WHOOP, Inc.',
+        ort: 'USA',
+        zweck: 'Nur wenn du WHOOP verbindest (mit deiner Einwilligung): Abruf deiner Trainings (Dauer, Strecke, Herzfrequenz), deines Schlafs (Dauer, Atemfrequenz) und deiner Recovery-Werte (HRV, Ruhepuls, Blutsauerstoff). WHOOP erfährt dabei, dass dein Konto mit Zone3 verbunden ist. Die Verbindung zu deinem WHOOP-Konto in den USA stellst du selbst her; dafür gilt die Datenschutzerklärung von WHOOP.',
+    },
+    {
         name: 'OpenAI Ireland Ltd.',
         ort: 'Irland, USA',
-        zweck: 'Erzeugung von Trainingsplänen, Auswertungen und Antworten des Coachs. Übermittelt werden die dafür nötigen Trainingsdaten (Aktivitäten, Pace, Herzfrequenz, Ziele und Rennen, Trainingsprofil), deine Tagesform-Einträge, Coach-Notizen und deine Chat-Nachrichten sowie dein Name; Sprachnachrichten und Fotos, die du dem Coach über Telegram schickst (zum Umwandeln in Text, siehe Abschnitt 7). Hast du Garmin oder Polar verbunden oder bei COROS oder Apple Health in die Datenübernahme eingewilligt, außerdem Wochenmittel und Tageswerte deiner Erholung (Schlaf, HRV, Ruhepuls, Stress, Body Battery, Blutsauerstoff, Atemfrequenz). Nicht zum Training von KI-Modellen, siehe Abschnitt 7. E-Mail-Adresse, Passwort und Zugangsdaten werden nicht übermittelt. OpenAI verarbeitet die Daten in unserem Auftrag (Vertrag nach Art. 28 DSGVO); gibt OpenAI Ireland sie an OpenAI in den USA weiter, gelten die EU-Standardvertragsklauseln.',
+        zweck: 'Erzeugung von Trainingsplänen, Auswertungen und Antworten des Coachs. Übermittelt werden die dafür nötigen Trainingsdaten (Aktivitäten, Pace, Herzfrequenz, Ziele und Rennen, Trainingsprofil), deine Tagesform-Einträge, Coach-Notizen und deine Chat-Nachrichten sowie dein Name; Sprachnachrichten und Fotos, die du dem Coach über Telegram schickst (zum Umwandeln in Text, siehe Abschnitt 7). Hast du Garmin, Polar oder WHOOP verbunden oder bei COROS oder Apple Health in die Datenübernahme eingewilligt, außerdem Wochenmittel und Tageswerte deiner Erholung (Schlaf, HRV, Ruhepuls, Stress, Body Battery, Blutsauerstoff, Atemfrequenz). Nicht zum Training von KI-Modellen, siehe Abschnitt 7. E-Mail-Adresse, Passwort und Zugangsdaten werden nicht übermittelt. OpenAI verarbeitet die Daten in unserem Auftrag (Vertrag nach Art. 28 DSGVO); gibt OpenAI Ireland sie an OpenAI in den USA weiter, gelten die EU-Standardvertragsklauseln.',
     },
     {
         name: 'Telegram',
@@ -138,7 +143,7 @@ const empfaenger = [
                     <li><strong class="text-ink">Ziele und Pläne:</strong> Rennen, Zielzeiten, Trainingspläne und -einheiten, deine Bewertungen und Notizen dazu, Antworten im Plan-Interview.</li>
                     <li><strong class="text-ink">Tagesform:</strong> freiwillige Selbsteinschätzung (Energie, Schlaf, Muskelkater, Stress, krank oder verletzt, Notiz).</li>
                     <li><strong class="text-ink">Coach:</strong> deine Nachrichten an den Coach, seine Antworten und Notizen, die er sich über dich merkt.</li>
-                    <li><strong class="text-ink">Verbindungen:</strong> Zugangstoken für Strava, Garmin, COROS und Polar, deine Telegram-Chat-ID, das Token deines Kalender-Abos, Push-Abonnements.</li>
+                    <li><strong class="text-ink">Verbindungen:</strong> Zugangstoken für Strava, Garmin, COROS, Polar und WHOOP, deine Telegram-Chat-ID, das Token deines Kalender-Abos, Push-Abonnements.</li>
                     <li><strong class="text-ink">Support und Kontakt:</strong> Inhalt deiner Support-Anfragen; über das Kontaktformular im Impressum außerdem Name (freiwillig), E-Mail-Adresse und Nachricht.</li>
                     <li><strong class="text-ink">Technische Daten:</strong> IP-Adresse, Zeitpunkt und aufgerufene Adresse in Server-Logs.</li>
                 </ul>
@@ -212,7 +217,7 @@ const empfaenger = [
             </section>
 
             <section>
-                <h2 class="mb-3 text-[22px] font-bold text-ink">6. Garmin, COROS, Polar und Apple Health</h2>
+                <h2 class="mb-3 text-[22px] font-bold text-ink">6. Garmin, COROS, Polar, WHOOP und Apple Health</h2>
                 <p>
                     Verbindest du dein Garmin-Konto, liest Zone3 die Daten, die du dabei freigibst: deine
                     Erholungswerte und, wenn du Garmin als Quelle für Aktivitäten wählst, deine Aktivitäten.
@@ -252,6 +257,14 @@ const empfaenger = [
                     meldet Zone3 dich bei Polar ab (das widerruft den Zugang) und löscht alles, was von Polar kam. Ein
                     Zugang, den du in Polar Flow widerrufst, gilt ebenfalls nicht mehr. Alles, was aus Polar-Daten
                     stammt, ist in Zone3 als solches gekennzeichnet.
+                </p>
+                <p class="mt-3">
+                    Verbindest du dein WHOOP-Konto, willigst du dabei ein, dass Zone3 deine Daten von WHOOP liest und
+                    für Plan, Auswertungen und Coach verwendet und dafür an OpenAI übermittelt (Abschnitt 7). Gelesen
+                    werden deine Trainings (Dauer, Strecke, Herzfrequenz, Höhenmeter), dein Schlaf (Dauer,
+                    Atemfrequenz) und deine Recovery-Werte (HRV, Ruhepuls, Blutsauerstoff), beim ersten Mal die letzten
+                    Wochen. Zyklusdaten und Körpermaße liest Zone3 nicht. Zone3 speichert dafür den Zugang, den du bei
+                    WHOOP freigibst. Beim Trennen widerruft Zone3 den Zugang bei WHOOP und löscht alles, was von WHOOP kam.
                 </p>
                 <p class="mt-3">
                     In der iOS-App kannst du Zone3 erlauben, Daten aus Apple Health zu lesen. Gelesen werden nur
@@ -316,6 +329,11 @@ const empfaenger = [
                 <p class="mt-3">
                     Daten von Polar gehen nur mit der Einwilligung an OpenAI, die du beim Verbinden erteilst. Trennen
                     unter <strong class="text-ink">Profil → Verbindungen → Polar</strong> widerruft sie und löscht die übernommenen Daten.
+                </p>
+                <p class="mt-3">
+                    Für Daten von WHOOP gilt dasselbe: sie gehen nur mit der Einwilligung an OpenAI, die du beim
+                    Verbinden erteilst. Trennen unter <strong class="text-ink">Profil → Verbindungen → WHOOP</strong>
+                    widerruft sie und löscht die übernommenen Daten.
                 </p>
                 <p class="mt-3">
                     Daten aus Apple Health gehen ebenfalls nur mit deiner gesonderten Einwilligung an OpenAI

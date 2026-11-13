@@ -73,6 +73,11 @@ Schedule::command('polar:sync')->everyThirtyMinutes()->withoutOverlapping();
 Schedule::command('polar:sync --health')->hourlyAt(25)->withoutOverlapping();
 Schedule::command('polar:webhook')->hourlyAt(35)->withoutOverlapping();
 
+// WHOOP: Webhook ist der schnelle Weg, das hier das Netz (und haelt den
+// Refresh-Token frisch).
+Schedule::command('whoop:sync')->everyThirtyMinutes()->withoutOverlapping();
+Schedule::command('whoop:sync --health')->hourlyAt(40)->withoutOverlapping();
+
 // Jede Minute: laufende LiveTrack-Sitzungen abfragen. Der Command prueft
 // selbst, ob ueberhaupt eine Sitzung im Zeitfenster liegt.
 Schedule::command('livetrack:poll')->everyMinute()->withoutOverlapping();

@@ -24,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'strava/webhook',
             'garmin/webhook/*',
             'polar/webhook',
+            'whoop/webhook',
             'telegram/webhook',
             'webhook/github',
             // Apple schickt die Anmeldung als Formular von appleid.apple.com;

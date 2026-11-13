@@ -18,6 +18,8 @@ class Activity extends Model
     public const SOURCE_APPLE = 'apple';
     /** Polar AccessLink (13.11.2026). Kennung = Startzeit, Polars ID ist ein Hash-String. */
     public const SOURCE_POLAR = 'polar';
+    /** WHOOP (13.11.2026). Kennung = Startzeit, WHOOPs ID ist eine UUID (`whoop_workout_id`). */
+    public const SOURCE_WHOOP = 'whoop';
 
     /** Je Quelle die Spalte mit ihrer ID. Eine Zeile kann beide tragen. */
     public const ID_COLUMNS = [
@@ -27,6 +29,7 @@ class Activity extends Model
         self::SOURCE_FILE   => 'file_start',
         self::SOURCE_APPLE  => 'apple_start',
         self::SOURCE_POLAR  => 'polar_start',
+        self::SOURCE_WHOOP  => 'whoop_start',
     ];
 
     /** Wie die Quelle in der Oberfläche heißt. */
@@ -37,6 +40,7 @@ class Activity extends Model
         self::SOURCE_FILE   => 'FIT-Datei',
         self::SOURCE_APPLE  => 'Apple Health',
         self::SOURCE_POLAR  => 'Polar',
+        self::SOURCE_WHOOP  => 'WHOOP',
     ];
 
     /**
@@ -58,6 +62,8 @@ class Activity extends Model
         'file_start',
         'apple_start',
         'polar_start',
+        'whoop_start',
+        'whoop_workout_id',
         'source',
         'device_name',
         'name',

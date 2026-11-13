@@ -12,6 +12,7 @@ import TrainingModelFields from '@/Components/Settings/TrainingModelFields.vue';
 import BikeFields from '@/Components/Settings/BikeFields.vue';
 import AppleHealthCard from '@/Components/Settings/AppleHealthCard.vue';
 import PolarConnection from '@/Components/Settings/PolarConnection.vue';
+import WhoopConnection from '@/Components/Settings/WhoopConnection.vue';
 import AppleWatchCard from '@/Components/Settings/AppleWatchCard.vue';
 import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -47,6 +48,7 @@ const props = defineProps({
     garminOfficial:        { type: Object, default: () => ({ available: false, connection: null }) },
     coros:                 { type: Object, default: () => ({ available: false, connection: null }) },
     polar:                 { type: Object, default: () => ({ available: false, connection: null }) },
+    whoop:                 { type: Object, default: () => ({ available: false, connection: null }) },
     activitySource:        { type: Object, default: () => ({ current: 'strava', usable: [] }) },
     appleHealth:           { type: Object, default: () => ({ consent_at: null, watch_metrics: false, synced_at: null }) },
     appleWatch:            { type: Object, default: null },
@@ -56,7 +58,7 @@ const page = usePage();
 const user = computed(() => page.props.auth.user);
 // Kommt der Athlet von Garmin zurück, landet er direkt bei den Verbindungen —
 // sonst sähe er die Rückmeldung zum Verbinden gar nicht.
-const backFromGarmin = !!props.garminOfficial?.status || !!props.coros?.status || !!props.polar?.status;
+const backFromGarmin = !!props.garminOfficial?.status || !!props.coros?.status || !!props.polar?.status || !!props.whoop?.status;
 // „Mehr" verlinkt direkt in einen Abschnitt (/profile?section=connections).
 const SECTION_KEYS = ['personal', 'coach', 'athlete', 'notifications', 'connections', 'security', 'account'];
 const requestedSection = typeof window !== 'undefined'
@@ -819,7 +821,7 @@ function toggleCorosWorkoutSync() {
 // (Strava verbunden, Garmin mit Freigabe, COROS oder Apple Health mit Einwilligung).
 const activitySourceOptions = computed(() => [
     { value: 'strava', label: 'Strava' }, { value: 'garmin', label: 'Garmin' }, { value: 'coros', label: 'COROS' },
-    { value: 'polar', label: 'Polar' }, { value: 'apple', label: 'Apple' },
+    { value: 'polar', label: 'Polar' }, { value: 'whoop', label: 'WHOOP' }, { value: 'apple', label: 'Apple' },
 ].filter((o) => (props.activitySource?.usable ?? []).includes(o.value)));
 const activitySourceChoosable = computed(() => (props.activitySource?.usable ?? []).length > 1);
 const activitySourceValue = ref(props.activitySource?.current ?? 'strava');
@@ -1277,6 +1279,9 @@ const inputClass = 'z-input';
 
                             <!-- Polar AccessLink: nur Lesen, nur mit Einwilligung. -->
                             <PolarConnection v-if="props.polar?.available" :connection="props.polar.connection" :status="props.polar.status" allow-disconnect />
+
+                            <!-- WHOOP: nur Lesen, nur mit Einwilligung. -->
+                            <WhoopConnection v-if="props.whoop?.available" :connection="props.whoop.connection" :status="props.whoop.status" allow-disconnect />
 
                             <!-- Apple Health: lesen nur in der iOS-App (HealthKit gibt es im
                                  Browser nicht); widerrufen geht auch hier. -->

@@ -91,6 +91,7 @@ class MoreController extends Controller
             'coros'        => config('services.coros.enabled') ? (bool) $user->corosConnection : null,
             // null = auf diesem Server nicht eingerichtet (POLAR_CLIENT_ID).
             'polar'        => app(\App\Services\Polar\PolarClient::class)->configured() ? (bool) $user->polarConnection : null,
+            'whoop'        => app(\App\Services\Whoop\WhoopClient::class)->configured() ? (bool) $user->whoopConnection : null,
             // null = Strava für diesen Athleten nicht freigeschaltet.
             'strava'       => $user->canUseStrava() ? (bool) $user->stravaAccount : null,
             'apple_health' => $user->apple_health_consent_at !== null,

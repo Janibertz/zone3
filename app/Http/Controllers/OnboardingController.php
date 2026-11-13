@@ -78,6 +78,9 @@ class OnboardingController extends Controller
             'polar'           => $user->polarConnection?->summary(),
             'polarAvailable'  => app(\App\Services\Polar\PolarClient::class)->configured(),
             'polarStatus'     => session('polar_status'),
+            'whoop'           => $user->whoopConnection?->summary(),
+            'whoopAvailable'  => app(\App\Services\Whoop\WhoopClient::class)->configured(),
+            'whoopStatus'     => session('whoop_status'),
             // Apple Health nur in der iOS-App; die Seite entscheidet, ob sie es zeigt.
             'appleHealth'     => [
                 'consent_at'    => $user->apple_health_consent_at?->toIso8601String(),
