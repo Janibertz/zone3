@@ -44,8 +44,10 @@ class SessionStructure
      * @param  string|null  $easyPace  Wunsch-Pace des Athleten für die lockeren
      *   Abschnitte („6:00–6:30"), aus dem Coach-Chat. Ohne sie gelten die
      *   Tempi aus dem VDOT (Jan, 13.11.2026: „6 bis 6:30" blieb bei 4:49–5:46).
+     * @param  string|null  $hardPace  Dasselbe für die harten Abschnitte
+     *   (Schwelle, Intervalle, Renntempo): „die Intervalle lieber in 4:09".
      */
-    public function apply(TrainingSession $session, ?string $variant = null, ?string $easyPace = null): bool
+    public function apply(TrainingSession $session, ?string $variant = null, ?string $easyPace = null, ?string $hardPace = null): bool
     {
         if (! $this->supports($session)) {
             return false;
@@ -72,7 +74,7 @@ class SessionStructure
         $built = $this->catalog->build($session->type, $variant, [
             'minutes' => (int) $session->duration_min,
             'km'      => (float) $session->distance_km,
-            'paces'   => self::withEasyPace($this->pacesFor($session), $easyPace),
+            'paces'   => self::withPaceWish($this->pacesFor($session), $easyPace, $hardPace),
         ]);
 
         if ($built === null) {
@@ -117,15 +119,25 @@ class SessionStructure
         return count(array_unique($secs)) === 1 ? $fmt($secs[0]) : $fmt($secs[0]) . '–' . $fmt($secs[1]);
     }
 
-    /** Die Wunsch-Pace ersetzt locker und lang — alles, was nicht hart ist. */
-    private static function withEasyPace(array $paces, ?string $easyPace): array
+    /** Tempi, die als „hart" gelten — eine harte Wunsch-Pace ersetzt sie alle. */
+    private const HARD_PACES = ['threshold', 'sub_threshold', 'interval', 'repetition', 'marathon', 'target_pace', 'test'];
+
+    /**
+     * Die Wunsch-Pace ersetzt locker und lang bzw. alle harten Tempi. Ein
+     * Baustein mit zwei harten Tempi (Over-Under, Wechseltempo) läuft dann
+     * ganz in der genannten Pace — der Athlet hat genau eine genannt.
+     */
+    private static function withPaceWish(array $paces, ?string $easyPace, ?string $hardPace): array
     {
-        $easyPace = self::normalizePace($easyPace);
-        if ($easyPace === null) {
-            return $paces;
+        if ($easy = self::normalizePace($easyPace)) {
+            $paces['easy'] = $easy;
+            $paces['long'] = $easy;
         }
-        $paces['easy'] = $easyPace;
-        $paces['long'] = $easyPace;
+        if ($hard = self::normalizePace($hardPace)) {
+            foreach (self::HARD_PACES as $key) {
+                $paces[$key] = $hard;
+            }
+        }
 
         return $paces;
     }

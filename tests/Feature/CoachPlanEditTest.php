@@ -341,6 +341,26 @@ class CoachPlanEditTest extends TestCase
         $this->assertEqualsWithDelta(4.8, $session->distance_km, 0.3);
     }
 
+    /** Jan: „Intervalle in 3:30 geplant, ich will sie in 4:09 laufen." */
+    public function test_a_hard_pace_wish_changes_only_the_hard_parts(): void
+    {
+        [$user, $plan] = $this->athlete();
+        $user->runnerProfile()->create(['threshold_speed' => 4 + 22 / 60]);
+        $date = now()->addDays(1)->toDateString();
+        $id   = $this->plannedSession($user, $plan, $date, 'interval');
+
+        $this->runTool($user, 'modify_training_session', [
+            'date' => $date, 'type' => 'interval', 'duration_min' => 55, 'workout' => 'vo2_1000', 'hard_pace' => '4:09',
+        ]);
+
+        $steps = collect(TrainingSession::find($id)->steps);
+        $work  = $steps->firstWhere('type', 'work');
+        $this->assertSame('4:09', $work['pace_target']);
+        $this->assertSame(1000, $work['distance_m']);
+        $this->assertNotSame('4:09', $steps->firstWhere('type', 'warmup')['pace_target']);
+        $this->assertSame('4:09', TrainingSession::find($id)->pace_target);
+    }
+
     public function test_an_accepted_proposal_keeps_the_pace_wish(): void
     {
         [$user, $plan] = $this->athlete();
