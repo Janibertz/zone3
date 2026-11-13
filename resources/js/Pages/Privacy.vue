@@ -11,7 +11,7 @@ import { LEGAL } from '@/legal';
  * personenbezogene Daten bekommt, trägt ihn in `empfaenger` ein. Die Seite
  * ist eine Zusage an Fremde, keine Beschreibung von Absichten.
  */
-const STAND = '11. November 2026';
+const STAND = '13. November 2026';
 const MAIL = LEGAL.email;
 
 const empfaenger = [
@@ -41,9 +41,9 @@ const empfaenger = [
         zweck: 'Nur wenn du COROS verbindest: Übertragung deiner geplanten Läufe von heute und morgen in deinen COROS-Trainingskalender; mit deiner Einwilligung Abruf deiner Aktivitäten (samt FIT-Datei mit Strecke und Herzfrequenz) und Erholungswerte (Schlaf, HRV, Ruhepuls, Stress, Schritte, VO2max).',
     },
     {
-        name: 'OpenAI, L.L.C.',
-        ort: 'USA',
-        zweck: 'Erzeugung von Trainingsplänen, Auswertungen und Antworten des Coachs. Übermittelt werden die dafür nötigen Trainingsdaten (Aktivitäten, Pace, Herzfrequenz, Ziele und Rennen, Trainingsprofil), deine Tagesform-Einträge, Coach-Notizen und deine Chat-Nachrichten sowie dein Name; Sprachnachrichten und Fotos, die du dem Coach über Telegram schickst (zum Umwandeln in Text, siehe Abschnitt 7). Hast du Garmin verbunden oder bei COROS oder Apple Health in die Datenübernahme eingewilligt, außerdem Wochenmittel und Tageswerte deiner Erholung (Schlaf, HRV, Ruhepuls, Stress, Body Battery, Blutsauerstoff, Atemfrequenz). Nicht zum Training von KI-Modellen, siehe Abschnitt 7. E-Mail-Adresse, Passwort und Zugangsdaten werden nicht übermittelt.',
+        name: 'OpenAI Ireland Ltd.',
+        ort: 'Irland, USA',
+        zweck: 'Erzeugung von Trainingsplänen, Auswertungen und Antworten des Coachs. Übermittelt werden die dafür nötigen Trainingsdaten (Aktivitäten, Pace, Herzfrequenz, Ziele und Rennen, Trainingsprofil), deine Tagesform-Einträge, Coach-Notizen und deine Chat-Nachrichten sowie dein Name; Sprachnachrichten und Fotos, die du dem Coach über Telegram schickst (zum Umwandeln in Text, siehe Abschnitt 7). Hast du Garmin verbunden oder bei COROS oder Apple Health in die Datenübernahme eingewilligt, außerdem Wochenmittel und Tageswerte deiner Erholung (Schlaf, HRV, Ruhepuls, Stress, Body Battery, Blutsauerstoff, Atemfrequenz). Nicht zum Training von KI-Modellen, siehe Abschnitt 7. E-Mail-Adresse, Passwort und Zugangsdaten werden nicht übermittelt. OpenAI verarbeitet die Daten in unserem Auftrag (Vertrag nach Art. 28 DSGVO); gibt OpenAI Ireland sie an OpenAI in den USA weiter, gelten die EU-Standardvertragsklauseln.',
     },
     {
         name: 'Telegram',
@@ -282,7 +282,8 @@ const empfaenger = [
                 </p>
                 <p class="mt-3">
                     Deine Daten werden nicht zum Training von KI-Modellen verwendet, weder von uns noch von OpenAI.
-                    Zone3 hat das Teilen von Daten mit OpenAI zu Trainingszwecken abgeschaltet.
+                    Zone3 hat das Teilen von Daten mit OpenAI zu Trainingszwecken abgeschaltet, und mit OpenAI
+                    besteht ein Vertrag zur Auftragsverarbeitung nach Art. 28 DSGVO.
                 </p>
                 <p class="mt-3">
                     Daten von Garmin gehen nur mit deiner <strong class="text-ink">ausdrücklichen Einwilligung</strong>
