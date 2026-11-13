@@ -40,7 +40,12 @@ class SessionStructure
      *
      * @return bool  ob ein Ablauf gesetzt wurde
      */
-    public function apply(TrainingSession $session, ?string $variant = null): bool
+    /**
+     * @param  string|null  $easyPace  Wunsch-Pace des Athleten für die lockeren
+     *   Abschnitte („6:00–6:30"), aus dem Coach-Chat. Ohne sie gelten die
+     *   Tempi aus dem VDOT (Jan, 13.11.2026: „6 bis 6:30" blieb bei 4:49–5:46).
+     */
+    public function apply(TrainingSession $session, ?string $variant = null, ?string $easyPace = null): bool
     {
         if (! $this->supports($session)) {
             return false;
@@ -67,7 +72,7 @@ class SessionStructure
         $built = $this->catalog->build($session->type, $variant, [
             'minutes' => (int) $session->duration_min,
             'km'      => (float) $session->distance_km,
-            'paces'   => $this->pacesFor($session),
+            'paces'   => self::withEasyPace($this->pacesFor($session), $easyPace),
         ]);
 
         if ($built === null) {
@@ -86,6 +91,43 @@ class SessionStructure
         $session->description     = SessionText::clean($session->description, $built['workout']);
 
         return true;
+    }
+
+    /**
+     * „6-6:30", „6:00 bis 6:30" oder „6:15" → „6:00–6:30" bzw. „6:15".
+     * Null, wenn sich keine plausible Pace (2:30–10:00 /km) lesen lässt.
+     */
+    public static function normalizePace(?string $pace): ?string
+    {
+        if (! $pace || ! preg_match_all('/(\d{1,2})(?::(\d{2}))?/', $pace, $mm, PREG_SET_ORDER)) {
+            return null;
+        }
+
+        $secs = [];
+        foreach (array_slice($mm, 0, 2) as $m) {
+            $sec = (int) $m[1] * 60 + (int) ($m[2] ?? 0);
+            if ($sec < 150 || $sec > 600) {
+                return null;
+            }
+            $secs[] = $sec;
+        }
+        sort($secs);
+        $fmt = fn (int $s) => intdiv($s, 60) . ':' . str_pad((string) ($s % 60), 2, '0', STR_PAD_LEFT);
+
+        return count(array_unique($secs)) === 1 ? $fmt($secs[0]) : $fmt($secs[0]) . '–' . $fmt($secs[1]);
+    }
+
+    /** Die Wunsch-Pace ersetzt locker und lang — alles, was nicht hart ist. */
+    private static function withEasyPace(array $paces, ?string $easyPace): array
+    {
+        $easyPace = self::normalizePace($easyPace);
+        if ($easyPace === null) {
+            return $paces;
+        }
+        $paces['easy'] = $easyPace;
+        $paces['long'] = $easyPace;
+
+        return $paces;
     }
 
     /** Die Paces des Athleten, mit dem Zielrenntempo seines Rennens. */

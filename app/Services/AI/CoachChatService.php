@@ -554,6 +554,7 @@ class CoachChatService
                     'distance_km'  => ['type' => 'number', 'description' => 'Zieldistanz in km'],
                     'duration_min' => ['type' => 'integer', 'description' => 'Zieldauer in Minuten'],
                     'workout'      => ['type' => 'string', 'enum' => self::workoutEnum(), 'description' => 'Baustein für den Ablauf eines Laufs (Varianten: ' . self::workoutHint() . '). Den Ablauf mit Abschnitten, Paces und Distanz baut das System daraus.'],
+                    'easy_pace'    => ['type' => 'string', 'description' => 'Nur wenn der Athlet ausdrücklich ein Tempo für einen lockeren Lauf nennt, z. B. "6:00-6:30". Gilt für die lockeren Abschnitte (lockerer Lauf, langer Lauf, Ein-/Auslaufen). Harte Abschnitte behalten ihre Pace aus der Form.'],
                     'part'         => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit Doppel-Schwelle: morgens (am) oder abends (pm)'],
                     'exercises'    => self::exercisesParam(),
                 ]],
@@ -570,6 +571,7 @@ class CoachChatService
                     'distance_km'  => ['type' => 'number', 'description' => 'Zieldistanz in km'],
                     'duration_min' => ['type' => 'integer', 'description' => 'Zieldauer in Minuten'],
                     'workout'      => ['type' => 'string', 'enum' => self::workoutEnum(), 'description' => 'Baustein für den Ablauf eines Laufs (Varianten: ' . self::workoutHint() . '). Den Ablauf mit Abschnitten, Paces und Distanz baut das System daraus.'],
+                    'easy_pace'    => ['type' => 'string', 'description' => 'Nur wenn der Athlet ausdrücklich ein Tempo für einen lockeren Lauf nennt, z. B. "6:00-6:30". Gilt für die lockeren Abschnitte (lockerer Lauf, langer Lauf, Ein-/Auslaufen). Harte Abschnitte behalten ihre Pace aus der Form.'],
                     'part'         => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit Doppel-Schwelle: morgens (am) oder abends (pm)'],
                     'exercises'    => self::exercisesParam(),
                 ], 'required' => ['reason']],
@@ -585,6 +587,7 @@ class CoachChatService
                     'distance_km'  => ['type' => 'number', 'description' => 'Zieldistanz in km'],
                     'duration_min' => ['type' => 'integer', 'description' => 'Zieldauer in Minuten'],
                     'workout'      => ['type' => 'string', 'enum' => self::workoutEnum(), 'description' => 'Baustein für den Ablauf eines Laufs (Varianten: ' . self::workoutHint() . '). Den Ablauf mit Abschnitten, Paces und Distanz baut das System daraus.'],
+                    'easy_pace'    => ['type' => 'string', 'description' => 'Nur wenn der Athlet ausdrücklich ein Tempo für einen lockeren Lauf nennt, z. B. "6:00-6:30". Gilt für die lockeren Abschnitte (lockerer Lauf, langer Lauf, Ein-/Auslaufen). Harte Abschnitte behalten ihre Pace aus der Form.'],
                     'part'         => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit Doppel-Schwelle: morgens (am) oder abends (pm)'],
                     'exercises'    => self::exercisesParam(),
                 ], 'required' => ['date', 'type']],
@@ -865,7 +868,7 @@ class CoachChatService
         // Der Ablauf kommt aus dem Katalog — derselbe wie im Plan, damit
         // der Coach keine Struktur erfindet, die sonst nirgends gilt.
         $session->steps = null;
-        app(\App\Services\Run\SessionStructure::class)->apply($session, $args['workout'] ?? null);
+        app(\App\Services\Run\SessionStructure::class)->apply($session, $args['workout'] ?? null, $args['easy_pace'] ?? null);
 
         // Kraft: Übungen nur aus dem Katalog (Admin → Kraftübungen).
         app(\App\Services\Strength\StrengthCatalog::class)->applyTo($session, $args['exercises'] ?? null);
@@ -1333,6 +1336,10 @@ class CoachChatService
         // bekommt, die der Coach gewählt hat.
         if (! empty($draft->exercises)) {
             $after['exercises'] = $draft->exercises;
+        }
+        // Die Wunsch-Pace auch — sonst rechnet das Annehmen mit dem VDOT neu.
+        if ($easyPace = \App\Services\Run\SessionStructure::normalizePace($args['easy_pace'] ?? null)) {
+            $after['easy_pace'] = $easyPace;
         }
 
         // Ein neuer Vorschlag zur selben Einheit ersetzt den alten — zwei

@@ -320,6 +320,42 @@ class CoachPlanEditTest extends TestCase
         $this->assertEqualsWithDelta(55, $session->duration_min, 1);
     }
 
+    /** Jan, 13.11.2026: „6 bis 6:30" bestätigt, aber die Abschnitte blieben bei 4:49–5:46. */
+    public function test_an_easy_pace_wish_reaches_the_steps(): void
+    {
+        [$user, $plan] = $this->athlete();
+        $user->runnerProfile()->create(['threshold_speed' => 4 + 22 / 60]);
+        $date = now()->addDays(1)->toDateString();
+        $id   = $this->plannedSession($user, $plan, $date);
+
+        $this->runTool($user, 'modify_training_session', [
+            'date' => $date, 'type' => 'easy_run', 'duration_min' => 30, 'easy_pace' => '6-6:30',
+        ]);
+
+        $session = TrainingSession::find($id);
+        $this->assertSame('6:00–6:30', $session->pace_target);
+        foreach ($session->steps as $step) {
+            $this->assertSame('6:00–6:30', $step['pace_target']);
+        }
+        // 30 min bei rund 6:15 sind keine 5,7 km mehr.
+        $this->assertEqualsWithDelta(4.8, $session->distance_km, 0.3);
+    }
+
+    public function test_an_accepted_proposal_keeps_the_pace_wish(): void
+    {
+        [$user, $plan] = $this->athlete();
+        $user->runnerProfile()->create(['threshold_speed' => 4 + 22 / 60]);
+        $date = now()->addDays(1)->toDateString();
+        $id   = $this->plannedSession($user, $plan, $date);
+
+        $this->runTool($user, 'propose_session_change', [
+            'date' => $date, 'reason' => 'Ruhiger', 'type' => 'easy_run', 'duration_min' => 30, 'easy_pace' => '6:00 bis 6:30',
+        ]);
+        \App\Models\SessionRecommendation::where('user_id', $user->id)->latest('id')->first()->accept();
+
+        $this->assertSame('6:00–6:30', TrainingSession::find($id)->pace_target);
+    }
+
     /** Bei Kraft und Core wird nichts gerechnet — die haben keine Distanz. */
     public function test_strength_sessions_are_left_unreconciled(): void
     {
