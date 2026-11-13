@@ -17,6 +17,7 @@ import { Inertia } from '@inertiajs/inertia';
 import { router } from '@inertiajs/vue3';
 import { ref, watch, computed, onMounted } from 'vue';
 import axios from 'axios';
+import { reloadWidget } from '@/Composables/useWidget';
 import SessionCard from '@/Components/UI/SessionCard.vue';
 import UpcomingSessions from '@/Components/Plan/UpcomingSessions.vue';
 import TodayHero from '@/Components/Today/TodayHero.vue';
@@ -1126,6 +1127,7 @@ async function adjustRecommendation(direction) {
         });
         if (response.data.recommendation) {
             trainingRecommendation.value = response.data.recommendation;
+            reloadWidget();
         }
     } catch (error) {
         recommendationError.value = 'Fehler beim Anpassen: ' + (error.response?.data?.message || error.message);

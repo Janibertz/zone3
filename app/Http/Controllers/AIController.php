@@ -279,6 +279,19 @@ class AIController extends Controller
             $todayWellbeing ? $todayWellbeing->toArray() : null
         );
 
+        // Die Anpassung ist jetzt der Vorschlag des Tages: Widget, Live
+        // Activity und ein Neuladen von „Heute" lesen ihn aus dem Profil.
+        // Ohne Speichern zeigten sie weiter das Original (Jan, 13.11.2026).
+        if ($adjusted && $runnerProfile) {
+            $runnerProfile->today_recommendation = json_encode(
+                \Illuminate\Support\Arr::except($adjusted, ['steps']),
+                JSON_UNESCAPED_UNICODE
+            );
+            $runnerProfile->recommendation_date = $today;
+            $runnerProfile->recommendation_wellbeing_id = $todayWellbeing?->id;
+            $runnerProfile->save();
+        }
+
         return response()->json(['recommendation' => $adjusted ? $this->withStructure($adjusted, $user) : null]);
     }
 

@@ -245,6 +245,40 @@ class LiveActivityTest extends TestCase
         $this->assertFalse($state['done']);
     }
 
+    public function test_an_easier_suggestion_reaches_the_widget_and_the_running_live_activity(): void
+    {
+        [$user, $plan] = $this->athlete();
+        $plan->event->update(['plan_start_date' => '2026-11-30']);
+        RunnerProfile::create([
+            'user_id' => $user->id,
+            'recommendation_date' => self::TODAY,
+            'today_recommendation' => json_encode([
+                'type' => 'tempo_run', 'title' => 'Tempo antesten', 'distance_km' => 10, 'duration_min' => 50, 'zone' => 4, 'intensity' => 'high',
+            ]),
+        ]);
+        LiveActivity::create(['user_id' => $user->id, 'activity_id' => 'A-1', 'day' => self::TODAY, 'push_token' => self::UPDATE_TOKEN]);
+
+        $text = $this->mock(CoachingTextService::class);
+        $text->shouldReceive('withCoach')->andReturnSelf();
+        $text->shouldReceive('forUser')->andReturnSelf();
+        $text->shouldReceive('adjustTodayRecommendation')->once()->andReturn([
+            'type' => 'easy_run', 'title' => 'Lieber locker', 'distance_km' => 7, 'duration_min' => 40, 'zone' => 2, 'intensity' => 'low',
+        ]);
+
+        $this->actingAs($user)->postJson(route('ai.recommendation.adjust'), [
+            'direction' => 'softer',
+            'current'   => ['type' => 'tempo_run', 'title' => 'Tempo antesten'],
+        ])->assertOk();
+
+        $stored = json_decode($user->runnerProfile->fresh()->today_recommendation, true);
+        $this->assertSame('Lieber locker', $stored['title']);
+
+        app(LiveActivityService::class)->tick();
+        $pushes = $this->livePushes();
+        $this->assertNotEmpty($pushes);
+        $this->assertSame('Lieber locker', end($pushes)->data()['aps']['content-state']['title']);
+    }
+
     public function test_with_a_running_plan_and_nothing_today_no_suggestion_is_written(): void
     {
         [$user] = $this->athlete();

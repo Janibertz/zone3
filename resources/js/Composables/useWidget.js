@@ -58,6 +58,11 @@ export async function syncWidget(userId) {
     }
 }
 
+/** Nach einer Änderung an heute: das Widget holt sich die Daten neu. */
+export function reloadWidget() {
+    widgetPlugin()?.reload?.().catch(() => {});
+}
+
 /** Beim Abmelden: das Widget zeigt niemandem mehr die Einheiten. */
 export function clearWidget() {
     try { localStorage.removeItem(URL_KEY); } catch { /* privat */ }
