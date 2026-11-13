@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Activity;
 use App\Models\TrainingSession;
 use App\Services\ActivityDeletionService;
+use App\Services\ActivityImportService;
+use App\Services\Fit\FitArchive;
 use App\Services\Fit\FitUploadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -58,6 +60,67 @@ class ActivityController extends Controller
             FitUploadService::RESULT_TOMBSTONED => back()->withErrors(['file' => 'Diese Aktivität hast du gelöscht. Sie bleibt draußen.']),
             default                             => back()->withErrors(['file' => 'Die Datei ließ sich nicht lesen. Ist es eine FIT-Datei einer Aktivität?']),
         };
+    }
+
+    /**
+     * Der Verlauf vor Zone3, im Onboarding (13.11.2026): eine FIT-Datei oder
+     * eine ZIP mit FIT-Dateien je Aufruf. Die Seite schickt mehrere Dateien
+     * nacheinander, damit kein einzelner Request den Webprozess lange hält,
+     * und zeigt den Fortschritt. Nur speichern — siehe FitUploadService.
+     */
+    public function uploadHistory(Request $request, FitUploadService $uploads)
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'max:51200', 'extensions:fit,zip'],
+        ], [
+            'file.extensions' => 'Bitte eine .fit- oder .zip-Datei wählen.',
+            'file.max'        => 'Die Datei ist größer als 50 MB.',
+        ]);
+
+        $file    = $request->file('file');
+        $archive = FitArchive::extract($file->getRealPath(), (string) $file->getClientOriginalName());
+
+        $counts = ['imported' => 0, 'known' => 0, 'skipped' => 0, 'unreadable' => 0];
+
+        if ($archive === null) {
+            $counts['unreadable'] = 1;
+
+            return response()->json($counts);
+        }
+
+        $counts['skipped'] = $archive['skipped'];
+
+        foreach ($archive['files'] as $bytes) {
+            $result = $uploads->import($request->user(), $bytes, history: true)['result'];
+
+            match ($result) {
+                FitUploadService::RESULT_IMPORTED   => $counts['imported']++,
+                FitUploadService::RESULT_KNOWN      => $counts['known']++,
+                FitUploadService::RESULT_TOMBSTONED => $counts['skipped']++,
+                default                             => $counts['unreadable']++,
+            };
+        }
+
+        if ($archive['files'] === []) {
+            $counts['unreadable'] = max(1, $counts['unreadable']);
+        }
+
+        return response()->json($counts);
+    }
+
+    /**
+     * Nach dem letzten Verlauf-Upload: die Schwelle aus den neuen Läufen
+     * rechnen lassen — einmal, nicht nach jeder Datei mit halbem Stand.
+     */
+    public function uploadHistoryDone(Request $request, ActivityImportService $activities)
+    {
+        $user = $request->user();
+
+        if ($user->activities()->where('type', 'Run')->exists()) {
+            $activities->dispatchCalculationIfDue($user->id, 1);
+        }
+
+        return response()->json(['ok' => true]);
     }
 
     public function show(Activity $activity)

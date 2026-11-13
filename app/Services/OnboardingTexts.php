@@ -31,6 +31,7 @@ class OnboardingTexts
         'goal'         => ['label' => 'Ziel',              'text' => 'Worauf trainieren wir hin? Mit Rennen und Zielzeit baue ich den Plan rückwärts vom Renntag. Ohne Rennen trainieren wir in Blöcken zu zwölf Wochen.'],
         'notify'       => ['label' => 'Benachrichtigungen', 'text' => 'Fast geschafft! Wo soll ich dich erreichen? Morgens deine Einheit, nach dem Lauf mein Feedback – sonst nichts.'],
         'connect'      => ['label' => 'Verbindungen',      'text' => 'Zum Schluss deine Uhr. Dann sehe ich jeden Lauf und gleiche ihn mit dem Plan ab.'],
+        'history'      => ['label' => 'Verlauf',           'text' => 'Zeig mir deine letzten Läufe als FIT-Dateien. Daraus lese ich Schwelle, Wochenumfang und Bestzeiten ab, statt bei null anzufangen.'],
     ];
 
     /** @return array<string, string> Schritt → Text (mit Platzhaltern). */

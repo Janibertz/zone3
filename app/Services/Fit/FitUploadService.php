@@ -23,6 +23,11 @@ use Throwable;
  *
  * Kennung der Datei ist ihre Startzeit (`activities.file_start`); dieselbe
  * Datei zweimal hochgeladen frischt nur auf.
+ *
+ * `history` (Onboarding, 13.11.2026): der Verlauf vor Zone3. Nur speichern
+ * und Bestzeiten eintragen — keine Zuordnung zum Plan, kein Review, kein
+ * „neue Bestzeit“-Moment für einen Lauf von vor drei Wochen (wie der
+ * COROS-Rückblick). Die Schwelle stößt der Aufrufer nach dem letzten an.
  */
 class FitUploadService
 {
@@ -40,7 +45,7 @@ class FitUploadService
     /**
      * @return array{result: string, activity: ?Activity}
      */
-    public function import(User $user, string $bytes): array
+    public function import(User $user, string $bytes, bool $history = false): array
     {
         try {
             $decoded = $this->fit->decode($bytes);
@@ -83,6 +88,14 @@ class FitUploadService
         }
 
         $efforts = BestEffortService::effortsFromStream(FitActivityAttributes::stream($decoded['records']));
+
+        if ($history) {
+            if ($activity->type === 'Run') {
+                $this->bestEfforts->syncFromActivityData($activity, ['best_efforts' => $efforts]);
+            }
+
+            return ['result' => self::RESULT_IMPORTED, 'activity' => $activity];
+        }
 
         $this->activities->processNew(
             $activity,

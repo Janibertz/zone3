@@ -137,6 +137,10 @@ Route::middleware('auth')->group(function () {
     Route::patch('/health/apple/consent', [\App\Http\Controllers\AppleHealthController::class, 'consent'])->name('apple-health.consent');
     Route::post('/health/apple/metrics', [\App\Http\Controllers\AppleHealthController::class, 'metrics'])->name('apple-health.metrics');
     Route::post('/health/apple/workouts', [\App\Http\Controllers\AppleHealthController::class, 'workouts'])->name('apple-health.workouts');
+
+    // Der Verlauf als FIT-Dateien, im letzten Schritt des Onboardings (13.11.2026).
+    Route::post('/activities/upload/history', [ActivityController::class, 'uploadHistory'])->middleware('throttle:120,1')->name('activities.upload-history');
+    Route::post('/activities/upload/history/done', [ActivityController::class, 'uploadHistoryDone'])->name('activities.upload-history.done');
 });
 
 Route::get('/dashboard', function (ProgressService $progressService, TrainingLoadService $trainingLoadService, ReturnToRunService $returnToRunService) {

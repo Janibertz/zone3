@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\Activity;
 use App\Models\IgnoredActivity;
+use App\Jobs\CalculateThresholdPaceJob;
+use App\Models\RunnerProfile;
+use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\ActivityImportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -130,5 +133,99 @@ class FitUploadTest extends TestCase
         $this->upload($this->zwiftFit(now()->subHour()->timestamp, sport: 1, subSport: 0));
 
         $this->assertSame('Run', Activity::sole()->type);
+    }
+
+    // ── Verlauf im Onboarding (13.11.2026) ──────────────────────────────
+
+    private function history(string $bytes, string $name = 'lauf.fit')
+    {
+        return $this->actingAs($this->user)->postJson('/activities/upload/history', [
+            'file' => UploadedFile::fake()->createWithContent($name, $bytes),
+        ]);
+    }
+
+    private function zip(array $entries): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'fitzip');
+        $zip  = new \ZipArchive();
+        $zip->open($path, \ZipArchive::OVERWRITE);
+        foreach ($entries as $name => $bytes) {
+            $zip->addFromString($name, $bytes);
+        }
+        $zip->close();
+        $bytes = (string) file_get_contents($path);
+        unlink($path);
+
+        return $bytes;
+    }
+
+    public function test_history_works_before_onboarding_is_done(): void
+    {
+        $this->user = User::factory()->create(['onboarding_completed_at' => null]);
+
+        $this->history($this->zwiftFit(now()->subDays(10)->timestamp, sport: 1, subSport: 0))
+            ->assertOk()
+            ->assertJson(['imported' => 1, 'known' => 0, 'unreadable' => 0]);
+
+        $this->assertSame('Run', Activity::sole()->type);
+    }
+
+    public function test_a_garmin_zip_brings_every_fit_inside(): void
+    {
+        $bytes = $this->zip([
+            'lauf-1.fit'          => $this->zwiftFit(now()->subDays(3)->timestamp, sport: 1, subSport: 0),
+            'ordner/LAUF-2.FIT'   => $this->zwiftFit(now()->subDays(5)->timestamp, sport: 1, subSport: 0),
+            'liesmich.txt'        => 'nichts',
+            '__MACOSX/lauf-1.fit' => 'resource fork',
+        ]);
+
+        $this->history($bytes, 'export.zip')->assertOk()->assertJson(['imported' => 2, 'unreadable' => 0]);
+
+        $this->assertSame(2, Activity::count());
+    }
+
+    public function test_history_is_stored_quietly(): void
+    {
+        $start = now()->subDays(2)->setTime(7, 0)->timestamp;
+        $session = TrainingSession::create([
+            'user_id' => $this->user->id, 'planned_date' => now()->subDays(2)->toDateString(),
+            'type' => 'easy_run', 'title' => 'Locker', 'intensity' => 'low', 'status' => 'planned',
+        ]);
+
+        $this->history($this->zwiftFit($start, sport: 1, subSport: 0))->assertOk();
+
+        // Kein Abgleich mit dem Plan, kein Review, keine Schwelle nach jeder Datei.
+        $this->assertSame('planned', $session->fresh()->status);
+        Queue::assertNotPushed(CalculateThresholdPaceJob::class);
+        $this->assertNull(RunnerProfile::where('user_id', $this->user->id)->value('pending_pr_activity_id'));
+    }
+
+    public function test_done_starts_the_threshold_once(): void
+    {
+        $this->history($this->zwiftFit(now()->subDays(4)->timestamp, sport: 1, subSport: 0));
+
+        $this->actingAs($this->user)->postJson('/activities/upload/history/done')->assertOk();
+
+        Queue::assertPushed(CalculateThresholdPaceJob::class, 1);
+    }
+
+    public function test_done_without_runs_starts_nothing(): void
+    {
+        $this->history($this->zwiftFit(now()->subDays(4)->timestamp));
+
+        $this->actingAs($this->user)->postJson('/activities/upload/history/done')->assertOk();
+
+        Queue::assertNotPushed(CalculateThresholdPaceJob::class);
+    }
+
+    public function test_history_counts_the_known_and_the_broken(): void
+    {
+        $bytes = $this->zwiftFit(now()->subDays(6)->timestamp, sport: 1, subSport: 0);
+        $this->history($bytes);
+
+        $this->history($bytes)->assertJson(['imported' => 0, 'known' => 1]);
+        $this->history('kein fit')->assertJson(['unreadable' => 1]);
+        $this->history('kaputt', 'export.zip')->assertJson(['unreadable' => 1]);
+        $this->history('bild', 'bild.png')->assertStatus(422);
     }
 }

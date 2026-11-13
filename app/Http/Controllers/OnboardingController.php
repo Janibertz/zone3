@@ -81,6 +81,8 @@ class OnboardingController extends Controller
                 'watch_metrics' => $user->receivesWatchHealthMetrics(),
                 'synced_at'     => $user->apple_health_synced_at?->toIso8601String(),
             ],
+            // Schon da (z. B. aus einem früheren Upload) — dann braucht es keinen Verlauf-Schritt.
+            'activityCount'   => $user->activities()->count(),
             'source'          => [
                 'current' => $user->activitySource(),
                 'usable'  => $user->usableActivitySources(),

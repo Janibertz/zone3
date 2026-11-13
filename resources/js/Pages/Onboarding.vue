@@ -47,6 +47,8 @@ const steps = [
     { key: 'goal',         label: 'Dein Ziel'     },
     { key: 'notify',       label: 'Benachrichtigungen' },
     { key: 'connect',      label: 'Verbindungen'  },
+    // Nur, wenn keine Verbindung den Verlauf mitbringt (13.11.2026).
+    { key: 'history',      label: 'Verlauf'       },
 ].map((s, i) => ({ ...s, number: i + 1 }));
 // Zurück von Strava oder Garmin geht es beim Verbinden weiter, nicht vorn.
 const currentStep = ref(steps.find(s => s.key === props.resumeStep)?.number ?? 1);
@@ -489,6 +491,59 @@ watch(sourceValue, (source, previous) => {
 
 function complete() { router.post(route('onboarding.complete')); }
 
+// ════════════════════════════════════════════════════════════════════════
+// Verlauf — FIT-Dateien (13.11.2026)
+// ════════════════════════════════════════════════════════════════════════
+// Strava, COROS (mit Einwilligung) und Apple Health bringen die letzten
+// Wochen selbst mit; Garmin schickt nur Neues. Ohne Verlauf startet der Plan
+// mit den eingetragenen Werten — mit ihm kennt Zone3 Schwelle, Umfang und
+// Bestzeiten vom ersten Tag an.
+const historyCovered = computed(() => stravaLinked.value || corosReadsData.value || appleConsent.value
+    || (props.connections?.activityCount ?? 0) >= 5);
+
+const historyInput  = ref(null);
+const historyBusy   = ref(false);
+const historyDone   = ref(0);
+const historyTotal  = ref(0);
+const historyCounts = ref({ imported: 0, known: 0, skipped: 0, unreadable: 0 });
+const historyError  = ref(null);
+const historyAny    = computed(() => historyCounts.value.imported + historyCounts.value.known > 0);
+
+function pickHistory() { historyInput.value?.click(); }
+
+async function uploadHistory(event) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (!files.length) return;
+
+    historyBusy.value  = true;
+    historyError.value = null;
+    historyDone.value  = 0;
+    historyTotal.value = files.length;
+
+    // Nacheinander: ein Request je Datei hält den Webprozess nur kurz, und
+    // der Fortschritt stimmt.
+    for (const file of files) {
+        const body = new FormData();
+        body.append('file', file);
+        try {
+            const { data } = await axios.post(route('activities.upload-history'), body);
+            for (const k of Object.keys(historyCounts.value)) historyCounts.value[k] += data[k] ?? 0;
+        } catch (err) {
+            historyCounts.value.unreadable++;
+            historyError.value = err.response?.data?.errors?.file?.[0] ?? null;
+        }
+        historyDone.value++;
+    }
+
+    historyBusy.value = false;
+}
+
+async function finishHistory() {
+    try { await axios.post(route('activities.upload-history.done')); } catch { /* Schwelle kommt dann mit dem nächsten Lauf */ }
+    complete();
+}
+
 function back() {
     if (stepKey.value === 'profile' && profileMode.value) {
         profileMode.value = null;
@@ -532,9 +587,14 @@ const bar = computed(() => {
                 ? { label: 'Weiter', run: nextStep }
                 : { skip: nextStep, skipLabel: 'Nicht jetzt' };
         case 'connect':
+            if (historyCovered.value) return { label: 'Fertig', run: complete };
             return anyLinked.value
-                ? { label: 'Fertig', run: complete }
-                : { skip: complete, skipLabel: 'Später verbinden' };
+                ? { label: 'Weiter', run: nextStep }
+                : { skip: nextStep, skipLabel: 'Später verbinden' };
+        case 'history':
+            return historyAny.value
+                ? { label: 'Fertig', run: finishHistory, disabled: historyBusy.value }
+                : { skip: complete, skipLabel: 'Ohne Verlauf starten' };
         default:
             return {};
     }
@@ -930,13 +990,44 @@ const bar = computed(() => {
                         source-hint="Trainings aus Apple Health übernimmt Zone3, wenn du darunter bei „Neue Aktivitäten kommen von“ Apple wählst." />
                     <template v-if="garminLinked && !stravaLinked" #footer>
                         <template v-if="stravaOffered">Garmin schickt nur neue Läufe. Verbinde zusätzlich Strava, damit Zone3 auch deine bisherigen kennt — daraus kommen Schwellenpace, Wochenumfang und Bestzeiten vom ersten Tag an.</template>
-                        <template v-else>Garmin schickt nur neue Läufe. Bis genug davon da sind, plant Zone3 mit den Werten, die du eben eingetragen hast.</template>
+                        <template v-else>Garmin schickt nur neue Läufe. Deine bisherigen kannst du im nächsten Schritt als FIT-Dateien laden.</template>
                     </template>
                 </FormGroup>
 
                 <FormGroup v-if="sourceChoosable" title="Neue Aktivitäten kommen von" plain
                     footer="Eine Quelle, damit kein Lauf doppelt zählt. Änderbar im Profil.">
                     <SegmentedControl v-model="sourceValue" :options="sourceOptions" />
+                </FormGroup>
+            </template>
+            <!-- ── Verlauf (FIT-Dateien) ── -->
+            <template v-else-if="stepKey === 'history'">
+                <header>
+                    <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Deine letzten Läufe</h1>
+                    <CoachBubble class="mt-4" :coach="activeCoach" :name="firstName" :text="say('history')" />
+                </header>
+                <FormGroup footer="Am besten die letzten sechs Wochen. Mehrere Dateien auf einmal gehen, ZIP-Dateien auch.">
+                    <div class="space-y-3 px-4 py-4">
+                        <!-- Kein strenges accept: iOS kennt .fit nicht als Dateityp und graut solche Dateien sonst aus. Geprüft wird auf dem Server. -->
+                        <input ref="historyInput" type="file" multiple accept=".fit,.zip,application/zip,application/octet-stream" class="hidden" @change="uploadHistory" />
+                        <AppButton variant="secondary" block :loading="historyBusy" @click="pickHistory">
+                            {{ historyAny ? 'Weitere Dateien wählen' : 'Dateien wählen' }}
+                        </AppButton>
+                        <p v-if="historyBusy" class="text-[15px] text-ink-2" aria-live="polite">Lese Datei {{ Math.min(historyDone + 1, historyTotal) }} von {{ historyTotal }} …</p>
+                        <p v-else-if="historyTotal" class="text-[15px] leading-snug text-ink-2" aria-live="polite">
+                            <template v-if="historyCounts.imported">{{ historyCounts.imported }} {{ historyCounts.imported === 1 ? 'Aktivität' : 'Aktivitäten' }} übernommen.</template>
+                            <template v-if="historyCounts.known"> {{ historyCounts.known }} schon da.</template>
+                            <template v-if="historyCounts.unreadable"> {{ historyCounts.unreadable }} nicht lesbar.</template>
+                            <template v-if="historyCounts.skipped"> {{ historyCounts.skipped }} übersprungen.</template>
+                        </p>
+                        <p v-if="historyError" role="alert" class="text-[13px] text-danger">{{ historyError }}</p>
+                    </div>
+                </FormGroup>
+                <FormGroup title="So kommst du an die Dateien">
+                    <div class="space-y-2 px-4 py-3 text-[15px] leading-snug text-ink-2">
+                        <p><span class="text-ink">Garmin Connect:</span> Aktivität öffnen, Zahnrad, „Original exportieren“. Die ZIP kannst du direkt wählen.</p>
+                        <p><span class="text-ink">Zwift:</span> am PC oder Mac im Ordner Dokumente/Zwift/Activities.</p>
+                        <p><span class="text-ink">Andere Uhren und Apps:</span> beim Teilen oder Exportieren „FIT“ wählen.</p>
+                    </div>
                 </FormGroup>
             </template>
         </main>
