@@ -92,6 +92,31 @@ class AdminSystemTest extends TestCase
             ->assertOk();
     }
 
+    /** Kommt bei WHOOP und Polar überhaupt etwas an? Mit Athlet und Ergebnis. */
+    public function test_whoop_and_polar_calls_are_listed(): void
+    {
+        $athlete = User::factory()->create(['name' => 'Mira']);
+        \App\Models\WhoopConnection::create([
+            'user_id' => $athlete->id, 'whoop_user_id' => 4711, 'access_token' => 't', 'refresh_token' => 'r',
+            'expires_at' => now()->addHour(), 'ai_consent_at' => now(),
+        ]);
+        \App\Models\WhoopWebhookEvent::create([
+            'type' => 'workout.updated', 'whoop_user_id' => 4711, 'entity_id' => 'x', 'outcome' => 'imported',
+        ]);
+        \App\Models\WhoopWebhookEvent::create([
+            'type' => 'sleep.updated', 'whoop_user_id' => 999, 'entity_id' => 'y', 'outcome' => 'unknown_user',
+        ]);
+
+        $hooks = $this->actingAs($this->admin())->get('/admin/system')->viewData('page')['props']['providerHooks'];
+
+        $this->assertSame(2, $hooks['whoop']['total']);
+        $this->assertSame('ID 999', $hooks['whoop']['recent'][0]['user']);
+        $this->assertSame('unbekannter Athlet', $hooks['whoop']['recent'][0]['label']);
+        $this->assertSame('Mira', $hooks['whoop']['recent'][1]['user']);
+        $this->assertSame('importiert', $hooks['whoop']['recent'][1]['label']);
+        $this->assertSame(0, $hooks['polar']['total']);
+    }
+
     // ── Queues ───────────────────────────────────────────────────────────
 
     /**

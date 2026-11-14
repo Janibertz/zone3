@@ -12,6 +12,7 @@ const props = defineProps({
     environment:  Object,
     summary:      Object,
     webhookHits:  Object,
+    providerHooks: Object,
     liveActivities: { type: Object, default: () => ({ devices: [], activities: [] }) },
     watchdog:     { type: Array, default: () => [] },
 });
@@ -201,6 +202,54 @@ function daysAgo(value) {
                                         {{ h.label }}
                                     </span>
                                     <span v-if="h.note" class="ml-2 text-xs text-ink-3">{{ h.note }}</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ── Rufen WHOOP und Polar an? ─────────────────────────── -->
+            <div v-for="(hooks, key) in providerHooks" :key="key" class="bg-surface rounded-card shadow-card">
+                <div class="px-6 py-4 border-b border-line">
+                    <h2 class="text-sm font-semibold text-ink-2">{{ key === 'whoop' ? 'WHOOP' : 'Polar' }}-Webhook</h2>
+                    <p class="text-xs text-ink-3 mt-0.5">
+                        Jeder Aufruf, festgehalten bevor gefiltert wird. Steht hier nichts, obwohl ein
+                        Athlet verbunden ist und trainiert hat, schickt {{ key === 'whoop' ? 'WHOOP' : 'Polar' }} nichts.
+                    </p>
+                </div>
+
+                <div class="px-6 py-4">
+                    <p v-if="!hooks.total" class="text-sm text-ink-3">Noch kein Aufruf verzeichnet.</p>
+                    <p v-else class="text-sm text-ink">
+                        {{ hooks.total }} Aufruf(e), zuletzt {{ when(hooks.last_at) }}
+                    </p>
+                </div>
+
+                <div v-if="hooks.recent.length" class="overflow-x-auto border-t border-line">
+                    <table class="w-full text-sm">
+                        <thead class="text-xs text-ink-3 border-b border-line">
+                            <tr>
+                                <th class="px-6 py-2 text-left font-medium">Wann</th>
+                                <th class="px-3 py-2 text-left font-medium">Ereignis</th>
+                                <th class="px-3 py-2 text-left font-medium">Athlet</th>
+                                <th class="px-6 py-2 text-left font-medium">Ergebnis</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line">
+                            <tr v-for="(h, i) in hooks.recent" :key="i">
+                                <td class="px-6 py-2 text-ink-3 whitespace-nowrap">{{ when(h.at) }}</td>
+                                <td class="px-3 py-2 text-ink-3 whitespace-nowrap">{{ h.event }}</td>
+                                <td class="px-3 py-2 text-ink whitespace-nowrap">{{ h.user ?? '—' }}</td>
+                                <td class="px-6 py-2">
+                                    <span class="px-2 py-0.5 rounded-full text-xs"
+                                        :class="['imported', 'attached', 'deleted'].includes(h.outcome)
+                                            ? 'bg-success-soft text-success-ink'
+                                            : h.outcome === 'bad_signature'
+                                                ? 'bg-warn-soft text-warn-ink'
+                                                : 'bg-surface-3 text-ink-3'">
+                                        {{ h.label }}
+                                    </span>
                                 </td>
                             </tr>
                         </tbody>

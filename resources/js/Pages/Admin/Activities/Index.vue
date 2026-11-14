@@ -10,6 +10,7 @@ const props = defineProps({
     filters:    Object,
     users:      Array,
     types:      Array,
+    sources:    Object,
 });
 
 const page  = usePage();
@@ -18,12 +19,13 @@ const flash = computed(() => page.props.flash ?? {});
 const search = ref(props.filters?.search ?? '');
 const user   = ref(props.filters?.user ?? '');
 const type   = ref(props.filters?.type ?? '');
+const source = ref(props.filters?.source ?? '');
 
 const toDelete = ref(null);
 const deleting = ref(false);
 
 let timer = null;
-watch([search, user, type], () => {
+watch([search, user, type, source], () => {
     clearTimeout(timer);
     timer = setTimeout(apply, 250);
 });
@@ -33,6 +35,7 @@ function apply() {
         search: search.value || undefined,
         user:   user.value   || undefined,
         type:   type.value   || undefined,
+        source: source.value || undefined,
     }, { preserveState: true, replace: true });
 }
 
@@ -113,6 +116,11 @@ function when(value) {
                         <option value="">Alle Sportarten</option>
                         <option v-for="t in types" :key="t" :value="t">{{ t }}</option>
                     </select>
+
+                    <select v-model="source" class="rounded-field border-line bg-canvas text-sm text-ink">
+                        <option value="">Alle Quellen</option>
+                        <option v-for="(label, key) in sources" :key="key" :value="key">{{ label }}</option>
+                    </select>
                 </div>
 
                 <p v-if="!activities.data.length" class="px-6 py-8 text-sm text-ink-3">
@@ -127,6 +135,7 @@ function when(value) {
                                 <th class="px-3 py-2 text-left font-medium">Athlet</th>
                                 <th class="px-3 py-2 text-left font-medium">Aktivität</th>
                                 <th class="px-3 py-2 text-left font-medium">Sportart</th>
+                                <th class="px-3 py-2 text-left font-medium">Quelle</th>
                                 <th class="px-3 py-2 text-right font-medium">km</th>
                                 <th class="px-3 py-2 text-right font-medium">min</th>
                                 <th class="px-3 py-2 text-right font-medium">Einheit</th>
@@ -143,6 +152,7 @@ function when(value) {
                                 </td>
                                 <td class="px-3 py-3 text-ink max-w-xs truncate" :title="a.name">{{ a.name }}</td>
                                 <td class="px-3 py-3 text-ink-3 whitespace-nowrap">{{ a.type }}</td>
+                                <td class="px-3 py-3 text-ink-3 whitespace-nowrap">{{ a.source }}</td>
                                 <td class="px-3 py-3 text-right text-ink-3 tabular-nums">{{ a.distance_km ?? '—' }}</td>
                                 <td class="px-3 py-3 text-right text-ink-3 tabular-nums">{{ a.duration_min ?? '—' }}</td>
                                 <td class="px-3 py-3 text-right tabular-nums">

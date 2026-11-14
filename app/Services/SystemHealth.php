@@ -485,6 +485,76 @@ class SystemHealth
         ];
     }
 
+    /** Ergebnisse der WHOOP- und Polar-Webhooks, deutsch für die Systemseite. */
+    public const PROVIDER_OUTCOMES = [
+        'received'         => 'angekommen',
+        'bad_signature'    => 'Signatur falsch',
+        'duplicate'        => 'doppelt',
+        'unknown_user'     => 'unbekannter Athlet',
+        'ignored'          => 'nicht gebraucht',
+        'queued'           => 'in der Queue',
+        'imported'         => 'importiert',
+        'attached'         => 'angehängt',
+        'known'            => 'schon da',
+        'skipped'          => 'übersprungen',
+        'other_source'     => 'andere Quelle gewählt',
+        'not_found'        => 'nicht gefunden',
+        'invalid'          => 'unbrauchbar',
+        'unknown_activity' => 'Aktivität unbekannt',
+        'detached'         => 'gelöst',
+        'deleted'          => 'gelöscht',
+    ];
+
+    /**
+     * Die letzten Aufrufe von WHOOP und Polar — kommt dort überhaupt etwas an?
+     * Beide Tabellen halten jeden Aufruf vor jeder Filterung fest; der
+     * Athlet wird über die Verbindung aufgelöst (die Tabellen kennen nur die
+     * Kennung des Anbieters).
+     *
+     * @return array<string, array{total: int, last_at: ?string, recent: array<int, array<string, mixed>>}>
+     */
+    public function providerWebhooks(int $limit = 15): array
+    {
+        $sources = [
+            'whoop' => ['whoop_webhook_events', 'type', 'whoop_user_id', 'whoop_connections'],
+            'polar' => ['polar_webhook_events', 'event', 'polar_user_id', 'polar_connections'],
+        ];
+
+        $out = [];
+        foreach ($sources as $key => [$table, $eventCol, $idCol, $connections]) {
+            if (! Schema::hasTable($table)) {
+                $out[$key] = ['total' => 0, 'last_at' => null, 'recent' => []];
+                continue;
+            }
+
+            $rows = DB::table($table)->orderByDesc('id')->limit($limit)->get();
+
+            $names = DB::table($connections)
+                ->join('users', 'users.id', '=', "{$connections}.user_id")
+                ->whereIn("{$connections}.{$idCol}", $rows->pluck($idCol)->filter()->unique())
+                ->pluck('users.name', "{$connections}.{$idCol}");
+
+            $out[$key] = [
+                'total'   => DB::table($table)->count(),
+                'last_at' => $this->iso(DB::table($table)->max('created_at')),
+                'recent'  => $rows->map(fn ($e) => [
+                    'at'      => $this->iso($e->created_at),
+                    'event'   => $e->{$eventCol},
+                    'user'    => $names[$e->{$idCol}] ?? ($e->{$idCol} ? "ID {$e->{$idCol}}" : null),
+                    'outcome' => $e->outcome,
+                    'label'   => self::PROVIDER_OUTCOMES[$e->outcome] ?? $e->outcome,
+                ])->all(),
+            ];
+        }
+
+        return $out;
+    }
+
+    private function iso(?string $at): ?string
+    {
+        return $at ? Carbon::parse($at)->toIso8601String() : null;
+    }
+
     /**
      * Die Kurzfassung fuers Dashboard — genug, um zu entscheiden, ob man
      * hinsehen muss, und nicht mehr.

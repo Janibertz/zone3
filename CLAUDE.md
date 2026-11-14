@@ -1120,7 +1120,7 @@ A warn-coloured banner sits on every page while it runs (`auth.impersonating` is
 
 ### `/admin/activities` — activities across all athletes
 
-From a report: "ich habe keine Möglichkeit eine Aktivität zu löschen … noch nicht mal im Admin Bereich." The athlete can now delete their own; an admin still saw nobody else's. Filter by athlete, sport or name; the list shows how many training sessions hang on each activity, because deleting one with a session attached changes the plan rather than just tidying up. Deletion goes through `ActivityDeletionService` — never a bare `delete()`, or the next Strava sync brings it back.
+From a report: "ich habe keine Möglichkeit eine Aktivität zu löschen … noch nicht mal im Admin Bereich." The athlete can now delete their own; an admin still saw nobody else's. Filter by athlete, sport or name; the list shows how many training sessions hang on each activity, because deleting one with a session attached changes the plan rather than just tidying up. Deletion goes through `ActivityDeletionService` — never a bare `delete()`, or the next Strava sync brings it back. Seit 14.11.2026 auch ein Filter „Quelle“ (`Activity::SOURCE_LABELS`), Spalte Quelle in der Liste.
 
 ### `/admin/system/logs` — the application log, without a container
 
@@ -1150,6 +1150,7 @@ The rest of the admin answers "how is the product doing": users, activities, AI 
 - **Plan health** — a gap is a date *inside a plan's own span* with no session at all; no skeleton and no model call needed. Plus sessions with `training_plan_id = NULL` (present in the database, invisible to the athlete) and generations stuck past `plan_generating_at`.
 - **Integrations** — per athlete, when Strava last delivered. The date is the honest signal; the connection badge is not, and it does **not** show the access token's expiry. Strava's access token lasts six hours and `StravaService::fetchActivity()` renews it on the next call, so "expired" is the normal state for anyone who has not uploaded today — a warning colour on a healthy system, which teaches you to ignore warnings. The badge reports whether a **refresh token** exists; without one nobody can obtain a new access token and the athlete has to reconnect.
 - **Environment** — PHP, Laravel, drivers, DB size, both models, and whether debug is on.
+- **WHOOP- und Polar-Webhook** (seit 14.11.2026) — die letzten 15 Aufrufe aus `whoop_webhook_events` / `polar_webhook_events` mit Athlet (über die Verbindung aufgelöst) und Ergebnis auf Deutsch (`SystemHealth::providerWebhooks()`). Antwort auf „kommt da überhaupt etwas an?“.
 
 "Mit Ruhetagen schliessen" fills a plan's gaps **without an AI call** — cheap and honest. Real repair with real sessions is a regeneration.
 

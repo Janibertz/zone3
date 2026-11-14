@@ -82,6 +82,22 @@ class AdminActivityTest extends TestCase
      * Hängt eine Einheit dran, ist das Löschen kein reines Aufräumen — der
      * Plan ändert sich mit. Das gehört vor die Entscheidung, nicht danach.
      */
+    public function test_the_list_can_be_narrowed_to_one_source(): void
+    {
+        $user = User::factory()->create();
+        $this->activity($user, 'Strava-Lauf', 555101);
+        $whoop = $this->activity($user, 'WHOOP-Lauf', 555102);
+        $whoop->update(['source' => Activity::SOURCE_WHOOP]);
+
+        $props = $this->actingAs($this->admin())
+            ->get('/admin/activities?source=whoop')
+            ->viewData('page')['props'];
+
+        $this->assertSame(['WHOOP-Lauf'], collect($props['activities']['data'])->pluck('name')->all());
+        $this->assertSame('WHOOP', $props['activities']['data'][0]['source']);
+        $this->assertSame('WHOOP', $props['sources']['whoop']);
+    }
+
     public function test_the_list_says_whether_a_session_hangs_on_it(): void
     {
         $user     = User::factory()->create();

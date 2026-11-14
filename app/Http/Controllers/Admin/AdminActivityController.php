@@ -39,6 +39,10 @@ class AdminActivityController extends Controller
             $query->where('type', $request->string('type')->toString());
         }
 
+        if ($request->filled('source')) {
+            $query->where('source', $request->string('source')->toString());
+        }
+
         if ($request->filled('search')) {
             $search = $request->string('search')->toString();
             $query->where(fn ($q) => $q
@@ -63,6 +67,7 @@ class AdminActivityController extends Controller
                 'user'        => $a->user?->name ?? "Nutzer {$a->user_id}",
                 'name'        => $a->name,
                 'type'        => $a->type,
+                'source'      => $a->sourceLabel(),
                 'start_date'  => $a->start_date?->toIso8601String(),
                 'distance_km' => $a->distance > 0 ? round($a->distance / 1000, 2) : null,
                 'duration_min' => $a->moving_time > 0 ? (int) round($a->moving_time / 60) : null,
@@ -73,13 +78,14 @@ class AdminActivityController extends Controller
 
         return Inertia::render('Admin/Activities/Index', [
             'activities' => $activities,
-            'filters'    => $request->only('user', 'type', 'search'),
+            'filters'    => $request->only('user', 'type', 'source', 'search'),
             'users'      => User::has('activities')->orderBy('name')->get(['id', 'name']),
             'types'      => Activity::query()
                 ->select('type')
                 ->distinct()
                 ->orderBy('type')
                 ->pluck('type'),
+            'sources'    => Activity::SOURCE_LABELS,
         ]);
     }
 
