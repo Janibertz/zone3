@@ -983,3 +983,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+// Lesender Diagnose-Zugang (Bearer DIAGNOSE_TOKEN), nur GET.
+Route::prefix('diagnose')
+    ->middleware([\App\Http\Middleware\DiagnoseToken::class, 'throttle:60,1'])
+    ->controller(\App\Http\Controllers\Diagnose\DiagnoseController::class)
+    ->group(function () {
+        Route::get('system', 'system');
+        Route::get('logs', 'logs');
+        Route::get('users', 'users');
+        Route::get('users/{user}', 'user');
+    });

@@ -1102,6 +1102,10 @@ Jan: „messen, was Anmeldungen bringt“. `?ref=` oder `utm_source` im ersten L
 
 Jan: „Kann ich im Admin sehen, wer die App oder die normale Seite nutzt?“ Am Server nicht erkennbar — die iOS-App schickt keine eigene Kennung, ihr WebView sieht aus wie Safari. Darum meldet die Seite selbst (`Composables/useUsageBeacon.js`, aus `AuthenticatedLayout`) einmal am Tag `POST /usage/seen` mit `app` (`isNativeApp()`), `homescreen` (`display-mode: standalone`) oder `browser`. Gespeichert wird je Weg nur der letzte Tag (`users.seen_app_on`, `seen_homescreen_on`, `seen_browser_on`), kein Gerät, keine Adresse. Admin: Markierungen in der Nutzerliste, Daten auf der Athletenseite, Zählung der letzten 7 Tage in der Übersicht. Kein App-Build nötig.
 
+### `/diagnose/*` — lesender Zugang für Claude (seit 14.11.2026)
+
+Jan: „Ein Diagnose-Endpunkt für dich wäre nice.“ Nur GET mit `Authorization: Bearer <DIAGNOSE_TOKEN>` (`DiagnoseToken`, mindestens 32 Zeichen; ohne oder mit falschem Token 404, jeder Abruf steht im Log als „Diagnose-Abruf“). Feste Berichte statt freier Abfragen, kein Modellaufruf: `system` (Systemseite als JSON, samt Live Activities), `logs?q=&level=&limit=`, `users` (ID, Vorname, Quelle, aktiver Plan), `users/{id}?day=&back=&ahead=&full=1` (Profil, Plan mit Overrides, Einheiten, Widget-Einträge, Tagesvorschlag, Live-Activity-Zustand, Tagesform, Vorschläge, Coach-Nachrichten, Revisionen, KI-Logs; Schritte und Prompts nur mit `full=1`). **Nie** drin: E-Mail, Nachname, Passwörter, Tokens. In Coolify `DIAGNOSE_TOKEN` setzen, in der Claude-Umgebung dieselbe Variable; Token neu würfeln = alter Zugang tot.
+
 ### Impersonation — `Als … ansehen`
 
 `POST /admin/users/{user}/impersonate` logs the admin in as that athlete; `POST /impersonate/stop` comes back. The fastest way to understand a report is to see the page the athlete sees — "there is a gap in my plan today" cost hours of database queries that one click would have answered.
@@ -1268,6 +1272,9 @@ GARMIN_CLIENT_SECRET=
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
 VAPID_SUBJECT=mailto:...
+
+# Lesender Diagnose-Zugang /diagnose/* (mindestens 32 Zeichen, ohne = aus)
+DIAGNOSE_TOKEN=
 
 # Waechter (perf:watch, Befunde auf /admin/system). Alle optional — die
 # Vorgaben in config/observability.php passen fuer zwei Athleten.

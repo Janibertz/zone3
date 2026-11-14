@@ -118,6 +118,11 @@ return [
     // Coolify fehlen kann.
     // Empfänger des Kontaktformulars im Impressum (dieselbe Adresse wie in
     // resources/js/legal.js).
+    // Lesender Diagnose-Zugang /diagnose/* (mindestens 32 Zeichen, sonst aus).
+    'diagnose' => [
+        'token' => env('DIAGNOSE_TOKEN'),
+    ],
+
     'contact' => [
         'address' => env('CONTACT_MAIL_ADDRESS', 'jan.anders@zone3.run'),
     ],
