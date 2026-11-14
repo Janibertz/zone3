@@ -96,7 +96,7 @@ const filterOptions = [
                 <input
                     v-model="search"
                     type="search"
-                    placeholder="Name oder E-Mail suchen…"
+                    placeholder="ID, Name oder E-Mail suchen…"
                     class="flex-1 px-4 py-2.5 rounded-field border-0 bg-surface text-ink text-sm focus:outline-none focus:ring-2 focus:ring-danger/40 transition-colors"
                 />
                 <select
@@ -114,7 +114,8 @@ const filterOptions = [
                     <table class="w-full text-sm">
                         <thead class="border-b border-line">
                             <tr class="text-left">
-                                <th class="px-6 py-3 text-[13px] font-semibold text-ink-3">Nutzer</th>
+                                <th class="pl-6 pr-2 py-3 text-[13px] font-semibold text-ink-3 text-right">ID</th>
+                                <th class="px-4 py-3 text-[13px] font-semibold text-ink-3">Nutzer</th>
                                 <th class="px-4 py-3 text-[13px] font-semibold text-ink-3">Status</th>
                                 <th class="px-4 py-3 text-[13px] font-semibold text-ink-3 text-right">Aktivitäten</th>
                                 <th class="px-4 py-3 text-[13px] font-semibold text-ink-3 text-right">Ziele</th>
@@ -124,8 +125,10 @@ const filterOptions = [
                         </thead>
                         <tbody class="divide-y divide-line">
                             <tr v-for="u in users.data" :key="u.id" class="hover:bg-surface-2/50 transition-colors">
+                                <td class="pl-6 pr-2 py-3 text-right font-rounded text-ink-3 whitespace-nowrap">{{ u.id }}</td>
+
                                 <!-- User -->
-                                <td class="px-6 py-3">
+                                <td class="px-4 py-3">
                                     <div class="flex items-center gap-3">
                                         <div class="h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-card"
                                             :class="u.is_admin ? 'bg-danger' : 'bg-ink-3'"
@@ -194,7 +197,7 @@ const filterOptions = [
                             </tr>
 
                             <tr v-if="!users.data.length">
-                                <td colspan="6" class="px-6 py-12 text-center text-ink-3">
+                                <td colspan="7" class="px-6 py-12 text-center text-ink-3">
                                     Keine Nutzer gefunden.
                                 </td>
                             </tr>

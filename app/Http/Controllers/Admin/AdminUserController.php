@@ -25,7 +25,11 @@ class AdminUserController extends Controller
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
+                // Eine reine Zahl ist meist die ID (Diagnose, Log).
+                if (ctype_digit((string) $search)) {
+                    $q->where('id', (int) $search);
+                }
+                $q->orWhere('name', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%");
             });
         }

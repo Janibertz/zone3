@@ -210,6 +210,7 @@ const zoneColors = [
                     </div>
                     <div class="flex-1 min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold font-rounded bg-surface-3 text-ink-2">ID {{ user.id }}</span>
                             <h1 class="text-xl font-bold text-ink">{{ user.name }}</h1>
                             <span v-if="user.is_admin" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-danger-soft text-danger-ink">Admin</span>
                             <span v-if="!user.is_active" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-surface-3 text-ink-3">Inaktiv</span>
