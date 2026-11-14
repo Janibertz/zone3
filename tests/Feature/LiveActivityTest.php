@@ -156,7 +156,14 @@ class LiveActivityTest extends TestCase
         $service->tick();
         $this->assertCount(0, $this->livePushes());
 
+        // Zur Startzeit ohne Tagesform: noch nichts.
         $this->at('12:30');
+        $service->tick();
+        $this->assertCount(0, $this->livePushes());
+
+        // Nach dem Check-in startet sie im nächsten Durchlauf.
+        $this->checkIn($user);
+        $this->at('12:31');
         $service->tick();
         $pushes = $this->livePushes();
         $this->assertCount(1, $pushes);
@@ -171,11 +178,11 @@ class LiveActivityTest extends TestCase
         $this->assertSame('Tempo', $aps['content-state']['label']);
         $this->assertFalse($aps['content-state']['done']);
         $this->assertSame([['v' => '10,5', 'u' => 'km'], ['v' => '52', 'u' => 'min'], ['v' => '4:20', 'u' => '/km']], $aps['content-state']['metrics']);
-        $this->assertSame('Tagesform noch offen · Antippen zum Eintragen', $aps['content-state']['foot']);
-        $this->assertStringEndsWith('/dashboard?tagesform=1', $aps['content-state']['url']);
+        $this->assertNull($aps['content-state']['foot']);
+        $this->assertStringNotContainsString('tagesform', $aps['content-state']['url']);
 
         // Einmal am Tag.
-        $this->at('12:31');
+        $this->at('12:32');
         $service->tick();
         $this->assertCount(1, $this->livePushes());
     }
@@ -202,6 +209,7 @@ class LiveActivityTest extends TestCase
     {
         [$user, $plan] = $this->athlete();
         $this->register($user);
+        $this->checkIn($user);
         $service = app(LiveActivityService::class);
 
         $rest = $this->plannedSession($plan, ['type' => 'rest', 'title' => 'Ruhetag', 'distance_km' => null, 'duration_min' => null, 'pace_target' => null, 'zone' => null]);
@@ -233,6 +241,11 @@ class LiveActivityTest extends TestCase
         ]);
 
         $service = app(LiveActivityService::class);
+        // Ohne Tagesform: kein Vorschlag, keine Activity.
+        $service->tick();
+        $this->assertCount(0, $this->livePushes());
+
+        $this->checkIn($user);
         $service->tick();
         $service->tick();
 
@@ -240,9 +253,40 @@ class LiveActivityTest extends TestCase
         $this->assertCount(1, $pushes);
         $state = $pushes[0]->data()['aps']['content-state'];
         $this->assertSame('Locker halten', $state['title']);
-        // Ohne Tagesform zeigt sie zuerst den Hinweis darauf.
-        $this->assertSame('Tagesform noch offen · Antippen zum Eintragen', $state['foot']);
+        $this->assertSame('Vorschlag vom Coach', $state['foot']);
         $this->assertFalse($state['done']);
+    }
+
+    public function test_a_rest_day_from_the_coach_beats_the_suggestion_and_ends_the_activity(): void
+    {
+        [$user, $plan] = $this->athlete();
+        $plan->event->update(['plan_start_date' => '2026-11-30']);
+        RunnerProfile::create([
+            'user_id' => $user->id,
+            'recommendation_date' => self::TODAY,
+            'today_recommendation' => json_encode([
+                'type' => 'easy_run', 'title' => 'Locker halten', 'distance_km' => 8, 'duration_min' => 45, 'zone' => 2, 'intensity' => 'low',
+            ]),
+        ]);
+        $this->checkIn($user);
+        LiveActivity::create(['user_id' => $user->id, 'activity_id' => 'A-1', 'day' => self::TODAY, 'push_token' => self::UPDATE_TOKEN]);
+
+        $service = app(LiveActivityService::class);
+        $this->assertSame('Locker halten', $service->state($user, CarbonImmutable::today())['title']);
+
+        // Der Coach legt einen Ruhetag an (an den Plan gehängt, wie newSessionFor()).
+        $this->plannedSession($plan, ['type' => 'rest', 'title' => 'Ruhetag', 'distance_km' => null, 'duration_min' => null, 'pace_target' => null, 'zone' => null]);
+        $this->assertNull($service->state($user, CarbonImmutable::today()));
+
+        $service->tick();
+        $pushes = $this->livePushes();
+        $this->assertSame('end', end($pushes)->data()['aps']['event']);
+        $this->assertNotNull(LiveActivity::first()->ended_at);
+    }
+
+    private function checkIn(User $user): void
+    {
+        WellbeingEntry::create(['user_id' => $user->id, 'date' => self::TODAY, 'energy_level' => 7, 'mood' => 7, 'sleep_quality' => 7, 'muscle_soreness' => 3, 'stress_level' => 3]);
     }
 
     public function test_an_easier_suggestion_reaches_the_widget_and_the_running_live_activity(): void
@@ -334,6 +378,7 @@ class LiveActivityTest extends TestCase
         $this->plannedSession($plan);
         LiveActivity::create(['user_id' => $user->id, 'activity_id' => 'A-0', 'day' => '2026-11-11', 'push_token' => self::UPDATE_TOKEN]);
         $this->register($user);
+        $this->checkIn($user);
 
         $this->goneToken = self::START_TOKEN;
 

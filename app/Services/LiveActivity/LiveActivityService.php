@@ -100,13 +100,14 @@ class LiveActivityService
      */
     public function state(User $user, CarbonImmutable $day): ?array
     {
-        $items = array_values(array_filter(
-            $this->payload->itemsOn($user, $day),
-            fn ($i) => $i['type'] !== 'rest',
-        ));
+        $all   = $this->payload->itemsOn($user, $day);
+        $items = array_values(array_filter($all, fn ($i) => $i['type'] !== 'rest'));
         // Ohne Einheit im Kalender: der Tagesvorschlag (ohne Plan oder vor
-        // dem Planstart), sofern er heute schon geschrieben ist.
-        if (! $items && ($suggestion = $this->payload->suggestionFor($user, $day))) {
+        // dem Planstart), sofern er heute schon geschrieben ist. Ein Ruhetag
+        // im Kalender schlägt ihn — den hat der Athlet oder der Coach bewusst
+        // gesetzt (Jan, 14.11.2026: „Ruhetag eingeplant, es wird aber
+        // weiterhin die lockere Einheit angezeigt“).
+        if (! $all && ($suggestion = $this->payload->suggestionFor($user, $day))) {
             $items = [$suggestion];
         }
         if (! $items) {
@@ -128,10 +129,7 @@ class LiveActivityService
 
         $foot = null;
         $url  = $base . $lead['url'];
-        if (! WellbeingEntry::where('user_id', $user->id)->whereDate('date', $day->toDateString())->exists()) {
-            $foot = 'Tagesform noch offen · Antippen zum Eintragen';
-            $url  = $base . '/dashboard?tagesform=1';
-        } elseif ($suggested) {
+        if ($suggested) {
             $foot = 'Vorschlag vom Coach';
         } elseif ($rest) {
             $foot = 'Danach: ' . $rest[0]['label'] . ($this->amount($rest[0]) ? ' · ' . $this->amount($rest[0]) : '');
@@ -218,6 +216,12 @@ class LiveActivityService
             if ($now->lessThan($this->startAt($user, $today))) {
                 continue;
             }
+            // Erst nach der Tagesform (Jan, 14.11.2026): danach kann der
+            // Coach die Einheit noch anpassen, und die Activity zeigt nicht
+            // morgens etwas, das eine Stunde später nicht mehr gilt.
+            if (! WellbeingEntry::where('user_id', $user->id)->whereDate('date', $today->toDateString())->exists()) {
+                continue;
+            }
 
             $this->ensureSuggestion($user, $today);
             $state = $this->state($user, $today);
@@ -270,7 +274,7 @@ class LiveActivityService
         }
 
         try {
-            app(AIController::class)->todayFor($user, requireWellbeing: false);
+            app(AIController::class)->todayFor($user);
             $user->unsetRelation('runnerProfile');
         } catch (\Throwable $e) {
             Log::warning('Live Activity: Tagesvorschlag fehlgeschlagen', ['user_id' => $user->id, 'error' => $e->getMessage()]);
