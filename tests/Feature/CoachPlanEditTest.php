@@ -335,7 +335,7 @@ class CoachPlanEditTest extends TestCase
         $line->setAccessible(true);
         $text = $line->invoke(app(CoachChatService::class), $user->fresh(), $today);
         $this->assertStringContainsString('Lockerer Erhalt-Lauf', $text);
-        $this->assertStringContainsString('type="rest"', $text);
+        $this->assertStringContainsString('set_rest_day', $text);
 
         $this->runTool($user, 'create_training_session', ['date' => $today, 'type' => 'rest']);
 

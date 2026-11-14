@@ -348,7 +348,7 @@ class CoachChatService
             "Du bist {$coachName}, der persönliche Lauf-Coach von {$user->name}. ".
             "Du kennst alle Trainingsdaten und antwortest wie ein echter Coach der seinen Athleten kennt. ".
             "Du kannst den Trainingsplan wirklich verändern. Deine Werkzeuge: Einheiten anlegen (create_training_session), ändern (modify_training_session, an JEDEM Tag – nicht nur heute), verschieben (move_training_session), löschen (delete_training_session), bei Krankheit/Urlaub überspringen (skip_training_sessions), eine mehrtägige Pause festlegen (pause_training) oder beenden (end_training_pause), Zielzeiten anpassen (update_event_target), eine Radeinheit anlegen (create_bike_session, z. B. „Sonntag 30 min Zwift“), einen Lauf aufs Rad legen (switch_to_bike, z. B. „heute lieber Zwift statt Laufen“) und Infos dauerhaft merken (remember_user_fact). ".
-            "Nutze Tools proaktiv: Athlet sagt er ist krank, verletzt, hatte eine OP oder pausiert mehrere Tage → pause_training bis zum letzten Pausentag. Einzelne Einheit fällt aus → skip_training_sessions. Präferenz geäußert → merke sie dir. ".
+            "Nutze Tools proaktiv: Athlet sagt er ist krank, verletzt, hatte eine OP oder pausiert mehrere Tage → pause_training bis zum letzten Pausentag. Ruhetag oder Pause an EINEM Tag („heute Ruhetag“, „heute nicht laufen“) → set_rest_day, auch wenn heute nur ein Tagesvorschlag steht. Einzelne Einheit fällt aus → skip_training_sessions. Präferenz geäußert → merke sie dir. ".
             // Entscheidung von Jan (29.10.2026): was der Athlet bestellt,
             // setzt der Coach um; was der Coach selbst fuer richtig haelt,
             // schlaegt er vor — wie beim Tagesform-Vorschlag.
@@ -388,6 +388,7 @@ class CoachChatService
         $actionsTaken = [];
 
         $leakRetried = false;
+        $restRetried = false;
 
         for ($i = 0; $i < 4; $i++) {
             $body   = $this->ai->chatWithTools('coach_chat', $messages, $tools, model: $this->ai->mid());
@@ -427,6 +428,20 @@ class CoachChatService
                     break;
                 }
 
+                // Gemeldet am 14.11.2026: dreimal „Heute Ruhetag bitte“, dreimal
+                // „Heute ist Ruhetag, Jan“ — und kein einziger Aufruf. Die
+                // eigenen Bestätigungen im Verlauf bestärkten das Modell darin.
+                // Verlangt der Athlet einen Ruhetag und es lief kein Werkzeug,
+                // wird einmal nachgehakt.
+                if (! $foreignText && ! $restRetried && ! $actionsTaken && self::asksForRestDay($newMessage)) {
+                    $restRetried = true;
+                    $messages[] = ['role' => 'assistant', 'content' => $reply];
+                    $messages[] = ['role' => 'system', 'content' =>
+                        'Du hast den Ruhetag nur bestätigt, aber kein Werkzeug aufgerufen — am Plan und an der Anzeige hat sich NICHTS geändert, auch nicht bei früheren Bestätigungen im Verlauf. '
+                        . 'Rufe JETZT set_rest_day auf (Datum heute, falls der Athlet keinen anderen Tag nennt). Antworte danach kurz.'];
+                    continue;
+                }
+
                 return ['reply' => $reply, 'actions' => array_values(array_filter($actionsTaken))];
             }
 
@@ -462,6 +477,20 @@ class CoachChatService
      * „Zwift") kippt das nicht.
      */
     /**
+     * Verlangt die Nachricht einen Ruhetag bzw. eine Pause an einem Tag?
+     * Bewusst eng: nur, was der Athlet so sagt — keine Frage danach.
+     */
+    public static function asksForRestDay(string $message): bool
+    {
+        $m = mb_strtolower($message);
+        if (str_contains($m, '?') && ! preg_match('/\b(bitte|mach|trag|leg|streich)/u', $m)) {
+            return false;
+        }
+
+        return (bool) preg_match('/ruhetag|\bpause\b.*\bheute\b|\bheute\b.*\bpause\b|heute (nicht|kein) (laufen|training)|heute frei|streich.*(einheit|training|heute)/u', $m);
+    }
+
+    /**
      * Plan ohne Rennen: eine Zeile, damit der Coach den Block kennt — die
      * Rennliste lässt solche Ziele aus, ein Blockende ist kein Renntag.
      */
@@ -496,7 +525,7 @@ class CoachChatService
         }
 
         // Werkzeugnamen gehören nie in eine Antwort an den Athleten.
-        $toolNames = '/\b(create_training_session|modify_training_session|move_training_session|delete_training_session|switch_to_bike|create_bike_session|skip_training_sessions|propose_session_change|remember_user_fact|pause_training|end_training_pause|update_event_target)\b/u';
+        $toolNames = '/\b(create_training_session|modify_training_session|move_training_session|delete_training_session|switch_to_bike|create_bike_session|skip_training_sessions|set_rest_day|propose_session_change|remember_user_fact|pause_training|end_training_pause|update_event_target)\b/u';
         $mentionsTool = (bool) preg_match($toolNames, $text);
 
         preg_match_all('/\b(we|need|the|user|says|tool|call|should|presumably|likely|then|there|is|no|it|and|but|maybe|probably|respond|answer)\b/u', $text, $en);
@@ -529,6 +558,14 @@ class CoachChatService
                 'parameters'  => ['type' => 'object', 'properties' => [
                     'fact' => ['type' => 'string', 'description' => 'Die zu merkende Information, prägnant formuliert'],
                 ], 'required' => ['fact']],
+            ]],
+            ['type' => 'function', 'function' => [
+                'name'        => 'set_rest_day',
+                'description' => 'Ruhetag an EINEM Tag (Standard: heute) — wenn der Athlet „heute Ruhetag“, „heute Pause“, „heute nicht laufen“ oder „streich die Einheit heute“ sagt. Streicht alle geplanten Einheiten des Tages, trägt einen Ruhetag ein und ersetzt auch den Tagesvorschlag auf „Heute“, im Widget und auf dem Sperrbildschirm. Eine Bestätigung im Text ohne diesen Aufruf ändert NICHTS. Für mehrere Tage wegen Krankheit/Verletzung: pause_training.',
+                'parameters'  => ['type' => 'object', 'properties' => [
+                    'date'   => ['type' => 'string', 'description' => 'Tag YYYY-MM-DD, Standard heute'],
+                    'reason' => ['type' => 'string', 'description' => 'Kurz, z.B. "müde" oder "keine Zeit"'],
+                ]],
             ]],
             ['type' => 'function', 'function' => [
                 'name'        => 'pause_training',
@@ -657,6 +694,80 @@ class CoachChatService
 
     /** Ersatztitel, wenn das Modell keinen mitgibt. */
     /**
+     * Ruhetag an einem Tag (Jan, 14.11.2026: „Alle Einheiten für heute sollen
+     * durch Pause für heute gestrichen werden“). Vorher gab es dafür kein
+     * Werkzeug: skip_training_sessions fand vor dem Planstart nichts zum
+     * Überspringen, und den Tagesvorschlag erreichte keines — der Coach
+     * bestätigte im Text, und alles blieb stehen.
+     *
+     * Wirkt an drei Stellen, damit jede Anzeige es sieht:
+     * - geplante Einheiten des Tages → übersprungen (Verlauf bleibt),
+     * - ein gepinnter Ruhetag → „Heute“, Widget und Live Activity zeigen ihn,
+     *   eine Neuberechnung behält ihn,
+     * - Verfügbarkeit des Tages im aktiven Plan aus → der Tagesvorschlag
+     *   wird ein Ruhetag ({@see \App\Http\Controllers\AIController::todayFor()}).
+     */
+    private function setRestDay(\App\Models\User $user, array $args): array
+    {
+        $date = empty($args['date']) ? now()->toDateString() : $this->toolDate($args['date']);
+        if (! $date) {
+            return ['message' => 'Das Datum liegt in der Vergangenheit — dort ändere ich nichts mehr.', 'action' => null];
+        }
+        $reason = trim((string) ($args['reason'] ?? ''));
+
+        $sessions = \App\Models\TrainingSession::where('user_id', $user->id)
+            ->whereDate('planned_date', $date)
+            ->get();
+
+        $struck = 0;
+        foreach ($sessions as $s) {
+            if ($s->status === 'planned' && $s->type !== 'rest') {
+                $s->status = 'skipped';
+                $s->save();
+                $struck++;
+            }
+        }
+
+        // Offene Vorschläge zu diesem Tag haben sich erledigt.
+        \App\Models\SessionRecommendation::where('user_id', $user->id)
+            ->where('status', \App\Models\SessionRecommendation::STATUS_PENDING)
+            ->whereHas('session', fn ($q) => $q->whereDate('planned_date', $date))
+            ->update(['status' => \App\Models\SessionRecommendation::STATUS_EXPIRED]);
+
+        $rest = $sessions->first(fn ($s) => $s->type === 'rest');
+        if (! $rest) {
+            $rest = $this->newSessionFor($user, $date, 'rest');
+            $rest->sort_order = 0;
+        }
+        $rest->status      = 'planned';
+        $rest->title       = 'Ruhetag';
+        $rest->description = $reason !== '' ? "Ruhetag auf deinen Wunsch ({$reason})." : 'Ruhetag auf deinen Wunsch.';
+        $rest->distance_km = null;
+        $rest->duration_min = null;
+        $rest->pace_target = null;
+        $rest->zone        = null;
+        $rest->steps       = null;
+        $rest->pinned_at   = now();
+        $rest->save();
+
+        if ($plan = $user->activeTrainingPlan) {
+            $overrides = $plan->availability_overrides ?? [];
+            $overrides[$date] = array_merge($overrides[$date] ?? [], ['available' => false]);
+            $plan->availability_overrides = $overrides;
+            $plan->save();
+        }
+
+        $this->invalidateCoachCaches($user);
+
+        $label = "Ruhetag ({$this->dayLabel($date)})" . ($struck ? ": {$struck} " . ($struck === 1 ? 'Einheit' : 'Einheiten') . ' gestrichen' : '');
+
+        return [
+            'message' => "Ruhetag am {$date} eingetragen" . ($struck ? ", {$struck} geplante Einheit(en) gestrichen" : '') . '. Der Tagesvorschlag ist ersetzt.',
+            'action'  => ['type' => 'rest_day', 'label' => $label, 'reload' => true],
+        ];
+    }
+
+    /**
      * Ohne Einheit heute zeigt „Heute“ (und Widget, Live Activity) oft den
      * Tagesvorschlag — vor dem Planstart oder ganz ohne Plan. Stand hier nur
      * „Kein Training geplant“, hielt der Coach „heute Ruhetag“ für schon
@@ -679,7 +790,7 @@ class CoachChatService
         if (! empty($rec['duration_min'])) $d .= ", {$rec['duration_min']}min";
 
         return "HEUTIGES TRAINING: keine Einheit im Plan, aber der Athlet sieht auf „Heute“, im Widget und auf dem Sperrbildschirm diesen Tagesvorschlag:\n  {$d}\n"
-            . "  Will er heute Ruhe (oder etwas anderes), reicht eine Bestätigung im Text NICHT: lege die Einheit für heute mit create_training_session an (für Ruhe type=\"rest\"). Sie ersetzt den Vorschlag überall.";
+            . "  Will er heute Ruhe (oder etwas anderes), reicht eine Bestätigung im Text NICHT: für Ruhe rufe set_rest_day auf, für eine andere Einheit create_training_session. Beides ersetzt den Vorschlag überall.";
     }
 
     private function sessionTitleFor(string $type): string
@@ -1279,6 +1390,9 @@ class CoachChatService
 
                 return ['message' => 'Pause beendet.', 'action' => ['type' => 'training_resumed', 'label' => 'Pause beendet', 'reload' => true]];
             }
+
+            case 'set_rest_day':
+                return $this->setRestDay($user, $args);
 
             case 'skip_training_sessions': {
                 $from   = $args['date_from'] ?? now()->toDateString();
