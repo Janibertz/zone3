@@ -2,9 +2,12 @@
 
 namespace App\Providers;
 
+use App\Services\Observability\InstantAlert;
 use App\Services\Observability\Recorder;
 use Illuminate\Console\Events\CommandFinished;
 use Illuminate\Console\Events\CommandStarting;
+use Illuminate\Log\Events\MessageLogged;
+use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
@@ -33,6 +36,27 @@ class ObservabilityServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->watchCommands();
+        $this->alertInstantly();
+    }
+
+    /**
+     * Gescheiterte Aufgaben und Fehler im Log sofort melden (höchstens
+     * einmal pro Stunde, siehe {@see InstantAlert}).
+     *
+     * `JobFailed` kommt vor dem Log-Eintrag derselben Exception, darum
+     * trägt die Nachricht dann den Namen der Aufgabe.
+     */
+    private function alertInstantly(): void
+    {
+        Event::listen(function (JobFailed $event): void {
+            $this->app->make(InstantAlert::class)->jobFailed($event->job->resolveName(), $event->exception);
+        });
+
+        Event::listen(function (MessageLogged $event): void {
+            if (in_array($event->level, ['error', 'critical', 'alert', 'emergency'], true)) {
+                $this->app->make(InstantAlert::class)->errorLogged($event->level, (string) $event->message);
+            }
+        });
     }
 
     /**

@@ -34,6 +34,8 @@ return [
         'cooldown_hours'        => (int) env('OBSERVABILITY_ALERT_COOLDOWN_HOURS', 6),
         'queue_stalled_minutes' => (int) env('OBSERVABILITY_QUEUE_STALLED_MINUTES', 15),
         'webhook_silence_hours' => (int) env('OBSERVABILITY_WEBHOOK_SILENCE_HOURS', 48),
+        // Sofort-Push bei gescheiterter Aufgabe oder Fehler im Log, höchstens einmal pro Stunde.
+        'instant'               => (bool) env('OBSERVABILITY_INSTANT_ALERTS', true),
     ],
 
     /*

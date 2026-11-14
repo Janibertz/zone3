@@ -1185,6 +1185,8 @@ ObservabilityServiceProvider   hört nur noch CommandStarting/CommandFinished
 
 **Der Wächter kann seinen eigenen Ausfall nicht melden**, denn er läuft selbst im Scheduler. Stirbt der Scheduler, stirbt er mit. Deshalb steht `schedule:run` in `expected_every_minutes` und wird beim **Seitenaufruf** ausgewertet, wo die Antwort ankommt — nicht in einer Push-Nachricht, die nie abgeschickt würde. Dieselbe Grenze gilt für Cloudflare: was den Edge nicht passiert, sieht Laravel nicht, und keine Messung im Container ändert daran etwas.
 
+**Sofort-Push bei Fehlern** (seit 14.11.2026, Jan: „damit Fehler frühzeitig auffallen“): `InstantAlert` hört im `ObservabilityServiceProvider` auf `JobFailed` und auf Log-Einträge ab `error` und schickt den Admins einen Push mit der ersten Zeile, **höchstens einmal pro Stunde für alles zusammen** (`Cache::add`, ein Fehler in einer Schleife weckt das Telefon nicht hundertmal). Bewusst kein Fremddienst wie Sentry — dessen Meldungen tragen Request-Daten mit, bei Zone3 auch Gesundheitswerte. Abschalten mit `OBSERVABILITY_INSTANT_ALERTS=false`; unter Test ist es aus (`phpunit.xml`). Dazu läuft montags 07:47 eine wöchentliche Diagnose über `/diagnose/*` (geplante Claude-Aufgabe, nur lesend).
+
 `config/observability.php` hält noch drei Dinge: `OBSERVABILITY_ENABLED` als Schalter, die Alarmschwellen, und die erwartete Taktung je Kommando.
 
 ## Telegram — der Coach im Messenger
@@ -1286,6 +1288,7 @@ OBSERVABILITY_ENABLED=true
 OBSERVABILITY_ALERT_COOLDOWN_HOURS=6
 OBSERVABILITY_QUEUE_STALLED_MINUTES=15
 OBSERVABILITY_WEBHOOK_SILENCE_HOURS=48
+OBSERVABILITY_INSTANT_ALERTS=true
 ```
 
 `FIT_SERVICE_URL` und `FIT_SERVICE_TOKEN` sind mit dem alten Garmin-Login weggefallen (der `fit-service`-Dienst in Coolify kann gelöscht werden). Die Variablen `OBSERVABILITY_SLOW_QUERY_MS`, `_SLOW_REQUEST_MS`, `_MANY_QUERIES`, `_SAMPLE_RATE`, `_RETENTION_DAYS` und `_SERVER_ERROR_BURST` sind mit der Anfrage-Messung weggefallen und können in Coolify gelöscht werden — sie werden nirgends mehr gelesen.
