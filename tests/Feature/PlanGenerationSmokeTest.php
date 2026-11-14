@@ -127,7 +127,10 @@ class PlanGenerationSmokeTest extends TestCase
         $this->assertStringContainsString('Zielzeit 1:45 Std', $prompt);
         $this->assertStringNotContainsString('Uralte Rückmeldung', $prompt);
         $this->assertSame(1, substr_count($prompt, 'Hüfte zwickt'));
-        $this->assertLessThan(12000, mb_strlen($prompt));
+        // Das Fenster hat seit 14.11.2026 14 bis 20 Tage (ganze Wochen), also
+        // zählt die Grenze je Tag und nicht für den ganzen Prompt.
+        $days = (int) $context->windowFrom->diffInDays($context->windowTo) + 1;
+        $this->assertLessThan(6000 + 430 * $days, mb_strlen($prompt));
     }
 
     /** Plan ohne Rennen: der Prompt spricht vom Block, nicht von einem Renntag. */

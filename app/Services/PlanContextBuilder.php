@@ -64,7 +64,7 @@ class PlanContextBuilder
         // bis zum Start sind noch nicht gelaufen und wären sonst null.
         $today      = CarbonImmutable::today();
         $windowFrom = $event->planStartsOn();
-        $windowTo   = $windowFrom->addDays(min(Event::PLAN_HORIZON_DAYS, $event->daysFromPlanStart() + 1) - 1);
+        $windowTo   = $windowFrom->addDays($event->planWindowDays() - 1);
 
         // Eine Trainingspause sperrt ihre Tage wie eine Absage in der
         // Wochenabfrage. Sonst schrieb die nächste Neuberechnung (spätestens
@@ -189,6 +189,7 @@ class PlanContextBuilder
             // Erholung nach einem Rennen — auch nach einem, das vor dem
             // Fenster lag (das Zielrennen des letzten Plans).
             $this->raceRecovery->forWindow($user, $windowFrom, $windowTo, $today),
+            $this->weekSoFar($user, $windowFrom),
         );
 
         // Die Paces reisen mit dem Gerüst in den Validator: dort entsteht der
@@ -633,6 +634,41 @@ class PlanContextBuilder
                 'duration_min' => $s->duration_min,
             ])
             ->toArray();
+    }
+
+    /**
+     * Was in der Woche des Fensterbeginns vor dem ersten Plantag schon
+     * gelaufen ist: ein langer Lauf und wie viele harte Einheiten.
+     *
+     * Ohne das sah das Gerüst nur die Tage ab heute und plante in eine
+     * angefangene Woche einen zweiten langen Lauf (14.11.2026: Do lang
+     * erledigt, Sa wieder lang). Gezählt wird nur Erledigtes — eine
+     * ausgelassene Einheit hat keine Belastung gesetzt.
+     *
+     * @return array<string, array{long: bool, hard: int}>  ISO-Woche → Stand
+     */
+    private function weekSoFar(User $user, CarbonImmutable $windowFrom): array
+    {
+        $monday = $windowFrom->startOfWeek(\Carbon\CarbonInterface::MONDAY);
+        if ($monday->gte($windowFrom)) {
+            return [];
+        }
+
+        $done = TrainingSession::where('user_id', $user->id)
+            ->where('status', 'completed')
+            ->whereDate('planned_date', '>=', $monday->toDateString())
+            ->whereDate('planned_date', '<', $windowFrom->toDateString())
+            ->where(fn ($q) => $q->whereNull('sport_type')->orWhereIn('sport_type', TrainingSession::RUN_SPORTS))
+            ->pluck('type');
+
+        if ($done->isEmpty()) {
+            return [];
+        }
+
+        return [$windowFrom->format('o-\\WW') => [
+            'long' => $done->contains('long_run'),
+            'hard' => $done->filter(fn ($t) => in_array($t, \App\Services\WeeklyPatternService::HARD_TYPES, true))->count(),
+        ]];
     }
 
     private function finalizedSessions(User $user, Event $event): array

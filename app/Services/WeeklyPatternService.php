@@ -188,6 +188,7 @@ class WeeklyPatternService
         ?array $bike = null,
         ?array $strength = null,
         array $recovery = [],
+        array $weekSoFar = [],
     ): array {
         $days      = $this->availabilityPerDate($from, $to, $weeklyAvailability, $overrides, $finalizedDates, $races, $recovery);
         $norwegian = ($model['name'] ?? 'polarized') === 'norwegian';
@@ -234,10 +235,23 @@ class WeeklyPatternService
             }
             $weekMaxHard  = $period ? min($maxHard, $period['max_hard']) : $maxHard;
 
+            // Die erste Woche beginnt oft mitten in der Woche. Was davor in
+            // derselben Woche schon gelaufen ist, zählt mit: ein erledigter
+            // langer Lauf am Donnerstag heißt keinen zweiten am Samstag
+            // (gesehen am 14.11.2026), und erledigte harte Einheiten
+            // verbrauchen ihren Platz.
+            $soFar = $weekSoFar[$weekKey] ?? null;
+            if ($soFar) {
+                if (! empty($soFar['long'])) {
+                    $weekPriority = array_values(array_filter($weekPriority, fn ($t) => $t !== 'long_run'));
+                }
+                $weekMaxHard = max(0, $weekMaxHard - (int) ($soFar['hard'] ?? 0));
+            }
+
             $weeks[$weekKey] = match (true) {
                 $step !== null && $step < ReturnToRunService::TOTAL_STEPS
                             => $this->planComebackWeek($days, $dates, $step, $lastRun, $priority, $maxHard),
-                $norwegian  => $this->planNorwegianWeek($days, $dates, $period),
+                $norwegian  => $this->planNorwegianWeek($days, $dates, $period, ! empty($soFar['long'])),
                 default     => $this->planWeek($days, $dates, $weekPriority, $weekMaxHard),
             };
 
@@ -1207,7 +1221,7 @@ class WeeklyPatternService
      *
      * @return array{planned: list<string>, dropped: list<string>, usable_days: int}
      */
-    private function planNorwegianWeek(array &$days, array $dates, ?array $period): array
+    private function planNorwegianWeek(array &$days, array $dates, ?array $period, bool $longDone = false): array
     {
         $usable = array_values(array_filter(
             $dates,
@@ -1240,7 +1254,7 @@ class WeeklyPatternService
         $fast = in_array($phase, ['build', 'peak', 'taper'], true) && ! $recovery && $hard === 0;
 
         // Der lange Lauf zuerst: er braucht den längsten Tag.
-        if (! in_array('long_run', $planned, true) && count($planned) < $capacity) {
+        if (! $longDone && ! in_array('long_run', $planned, true) && count($planned) < $capacity) {
             $date = $this->pickDay($days, $usable, 'long_run', false);
             if ($date !== null) {
                 $days[$date]['slots'][] = ['type' => 'long_run', 'hard' => false, 'max_min' => $days[$date]['budget_min']];

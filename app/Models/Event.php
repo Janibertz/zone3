@@ -386,6 +386,36 @@ class Event extends Model
         return $start->gt($today) ? $start : $today;
     }
 
+    /**
+     * Der letzte Tag des rollierenden Planfensters: mindestens
+     * {@see PLAN_HORIZON_DAYS} Tage ab dem Planstart, dann bis zum Sonntag
+     * dieser Woche, höchstens bis zum Renntag.
+     *
+     * Bis 14.11.2026 endete das Fenster nach genau 14 Tagen, meist mitten in
+     * einer Woche. Die angeschnittene Woche bekam trotzdem einen eigenen
+     * langen Lauf und eine harte Einheit — Sonntag lang, Montag wieder lang —
+     * und weil das Ende jeden Tag einen Tag weiterrückte, wurde jeden Morgen
+     * neu gerechnet. Jetzt plant das Fenster nur ganze Wochen.
+     */
+    public function planWindowEnd(): \Carbon\CarbonImmutable
+    {
+        $end = $this->planStartsOn()->addDays(self::PLAN_HORIZON_DAYS - 1);
+
+        if (! $end->isSunday()) {
+            $end = $end->next(\Carbon\CarbonInterface::SUNDAY);
+        }
+
+        $race = \Carbon\CarbonImmutable::parse($this->event_date->toDateString());
+
+        return $end->gt($race) ? $race : $end;
+    }
+
+    /** Anzahl der Tage im Planfenster ({@see planWindowEnd()}), mindestens einer. */
+    public function planWindowDays(): int
+    {
+        return max(1, (int) $this->planStartsOn()->diffInDays($this->planWindowEnd()) + 1);
+    }
+
     /** Tage vom Planstart bis zum Rennen — `days_until`, nur ab dem Start gezählt. */
     public function daysFromPlanStart(): int
     {

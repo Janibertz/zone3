@@ -213,7 +213,7 @@ class TrainingPlanGenerator
         // Pre-compute per-date availability for each day in the plan window
         $isoToWeekday = [1 => 'monday', 2 => 'tuesday', 3 => 'wednesday', 4 => 'thursday', 5 => 'friday', 6 => 'saturday', 7 => 'sunday'];
         $perDateLines = [];
-        $planWindowDays = min(\App\Models\Event::PLAN_HORIZON_DAYS, $daysFromStart + 1); // rolling window
+        $planWindowDays = (int) $c->windowFrom->diffInDays($c->windowTo) + 1; // rolling window, ganze Wochen
         for ($i = 0; $i < $planWindowDays; $i++) {
             $date    = $c->windowFrom->addDays($i);
             $dateStr = $date->format('Y-m-d');
@@ -460,9 +460,8 @@ WARN;
         // Only plan the next N days instead of all the way to race day. The plan is
         // regenerated regularly anyway, so far-future detail just wastes tokens. The
         // race day + taper are added once the race falls inside the window.
-        $horizon     = \App\Models\Event::PLAN_HORIZON_DAYS;
-        $totalDays   = min($horizon, $daysFromStart + 1);        // number of day-entries to produce
-        $reachesRace = ($daysFromStart + 1) <= $horizon;        // window includes race day?
+        $totalDays   = (int) $c->windowFrom->diffInDays($c->windowTo) + 1; // number of day-entries to produce
+        $reachesRace = ($daysFromStart + 1) <= $totalDays;      // window includes race day?
         $planEndDate = $reachesRace ? $eventDate : $c->windowFrom->addDays($totalDays - 1)->format('Y-m-d');
 
         // Welche Tage das Modell ueberhaupt schreiben soll.

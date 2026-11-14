@@ -400,6 +400,8 @@ A regeneration deletes every `planned` session and has the model invent them aga
 
 `plan:write-week` runs **Sunday 19:00** — an hour after `push:week-check` asks for availability. Whoever answered gets their week built on that answer; whoever didn't gets it from the profile grid. Then the week stands until the athlete changes something. `--force` runs it off-schedule; without it the command only fires on Sunday or Monday.
 
+**Das Fenster plant ganze Wochen** (seit 14.11.2026, Jan: „Fenster bis Sonntag"). `Event::planWindowEnd()` ist die einzige Stelle: mindestens `PLAN_HORIZON_DAYS` (14) ab dem Planstart, dann bis zum Sonntag, höchstens bis zum Renntag — also 14 bis 20 Tage. Gerüst, Prompt und `plan:auto-update` lesen davon. Vorher endete das Fenster nach 14 Tagen mitten in der Woche: die angeschnittene Woche bekam einen eigenen langen Lauf (So lang, Mo wieder lang) und eine volle harte Einheit, die der Validator täglich zurückkürzte, und weil das Ende jeden Tag weiterrückte, rechnete jeder Plan jeden Morgen neu. Jetzt springt das Ende einmal die Woche (dienstags). Für den **Anfang** gilt dasselbe in die andere Richtung: was vor dem ersten Plantag in derselben Woche erledigt wurde, zählt (`PlanContextBuilder::weekSoFar()`): ein langer Lauf heißt keinen zweiten, harte Einheiten verbrauchen ihren Platz. Gezählt wird nur `completed`.
+
 `REASON_WEEKLY` freezes nothing: this is the agreed moment at which the week *may* change, and a freeze would block exactly the days it exists to write. It stays cheap because partial regeneration skips the model entirely when nothing is stale, and its push says "Deine Woche steht" rather than "wurde neu berechnet".
 
 ### Partial regeneration

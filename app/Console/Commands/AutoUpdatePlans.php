@@ -23,7 +23,6 @@ class AutoUpdatePlans extends Command
         $todayStr = $today->toDateString();
         $userIds = $this->option('user');
 
-        $horizon = Event::PLAN_HORIZON_DAYS;
         $refresh = Event::PLAN_REFRESH_DAYS;
 
         // All active plans for upcoming races (no upper date bound — the rolling
@@ -36,7 +35,7 @@ class AutoUpdatePlans extends Command
             $query->whereIn('user_id', $userIds);
         }
 
-        $query->chunk(50, function ($plans) use ($today, $todayStr, $horizon, $refresh) {
+        $query->chunk(50, function ($plans) use ($today, $todayStr, $refresh) {
             foreach ($plans as $plan) {
                 if (! $plan->event || ! $plan->user) continue;
 
@@ -44,12 +43,12 @@ class AutoUpdatePlans extends Command
                 $daysUntil = (int) $today->diffInDays($eventDate, false);
                 if ($daysUntil < 0) continue;
 
-                // Window the plan should currently cover: start … min(race, start+horizon-1).
+                // Window the plan should currently cover: start … Event::planWindowEnd() (ganze Wochen, höchstens bis zum Rennen).
                 // Der Start ist heute oder das spätere Startdatum — ab heute
                 // gerechnet sähe ein Plan, der erst nächste Woche beginnt,
                 // nur Lücken.
                 $start      = \Illuminate\Support\Carbon::parse($plan->event->planStartsOn()->toDateString());
-                $windowDays = min($horizon, $plan->event->daysFromPlanStart() + 1);
+                $windowDays = $plan->event->planWindowDays();
                 $windowEnd  = $start->copy()->addDays($windowDays - 1);
                 $expected   = $windowDays; // one entry per day (incl. rest days)
 
