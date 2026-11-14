@@ -310,7 +310,7 @@ class TelegramWebhookController extends Controller
         }
 
         if ($m[1] === 'accept') {
-            $reply = $recommendation->accept() ? 'Angenommen — die Einheit ist angepasst.' : 'Die Einheit gibt es nicht mehr.';
+            $reply = $recommendation->accept() ? 'Angenommen — die Einheit ist angepasst.' : 'Der Vorschlag ist überholt — die Einheit ist vorbei oder gibt es nicht mehr.';
         } else {
             $recommendation->reject();
             $reply = 'Abgelehnt — alles bleibt wie geplant.';

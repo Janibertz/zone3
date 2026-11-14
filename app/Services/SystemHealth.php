@@ -147,28 +147,18 @@ class SystemHealth
         $sessions = TrainingSession::query()
             ->whereHas('trainingPlan', fn ($q) => $q->where('is_active', true))
             ->whereDate('planned_date', '>=', $today->copy()->subDays(7)->toDateString())
-            ->get(['id', 'user_id', 'planned_date']);
+            ->with('trainingPlan.event:id,plan_start_date')
+            ->get(['id', 'user_id', 'planned_date', 'training_plan_id']);
 
         $gaps = [];
 
         foreach ($sessions->groupBy('user_id') as $userId => $ofUser) {
             $dates = $ofUser->map(fn ($s) => $s->planned_date->format('Y-m-d'))->unique()->sort()->values();
 
-            if ($dates->count() < 2) {
-                continue;
-            }
-
-            $cursor = Carbon::parse($dates->first());
-            $last   = Carbon::parse($dates->last());
-            $have   = $dates->flip();
-            $holes  = [];
-
-            for (; $cursor->lte($last); $cursor->addDay()) {
-                $key = $cursor->format('Y-m-d');
-                if (! isset($have[$key])) {
-                    $holes[] = $key;
-                }
-            }
+            // Vor dem Planstart steht absichtlich nichts — eine gepinnte
+            // Einheit davor (Coach, eingeplantes Workout) ist keine Lücke.
+            $starts = $ofUser->map(fn ($s) => $s->trainingPlan?->event?->plan_start_date?->format('Y-m-d'))->unique();
+            $holes  = self::holes($dates, $starts->contains(null) ? null : $starts->min());
 
             if ($holes !== []) {
                 $gaps[] = [
@@ -330,6 +320,38 @@ class SystemHealth
 
 
     /**
+     * Tage ohne Einheit zwischen der ersten und der letzten, gezählt ab dem
+     * Planstart.
+     *
+     * @param  \Illuminate\Support\Collection<int, string>  $dates  sortiert, Y-m-d
+     * @return list<string>
+     */
+    public static function holes(\Illuminate\Support\Collection $dates, ?string $planStart): array
+    {
+        if ($planStart !== null) {
+            $dates = $dates->filter(fn ($d) => $d >= $planStart)->values();
+        }
+
+        if ($dates->count() < 2) {
+            return [];
+        }
+
+        $have   = $dates->flip();
+        $cursor = Carbon::parse($dates->first());
+        $last   = Carbon::parse($dates->last());
+        $holes  = [];
+
+        for (; $cursor->lte($last); $cursor->addDay()) {
+            $key = $cursor->format('Y-m-d');
+            if (! isset($have[$key])) {
+                $holes[] = $key;
+            }
+        }
+
+        return $holes;
+    }
+
+    /**
      * Derselbe Blick, aber auf einen Athleten.
      *
      * Was auf der Nutzerseite fehlte, war genau das, was bei der Suche nach
@@ -352,20 +374,7 @@ class SystemHealth
             : collect();
 
         $dates = $sessions->map(fn ($s) => $s->planned_date->format('Y-m-d'))->unique()->sort()->values();
-        $holes = [];
-
-        if ($dates->count() >= 2) {
-            $have   = $dates->flip();
-            $cursor = Carbon::parse($dates->first());
-            $last   = Carbon::parse($dates->last());
-
-            for (; $cursor->lte($last); $cursor->addDay()) {
-                $key = $cursor->format('Y-m-d');
-                if (! isset($have[$key])) {
-                    $holes[] = $key;
-                }
-            }
-        }
+        $holes = self::holes($dates, $plan?->event?->plan_start_date?->format('Y-m-d'));
 
         $orphans = TrainingSession::where('user_id', $user->id)
             ->whereNull('training_plan_id')

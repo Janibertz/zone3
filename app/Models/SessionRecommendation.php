@@ -84,7 +84,9 @@ class SessionRecommendation extends Model
 
         $session = $this->session;
 
-        if (! $session) {
+        // Ein alter Telegram-Knopf schrieb sonst eine vergangene oder schon
+        // gelaufene Einheit um.
+        if (! $session || ! self::stillApplies($session)) {
             $this->update(['status' => self::STATUS_EXPIRED, 'responded_at' => now()]);
 
             return false;
@@ -110,6 +112,30 @@ class SessionRecommendation extends Model
         ]);
 
         return true;
+    }
+
+    /** Gilt ein Vorschlag zu dieser Einheit noch? Nur für geplante Einheiten ab heute. */
+    public static function stillApplies(TrainingSession $session): bool
+    {
+        return $session->status === 'planned'
+            && $session->planned_date->toDateString() >= now()->toDateString();
+    }
+
+    /**
+     * Offene Vorschläge zu Einheiten, die vorbei, erledigt oder ausgelassen
+     * sind, verfallen. Sonst bleiben sie für immer offen (gesehen am
+     * 14.11.2026: ein Vorschlag vom 11.11. stand drei Tage später noch da).
+     */
+    public static function expireStale(): int
+    {
+        return self::query()
+            ->where('status', self::STATUS_PENDING)
+            ->where(fn ($q) => $q
+                ->whereDoesntHave('session')
+                ->orWhereHas('session', fn ($s) => $s
+                    ->whereDate('planned_date', '<', now()->toDateString())
+                    ->orWhere('status', '!=', 'planned')))
+            ->update(['status' => self::STATUS_EXPIRED, 'responded_at' => now()]);
     }
 
     /** Den Vorschlag ablehnen — der Plan bleibt, wie er ist. */

@@ -141,8 +141,18 @@ class RecommendForWellbeingJob implements ShouldQueue
      */
     private function sameInSubstance(array $before, array $after): bool
     {
-        foreach (['type', 'intensity', 'zone'] as $field) {
-            if (($after[$field] ?? null) != ($before[$field] ?? null)) {
+        // Was das Modell nicht nennt, ändert es nicht. Und eine Zone hat nur
+        // ein Lauf: „Zone 1“ an einer Krafteinheit war eine Karte ohne Inhalt.
+        $fields = ['type', 'intensity'];
+        if (in_array($after['type'] ?? $before['type'] ?? null, TrainingSession::RUN_TYPES, true)) {
+            $fields[] = 'zone';
+        }
+
+        foreach ($fields as $field) {
+            if (($after[$field] ?? null) === null) {
+                continue;
+            }
+            if ($after[$field] != ($before[$field] ?? null)) {
                 return false;
             }
         }

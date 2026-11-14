@@ -253,6 +253,7 @@ Seit 25.10.2026 heißt der tägliche Check-in in allem, was ein Mensch liest, **
 - **Declining** leaves the plan untouched and closes the recommendation.
 - **No card when nothing really changes.** The model rewrites the description almost every time; comparing only type, intensity, zone and the numbers (5 % tolerance) keeps a daily "nothing to see here" card off the dashboard. A warning that always shows is one nobody reads.
 - A second check-in the same day **expires** the open recommendation — two open decisions cannot both be answered.
+- **Vorbei ist vorbei** (seit 14.11.2026): `accept()` wendet nur auf eine geplante Einheit ab heute an, sonst verfällt der Vorschlag (ein alter Telegram-Knopf schrieb sonst eine vergangene Einheit um). `recommendations:expire` um 00:10 lässt offene Vorschläge zu vergangenen, erledigten oder gelöschten Einheiten verfallen. Im Vergleich zählt ein Feld, das das Modell nicht nennt, nicht als Änderung, und die Zone nur bei Läufen.
 
 **Kein Garmin-Abruf mehr beim Speichern.** Der lief über den alten Login und ist mit ihm weggefallen (Schritt 6). Die Werte kommen per Push, sobald die Uhr synchronisiert; wer vorher eincheckt, bekommt den Vorschlag auf dem Stand, der da ist.
 
@@ -1106,7 +1107,7 @@ Jan: „Kann ich im Admin sehen, wer die App oder die normale Seite nutzt?“ Am
 
 ### `/diagnose/*` — lesender Zugang für Claude (seit 14.11.2026)
 
-Jan: „Ein Diagnose-Endpunkt für dich wäre nice.“ Nur GET mit `Authorization: Bearer <DIAGNOSE_TOKEN>` (`DiagnoseToken`, mindestens 32 Zeichen; ohne oder mit falschem Token 404, jeder Abruf steht im Log als „Diagnose-Abruf“). Feste Berichte statt freier Abfragen, kein Modellaufruf: `system` (Systemseite als JSON, samt Live Activities), `logs?q=&level=&limit=`, `users` (ID, Vorname, Quelle, aktiver Plan), `users/{id}?day=&back=&ahead=&full=1` (Profil, Plan mit Overrides, Einheiten, Widget-Einträge, Tagesvorschlag, Live-Activity-Zustand, Tagesform, Vorschläge, Coach-Nachrichten, Revisionen, KI-Logs; Schritte und Prompts nur mit `full=1`). **Nie** drin: E-Mail, Nachname, Passwörter, Tokens. In Coolify `DIAGNOSE_TOKEN` setzen, in der Claude-Umgebung dieselbe Variable; Token neu würfeln = alter Zugang tot.
+Jan: „Ein Diagnose-Endpunkt für dich wäre nice.“ Nur GET mit `Authorization: Bearer <DIAGNOSE_TOKEN>` (`DiagnoseToken`, mindestens 32 Zeichen; ohne oder mit falschem Token 404, jeder Abruf steht im Log als „Diagnose-Abruf“). Feste Berichte statt freier Abfragen, kein Modellaufruf: `system` (Systemseite als JSON, samt Live Activities), `logs?q=&level=&limit=`, `users` (ID, Vorname, Quelle, aktiver Plan), `users/{id}?day=&back=&ahead=&full=1` (Profil, Plan mit Overrides, Einheiten, Widget-Einträge, Tagesvorschlag, Live-Activity-Zustand, Tagesform, Vorschläge, Coach-Nachrichten, Revisionen, KI-Logs; Schritte und Prompts nur mit `full=1`). **Nie** drin: E-Mail, Nachname (auch `system` ersetzt volle Namen durch Vornamen, die Admin-Systemseite nicht), Passwörter, Tokens. In Coolify `DIAGNOSE_TOKEN` setzen, in der Claude-Umgebung dieselbe Variable; Token neu würfeln = alter Zugang tot.
 
 ### Impersonation — `Als … ansehen`
 
@@ -1154,7 +1155,7 @@ The rest of the admin answers "how is the product doing": users, activities, AI 
 - **Environment** — PHP, Laravel, drivers, DB size, both models, and whether debug is on.
 - **WHOOP- und Polar-Webhook** (seit 14.11.2026) — die letzten 15 Aufrufe aus `whoop_webhook_events` / `polar_webhook_events` mit Athlet (über die Verbindung aufgelöst) und Ergebnis auf Deutsch (`SystemHealth::providerWebhooks()`). Antwort auf „kommt da überhaupt etwas an?“.
 
-"Mit Ruhetagen schliessen" fills a plan's gaps **without an AI call** — cheap and honest. Real repair with real sessions is a regeneration.
+"Mit Ruhetagen schliessen" fills a plan's gaps **without an AI call** — cheap and honest. Gaps count from `plan_start_date` (`SystemHealth::holes()`, one definition for the page, the athlete view and the fill button): a pinned session weeks before a later plan start is no gap. Real repair with real sessions is a regeneration.
 
 `information_schema` is queried only when the driver is MySQL; under SQLite the tests would otherwise error rather than return nothing.
 

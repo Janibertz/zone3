@@ -31,7 +31,9 @@ class DiagnoseController extends Controller
 {
     public function system(SystemHealth $health, Watchdog $watchdog): JsonResponse
     {
-        return response()->json([
+        // Die Systemseite im Admin zeigt volle Namen; hier gelten nur
+        // Vornamen, wie in allen anderen Berichten.
+        return response()->json(self::firstNamesOnly([
             'now'            => now()->toIso8601String(),
             'summary'        => $health->summary(),
             'queues'         => $health->queues(),
@@ -41,7 +43,28 @@ class DiagnoseController extends Controller
             'watchdog'       => $watchdog->findings(),
             'live_activities'=> $health->liveActivities(),
             'strava_webhook' => $health->webhookHits(),
-        ]);
+        ]));
+    }
+
+    /** Jeden vollen Namen eines Kontos im Bericht durch den Vornamen ersetzen. */
+    private static function firstNamesOnly(array $report): array
+    {
+        $names = User::query()->whereNotNull('name')->get()
+            ->mapWithKeys(fn (User $u) => [(string) $u->name => self::firstName($u)])
+            ->filter(fn ($first, $full) => $first !== $full)
+            ->all();
+
+        if ($names === []) {
+            return $report;
+        }
+
+        array_walk_recursive($report, function (&$value) use ($names) {
+            if (is_string($value) && isset($names[$value])) {
+                $value = $names[$value];
+            }
+        });
+
+        return $report;
     }
 
     public function logs(Request $request, LogReader $reader): JsonResponse

@@ -217,6 +217,33 @@ class AdminSystemTest extends TestCase
         $this->assertContains(now()->addDays(2)->toDateString(), $gaps['dates']);
     }
 
+    /**
+     * Vor dem Planstart steht absichtlich nichts. Eine gepinnte Einheit
+     * davor (Coach, eingeplantes Workout) machte die Wochen bis zum Start
+     * zur „Lücke“ — gesehen am 14.11.2026 bei einem Plan ab 30.11.
+     */
+    public function test_days_before_the_plan_start_are_no_gap(): void
+    {
+        [$user, $plan] = $this->athleteWithPlan();
+        $plan->event->update(['plan_start_date' => now()->addDays(10)->toDateString()]);
+
+        $this->unit($user, $plan, now()->addDay()->toDateString());
+        foreach ([10, 11, 12] as $offset) {
+            $this->unit($user, $plan, now()->addDays($offset)->toDateString());
+        }
+
+        $props = $this->actingAs($this->admin())->get('/admin/system')->viewData('page')['props'];
+        $this->assertNull(collect($props['planHealth']['gaps'])->firstWhere('user_id', $user->id));
+        $this->assertSame([], app(SystemHealth::class)->forUser($user)['gaps']);
+
+        $this->post("/admin/system/plan-gaps/{$user->id}");
+        $this->assertSame(0, \App\Models\TrainingSession::where('user_id', $user->id)->where('type', 'rest')->count());
+
+        // Eine echte Lücke nach dem Start fällt weiter auf.
+        $this->unit($user, $plan, now()->addDays(14)->toDateString());
+        $this->assertSame([now()->addDays(13)->toDateString()], app(SystemHealth::class)->forUser($user)['gaps']);
+    }
+
     public function test_a_plan_without_holes_is_not_reported(): void
     {
         [$user, $plan] = $this->athleteWithPlan();

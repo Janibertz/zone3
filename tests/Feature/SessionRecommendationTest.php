@@ -291,4 +291,66 @@ class SessionRecommendationTest extends TestCase
             'Es darf nur eine offene Entscheidung geben',
         );
     }
+
+    /**
+     * Gesehen am 14.11.2026: eine Karte an einer Krafteinheit, deren einziger
+     * Unterschied „Zone – → 1“ war. Eine Zone hat nur ein Lauf.
+     */
+    public function test_a_zone_on_strength_is_no_change(): void
+    {
+        [$user, $session] = $this->athleteWithSession();
+        $session->update(['type' => 'strength', 'title' => 'Kraft', 'distance_km' => null, 'duration_min' => 30,
+            'pace_target' => null, 'zone' => null, 'intensity' => 'moderate']);
+
+        $wellbeing = WellbeingEntry::create([
+            'user_id' => $user->id, 'date' => now()->toDateString(),
+            'energy_level' => 7, 'mood' => 7, 'sleep_quality' => 7,
+            'muscle_soreness' => 3, 'stress_level' => 3,
+        ]);
+
+        $this->coachAnswers([
+            'reason' => 'Passt.', 'type' => 'strength', 'title' => 'Kraft', 'description' => 'Wie geplant.',
+            'distance_km' => 0, 'duration_min' => 30, 'pace_target' => null, 'zone' => 1, 'intensity' => 'moderate',
+        ]);
+
+        (new RecommendForWellbeingJob($user->id, $wellbeing->id))
+            ->handle(app(SessionContentService::class), app(GarminHealthSummary::class));
+
+        $this->assertSame(0, SessionRecommendation::count());
+    }
+
+    /** Ein alter Telegram-Knopf darf keine vergangene Einheit umschreiben. */
+    public function test_a_recommendation_for_a_past_day_expires_instead_of_applying(): void
+    {
+        [$user, $session] = $this->athleteWithSession();
+        $recommendation = $this->recommendation($user, $session);
+        $session->update(['planned_date' => now()->subDays(3)->toDateString()]);
+
+        $this->assertFalse($recommendation->fresh()->accept());
+        $this->assertSame('expired', $recommendation->fresh()->status);
+        $this->assertSame('interval', $session->fresh()->type);
+    }
+
+    public function test_stale_recommendations_expire_overnight(): void
+    {
+        [$user, $session] = $this->athleteWithSession();
+        $today = $this->recommendation($user, $session);
+
+        $past = $session->replicate();
+        $past->planned_date = now()->subDays(3)->toDateString();
+        $past->save();
+        $old = $this->recommendation($user, $past);
+
+        $done = $session->replicate();
+        $done->planned_date = now()->addDay()->toDateString();
+        $done->status = 'completed';
+        $done->save();
+        $completed = $this->recommendation($user, $done);
+
+        $this->artisan('recommendations:expire')->assertSuccessful();
+
+        $this->assertSame('pending', $today->fresh()->status);
+        $this->assertSame('expired', $old->fresh()->status);
+        $this->assertSame('expired', $completed->fresh()->status);
+    }
 }

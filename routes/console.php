@@ -42,6 +42,9 @@ Schedule::command('plan:write-week')->weeklyOn(0, '19:00');
 // damit plan:auto-update um 05:00 die Luecke sieht.
 Schedule::command('plan:roll-blocks')->dailyAt('00:05');
 
+// Vorschläge zu gestrigen Einheiten verfallen, sonst bleiben sie offen.
+Schedule::command('recommendations:expire')->dailyAt('00:10');
+
 // Every day at 05:00: detect plan gaps and queue regeneration for athletes with upcoming races
 Schedule::command('plan:auto-update')->dailyAt('05:00');
 

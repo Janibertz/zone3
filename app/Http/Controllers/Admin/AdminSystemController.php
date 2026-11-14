@@ -131,17 +131,10 @@ class AdminSystemController extends Controller
             return back()->with('error', 'Zu wenige Einheiten, um eine Lücke zu erkennen.');
         }
 
-        $have   = $dates->flip();
-        $cursor = Carbon::parse($dates->first());
-        $last   = Carbon::parse($dates->last());
+        // Dieselben Lücken wie auf der Systemseite, also erst ab dem Planstart.
         $filled = 0;
 
-        for (; $cursor->lte($last); $cursor->addDay()) {
-            $key = $cursor->format('Y-m-d');
-            if (isset($have[$key])) {
-                continue;
-            }
-
+        foreach (\App\Services\SystemHealth::holes($dates, $plan->event?->plan_start_date?->format('Y-m-d')) as $key) {
             TrainingSession::create([
                 'user_id'          => $user->id,
                 'training_plan_id' => $plan->id,

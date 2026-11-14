@@ -28,7 +28,7 @@ class SessionRecommendationController extends Controller
         }
 
         if (! $recommendation->accept()) {
-            return $this->done($request, $recommendation, 'Die Einheit gibt es nicht mehr.', 'error');
+            return $this->done($request, $recommendation, 'Der Vorschlag ist überholt — die Einheit ist vorbei oder gibt es nicht mehr.', 'error');
         }
 
         return $this->done($request, $recommendation, 'Die Einheit wurde angepasst.');

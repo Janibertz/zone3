@@ -49,4 +49,30 @@ class DiagnoseEndpointTest extends TestCase
             ->assertJsonStructure(['profile', 'sessions', 'widget_items', 'live_activity' => ['state', 'start_at', 'rows'], 'coach_messages', 'ai_logs']);
         $this->assertStringNotContainsString('erika@example.com', $one->getContent());
     }
+
+    /** Die Systemseite trägt volle Namen (Plan-Lücken, Live Activities, Webhooks) — der Bericht nicht. */
+    public function test_the_system_report_names_athletes_by_first_name_only(): void
+    {
+        config(['services.diagnose.token' => self::TOKEN]);
+        $user  = User::factory()->onboarded()->create(['name' => 'Erika Muster']);
+        $event = \App\Models\Event::create([
+            'user_id' => $user->id, 'name' => 'HM', 'event_date' => now()->addDays(60),
+            'race_distance' => 'half_marathon', 'priority' => 'A',
+        ]);
+        $plan = \App\Models\TrainingPlan::create(['user_id' => $user->id, 'event_id' => $event->id, 'sessions' => []]);
+        $plan->forceFill(['is_active' => true])->save();
+        foreach ([1, 4] as $offset) {
+            \App\Models\TrainingSession::create([
+                'user_id' => $user->id, 'training_plan_id' => $plan->id, 'event_id' => $event->id,
+                'planned_date' => now()->addDays($offset)->toDateString(), 'type' => 'easy_run',
+                'title' => 'Locker', 'status' => 'planned', 'intensity' => 'easy',
+            ]);
+        }
+
+        $report = $this->getJson('/diagnose/system', ['Authorization' => 'Bearer ' . self::TOKEN])->assertOk();
+
+        $this->assertNotEmpty($report->json('plan_health.gaps'), 'Vorbedingung: die Lücke steht im Bericht');
+        $this->assertStringContainsString('Erika', $report->getContent());
+        $this->assertStringNotContainsString('Muster', $report->getContent());
+    }
 }
