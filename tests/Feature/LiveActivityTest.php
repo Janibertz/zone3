@@ -280,7 +280,11 @@ class LiveActivityTest extends TestCase
 
         $service->tick();
         $pushes = $this->livePushes();
-        $this->assertSame('end', end($pushes)->data()['aps']['event']);
+        $aps = end($pushes)->data()['aps'];
+        $this->assertSame('end', $aps['event']);
+        // Ohne content-state verwirft iOS das Ende still.
+        $this->assertSame(['done', 'label', 'name', 'accent', 'zone', 'title', 'metrics', 'band', 'foot', 'url'], array_keys($aps['content-state']));
+        $this->assertSame('Ruhetag', $aps['content-state']['name']);
         $this->assertNotNull(LiveActivity::first()->ended_at);
     }
 

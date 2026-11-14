@@ -349,10 +349,15 @@ class LiveActivityService
 
     private function end(LiveActivity $activity, ?array $state, CarbonImmutable $dismissAt): bool
     {
-        $aps = ['event' => 'end', 'dismissal-date' => $dismissAt->timestamp];
-        if ($state) {
-            $aps['content-state'] = $state;
-        }
+        // Immer mit `content-state`: iOS dekodiert ihn auch beim Ende, und
+        // ohne ihn verwirft das Gerät den Push still, während Apple 200
+        // antwortet (14.11.2026: Ruhetag vom Coach, Ende um 07:40 „zugestellt“,
+        // die Activity blieb auf Sperrbildschirm und Insel stehen).
+        $aps = [
+            'event'          => 'end',
+            'dismissal-date' => $dismissAt->timestamp,
+            'content-state'  => $state ?? $this->closingState(),
+        ];
 
         $result = $this->apns->liveActivity($activity->push_token, $aps);
         $this->remember($activity, 'end', now()->toImmutable());
@@ -369,6 +374,23 @@ class LiveActivityService
         ])->save();
 
         return true;
+    }
+
+    /** Der letzte Stand, wenn heute nichts mehr ansteht (Ruhetag, alles gestrichen). */
+    private function closingState(): array
+    {
+        return [
+            'done'    => false,
+            'label'   => 'Ruhe',
+            'name'    => 'Ruhetag',
+            'accent'  => 'neutral',
+            'zone'    => null,
+            'title'   => 'Heute steht nichts mehr an',
+            'metrics' => [],
+            'band'    => [],
+            'foot'    => null,
+            'url'     => rtrim(config('app.url'), '/') . '/dashboard',
+        ];
     }
 
     private function remember(LiveActivity $activity, string $event, CarbonImmutable $at): void
