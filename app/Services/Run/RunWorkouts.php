@@ -279,6 +279,13 @@ class RunWorkouts
      */
     public static function fresh(array $allowed, array $history, ?string $date): array
     {
+        // Kraft, Rumpf und Mobilität haben keine Lauf-Bausteine. Ohne diese
+        // Zeile griff der Rückfall unten auf $allowed[0] einer leeren Liste,
+        // und die ganze Plan-Verlängerung brach ab (14.11.2026, drei Tester).
+        if ($allowed === []) {
+            return [];
+        }
+
         if ($date === null || $history === []) {
             return $allowed;
         }

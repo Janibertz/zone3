@@ -208,4 +208,24 @@ class WorkoutVarietyTest extends TestCase
         $this->assertStringNotContainsString('fahrtspiel_pyramide', $text);
         $this->assertStringNotContainsString('bergintervalle', $text);
     }
+
+    /**
+     * Gemeldet am 14.11.2026 aus dem Log: „Undefined array key 0“ in jeder
+     * Plan-Verlängerung, sobald ein optionaler Kraft- oder Mobility-Slot an
+     * einem offenen Tag lag und schon Workouts gelaufen waren.
+     */
+    public function test_a_slot_without_run_variants_survives_the_rotation(): void
+    {
+        $this->assertSame([], RunWorkouts::fresh([], ['locker' => '2026-11-10'], '2026-11-14'));
+
+        $choices = new \ReflectionMethod(WeeklyPatternService::class, 'workoutChoices');
+        foreach (['strength', 'mobility', 'core'] as $type) {
+            $text = $choices->invoke(app(WeeklyPatternService::class),
+                ['type' => $type, 'optional' => true, 'phase' => 'base'],
+                '2026-11-14',
+                ['hills' => true, 'workout_history' => ['vo2_800' => '2026-11-10']],
+            );
+            $this->assertSame('', $text);
+        }
+    }
 }
