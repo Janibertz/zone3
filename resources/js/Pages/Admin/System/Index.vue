@@ -12,6 +12,7 @@ const props = defineProps({
     environment:  Object,
     summary:      Object,
     webhookHits:  Object,
+    liveActivities: { type: Object, default: () => ({ devices: [], activities: [] }) },
     watchdog:     { type: Array, default: () => [] },
 });
 
@@ -200,6 +201,65 @@ function daysAgo(value) {
                                         {{ h.label }}
                                     </span>
                                     <span v-if="h.note" class="ml-2 text-xs text-ink-3">{{ h.note }}</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ── Live Activities ──────────────────────────────────── -->
+            <div class="bg-surface rounded-card shadow-card">
+                <div class="px-6 py-4 border-b border-line">
+                    <h2 class="text-sm font-semibold text-ink-2">Live Activities</h2>
+                    <p class="text-xs text-ink-3 mt-0.5">
+                        Geräte mit Start-Token und die Activities der letzten sieben Tage, mit Apples Antwort
+                        auf den letzten Push. Steht eine laufende Activity hier nicht, hat die App ihr
+                        Update-Token nie gemeldet — dann kann der Server sie weder ändern noch beenden.
+                    </p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="text-xs text-ink-3 border-b border-line">
+                            <tr>
+                                <th class="px-6 py-2 text-left font-medium">Gerät von</th>
+                                <th class="px-3 py-2 text-left font-medium">Gemeldet</th>
+                                <th class="px-3 py-2 text-left font-medium">Zuletzt gestartet</th>
+                                <th class="px-6 py-2 text-left font-medium">Letzter Push</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line">
+                            <tr v-if="!liveActivities.devices.length"><td colspan="4" class="px-6 py-3 text-ink-3">Kein Gerät gemeldet.</td></tr>
+                            <tr v-for="(d, i) in liveActivities.devices" :key="'d' + i">
+                                <td class="px-6 py-2 text-ink whitespace-nowrap">{{ d.user ?? '—' }}</td>
+                                <td class="px-3 py-2 text-ink-3 whitespace-nowrap">{{ when(d.registered) }}</td>
+                                <td class="px-3 py-2 text-ink-3 whitespace-nowrap">{{ d.started_on ?? '—' }}</td>
+                                <td class="px-6 py-2 text-ink-3 whitespace-nowrap">{{ d.last_result ?? '—' }}<span v-if="d.last_push"> · {{ when(d.last_push) }}</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="overflow-x-auto border-t border-line">
+                    <table class="w-full text-sm">
+                        <thead class="text-xs text-ink-3 border-b border-line">
+                            <tr>
+                                <th class="px-6 py-2 text-left font-medium">Activity von</th>
+                                <th class="px-3 py-2 text-left font-medium">Tag</th>
+                                <th class="px-3 py-2 text-left font-medium">Token gemeldet</th>
+                                <th class="px-3 py-2 text-left font-medium">Beendet</th>
+                                <th class="px-6 py-2 text-left font-medium">Letzter Push</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line">
+                            <tr v-if="!liveActivities.activities.length"><td colspan="5" class="px-6 py-3 text-ink-3">Keine Activity mit Update-Token.</td></tr>
+                            <tr v-for="(a, i) in liveActivities.activities" :key="'a' + i">
+                                <td class="px-6 py-2 text-ink whitespace-nowrap">{{ a.user ?? '—' }}</td>
+                                <td class="px-3 py-2 text-ink-3 whitespace-nowrap">{{ a.day }}</td>
+                                <td class="px-3 py-2 text-ink-3 whitespace-nowrap">{{ when(a.registered) }}</td>
+                                <td class="px-3 py-2 text-ink-3 whitespace-nowrap">{{ a.ended ? when(a.ended) : 'läuft' }}</td>
+                                <td class="px-6 py-2 text-ink-3 whitespace-nowrap">
+                                    <template v-if="a.last_event">{{ a.last_event }}: {{ a.last_result ?? '—' }} · {{ when(a.last_push) }}</template>
+                                    <template v-else>—</template>
                                 </td>
                             </tr>
                         </tbody>

@@ -44,6 +44,7 @@ class AdminSystemController extends Controller
             // Dasselbe Urteil wie auf der Uebersicht — nicht ein zweites.
             'summary'      => $this->health->summary(),
             'webhookHits'  => $this->health->webhookHits(),
+            'liveActivities' => $this->health->liveActivities(),
             // Dieselben Befunde, die `perf:watch` nachts per Push schickt.
             // `findings()` ist ohne Nebenwirkung: es schreibt keine
             // Abklingzeit fort, ein Seitenaufruf verbraucht also keine

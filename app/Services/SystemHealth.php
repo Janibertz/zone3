@@ -420,6 +420,44 @@ class SystemHealth
      *
      * @return array<string, mixed>
      */
+    /**
+     * Live Activities der letzten sieben Tage und die gemeldeten Geräte, mit
+     * Apples Antwort auf den letzten Push. Fehlt eine Activity hier, hat die
+     * App ihr Update-Token nie gemeldet, und der Server kann sie nicht
+     * beenden.
+     */
+    public function liveActivities(): array
+    {
+        if (! Schema::hasTable('live_activities') || ! Schema::hasColumn('live_activities', 'last_result')) {
+            return ['devices' => [], 'activities' => []];
+        }
+
+        $at = fn ($v) => $v ? \Illuminate\Support\Carbon::parse($v)->toIso8601String() : null;
+
+        return [
+            'devices' => \App\Models\LiveActivityDevice::with('user:id,name')->latest('updated_at')->limit(20)->get()
+                ->map(fn ($d) => [
+                    'user'        => $d->user?->name,
+                    'registered'  => $at($d->created_at),
+                    'started_on'  => $d->started_on ? \Illuminate\Support\Carbon::parse($d->started_on)->toDateString() : null,
+                    'last_result' => $d->last_result,
+                    'last_push'   => $at($d->last_push_at),
+                ])->all(),
+            'activities' => \App\Models\LiveActivity::with('user:id,name')
+                ->whereDate('day', '>=', now()->subDays(7)->toDateString())
+                ->latest('id')->limit(30)->get()
+                ->map(fn ($a) => [
+                    'user'        => $a->user?->name,
+                    'day'         => \Illuminate\Support\Carbon::parse($a->day)->toDateString(),
+                    'registered'  => $at($a->created_at),
+                    'ended'       => $at($a->ended_at),
+                    'last_event'  => $a->last_event,
+                    'last_result' => $a->last_result,
+                    'last_push'   => $at($a->last_push_at),
+                ])->all(),
+        ];
+    }
+
     public function webhookHits(int $limit = 15): array
     {
         if (! Schema::hasTable('strava_webhook_events')) {

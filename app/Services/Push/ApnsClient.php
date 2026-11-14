@@ -25,6 +25,9 @@ class ApnsClient
     /** Gründe, bei denen das Token nie wieder funktioniert. */
     private const GONE_REASONS = ['BadDeviceToken', 'Unregistered', 'DeviceTokenNotForTopic'];
 
+    /** Antwort auf den letzten Versand („sent“, „410 Unregistered“ …) — für die Systemseite. */
+    public ?string $lastReason = null;
+
     public function configured(): bool
     {
         return filled(config('services.apns.key_id'))
@@ -60,7 +63,9 @@ class ApnsClient
     /** @param  array<string, mixed>  $payload */
     private function post(string $deviceToken, array $payload, string $pushType, string $topic): string
     {
+        $this->lastReason = null;
         if (! $this->configured()) {
+            $this->lastReason = 'nicht eingerichtet';
             return self::ERROR;
         }
 
@@ -80,16 +85,20 @@ class ApnsClient
                 ->post("{$host}/3/device/{$deviceToken}", $payload);
         } catch (\Throwable $e) {
             Log::warning('APNs: Versand fehlgeschlagen', ['error' => $e->getMessage(), 'type' => $pushType]);
+            $this->lastReason = mb_substr('Netz: ' . $e->getMessage(), 0, 80);
             return self::ERROR;
         }
 
         if ($response->successful()) {
+            $this->lastReason = 'sent';
             return self::SENT;
         }
 
         $reason = $response->json('reason');
+        $this->lastReason = mb_substr(trim($response->status() . ' ' . $reason), 0, 80);
 
         if ($response->status() === 410 || in_array($reason, self::GONE_REASONS, true)) {
+            Log::info('APNs: Token ungültig', ['status' => $response->status(), 'reason' => $reason, 'type' => $pushType]);
             return self::GONE;
         }
 

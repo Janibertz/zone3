@@ -242,11 +242,14 @@ class LiveActivityService
                     ],
                 ]);
 
+                $device->forceFill(['last_result' => 'start: ' . $this->apns->lastReason, 'last_push_at' => $now]);
                 if ($result === ApnsClient::GONE) {
                     $device->delete();
                 } elseif ($result === ApnsClient::SENT) {
                     $device->forceFill(['started_on' => $today->toDateString()])->save();
                     $count++;
+                } else {
+                    $device->save();
                 }
             }
         }
@@ -316,11 +319,14 @@ class LiveActivityService
                 'content-state' => $state,
                 'stale-date'    => $now->addHours(8)->timestamp,
             ]);
+            $this->remember($activity, 'update', $now);
             if ($result === ApnsClient::GONE) {
                 $activity->forceFill(['ended_at' => $now])->save();
             } elseif ($result === ApnsClient::SENT) {
                 $activity->forceFill(['state_hash' => $hash])->save();
                 $updated++;
+            } else {
+                $activity->save();
             }
         }
 
@@ -349,8 +355,10 @@ class LiveActivityService
         }
 
         $result = $this->apns->liveActivity($activity->push_token, $aps);
+        $this->remember($activity, 'end', now()->toImmutable());
 
         if ($result === ApnsClient::ERROR) {
+            $activity->save();
             Log::info('Live Activity: Ende nicht zugestellt, nächster Versuch', ['activity' => $activity->id]);
             return false;
         }
@@ -361,6 +369,15 @@ class LiveActivityService
         ])->save();
 
         return true;
+    }
+
+    private function remember(LiveActivity $activity, string $event, CarbonImmutable $at): void
+    {
+        $activity->forceFill([
+            'last_event'   => $event,
+            'last_result'  => $this->apns->lastReason,
+            'last_push_at' => $at,
+        ]);
     }
 
     /** @param  array<string, mixed>  $item */
