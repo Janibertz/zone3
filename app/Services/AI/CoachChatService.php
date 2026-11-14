@@ -168,7 +168,7 @@ class CoachChatService
                 $ctx[] = "HEUTIGES TRAINING{$s}:\n  {$d}{$desc}";
             }
         } else {
-            $ctx[] = "HEUTIGES TRAINING: Kein Training geplant.";
+            $ctx[] = $this->noSessionTodayLine($user, $today);
         }
 
         if ($upcomingSessions->isNotEmpty()) {
@@ -325,7 +325,7 @@ class CoachChatService
                 }
             }
         } else {
-            $ctx[] = "HEUTIGES TRAINING: Kein Training geplant.";
+            $ctx[] = $this->noSessionTodayLine($user, $today);
         }
 
         if ($upcoming->isNotEmpty()) {
@@ -656,6 +656,32 @@ class CoachChatService
     /** Execute a single coach tool call. Returns ['message', 'action']. */
 
     /** Ersatztitel, wenn das Modell keinen mitgibt. */
+    /**
+     * Ohne Einheit heute zeigt „Heute“ (und Widget, Live Activity) oft den
+     * Tagesvorschlag — vor dem Planstart oder ganz ohne Plan. Stand hier nur
+     * „Kein Training geplant“, hielt der Coach „heute Ruhetag“ für schon
+     * erledigt, bestätigte es und rief kein Werkzeug auf; der Vorschlag blieb
+     * stehen (Jan, 14.11.2026).
+     */
+    private function noSessionTodayLine(\App\Models\User $user, string $today): string
+    {
+        $profile = $user->runnerProfile;
+        $rec = ($profile && (string) $profile->recommendation_date === $today && $profile->today_recommendation)
+            ? json_decode($profile->today_recommendation, true)
+            : null;
+
+        if (! is_array($rec) || ($rec['type'] ?? 'rest') === 'rest') {
+            return "HEUTIGES TRAINING: Kein Training geplant.";
+        }
+
+        $d = "Typ:{$rec['type']}, Titel:\"" . ($rec['title'] ?? '') . "\"";
+        if (! empty($rec['distance_km']))  $d .= ", {$rec['distance_km']}km";
+        if (! empty($rec['duration_min'])) $d .= ", {$rec['duration_min']}min";
+
+        return "HEUTIGES TRAINING: keine Einheit im Plan, aber der Athlet sieht auf „Heute“, im Widget und auf dem Sperrbildschirm diesen Tagesvorschlag:\n  {$d}\n"
+            . "  Will er heute Ruhe (oder etwas anderes), reicht eine Bestätigung im Text NICHT: lege die Einheit für heute mit create_training_session an (für Ruhe type=\"rest\"). Sie ersetzt den Vorschlag überall.";
+    }
+
     private function sessionTitleFor(string $type): string
     {
         return [

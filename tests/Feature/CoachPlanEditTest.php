@@ -321,6 +321,29 @@ class CoachPlanEditTest extends TestCase
     }
 
     /** Jan, 13.11.2026: „6 bis 6:30" bestätigt, aber die Abschnitte blieben bei 4:49–5:46. */
+    public function test_before_the_plan_starts_the_coach_sees_the_daily_suggestion_and_a_rest_day_replaces_it(): void
+    {
+        [$user, $plan] = $this->athlete();
+        $today = now()->toDateString();
+        \App\Models\RunnerProfile::create([
+            'user_id' => $user->id,
+            'recommendation_date' => $today,
+            'today_recommendation' => json_encode(['type' => 'easy_run', 'title' => 'Lockerer Erhalt-Lauf', 'distance_km' => 5.7, 'duration_min' => 30]),
+        ]);
+
+        $line = new \ReflectionMethod(CoachChatService::class, 'noSessionTodayLine');
+        $line->setAccessible(true);
+        $text = $line->invoke(app(CoachChatService::class), $user->fresh(), $today);
+        $this->assertStringContainsString('Lockerer Erhalt-Lauf', $text);
+        $this->assertStringContainsString('type="rest"', $text);
+
+        $this->runTool($user, 'create_training_session', ['date' => $today, 'type' => 'rest']);
+
+        $state = app(\App\Services\LiveActivity\LiveActivityService::class)->state($user->fresh(), \Carbon\CarbonImmutable::today());
+        $this->assertNull($state);
+        $this->assertTrue(TrainingSession::where('user_id', $user->id)->whereDate('planned_date', $today)->where('type', 'rest')->exists());
+    }
+
     public function test_an_easy_pace_wish_reaches_the_steps(): void
     {
         [$user, $plan] = $this->athlete();
