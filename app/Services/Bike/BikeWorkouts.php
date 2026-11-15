@@ -60,7 +60,7 @@ class BikeWorkouts
         return [
             'title'       => 'Rad locker',
             'description' => "Gleichmäßig im Grundlagenbereich, {$this->pct(self::EASY_LOW)}–{$this->pct(self::EASY_HIGH)} % FTP. "
-                . 'Ersetzt einen lockeren Lauf und schont dabei die Beine — nicht schneller fahren, nur weil es sich leicht anfühlt.',
+                . 'Lockere Grundlage, die die Laufbeine schont — nicht schneller fahren, nur weil es sich leicht anfühlt.',
             'intensity'   => 'low',
             'steps'       => [
                 $this->step('warmup', 'Einfahren', 10, 0.50, 0.65),

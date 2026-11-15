@@ -133,7 +133,7 @@ class IntervalsActivityImporter
     }
 
     /**
-     * Zwift oder wenigstens eine Indoor-Radfahrt. intervals.icu nennt die
+     * Zwift, ROUVY, MyWhoosh oder wenigstens eine Indoor-Radfahrt. intervals.icu nennt die
      * Herkunft nicht einheitlich, darum mehrere Merkmale. Was von Strava kam,
      * liefert die API ohnehin nicht.
      */
@@ -147,7 +147,7 @@ class IntervalsActivityImporter
             $activity['source'] ?? '', $activity['device_name'] ?? '', $activity['external_id'] ?? '', $activity['name'] ?? '',
         ]));
 
-        return ($activity['type'] ?? null) === 'VirtualRide' || str_contains($marks, 'zwift');
+        return ($activity['type'] ?? null) === 'VirtualRide' || (bool) preg_match('/zwift|rouvy|whoosh/', $marks);
     }
 
     private function import(User $user, array $activity): string

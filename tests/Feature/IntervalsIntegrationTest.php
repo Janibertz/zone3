@@ -235,6 +235,8 @@ class IntervalsIntegrationTest extends TestCase
     {
         $this->assertTrue(IntervalsActivityImporter::isZwift(['type' => 'VirtualRide']));
         $this->assertTrue(IntervalsActivityImporter::isZwift(['type' => 'Ride', 'device_name' => 'Zwift']));
+        $this->assertTrue(IntervalsActivityImporter::isZwift(['type' => 'Ride', 'device_name' => 'ROUVY']));
+        $this->assertTrue(IntervalsActivityImporter::isZwift(['type' => 'Ride', 'name' => 'MyWhoosh - Tempus Fugit']));
         $this->assertFalse(IntervalsActivityImporter::isZwift(['type' => 'Run', 'device_name' => 'Garmin Enduro 3']));
         $this->assertFalse(IntervalsActivityImporter::isZwift(['type' => 'Ride', 'device_name' => 'Garmin Edge']));
         $this->assertFalse(IntervalsActivityImporter::isZwift(['type' => 'VirtualRide', 'source' => 'STRAVA']));

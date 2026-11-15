@@ -1472,7 +1472,7 @@ async function resetLayout() {
                                 </button>
                                 <span v-if="heroSession.zwo_url && heroSession.status === 'planned' && $page.props.auth.zwiftSync"
                                     class="inline-flex h-11 items-center rounded-full bg-white/20 px-4 text-[15px] font-semibold text-white backdrop-blur-md">
-                                    Kommt in Zwift
+                                    Kommt in deine Rad-App
                                 </span>
                                 <a v-else-if="heroSession.zwo_url && heroSession.status === 'planned'" :href="heroSession.zwo_url" download
                                     class="inline-flex h-11 items-center rounded-full bg-white/20 px-5 text-[15px] font-semibold text-white backdrop-blur-md transition active:scale-95">

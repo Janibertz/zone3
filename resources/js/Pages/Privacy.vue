@@ -53,7 +53,7 @@ const empfaenger = [
     {
         name: 'Intervals.icu Ltd',
         ort: 'Vereinigtes Königreich',
-        zweck: 'Nur wenn du intervals.icu verbindest (mit deiner Einwilligung): Übertragung deiner geplanten Radeinheiten der nächsten sieben Tage in deinen intervals.icu-Kalender, damit intervals.icu sie an Zwift weitergibt, und Abruf deiner Zwift-Fahrten (samt Datei mit Leistung und Herzfrequenz). Gesundheitswerte liest Zone3 dort nicht. Für das Vereinigte Königreich gilt ein Angemessenheitsbeschluss der EU-Kommission.',
+        zweck: 'Nur wenn du intervals.icu verbindest (mit deiner Einwilligung): Übertragung deiner geplanten Radeinheiten der nächsten sieben Tage in deinen intervals.icu-Kalender, damit intervals.icu sie an Zwift, ROUVY oder MyWhoosh weitergibt, und Abruf deiner Fahrten aus diesen Apps (samt Datei mit Leistung und Herzfrequenz). Gesundheitswerte liest Zone3 dort nicht. Für das Vereinigte Königreich gilt ein Angemessenheitsbeschluss der EU-Kommission.',
     },
     {
         name: 'OpenAI Ireland Ltd.',
@@ -272,10 +272,10 @@ const empfaenger = [
                     WHOOP freigibst. Beim Trennen widerruft Zone3 den Zugang bei WHOOP und löscht alles, was von WHOOP kam.
                 </p>
                 <p class="mt-3">
-                    intervals.icu nutzt Zone3 nur als Weg zu Zwift. Verbindest du dein intervals.icu-Konto, legt Zone3
+                    intervals.icu nutzt Zone3 nur als Weg zu Zwift, ROUVY und MyWhoosh. Verbindest du dein intervals.icu-Konto, legt Zone3
                     deine geplanten Radeinheiten der nächsten sieben Tage in deinen intervals.icu-Kalender; intervals.icu
-                    gibt sie an Zwift weiter, wenn du dort Zwift verbunden hast. Dabei willigst du ein, dass Zone3 deine
-                    Zwift-Fahrten von intervals.icu liest (Dauer, Strecke, Leistung, Herzfrequenz, Runden) und für Plan,
+                    gibt sie an die App weiter, die du dort verbunden hast. Dabei willigst du ein, dass Zone3 deine
+                    Fahrten aus diesen Apps von intervals.icu liest (Dauer, Strecke, Leistung, Herzfrequenz, Runden) und für Plan,
                     Auswertungen und Coach verwendet und dafür an OpenAI übermittelt (Abschnitt 7). Andere Aktivitäten und
                     Gesundheitswerte (Schlaf, HRV, Gewicht) liest Zone3 dort nicht. Zone3 speichert dafür den Zugang, den
                     du bei intervals.icu freigibst. Beim Trennen nimmt Zone3 die geplanten Radeinheiten aus dem Kalender
@@ -351,7 +351,7 @@ const empfaenger = [
                     widerruft sie und löscht die übernommenen Daten.
                 </p>
                 <p class="mt-3">
-                    Zwift-Fahrten von intervals.icu gehen nur mit der Einwilligung an OpenAI, die du beim Verbinden
+                    Fahrten von intervals.icu gehen nur mit der Einwilligung an OpenAI, die du beim Verbinden
                     erteilst. Trennen unter <strong class="text-ink">Profil → Verbindungen → intervals.icu</strong> widerruft sie.
                 </p>
                 <p class="mt-3">

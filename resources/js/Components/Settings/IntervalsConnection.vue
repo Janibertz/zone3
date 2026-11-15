@@ -48,11 +48,11 @@ function disconnect() {
         <div class="flex min-h-[60px] items-center gap-3 px-4 py-2">
             <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-ink text-canvas text-[13px] font-bold" aria-hidden="true">i</span>
             <span class="min-w-0 flex-1">
-                <span class="block text-[17px] text-ink">intervals.icu <span class="text-ink-3">· für Zwift</span></span>
+                <span class="block text-[17px] text-ink">intervals.icu <span class="text-ink-3">· für Zwift, ROUVY, MyWhoosh</span></span>
                 <span class="block text-[13px] leading-snug" :class="connection?.error ? 'text-danger' : 'text-ink-3'">
                     <template v-if="connection?.error">{{ connection.error }} · bitte trennen und neu verbinden</template>
-                    <template v-else-if="linked">Verbunden · Radeinheiten gehen von selbst nach Zwift</template>
-                    <template v-else>Radeinheiten automatisch in Zwift, Fahrten zurück</template>
+                    <template v-else-if="linked">Verbunden · Radeinheiten gehen von selbst in deine Rad-App</template>
+                    <template v-else>Radeinheiten automatisch in Zwift, ROUVY oder MyWhoosh, Fahrten zurück</template>
                 </span>
             </span>
             <button v-if="linked && allowDisconnect" type="button" :disabled="busy" class="shrink-0 text-[17px] text-danger active:opacity-60 disabled:opacity-40" @click="disconnect">
@@ -63,30 +63,30 @@ function disconnect() {
 
         <div v-if="!linked" class="space-y-3 px-4 pb-3">
             <button type="button" class="text-[15px] text-accent active:opacity-60" @click="showHelp = !showHelp">
-                {{ showHelp ? 'Anleitung ausblenden' : 'So kommen deine Radeinheiten in Zwift' }}
+                {{ showHelp ? 'Anleitung ausblenden' : 'So kommen deine Radeinheiten in Zwift, ROUVY oder MyWhoosh' }}
             </button>
             <ol v-if="showHelp" class="list-decimal space-y-1.5 pl-5 text-[15px] leading-snug text-ink-2">
                 <li>Leg dir ein kostenloses Konto bei <a href="https://intervals.icu" target="_blank" rel="noopener noreferrer" class="text-accent">intervals.icu</a> an.</li>
                 <li>Dort in den Einstellungen Zwift verbinden (oder ROUVY bzw. MyWhoosh) und das Hochladen geplanter Workouts einschalten.</li>
                 <li>Hier mit intervals.icu verbinden.</li>
-                <li>Fertig: Zone3 legt jede Radeinheit sieben Tage voraus in deinen intervals-Kalender, intervals.icu schickt sie nach Zwift. In Zwift stehen sie dann bei den Workouts für den Tag.</li>
+                <li>Fertig: Zone3 legt jede Radeinheit sieben Tage voraus in deinen intervals-Kalender, intervals.icu schickt sie an deine Rad-App. Dort stehen sie dann bei den Workouts für den Tag.</li>
                 <li>Nach der Fahrt kommt sie über intervals.icu zurück und hakt die Einheit ab.</li>
             </ol>
             <label class="flex items-start gap-3 text-[15px] leading-snug text-ink-2">
                 <input v-model="consent" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 rounded-md border-line-strong text-accent focus:ring-accent/40" />
                 <span>
-                    Ich willige ein, dass Zone3 meine Zwift-Fahrten von intervals.icu (Dauer, Strecke, Leistung, Herzfrequenz) für Plan, Auswertungen und Coach an OpenAI übermittelt.
+                    Ich willige ein, dass Zone3 meine Fahrten aus Zwift, ROUVY und MyWhoosh von intervals.icu (Dauer, Strecke, Leistung, Herzfrequenz) für Plan, Auswertungen und Coach an OpenAI übermittelt.
                     Nicht zum Training von KI-Modellen. Widerruf jederzeit durch Trennen.
                     <Link :href="route('privacy')" class="text-accent">Datenschutz</Link>
                 </span>
             </label>
             <AppButton variant="secondary" block :loading="busy" :disabled="!consent" @click="connect">Mit intervals.icu verbinden</AppButton>
             <p v-if="error" class="text-[13px] text-danger">{{ error }}</p>
-            <p class="text-[13px] leading-snug text-ink-3">Zone3 übernimmt von intervals.icu nur Zwift-Fahrten und keine Gesundheitswerte. Läufe kommen weiter über deine Uhr.</p>
+            <p class="text-[13px] leading-snug text-ink-3">Zone3 übernimmt von intervals.icu nur Fahrten aus Zwift, ROUVY und MyWhoosh und keine Gesundheitswerte. Läufe kommen weiter über deine Uhr.</p>
         </div>
 
         <p v-if="linked && allowDisconnect" class="px-4 pb-3 text-[13px] leading-snug text-ink-3">
-            In intervals.icu muss Zwift verbunden sein, sonst kommen die Einheiten dort nicht an. Eine Änderung kurz vor der Fahrt erreicht Zwift nicht immer. Trennen nimmt die geplanten Radeinheiten aus dem Kalender, gefahrene bleiben.
+            In intervals.icu muss deine Rad-App verbunden sein, sonst kommen die Einheiten dort nicht an. Eine Änderung kurz vor der Fahrt erreicht die App nicht immer. Trennen nimmt die geplanten Radeinheiten aus dem Kalender, gefahrene bleiben.
         </p>
         <p v-if="status" class="px-4 py-3 text-[13px]"
             :class="status.type === 'error' ? 'text-danger' : 'text-success-ink'">{{ status.message }}</p>

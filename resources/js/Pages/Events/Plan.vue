@@ -1966,7 +1966,7 @@ const lapHeightPct = computed(() => {
                 <!-- Radeinheit: ein Zwift-Workout statt eines Laufs für die Uhr. -->
                 <div v-else-if="detailSession.zwo_url" class="space-y-2">
                     <p v-if="$page.props.auth.zwiftSync" class="text-center text-[13px] leading-snug text-ink-3">
-                        Kommt über intervals.icu von selbst in Zwift, sieben Tage vorher.
+                        Kommt über intervals.icu von selbst in Zwift, ROUVY oder MyWhoosh, sieben Tage vorher.
                     </p>
                     <AppButton :href="detailSession.zwo_url" external download block :variant="$page.props.auth.zwiftSync ? 'secondary' : 'primary'">
                         Für Zwift herunterladen
