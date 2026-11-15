@@ -51,6 +51,7 @@ class WeekAvailabilityController extends Controller
         }
 
         $overrides = $plan->availability_overrides ?? [];
+        $weekly    = $user->runnerProfile?->weekly_availability ?? [];
 
         foreach ($data['days'] as $day) {
             $date = CarbonImmutable::parse($day['date']);
@@ -61,16 +62,50 @@ class WeekAvailabilityController extends Controller
                 continue;
             }
 
-            $overrides[$day['date']] = [
+            $override = [
                 'available'    => (bool) $day['available'],
                 'duration_min' => $day['available'] ? (int) ($day['duration_min'] ?? 60) : 0,
             ];
+
+            // Das Blatt schickt alle sieben Tage, auch die unveraenderten.
+            // Eine Ausnahme, die dem Raster gleicht, ist keine — und sie
+            // kostet den festen Termin: jede Ausnahme an einem Tag laesst den
+            // Laufclub ausfallen (Gerüst, Uhr, Tagesvorschlag). Gemeldet am
+            // 15.11.2026: „Woche übernehmen" ohne Änderung, und der Dienstag
+            // war die ganze Woche kein Laufclub mehr.
+            if (self::matchesGrid($weekly, $date, $override)) {
+                unset($overrides[$day['date']]);
+            } else {
+                $overrides[$day['date']] = $override;
+            }
         }
 
         $plan->update(['availability_overrides' => $overrides, 'needs_plan_update' => true]);
         $user->runnerProfile?->update(['week_check_week' => self::upcomingWeekKey()]);
 
         return response()->json(['success' => true, 'overrides' => $overrides]);
+    }
+
+    /**
+     * Gleicht der Tag dem Wochenraster? Ohne Raster gibt es nichts zu
+     * vergleichen, dann gilt jede Angabe als Ausnahme.
+     *
+     * @param  array<string, mixed>  $weekly
+     * @param  array{available: bool, duration_min: int}  $override
+     */
+    public static function matchesGrid(array $weekly, CarbonImmutable $date, array $override): bool
+    {
+        $slot = $weekly[strtolower($date->englishDayOfWeek)] ?? null;
+        if (! is_array($slot)) {
+            return false;
+        }
+
+        $available = (bool) ($slot['available'] ?? false);
+        if ($available !== $override['available']) {
+            return false;
+        }
+
+        return ! $available || (int) ($slot['duration_min'] ?? 0) === $override['duration_min'];
     }
 
     /**

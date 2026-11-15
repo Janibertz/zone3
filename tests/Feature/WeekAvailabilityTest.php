@@ -143,4 +143,31 @@ class WeekAvailabilityTest extends TestCase
             'days' => [['date' => '2026-08-18', 'available' => false]],
         ])->assertStatus(422);
     }
+
+    /**
+     * Das Blatt schickt alle sieben Tage. Ein unveraenderter Tag darf keine
+     * Ausnahme werden, sonst faellt der Laufclub die ganze Woche aus.
+     */
+    public function test_unchanged_days_do_not_become_overrides(): void
+    {
+        [$user, $plan] = $this->athleteWithPlan();
+        $user->runnerProfile->update(['weekly_availability' => [
+            'tuesday'  => ['available' => true, 'duration_min' => 60, 'fixed' => ['type' => 'interval', 'label' => 'Laufclub']],
+            'thursday' => ['available' => false, 'duration_min' => 0],
+        ]]);
+        $plan->update(['availability_overrides' => ['2026-08-18' => ['available' => false, 'duration_min' => 0]]]);
+
+        $this->actingAs($user)->postJson(route('week-availability.store'), [
+            'days' => [
+                ['date' => '2026-08-18', 'available' => true, 'duration_min' => 60],
+                ['date' => '2026-08-20', 'available' => false],
+                ['date' => '2026-08-21', 'available' => true, 'duration_min' => 90],
+            ],
+        ])->assertOk();
+
+        $overrides = $plan->refresh()->availability_overrides ?? [];
+        $this->assertArrayNotHasKey('2026-08-18', $overrides);
+        $this->assertArrayNotHasKey('2026-08-20', $overrides);
+        $this->assertSame(90, $overrides['2026-08-21']['duration_min']);
+    }
 }
