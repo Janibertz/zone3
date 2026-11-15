@@ -34,6 +34,19 @@ test.afterEach(async () => {
 /** Sichtbarer Text — Seitenleiste (Desktop) und Tab-Leiste (iPhone) gibt es beide im DOM. */
 const visible = (page, text) => page.getByText(text).filter({ visible: true }).first();
 
+/**
+ * Tippen, bis es wirkt. Auf GitHub und lokal ging gelegentlich ein Tipp direkt
+ * nach dem Laden verloren (die Seite baute sich noch einmal auf) — einmal
+ * klicken hiess dann 30 s warten und rot. Erst wenn `done` stimmt, gilt es.
+ */
+async function tapUntil(page, target, done) {
+    await page.waitForLoadState('networkidle');
+    await expect(async () => {
+        if (!(await done())) await target().click({ timeout: 2_000 });
+        expect(await done()).toBe(true);
+    }).toPass({ timeout: 20_000, intervals: [500, 1_000, 2_000] });
+}
+
 test('Heute zeigt die Einheit des Tages', async ({ page }) => {
     await page.goto('/dashboard');
     await expect(page.getByRole('region', { name: /^Heute:/ })).toBeVisible();
@@ -42,8 +55,8 @@ test('Heute zeigt die Einheit des Tages', async ({ page }) => {
 
 test('Details der Einheit zeigen den Ablauf', async ({ page }) => {
     await page.goto('/dashboard');
-    await page.getByRole('link', { name: 'Details' }).first().click();
-    await page.waitForURL(/\/events\/\d+\/plan/);
+    await tapUntil(page, () => page.getByRole('link', { name: 'Details' }).first(),
+        async () => /\/events\/\d+\/plan/.test(page.url()));
     const sheet = page.getByRole('dialog').filter({ visible: true });
     await expect(sheet.getByText('Ablauf')).toBeVisible();
     await expect(sheet.getByText('Kein Training')).toBeVisible();
@@ -63,21 +76,21 @@ test('Kalender zeigt den Monat', async ({ page }) => {
 
 test('Aktivitäten listen die Läufe und öffnen einen', async ({ page }) => {
     await page.goto('/activities');
-    await visible(page, 'Langer Lauf').click();
-    await page.waitForURL(/\/activities\/\d+/);
+    await tapUntil(page, () => visible(page, 'Langer Lauf'),
+        async () => /\/activities\/\d+/.test(page.url()));
     await expect(visible(page, /16,1/)).toBeVisible();
 });
 
 test('Coach-Chat öffnet mit der Nachricht', async ({ page }) => {
     await page.goto('/dashboard');
-    await page.getByRole('button', { name: /Chat mit/ }).filter({ visible: true }).first().click();
-    await expect(visible(page, /Willkommen im Testkonto/)).toBeVisible();
+    await tapUntil(page, () => page.getByRole('button', { name: /Chat mit/ }).filter({ visible: true }).first(),
+        () => visible(page, /Willkommen im Testkonto/).isVisible());
 });
 
 test('Tagesform öffnet sich', async ({ page }) => {
     await page.goto('/dashboard');
-    await page.getByRole('button', { name: 'Tagesform eintragen' }).filter({ visible: true }).click();
-    await expect(page.getByRole('dialog').filter({ visible: true })).toBeVisible();
+    await tapUntil(page, () => page.getByRole('button', { name: 'Tagesform eintragen' }).filter({ visible: true }),
+        () => page.getByRole('dialog').filter({ visible: true }).first().isVisible());
 });
 
 test('Mehr zeigt die Einstellungen', async ({ page }) => {
