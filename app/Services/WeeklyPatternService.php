@@ -376,15 +376,9 @@ class WeeklyPatternService
             // Fester Termin an diesem Wochentag (Laufclub, Vereinstraining).
             // Er wird nicht geplant, sondern ist gesetzt — das Gerüst legt
             // ihn als Erstes und plant nichts Zweites daneben.
-            $fixed = ($weekly[self::ISO_TO_KEY[$date->isoWeekday()]]['fixed'] ?? null);
-            if ($fixed && ! isset($overrides[$key])) {
-                $fixed = [
-                    'type'  => $fixed['type']  ?? 'interval',
-                    'label' => $fixed['label'] ?? 'Fester Termin',
-                ];
-            } else {
-                $fixed = null;
-            }
+            // Eine Tagesausnahme lässt ihn nur ausfallen, wenn sie den Tag
+            // sperrt (FixedAppointment) — eine andere Dauer nicht.
+            $fixed = \App\Services\Plan\FixedAppointment::on($weekly ?? [], $overrides, $date);
 
             // Ein Rennen ist der festeste aller Termine.
             //

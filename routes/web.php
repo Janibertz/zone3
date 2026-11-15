@@ -754,6 +754,12 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
             'steps'        => $s->steps,
         ])->toArray();
 
+        // Feste Termine (Laufclub), die noch kein Plan trägt — ohne Plan
+        // oder vor dem Planstart. Acht Wochen voraus reichen fürs Raster.
+        $trainingSessions = array_merge($trainingSessions, \App\Services\Plan\FixedAppointment::unplanned(
+            $user, \Carbon\CarbonImmutable::today(), \Carbon\CarbonImmutable::today()->addWeeks(8),
+        ));
+
         return Inertia::render('Calendar', [
             'activities' => Activity::where('user_id', $user->id)->orderByDesc('start_date')->get(Activity::SUMMARY_COLUMNS),
             'events'     => $user->events()->orderBy('event_date')->get()->map(fn($e) => [

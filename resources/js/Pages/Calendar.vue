@@ -348,7 +348,7 @@ const LEGEND = [
                                 @contextmenu="canChange(s) && $event.preventDefault()"
                                 @click="openSession(s)">
                                 <SessionCard :session="s"
-                                    :badge="s.status === 'completed' ? 'Erledigt' : s.status === 'skipped' ? 'Ausgelassen' : null"
+                                    :badge="s.status === 'completed' ? 'Erledigt' : s.status === 'skipped' ? 'Ausgelassen' : s.status === 'appointment' ? 'Fester Termin' : null"
                                     :badge-tone="s.status === 'completed' ? 'success' : 'neutral'" />
                                 <button v-if="finePointer && canChange(s)" type="button"
                                     :aria-label="`${s.title} löschen`" title="Löschen"

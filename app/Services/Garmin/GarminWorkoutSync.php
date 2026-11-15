@@ -232,14 +232,9 @@ class GarminWorkoutSync
      */
     public static function isFixedAppointment(TrainingSession $session, array $weekly, array $overrides): bool
     {
-        $date  = $session->planned_date;
-        $fixed = $weekly[strtolower($date->englishDayOfWeek)]['fixed'] ?? null;
+        $fixed = \App\Services\Plan\FixedAppointment::on($weekly, $overrides, $session->planned_date);
 
-        if (! $fixed || isset($overrides[$date->toDateString()])) {
-            return false;
-        }
-
-        return $session->type === ($fixed['type'] ?? 'interval');
+        return $fixed !== null && $session->type === $fixed['type'];
     }
 
     /** Was der Abgleich verwaltet: Plan-Einheiten von heute an, keine Builder-Workouts. */

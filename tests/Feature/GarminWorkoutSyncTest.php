@@ -312,14 +312,14 @@ class GarminWorkoutSyncTest extends TestCase
         $this->assertTrue(GarminScheduledWorkout::first()->manual);
     }
 
-    public function test_the_club_is_planned_on_an_override_day(): void
+    public function test_the_club_stays_off_the_watch_with_a_changed_duration(): void
     {
-        // Mit einer Tagesausnahme gilt der Vereinstermin an dem Tag nicht —
-        // dann ist die Einheit eine normale und geht auf die Uhr.
-        $this->plan->update(['availability_overrides' => ['2026-11-03' => ['available' => true, 'duration_min' => 60]]]);
+        // Eine andere Dauer an dem Tag lässt den Vereinstermin stehen (Jan,
+        // 15.11.2026) — nur ein gesperrter Tag streicht ihn.
+        $this->plan->update(['availability_overrides' => ['2026-11-03' => ['available' => true, 'duration_min' => 90]]]);
         $this->plannedSession(['planned_date' => '2026-11-03', 'type' => 'interval', 'title' => 'Intervalle']);
 
-        $this->assertSame(1, $this->sync()['created']);
+        $this->assertSame(0, $this->sync()['created']);
     }
 
     // ── Wege hinein ──────────────────────────────────────────────────────

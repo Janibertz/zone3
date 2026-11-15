@@ -5,6 +5,7 @@ namespace App\Services\Widget;
 use App\Http\Controllers\AIController;
 use App\Models\Activity;
 use App\Models\TrainingSession;
+use App\Services\Plan\FixedAppointment;
 use App\Models\User;
 use App\Services\PaceFormat;
 use App\Services\Today\TodayExtras;
@@ -95,7 +96,7 @@ class WidgetPayload
             'v'            => 1,
             'generated_at' => now()->toIso8601String(),
             'base'         => rtrim(config('app.url'), '/'),
-            'days'         => $plan ? $this->days($user, $plan, $today) : [],
+            'days'         => $this->days($user, $plan, $today),
             'suggestion'   => $this->suggestion($user, $today),
             'plan_start'   => ($s = $plan?->event?->plan_start_date) && $s->isAfter($today) ? $s->toDateString() : null,
             'race'         => $race ? [
@@ -113,14 +114,58 @@ class WidgetPayload
     /** @return list<array{date: string, items: list<array<string, mixed>>}> */
     private function days(User $user, $plan, CarbonImmutable $today): array
     {
-        return $this->sessions($user, $plan, $today, $today->addDays(self::DAYS))
-            ->groupBy(fn ($s) => $s->planned_date->toDateString())
-            ->map(fn ($group, $date) => [
-                'date'  => $date,
-                'items' => $group->map(fn ($s) => $this->item($s, $this->href($plan, $s)))->values()->all(),
-            ])
+        $until = $today->addDays(self::DAYS);
+        $days  = $plan
+            ? $this->sessions($user, $plan, $today, $until)
+                ->groupBy(fn ($s) => $s->planned_date->toDateString())
+                ->map(fn ($group) => $group->map(fn ($s) => $this->item($s, $this->href($plan, $s)))->values()->all())
+                ->all()
+            : [];
+
+        // Feste Termine, die noch kein Plan trägt (vor dem Planstart oder
+        // ohne Plan) — der Laufclub steht sonst erst ab Planstart im Widget.
+        foreach (FixedAppointment::unplanned($user, $today, $until->subDay()) as $f) {
+            $days[$f['planned_date']][] = $this->appointmentItem($f);
+        }
+        ksort($days);
+
+        return collect($days)
+            ->map(fn ($items, $date) => ['date' => $date, 'items' => array_values($items)])
             ->values()
             ->all();
+    }
+
+    /**
+     * Ein fester Termin als Widget-Eintrag. Ohne Zahlen — den Ablauf gibt
+     * der Termin vor. Status `planned`, damit alte App-Builds ihn wie eine
+     * offene Einheit zeigen.
+     *
+     * @param  array<string, mixed>  $f
+     * @return array<string, mixed>
+     */
+    private function appointmentItem(array $f): array
+    {
+        $type = $f['type'];
+
+        return [
+            'id'          => null,
+            'activity_id' => null,
+            'type'        => $type,
+            'label'       => self::LABELS[$type] ?? 'Training',
+            'accent'      => self::ACCENTS[$type] ?? 'success',
+            'photo'       => self::PHOTOS[$type] ?? 'field',
+            'scene'       => self::scene($type),
+            'run'         => in_array($type, TrainingSession::RUN_TYPES, true),
+            'title'       => $f['title'],
+            'km'          => null,
+            'min'         => null,
+            'pace'        => null,
+            'zone'        => null,
+            'band'        => [],
+            'status'      => 'planned',
+            'actual'      => null,
+            'url'         => '/calendar',
+        ];
     }
 
     /**

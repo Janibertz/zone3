@@ -477,24 +477,32 @@ class AIController extends Controller
         $weekly    = $user->runnerProfile?->weekly_availability;
         $day       = $weekly[strtolower($today->format('l'))] ?? null;
 
+        // Morgen ein harter fester Termin (Laufclub)? Dann heute nichts
+        // Hartes — auch ohne Plan, der das sonst im Gerüst regelt.
+        $tomorrow = \App\Services\Plan\FixedAppointment::forUser($user, $today->copy()->addDay());
+
         if ($override !== null) {
+            $available = (bool) ($override['available'] ?? true);
+
             return [
-                'available'    => (bool) ($override['available'] ?? true),
-                'duration_min' => ((int) ($override['duration_min'] ?? 0)) ?: null,
-                'fixed'        => null,
+                'available'      => $available,
+                'duration_min'   => ((int) ($override['duration_min'] ?? 0)) ?: null,
+                'fixed'          => $available ? \App\Services\Plan\FixedAppointment::forUser($user, $today) : null,
+                'tomorrow_fixed' => $tomorrow,
             ];
         }
 
         if ($day === null) {
             // Kein Raster gepflegt: keine bekannte Grenze, nicht gesperrt —
             // dieselbe Regel wie im Gerüst.
-            return empty($weekly) ? null : ['available' => false, 'duration_min' => null, 'fixed' => null];
+            return empty($weekly) ? null : ['available' => false, 'duration_min' => null, 'fixed' => null, 'tomorrow_fixed' => $tomorrow];
         }
 
         return [
-            'available'    => (bool) ($day['available'] ?? false),
-            'duration_min' => ((int) ($day['duration_min'] ?? 0)) ?: null,
-            'fixed'        => $day['fixed'] ?? null,
+            'available'      => (bool) ($day['available'] ?? false),
+            'duration_min'   => ((int) ($day['duration_min'] ?? 0)) ?: null,
+            'fixed'          => \App\Services\Plan\FixedAppointment::forUser($user, $today),
+            'tomorrow_fixed' => $tomorrow,
         ];
     }
 

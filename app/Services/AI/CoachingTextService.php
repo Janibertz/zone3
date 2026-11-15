@@ -101,6 +101,14 @@ class CoachingTextService
             } else {
                 $availabilityText = "Heute laut Profil kein Training geplant. Empfehle rest.\n";
             }
+
+            if (! empty($todayAvailability['tomorrow_fixed'])) {
+                $f = $todayAvailability['tomorrow_fixed'];
+                $availabilityText .= "Morgen steht ein fester Termin an: " . ($f['label'] ?? 'Fester Termin') . " (" . ($f['type'] ?? 'interval') . ")."
+                    . (in_array($f['type'] ?? 'interval', ['interval', 'tempo_run', 'race_prep'], true)
+                        ? " Heute deshalb nichts Hartes, höchstens locker.\n"
+                        : "\n");
+            }
         }
 
         $weatherText = $this->weatherContext($weather);
