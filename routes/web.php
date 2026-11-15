@@ -60,6 +60,7 @@ Route::get('/{kind}', [\App\Http\Controllers\ArticleController::class, 'index'])
 Route::get('/{kind}/{slug}', [\App\Http\Controllers\ArticleController::class, 'show'])
     ->whereIn('kind', array_keys(\App\Services\Content\Articles::KINDS))
     ->where('slug', '[a-z0-9-]+')->name('articles.show');
+Route::get('/faq', [\App\Http\Controllers\ArticleController::class, 'faq'])->name('faq');
 Route::get('/sitemap.xml', [\App\Http\Controllers\ArticleController::class, 'sitemap'])->name('sitemap');
 
 // Impressum mit Kontaktformular — öffentlich wie /privacy.

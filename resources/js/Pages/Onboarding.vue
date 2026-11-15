@@ -916,6 +916,10 @@ const bar = computed(() => {
                 <header>
                     <h1 class="text-[34px] font-extrabold leading-[41px] tracking-[-0.035em]">Woher kommen deine Läufe?</h1>
                     <CoachBubble class="mt-4" :coach="activeCoach" :name="firstName" :text="say('connect')" />
+                    <p class="mt-3 text-[15px] text-ink-3">
+                        Was passiert mit deinen Daten?
+                        <a href="/faq#daten" target="_blank" rel="noopener" class="text-accent">Kurz erklärt</a>
+                    </p>
                 </header>
                 <FormGroup>
                     <template v-if="connections.garminAvailable">

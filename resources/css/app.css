@@ -342,6 +342,7 @@
 
 /* Ratgeber und Blog (resources/views/content): Fließtext aus Markdown. */
 @layer components {
+  .faq-answer a { @apply text-accent; }
   .z-prose { @apply text-[17px] leading-[1.65] text-ink-2; }
   .z-prose > * + * { @apply mt-4; }
   .z-prose h2 { @apply mt-10 text-[22px] font-bold leading-tight tracking-[-0.02em] text-ink; }

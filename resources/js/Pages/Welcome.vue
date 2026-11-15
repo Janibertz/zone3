@@ -451,6 +451,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                 <div class="flex flex-wrap justify-center gap-x-5 gap-y-2">
                     <a href="/ratgeber" class="transition hover:text-ink-2">Ratgeber</a>
                     <a href="/blog" class="transition hover:text-ink-2">Neu in Zone3</a>
+                    <a href="/faq" class="transition hover:text-ink-2">FAQ</a>
                     <Link :href="route('privacy')" class="transition hover:text-ink-2">Datenschutz</Link>
                     <Link :href="route('impressum')" class="transition hover:text-ink-2">Impressum</Link>
                     <Link v-if="canLogin" :href="route('login')" class="transition hover:text-ink-2">Anmelden</Link>

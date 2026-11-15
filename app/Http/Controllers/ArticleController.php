@@ -36,9 +36,18 @@ class ArticleController extends Controller
         ]);
     }
 
+    public function faq()
+    {
+        return view('content.faq', [
+            'kind'   => 'faq',
+            'groups' => \App\Services\Content\Faq::groups(),
+            'schema' => \App\Services\Content\Faq::structuredData(),
+        ]);
+    }
+
     public function sitemap(): Response
     {
-        $urls = collect([url('/'), route('privacy'), route('impressum')]);
+        $urls = collect([url('/'), route('faq'), route('privacy'), route('impressum')]);
         foreach (array_keys(Articles::KINDS) as $kind) {
             $urls->push(route('articles.index', $kind));
             $urls = $urls->merge(Articles::all($kind)->pluck('url'));

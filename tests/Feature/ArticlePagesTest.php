@@ -45,4 +45,22 @@ class ArticlePagesTest extends TestCase
         $this->assertStringContainsString('<h2>Kopf</h2>', $a['html']);
         $this->assertStringNotContainsString('<script>', $a['html']);
     }
+
+    public function test_the_faq_is_public_with_structured_data_and_in_the_sitemap(): void
+    {
+        $this->get('/faq')->assertOk()
+            ->assertSee('Häufige Fragen')
+            ->assertSee('Was kostet Zone3?')
+            ->assertSee('"@type":"FAQPage"', false)
+            ->assertDontSee('Strava')
+            ->assertDontSee('WHOOP');
+        $this->get('/sitemap.xml')->assertSee(route('faq'), false);
+    }
+
+    public function test_a_waitlisted_account_can_read_the_faq(): void
+    {
+        $user = \App\Models\User::factory()->create(['waitlisted_at' => now()]);
+
+        $this->actingAs($user)->get('/faq')->assertOk();
+    }
 }

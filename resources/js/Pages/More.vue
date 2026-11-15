@@ -102,6 +102,8 @@ const groups = computed(() => [
     ] },
     { title: 'Hilfe', rows: [
         { name: 'Hilfe & Feedback', href: route('support.tickets.index'), icon: P.help, tint: 'bg-accent', value: '' },
+        // Blade-Seite, kein Inertia: ein Link-Besuch bekäme HTML statt JSON.
+        { name: 'Häufige Fragen',   href: route('faq'),                   icon: P.doc, tint: 'bg-ink-3', value: '', external: true },
         { name: 'Datenschutz',      href: route('privacy'),               icon: P.shield, tint: 'bg-ink-3', value: '' },
         { name: 'Impressum',        href: route('impressum'),             icon: P.doc, tint: 'bg-ink-3', value: '' },
         ...(isAdmin.value ? [{ name: 'Admin-Bereich', href: route('admin.dashboard'), icon: P.shield, tint: 'bg-danger', value: '' }] : []),
@@ -140,7 +142,7 @@ const groups = computed(() => [
                 <section v-for="g in groups" :key="g.title">
                     <h2 class="mx-4 mb-1.5 text-[13px] text-ink-3">{{ g.title }}</h2>
                     <nav class="overflow-hidden rounded-card bg-surface">
-                        <Link v-for="(r, i) in g.rows" :key="r.name" :href="r.href"
+                        <component :is="r.external ? 'a' : Link" v-for="(r, i) in g.rows" :key="r.name" :href="r.href"
                             class="flex min-h-[48px] items-center gap-3 pl-4 transition-colors active:bg-surface-2">
                             <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] text-white" :class="r.tint">
                                 <svg class="h-[17px] w-[17px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="r.icon" /></svg>
@@ -153,7 +155,7 @@ const groups = computed(() => [
                                 <span v-if="r.value" class="shrink-0 text-[15px] text-ink-3">{{ r.value }}</span>
                                 <svg class="h-4 w-4 shrink-0 text-ink-3/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
                             </span>
-                        </Link>
+                        </component>
                     </nav>
                 </section>
 
