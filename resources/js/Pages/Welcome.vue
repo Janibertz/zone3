@@ -98,7 +98,7 @@ const dienste = {
     ],
     rechts: [
         { name: 'Apple Health', track: '',                  was: 'Läufe, Schlaf, HRV · iOS-App' },
-        { name: 'ZWIFT',        track: 'tracking-[0.1em]',  was: 'Radeinheiten als Workout' },
+        { name: 'ZWIFT',        track: 'tracking-[0.1em]',  was: 'Über intervals.icu: Workouts rein, Fahrten zurück' },
         { name: 'FIT-Datei',    track: '',                  was: 'Jede Uhr, auch alte Läufe' },
         { name: 'Telegram',     track: '',                  was: 'Der Coach im Messenger' },
     ],

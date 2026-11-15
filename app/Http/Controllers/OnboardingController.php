@@ -81,6 +81,9 @@ class OnboardingController extends Controller
             'whoop'           => $user->whoopConnection?->summary(),
             'whoopAvailable'  => app(\App\Services\Whoop\WhoopClient::class)->configured(),
             'whoopStatus'     => session('whoop_status'),
+            'intervals'          => $user->intervalsConnection?->summary(),
+            'intervalsAvailable' => app(\App\Services\Intervals\IntervalsClient::class)->configured(),
+            'intervalsStatus'    => session('intervals_status'),
             // Apple Health nur in der iOS-App; die Seite entscheidet, ob sie es zeigt.
             'appleHealth'     => [
                 'consent_at'    => $user->apple_health_consent_at?->toIso8601String(),

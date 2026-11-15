@@ -20,6 +20,7 @@ const props = defineProps({
     coros:       { type: Boolean, default: null },   // null = auf dem Server aus
     polar:       { type: Boolean, default: null },   // null = auf dem Server nicht eingerichtet
     whoop:       { type: Boolean, default: null },
+    intervals:   { type: Boolean, default: null },   // null = auf dem Server nicht eingerichtet
     strava:      { type: Boolean, default: null },   // null = nicht freigeschaltet
     apple:       { type: Boolean, default: null },   // null = nicht angeboten (Browser)
     appleDetail: { type: String,  default: '' },
@@ -32,6 +33,7 @@ const tiles = computed(() => [
     ...(props.coros !== null ? [{ key: 'coros', name: 'COROS', track: 'tracking-[0.12em]', art: 'crown', on: props.coros, href: connections('conn-coros') }] : []),
     ...(props.polar !== null ? [{ key: 'polar', name: 'POLAR', track: 'tracking-[0.14em]', art: 'band', on: props.polar, href: connections('conn-polar') }] : []),
     ...(props.whoop !== null ? [{ key: 'whoop', name: 'WHOOP', track: 'tracking-[0.1em]', art: 'strap', on: props.whoop, href: connections('conn-whoop') }] : []),
+    ...(props.intervals !== null ? [{ key: 'intervals', name: 'intervals.icu', track: '', art: 'screen', on: props.intervals, detail: 'Zwift verbunden', href: connections('conn-intervals') }] : []),
     ...(props.apple !== null ? [{ key: 'apple', name: 'Apple Watch', track: '', art: 'square', on: props.apple, detail: props.appleDetail, href: connections('conn-apple') }] : []),
     ...(props.strava !== null ? [{ key: 'strava', name: 'STRAVA', track: 'tracking-[0.1em]', art: 'phone', on: props.strava, href: connections('conn-strava') }] : []),
     { key: 'file', name: 'FIT-Datei', track: '', art: 'file', on: null, detail: 'Zwift & Co. hochladen', href: route('activities.index') },
@@ -115,6 +117,15 @@ const tiles = computed(() => [
                 <path d="M36 86c4-14 14-6 16-20s12-10 8-26" fill="none" stroke="#FC4C02" stroke-width="3" stroke-linecap="round" />
                 <circle cx="36" cy="86" r="3.5" fill="#30D158" />
                 <circle cx="60" cy="40" r="3.5" fill="#FFFFFF" />
+            </svg>
+
+            <!-- Bildschirm mit Leistungsprofil (Indoor-Rad) -->
+            <svg v-else-if="t.art === 'screen'" class="h-[104px] w-[86px]" viewBox="0 0 96 116" aria-hidden="true">
+                <rect x="8" y="26" width="80" height="54" rx="8" class="fill-line-strong" />
+                <rect x="12" y="30" width="72" height="46" rx="5" fill="#0B0B0C" />
+                <path d="M18 68h10v-8h10v-18h10v18h10v-24h10v32h8" fill="none" stroke="#BF5AF2" stroke-width="3" stroke-linejoin="round" />
+                <rect x="40" y="80" width="16" height="12" class="fill-line-strong" />
+                <rect x="30" y="92" width="36" height="5" rx="2.5" class="fill-line-strong" />
             </svg>
 
             <!-- Datei -->

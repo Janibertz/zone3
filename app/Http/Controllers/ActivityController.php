@@ -142,6 +142,7 @@ class ActivityController extends Controller
                 'coros_label_id'       => $activity->coros_label_id ? (string) $activity->coros_label_id : null,
                 'from_polar'           => $activity->polar_start !== null,
                 'from_whoop'           => $activity->whoop_start !== null,
+                'intervals_activity_id' => $activity->intervals_activity_id,
                 'device_name'          => $activity->device_name,
                 'name'                 => $activity->name,
                 'description'          => $activity->description,

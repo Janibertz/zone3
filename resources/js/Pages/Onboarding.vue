@@ -17,6 +17,7 @@ import NotificationChoice from '@/Components/Settings/NotificationChoice.vue';
 import AppleHealthCard from '@/Components/Settings/AppleHealthCard.vue';
 import PolarConnection from '@/Components/Settings/PolarConnection.vue';
 import WhoopConnection from '@/Components/Settings/WhoopConnection.vue';
+import IntervalsConnection from '@/Components/Settings/IntervalsConnection.vue';
 import { isIosApp } from '@/Composables/useNativeApp';
 import { clockInput } from '@/Composables/useFormat';
 import AiConsentText from '@/Components/Consent/AiConsentText.vue';
@@ -991,6 +992,8 @@ const bar = computed(() => {
                         :status="connections.polarStatus?.type === 'error' ? connections.polarStatus : null" />
                     <WhoopConnection v-if="connections.whoopAvailable" :connection="connections.whoop"
                         :status="connections.whoopStatus?.type === 'error' ? connections.whoopStatus : null" />
+                    <IntervalsConnection v-if="connections.intervalsAvailable" :connection="connections.intervals"
+                        :status="connections.intervalsStatus?.type === 'error' ? connections.intervalsStatus : null" />
                     <AppleHealthCard v-if="iosApp && connections.appleHealth" :state="connections.appleHealth"
                         :activity-source="connections.source?.current"
                         source-hint="Trainings aus Apple Health übernimmt Zone3, wenn du darunter bei „Neue Aktivitäten kommen von“ Apple wählst." />

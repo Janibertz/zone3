@@ -20,6 +20,12 @@ class Activity extends Model
     public const SOURCE_POLAR = 'polar';
     /** WHOOP (13.11.2026). Kennung = Startzeit, WHOOPs ID ist eine UUID (`whoop_workout_id`). */
     public const SOURCE_WHOOP = 'whoop';
+    /**
+     * intervals.icu (15.11.2026), nur Zwift-Fahrten. Kennung = Startzeit,
+     * intervals' ID ist ein String (`intervals_activity_id`). Keine wählbare
+     * Aktivitätsquelle: Zwift-Fahrten kommen immer, wie bei Strava.
+     */
+    public const SOURCE_INTERVALS = 'intervals';
 
     /** Je Quelle die Spalte mit ihrer ID. Eine Zeile kann beide tragen. */
     public const ID_COLUMNS = [
@@ -30,6 +36,7 @@ class Activity extends Model
         self::SOURCE_APPLE  => 'apple_start',
         self::SOURCE_POLAR  => 'polar_start',
         self::SOURCE_WHOOP  => 'whoop_start',
+        self::SOURCE_INTERVALS => 'intervals_start',
     ];
 
     /** Wie die Quelle in der Oberfläche heißt. */
@@ -41,6 +48,7 @@ class Activity extends Model
         self::SOURCE_APPLE  => 'Apple Health',
         self::SOURCE_POLAR  => 'Polar',
         self::SOURCE_WHOOP  => 'WHOOP',
+        self::SOURCE_INTERVALS => 'intervals.icu',
     ];
 
     /**
@@ -64,6 +72,8 @@ class Activity extends Model
         'polar_start',
         'whoop_start',
         'whoop_workout_id',
+        'intervals_start',
+        'intervals_activity_id',
         'source',
         'device_name',
         'name',

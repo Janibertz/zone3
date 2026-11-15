@@ -81,6 +81,11 @@ Schedule::command('polar:webhook')->hourlyAt(35)->withoutOverlapping();
 Schedule::command('whoop:sync')->everyThirtyMinutes()->withoutOverlapping();
 Schedule::command('whoop:sync --health')->hourlyAt(40)->withoutOverlapping();
 
+// intervals.icu (nur Zwift): Kalender stuendlich (unveraendert = kein Aufruf),
+// Fahrten alle zwei Stunden als Netz unter dem Webhook. Kontingent 100/Tag/Athlet.
+Schedule::command('intervals:sync')->hourlyAt(45)->withoutOverlapping();
+Schedule::command('intervals:sync --activities')->cron('50 */2 * * *')->withoutOverlapping();
+
 // Jede Minute: laufende LiveTrack-Sitzungen abfragen. Der Command prueft
 // selbst, ob ueberhaupt eine Sitzung im Zeitfenster liegt.
 Schedule::command('livetrack:poll')->everyMinute()->withoutOverlapping();

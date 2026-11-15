@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Jobs\SyncCorosWorkoutsJob;
 use App\Jobs\SyncGarminWorkoutsJob;
+use App\Jobs\SyncIntervalsWorkoutsJob;
 use App\Models\TrainingSession;
 
 /**
@@ -37,6 +38,11 @@ class TrainingSessionObserver
 
         if ($user?->corosConnection) {
             SyncCorosWorkoutsJob::dispatch($user->id)->delay(now()->addSeconds(SyncCorosWorkoutsJob::DELAY_SECONDS));
+        }
+
+        // intervals.icu nur fuer Radeinheiten (Zwift); alles andere geht dort nicht hin.
+        if ($user?->intervalsConnection && ($session->hasBikeSteps() || $session->wasChanged('steps') || ! $session->exists)) {
+            SyncIntervalsWorkoutsJob::dispatch($user->id)->delay(now()->addSeconds(SyncIntervalsWorkoutsJob::DELAY_SECONDS));
         }
     }
 }

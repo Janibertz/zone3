@@ -51,6 +51,11 @@ const empfaenger = [
         zweck: 'Nur wenn du WHOOP verbindest (mit deiner Einwilligung): Abruf deiner Trainings (Dauer, Strecke, Herzfrequenz), deines Schlafs (Dauer, Atemfrequenz) und deiner Recovery-Werte (HRV, Ruhepuls, Blutsauerstoff). WHOOP erfährt dabei, dass dein Konto mit Zone3 verbunden ist. Die Verbindung zu deinem WHOOP-Konto in den USA stellst du selbst her; dafür gilt die Datenschutzerklärung von WHOOP.',
     },
     {
+        name: 'Intervals.icu Ltd',
+        ort: 'Vereinigtes Königreich',
+        zweck: 'Nur wenn du intervals.icu verbindest (mit deiner Einwilligung): Übertragung deiner geplanten Radeinheiten der nächsten sieben Tage in deinen intervals.icu-Kalender, damit intervals.icu sie an Zwift weitergibt, und Abruf deiner Zwift-Fahrten (samt Datei mit Leistung und Herzfrequenz). Gesundheitswerte liest Zone3 dort nicht. Für das Vereinigte Königreich gilt ein Angemessenheitsbeschluss der EU-Kommission.',
+    },
+    {
         name: 'OpenAI Ireland Ltd.',
         ort: 'Irland, USA',
         zweck: 'Erzeugung von Trainingsplänen, Auswertungen und Antworten des Coachs. Übermittelt werden die dafür nötigen Trainingsdaten (Aktivitäten, Pace, Herzfrequenz, Ziele und Rennen, Trainingsprofil), deine Tagesform-Einträge, Coach-Notizen und deine Chat-Nachrichten sowie dein Name; Sprachnachrichten und Fotos, die du dem Coach über Telegram schickst (zum Umwandeln in Text, siehe Abschnitt 7). Hast du Garmin, Polar oder WHOOP verbunden oder bei COROS oder Apple Health in die Datenübernahme eingewilligt, außerdem Wochenmittel und Tageswerte deiner Erholung (Schlaf, HRV, Ruhepuls, Stress, Body Battery, Blutsauerstoff, Atemfrequenz). Nicht zum Training von KI-Modellen, siehe Abschnitt 7. E-Mail-Adresse, Passwort und Zugangsdaten werden nicht übermittelt. OpenAI verarbeitet die Daten in unserem Auftrag (Vertrag nach Art. 28 DSGVO); gibt OpenAI Ireland sie an OpenAI in den USA weiter, gelten die EU-Standardvertragsklauseln.',
@@ -143,7 +148,7 @@ const empfaenger = [
                     <li><strong class="text-ink">Ziele und Pläne:</strong> Rennen, Zielzeiten, Trainingspläne und -einheiten, deine Bewertungen und Notizen dazu, Antworten im Plan-Interview.</li>
                     <li><strong class="text-ink">Tagesform:</strong> freiwillige Selbsteinschätzung (Energie, Schlaf, Muskelkater, Stress, krank oder verletzt, Notiz).</li>
                     <li><strong class="text-ink">Coach:</strong> deine Nachrichten an den Coach, seine Antworten und Notizen, die er sich über dich merkt.</li>
-                    <li><strong class="text-ink">Verbindungen:</strong> Zugangstoken für Strava, Garmin, COROS, Polar und WHOOP, deine Telegram-Chat-ID, das Token deines Kalender-Abos, Push-Abonnements.</li>
+                    <li><strong class="text-ink">Verbindungen:</strong> Zugangstoken für Strava, Garmin, COROS, Polar, WHOOP und intervals.icu, deine Telegram-Chat-ID, das Token deines Kalender-Abos, Push-Abonnements.</li>
                     <li><strong class="text-ink">Support und Kontakt:</strong> Inhalt deiner Support-Anfragen; über das Kontaktformular im Impressum außerdem Name (freiwillig), E-Mail-Adresse und Nachricht.</li>
                     <li><strong class="text-ink">Technische Daten:</strong> IP-Adresse, Zeitpunkt und aufgerufene Adresse in Server-Logs.</li>
                 </ul>
@@ -217,7 +222,7 @@ const empfaenger = [
             </section>
 
             <section>
-                <h2 class="mb-3 text-[22px] font-bold text-ink">6. Garmin, COROS, Polar, WHOOP und Apple Health</h2>
+                <h2 class="mb-3 text-[22px] font-bold text-ink">6. Garmin, COROS, Polar, WHOOP, intervals.icu und Apple Health</h2>
                 <p>
                     Verbindest du dein Garmin-Konto, liest Zone3 die Daten, die du dabei freigibst: deine
                     Erholungswerte und, wenn du Garmin als Quelle für Aktivitäten wählst, deine Aktivitäten.
@@ -265,6 +270,16 @@ const empfaenger = [
                     Atemfrequenz) und deine Recovery-Werte (HRV, Ruhepuls, Blutsauerstoff), beim ersten Mal die letzten
                     Wochen. Zyklusdaten und Körpermaße liest Zone3 nicht. Zone3 speichert dafür den Zugang, den du bei
                     WHOOP freigibst. Beim Trennen widerruft Zone3 den Zugang bei WHOOP und löscht alles, was von WHOOP kam.
+                </p>
+                <p class="mt-3">
+                    intervals.icu nutzt Zone3 nur als Weg zu Zwift. Verbindest du dein intervals.icu-Konto, legt Zone3
+                    deine geplanten Radeinheiten der nächsten sieben Tage in deinen intervals.icu-Kalender; intervals.icu
+                    gibt sie an Zwift weiter, wenn du dort Zwift verbunden hast. Dabei willigst du ein, dass Zone3 deine
+                    Zwift-Fahrten von intervals.icu liest (Dauer, Strecke, Leistung, Herzfrequenz, Runden) und für Plan,
+                    Auswertungen und Coach verwendet und dafür an OpenAI übermittelt (Abschnitt 7). Andere Aktivitäten und
+                    Gesundheitswerte (Schlaf, HRV, Gewicht) liest Zone3 dort nicht. Zone3 speichert dafür den Zugang, den
+                    du bei intervals.icu freigibst. Beim Trennen nimmt Zone3 die geplanten Radeinheiten aus dem Kalender
+                    und widerruft den Zugang; übernommene Fahrten bleiben in deinem Verlauf, bis du sie löschst.
                 </p>
                 <p class="mt-3">
                     In der iOS-App kannst du Zone3 erlauben, Daten aus Apple Health zu lesen. Gelesen werden nur
@@ -334,6 +349,10 @@ const empfaenger = [
                     Für Daten von WHOOP gilt dasselbe: sie gehen nur mit der Einwilligung an OpenAI, die du beim
                     Verbinden erteilst. Trennen unter <strong class="text-ink">Profil → Verbindungen → WHOOP</strong>
                     widerruft sie und löscht die übernommenen Daten.
+                </p>
+                <p class="mt-3">
+                    Zwift-Fahrten von intervals.icu gehen nur mit der Einwilligung an OpenAI, die du beim Verbinden
+                    erteilst. Trennen unter <strong class="text-ink">Profil → Verbindungen → intervals.icu</strong> widerruft sie.
                 </p>
                 <p class="mt-3">
                     Daten aus Apple Health gehen ebenfalls nur mit deiner gesonderten Einwilligung an OpenAI

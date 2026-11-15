@@ -87,6 +87,12 @@ class ProfileController extends Controller
                 'connection' => $user->whoopConnection?->summary(),
                 'status'     => session('whoop_status'),
             ],
+            // intervals.icu: nur die Brücke zu Zwift.
+            'intervals'        => [
+                'available'  => app(\App\Services\Intervals\IntervalsClient::class)->configured(),
+                'connection' => $user->intervalsConnection?->summary(),
+                'status'     => session('intervals_status'),
+            ],
             // Apple Health aus der iOS-App: Einwilligung und wer Vorrang hat.
             'appleHealth'      => [
                 'consent_at'    => $user->apple_health_consent_at?->toIso8601String(),
@@ -252,6 +258,9 @@ class ProfileController extends Controller
         }
         if ($user->whoopConnection) {
             app(\App\Services\Whoop\WhoopDisconnector::class)->disconnect($user);
+        }
+        if ($user->intervalsConnection) {
+            app(\App\Services\Intervals\IntervalsDisconnector::class)->disconnect($user);
         }
 
         Auth::logout();

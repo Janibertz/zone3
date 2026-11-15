@@ -912,6 +912,18 @@ Nie aufs Rad: Rennen, feste Termine, Wiedereinstiegs-Läufe. Saison `winter` = N
 
 Oberfläche: `zwo_url` an jeder Einheit mit Schritten in % FTP (`TrainingSession::hasBikeSteps()`), Knopf „Für Zwift herunterladen" auf dem Dashboard und in der Einheit auf der Planseite statt „Zu Garmin senden". `AppButton` hat dafür `external` (ein echtes `<a>`, kein Inertia-Link — ein Download über XHR kommt nie an).
 
+### intervals.icu als Brücke zu Zwift (seit 15.11.2026)
+
+Zwift vergibt seine Training API nicht mehr (Antwort vom 13.11.2026, frühestens Frühjahr 2027); intervals.icu hat sie und hat Zone3 am 15.11.2026 als OAuth-App freigegeben. Jans Entscheidungen: **nur für Zwift**, keine Wellness, ein intervals-Konto je Athlet. **Eingeblendet nur mit `INTERVALS_CLIENT_ID` und `INTERVALS_CLIENT_SECRET`.**
+
+- **OAuth mit PKCE ohne Refresh-Token** (`IntervalsClient`, Scopes `CALENDAR:WRITE,ACTIVITY:READ`): der Token gilt, bis der Athlet ihn widerruft; 401/403 heißt widerrufen. Rückweg `/intervals/callback` ohne Anmeldung über den `state` im Cache wie bei Garmin, steht in der apple-app-site-association. Ohne Einwilligung keine Verbindung (`intervals_connections.ai_consent_at`).
+- **Hin:** `IntervalsWorkoutSync` legt jede geplante Einheit mit Schritten in % FTP (`hasBikeSteps()`) der nächsten 7 Tage als Event in den intervals-Kalender (`events/bulk?upsert=true`, `external_id = zone3-session-<id>`, `type = VirtualRide`, `indoor = true`, die `.zwo` aus `ZwoWriter` als `file_contents`). intervals.icu reicht sie an Zwift weiter, wenn der Athlet dort Zwift verbunden hat. Verglichen wird lokal über `intervals_scheduled_workouts.payload_hash`; was aus dem Plan fällt, wird per `bulk-delete` entfernt (vergangene und erledigte bleiben). Auslöser: `TrainingSessionObserver` → `SyncIntervalsWorkoutsJob` (60 s, eindeutig je Athlet) und `intervals:sync` stündlich (:45).
+- **Zurück:** Webhook `/intervals/webhook` (`ACTIVITY_UPLOADED|UPDATED|DELETED`, `APP_SCOPE_CHANGED`), das Geheimnis (`INTERVALS_WEBHOOK_SECRET`) steht im Body (`secret`) oder im Authorization-Header — beides wird angenommen. Jeder Aufruf in `intervals_webhook_events` (30 Tage). Netz: `intervals:sync --activities` alle zwei Stunden (:50). **Nur Zwift-Fahrten** (`IntervalsActivityImporter::isZwift()`: `VirtualRide` oder „zwift“ in Quelle/Gerät/Name, nie was von Strava kam), unabhängig von der gewählten Aktivitätsquelle (Jan) — intervals.icu ist keine wählbare Quelle. Kennung = Startzeit (`activities.intervals_start`), ID daneben (`intervals_activity_id`); Zahlen aus der Originaldatei (FIT), sonst aus der Zusammenfassung. Dieselbe Fahrt von Garmin/Strava hängt `store()` an. Sie erfüllt die Radeinheit wie jede `VirtualRide`.
+- Mit Verbindung (`auth.zwiftSync`) steht auf Heute „Kommt in Zwift“ statt des Downloads, in den Details der Hinweis; die `.zwo` bleibt als Zweitweg.
+- **Trennen** (`IntervalsDisconnector`, auch beim Konto löschen) nimmt die bevorstehenden Events aus dem Kalender und widerruft (`DELETE /disconnect-app`); übernommene Fahrten bleiben wie bei Garmin.
+- 100 Aufrufe pro Athlet und Tag. intervals.icu steht hinter Cloudflare, darum ein eigener User-Agent.
+- **Ungeprüft gegen einen echten Aufruf:** das Feld `indoor`, wo das Webhook-Geheimnis ankommt, `athlete.id` in der Token-Antwort und woran eine Zwift-Fahrt im JSON erkennbar ist. Kommt nichts an: `intervals_webhook_events`, dann `/admin/system/logs` nach „intervals“. Tests: `IntervalsIntegrationTest`.
+
 ## Apple Watch
 
 Gewünscht am 25.10.2026: Einheiten als strukturiertes Training auf die Watch. Strukturierte Trainings nimmt die Watch nur über WorkoutKit an, eine eigene iOS-App (Mac, Xcode, 99 €/Jahr) braucht es trotzdem nicht: die Fitness-App importiert die `.workout`-Datei, die sie beim Teilen selbst erzeugt. Antippen auf dem iPhone → „Hinzufügen" → das Training steht in der Training-App.
@@ -1269,6 +1281,12 @@ POLAR_CLIENT_SECRET=
 # WHOOP Developer Dashboard (Sandbox). Ohne beide keine WHOOP-Verbindung.
 WHOOP_CLIENT_ID=
 WHOOP_CLIENT_SECRET=
+
+# intervals.icu (Zwift-Brücke). Ohne ID/Secret keine Verbindung; das Geheimnis
+# ist der Authorization-Header im intervals-OAuth-Formular.
+INTERVALS_CLIENT_ID=
+INTERVALS_CLIENT_SECRET=
+INTERVALS_WEBHOOK_SECRET=
 
 # Garmin Connect Developer Program (OAuth2 PKCE). Ohne ID/Secret gibt es
 # keine Garmin-Verbindung.

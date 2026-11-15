@@ -32,6 +32,7 @@ const t = computed(() => status.value.tiles);
                     :coros="t.coros"
                     :polar="t.polar"
                     :whoop="t.whoop"
+                    :intervals="t.intervals"
                     :strava="t.strava"
                     :apple="t.apple"
                     :apple-detail="t.appleDetail" />

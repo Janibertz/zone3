@@ -143,6 +143,11 @@ class User extends Authenticatable
         return $this->hasOne(\App\Models\WhoopConnection::class);
     }
 
+    public function intervalsConnection()
+    {
+        return $this->hasOne(\App\Models\IntervalsConnection::class);
+    }
+
     /** Legt Zone3 die naechsten Plantage selbst in den COROS-Kalender? */
     public function syncsPlanToCoros(): bool
     {

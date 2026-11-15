@@ -90,6 +90,20 @@ return [
         'api_url'       => env('WHOOP_API_URL', 'https://api.prod.whoop.com/developer'),
     ],
 
+    // intervals.icu (seit 15.11.2026), nur als Brücke zu Zwift: Radeinheiten in
+    // den intervals-Kalender, Zwift-Fahrten zurück. OAuth-App unter
+    // intervals.icu/settings/apps. Ohne ID/Secret ist die Verbindung ausgeblendet.
+    'intervals' => [
+        'client_id'      => env('INTERVALS_CLIENT_ID'),
+        'client_secret'  => env('INTERVALS_CLIENT_SECRET'),
+        // Steht in der App bei intervals.icu unter „Webhook Authorization Header“.
+        'webhook_secret' => env('INTERVALS_WEBHOOK_SECRET'),
+        'redirect'       => env('INTERVALS_REDIRECT_URI', env('APP_URL') . '/intervals/callback'),
+        'auth_url'       => 'https://intervals.icu/oauth/authorize',
+        'token_url'      => 'https://intervals.icu/api/oauth/token',
+        'api_url'        => env('INTERVALS_API_URL', 'https://intervals.icu/api/v1'),
+    ],
+
     'openai' => [
         'api_key'    => env('OPENAI_API_KEY'),
         'model'      => env('OPENAI_MODEL',      'gpt-5.6-sol'),     // Plan

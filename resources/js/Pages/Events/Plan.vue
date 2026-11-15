@@ -1964,9 +1964,14 @@ const lapHeightPct = computed(() => {
                 </div>
 
                 <!-- Radeinheit: ein Zwift-Workout statt eines Laufs für die Uhr. -->
-                <AppButton v-else-if="detailSession.zwo_url" :href="detailSession.zwo_url" external download block>
-                    Für Zwift herunterladen
-                </AppButton>
+                <div v-else-if="detailSession.zwo_url" class="space-y-2">
+                    <p v-if="$page.props.auth.zwiftSync" class="text-center text-[13px] leading-snug text-ink-3">
+                        Kommt über intervals.icu von selbst in Zwift, sieben Tage vorher.
+                    </p>
+                    <AppButton :href="detailSession.zwo_url" external download block :variant="$page.props.auth.zwiftSync ? 'secondary' : 'primary'">
+                        Für Zwift herunterladen
+                    </AppButton>
+                </div>
 
 <!--
                     Der Knopf richtet sich nach der Uhr (Usability-Befund P2-11):

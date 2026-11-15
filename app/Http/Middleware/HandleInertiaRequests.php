@@ -87,6 +87,8 @@ class HandleInertiaRequests extends Middleware
                 // Zone3 legt die naechsten sieben Plantage selbst in den
                 // Garmin-Kalender; dann braucht die Einheit keinen Senden-Knopf.
                 'garminSync'     => (bool) $request->user()?->syncsPlanToGarmin(),
+                // Radeinheiten gehen über intervals.icu von selbst nach Zwift.
+                'zwiftSync'      => (bool) $request->user()?->intervalsConnection,
                 // Dasselbe fuer COROS, aber nur heute und morgen (MCP kann
                 // im Kalender nicht loeschen, siehe CorosWorkoutSync).
                 'corosSync'      => (bool) $request->user()?->syncsPlanToCoros(),
