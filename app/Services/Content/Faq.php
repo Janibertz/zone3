@@ -54,7 +54,9 @@ class Faq
                     ['q' => 'Welche Uhren und Apps funktionieren?',
                      'a' => 'Garmin, COROS und Polar, die Apple Watch und Apple Health über die iPhone-App, Zwift über intervals.icu und jede Uhr, die FIT-Dateien schreibt. Den Coach erreichst du auch über Telegram, deinen Plan kannst du als Kalender abonnieren.'],
                     ['q' => 'Kommen die Einheiten auf meine Uhr?',
-                     'a' => 'Bei Garmin automatisch für die nächsten sieben Tage, bei COROS für heute und morgen, auf der Apple Watch über die iPhone-App. Radeinheiten landen über intervals.icu in Zwift. Polar liefert nur Daten an Zone3, Einheiten kann Zone3 dort nicht hinschicken.'],
+                     'a' => 'Bei Garmin automatisch für die nächsten sieben Tage, bei COROS für heute und morgen, auf der Apple Watch über die iPhone-App. Radeinheiten landen über intervals.icu in Zwift, ROUVY oder MyWhoosh. Polar liefert nur Daten an Zone3, Einheiten kann Zone3 dort nicht hinschicken.'],
+                    ['q' => 'Wie kommen meine Radeinheiten in Zwift, ROUVY oder MyWhoosh?',
+                     'a' => 'Über intervals.icu, das alle drei Apps beliefert. So geht es: 1. Leg dir ein kostenloses Konto bei <a href="https://intervals.icu" target="_blank" rel="noopener noreferrer">intervals.icu</a> an. 2. Verbinde dort in den Einstellungen deine Rad-App und schalte das Hochladen geplanter Workouts ein. 3. Verbinde in Zone3 unter <a href="/profile?section=connections">Profil → Verbindungen</a> intervals.icu, dort steht auch die Anleitung. Ab dann legt Zone3 jede Radeinheit sieben Tage voraus in deinen intervals-Kalender, und du findest sie in deiner Rad-App bei den Workouts des Tages. Nach der Fahrt kommt sie zurück und hakt die Einheit ab.'],
                 ],
             ],
             [

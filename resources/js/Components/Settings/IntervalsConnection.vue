@@ -67,7 +67,7 @@ function disconnect() {
             </button>
             <ol v-if="showHelp" class="list-decimal space-y-1.5 pl-5 text-[15px] leading-snug text-ink-2">
                 <li>Leg dir ein kostenloses Konto bei <a href="https://intervals.icu" target="_blank" rel="noopener noreferrer" class="text-accent">intervals.icu</a> an.</li>
-                <li>Dort in den Einstellungen Zwift verbinden und das Hochladen geplanter Workouts einschalten.</li>
+                <li>Dort in den Einstellungen Zwift verbinden (oder ROUVY bzw. MyWhoosh) und das Hochladen geplanter Workouts einschalten.</li>
                 <li>Hier mit intervals.icu verbinden.</li>
                 <li>Fertig: Zone3 legt jede Radeinheit sieben Tage voraus in deinen intervals-Kalender, intervals.icu schickt sie nach Zwift. In Zwift stehen sie dann bei den Workouts für den Tag.</li>
                 <li>Nach der Fahrt kommt sie über intervals.icu zurück und hakt die Einheit ab.</li>
