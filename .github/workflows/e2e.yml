@@ -1,0 +1,85 @@
+name: Browser-Tests
+
+# Smoke-Tests der Kernseiten im echten Browser (tests/e2e, Playwright),
+# am iPhone 14 und am Desktop, mit dem Testkonto aus `testdev:create`.
+#
+# Bewusst ein eigener Workflow neben CI (Entscheidung von Jan, 15.11.2026):
+# ein roter Browser-Test soll warnen, nicht den Deploy aufhalten. Coolify
+# deployt ohnehin bei jedem Push. „Warnen“ heißt hier: der Lauf wird rot, und
+# GitHub schickt dem, der gepusht hat, eine Benachrichtigung (Mail bzw.
+# GitHub-App, Einstellung „Actions → Notify on failed workflows“).
+#
+# Screenshots aller Seiten und bei Fehlern ein Trace hängen als Artefakt
+# „playwright-report“ am Lauf.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Smoke-Tests im Browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: PHP einrichten
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_sqlite, sqlite3, intl, bcmath, pdo_mysql, mysqlnd, openssl
+          coverage: none
+
+      - name: Node einrichten
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Umgebung vorbereiten
+        run: cp .env.example .env
+
+      - name: Composer-Cache
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: PHP-Abhängigkeiten
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Anwendungsschlüssel
+        run: php artisan key:generate --force
+
+      - name: JS-Abhängigkeiten
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Browser installieren
+        run: npx playwright install --with-deps chromium
+
+      - name: Datenbank und Testkonto
+        run: bash tests/e2e/setup.sh
+
+      - name: Smoke-Tests
+        run: npx playwright test
+
+      - name: Bericht und Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+            storage/logs/
+          retention-days: 14
