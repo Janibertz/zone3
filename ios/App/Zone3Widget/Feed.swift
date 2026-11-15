@@ -23,7 +23,10 @@ struct WidgetFeed: Codable {
         let type: String
         let label: String
         let accent: String
+        /// Altes Foto (fünf Bilder), für Antworten ohne `scene`.
         let photo: String
+        /// Foto wie in der App (`WidgetPayload::scene()`), seit 15.11.2026.
+        let scene: String?
         let run: Bool
         let title: String
         let km: Double?
@@ -40,6 +43,9 @@ struct WidgetFeed: Codable {
         var isRest: Bool { type == "rest" }
         var isPlanned: Bool { status == "planned" }
         var isDone: Bool { status == "completed" }
+        /// Rad oder Schwimmen: kommt nach dem Lauf, vor Kraft und Co.
+        var isCross: Bool { ["ride", "swim"].contains(scene ?? "") || label == "Rad" }
+        var image: String { scene ?? photo }
     }
 
     struct Segment: Codable {
@@ -114,9 +120,9 @@ enum FeedLoader {
     }
 }
 
-/// Was an einem Tag zu sehen ist. Dieselbe Reihenfolge wie die
-/// Heute-Karte in `routes/web.php`: zuerst ein offener Lauf oder eine
-/// Radeinheit, sonst eine andere offene Einheit, sonst die erledigte.
+/// Was an einem Tag zu sehen ist. Immer die Haupteinheit (Jan, 15.11.2026),
+/// ob offen oder erledigt: zuerst ein Lauf, dann Rad oder Schwimmen, dann
+/// Kraft und Co., zuletzt der Ruhetag. Unter mehreren gleichen die offene.
 struct DayView {
     /// Eine kommende Einheit: „Morgen“ für Sätze, „Do“ für die schmale Spalte.
     struct Upcoming {
@@ -145,10 +151,12 @@ struct DayView {
         let today = Fmt.dayString(now)
         let todays = feed.days.first(where: { $0.date == today })?.items ?? []
 
-        let hero = todays.first(where: { $0.isPlanned && ($0.run || $0.label == "Rad") })
-            ?? todays.first(where: { $0.isPlanned && !$0.isRest })
-            ?? todays.first(where: { $0.isDone })
-            ?? todays.first(where: { $0.isRest })
+        let active = todays.filter { !$0.isRest && ($0.isPlanned || $0.isDone) }
+        let ranked: [(WidgetFeed.Item) -> Bool] = [{ $0.run }, { $0.isCross }, { _ in true }]
+        let hero = ranked.lazy.compactMap { rank -> WidgetFeed.Item? in
+            let group = active.filter(rank)
+            return group.first(where: { $0.isPlanned }) ?? group.first
+        }.first ?? todays.first(where: { $0.isRest })
 
         var upcoming: [Upcoming] = todays
             .filter { $0.isPlanned && !$0.isRest && $0.url != hero?.url }

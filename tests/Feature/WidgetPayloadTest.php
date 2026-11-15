@@ -130,6 +130,24 @@ class WidgetPayloadTest extends TestCase
         $this->assertNull($bike['pace']);
     }
 
+    public function test_each_session_brings_the_photo_from_the_app(): void
+    {
+        [$user, $plan] = $this->athlete();
+        $this->plannedSession($plan);
+        $this->plannedSession($plan, ['planned_date' => '2026-11-12', 'type' => 'interval', 'title' => 'Intervalle']);
+        $this->plannedSession($plan, ['planned_date' => '2026-11-13', 'type' => 'strength', 'title' => 'Kraft', 'distance_km' => null, 'steps' => null, 'pace_target' => null]);
+        $this->plannedSession($plan, ['planned_date' => '2026-11-14', 'type' => 'cross_training', 'sport_type' => 'VirtualRide', 'title' => 'Rad', 'steps' => null, 'pace_target' => null]);
+        $this->plannedSession($plan, ['planned_date' => '2026-11-15', 'type' => 'cross_training', 'sport_type' => 'Swim', 'title' => 'Schwimmen', 'distance_km' => 2, 'steps' => null, 'pace_target' => null]);
+        $this->plannedSession($plan, ['planned_date' => '2026-11-16', 'type' => 'rest', 'title' => 'Ruhetag', 'distance_km' => null, 'steps' => null, 'pace_target' => null]);
+
+        $items = collect(app(WidgetPayload::class)->build($user)['days'])->map(fn ($d) => $d['items'][0]);
+
+        $this->assertSame(['street', 'interval', 'strength', 'ride', 'swim', 'rest'], $items->pluck('scene')->all());
+        // Ältere App-Builds kennen nur fünf Bilder und lesen weiter `photo`.
+        $this->assertSame(['street', 'street', 'legs', 'field', 'field', 'legs'], $items->pluck('photo')->all());
+        $this->assertSame('Schwimmen', $items[4]['label']);
+    }
+
     public function test_a_completed_session_shows_what_was_run(): void
     {
         [$user, $plan] = $this->athlete();

@@ -110,7 +110,7 @@ struct HeroContent: View {
     /// Welches Foto hinter „Heute“ steht.
     static func photo(for day: DayView) -> String {
         switch day.kind {
-        case .planned, .done, .suggestion, .rest: return day.hero?.photo ?? "field"
+        case .planned, .done, .suggestion, .rest: return day.hero?.image ?? "field"
         case .planStart: return "race"
         case .free: return "legs"
         case .noPlan: return "field"

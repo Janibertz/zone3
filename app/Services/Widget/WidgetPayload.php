@@ -53,7 +53,36 @@ class WidgetPayload
         'rest' => 'legs', 'strength' => 'legs', 'core' => 'legs', 'mobility' => 'legs',
     ];
 
+    /**
+     * Die Fotos aus `useMomentPhotos.js`, als Namen der Bilder im Widget
+     * (`ios/App/Zone3Widget/Assets.xcassets`). Seit 15.11.2026 (Jan): Rad,
+     * Schwimmen, Kraft, Intervall und Ruhetag wie auf „Heute“. Ein älterer
+     * App-Build kennt diese Bilder nicht und liest weiter `photo`.
+     */
+    private const SCENES = [
+        'tempo_run' => 'street', 'progressive_run' => 'street', 'test_run' => 'street',
+        'interval' => 'interval',
+        'easy_run' => 'field', 'cross_training' => 'field', 'night_run' => 'field',
+        'long_run' => 'long', 'back_to_back_long' => 'long', 'time_on_feet' => 'long', 'yard_simulation' => 'long',
+        'race_prep' => 'race',
+        'rest' => 'rest',
+        'strength' => 'strength', 'core' => 'strength', 'mobility' => 'strength',
+    ];
+
     public function __construct(private TodayExtras $extras) {}
+
+    /** Foto im Widget, dieselbe Regel wie `key()` in `useMomentPhotos.js`. */
+    public static function scene(string $type, ?string $sportType = null): string
+    {
+        if (in_array($sportType, TrainingSession::BIKE_SPORTS, true)) {
+            return 'ride';
+        }
+        if ($sportType === 'Swim') {
+            return 'swim';
+        }
+
+        return self::SCENES[$type] ?? 'field';
+    }
 
     /** @return array<string, mixed> */
     public function build(User $user): array
@@ -137,6 +166,7 @@ class WidgetPayload
     private function item(TrainingSession $s, string $url): array
     {
         $ride  = in_array($s->sport_type, TrainingSession::BIKE_SPORTS, true);
+        $swim  = $s->sport_type === 'Swim';
         $steps = is_array($s->steps) ? $s->steps : [];
         $act   = $s->status === 'completed' ? $s->activity : null;
 
@@ -144,9 +174,10 @@ class WidgetPayload
             'id'     => $s->id,
             'activity_id' => $s->status === 'completed' ? $s->activity_id : null,
             'type'   => $s->type,
-            'label'  => $ride ? 'Rad' : (self::LABELS[$s->type] ?? 'Training'),
+            'label'  => $ride ? 'Rad' : ($swim ? 'Schwimmen' : (self::LABELS[$s->type] ?? 'Training')),
             'accent' => self::ACCENTS[$s->type] ?? 'success',
             'photo'  => $ride ? 'field' : (self::PHOTOS[$s->type] ?? 'field'),
+            'scene'  => self::scene($s->type, $s->sport_type),
             'run'    => $s->isRun(),
             'title'  => $s->title,
             'km'     => $s->distance_km && ! $ride ? round((float) $s->distance_km, 1) : null,
@@ -200,6 +231,7 @@ class WidgetPayload
             'label'  => self::LABELS[$type] ?? 'Training',
             'accent' => self::ACCENTS[$type] ?? 'success',
             'photo'  => self::PHOTOS[$type] ?? 'field',
+            'scene'  => self::scene($type, $rec['sport_type'] ?? null),
             'run'    => in_array($type, TrainingSession::RUN_TYPES, true),
             'title'  => $rec['title'] ?? 'Vorschlag',
             'km'     => ! empty($rec['distance_km']) ? round((float) $rec['distance_km'], 1) : null,

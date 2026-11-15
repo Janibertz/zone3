@@ -398,8 +398,8 @@ enum Sample {
           {"date":"\(d(0))","items":[{"id":1,"type":"tempo_run","label":"Tempo","accent":"warn","photo":"street","run":true,"title":"Schwelle 3×10 min","km":11.4,"min":58,"pace":"4:12","zone":"4","status":"planned","actual":null,"url":"/dashboard",
             "band":[{"f":12,"z":1,"w":false},{"f":10,"z":4,"w":true},{"f":2,"z":0,"w":false},{"f":10,"z":4,"w":true},{"f":2,"z":0,"w":false},{"f":10,"z":4,"w":true},{"f":10,"z":1,"w":false}]}]},
           {"date":"\(d(1))","items":[{"id":2,"type":"easy_run","label":"Locker","accent":"success","photo":"field","run":true,"title":"Locker mit Steigerungen","km":8,"min":45,"pace":"5:35","zone":"2","status":"planned","actual":null,"url":"/dashboard","band":[]}]},
-          {"date":"\(d(2))","items":[{"id":3,"type":"strength","label":"Kraft","accent":"warn","photo":"legs","run":false,"title":"Beine und Rumpf","km":null,"min":30,"pace":null,"zone":null,"status":"planned","actual":null,"url":"/dashboard","band":[]}]},
-          {"date":"\(d(3))","items":[{"id":4,"type":"cross_training","label":"Rad","accent":"info","photo":"field","run":false,"title":"Lockeres Rad","km":null,"min":60,"pace":null,"zone":"2","status":"planned","actual":null,"url":"/dashboard","band":[]}]},
+          {"date":"\(d(2))","items":[{"id":3,"type":"strength","label":"Kraft","accent":"warn","photo":"legs","scene":"strength","run":false,"title":"Beine und Rumpf","km":null,"min":30,"pace":null,"zone":null,"status":"planned","actual":null,"url":"/dashboard","band":[]}]},
+          {"date":"\(d(3))","items":[{"id":4,"type":"cross_training","label":"Rad","accent":"info","photo":"field","scene":"ride","run":false,"title":"Lockeres Rad","km":null,"min":60,"pace":null,"zone":"2","status":"planned","actual":null,"url":"/dashboard","band":[]}]},
           {"date":"\(d(4))","items":[{"id":5,"type":"long_run","label":"Lang","accent":"info","photo":"long","run":true,"title":"Langer Lauf","km":18,"min":100,"pace":"5:30","zone":"2","status":"planned","actual":null,"url":"/dashboard","band":[]}]}
          ]}
         """
