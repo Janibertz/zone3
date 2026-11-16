@@ -697,7 +697,8 @@ const detailPace = computed(() => {
 });
 
 async function openDetail(session) {
-    if (session.type === 'rest') return;
+    // Der Laufclub vor dem Planstart hat keine Details: den Ablauf gibt der Termin vor.
+    if (session.type === 'rest' || session.status === 'appointment') return;
 
     // Erledigt mit Aktivität: eine Detailseite für alles, die der Aktivität.
     const done = completedActivityHref(session, `/events/${props.event.id}/plan`);
@@ -1262,7 +1263,7 @@ const lapHeightPct = computed(() => {
                                         -->
                                         <!-- Ruhetage als schmale Zeile (Befund P2-10): in der ersten Woche waren sie 4 von 7 vollen Karten. -->
                                         <div class="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 px-4"
-                                            :class="session.type !== 'rest' ? 'cursor-pointer py-3.5' : 'py-1.5'"
+                                            :class="session.type === 'rest' ? 'py-1.5' : session.status === 'appointment' ? 'py-3.5' : 'cursor-pointer py-3.5'"
                                             @click="session.type !== 'rest' && openDetail(session)">
                                             <div class="text-center">
                                                 <p class="text-[12px] font-semibold leading-4"
@@ -1284,6 +1285,7 @@ const lapHeightPct = computed(() => {
                                                 <p v-if="session.status === 'skipped'" class="text-[13px] text-ink-3">
                                                     Ausgelassen<template v-if="session.skip_reason"> · {{ session.skip_reason }}</template>
                                                 </p>
+                                                <p v-else-if="session.status === 'appointment'" class="text-[13px] text-ink-3">Fester Termin · Ablauf gibt der Termin vor</p>
                                                 <p v-else-if="session.was_unplanned" class="text-[13px] text-warn-ink">Nicht im Plan<template v-if="session.activity_source"> · aus {{ session.activity_source }}</template></p>
                                                 <p v-else-if="plannedDiffers(session)" class="truncate text-[13px] text-ink-3">Geplant: {{ plannedSummary(session) }}</p>
                                             </div>

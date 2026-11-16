@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\GenerateEventTrainingPlanJob;
+use Carbon\CarbonImmutable;
+use App\Services\Plan\FixedAppointment;
 use App\Jobs\GenerateRacePredictionJob;
 use App\Models\Activity;
 use App\Models\Event;
@@ -83,6 +85,20 @@ class TrainingPlanController extends Controller
                 ->values()
                 ->toArray()
             : [];
+
+        // Der Laufclub vor dem Planstart (Jan, 16.11.2026: „Im Plan steht für
+        // Dienstag nur Rad"). Ab dem Start legt das Gerüst ihn selbst an.
+        // Status `appointment`: nicht verschiebbar, nicht löschbar, keine Details.
+        if ($plan && $plan->is_active && ! $isPastEvent) {
+            $appointments = FixedAppointment::unplanned(Auth::user(), CarbonImmutable::today(), CarbonImmutable::today()->addWeeks(8));
+            if ($appointments) {
+                $sessions = collect($sessions)
+                    ->concat(array_map(fn ($a) => $a + ['sort_order' => -1], $appointments))
+                    ->sortBy([['planned_date', 'asc'], ['sort_order', 'asc']])
+                    ->values()
+                    ->all();
+            }
+        }
 
         // Keep AI prediction text fresh via async job (only the text, not the numbers).
         // Skipped for Backyard Ultra — it uses the deterministic yard-readiness estimate.

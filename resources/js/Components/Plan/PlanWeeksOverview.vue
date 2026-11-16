@@ -96,6 +96,8 @@ const weekDays = computed(() => Array.from({ length: 7 }, (_, i) => {
     else if (main?.duration_min) { value = String(main.duration_min); unit = 'min'; }
     return {
         date, main, active, look: lk, done, value, unit, short,
+        // Der Laufclub vor dem Planstart: sichtbar, aber ohne Details.
+        appointment: main?.status === 'appointment',
         label: date === todayIso ? `${short} · heute` : short,
         today: date === todayIso,
         extra: day.filter((s) => s !== main && s.type !== 'rest').length,
@@ -199,13 +201,13 @@ onBeforeUnmount(() => document.removeEventListener('click', outside));
                 <span class="text-[15px] tabular-nums text-ink-3">{{ weekSummary }}</span>
             </div>
             <div class="grid grid-cols-7 gap-1.5 lg:gap-3">
-                <component :is="d.active ? 'button' : 'div'" v-for="d in weekDays" :key="d.date"
-                    :type="d.active ? 'button' : undefined" @click="d.active && emit('open', d.main)"
+                <component :is="d.active && !d.appointment ? 'button' : 'div'" v-for="d in weekDays" :key="d.date"
+                    :type="d.active && !d.appointment ? 'button' : undefined" @click="d.active && !d.appointment && emit('open', d.main)"
                     :aria-label="d.active ? `${d.label}: ${d.main.title}` : `${d.label}: Ruhetag`"
                     class="relative flex h-[92px] min-w-0 flex-col justify-between overflow-hidden rounded-[14px] p-2 text-left transition lg:h-[190px] lg:rounded-[18px] lg:p-3.5"
                     :class="[
                         d.done && d.look ? [d.look.cls, d.look.dark ? 'text-black' : 'text-white'] : 'bg-surface text-ink',
-                        d.active ? 'active:scale-[0.97]' : '',
+                        d.active && !d.appointment ? 'active:scale-[0.97]' : '',
                         d.today ? 'ring-2 ring-accent ring-offset-2 ring-offset-canvas' : '',
                     ]"
                     :style="d.done && d.look ? d.look.style : null">
@@ -221,6 +223,7 @@ onBeforeUnmount(() => document.removeEventListener('click', outside));
                     <span v-else class="min-w-0">
                         <span class="hidden text-[16px] font-extrabold leading-5 lg:line-clamp-3">{{ d.main.title }}</span>
                         <span v-if="d.value" class="block font-rounded text-[16px] font-extrabold leading-tight tabular-nums lg:mt-1 lg:text-[22px]">{{ d.value }}<span class="block text-[11px] font-semibold lg:inline lg:text-[12px]" :class="d.done ? '' : 'text-ink-3'"><span class="hidden lg:inline"> </span>{{ d.unit }}</span></span>
+                        <span v-if="!d.value && d.appointment" class="block text-[12px] font-bold leading-tight lg:mt-1 lg:text-[13px] lg:text-ink-3">Termin</span>
                         <span v-if="d.extra" class="mt-0.5 hidden text-[12px] font-semibold lg:block" :class="d.done ? 'opacity-75' : 'text-ink-3'">+ {{ d.extra }} weitere</span>
                     </span>
                 </component>

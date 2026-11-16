@@ -147,4 +147,21 @@ class FixedAppointmentBeforePlanTest extends TestCase
         $slots = collect($days['days']['2026-12-01']['slots'] ?? []);
         $this->assertTrue($slots->contains(fn ($s) => ! empty($s['fixed'])));
     }
+
+    /** Jan, 16.11.2026: „Als Nächstes" und die Planseite zeigten am Dienstag nur Rad. */
+    public function test_dashboard_and_plan_page_list_it_next_to_the_bike(): void
+    {
+        $this->withoutVite();
+        [$user, $plan] = $this->athlete();
+        TrainingSession::create([
+            'user_id' => $user->id, 'training_plan_id' => $plan->id, 'planned_date' => '2026-11-17',
+            'type' => 'cross_training', 'sport_type' => 'VirtualRide', 'title' => 'Rad locker', 'intensity' => 'low', 'status' => 'planned',
+        ]);
+
+        $this->actingAs($user)->get('/dashboard')->assertInertia(fn ($page) => $page
+            ->where('upcomingSessions', fn ($list) => collect($list)->pluck('id')->contains('fixed-2026-11-17')));
+
+        $this->actingAs($user)->get("/events/{$plan->event_id}/plan")->assertInertia(fn ($page) => $page
+            ->where('sessions', fn ($list) => collect($list)->where('planned_date', '2026-11-17')->pluck('status')->sort()->values()->all() === ['appointment', 'planned']));
+    }
 }

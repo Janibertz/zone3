@@ -285,6 +285,29 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             ->all();
     }
 
+    // Der Laufclub vor dem Planstart oder ohne Plan (Jan, 16.11.2026: „Im
+    // Dashboard als Nächstes steht nur Rad für Dienstag"). Ab morgen — heute
+    // nennt ihn schon der Tagesvorschlag oben.
+    $appointments = \App\Services\Plan\FixedAppointment::unplanned($user, \Carbon\CarbonImmutable::tomorrow(), \Carbon\CarbonImmutable::today()->addDays(14));
+    if ($appointments) {
+        $upcomingSessions = collect($upcomingSessions)
+            ->concat(array_map(fn ($a) => [
+                'id'           => $a['id'],
+                'date'         => $a['planned_date'],
+                'type'         => $a['type'],
+                'sport_type'   => null,
+                'title'        => $a['title'],
+                'distance_km'  => null,
+                'duration_min' => null,
+                'href'         => '/calendar',
+                'appointment'  => true,
+            ], $appointments))
+            ->sortBy('date')
+            ->take(6)
+            ->values()
+            ->all();
+    }
+
     // Die Woche als Leiste: je Tag die Einheit des Plans (Mo–So), damit die
     // Übersicht zeigt, was ansteht und was erledigt ist — nicht nur, was
     // gelaufen wurde. Geplante Kilometer kommen aus dem Plan, gelaufene aus
