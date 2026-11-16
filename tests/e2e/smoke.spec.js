@@ -55,7 +55,11 @@ test('Heute zeigt die Einheit des Tages', async ({ page }) => {
 
 test('Details der Einheit zeigen den Ablauf', async ({ page }) => {
     await page.goto('/dashboard');
-    await tapUntil(page, () => page.getByRole('link', { name: 'Details' }).first(),
+    // Montags und freitags ist im Testplan Ruhetag, dann hat „Heute“ keinen
+    // Details-Knopf — dann die erste Kachel unter „Als Nächstes“.
+    await tapUntil(page, () => page.getByRole('link', { name: 'Details' })
+            .or(page.getByRole('list', { name: 'Nächste Einheiten' }).getByRole('listitem'))
+            .filter({ visible: true }).first(),
         async () => /\/events\/\d+\/plan/.test(page.url()));
     const sheet = page.getByRole('dialog').filter({ visible: true });
     await expect(sheet.getByText('Ablauf')).toBeVisible();
