@@ -163,7 +163,7 @@ struct DayView {
             .map { Upcoming(day: "Heute", short: "Heute", item: $0) }
         for day in feed.days where day.date > today {
             for item in day.items where !item.isRest && item.isPlanned {
-                upcoming.append(Upcoming(day: Fmt.dayLabel(day.date, from: now), short: Fmt.shortDay(day.date), item: item))
+                upcoming.append(Upcoming(day: Fmt.dayLabel(day.date, from: now), short: Fmt.shortDay(day.date, from: now), item: item))
             }
         }
         self.next = upcoming
@@ -251,10 +251,16 @@ enum Fmt {
     }
 
     /// Kurz für die Zeilen: „Do“ statt „Morgen“, damit die Spalte schmal bleibt.
-    static func shortDay(_ day: String) -> String {
+    /// Ab einer Woche das Datum („24.11.“) — zweimal „Di“ untereinander
+    /// verwirrte (Jan, 16.11.2026).
+    static func shortDay(_ day: String, from now: Date) -> String {
         guard let d = date(day) else { return "" }
         let f = DateFormatter()
         f.locale = Locale(identifier: "de_DE")
+        if daysBetween(dayString(now), day) >= 7 {
+            f.dateFormat = "d.M."
+            return f.string(from: d)
+        }
         f.dateFormat = "EE"
         return f.string(from: d).replacingOccurrences(of: ".", with: "")
     }
