@@ -57,6 +57,10 @@ Schedule::command('review:monthly')->monthlyOn(1, '09:00');
 Schedule::command('garmin:refresh-tokens')->dailyAt('04:30');
 Schedule::command('garmin:prune-webhook-payloads')->dailyAt('04:40');
 
+// Prompts und Antworten der KI enthalten Gesundheitswerte: nach 30 Tagen
+// geleert, Kosten und Token bleiben (siehe PruneAiLogContent).
+Schedule::command('ai:prune-logs')->dailyAt('04:45');
+
 // Plan automatisch auf die Uhr (Training API): die naechsten 7 Tage. Der
 // Beobachter auf den Einheiten ist der schnelle Weg; stuendlich ist das Netz
 // darunter. Ein unveraenderter Plan kostet keinen Aufruf bei Garmin.

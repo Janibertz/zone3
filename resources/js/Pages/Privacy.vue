@@ -386,6 +386,11 @@ const empfaenger = [
                     Server-Logs bewahren wir nur kurz zur Fehlersuche auf.
                 </p>
                 <p class="mt-3">
+                    Von jeder KI-Anfrage speichern wir zur Fehlersuche, was an OpenAI ging und was zurückkam. Diese Texte
+                    löschen wir nach 30 Tagen automatisch; danach bleiben nur Zeitpunkt, Art der Anfrage, Tokenzahl und
+                    Kosten.
+                </p>
+                <p class="mt-3">
                     Nachrichten aus dem Kontaktformular nutzen wir nur, um dir zu antworten (Art. 6 Abs. 1 lit. f DSGVO,
                     berechtigtes Interesse an der Beantwortung; bei Fragen zu deinem Konto lit. b). Sie werden gelöscht,
                     sobald die Anfrage erledigt ist.
