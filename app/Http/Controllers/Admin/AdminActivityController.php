@@ -62,7 +62,7 @@ class AdminActivityController extends Controller
         $activities = $page
             ->through(fn (Activity $a) => [
                 'id'          => $a->id,
-                'strava_id'   => $a->strava_id,
+                'strava_id'   => $a->strava_id !== null ? (string) $a->strava_id : null, // 64 Bit, siehe ActivityController::show()
                 'user_id'     => $a->user_id,
                 'user'        => $a->user?->name ?? "Nutzer {$a->user_id}",
                 'name'        => $a->name,

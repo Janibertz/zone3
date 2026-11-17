@@ -801,6 +801,8 @@ Strava hat keine freien Athletenplätze, und die Werbung holt Garmin-Läufer (Po
 
 ## Strava Webhook
 
+**Strava-IDs gehen als Text ans Frontend** (seit 17.11.2026). Ab dem 01.06.2027 vergibt Strava 64-Bit-IDs für Aktivitäten und Athleten. PHP (64 Bit) und die Spalten (`activities.strava_id` bigint, `strava_accounts.strava_id` Text, Webhook-Protokoll bigint) kommen damit klar; JavaScript rechnet nur bis 2^53 genau, und der Link „Auf Strava ansehen“ zeigte sonst auf eine fremde Aktivität. Wer eine Strava-ID an Inertia gibt, castet sie zu `string` (`StravaSixtyFourBitIdTest`).
+
 `POST /strava/webhook` — **the import runs in the request.** Fetch the activity from the Strava API, store it, match it to the planned session, write best efforts, dispatch the review job, send the push.
 
 It ran as a queued job for a while, and the reasoning was sound: the web process is single-threaded, and an import makes two outbound HTTP calls. But after that change activities stopped arriving, and a second attempt — a dedicated `imports` queue with its own worker — did not bring them back either. A core feature that does not work outweighs a request that takes a few seconds, so it went back to what worked. The job class and the second worker are gone.

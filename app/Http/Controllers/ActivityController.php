@@ -137,7 +137,10 @@ class ActivityController extends Controller
         return Inertia::render('Activities/Show', [
             'activity' => [
                 'id'                   => $activity->id,
-                'strava_id'            => $activity->strava_id,
+                // Als Text: Strava vergibt ab Juni 2027 64-Bit-IDs, und eine
+                // JS-Zahl ist nur bis 2^53 genau — der Link zeigte sonst auf
+                // eine fremde Aktivität.
+                'strava_id'            => $activity->strava_id !== null ? (string) $activity->strava_id : null,
                 'garmin_activity_id'   => $activity->garmin_activity_id,
                 'coros_label_id'       => $activity->coros_label_id ? (string) $activity->coros_label_id : null,
                 'from_polar'           => $activity->polar_start !== null,

@@ -480,7 +480,7 @@ class SystemHealth
             ->map(fn ($e) => [
                 'at'      => $e->created_at?->toIso8601String(),
                 'aspect'  => trim(($e->object_type ?? '?') . ' / ' . ($e->aspect_type ?? '?')),
-                'owner'   => $e->owner_id,
+                'owner'   => $e->owner_id !== null ? (string) $e->owner_id : null, // 64 Bit, JS rundet ab 2^53
                 'user'    => $e->user?->name,
                 'outcome' => $e->outcome,
                 'label'   => \App\Models\StravaWebhookEvent::OUTCOME_LABELS[$e->outcome] ?? ($e->outcome ?? 'offen'),
