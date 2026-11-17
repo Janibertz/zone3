@@ -21,6 +21,7 @@ import { reloadWidget } from '@/Composables/useWidget';
 import SessionCard from '@/Components/UI/SessionCard.vue';
 import UpcomingSessions from '@/Components/Plan/UpcomingSessions.vue';
 import TodayHero from '@/Components/Today/TodayHero.vue';
+import SnapSlider from '@/Components/UI/SnapSlider.vue';
 import RaceCard from '@/Components/Today/RaceCard.vue';
 import CoachLine from '@/Components/Today/CoachLine.vue';
 import LastActivityCard from '@/Components/Today/LastActivityCard.vue';
@@ -102,7 +103,10 @@ const props = defineProps({
     upcomingSessions: { type: Array, default: () => [] },
     raceCard: { type: Object, default: null },
     coachLine: { type: String, default: null },
-    lastActivity: { type: Object, default: null },
+    /** Die letzten fünf Einheiten für den Slider unter „Zuletzt“. */
+    lastActivities: { type: Array, default: () => [] },
+    /** Weitere Einheiten und Aktivitäten von heute für den Aufmacher-Slider. */
+    todayMore: { type: Array, default: () => [] },
     weekPlan: {
         type: Array,
         default: () => [],
@@ -747,6 +751,34 @@ const heroBadge = computed(() => {
     if (s.is_today) return null;
     return new Date(s.session_date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
 });
+/**
+ * Folien im Aufmacher (Jan, 17.11.2026: „alle Einheiten egal ob Plan oder
+ * nicht“). Vorn steht die bisherige Einheit mit ihren Knöpfen, dahinter die
+ * übrigen von heute und Aktivitäten ohne Planeinheit. Offene zuerst, dann
+ * Erledigtes; eine Einheit, die nicht von heute ist (die nächste
+ * Planeinheit), ganz hinten. Ein Ruhetag fällt weg, sobald heute etwas
+ * anderes da ist. Bei einer Folie bleibt alles wie vorher.
+ */
+const heroSlides = computed(() => {
+    const main = heroSession.value;
+    if (!main) return [];
+    const slides = [
+        { ...main, _main: true, _key: 'main', _today: heroKind.value !== 'plan' || main.is_today !== false },
+        ...(props.todayMore ?? []).map(m => ({ ...m, _main: false, _key: m.slide_id ?? `session-${m.id}`, _today: true })),
+    ];
+    const shown = slides.length > 1 ? slides.filter(s => s.type !== 'rest') : slides;
+    const rank = (s) => (!s._today ? 2 : s.status === 'completed' ? 1 : 0);
+
+    return (shown.length ? shown : slides)
+        .map((s, i) => ({ s, i }))
+        .sort((a, b) => rank(a.s) - rank(b.s) || a.i - b.i)
+        .map(({ s }) => s);
+});
+const slideBadge = (s) => (s._main ? heroBadge.value : s.status === 'completed' ? 'Erledigt' : null);
+/** Details einer weiteren Folie: die Aktivität, sonst die Einheit im Plan. */
+const slideHref = (s) => completedActivityHref(s, '/dashboard')
+    ?? (s.activity_id ? activityHref(s.activity_id, '/dashboard') : null)
+    ?? (s.id && s.event_id ? `/events/${s.event_id}/plan?open=${s.id}` : s.id ? route('calendar') : null);
 /** Kurze Datumszeile im Foto: „Di, 10. Nov · 8°“. */
 const heroDateLine = computed(() => {
     const d = new Date().toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\.(?=,)/, '').replace(/\.$/, '');
@@ -1313,7 +1345,7 @@ const layoutError  = ref('');
 // Ein Modul ohne Daten bleibt weg, statt eine leere Zelle ins Raster zu legen.
 const moduleHasData = computed(() => ({
     naechste:    (props.upcomingSessions || []).length > 0,
-    zuletzt:     !!props.lastActivity,
+    zuletzt:     props.lastActivities.length > 0,
     form:        !!props.trainingLoad,
     intensitaet: !!props.intensityDistribution,
     rueckblick:  !!props.weeklyReview,
@@ -1425,8 +1457,11 @@ async function resetLayout() {
                      Statusleiste, mit Datum, „Heute" und Avatar im Foto.
                      ══════════════════════════════════════════════════ -->
                 <div v-if="heroSession" class="grid gap-5 lg:grid-cols-3">
-                    <TodayHero :session="heroSession" :badge="heroBadge" :context="heroContext" immersive
+                    <!-- Mehrere Einheiten heute: wischbar mit Punkten (Jan, 17.11.2026). -->
+                    <SnapSlider :items="heroSlides" :item-key="(s) => s._key" label="Heute" overlay class="max-lg:-mx-4"
                         :class="props.raceCard ? 'lg:col-span-2' : 'lg:col-span-3'">
+                    <template #default="{ item }">
+                    <TodayHero :session="item" :badge="slideBadge(item)" :context="heroContext" immersive flush>
                         <template #top>
                             <div class="flex items-center justify-between">
                                 <div>
@@ -1442,7 +1477,13 @@ async function resetLayout() {
                             </div>
                         </template>
 
-                        <div v-if="heroSession.type !== 'rest'" class="flex flex-wrap items-center gap-2.5">
+                        <div v-if="!item._main" class="flex flex-wrap items-center gap-2.5">
+                            <Link v-if="slideHref(item)" :href="slideHref(item)"
+                                class="inline-flex h-11 items-center rounded-full bg-white px-5 text-[15px] font-bold text-black transition active:scale-95">
+                                Details
+                            </Link>
+                        </div>
+                        <div v-else-if="heroSession.type !== 'rest'" class="flex flex-wrap items-center gap-2.5">
                             <!-- Vorschlag des Coaches: Einplanen ist die Entscheidung -->
                             <template v-if="heroKind === 'proposal'">
                                 <button type="button" @click="acceptRecommendation()" :disabled="acceptingRecommendation || adjustingDirection !== null"
@@ -1495,6 +1536,8 @@ async function resetLayout() {
                             </template>
                         </div>
                     </TodayHero>
+                    </template>
+                    </SnapSlider>
                     <RaceCard v-if="props.raceCard" :race="props.raceCard" class="max-lg:hidden" />
                 </div>
 
@@ -1894,22 +1937,26 @@ async function resetLayout() {
                 <!-- ══════════════════════════════════════════════════
                      REIHE 3: ALS NÄCHSTES + ZULETZT
                      ══════════════════════════════════════════════════ -->
-                <div v-if="(shows('naechste') && props.upcomingSessions.length) || (shows('zuletzt') && props.lastActivity)" class="grid gap-[22px] lg:grid-cols-3 lg:gap-5">
+                <div v-if="(shows('naechste') && props.upcomingSessions.length) || (shows('zuletzt') && props.lastActivities.length)" class="grid gap-[22px] lg:grid-cols-3 lg:gap-5">
                     <section v-if="shows('naechste') && props.upcomingSessions.length" aria-label="Als Nächstes" class="min-w-0"
-                        :class="shows('zuletzt') && props.lastActivity ? 'lg:col-span-2' : 'lg:col-span-3'">
+                        :class="shows('zuletzt') && props.lastActivities.length ? 'lg:col-span-2' : 'lg:col-span-3'">
                         <div class="mx-1 mb-2.5 flex items-baseline justify-between lg:mx-0 lg:mb-3">
                             <h2 class="text-[20px] font-extrabold tracking-[-0.02em] text-ink lg:text-[22px]">Als Nächstes</h2>
                             <Link :href="props.todayPlanSession?.event_id ? `/events/${props.todayPlanSession.event_id}/plan` : '/events'" class="text-[15px] font-semibold text-accent">Plan</Link>
                         </div>
                         <UpcomingSessions :sessions="props.upcomingSessions" />
                     </section>
-                    <section v-if="shows('zuletzt') && props.lastActivity" aria-label="Zuletzt"
+                    <section v-if="shows('zuletzt') && props.lastActivities.length" aria-label="Zuletzt" class="min-w-0"
                         :class="shows('naechste') && props.upcomingSessions.length ? '' : 'lg:col-span-3'">
                         <div class="mx-1 mb-2.5 flex items-baseline justify-between lg:mx-0 lg:mb-3">
                             <h2 class="text-[20px] font-extrabold tracking-[-0.02em] text-ink lg:text-[22px]">Zuletzt</h2>
                             <Link href="/activities" class="text-[15px] font-semibold text-accent">Alle</Link>
                         </div>
-                        <LastActivityCard :activity="props.lastActivity" />
+                        <SnapSlider :items="props.lastActivities" label="Zuletzt" :peek="28" :gap="10">
+                            <template #default="{ item }">
+                                <LastActivityCard :activity="item" />
+                            </template>
+                        </SnapSlider>
                     </section>
                 </div>
 

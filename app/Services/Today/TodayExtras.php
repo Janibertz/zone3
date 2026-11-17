@@ -64,7 +64,7 @@ class TodayExtras
      * und Rad). Gehen, Wandern und Yoga bleiben draußen — der Coach schweigt
      * dazu ja auch (`SessionHighlights::silent()`).
      */
-    private const LAST_TYPES = [
+    public const LAST_TYPES = [
         'Run', 'TrailRun', 'VirtualRun',
         'Ride', 'VirtualRide', 'EBikeRide',
         'Swim',
@@ -72,25 +72,122 @@ class TodayExtras
     ];
 
     /**
-     * Die letzte Einheit der letzten 14 Tage. Mit Strecke als Linie für die
-     * Karte, ohne (Laufband, Zwift, Becken, Kraft) mit dem Foto der Einheit
-     * wie im Aufmacher und im Widget: `photo_type` ist der Typ der
+     * Die letzten Einheiten für den Slider unter „Zuletzt“ (Jan, 17.11.2026:
+     * „die letzten 5 Aktivitäten“, egal wie alt). Mit Strecke als Linie für
+     * die Karte, ohne (Laufband, Zwift, Becken, Kraft) mit dem Foto der
+     * Einheit wie im Aufmacher und im Widget: `photo_type` ist der Typ der
      * verknüpften Planeinheit, sonst der Sport (`heroPhoto()` im Frontend).
      */
+    public function recentActivities(User $user, int $limit = 5): array
+    {
+        $activities = Activity::where('user_id', $user->id)
+            ->whereIn('type', self::LAST_TYPES)
+            ->orderByDesc('start_date')
+            ->limit($limit)
+            ->get();
+
+        $sessionTypes = TrainingSession::whereIn('activity_id', $activities->pluck('id'))
+            ->orderBy('sort_order')
+            ->get(['activity_id', 'type'])
+            ->groupBy('activity_id')
+            ->map(fn ($g) => $g->first()->type);
+
+        return $activities->map(fn (Activity $a) => $this->presentActivity($a, $sessionTypes[$a->id] ?? null))->values()->all();
+    }
+
+    /** Die letzte Einheit — die erste Karte von `recentActivities()`. */
     public function lastActivity(User $user): ?array
     {
-        $a = Activity::where('user_id', $user->id)
-            ->whereIn('type', self::LAST_TYPES)
-            ->where('start_date', '>=', now()->subDays(14))
-            ->orderByDesc('start_date')
-            ->first();
-        if (! $a) {
-            return null;
-        }
+        return $this->recentActivities($user, 1)[0] ?? null;
+    }
 
+    /**
+     * Aktivitäten von heute als Folien für den Aufmacher (Jan, 17.11.2026:
+     * „alle Einheiten egal ob Plan oder nicht“). Nur, was keine der schon
+     * gezeigten Einheiten trägt; dieselben Sportarten wie unter „Zuletzt“.
+     * Die Form gleicht einer Planeinheit, damit `TodayHero` sie zeichnet —
+     * mit den gemessenen Zahlen statt der geplanten.
+     *
+     * @param  int[]  $exceptActivityIds
+     */
+    public function todayActivitySlides(User $user, array $exceptActivityIds = []): array
+    {
+        return Activity::where('user_id', $user->id)
+            ->whereIn('type', self::LAST_TYPES)
+            ->whereDate('start_date', CarbonImmutable::today()->toDateString())
+            ->when($exceptActivityIds, fn ($q) => $q->whereNotIn('id', $exceptActivityIds))
+            ->orderBy('start_date')
+            ->get()
+            ->map(fn (Activity $a) => self::activitySlide($a))
+            ->all();
+    }
+
+    /** Eine Aktivität in der Form einer erledigten Einheit für den Aufmacher. */
+    public static function activitySlide(Activity $a, ?string $type = null): array
+    {
+        $run      = in_array($a->type, self::RUN_TYPES, true);
+        $ride     = in_array($a->type, ['Ride', 'VirtualRide', 'EBikeRide'], true);
+        $strength = in_array($a->type, ['WeightTraining', 'Workout'], true);
+        $seconds  = (int) ($a->moving_time ?: $a->elapsed_time);
+        $pace     = $run && $a->average_speed > 0 ? PaceFormat::fromSpeed((float) $a->average_speed) : null;
+
+        return [
+            'slide_id'     => 'activity-' . $a->id,
+            // Ohne Planeinheit ist nicht bekannt, ob es locker war: Chip „Laufen“, nicht „Lockerer Lauf“.
+            'activity_type' => $a->type,
+            'id'           => null,
+            'type'         => $type ?? ($run ? 'easy_run' : ($strength ? 'strength' : 'cross_training')),
+            'sport_type'   => $run || $strength ? null : $a->type,
+            'title'        => $a->name,
+            'description'  => null,
+            'steps'        => null,
+            // Becken in Kilometern wäre schief, die Strecke steht dort in Metern.
+            'distance_km'  => ($run || $ride) && $a->distance > 0 ? round($a->distance / 1000, 1) : null,
+            'duration_min' => $seconds > 0 ? (int) round($seconds / 60) : null,
+            'pace_target'  => $pace,
+            'zone'         => null,
+            'measured'     => true,
+            'status'       => 'completed',
+            'activity_id'  => $a->id,
+            'is_today'     => true,
+            'path'         => self::routePath($a),
+            'hr'           => $a->average_heartrate ? (int) round($a->average_heartrate) : null,
+        ];
+    }
+
+    /**
+     * Eine erledigte Einheit zeigt oben, was gemessen wurde (Jan, 17.11.2026:
+     * „Die erledigt sind können ja auch die Strecke anzeigen wie unten bei
+     * Zuletzt“): Route, Strecke, Dauer, Tempo und Puls der Aktivität statt
+     * der geplanten Zahlen. Typ, Titel und Ablauf bleiben die der Einheit.
+     */
+    public static function withMeasured(array $slide, ?Activity $a): array
+    {
+        if (! $a || ($slide['status'] ?? null) !== 'completed') {
+            return $slide;
+        }
+        $m = self::activitySlide($a);
+
+        return array_merge($slide, [
+            'distance_km'  => $m['distance_km'],
+            'duration_min' => $m['duration_min'] ?? $slide['duration_min'],
+            'pace_target'  => $m['pace_target'],
+            'path'         => $m['path'],
+            'hr'           => $m['hr'],
+            'measured'     => true,
+        ]);
+    }
+
+    private static function routePath(Activity $a): ?string
+    {
         $encoded = $a->polyline['polyline'] ?? null;
-        $path    = $encoded ? self::sketch(Polyline::decode($encoded), 300, 200, 28) : null;
-        $session = TrainingSession::where('activity_id', $a->id)->orderBy('sort_order')->value('type');
+
+        return $encoded ? self::sketch(Polyline::decode($encoded), 300, 200, 28) : null;
+    }
+
+    private function presentActivity(Activity $a, ?string $sessionType): array
+    {
+        $path    = self::routePath($a);
         $sets    = is_array($a->strength_sets) ? count($a->strength_sets) : 0;
 
         return [
@@ -104,7 +201,7 @@ class TodayExtras
             'hr'            => $a->average_heartrate ? (int) round($a->average_heartrate) : null,
             'sets'          => $sets ?: null,
             'path'          => $path,
-            'photo_type'    => $session && $session !== 'rest' ? $session : self::photoType($a->type),
+            'photo_type'    => $sessionType && $sessionType !== 'rest' ? $sessionType : self::photoType($a->type),
             'sport_type'    => in_array($a->type, self::RUN_TYPES, true) ? null : $a->type,
         ];
     }
@@ -230,7 +327,11 @@ class TodayExtras
         return match (true) {
             $diff === 0 => 'Heute',
             $diff === 1 => 'Gestern',
-            default     => $d->locale('de')->translatedFormat('l'),
+            // Ohne Zeitgrenze kann die fünfte Karte Wochen alt sein — dann
+            // wäre „Sonntag“ irreführend.
+            $diff < 7   => $d->locale('de')->translatedFormat('l'),
+            // „Di 20.10.“ wie unter „Als Nächstes“.
+            default     => str_replace('.', '', $d->locale('de')->translatedFormat('D')) . ' ' . $d->format('j.n.'),
         };
     }
 

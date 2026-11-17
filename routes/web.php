@@ -190,6 +190,30 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
     $activePlan = $user->activeTrainingPlan;
     $todayStr   = now()->toDateString();
     $todayPlanSession = null;
+    $todaySessions    = collect();
+    /** Eine Einheit in der Form, die der Aufmacher liest. */
+    $sessionSlide = fn (TrainingSession $s) => \App\Services\Today\TodayExtras::withMeasured([
+        'id'           => $s->id,
+        'type'         => $s->type,
+        'sport_type'   => $s->sport_type,
+        'title'        => $s->title,
+        'description'  => $s->description,
+        'steps'        => $s->steps,
+        'distance_km'  => $s->distance_km,
+        'duration_min' => $s->duration_min,
+        'pace_target'  => $s->pace_target,
+        'zone'         => $s->zone,
+        'intensity'    => $s->intensity,
+        'status'       => $s->status,
+        'activity_id'  => $s->activity_id,
+        'event_id'     => $s->event_id,
+        'plan_id'      => $activePlan?->id,
+        'event_name'   => $s->training_plan_id ? $activePlan?->event?->name : null,
+        'session_date' => $s->planned_date->format('Y-m-d'),
+        'is_today'     => $s->planned_date->toDateString() === $todayStr,
+        'zwo_url'      => $s->hasBikeSteps() ? route('training-sessions.zwo', $s) : null,
+        'watch_url'    => \App\Services\Watch\AppleWorkoutWriter::offered($s, ! $user->offersAppleWatch()) ? route('training-sessions.apple-workout', $s) : null,
+    ], $s->activity_id ? $s->activity : null);
     if ($activePlan) {
         // An einem Doppel-Tag (norwegisches Modell) stehen zwei Läufe. Ist
         // der Morgen erledigt, zeigt die Karte den Abend — die erste noch
@@ -227,29 +251,30 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         }
 
         if ($s) {
-            $todayPlanSession = [
-                'id'           => $s->id,
-                'type'         => $s->type,
-                'sport_type'   => $s->sport_type,
-                'title'        => $s->title,
-                'description'  => $s->description,
-                'steps'        => $s->steps,
-                'distance_km'  => $s->distance_km,
-                'duration_min' => $s->duration_min,
-                'pace_target'  => $s->pace_target,
-                'zone'         => $s->zone,
-                'intensity'    => $s->intensity,
-                'status'       => $s->status,
-                'activity_id'  => $s->activity_id,
-                'event_id'     => $s->event_id,
-                'plan_id'      => $activePlan->id,
-                'event_name'   => $s->training_plan_id ? $activePlan->event?->name : null,
-                'session_date' => $s->planned_date->format('Y-m-d'),
-                'is_today'     => $s->planned_date->toDateString() === $todayStr,
-                'zwo_url'      => $s->hasBikeSteps() ? route('training-sessions.zwo', $s) : null,
-                'watch_url'    => \App\Services\Watch\AppleWorkoutWriter::offered($s, ! $user->offersAppleWatch()) ? route('training-sessions.apple-workout', $s) : null,
-            ];
+            $todayPlanSession = $sessionSlide($s);
         }
+    }
+
+    // Weitere Folien im Aufmacher (Jan, 17.11.2026: „alle Einheiten egal ob
+    // Plan oder nicht“): die übrigen Einheiten von heute und Aktivitäten von
+    // heute, die an keiner davon hängen. Gehen, Wandern und Yoga nicht —
+    // dieselbe Grenze wie unter „Zuletzt“. Sortiert wird im Frontend.
+    $todayMore = [];
+    foreach ($todaySessions as $t) {
+        if ($t->id === ($todayPlanSession['id'] ?? null) || $t->status === 'skipped' || $t->type === 'rest') {
+            continue;
+        }
+        if ($t->was_unplanned && $t->sport_type && ! in_array($t->sport_type, \App\Services\Today\TodayExtras::LAST_TYPES, true)) {
+            continue;
+        }
+        $todayMore[] = $sessionSlide($t);
+    }
+    $shownActivities = $todaySessions->pluck('activity_id')->filter()->values()->all();
+    if ($todayPlanSession && $todayPlanSession['activity_id']) {
+        $shownActivities[] = $todayPlanSession['activity_id'];
+    }
+    foreach (app(\App\Services\Today\TodayExtras::class)->todayActivitySlides($user, $shownActivities) as $slide) {
+        $todayMore[] = $slide;
     }
 
     // „Als Nächstes“ (Jan, 10.11.2026): die folgenden Einheiten als wischbare
@@ -422,6 +447,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
         'thresholdPaceCalculating' => (bool) ($runnerProfile?->threshold_pace_calculating),
         'syncResult' => session('sync_result'),
         'todayPlanSession' => $todayPlanSession,
+        'todayMore'        => $todayMore,
         'todayRecommendationSession' => $todayRecommendationSession,
         'coachRecommendation'        => $coachRecommendation,
         'hasActivePlan' => (bool) $activePlan,
@@ -435,7 +461,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             return [
                 'raceCard'  => $race,
                 'coachLine' => $extras->coachLine($user, $weekPlan, $race),
-                'lastActivity' => $extras->lastActivity($user),
+                'lastActivities' => $extras->recentActivities($user, 5),
             ];
         })(),
         'upcomingSessions' => $upcomingSessions,

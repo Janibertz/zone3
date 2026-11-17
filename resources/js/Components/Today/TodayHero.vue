@@ -9,6 +9,7 @@ import { computed } from 'vue';
 import { paceValue, sessionType, stepBand, zoneSpan } from '@/Composables/useSessionTypes';
 import { heroPhoto } from '@/Composables/useMomentPhotos';
 import { fmtNum } from '@/Composables/useFormat';
+import { activityType } from '@/Composables/useActivityTypes';
 
 const props = defineProps({
     session:  { type: Object, required: true },
@@ -18,6 +19,8 @@ const props = defineProps({
     badge:    { type: String, default: null },
     /** Am Telefon randlos bis unter die Statusleiste, Kopf (Slot „top“) im Foto. */
     immersive: { type: Boolean, default: false },
+    /** Im Slider: die Reihe selbst reicht bis an den Rand, die Folie nicht. */
+    flush: { type: Boolean, default: false },
 });
 
 const meta  = computed(() => sessionType(props.session.type));
@@ -28,17 +31,30 @@ const ride  = computed(() => RIDES.includes(props.session.sport_type));
 
 const chip = computed(() => {
     const zone = zoneSpan(props.session);
-    const label = ride.value ? 'Rad' : meta.value.label;
+    const label = props.session.activity_type ? activityType(props.session.activity_type).label
+        : ride.value ? 'Rad' : meta.value.label;
     return zone && !rest.value ? `${label} · Zone ${zone}` : label;
 });
 
 /** Typfarbe als Fläche; auf Grau (Ruhetag) steht Weiß, sonst Schwarz. */
 const chipClass = computed(() => [meta.value.dot, meta.value.accent === 'neutral' ? 'text-white' : 'text-black']);
 
+/** Erledigt mit Route: die Strecke auf Dunkel wie unter „Zuletzt“ statt des Fotos. */
+const route = computed(() => props.session.path || null);
+
 const numbers = computed(() => {
     const s = props.session;
     if (rest.value) return [];
     const out = [];
+    // Gemessen (erledigt): was die Uhr aufgezeichnet hat, auch beim Rad die Strecke.
+    if (s.measured) {
+        if (s.distance_km) out.push({ label: 'Strecke', value: fmtNum(Number(s.distance_km)), unit: 'km' });
+        if (s.duration_min) out.push({ label: 'Dauer', value: String(s.duration_min), unit: 'min' });
+        const p = paceValue(s.pace_target);
+        if (p) out.push({ label: 'Pace', value: p, unit: '/km' });
+        if (s.hr && out.length < 3) out.push({ label: 'Puls', value: String(s.hr), unit: 'bpm' });
+        return out.slice(0, 3);
+    }
     if (s.distance_km && !ride.value) out.push({ label: 'Strecke', value: fmtNum(Number(s.distance_km)), unit: 'km' });
     if (s.duration_min) out.push({ label: 'Dauer', value: String(s.duration_min), unit: 'min' });
     const pace = paceValue(s.pace_target);
@@ -53,11 +69,32 @@ const segClass = (seg) => seg.kind === 'work' ? (ZONE_FILL[seg.zone] ?? meta.val
 
 <template>
     <section class="relative isolate overflow-hidden bg-black text-white lg:rounded-[28px]"
-        :class="immersive ? 'max-lg:-mx-4 max-lg:rounded-none rounded-[28px]' : 'rounded-[28px]'"
+        :class="immersive ? (flush ? 'max-lg:rounded-none rounded-[28px]' : 'max-lg:-mx-4 max-lg:rounded-none rounded-[28px]') : 'rounded-[28px]'"
         :aria-label="`Heute: ${session.title}`">
-        <img :src="photo.src" alt="" aria-hidden="true" class="absolute inset-0 -z-10 h-full w-full object-cover" :style="{ objectPosition: photo.pos }" />
-        <div class="absolute inset-0 -z-10" aria-hidden="true"
-            style="background: linear-gradient(180deg, rgba(0,0,0,.35) 0%, rgba(0,0,0,0) 22%, rgba(0,0,0,.15) 45%, rgba(0,0,0,.85) 100%);" />
+        <template v-if="route">
+            <div class="absolute inset-0 -z-10 bg-[#0B0E12]" aria-hidden="true" />
+            <svg viewBox="0 0 300 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true" class="absolute inset-0 -z-10 h-full w-full">
+                <g fill="none" stroke="#1C232C" stroke-width="1.1">
+                    <path d="M-10 40 C60 30 120 70 200 50 S300 20 320 35" />
+                    <path d="M-10 120 C70 130 140 90 220 120 S300 160 320 140" />
+                    <path d="M-10 180 C80 170 150 195 230 175 S300 165 320 185" />
+                    <path d="M70 -10 C60 65 100 130 80 210" />
+                    <path d="M215 -10 C225 75 195 140 225 210" />
+                </g>
+            </svg>
+            <!-- Die Route nie beschneiden: „meet“ im freien Raum zwischen Kopf und Titel. -->
+            <svg viewBox="0 0 300 200" preserveAspectRatio="xMidYMid meet" aria-hidden="true"
+                class="absolute inset-x-6 -z-10 w-[calc(100%-3rem)]"
+                :class="immersive ? 'top-[calc(env(safe-area-inset-top)+110px)] h-[calc(100%-env(safe-area-inset-top)-110px-300px)] lg:top-16 lg:h-[calc(100%-64px-250px)]' : 'top-14 h-[calc(100%-56px-280px)] lg:h-[calc(100%-56px-250px)]'">
+                <path :d="route" fill="none" stroke="#0A84FF" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity=".25" />
+                <path :d="route" fill="none" stroke="#64B5FF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+        </template>
+        <template v-else>
+            <img :src="photo.src" alt="" aria-hidden="true" class="absolute inset-0 -z-10 h-full w-full object-cover" :style="{ objectPosition: photo.pos }" />
+            <div class="absolute inset-0 -z-10" aria-hidden="true"
+                style="background: linear-gradient(180deg, rgba(0,0,0,.35) 0%, rgba(0,0,0,0) 22%, rgba(0,0,0,.15) 45%, rgba(0,0,0,.85) 100%);" />
+        </template>
 
         <div class="flex h-full flex-col p-5 sm:p-7 lg:min-h-[420px] lg:p-8"
             :class="immersive ? 'min-h-[560px] max-lg:pb-6 max-lg:pt-[calc(env(safe-area-inset-top)+16px)]' : 'min-h-[440px]'">
