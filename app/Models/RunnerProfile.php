@@ -140,6 +140,12 @@ class RunnerProfile extends Model
         return $this->vdotInfo()['value'] ?? null;
     }
 
+    private const VDOT_SOURCE_NAMES = [
+        'threshold'   => 'Deine Läufe',
+        'best_effort' => 'Bestzeit',
+        'garmin'      => 'VO2max der Uhr',
+    ];
+
     /**
      * Die Schwellenpace, die der Athlet sieht — aus dem VDOT, mit Herkunft.
      *
@@ -149,7 +155,7 @@ class RunnerProfile extends Model
      * einmal (Usability-Befund N10). Jan, 03.11.2026: überall die aus dem
      * VDOT, mit der Quelle.
      *
-     * @return array{pace: string, source: string, label: string, measured: string|null}|null
+     * @return array{pace: string, source: string, label: string, measured: string|null, sources: list<array{key: string, name: string, pace: string, label: string, used: bool, note: string|null}>}|null
      */
     public function thresholdDisplay(): ?array
     {
@@ -168,6 +174,16 @@ class RunnerProfile extends Model
             'label'    => $info['source'] === 'threshold' ? 'aus deinen Läufen' : $info['label'],
             // Die gemessene nur nennen, wenn sie abweicht — sonst doppelt.
             'measured' => $measured !== $pace ? $measured : null,
+            // Jede Quelle mit der Schwelle, die aus ihr folgen würde; die
+            // schnellste zählende gilt (siehe VdotService).
+            'sources'  => array_values(array_map(fn (string $key, array $c) => [
+                'key'   => $key,
+                'name'  => self::VDOT_SOURCE_NAMES[$key] ?? $key,
+                'pace'  => PaceFormat::fromSeconds(Vdot::paceAt($c['vdot'], Vdot::THRESHOLD)),
+                'label' => $key === 'threshold' ? 'aus deinen letzten Läufen berechnet' : $c['label'],
+                'used'  => $key === $info['source'],
+                'note'  => in_array($key, $info['ignored'] ?? [], true) ? 'zählt nur ohne Messung aus deinen Läufen' : null,
+            ], array_keys($info['candidates'] ?? []), $info['candidates'] ?? [])),
         ];
     }
 

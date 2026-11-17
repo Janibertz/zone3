@@ -11,7 +11,7 @@ use App\Services\PaceFormat;
  * Woher der VDOT eines Athleten kommt — die einzige Stelle, die das sagt.
  *
  * Drei Quellen, und es gilt die höchste (Entscheidung vom 25.10.2026,
- * Garmin seit 27.10.2026):
+ * Garmin seit 27.10.2026, nur ohne Messung seit 17.11.2026):
  *
  * - **Schwellenpace** (`threshold_speed`, KI-berechnet aus den letzten
  *   Läufen). Trägt durch Wochen ohne schnellen Lauf.
@@ -20,10 +20,11 @@ use App\Services\PaceFormat;
  *   5 km in 20:00 gelaufen ist, ist mindestens so fit. Eine schnelle
  *   Teilstrecke aus einem lockeren Lauf drückt nichts nach unten, weil
  *   nur der höchste Wert zählt.
- * - **Garmins VO2max** (User Metrics der Health API), der neueste Wert der
- *   letzten sechs Wochen. Garmin schätzt anders als Daniels; Jan hat
- *   entschieden, den Wert trotzdem gleichrangig zu zählen. Ein zu
- *   optimistischer Garmin-Wert macht damit alle Tempi schneller.
+ * - **VO2max der Uhr** (Garmin User Metrics, COROS, Polar, Apple Health),
+ *   der neueste Wert der letzten sechs Wochen. **Zählt seit 17.11.2026 nur,
+ *   wenn es keine gemessene Schwelle gibt** (Jan): Garmin schätzt anders
+ *   als Daniels, und ein zu optimistischer Wert machte alle Tempi schneller,
+ *   obwohl Läufe und Garmins eigene Laktatschwelle langsamer lagen.
  *
  * Die 1-km-Bestzeit zählt nicht: Daniels' Formel gilt ab etwa 1,5 km, und
  * ein Kilometer aus einem Training ist oft ein Steigerungslauf.
@@ -35,7 +36,7 @@ class VdotService
     private const EFFORT_KEYS = ['5k', '10k', 'half', 'marathon'];
 
     /**
-     * @return array{value: float, source: string, label: string, from_threshold: float|null, from_effort: float|null, from_garmin: float|null}|null
+     * @return array{value: float, source: string, label: string, from_threshold: float|null, from_effort: float|null, from_garmin: float|null, candidates: array<string, array{vdot: float, label: string}>, ignored: list<string>}|null
      */
     public function forProfile(?RunnerProfile $profile): ?array
     {
@@ -69,10 +70,18 @@ class VdotService
             return null;
         }
 
+        // Die VO2max der Uhr zählt nur ohne gemessene Schwelle (Jan,
+        // 17.11.2026): Garmin schätzte 51, Läufe und Garmins eigene
+        // Laktatschwelle sagten beide 4:21 (VDOT 48,6) — die Anzeige stand
+        // trotzdem auf 4:11. Sie bleibt als Hinweis in der Liste.
+        $counting = isset($candidates['threshold'])
+            ? array_diff_key($candidates, ['garmin' => true])
+            : $candidates;
+
         // Bei Gleichstand gewinnt die erste Quelle: Schwelle vor Bestzeit vor Garmin.
         $source = null;
-        foreach ($candidates as $key => $c) {
-            if ($source === null || $c['vdot'] > $candidates[$source]['vdot']) {
+        foreach ($counting as $key => $c) {
+            if ($source === null || $c['vdot'] > $counting[$source]['vdot']) {
                 $source = $key;
             }
         }
@@ -88,6 +97,12 @@ class VdotService
             'from_threshold' => $rounded('threshold'),
             'from_effort'    => $rounded('best_effort'),
             'from_garmin'    => $rounded('garmin'),
+            // Alle Quellen mit Wert, für die Erklärung unter „Prognosen &
+            // Verlauf" (Jan, 17.11.2026: die 4:11 neben gemessenen 4:21
+            // war ohne die drei Quellen nicht zu verstehen).
+            'candidates'     => array_map(fn ($c) => ['vdot' => $c['vdot'], 'label' => $c['label']], $candidates),
+            // Quellen, die nicht mitzählen (die VO2max neben einer Messung).
+            'ignored'        => array_keys(array_diff_key($candidates, $counting)),
         ];
     }
 

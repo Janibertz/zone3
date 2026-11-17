@@ -171,6 +171,69 @@ class ThresholdPaceTest extends TestCase
         $this->assertSame('4:54', $profile->threshold_pace_history[0]['pace_formatted']);
     }
 
+    // ── Die Push meldet die Schwelle, die gilt ───────────────────────────
+
+    /** @return list<string> die Texte der verschickten Pushs */
+    private function recalcCapturingPush(User $user, array $result): array
+    {
+        $user->forceFill(['push_notifications_enabled' => true, 'notify_threshold_pace' => true])->save();
+        $sent = [];
+        $this->mock(AthleteProfileService::class, fn ($m) => $m->shouldReceive('calculateThresholdPaceWithAI')->andReturn($result));
+        $this->mock(WebPushService::class, function ($m) use (&$sent) {
+            $m->shouldReceive('sendToUser')->andReturnUsing(function ($u, $title, $body) use (&$sent) {
+                $sent[] = $body;
+            });
+        });
+        $this->recalc($user);
+
+        return $sent;
+    }
+
+    public function test_the_push_names_the_threshold_that_applies(): void
+    {
+        $user = $this->athlete(5.0);
+
+        $sent = $this->recalcCapturingPush($user, ['pace' => 4.9, 'range' => null, 'confidence' => 'high', 'evidence' => []]);
+
+        $this->assertCount(1, $sent);
+        $this->assertStringContainsString('4:54', $sent[0]);
+        $this->assertStringContainsString('aus deinen letzten Läufen', $sent[0]);
+    }
+
+    /**
+     * Gemeldet von Jan (17.11.2026): Push „4:21", Heute zeigte 4:11. Hebt
+     * eine Bestzeit die Schwelle über die gemessene, ändert eine neue
+     * Messung darunter nichts an der geltenden Zahl — also keine Push.
+     */
+    public function test_no_push_when_the_applying_threshold_does_not_change(): void
+    {
+        $user = $this->athlete(5.0);
+        $activity = \App\Models\Activity::create([
+            'user_id' => $user->id, 'strava_id' => 777, 'name' => 'Rennen', 'type' => 'Run',
+            'start_date' => now()->subDays(3), 'distance' => 5000, 'moving_time' => 1080,
+            'elapsed_time' => 1080, 'average_speed' => 4.6,
+        ]);
+        \App\Models\BestEffort::create([
+            'user_id' => $user->id, 'activity_id' => $activity->id, 'distance_key' => '5k',
+            'distance_m' => 5000, 'elapsed_time' => 1080, 'achieved_at' => now()->subDays(3),
+        ]);
+
+        $sent = $this->recalcCapturingPush($user, ['pace' => 4.9, 'range' => null, 'confidence' => 'high', 'evidence' => []]);
+
+        $this->assertSame([], $sent);
+    }
+
+    public function test_the_push_body_names_the_source_and_the_measured_value(): void
+    {
+        $body = CalculateThresholdPaceJob::pushBody([
+            'pace' => '4:11', 'source' => 'best_effort', 'label' => 'aus 5 km in 18:00 am 14.11.', 'measured' => '4:21',
+        ]);
+
+        $this->assertStringContainsString('4:11', $body);
+        $this->assertStringContainsString('5 km in 18:00', $body);
+        $this->assertStringContainsString('gemessen: 4:21', $body);
+    }
+
     /** Ein Sprung um mehr als acht Prozent ist keine Formentwicklung. */
     public function test_an_implausible_jump_is_rejected(): void
     {

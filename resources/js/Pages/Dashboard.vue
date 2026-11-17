@@ -2292,6 +2292,31 @@ async function resetLayout() {
 
                                     <div v-if="showPaceDetails">
                                         <!--
+                                            Woher die Schwelle kommt (Jan, 17.11.2026: Push „4:21",
+                                            hier 4:11 — ohne die Quellen nicht zu verstehen). Jede
+                                            Quelle mit der Schwelle, die aus ihr folgt; die schnellste gilt.
+                                        -->
+                                        <div v-if="props.thresholdDisplay?.sources?.length" class="mt-4 rounded-field bg-surface-2 px-3 py-2.5">
+                                            <p class="text-[13px] font-semibold text-ink">Woher die Schwelle kommt</p>
+                                            <div v-for="s in props.thresholdDisplay.sources" :key="s.key"
+                                                class="mt-2 flex items-baseline justify-between gap-3 text-[13px]">
+                                                <div class="min-w-0">
+                                                    <p class="font-semibold" :class="s.used ? 'text-ink' : 'text-ink-2'">{{ s.name }}</p>
+                                                    <p class="text-ink-3 first-letter:uppercase">{{ s.label }}</p>
+                                                    <p v-if="s.note" class="text-ink-3 italic">{{ s.note }}</p>
+                                                </div>
+                                                <p class="shrink-0 tabular-nums" :class="s.used ? 'font-semibold text-ink' : 'text-ink-3'">
+                                                    {{ s.pace }}<span v-if="s.used" class="ml-1.5 rounded-full bg-accent px-1.5 py-0.5 text-[11px] font-semibold text-white">gilt</span>
+                                                </p>
+                                            </div>
+                                            <p class="mt-2.5 text-[12px] leading-relaxed text-ink-3">
+                                                Es gilt die schnellste Schwelle aus deinen Läufen und Bestzeiten.
+                                                Die VO2max der Uhr zählt nur, solange es keine Messung gibt.
+                                                Danach richten sich Zonen, Prognosen und dein Plan.
+                                            </p>
+                                        </div>
+
+                                        <!--
                                             Immer zwei Spalten: das Modul ist auch am Desktop oft nur
                                             ~400 px breit, und vier Spalten ließen „Halbmarathon“ und
                                             „1:33:22“ aus dem Kasten laufen (Jan, 03.11.2026).

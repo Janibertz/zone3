@@ -146,10 +146,26 @@ class VdotTest extends TestCase
         $this->assertNotEmpty($p->pace_zones);
     }
 
-    /** Garmins VO2max ist die dritte Quelle (Entscheidung vom 27.10.2026). */
-    public function test_a_higher_garmin_vo2max_wins(): void
+    /**
+     * Garmins VO2max ist die dritte Quelle (27.10.2026), zählt aber seit
+     * 17.11.2026 nur ohne gemessene Schwelle (Jan: Garmin 51, Läufe und
+     * Garmins Laktatschwelle 4:21 — angezeigt wurde 4:11).
+     */
+    public function test_a_higher_garmin_vo2max_does_not_beat_a_measured_threshold(): void
     {
         $p = $this->profile(4.5);
+        $this->garmin($p, 52.0, 3);
+
+        $info = app(VdotService::class)->forProfile($p);
+
+        $this->assertSame('threshold', $info['source']);
+        $this->assertSame(52.0, $info['from_garmin'], 'Steht weiter als Hinweis da');
+        $this->assertSame(['garmin'], $info['ignored']);
+    }
+
+    public function test_without_a_measured_threshold_the_garmin_vo2max_counts(): void
+    {
+        $p = $this->profile(null);
         $this->garmin($p, 49.0, 30);
         $this->garmin($p, 52.0, 3); // der neueste zählt, nicht der höchste
 
@@ -158,7 +174,16 @@ class VdotTest extends TestCase
         $this->assertSame('garmin', $info['source']);
         $this->assertSame(52.0, $info['value']);
         $this->assertSame('aus Garmins VO2max vom 22.10.', $info['label']);
-        $this->assertNotNull($info['from_threshold']);
+        $this->assertSame([], $info['ignored']);
+    }
+
+    public function test_a_faster_best_effort_still_beats_the_measured_threshold_next_to_garmin(): void
+    {
+        $p = $this->profile(4.5);
+        $this->garmin($p, 70.0, 2);
+        $this->effort($p, '5k', 17 * 60, 5);
+
+        $this->assertSame('best_effort', app(VdotService::class)->forProfile($p)['source']);
     }
 
     public function test_the_newest_garmin_value_counts_even_when_it_dropped(): void

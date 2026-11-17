@@ -109,6 +109,11 @@ class CalculateThresholdPaceJob implements ShouldQueue
             'evidence'       => $result['evidence'],
         ];
 
+        // Was der Athlet bisher als Schwelle sah (aus dem VDOT, siehe
+        // RunnerProfile::thresholdDisplay()) — die Push meldet nur, wenn
+        // sich diese Zahl ändert.
+        $shownBefore = $profile->thresholdDisplay()['pace'] ?? null;
+
         $profile->threshold_speed              = $thresholdPace;
         $profile->threshold_pace_calculated_at = now();
         $profile->threshold_pace_history       = array_slice($history, -30);
@@ -137,14 +142,36 @@ class CalculateThresholdPaceJob implements ShouldQueue
             }
         }
 
-        if ($user->push_notifications_enabled && $user->notify_threshold_pace) {
-            $body = "Deine neue Schwellenpace: {$paceFormatted} min/km";
-            if ($result['confidence'] === 'low') {
-                $body .= ' (grobe Schätzung — es fehlt eine harte Einheit als Anker)';
-            }
+        // ── Push: die Zahl, die gilt ─────────────────────────────────────
+        //
+        // Gemeldet von Jan (17.11.2026): Push „neue Schwellenpace 4:21",
+        // Heute zeigte 4:11 aus Garmins VO2max. Zonen und Plan rechnen mit
+        // der höchsten VDOT-Quelle; die gemessene ist nur eine davon. Die
+        // Push nennt deshalb die geltende Schwelle mit Herkunft und kommt
+        // nur, wenn sich diese ändert.
+        $shown = $profile->thresholdDisplay();
 
-            $webPush->sendToUser($user, 'Schwellenpace aktualisiert 🏃', $body, '/profile');
+        if ($shown && $shown['pace'] !== $shownBefore && $user->push_notifications_enabled && $user->notify_threshold_pace) {
+            $webPush->sendToUser($user, 'Schwellenpace aktualisiert 🏃', self::pushBody($shown, $result['confidence']), '/profile');
         }
+    }
+
+    /** @param array{pace: string, source: string, label: string, measured: string|null} $shown */
+    public static function pushBody(array $shown, ?string $confidence = null): string
+    {
+        $body = "Deine Schwellenpace: {$shown['pace']} min/km";
+
+        if ($shown['source'] === 'threshold') {
+            $body .= ', aus deinen letzten Läufen berechnet.';
+            if ($confidence === 'low') {
+                $body .= ' Grobe Schätzung, es fehlt eine harte Einheit als Anker.';
+            }
+        } else {
+            $body .= " ({$shown['label']})."
+                . ($shown['measured'] ? " Aus deinen Läufen gemessen: {$shown['measured']}." : '');
+        }
+
+        return $body . ' Danach richten sich Zonen und Plan.';
     }
 
     public function failed(\Throwable $e): void
