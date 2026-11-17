@@ -435,7 +435,7 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             return [
                 'raceCard'  => $race,
                 'coachLine' => $extras->coachLine($user, $weekPlan, $race),
-                'lastRun'   => $extras->lastRun($user),
+                'lastActivity' => $extras->lastActivity($user),
             ];
         })(),
         'upcomingSessions' => $upcomingSessions,

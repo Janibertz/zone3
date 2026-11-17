@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Activity;
+use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\Polyline;
 use App\Services\Today\TodayExtras;
@@ -95,9 +96,9 @@ class TodayExtrasTest extends TestCase
         }
         $this->lauf($user, '2026-11-07 09:00', 18.4, 331, 142, $points);
 
-        $run = app(TodayExtras::class)->lastRun($user);
+        $run = app(TodayExtras::class)->lastActivity($user);
 
-        $this->assertSame(18.4, $run['km']);
+        $this->assertSame(18400.0, $run['distance']);
         preg_match_all('/[ML]([\d.]+) ([\d.]+)/', $run['path'], $m);
         $this->assertCount(41, $m[1]);
         foreach ($m[1] as $i => $x) {
@@ -105,11 +106,54 @@ class TodayExtrasTest extends TestCase
         }
     }
 
-    public function test_a_run_without_a_route_is_not_shown(): void
+    public function test_a_run_without_a_route_shows_its_photo(): void
     {
         $user = User::factory()->create();
         $this->lauf($user, '2026-11-07 09:00', 8, 330, 140);
 
-        $this->assertNull(app(TodayExtras::class)->lastRun($user));
+        $last = app(TodayExtras::class)->lastActivity($user);
+
+        $this->assertNull($last['path']);
+        $this->assertSame('easy_run', $last['photo_type']);
+        $this->assertNull($last['sport_type']);
+    }
+
+    public function test_swim_ride_and_strength_count_as_the_last_activity(): void
+    {
+        $user = User::factory()->create();
+        $this->lauf($user, '2026-11-05 09:00', 10, 330, 140);
+
+        $make = fn (string $type, string $date, array $extra = []) => Activity::create([
+            'user_id' => $user->id, 'strava_id' => random_int(5000, 999999), 'name' => $type, 'type' => $type,
+            'distance' => 0, 'moving_time' => 2700, 'elapsed_time' => 2700, 'average_speed' => 0, 'start_date' => $date,
+        ] + $extra);
+
+        $make('Swim', '2026-11-06 07:00', ['distance' => 1500, 'average_speed' => 0.7]);
+        $this->assertSame(['Swim', 'Swim'], [app(TodayExtras::class)->lastActivity($user)['type'], app(TodayExtras::class)->lastActivity($user)['sport_type']]);
+
+        $make('VirtualRide', '2026-11-07 18:00', ['distance' => 30000, 'average_speed' => 8.5]);
+        $this->assertSame('VirtualRide', app(TodayExtras::class)->lastActivity($user)['sport_type']);
+
+        $strength = $make('WeightTraining', '2026-11-08 18:00', ['strength_sets' => [['reps' => 10], ['reps' => 10], ['reps' => 8]]]);
+        $last = app(TodayExtras::class)->lastActivity($user);
+        $this->assertSame('strength', $last['photo_type']);
+        $this->assertSame(3, $last['sets']);
+        $this->assertSame(2700, $last['moving_time']);
+
+        // Gehen bleibt draußen.
+        $make('Walk', '2026-11-09 12:00', ['distance' => 4000, 'average_speed' => 1.3]);
+        $this->assertSame($strength->id, app(TodayExtras::class)->lastActivity($user)['id']);
+    }
+
+    public function test_the_photo_follows_the_linked_plan_session(): void
+    {
+        $user = User::factory()->create();
+        $run = $this->lauf($user, '2026-11-07 09:00', 8, 300, 160);
+        TrainingSession::create([
+            'user_id' => $user->id, 'activity_id' => $run->id, 'type' => 'interval', 'title' => '6×800 m',
+            'intensity' => 'high', 'planned_date' => '2026-11-07', 'status' => 'completed',
+        ]);
+
+        $this->assertSame('interval', app(TodayExtras::class)->lastActivity($user)['photo_type']);
     }
 }

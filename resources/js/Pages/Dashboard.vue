@@ -23,7 +23,7 @@ import UpcomingSessions from '@/Components/Plan/UpcomingSessions.vue';
 import TodayHero from '@/Components/Today/TodayHero.vue';
 import RaceCard from '@/Components/Today/RaceCard.vue';
 import CoachLine from '@/Components/Today/CoachLine.vue';
-import LastRunCard from '@/Components/Today/LastRunCard.vue';
+import LastActivityCard from '@/Components/Today/LastActivityCard.vue';
 import PersonalRecordMoment from '@/Components/Moments/PersonalRecordMoment.vue';
 import WeekDoneMoment from '@/Components/Moments/WeekDoneMoment.vue';
 import RaceDoneMoment from '@/Components/Moments/RaceDoneMoment.vue';
@@ -102,7 +102,7 @@ const props = defineProps({
     upcomingSessions: { type: Array, default: () => [] },
     raceCard: { type: Object, default: null },
     coachLine: { type: String, default: null },
-    lastRun: { type: Object, default: null },
+    lastActivity: { type: Object, default: null },
     weekPlan: {
         type: Array,
         default: () => [],
@@ -1313,7 +1313,7 @@ const layoutError  = ref('');
 // Ein Modul ohne Daten bleibt weg, statt eine leere Zelle ins Raster zu legen.
 const moduleHasData = computed(() => ({
     naechste:    (props.upcomingSessions || []).length > 0,
-    zuletzt:     !!props.lastRun,
+    zuletzt:     !!props.lastActivity,
     form:        !!props.trainingLoad,
     intensitaet: !!props.intensityDistribution,
     rueckblick:  !!props.weeklyReview,
@@ -1349,7 +1349,7 @@ function moduleClass(m) {
 function moduleHint(m) {
     if (moduleHasData.value[m.key] !== false) return null;
     return { form: 'erscheint mit genug Trainingsdaten', intensitaet: 'erscheint mit genug Läufen',
-        rueckblick: 'erscheint montags', erholung: 'nur mit Garmin', naechste: 'erscheint mit einem Plan', zuletzt: 'erscheint nach einem Lauf mit Strecke' }[m.key];
+        rueckblick: 'erscheint montags', erholung: 'nur mit Garmin', naechste: 'erscheint mit einem Plan', zuletzt: 'erscheint nach deiner nächsten Einheit' }[m.key];
 }
 
 function openLayoutSheet() {
@@ -1894,22 +1894,22 @@ async function resetLayout() {
                 <!-- ══════════════════════════════════════════════════
                      REIHE 3: ALS NÄCHSTES + ZULETZT
                      ══════════════════════════════════════════════════ -->
-                <div v-if="(shows('naechste') && props.upcomingSessions.length) || (shows('zuletzt') && props.lastRun)" class="grid gap-[22px] lg:grid-cols-3 lg:gap-5">
+                <div v-if="(shows('naechste') && props.upcomingSessions.length) || (shows('zuletzt') && props.lastActivity)" class="grid gap-[22px] lg:grid-cols-3 lg:gap-5">
                     <section v-if="shows('naechste') && props.upcomingSessions.length" aria-label="Als Nächstes" class="min-w-0"
-                        :class="shows('zuletzt') && props.lastRun ? 'lg:col-span-2' : 'lg:col-span-3'">
+                        :class="shows('zuletzt') && props.lastActivity ? 'lg:col-span-2' : 'lg:col-span-3'">
                         <div class="mx-1 mb-2.5 flex items-baseline justify-between lg:mx-0 lg:mb-3">
                             <h2 class="text-[20px] font-extrabold tracking-[-0.02em] text-ink lg:text-[22px]">Als Nächstes</h2>
                             <Link :href="props.todayPlanSession?.event_id ? `/events/${props.todayPlanSession.event_id}/plan` : '/events'" class="text-[15px] font-semibold text-accent">Plan</Link>
                         </div>
                         <UpcomingSessions :sessions="props.upcomingSessions" />
                     </section>
-                    <section v-if="shows('zuletzt') && props.lastRun" aria-label="Zuletzt"
+                    <section v-if="shows('zuletzt') && props.lastActivity" aria-label="Zuletzt"
                         :class="shows('naechste') && props.upcomingSessions.length ? '' : 'lg:col-span-3'">
                         <div class="mx-1 mb-2.5 flex items-baseline justify-between lg:mx-0 lg:mb-3">
                             <h2 class="text-[20px] font-extrabold tracking-[-0.02em] text-ink lg:text-[22px]">Zuletzt</h2>
                             <Link href="/activities" class="text-[15px] font-semibold text-accent">Alle</Link>
                         </div>
-                        <LastRunCard :run="props.lastRun" />
+                        <LastActivityCard :activity="props.lastActivity" />
                     </section>
                 </div>
 

@@ -5,6 +5,7 @@ namespace App\Services\Today;
 use App\Models\Activity;
 use App\Models\Event;
 use App\Models\TrainingPlan;
+use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\PaceFormat;
 use App\Services\PeriodizationService;
@@ -14,7 +15,8 @@ use Carbon\CarbonImmutable;
 
 /**
  * „Mehr Leben“ auf Heute (Jan, 10.11.2026, Mockup „Zone3 mit mehr Leben“):
- * die Rennkarte, ein Satz vom Coach und der letzte Lauf als Route. Alles
+ * die Rennkarte, ein Satz vom Coach und die letzte Einheit als Route
+ * oder Foto. Alles
  * aus den Daten, kein Modellaufruf — der Satz muss stimmen, nicht klingen.
  */
 class TodayExtras
@@ -57,31 +59,62 @@ class TodayExtras
         ];
     }
 
-    /** Der letzte Lauf der letzten 14 Tage mit Strecke, als Linie für die Karte. */
-    public function lastRun(User $user): ?array
+    /**
+     * Sportarten unter „Zuletzt“ (Jan, 17.11.2026: auch Schwimmen, Kraft
+     * und Rad). Gehen, Wandern und Yoga bleiben draußen — der Coach schweigt
+     * dazu ja auch (`SessionHighlights::silent()`).
+     */
+    private const LAST_TYPES = [
+        'Run', 'TrailRun', 'VirtualRun',
+        'Ride', 'VirtualRide', 'EBikeRide',
+        'Swim',
+        'WeightTraining', 'Workout',
+    ];
+
+    /**
+     * Die letzte Einheit der letzten 14 Tage. Mit Strecke als Linie für die
+     * Karte, ohne (Laufband, Zwift, Becken, Kraft) mit dem Foto der Einheit
+     * wie im Aufmacher und im Widget: `photo_type` ist der Typ der
+     * verknüpften Planeinheit, sonst der Sport (`heroPhoto()` im Frontend).
+     */
+    public function lastActivity(User $user): ?array
     {
-        $run = Activity::where('user_id', $user->id)
-            ->whereIn('type', self::RUN_TYPES)
+        $a = Activity::where('user_id', $user->id)
+            ->whereIn('type', self::LAST_TYPES)
             ->where('start_date', '>=', now()->subDays(14))
-            ->whereNotNull('polyline')
             ->orderByDesc('start_date')
             ->first();
-
-        $encoded = $run?->polyline['polyline'] ?? null;
-        $path    = $encoded ? self::sketch(Polyline::decode($encoded), 300, 200, 28) : null;
-        if (! $run || ! $path) {
+        if (! $a) {
             return null;
         }
 
+        $encoded = $a->polyline['polyline'] ?? null;
+        $path    = $encoded ? self::sketch(Polyline::decode($encoded), 300, 200, 28) : null;
+        $session = TrainingSession::where('activity_id', $a->id)->orderBy('sort_order')->value('type');
+        $sets    = is_array($a->strength_sets) ? count($a->strength_sets) : 0;
+
         return [
-            'id'    => $run->id,
-            'day'   => self::dayLabel(CarbonImmutable::parse($run->start_date)),
-            'name'  => $run->name,
-            'km'    => round($run->distance / 1000, 1),
-            'pace'  => $run->average_speed > 0 ? PaceFormat::fromSpeed((float) $run->average_speed) : null,
-            'hr'    => $run->average_heartrate ? (int) round($run->average_heartrate) : null,
-            'path'  => $path,
+            'id'            => $a->id,
+            'day'           => self::dayLabel(CarbonImmutable::parse($a->start_date)),
+            'name'          => $a->name,
+            'type'          => $a->type,
+            'distance'      => (float) $a->distance,
+            'average_speed' => (float) $a->average_speed,
+            'moving_time'   => (int) ($a->moving_time ?: $a->elapsed_time),
+            'hr'            => $a->average_heartrate ? (int) round($a->average_heartrate) : null,
+            'sets'          => $sets ?: null,
+            'path'          => $path,
+            'photo_type'    => $session && $session !== 'rest' ? $session : self::photoType($a->type),
+            'sport_type'    => in_array($a->type, self::RUN_TYPES, true) ? null : $a->type,
         ];
+    }
+
+    private static function photoType(string $type): string
+    {
+        return match (true) {
+            in_array($type, ['WeightTraining', 'Workout'], true) => 'strength',
+            default => 'easy_run',
+        };
     }
 
     /**
