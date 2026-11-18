@@ -156,7 +156,11 @@ class RacePredictionConsistencyTest extends TestCase
         );
 
         $this->assertStringStartsWith('3:15', $seen['predicted_finish_time'], 'Der Text bekommt die VDOT-Prognose');
-        $this->assertSame('improving', $seen['prediction_trend'], 'Trend kommt weiter aus dem Predictor');
+        // Seit 18.11.2026 kommt mit VDOT auch der Trend aus der Schwelle
+        // (hier ohne Verlauf: kein Trend), nicht mehr aus dem Predictor.
+        $this->assertNull($seen['prediction_trend'], 'Trend kommt nicht mehr aus dem Predictor');
+        $this->assertNull($seen['prediction_run_count']);
+        $this->assertStringContainsString('Schwellenpace 4:22', $seen['prediction_basis']);
         $this->assertStringContainsString('3:15', $plan->refresh()->prediction_text);
         $this->assertStringStartsWith('3:15', $plan->predicted_finish_time);
     }

@@ -100,16 +100,6 @@ class TrainingPlanController extends Controller
             }
         }
 
-        // Keep AI prediction text fresh via async job (only the text, not the numbers).
-        // Skipped for Backyard Ultra — it uses the deterministic yard-readiness estimate.
-        if ($plan && $plan->is_active && ! $isPastEvent && ! $event->isBackyard() && ! $event->isOpen()) {
-            $stale = $plan->prediction_updated_at === null
-                || now()->diffInHours($plan->prediction_updated_at) > 12;
-            if ($stale) {
-                GenerateRacePredictionJob::dispatch($plan->id)->delay(now()->addSeconds(3));
-            }
-        }
-
         // Calculate prediction from threshold pace (same formula as Dashboard).
         // Backyard Ultra uses a separate yard-readiness estimate instead.
         $profile    = RunnerProfile::where('user_id', Auth::id())->first();
@@ -117,6 +107,27 @@ class TrainingPlanController extends Controller
             // Ohne Rennen: die Prognose für den 5-km-Test.
             ? app(RacePredictionService::class)->forVdot($profile->vdot(), $event->isOpen() ? '5km' : $event->race_distance, $event->distance_km)
             : null;
+
+        // Der KI-Text gehört zu genau einer Zahl. Der Job speichert die Zeit,
+        // über die er geschrieben hat, in `predicted_finish_time`. Weicht die
+        // Prognose von heute davon ab (neue Schwelle, andere VDOT-Quelle),
+        // ist der Text veraltet: er wird nicht gezeigt und sofort neu
+        // geschrieben. 18.11.2026: Prognose 1:33:45, Text darunter 1:29:58 —
+        // der Text stammte vom Vorabend, als die VO2max der Uhr noch galt.
+        $predictionText = $plan?->prediction_text;
+        if ($plan && $plan->is_active && ! $isPastEvent && ! $event->isBackyard() && ! $event->isOpen()) {
+            $mismatch = $threshPred && $plan->prediction_text
+                && $plan->predicted_finish_time !== $threshPred['time'];
+            $stale = $mismatch
+                || $plan->prediction_updated_at === null
+                || now()->diffInHours($plan->prediction_updated_at) > 12;
+            if ($mismatch) {
+                $predictionText = null;
+            }
+            if ($stale) {
+                GenerateRacePredictionJob::dispatch($plan->id)->delay(now()->addSeconds(3));
+            }
+        }
 
         // Delta vs. target time (positive = faster than goal)
         $targetSec = ($event->target_time_hours * 3600) + ($event->target_time_minutes * 60);
@@ -183,7 +194,7 @@ class TrainingPlanController extends Controller
                 'predicted_finish_time'       => $threshPred ? $threshPred['time'] : $plan->predicted_finish_time,
                 'predicted_pace'              => $threshPred ? $threshPred['pace'] : $plan->predicted_pace,
                 'prediction_target_delta_sec' => $deltaSec ?? $plan->prediction_target_delta_sec,
-                'prediction_text'             => $plan->prediction_text,
+                'prediction_text'             => $predictionText,
                 'prediction_source'           => $threshPred ? 'threshold' : 'riegel',
             ] : null,
             'sessions'    => $sessions,

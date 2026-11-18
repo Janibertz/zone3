@@ -389,15 +389,24 @@ PROMPT;
     ): ?string {
         $predicted = $predictionData['predicted_finish_time'];
         $pace      = $predictionData['predicted_pace'];
-        $trend     = $predictionData['prediction_trend'];
+        $trend     = $predictionData['prediction_trend'] ?? null;
         $deltaSec  = $predictionData['prediction_target_delta_sec'] ?? null;
-        $runCount  = $predictionData['prediction_run_count'];
+        $runCount  = $predictionData['prediction_run_count'] ?? null;
+        $basis     = $predictionData['prediction_basis'] ?? null;
+        $fromVdot  = $basis !== null;
 
+        // Mit VDOT ist der Trend der Verlauf der Schwelle, sonst die
+        // Riegel-Hochrechnung der letzten Läufe. Ohne Trend keine Zeile.
         $trendText = match ($trend) {
-            'improving' => 'Der Athlet verbessert sich – aktuelle Läufe sind schneller als ältere.',
-            'declining' => 'Die Leistung sinkt leicht – aktuelle Läufe sind langsamer als ältere.',
-            default     => 'Die Leistung ist stabil.',
+            'improving' => $fromVdot ? 'Die Schwelle ist in den letzten Wochen schneller geworden.' : 'Der Athlet verbessert sich – aktuelle Läufe sind schneller als ältere.',
+            'declining' => $fromVdot ? 'Die Schwelle ist in den letzten Wochen langsamer geworden.' : 'Die Leistung sinkt leicht – aktuelle Läufe sind langsamer als ältere.',
+            'stable'    => $fromVdot ? 'Die Schwelle ist in den letzten Wochen stabil.' : 'Die Leistung ist stabil.',
+            default     => null,
         };
+        $basisLine = $fromVdot
+            ? "Basiert auf: VDOT {$basis}"
+            : "Basiert auf: {$runCount} Läufen der letzten 90 Tage";
+        $trendLine = $trendText ? "\nTrend: {$trendText}" : '';
 
         $deltaText = '';
         if ($deltaSec !== null) {
@@ -425,8 +434,7 @@ Du bist ein persönlicher Lauf-Coach. Schreibe eine kurze, motivierende Empfehlu
 Event: {$eventData['name']} ({$eventData['race_distance']}) in {$eventData['days_until']} Tagen
 Zielzeit: {$eventData['target_time_formatted']}
 Prognostizierte Finishzeit: {$predicted} (Pace: {$pace}/km)
-Basiert auf: {$runCount} Läufen der letzten 90 Tage
-Trend: {$trendText}
+{$basisLine}{$trendLine}
 {$deltaText}{$sessionsText}
 
 Schreibe die Empfehlung direkt (kein "Hallo", keine Einleitung). Maximal 3 Sätze. Sei konkret: Nenne welche Trainingsart hilft und warum. Keine Emojis.
