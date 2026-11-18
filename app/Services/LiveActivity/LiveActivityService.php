@@ -84,13 +84,20 @@ class LiveActivityService
             return;
         }
 
-        $activity = LiveActivity::firstOrNew(['activity_id' => $data['activity_id']]);
-        $activity->fill([
-            'user_id'    => $user->id,
-            'day'        => $data['day'],
-            'push_token' => $data['token'],
-        ]);
-        $activity->save();
+        // updateOrCreate statt firstOrNew + save: die App meldet dasselbe
+        // Token mitunter zweimal gleichzeitig (Activity per Push gestartet,
+        // während die App aufgeht — sie beobachtet sie dann doppelt). Mit
+        // firstOrNew sahen beide Anfragen keine Zeile, und die zweite lief
+        // in den Unique-Index (18.11.2026). updateOrCreate fängt den Konflikt
+        // über createOrFirst ab und frischt die Zeile dann auf.
+        LiveActivity::updateOrCreate(
+            ['activity_id' => $data['activity_id']],
+            [
+                'user_id'    => $user->id,
+                'day'        => $data['day'],
+                'push_token' => $data['token'],
+            ],
+        );
     }
 
     /**

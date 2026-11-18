@@ -17,6 +17,7 @@ use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -139,6 +140,34 @@ class LiveActivityTest extends TestCase
 
         $this->postJson('/widget/' . Str::random(48) . '/live-activity', ['kind' => 'start', 'token' => self::START_TOKEN])->assertNotFound();
         $this->postJson("/widget/{$user->widget_token}/live-activity", ['kind' => 'start', 'token' => 'kein hex'])->assertUnprocessable();
+    }
+
+    public function test_the_same_token_reported_twice_at_once_does_not_break(): void
+    {
+        // 18.11.2026: die App meldete dasselbe Update-Token zweimal
+        // gleichzeitig; beide Anfragen fanden keine Zeile, die zweite lief in
+        // den Unique-Index auf activity_id. Nachgestellt: zwischen Suche und
+        // Anlegen schreibt die „andere Anfrage“ die Zeile.
+        [$user] = $this->athlete();
+        $raced = false;
+        DB::listen(function ($query) use (&$raced, $user) {
+            if ($raced || ! str_starts_with($query->sql, 'select') || ! str_contains($query->sql, 'live_activities')) {
+                return;
+            }
+            $raced = true;
+            DB::table('live_activities')->insert([
+                'activity_id' => 'A-1', 'user_id' => $user->id, 'day' => self::TODAY,
+                'push_token' => 'aa', 'created_at' => now(), 'updated_at' => now(),
+            ]);
+        });
+
+        $this->postJson("/widget/{$user->widget_token}/live-activity", [
+            'kind' => 'update', 'token' => self::UPDATE_TOKEN, 'activity_id' => 'A-1', 'day' => self::TODAY,
+        ])->assertOk();
+
+        $this->assertTrue($raced);
+        $this->assertSame(1, LiveActivity::where('activity_id', 'A-1')->count());
+        $this->assertSame(self::UPDATE_TOKEN, LiveActivity::firstWhere('activity_id', 'A-1')->push_token);
     }
 
     public function test_it_starts_six_hours_before_the_usual_run_and_not_earlier(): void

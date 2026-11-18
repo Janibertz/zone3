@@ -18,6 +18,10 @@ import ActivityKit
 enum LiveActivityRegistrar {
     private static let pendingKey = "zone3.liveActivity.pending"
     private static var started = false
+    /// Jede Activity nur einmal beobachten: beim Aufwachen nach einem
+    /// Start-Push liefern `activityUpdates` und `activities` dieselbe.
+    private static var observed = Set<String>()
+    private static let lock = NSLock()
 
     static func start() {
         #if canImport(ActivityKit)
@@ -43,6 +47,10 @@ enum LiveActivityRegistrar {
     #if canImport(ActivityKit)
     @available(iOS 17.2, *)
     private static func observe(_ activity: Activity<TrainingActivityAttributes>) {
+        lock.lock()
+        let isNew = observed.insert(activity.id).inserted
+        lock.unlock()
+        guard isNew else { return }
         Task {
             for await data in activity.pushTokenUpdates {
                 send([
