@@ -1116,7 +1116,7 @@ Optik wie die App (iOS-Listen, Akzent Rot fürs Admin, Aktion Blau). Am Telefon 
 - **System**: Tabs Status · Log · KI-Aufrufe. Oben Fehler gruppiert nach Job + Grund (Erneut/Verwerfen für die ganze Gruppe), Anbindungen, Plan-Prüfer 7 Tage (Korrekturen nach Art), Maschine; darunter die bisherigen Details.
 - **KI-Kosten** (`/admin/ki-kosten`): Monat gegen das Plattformlimit `OPENAI_BUDGET_MONTHLY_USD` (15), Prognose, Tage, wofür, wer. Deutsche Namen der Aufruftypen stehen in `AiLog::CALL_TYPE_LABELS`.
 - **Zugang** (`/admin/invitations`): Warteliste-Schalter, neuer Link, offene Links mit Belegung, „Tester laden ein“, „Woher Anmeldungen kommen“ (früher auf der Übersicht).
-- **Wiki und Changelog sind entfernt** (Jan), samt `POST /webhook/github`. Die Tabellen `wiki_*` stehen noch in der Datenbank; den GitHub-Webhook in den Repo-Einstellungen löschen.
+- **Wiki und Changelog sind entfernt** (Jan), samt `POST /webhook/github`. Die Tabellen `wiki_*` löscht die Migration `2026_11_18_170000`; der GitHub-Webhook ist in den Repo-Einstellungen zu löschen.
 - Tests: `AdminRedesignTest`.
 
 ### Einladungen — Registrieren nur mit Link
