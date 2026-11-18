@@ -192,7 +192,8 @@ function submit() {
 
             <p class="mt-5 text-center text-[13px] leading-snug text-white/60">
                 Mit der Anmeldung akzeptierst du unsere
-                <Link :href="route('privacy')" class="underline underline-offset-2">Datenschutzerklärung</Link>.
+                <Link :href="route('terms')" class="underline underline-offset-2">Nutzungsbedingungen</Link>.
+                <Link :href="route('privacy')" class="ml-1 underline underline-offset-2">Datenschutz</Link>
                 <Link :href="route('impressum')" class="ml-1 underline underline-offset-2">Impressum</Link>
                 <a href="/faq" class="ml-1 underline underline-offset-2">Fragen?</a>
             </p>

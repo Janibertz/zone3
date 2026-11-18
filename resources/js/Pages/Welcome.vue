@@ -455,6 +455,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                     <a href="/blog" class="transition hover:text-ink-2">Neu in Zone3</a>
                     <a href="/faq" class="transition hover:text-ink-2">FAQ</a>
                     <Link :href="route('privacy')" class="transition hover:text-ink-2">Datenschutz</Link>
+                    <Link :href="route('terms')" class="transition hover:text-ink-2">Nutzungsbedingungen</Link>
                     <Link :href="route('impressum')" class="transition hover:text-ink-2">Impressum</Link>
                     <Link v-if="canLogin" :href="route('login')" class="transition hover:text-ink-2">Anmelden</Link>
                 </div>
