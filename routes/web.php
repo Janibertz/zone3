@@ -289,7 +289,11 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             ->whereDate('planned_date', '<=', now()->addDays(14)->toDateString())
             ->where('status', 'planned')
             ->where('type', '!=', 'rest')
-            ->when($todayPlanSession, fn ($q) => $q->where('id', '!=', $todayPlanSession['id']))
+            // Nur ausblenden, was oben wirklich steht: vor dem Planstart zeigt
+            // der Aufmacher den Tagesvorschlag, nicht die nächste Planeinheit
+            // (Jan, 18.11.2026: der Laufclub am 01.12. fehlte hier).
+            ->when($todayPlanSession && ($todayPlanSession['is_today'] || ! $user->planStartsLater()),
+                fn ($q) => $q->where('id', '!=', $todayPlanSession['id']))
             ->orderBy('planned_date')
             ->orderBy('sort_order')
             ->limit(6)

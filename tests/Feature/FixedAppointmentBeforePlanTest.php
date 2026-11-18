@@ -164,4 +164,20 @@ class FixedAppointmentBeforePlanTest extends TestCase
         $this->actingAs($user)->get("/events/{$plan->event_id}/plan")->assertInertia(fn ($page) => $page
             ->where('sessions', fn ($list) => collect($list)->where('planned_date', '2026-11-17')->pluck('status')->sort()->values()->all() === ['appointment', 'planned']));
     }
+
+    /** Jan, 18.11.2026: vor dem Planstart fehlte die erste Planeinheit unter „Als Nächstes". */
+    public function test_the_first_plan_session_is_not_hidden_before_the_start(): void
+    {
+        $this->withoutVite();
+        Carbon::setTestNow('2026-11-18 12:00:00');
+        CarbonImmutable::setTestNow('2026-11-18 12:00:00');
+        [$user, $plan] = $this->athlete();
+        TrainingSession::create([
+            'user_id' => $user->id, 'training_plan_id' => $plan->id, 'planned_date' => '2026-12-01',
+            'type' => 'interval', 'title' => 'KRAFT Laufclub', 'intensity' => 'high', 'status' => 'planned',
+        ]);
+
+        $this->actingAs($user)->get('/dashboard')->assertInertia(fn ($page) => $page
+            ->where('upcomingSessions', fn ($list) => collect($list)->pluck('date')->values()->all() === ['2026-11-24', '2026-12-01']));
+    }
 }
