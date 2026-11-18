@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Diagnose;
 use App\Http\Controllers\Controller;
 use App\Models\AiLog;
 use App\Models\CoachMessage;
+use App\Models\GarminDailyMetric;
 use App\Models\LiveActivity;
 use App\Models\PlanRevision;
 use App\Models\SessionRecommendation;
@@ -14,6 +15,8 @@ use App\Models\WellbeingEntry;
 use App\Services\LiveActivity\LiveActivityService;
 use App\Services\LogReader;
 use App\Services\Observability\Watchdog;
+use App\Services\Readiness\ReadinessService;
+use App\Services\TrainingLoadService;
 use App\Services\SystemHealth;
 use App\Services\Widget\WidgetPayload;
 use Carbon\CarbonImmutable;
@@ -155,6 +158,19 @@ class DiagnoseController extends Controller
             'wellbeing' => WellbeingEntry::where('user_id', $user->id)
                 ->whereDate('date', '>=', $day->subDays(7)->toDateString())->orderBy('date')->get()
                 ->map->only(['date', 'energy_level', 'mood', 'sleep_quality', 'muscle_soreness', 'stress_level', 'is_sick', 'notes']),
+            // Readiness mit ihren Teilen und die Werte der Uhr dahinter —
+            // ohne sie lässt sich der Wert nicht gegen Garmins nachrechnen.
+            'readiness' => app(ReadinessService::class)->forDay($user, $day),
+            'load'      => $day->isToday() ? app(TrainingLoadService::class)->calculate($user->id, withoutStrava: true) : null,
+            'health'    => GarminDailyMetric::where('user_id', $user->id)
+                ->whereDate('date', '>=', $day->subDays(14)->toDateString())
+                ->whereDate('date', '<=', $day->toDateString())->orderBy('date')->get()
+                ->map(fn ($m) => [
+                    'date' => $m->date?->toDateString(), 'source' => $m->source, 'hrv' => $m->hrv,
+                    'resting_hr' => $m->resting_hr, 'sleep_hours' => $m->sleep_hours, 'sleep_score' => $m->sleep_score,
+                    'body_battery_low' => $m->body_battery_low, 'body_battery_high' => $m->body_battery_high,
+                    'stress_avg' => $m->stress_avg, 'recovery_score' => $m->recovery_score, 'recharge_status' => $m->recharge_status,
+                ]),
             'recommendations' => SessionRecommendation::where('user_id', $user->id)->latest('id')->limit(5)->get()
                 ->map->only(['id', 'training_session_id', 'source', 'status', 'reason', 'before', 'after', 'created_at']),
             'coach_messages' => CoachMessage::where('user_id', $user->id)->latest('id')->limit(min(50, $request->integer('messages', 12)))->get()
