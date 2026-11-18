@@ -50,24 +50,14 @@ class GenerateRacePredictionJob implements ShouldQueue, ShouldBeUnique
         $user = User::find($plan->user_id);
         if (! $user) return;
 
-        // ── Compute Riegel prediction ──────────────────────────────────────────
-        $data = $predictor->predict($plan->user_id, $event);
-        if (! $data) {
-            Log::info('GenerateRacePredictionJob: insufficient runs', ['plan_id' => $this->planId]);
-            return;
-        }
-
         // ── Die Zahl, die der Athlet sieht ────────────────────────────────────
         //
-        // Der Predictor rechnet nach Riegel aus den letzten Laeufen hoch. Die
-        // Planseite zeigt aber die Prognose aus der Schwellenpace, sobald eine
-        // hinterlegt ist — und ueberschrieb die Riegel-Werte beim Rendern.
-        // Der Text daneben entstand weiter aus den Riegel-Zahlen: in der
-        // Kachel stand 3:26, im Text darunter 3:36. Beides fuer denselben
-        // Marathon, beides an einem Tag berechnet.
-        //
-        // Trend und Laufanzahl kommen weiter aus dem Predictor — die kann die
-        // Schwellenformel nicht liefern.
+        // Mit VDOT kommt alles daraus: Zeit, Pace, Abstand zum Ziel, die
+        // Grundlage und der Trend (aus dem Verlauf der gemessenen Schwelle).
+        // Vorher stand im Prompt die VDOT-Zeit neben Trend und Laufanzahl
+        // aus der Riegel-Hochrechnung — „27 Läufe, leicht sinkend“, obwohl
+        // die Zahl aus der Schwelle kam, und die Riegel-Mittelwerte zählten
+        // jeden lockeren Lauf mit. Riegel bleibt nur ohne VDOT.
         $profile   = $user->runnerProfile;
         $threshold = ($profile?->vdot() && ! $event->isBackyard())
             ? $prediction->forVdot($profile->vdot(), $event->race_distance, $event->distance_km)
@@ -76,11 +66,20 @@ class GenerateRacePredictionJob implements ShouldQueue, ShouldBeUnique
         if ($threshold) {
             $targetSec = ($event->target_time_hours * 3600) + ($event->target_time_minutes * 60);
 
-            $data['predicted_finish_time'] = $threshold['time'];
-            $data['predicted_pace']        = $threshold['pace'];
-            $data['prediction_target_delta_sec'] = $targetSec > 0
-                ? $targetSec - $threshold['total_sec']
-                : null;
+            $data = [
+                'predicted_finish_time'       => $threshold['time'],
+                'predicted_pace'              => $threshold['pace'],
+                'prediction_target_delta_sec' => $targetSec > 0 ? $targetSec - $threshold['total_sec'] : null,
+                'prediction_trend'            => self::thresholdTrend($profile->threshold_pace_history ?? []),
+                'prediction_run_count'        => null,
+                'prediction_basis'            => $profile->vdotInfo()['label'] ?? null,
+            ];
+        } else {
+            $data = $predictor->predict($plan->user_id, $event);
+            if (! $data) {
+                Log::info('GenerateRacePredictionJob: insufficient runs', ['plan_id' => $this->planId]);
+                return;
+            }
         }
 
         // ── Generate AI recommendation text ───────────────────────────────────
@@ -121,5 +120,43 @@ class GenerateRacePredictionJob implements ShouldQueue, ShouldBeUnique
             'plan_id'   => $this->planId,
             'predicted' => $data['predicted_finish_time'],
         ]);
+    }
+
+    /** Schwelle mindestens so viel schneller/langsamer, damit es ein Trend ist. */
+    public const TREND_MIN_SEC = 3;
+
+    /** Zeitraum, über den der Schwellenverlauf verglichen wird. */
+    public const TREND_DAYS = 42;
+
+    /**
+     * Trend aus dem Verlauf der gemessenen Schwelle: der neueste Wert gegen
+     * den ältesten der letzten sechs Wochen. Null, wenn es dafür keine zwei
+     * Messungen gibt — dann sagt der Prompt nichts über einen Trend.
+     *
+     * @param array<int, array{date?: string, pace?: float}> $history
+     */
+    public static function thresholdTrend(array $history): ?string
+    {
+        $since  = now()->subDays(self::TREND_DAYS)->startOfDay();
+        $points = collect($history)
+            ->map(function ($h) {
+                try {
+                    $date = \Carbon\Carbon::createFromFormat('d.m.Y', (string) ($h['date'] ?? ''))->startOfDay();
+                } catch (\Throwable) {
+                    return null;
+                }
+                return isset($h['pace']) ? ['date' => $date, 'sec' => (float) $h['pace'] * 60] : null;
+            })
+            ->filter()
+            ->filter(fn ($p) => $p['date']->gte($since))
+            ->sortBy(fn ($p) => $p['date']->timestamp)
+            ->values();
+
+        if ($points->count() < 2) return null;
+
+        $diff = $points->first()['sec'] - $points->last()['sec']; // positiv = schneller geworden
+        if ($diff >= self::TREND_MIN_SEC)  return 'improving';
+        if ($diff <= -self::TREND_MIN_SEC) return 'declining';
+        return 'stable';
     }
 }

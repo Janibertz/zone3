@@ -9,6 +9,8 @@ use App\Models\TrainingPlan;
 use App\Models\User;
 use App\Services\RacePredictionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -87,5 +89,51 @@ class RacePredictionTextTest extends TestCase
                 ->where('plan.prediction_text', "{$time} ist eine solide Basis."));
 
         Queue::assertNotPushed(GenerateRacePredictionJob::class);
+    }
+
+    /**
+     * Mit VDOT kommen Grundlage und Trend aus der Schwelle, nicht aus der
+     * Riegel-Hochrechnung („27 Läufe, leicht sinkend“ neben einer Zahl aus
+     * der Schwelle).
+     */
+    public function test_the_prompt_names_the_vdot_and_the_threshold_trend(): void
+    {
+        [$user, , $plan] = $this->setUpPlan('0:00:00');
+        $user->runnerProfile()->first()->update(['threshold_pace_history' => [
+            ['date' => now()->subDays(30)->format('d.m.Y'), 'pace' => 4.25],
+            ['date' => now()->subDays(2)->format('d.m.Y'),  'pace' => 4.35],
+        ]]);
+        config(['services.openai.api_key' => 'test-key']);
+        Http::fake(['api.openai.com/*' => Http::response([
+            'choices' => [['message' => ['content' => 'Neuer Text.'], 'finish_reason' => 'stop']],
+            'usage'   => ['prompt_tokens' => 10, 'completion_tokens' => 2, 'total_tokens' => 12],
+        ], 200)]);
+
+        GenerateRacePredictionJob::dispatchSync($plan->id);
+
+        $time = $this->currentPrediction($user);
+        Http::assertSent(function (Request $r) use ($time) {
+            $body = json_encode($r->data(), JSON_UNESCAPED_UNICODE);
+            return str_contains($body, "Prognostizierte Finishzeit: {$time}")
+                && str_contains($body, 'Basiert auf: VDOT aus der Schwellenpace 4:21')
+                && str_contains($body, 'Die Schwelle ist in den letzten Wochen langsamer geworden.')
+                && ! str_contains($body, 'Läufen der letzten 90 Tage');
+        });
+        $plan->refresh();
+        $this->assertSame($time, $plan->predicted_finish_time);
+        $this->assertSame('Neuer Text.', $plan->prediction_text);
+        $this->assertSame('declining', $plan->prediction_trend);
+    }
+
+    public function test_the_threshold_trend(): void
+    {
+        $d = fn (int $days) => now()->subDays($days)->format('d.m.Y');
+
+        $this->assertNull(GenerateRacePredictionJob::thresholdTrend([]));
+        $this->assertNull(GenerateRacePredictionJob::thresholdTrend([['date' => $d(3), 'pace' => 4.3]]));
+        // Älter als sechs Wochen zählt nicht.
+        $this->assertNull(GenerateRacePredictionJob::thresholdTrend([['date' => $d(60), 'pace' => 4.6], ['date' => $d(3), 'pace' => 4.3]]));
+        $this->assertSame('improving', GenerateRacePredictionJob::thresholdTrend([['date' => $d(20), 'pace' => 4.40], ['date' => $d(3), 'pace' => 4.30]]));
+        $this->assertSame('stable', GenerateRacePredictionJob::thresholdTrend([['date' => $d(20), 'pace' => 4.35], ['date' => $d(3), 'pace' => 4.34]]));
     }
 }
