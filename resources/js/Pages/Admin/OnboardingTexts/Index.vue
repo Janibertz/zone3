@@ -27,7 +27,7 @@ function save() {
 
     <AdminLayout>
         <template #header>
-            <PageHeader title="Onboarding-Texte" />
+            <PageHeader title="Onboarding-Texte" :back="route('admin.more')" />
         </template>
         <div class="space-y-6 px-4 py-4 lg:px-8 lg:py-6">
 

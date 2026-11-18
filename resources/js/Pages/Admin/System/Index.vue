@@ -1,6 +1,10 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import PageHeader from '@/Components/UI/PageHeader.vue';
+import AdminPage from '@/Components/Admin/AdminPage.vue';
+import AdminSection from '@/Components/Admin/AdminSection.vue';
+import SystemTabs from '@/Components/Admin/SystemTabs.vue';
+import Dot from '@/Components/Admin/Dot.vue';
+import { hm, when as whenShort } from '@/Composables/useAdminFormat';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
@@ -15,7 +19,24 @@ const props = defineProps({
     providerHooks: Object,
     liveActivities: { type: Object, default: () => ({ devices: [], activities: [] }) },
     watchdog:     { type: Array, default: () => [] },
+    failureGroups: { type: Array, default: () => [] },
+    providers:    { type: Array, default: () => [] },
+    planChecker:  { type: Object, default: () => ({ revisions: 0, items: [], total: 0 }) },
 });
+
+const now = new Date().toISOString();
+
+function retryGroup(g) { act('post', route('admin.system.failed.group.retry'), 'g-retry-' + g.job, { data: { uuids: g.uuids } }); }
+function forgetGroup(g) { act('post', route('admin.system.failed.group.forget'), 'g-forget-' + g.job, { data: { uuids: g.uuids } }); }
+
+const pending = computed(() => (props.queues ?? []).reduce((n, q) => n + (q.pending ?? 0), 0));
+const queueStale = computed(() => (props.queues ?? []).some((q) => q.stale));
+const overdue = computed(() => props.watchdog.filter((f) => String(f.key).startsWith('overdue')).length);
+const planLine = computed(() => [
+    `${props.planChecker.revisions} ${props.planChecker.revisions === 1 ? 'Plan' : 'Pläne'} gebaut`,
+    props.planHealth?.gaps?.length ? `${props.planHealth.gaps.length} mit Lücken` : 'keine Lücken',
+    props.planHealth?.stuck?.length ? `${props.planHealth.stuck.length} hängt` : 'nichts hängt',
+].join(' · '));
 
 const page  = usePage();
 const flash = computed(() => page.props.flash ?? {});
@@ -24,7 +45,9 @@ const busy = ref(null);
 
 function act(method, url, key, options = {}) {
     busy.value = key;
-    router[method](url, {}, {
+    const { data = {}, ...rest } = options;
+    options = rest;
+    router[method](url, data, {
         preserveScroll: true,
         ...options,
         onFinish: () => { busy.value = null; },
@@ -85,19 +108,79 @@ function daysAgo(value) {
     <Head title="System" />
 
     <AdminLayout>
-        <template #header>
-            <PageHeader title="System" />
-        </template>
-        <div class="px-4 py-4 lg:px-8 lg:py-6 space-y-6">
+        <AdminPage title="System" :eyebrow="`Stand ${hm(now)}`" width="wide">
+            <SystemTabs current="status" />
 
-            <!-- Flash -->
-            <div v-if="flash.success" class="px-4 py-3 bg-success-soft border border-success/25 rounded-field text-sm text-success-ink">
-                {{ flash.success }}
-            </div>
-            <div v-if="flash.error" class="px-4 py-3 bg-danger-soft border border-danger/25 rounded-field text-sm text-danger-ink">
-                {{ flash.error }}
+            <div class="grid grid-cols-1 gap-[18px] lg:grid-cols-2">
+                <div class="flex flex-col gap-[18px]">
+                    <!-- Fehler, gruppiert -->
+                    <AdminSection title="Fehler">
+                        <p v-if="!failureGroups.length" class="rounded-[14px] bg-surface px-3.5 py-3 text-[15px] text-ink-3">Keine fehlgeschlagenen Aufgaben.</p>
+                        <div v-for="g in failureGroups" :key="g.job + g.reason" class="flex flex-col gap-2 rounded-[14px] bg-surface p-3.5">
+                            <div class="flex items-baseline justify-between gap-2">
+                                <span class="text-[16px] font-bold">{{ g.label }}</span>
+                                <span class="rounded-md bg-danger-soft px-[7px] py-0.5 text-[13px] font-bold tabular-nums text-danger-ink">{{ g.count }}×</span>
+                            </div>
+                            <div class="break-words rounded-lg bg-canvas px-2.5 py-2 font-mono text-[14px] text-ink-2">{{ g.reason || 'ohne Meldung' }}</div>
+                            <div class="text-[13px] text-ink-3">zuerst {{ whenShort(g.first) }}<template v-if="g.count > 1">, zuletzt {{ whenShort(g.last) }}</template></div>
+                            <div class="flex gap-2">
+                                <button type="button" class="h-9 flex-1 rounded-[10px] bg-surface-2 text-[15px] font-semibold disabled:opacity-40" :disabled="busy !== null" @click="retryGroup(g)">Erneut</button>
+                                <Link :href="route('admin.system.logs', { q: g.search })" class="flex h-9 flex-1 items-center justify-center rounded-[10px] bg-surface-2 text-[15px] font-semibold">Im Log</Link>
+                                <button type="button" class="h-9 flex-1 rounded-[10px] bg-surface-2 text-[15px] font-semibold text-danger disabled:opacity-40" :disabled="busy !== null" @click="forgetGroup(g)">Verwerfen</button>
+                            </div>
+                        </div>
+                    </AdminSection>
+
+                    <!-- Plan-Prüfer -->
+                    <AdminSection title="Plan-Prüfer, 7 Tage">
+                        <div class="flex flex-col gap-2.5 rounded-[14px] bg-surface p-3.5">
+                            <div v-if="planChecker.items.length" class="grid grid-cols-[1fr_34px] gap-x-2.5 gap-y-2 text-[15px]">
+                                <template v-for="it in planChecker.items" :key="it.label">
+                                    <span>{{ it.label }}</span><span class="text-right font-bold tabular-nums">{{ it.count }}</span>
+                                </template>
+                            </div>
+                            <p v-else class="m-0 text-[15px] text-ink-3">Der Prüfer musste nichts korrigieren.</p>
+                            <div class="border-t-[0.5px] border-line pt-2.5 text-[13px] text-ink-3">{{ planLine }}</div>
+                        </div>
+                    </AdminSection>
+                </div>
+
+                <div class="flex flex-col gap-[18px]">
+                    <!-- Anbindungen -->
+                    <AdminSection title="Anbindungen">
+                        <div class="overflow-hidden rounded-[14px] bg-surface">
+                            <component :is="p.anchor ? 'a' : 'div'" v-for="(p, i) in providers" :key="p.key" :href="p.anchor ? `#${p.anchor}` : undefined"
+                                class="flex items-center gap-2.5 px-3.5 py-[11px]" :class="[i < providers.length - 1 ? 'border-b-[0.5px] border-line' : '', p.anchor ? 'active:bg-surface-2' : '']">
+                                <Dot :tone="p.tone" />
+                                <span class="flex-1 text-[16px]">{{ p.name }}</span>
+                                <span class="text-right text-[15px]" :class="p.tone === 'warn' ? 'text-warn-ink' : 'text-ink-3'">{{ p.value }}</span>
+                            </component>
+                        </div>
+                        <div class="px-1 text-[13px] text-ink-3">Strava, WHOOP und Polar: Tipp führt zu den letzten Aufrufen mit Athlet und Ergebnis.</div>
+                    </AdminSection>
+
+                    <!-- Maschine -->
+                    <AdminSection title="Maschine">
+                        <div class="overflow-hidden rounded-[14px] bg-surface">
+                            <div class="flex justify-between gap-3 border-b-[0.5px] border-line px-3.5 py-[11px]">
+                                <span class="text-[16px]">Warteschlange</span>
+                                <span class="text-[15px]" :class="queueStale ? 'font-semibold text-danger-ink' : 'text-ink-3'">{{ queueStale ? 'steht' : pending ? `${pending} wartend` : 'leer' }}</span>
+                            </div>
+                            <div class="flex justify-between gap-3 border-b-[0.5px] border-line px-3.5 py-[11px]">
+                                <span class="text-[16px]">Wächter</span>
+                                <span class="text-right text-[15px]" :class="watchdog.length ? 'font-semibold text-warn-ink' : 'text-success-ink'">{{ watchdog.length ? (overdue ? `${overdue} Befehl(e) überfällig` : `${watchdog.length} Befund(e)`) : 'alles pünktlich' }}</span>
+                            </div>
+                            <div class="flex justify-between gap-3 px-3.5 py-[11px]">
+                                <span class="text-[16px]">Umgebung</span>
+                                <span class="text-right text-[15px]" :class="environment.debug ? 'text-danger-ink' : 'text-ink-3'">Laravel {{ String(environment.laravel).split('.')[0] }} · Log {{ environment.log_level }}<template v-if="environment.debug"> · Debug an</template></span>
+                            </div>
+                        </div>
+                    </AdminSection>
+                </div>
             </div>
 
+            <div class="px-1 pt-2 text-[13px] font-semibold uppercase text-ink-3">Im Detail</div>
+        <div class="space-y-6">
             <!-- ── Ein Satz zum Zustand ──────────────────────────────── -->
             <div class="flex flex-wrap items-center gap-3 px-4 py-3 border rounded-field text-sm font-medium"
                 :class="toneClass[headline.tone]">
@@ -159,7 +242,7 @@ function daysAgo(value) {
             </div>
 
             <!-- ── Ruft Strava an? ───────────────────────────────────── -->
-            <div class="bg-surface rounded-card shadow-card">
+            <div id="strava" class="scroll-mt-4 bg-surface rounded-card shadow-card">
                 <div class="px-6 py-4 border-b border-line">
                     <h2 class="text-sm font-semibold text-ink-2">Strava-Webhook</h2>
                     <p class="text-xs text-ink-3 mt-0.5">
@@ -210,7 +293,7 @@ function daysAgo(value) {
             </div>
 
             <!-- ── Rufen WHOOP und Polar an? ─────────────────────────── -->
-            <div v-for="(hooks, key) in providerHooks" :key="key" class="bg-surface rounded-card shadow-card">
+            <div v-for="(hooks, key) in providerHooks" :id="key" :key="key" class="scroll-mt-4 bg-surface rounded-card shadow-card">
                 <div class="px-6 py-4 border-b border-line">
                     <h2 class="text-sm font-semibold text-ink-2">{{ key === 'whoop' ? 'WHOOP' : 'Polar' }}-Webhook</h2>
                     <p class="text-xs text-ink-3 mt-0.5">
@@ -569,5 +652,6 @@ function daysAgo(value) {
                 </dl>
             </div>
         </div>
+        </AdminPage>
     </AdminLayout>
 </template>

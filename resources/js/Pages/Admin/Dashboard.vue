@@ -1,326 +1,200 @@
 <script setup>
+import { computed, ref } from 'vue';
+import { Head, Link, router } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import PageHeader from '@/Components/UI/PageHeader.vue';
-import AppCard from '@/Components/UI/AppCard.vue';
-import StatTile from '@/Components/UI/StatTile.vue';
-import SectionHeader from '@/Components/UI/SectionHeader.vue';
-import { Head, Link } from '@inertiajs/vue3';
-import { computed } from 'vue';
-
-const props = defineProps({
-    stats:                 Object,
-    registrationsPerMonth: Array,
-    activitiesPerMonth:    Array,
-    aiCostsPerDay:         Array,
-    coachDistribution:     Array,
-    wellbeingTrend:        Array,
-    recentUsers:           Array,
-    systemHealth:          Object,
-    signupSources:         { type: Array, default: () => [] },
-});
+import AdminPage from '@/Components/Admin/AdminPage.vue';
+import AdminSection from '@/Components/Admin/AdminSection.vue';
+import Dot from '@/Components/Admin/Dot.vue';
+import { eur } from '@/Composables/useAdminFormat';
 
 /**
- * Was auf /admin/system rot wäre — hier als eine Zeile.
- *
- * Eine Statusseite, die man aktiv aufrufen muss, wird genau dann nicht
- * aufgerufen, wenn sie gebraucht wird: beim Ausbleiben des Strava-Imports
- * hat tagelang niemand nachgesehen, weil niemand wusste, dass es etwas
- * nachzusehen gab.
+ * „Heute“ im Admin (Mockup „Admin-Bereich aufräumen“, 18.11.2026): was
+ * dich braucht, das Tester-Ziel, KI-Kosten und wer still geworden ist.
  */
-const trouble = computed(() => props.systemHealth?.issues ?? []);
+const props = defineProps({
+    needsYou:     { type: Array, default: () => [] },
+    goal:         { type: Object, required: true },
+    withoutPlan:  { type: Number, default: 0 },
+    aiCosts:      { type: Object, required: true },
+    quiet:        { type: Array, default: () => [] },
+    providers:    { type: Array, default: () => [] },
+    systemHealth: { type: Object, default: () => ({ issues: [] }) },
+    failure:      { type: Object, default: null },
+});
 
-/** Eine stehende Queue ist ein Ausfall, alles andere eine Auffälligkeit. */
-const troubleIsSevere = computed(() => props.systemHealth?.severe === true);
+const today = new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
 
-function formatDate(d) {
-    if (!d) return '—';
-    return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const pct = (v, of) => (of > 0 ? Math.min(100, Math.round((v / of) * 100)) : 0);
+
+const funnelMax = computed(() => Math.max(1, props.goal.funnel[0]?.count ?? 1));
+
+const statusLine = computed(() => {
+    if (props.failure) {
+        const since = new Date(props.failure.since).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        return { tone: 'warn', text: `${props.failure.count} ${props.failure.count === 1 ? 'Fehler' : 'Fehler'} seit ${since} · Rest läuft` };
+    }
+    const issues = props.systemHealth?.issues ?? [];
+    if (issues.length) return { tone: props.systemHealth.severe ? 'danger' : 'warn', text: issues[0] };
+    return { tone: 'success', text: 'Alles läuft' };
+});
+
+const busy = ref(null);
+function approve(id) {
+    busy.value = id;
+    router.post(route('admin.waitlist.approve', id), {}, { preserveScroll: true, onFinish: () => (busy.value = null) });
 }
 
-function formatShortDate(d) {
-    if (!d) return '';
-    return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+function rowHref(r) {
+    if (r.kind === 'ticket') return route('admin.support.show', r.id);
+    if (r.kind === 'failure') return route('admin.system.index');
+    return route('admin.inbox.index');
 }
 
-function monthLabel(ym) {
-    const [year, month] = ym.split('-');
-    return new Date(year, month - 1).toLocaleDateString('de-DE', { month: 'short', year: '2-digit' });
+const rowIcon = {
+    waitlist: { bg: 'bg-accent', path: '<circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M19 8v6M16 11h6"/>' },
+    ticket:   { bg: 'bg-success', path: '<path d="M4 5h16v11H8l-4 4z"/>' },
+    contact:  { bg: 'bg-success', path: '<path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/>' },
+    report:   { bg: 'bg-warn', path: '<path d="M5 21V4h11l-1 4 4 0-2 6H5"/>' },
+    failure:  { bg: 'bg-danger', path: '<path d="M12 8v5M12 17h.01M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>' },
+};
+
+const search = ref('');
+function doSearch() {
+    router.get(route('admin.users.index'), { search: search.value || undefined });
 }
-
-/** Anteil an der Skala in Prozent — die Balkenhöhe folgt dem Container. */
-function share(val, max) {
-    if (!max) return 0;
-    return Math.max(3, Math.round((val / max) * 100));
-}
-
-function formatCost(eur) {
-    const val = parseFloat(eur);
-    if (!val) return '0,00 ct';
-    if (val < 0.001) return (val * 100).toFixed(4) + ' ct';
-    return val.toFixed(4) + ' €';
-}
-
-function wellbeingColor(score) {
-    const s = parseFloat(score);
-    if (s >= 7) return 'bg-success';
-    if (s >= 5) return 'bg-warn';
-    return 'bg-danger';
-}
-
-const coachBg = { orange: 'bg-warn', blue: 'bg-info', green: 'bg-success', purple: 'bg-accent' };
-
-const maxReg    = computed(() => Math.max(...(props.registrationsPerMonth?.map(r => r.count)    ?? [0]), 1));
-const maxAct    = computed(() => Math.max(...(props.activitiesPerMonth?.map(a => a.count)       ?? [0]), 1));
-const maxAiCost = computed(() => Math.max(...(props.aiCostsPerDay?.map(d => parseFloat(d.cost)) ?? [0]), 0.000001));
-const maxCoach  = computed(() => Math.max(...(props.coachDistribution?.map(c => c.users_count)  ?? [0]), 1));
 </script>
 
 <template>
-    <Head title="Admin – Übersicht" />
+    <Head title="Admin – Heute" />
 
     <AdminLayout>
-        <template #header>
-            <PageHeader title="Übersicht" />
-        </template>
+        <AdminPage title="Heute" :eyebrow="today" badge width="wide">
+            <template #action>
+                <Link :href="route('admin.users.index', { focus: 1 })" aria-label="Athleten suchen" class="flex h-10 w-10 items-center justify-center rounded-full bg-surface-2 lg:hidden">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                </Link>
+                <form class="hidden h-[38px] w-[340px] items-center gap-2 rounded-[10px] bg-surface-2 px-3 text-ink-3 lg:flex" @submit.prevent="doSearch">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                    <input v-model="search" aria-label="Athleten suchen" placeholder="Athlet, Mail, Quelle …" class="flex-1 border-0 bg-transparent p-0 text-[15px] text-ink outline-none focus:ring-0" />
+                </form>
+            </template>
 
-        <div class="space-y-8 px-4 py-4 sm:px-6 lg:py-6">
-
-            <!-- ── Systemstatus ──────────────────────────────────── -->
-            <Link
-                v-if="trouble.length"
-                :href="route('admin.system.index')"
-                class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-field border px-4 py-3 text-sm font-medium transition hover:opacity-90"
-                :class="troubleIsSevere
-                    ? 'bg-danger-soft border-danger/25 text-danger-ink'
-                    : 'bg-warn-soft border-warn/25 text-warn-ink'">
-                <span class="font-semibold">System</span>
-                <span v-for="(t, i) in trouble" :key="i" class="opacity-90">
-                    {{ t }}<span v-if="i < trouble.length - 1"> ·</span>
-                </span>
-                <span class="ml-auto text-xs underline">ansehen</span>
+            <Link :href="route('admin.system.index')"
+                class="flex items-center gap-2.5 rounded-[14px] px-3.5 py-3"
+                :class="{ warn: 'bg-warn-soft text-warn-ink', danger: 'bg-danger-soft text-danger-ink', success: 'bg-success-soft text-success-ink' }[statusLine.tone]">
+                <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="{ warn: 'bg-warn', danger: 'bg-danger', success: 'bg-success' }[statusLine.tone]" />
+                <span class="flex-1 text-[15px] font-semibold">{{ statusLine.text }}</span>
+                <svg width="8" height="14" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m1 1 6 6-6 6" /></svg>
             </Link>
 
-            <!-- ── Plattform ─────────────────────────────────────── -->
-            <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <StatTile label="Nutzer gesamt"   :value="stats.total_users"      :hint="`${stats.onboarded_users} onboarded`" />
-                <StatTile label="Aktivitäten"     :value="stats.total_activities" hint="gesamt" />
-                <StatTile label="Aktive Pläne"    :value="stats.active_plans"     hint="Trainingspläne" />
-                <StatTile label="Geplante Events" :value="stats.upcoming_events"  :hint="`von ${stats.total_events} gesamt`" />
-            </div>
-
-            <!-- ── KI-Nutzung ────────────────────────────────────── -->
-            <section>
-                <SectionHeader title="KI-Nutzung" />
-
-                <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
-                    <div class="grid grid-cols-2 gap-3 xl:content-start">
-                        <StatTile label="Calls heute"   :value="stats.ai_calls_today" />
-                        <StatTile label="Kosten heute"  :value="formatCost(stats.ai_cost_today)" tone="accent" />
-                        <StatTile label="Calls gesamt"  :value="stats.ai_calls_total" />
-                        <StatTile label="Kosten gesamt" :value="formatCost(stats.ai_cost_total)" tone="accent" />
+            <div class="grid grid-cols-1 gap-[22px] lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,1fr)] lg:items-start lg:gap-5">
+                <!-- Braucht dich -->
+                <AdminSection title="Braucht dich" :aside="needsYou.length">
+                    <div class="overflow-hidden rounded-[14px] bg-surface">
+                        <p v-if="!needsYou.length" class="px-3.5 py-3 text-[15px] text-ink-3">Nichts offen. Schön.</p>
+                        <component
+                            :is="r.kind === 'waitlist' ? 'div' : Link"
+                            v-for="(r, i) in needsYou"
+                            :key="r.kind + (r.id ?? r.user_id ?? r.title)"
+                            :href="r.kind === 'waitlist' ? undefined : rowHref(r)"
+                            class="flex items-center gap-3 px-3.5 py-3"
+                            :class="i < needsYou.length - 1 ? 'border-b-[0.5px] border-line' : ''"
+                        >
+                            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" :class="rowIcon[r.kind].bg">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" v-html="rowIcon[r.kind].path" />
+                            </span>
+                            <div class="min-w-0 flex-1">
+                                <div class="truncate text-[16px] font-semibold">{{ r.title }}</div>
+                                <div class="truncate text-[13px] text-ink-3">{{ r.meta }}</div>
+                            </div>
+                            <button v-if="r.kind === 'waitlist'" type="button" :disabled="busy === r.user_id"
+                                class="h-8 shrink-0 rounded-2xl bg-accent px-3.5 text-[14px] font-semibold text-white active:opacity-80 disabled:opacity-50"
+                                @click="approve(r.user_id)">Freigeben</button>
+                            <svg v-else width="8" height="14" viewBox="0 0 8 14" fill="none" class="shrink-0 stroke-line-strong" stroke-width="2" aria-hidden="true"><path d="m1 1 6 6-6 6" /></svg>
+                        </component>
                     </div>
+                </AdminSection>
 
-                    <AppCard title="Kosten pro Tag" subtitle="letzte 30 Tage" class="xl:col-span-2">
-                        <div v-if="aiCostsPerDay.length">
-                            <div class="flex h-32 items-end gap-1">
-                                <div
-                                    v-for="item in aiCostsPerDay"
-                                    :key="item.day"
-                                    class="group flex h-full min-w-0 flex-1 flex-col justify-end"
-                                    :title="`${formatShortDate(item.day)}: ${formatCost(item.cost)} (${item.calls} Calls)`"
-                                >
-                                    <span
-                                        class="w-full rounded-t bg-accent/70 transition-colors group-hover:bg-accent"
-                                        :style="{ height: share(parseFloat(item.cost), maxAiCost) + '%' }"
-                                    />
+                <div class="flex flex-col gap-[22px]">
+                    <!-- Ziel bis Weihnachten -->
+                    <AdminSection title="Ziel bis Weihnachten">
+                        <div class="flex flex-col gap-3.5 rounded-[14px] bg-surface p-4">
+                            <div class="flex items-baseline gap-1.5">
+                                <span class="text-[44px] font-extrabold leading-none tracking-[-0.035em] tabular-nums">{{ goal.count }}</span>
+                                <span class="text-[17px] text-ink-3">von {{ goal.goal }} Testern</span>
+                                <span v-if="goal.this_week" class="ml-auto text-[13px] font-semibold text-success-ink">+{{ goal.this_week }} diese Woche</span>
+                            </div>
+                            <div class="h-2 overflow-hidden rounded bg-surface-2"><div class="h-full rounded bg-accent" :style="{ width: pct(goal.count, goal.goal) + '%' }" /></div>
+                            <div class="text-[13px] text-ink-3">
+                                <template v-if="goal.count >= goal.goal">Ziel erreicht.</template>
+                                <template v-else>{{ goal.days_left }} Tage übrig · nötig sind {{ goal.per_week }} pro Woche</template>
+                            </div>
+                            <div class="flex flex-col gap-2 border-t-[0.5px] border-line pt-1">
+                                <div class="pt-2.5 text-[13px] font-semibold text-ink-2">Wie weit sie kommen</div>
+                                <div class="grid grid-cols-[112px_1fr_28px] items-center gap-2 text-[14px]">
+                                    <template v-for="f in goal.funnel" :key="f.key">
+                                        <span>{{ f.label }}</span>
+                                        <div class="h-3.5 rounded-[3px]" :class="f.key === 'active' ? 'bg-success' : 'bg-accent'" :style="{ width: Math.max(2, pct(f.count, funnelMax)) + '%' }" />
+                                        <span class="text-right tabular-nums">{{ f.count }}</span>
+                                    </template>
                                 </div>
-                            </div>
-                            <div class="mt-2 flex justify-between text-[10px] text-ink-3">
-                                <span>{{ formatShortDate(aiCostsPerDay[0]?.day) }}</span>
-                                <span>{{ formatShortDate(aiCostsPerDay[aiCostsPerDay.length - 1]?.day) }}</span>
-                            </div>
-                        </div>
-                        <p v-else class="py-10 text-center text-sm text-ink-3">Noch keine KI-Calls</p>
-                    </AppCard>
-                </div>
-            </section>
-
-            <!-- ── Wachstum ──────────────────────────────────────── -->
-            <section>
-                <SectionHeader title="Wachstum" />
-
-                <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                    <AppCard title="Neue Registrierungen" subtitle="letzte 6 Monate">
-                        <div v-if="registrationsPerMonth.length" class="flex h-36 items-end gap-2">
-                            <div v-for="item in registrationsPerMonth" :key="item.month"
-                                class="flex h-full min-w-0 flex-1 flex-col justify-end gap-1.5">
-                                <span class="text-center text-xs font-semibold tabular-nums text-ink">{{ item.count }}</span>
-                                <span class="w-full rounded-t-lg bg-accent" :style="{ height: share(item.count, maxReg) + '%' }" />
-                                <span class="truncate text-center text-[10px] text-ink-3">{{ monthLabel(item.month) }}</span>
+                                <Link v-if="withoutPlan" :href="route('admin.users.index', { filter: 'noplan' })" class="text-[13px] text-warn-ink">
+                                    {{ withoutPlan }} {{ withoutPlan === 1 ? 'hängt' : 'hängen' }} nach dem Onboarding ohne Plan · ansehen
+                                </Link>
                             </div>
                         </div>
-                        <p v-else class="py-10 text-center text-sm text-ink-3">Keine Daten vorhanden</p>
-                    </AppCard>
+                    </AdminSection>
 
-                    <AppCard title="Aktivitäten" subtitle="letzte 6 Monate">
-                        <div v-if="activitiesPerMonth.length" class="flex h-36 items-end gap-2">
-                            <div v-for="item in activitiesPerMonth" :key="item.month"
-                                class="flex h-full min-w-0 flex-1 flex-col justify-end gap-1.5">
-                                <span class="text-center text-xs font-semibold tabular-nums text-ink">{{ item.count }}</span>
-                                <span class="w-full rounded-t-lg bg-info" :style="{ height: share(item.count, maxAct) + '%' }" />
-                                <span class="truncate text-center text-[10px] text-ink-3">{{ monthLabel(item.month) }}</span>
+                    <!-- KI-Kosten -->
+                    <AdminSection title="KI-Kosten">
+                        <Link :href="route('admin.ai-costs')" class="grid grid-cols-2 gap-3.5 rounded-[14px] bg-surface p-4">
+                            <div class="flex flex-col gap-1.5">
+                                <span class="text-[13px] font-semibold text-ink-3">Heute</span>
+                                <span class="text-[28px] font-extrabold tracking-[-0.03em] tabular-nums">{{ eur(aiCosts.today) }} <span class="text-[15px] font-medium text-ink-3">€</span></span>
+                                <div class="h-1.5 rounded-[3px] bg-surface-2"><div class="h-full rounded-[3px]" :class="aiCosts.today > aiCosts.today_budget * 0.8 ? 'bg-warn' : 'bg-success'" :style="{ width: pct(aiCosts.today, aiCosts.today_budget) + '%' }" /></div>
+                                <span class="text-[12px] text-ink-3">von {{ eur(aiCosts.today_budget) }} € Tagesbremse</span>
                             </div>
-                        </div>
-                        <p v-else class="py-10 text-center text-sm text-ink-3">Keine Daten vorhanden</p>
-                    </AppCard>
-                </div>
-            </section>
-
-            <!-- ── Athleten ──────────────────────────────────────── -->
-            <section>
-                <SectionHeader title="Athleten" />
-
-                <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
-                    <AppCard class="xl:col-span-2">
-                        <template #header>
-                            <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-                                <div>
-                                    <h3 class="text-[15px] font-semibold text-ink">Tagesform-Trend</h3>
-                                    <p class="mt-0.5 text-[13px] text-ink-3">letzte 14 Tage, Plattform-Ø</p>
-                                </div>
-                                <div class="flex items-center gap-3 text-[11px] text-ink-3">
-                                    <span class="flex items-center gap-1"><span class="inline-block h-2.5 w-2.5 rounded-sm bg-success" />≥ 7</span>
-                                    <span class="flex items-center gap-1"><span class="inline-block h-2.5 w-2.5 rounded-sm bg-warn" />5–7</span>
-                                    <span class="flex items-center gap-1"><span class="inline-block h-2.5 w-2.5 rounded-sm bg-danger" />&lt; 5</span>
-                                </div>
+                            <div class="flex flex-col gap-1.5">
+                                <span class="text-[13px] font-semibold capitalize text-ink-3">{{ aiCosts.month_label }}</span>
+                                <span class="text-[28px] font-extrabold tracking-[-0.03em] tabular-nums">{{ eur(aiCosts.month) }} <span class="text-[15px] font-medium text-ink-3">€</span></span>
+                                <div class="h-1.5 rounded-[3px] bg-surface-2"><div class="h-full rounded-[3px]" :class="aiCosts.forecast > aiCosts.limit_eur ? 'bg-danger' : 'bg-accent'" :style="{ width: pct(aiCosts.month, aiCosts.limit_eur) + '%' }" /></div>
+                                <span class="text-[12px] text-ink-3">Prognose {{ eur(aiCosts.forecast) }} € von {{ eur(aiCosts.limit_eur) }} €</span>
                             </div>
-                        </template>
-
-                        <div v-if="wellbeingTrend.length" class="flex h-36 items-end gap-1.5">
-                            <div
-                                v-for="item in wellbeingTrend"
-                                :key="item.date"
-                                class="flex h-full min-w-0 flex-1 flex-col justify-end gap-1.5"
-                                :title="`${formatShortDate(item.date)}: Ø ${item.avg_score} (${item.entries} Einträge)`"
-                            >
-                                <span class="text-center text-[11px] font-semibold tabular-nums text-ink">{{ item.avg_score }}</span>
-                                <span class="w-full rounded-t-lg" :class="wellbeingColor(item.avg_score)"
-                                    :style="{ height: share(parseFloat(item.avg_score), 10) + '%' }" />
-                                <span class="truncate text-center text-[10px] text-ink-3">{{ formatShortDate(item.date) }}</span>
-                            </div>
-                        </div>
-                        <p v-else class="py-10 text-center text-sm text-ink-3">Keine Tagesform-Einträge in den letzten 14 Tagen</p>
-                    </AppCard>
-
-                    <AppCard title="Coach-Verteilung">
-                        <div v-if="coachDistribution.length" class="space-y-4">
-                            <div v-for="coach in coachDistribution" :key="coach.id" class="flex items-center gap-3">
-                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-field text-xs font-bold text-white"
-                                    :class="coachBg[coach.avatar_color] ?? 'bg-ink-3'">
-                                    {{ coach.avatar_initials }}
-                                </span>
-                                <div class="min-w-0 flex-1">
-                                    <div class="mb-1.5 flex items-center justify-between gap-2">
-                                        <span class="truncate text-sm font-medium text-ink">{{ coach.name }}</span>
-                                        <span class="shrink-0 text-xs tabular-nums text-ink-3">{{ coach.users_count }}</span>
-                                    </div>
-                                    <div class="h-2 w-full overflow-hidden rounded-full bg-surface-2">
-                                        <div class="h-full rounded-full transition-[width]"
-                                            :class="coachBg[coach.avatar_color] ?? 'bg-ink-3'"
-                                            :style="{ width: share(coach.users_count, maxCoach) + '%' }" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <p v-else class="py-10 text-center text-sm text-ink-3">Keine Coaches vorhanden</p>
-                    </AppCard>
-                </div>
-            </section>
-
-            <!-- ── Bestand ───────────────────────────────────────── -->
-            <section>
-                <SectionHeader title="Genutzt in den letzten 7 Tagen" />
-                <div class="grid grid-cols-3 gap-3">
-                    <StatTile label="App"       :value="stats.seen_app" hint="iOS-App" />
-                    <StatTile label="Homescreen" :value="stats.seen_homescreen" hint="Web-App" />
-                    <StatTile label="Browser"   :value="stats.seen_browser" hint="Safari, Chrome, Desktop" />
-                </div>
-                <p class="mt-2 text-[13px] text-ink-3">Athleten je Weg; wer beides nutzt, zählt doppelt. Gezählt wird seit dem 09.11.2026.</p>
-            </section>
-
-            <section>
-                <SectionHeader title="Woher Anmeldungen kommen" />
-                <AppCard v-if="signupSources.length" class="!p-0">
-                    <div v-for="s in signupSources" :key="s.source"
-                        class="flex items-center justify-between border-b border-line px-4 py-3 text-[15px] last:border-0">
-                        <span :class="s.source === 'ohne' ? 'text-ink-3' : 'font-semibold'">{{ s.source === 'ohne' ? 'Ohne Quelle' : s.source }}</span>
-                        <span class="font-rounded text-ink-2">{{ s.recent }} <span class="text-ink-3">· 30 Tage</span> &nbsp; {{ s.total }} <span class="text-ink-3">· gesamt</span></span>
-                    </div>
-                </AppCard>
-                <p v-else class="text-[15px] text-ink-3">Noch keine neuen Konten seit dem 10.11.2026.</p>
-                <p class="mt-2 text-[13px] text-ink-3">Aus <code>?ref=</code> oder <code>utm_source</code> im Link, z. B. zone3.run/register?ref=instagram. „einladung“ = Einladungslink.</p>
-            </section>
-
-            <section>
-                <SectionHeader title="Bestand" />
-
-                <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
-                    <StatTile label="Onboarded" :value="stats.onboarded_users" />
-                    <StatTile label="Admins"    :value="stats.admin_users" />
-                    <StatTile label="Strava"    :value="stats.strava_users" hint="verbunden" />
-                    <StatTile label="Events"    :value="stats.total_events" />
-                    <StatTile label="Tagesform" :value="stats.total_wellbeing" hint="Einträge"
-                        class="col-span-2 lg:col-span-1" />
-                </div>
-            </section>
-
-            <!-- ── Zuletzt registriert ───────────────────────────── -->
-            <section>
-                <SectionHeader title="Zuletzt registriert">
-                    <template #action>
-                        <Link :href="route('admin.users.index')"
-                            class="text-sm font-medium text-accent-ink hover:underline">
-                            Alle Nutzer
                         </Link>
-                    </template>
-                </SectionHeader>
+                    </AdminSection>
+                </div>
 
-                <AppCard flush>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <tbody class="divide-y divide-line">
-                                <tr v-for="u in recentUsers" :key="u.id" class="transition-colors hover:bg-surface-2/50">
-                                    <td class="px-5 py-3.5">
-                                        <div class="flex items-center gap-3">
-                                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink-3 text-xs font-bold text-white">
-                                                {{ u.name.charAt(0).toUpperCase() }}
-                                            </span>
-                                            <div class="min-w-0">
-                                                <p class="truncate font-medium text-ink">{{ u.name }}</p>
-                                                <p class="truncate text-xs text-ink-3">{{ u.email }}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="whitespace-nowrap px-5 py-3.5 text-right">
-                                        <span v-if="u.is_admin"
-                                            class="mr-2 inline-flex items-center rounded-full bg-danger-soft px-2 py-0.5 text-xs font-medium text-danger-ink">
-                                            Admin
-                                        </span>
-                                        <span class="text-xs text-ink-3">{{ formatDate(u.created_at) }}</span>
-                                    </td>
-                                    <td class="whitespace-nowrap px-5 py-3.5 text-right">
-                                        <Link :href="route('admin.users.show', u.id)"
-                                            class="text-xs font-medium text-accent-ink hover:underline">
-                                            Ansehen
-                                        </Link>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </AppCard>
-            </section>
+                <div class="flex flex-col gap-[22px]">
+                    <!-- Still geworden -->
+                    <AdminSection title="Still geworden">
+                        <div class="overflow-hidden rounded-[14px] bg-surface">
+                            <p v-if="!quiet.length" class="px-3.5 py-3 text-[15px] text-ink-3">Alle sind dabei.</p>
+                            <Link v-for="(q, i) in quiet" :key="q.id" :href="route('admin.users.show', q.id)"
+                                class="flex items-center gap-3 px-3.5 py-3" :class="i < quiet.length - 1 ? 'border-b-[0.5px] border-line' : ''">
+                                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#8E8E93] font-bold text-white">{{ q.initial }}</span>
+                                <div class="min-w-0 flex-1">
+                                    <div class="truncate text-[16px] font-semibold">{{ q.name }}</div>
+                                    <div class="truncate text-[13px] text-ink-3">{{ q.meta }}</div>
+                                </div>
+                                <svg width="8" height="14" viewBox="0 0 8 14" fill="none" class="shrink-0 stroke-line-strong" stroke-width="2" aria-hidden="true"><path d="m1 1 6 6-6 6" /></svg>
+                            </Link>
+                        </div>
+                    </AdminSection>
 
-        </div>
+                    <!-- Anbindungen (am Desktop; am Telefon unter System) -->
+                    <AdminSection title="Anbindungen" class="hidden lg:flex">
+                        <Link :href="route('admin.system.index')" class="overflow-hidden rounded-[14px] bg-surface">
+                            <div v-for="(p, i) in providers.filter(p => p.count > 0)" :key="p.key"
+                                class="flex items-center gap-2.5 px-3.5 py-[11px]"
+                                :class="i < providers.filter(p => p.count > 0).length - 1 ? 'border-b-[0.5px] border-line' : ''">
+                                <Dot :tone="p.tone" />
+                                <span class="flex-1 text-[16px]">{{ p.name }}</span>
+                                <span class="text-[15px]" :class="p.tone === 'warn' ? 'text-warn-ink' : 'text-ink-3'">{{ p.value }}</span>
+                            </div>
+                        </Link>
+                    </AdminSection>
+                </div>
+            </div>
+        </AdminPage>
     </AdminLayout>
 </template>

@@ -170,7 +170,7 @@ const fieldClass = 'w-full rounded-field border-line bg-canvas text-[16px] text-
 
     <AdminLayout>
         <template #header>
-            <PageHeader title="Kraftübungen">
+            <PageHeader title="Kraftübungen" :back="route('admin.more')">
                 <template #action>
                     <AppButton variant="plain" @click="open()">Neue Übung</AppButton>
                 </template>

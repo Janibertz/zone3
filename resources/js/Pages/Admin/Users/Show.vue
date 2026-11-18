@@ -1,6 +1,9 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import PageHeader from '@/Components/UI/PageHeader.vue';
+import AdminPage from '@/Components/Admin/AdminPage.vue';
+import AdminSection from '@/Components/Admin/AdminSection.vue';
+import Dot from '@/Components/Admin/Dot.vue';
+import AppSheet from '@/Components/UI/AppSheet.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
@@ -19,10 +22,52 @@ const props = defineProps({
     aiBudgetDefault:  Number,
     aiBlockReason:    String,
     planDiagnostics:  Object,
+    overview:         { type: Object, default: () => ({}) },
 });
 
-const page  = usePage();
-const flash = computed(() => page.props.flash ?? {});
+const o = computed(() => props.overview ?? {});
+const first = computed(() => o.value.first ?? props.user.name.split(' ')[0]);
+
+const showTools   = ref(false);
+const allTimeline = ref(false);
+const timelineShown = computed(() => (o.value.timeline ?? []).slice(0, allTimeline.value ? undefined : 5));
+const deleteName  = ref('');
+
+/** Werkzeuge schließen und dann handeln, damit das Sheet nicht über der Rückfrage liegt. */
+function tool(fn) {
+    showTools.value = false;
+    fn();
+}
+function fillGaps() {
+    router.post(route('admin.system.plan-gaps.fill', props.user.id), {}, { preserveScroll: true });
+}
+function openAiLimit() {
+    activeTab.value = 'ai';
+}
+
+const toolGroups = computed(() => [
+    { title: 'Ansehen', rows: [
+        ...(props.user.is_admin ? [] : [{ label: `Als ${first.value} ansehen`, run: impersonate }]),
+        { label: 'Plan-Verlauf', run: () => (activeTab.value = 'plan') },
+    ] },
+    { title: 'Plan und Coach', rows: [
+        { label: 'Tagesvorschlag zurücksetzen', run: resetRecommendation },
+        { label: 'Schwelle neu berechnen', run: recalculateThreshold },
+        { label: 'Wochenrückblick erzeugen', run: confirmWeeklyReview },
+        ...(o.value.gaps ? [{ label: 'Lücken mit Ruhetagen schließen', value: `${o.value.gaps} Tage`, run: fillGaps }] : []),
+    ] },
+    { title: 'Zugang', rows: [
+        { label: props.user.strava_allowed ? 'Strava ausblenden' : 'Strava freischalten', value: props.user.strava_allowed ? 'freigeschaltet' : 'aus', run: toggleStrava },
+        { label: 'KI-Grenze', value: `${props.user.ai_daily_limit ?? 20} Aufrufe · ${aiBudgetEffective.value > 0 ? euro(aiBudgetEffective.value) : 'unbegrenzt'}`, run: openAiLimit },
+        { label: `Push an ${first.value}`, href: route('admin.push.index', { user: props.user.id }) },
+        { label: 'Link zum Passwort schicken', run: sendPasswordReset },
+    ] },
+    { title: 'Vorsicht', rows: [
+        { label: props.user.is_admin ? 'Admin-Rechte entziehen' : 'Zum Admin machen', run: toggleAdmin },
+        { label: props.user.is_active ? 'Deaktivieren' : 'Wieder aktivieren', run: toggleActive },
+        { label: `${first.value} löschen`, danger: true, run: () => (showDeleteModal.value = true) },
+    ] },
+]);
 
 const activeTab          = ref('overview');
 const showDeleteModal    = ref(false);
@@ -66,7 +111,10 @@ function impersonate() {
 }
 function toggleActive() { router.patch(route('admin.users.toggle-active', props.user.id), {}, { preserveScroll: true }); }
 function toggleStrava() { router.patch(route('admin.users.toggle-strava', props.user.id), {}, { preserveScroll: true }); }
-function deleteUser()   { router.delete(route('admin.users.destroy',      props.user.id)); }
+function deleteUser() {
+    if (deleteName.value.trim().toLowerCase() !== first.value.toLowerCase()) return;
+    router.delete(route('admin.users.destroy', props.user.id));
+}
 
 function resetRecommendation() {
     router.post(route('admin.users.reset-recommendation',  props.user.id), {}, { preserveScroll: true });
@@ -180,103 +228,103 @@ const zoneColors = [
     <Head :title="`Admin – ${user.name}`" />
 
     <AdminLayout>
-        <template #header>
-            <PageHeader :title="user.name" :back="route('admin.users.index')" />
-        </template>
+        <AdminPage :title="user.name" detail width="wide" :back="route('admin.users.index')" back-label="Athleten">
+            <template #nav>
+                <button type="button" class="h-11 px-2.5 text-[17px] font-semibold text-accent" @click="showTools = true">Werkzeuge</button>
+            </template>
 
-        <div class="p-4 lg:px-8 lg:py-6 space-y-5">
-
-            <!-- ── Flash banner ──────────────────────────────────── -->
-            <div v-if="flash.success" class="flex items-center gap-3 px-4 py-3 bg-success-soft border border-success/25 rounded-field text-sm text-success-ink">
-                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-                {{ flash.success }}
-            </div>
-            <div v-if="flash.error" class="flex items-center gap-3 px-4 py-3 bg-danger-soft border border-danger/25 rounded-field text-sm text-danger-ink">
-                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                {{ flash.error }}
-            </div>
-
-            <!-- ── User header ──────────────────────────────────── -->
-            <div class="bg-surface rounded-card p-6 shadow-card">
-                <div class="flex flex-col sm:flex-row items-start sm:items-center gap-5">
-                    <div class="h-16 w-16 rounded-card flex items-center justify-center text-xl font-bold text-white shadow-card shrink-0"
-                        :class="user.is_admin ? 'bg-danger' : 'bg-ink-3'"
-                    >
-                        {{ user.name.charAt(0).toUpperCase() }}
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold font-rounded bg-surface-3 text-ink-2">ID {{ user.id }}</span>
-                            <h1 class="text-xl font-bold text-ink">{{ user.name }}</h1>
-                            <span v-if="user.is_admin" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-danger-soft text-danger-ink">Admin</span>
-                            <span v-if="!user.is_active" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-surface-3 text-ink-3">Inaktiv</span>
-                        </div>
-                        <p class="text-ink-3">{{ user.email }}</p>
-                        <div class="flex flex-wrap gap-3 mt-2 text-xs text-ink-3">
-                            <span>Registriert: {{ formatDate(user.created_at) }}<template v-if="user.signup_source"> über „{{ user.signup_source }}“</template></span>
-                            <span v-if="user.email_verified_at">✓ E-Mail verifiziert</span>
-                            <span v-if="user.onboarding_completed_at">✓ Onboarding abgeschlossen</span>
-                            <span v-if="user.strava_account">🔗 Strava: {{ user.strava_account.username }}</span>
-                            <span v-if="user.coach">🤖 Coach: {{ user.coach.name }}</span>
-                            <span>Genutzt: App {{ user.seen_app_on ? formatDate(user.seen_app_on) : '–' }} · Homescreen {{ user.seen_homescreen_on ? formatDate(user.seen_homescreen_on) : '–' }} · Browser {{ user.seen_browser_on ? formatDate(user.seen_browser_on) : '–' }}</span>
-                        </div>
-                    </div>
-                    <!-- Konto-Aktionen -->
-                    <div class="flex flex-wrap gap-2 shrink-0">
-                        <!-- Administratoren lassen sich nicht uebernehmen —
-                             der Controller lehnt es ab, der Knopf zeigt es
-                             gar nicht erst an. -->
-                        <button
-                            v-if="!user.is_admin"
-                            @click="impersonate"
-                            class="px-3 py-1.5 text-xs rounded-field border border-accent/25 text-accent-ink transition-colors hover:bg-accent-soft"
-                        >Als {{ user.name.split(' ')[0] }} ansehen</button>
-                        <button @click="toggleAdmin"
-                            class="px-3 py-1.5 text-xs rounded-field border transition-colors"
-                            :class="user.is_admin
-                                ? 'border-danger/25 text-danger-ink hover:bg-danger-soft'
-                                : 'border-line text-ink-2 hover:bg-surface-2'"
-                        >{{ user.is_admin ? 'Admin entziehen' : 'Admin machen' }}</button>
-                        <button @click="toggleActive"
-                            class="px-3 py-1.5 text-xs rounded-field border transition-colors"
-                            :class="user.is_active
-                                ? 'border-warn/25 text-warn-ink hover:bg-warn-soft'
-                                : 'border-success/25 text-success-ink hover:bg-success-soft'"
-                        >{{ user.is_active ? 'Deaktivieren' : 'Aktivieren' }}</button>
-                        <!-- Strava nur nach Freischaltung (Jan, 03.11.2026). Ausblenden trennt nichts. -->
-                        <button @click="toggleStrava"
-                            class="px-3 py-1.5 text-xs rounded-field border transition-colors"
-                            :class="user.strava_allowed
-                                ? 'border-line text-ink-2 hover:bg-surface-2'
-                                : 'border-warn/25 text-warn-ink hover:bg-warn-soft'"
-                        >{{ user.strava_allowed ? 'Strava ausblenden' : 'Strava freischalten' }}</button>
-                        <button @click="showDeleteModal = true"
-                            class="px-3 py-1.5 text-xs rounded-field border border-danger/25 text-danger-ink hover:bg-danger-soft transition-colors"
-                        >Löschen</button>
+            <!-- ── Kopf (Mockup „Athlet“) ───────────────────────── -->
+            <div class="-mt-3 flex items-center gap-4">
+                <span class="flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-full text-[30px] font-bold text-white"
+                    :style="{ background: user.is_admin ? 'var(--z-danger, #D70015)' : (o.color ?? '#8E8E93') }">{{ o.initial ?? user.name.charAt(0) }}</span>
+                <div class="flex min-w-0 flex-col gap-1">
+                    <div class="text-[15px] text-ink-3">{{ o.meta }}</div>
+                    <div class="flex flex-wrap gap-1.5">
+                        <span v-if="o.has_plan" class="rounded-md bg-success-soft px-[7px] py-0.5 text-[12px] font-semibold text-success-ink">Plan aktiv</span>
+                        <span v-else class="rounded-md bg-warn-soft px-[7px] py-0.5 text-[12px] font-semibold text-warn-ink">Kein Plan</span>
+                        <span v-if="o.checklist" class="rounded-md bg-surface-2 px-[7px] py-0.5 text-[12px] font-semibold text-ink-2">Checkliste {{ o.checklist }}</span>
+                        <span v-if="o.way" class="rounded-md bg-surface-2 px-[7px] py-0.5 text-[12px] font-semibold text-ink-2">{{ o.way }}</span>
+                        <span v-if="user.is_admin" class="rounded-md bg-danger-soft px-[7px] py-0.5 text-[12px] font-semibold text-danger-ink">Admin</span>
+                        <span v-if="!user.is_active" class="rounded-md bg-surface-3 px-[7px] py-0.5 text-[12px] font-semibold text-ink-3">Deaktiviert</span>
                     </div>
                 </div>
+            </div>
 
-                <!-- Admin-Aktionen (zweite Reihe) -->
-                <div class="mt-4 pt-4 border-t border-line flex flex-wrap gap-2">
-                    <p class="text-xs text-ink-3 self-center mr-1">Admin-Aktionen:</p>
-                    <button @click="resetRecommendation"
-                        class="px-3 py-1.5 text-xs rounded-field border border-warn/25 text-warn-ink hover:bg-warn-soft transition-colors"
-                    >Empfehlung zurücksetzen</button>
-                    <button @click="confirmWeeklyReview"
-                        class="px-3 py-1.5 text-xs rounded-field border border-info/25 text-info-ink hover:bg-info-soft transition-colors"
-                    >Weekly Review triggern</button>
-                    <button @click="recalculateThreshold"
-                        class="px-3 py-1.5 text-xs rounded-field border border-accent/25 text-accent-ink hover:bg-accent-soft transition-colors"
-                    >Schwellenpace berechnen</button>
-                    <button @click="sendPasswordReset"
-                        class="px-3 py-1.5 text-xs rounded-full bg-surface-2 text-ink-2 hover:bg-surface-3 transition-colors"
-                    >Passwort-Reset senden</button>
+            <!-- ── Kennzahlen ─────────────────────────────────── -->
+            <div class="grid grid-cols-3 gap-2.5">
+                <div class="flex flex-col gap-0.5 rounded-[14px] bg-surface p-3">
+                    <span class="text-[13px] font-semibold text-form">Readiness</span>
+                    <span class="font-rounded text-[26px] font-bold leading-8">{{ o.kpis?.readiness?.score ?? '–' }}</span>
+                    <span class="truncate text-[13px] text-ink-3">{{ o.kpis?.readiness?.label ?? 'kein Wert heute' }}</span>
+                </div>
+                <div class="flex flex-col gap-0.5 rounded-[14px] bg-surface p-3">
+                    <span class="text-[13px] font-semibold text-fitness">VDOT</span>
+                    <span class="font-rounded text-[26px] font-bold leading-8">{{ o.kpis?.vdot != null ? o.kpis.vdot.toLocaleString('de-DE') : '–' }}</span>
+                    <span class="truncate text-[13px] text-ink-3">{{ o.kpis?.threshold ? `Schwelle ${o.kpis.threshold}` : 'keine Schwelle' }}</span>
+                </div>
+                <div class="flex flex-col gap-0.5 rounded-[14px] bg-surface p-3">
+                    <span class="text-[13px] font-semibold text-accent">Woche</span>
+                    <span class="font-rounded text-[26px] font-bold leading-8">{{ (o.kpis?.week_km ?? 0).toLocaleString('de-DE') }}<span class="text-[15px] font-semibold text-ink-3"> km</span></span>
+                    <span class="truncate text-[13px] text-ink-3">{{ o.kpis?.week_planned ? `von ${o.kpis.week_planned.toLocaleString('de-DE')} geplant` : 'nichts geplant' }}</span>
                 </div>
             </div>
+
+            <div class="grid grid-cols-1 gap-[18px] lg:grid-cols-2">
+                <div class="flex flex-col gap-[18px]">
+                    <!-- Verbindungen -->
+                    <AdminSection title="Verbindungen">
+                        <div class="overflow-hidden rounded-[14px] bg-surface">
+                            <p v-if="!o.connections?.length" class="px-3.5 py-3 text-[15px] text-ink-3">Nichts verbunden.</p>
+                            <div v-for="(c, i) in o.connections" :key="c.name" class="flex items-center gap-2.5 px-3.5 py-[11px]"
+                                :class="i < o.connections.length - 1 ? 'border-b-[0.5px] border-line' : ''">
+                                <Dot :tone="c.tone" />
+                                <span class="flex-1 text-[16px]">{{ c.name }}</span>
+                                <span class="text-right text-[15px]" :class="c.tone === 'warn' ? 'text-warn-ink' : 'text-ink-3'">{{ c.value }}</span>
+                            </div>
+                        </div>
+                    </AdminSection>
+
+                    <!-- Plan und KI -->
+                    <AdminSection title="Plan und KI">
+                        <div class="overflow-hidden rounded-[14px] bg-surface">
+                            <div class="flex justify-between gap-3 border-b-[0.5px] border-line px-3.5 py-[11px]">
+                                <span class="text-[16px]">Plan</span>
+                                <span class="min-w-0 truncate text-right text-[15px] text-ink-3">{{ o.plan_line || '–' }}</span>
+                            </div>
+                            <div class="flex justify-between gap-3 border-b-[0.5px] border-line px-3.5 py-[11px]">
+                                <span class="text-[16px]">Lücken</span>
+                                <span class="text-[15px]" :class="o.gaps ? 'font-semibold text-warn-ink' : 'text-ink-3'">{{ o.gaps ? `${o.gaps} Tage ohne Einheit` : 'keine' }}</span>
+                            </div>
+                            <div class="flex justify-between gap-3 px-3.5 py-[11px]">
+                                <span class="text-[16px]">KI heute</span>
+                                <span class="text-right text-[15px]" :class="aiBlockReason ? 'font-semibold text-danger-ink' : 'text-ink-3'">
+                                    {{ euro(aiTodayCost) }} von {{ aiBudgetEffective > 0 ? euro(aiBudgetEffective) : 'unbegrenzt' }} · {{ aiTodayUsed }} Aufrufe
+                                </span>
+                            </div>
+                        </div>
+                    </AdminSection>
+                </div>
+
+                <!-- Was passiert ist -->
+                <AdminSection title="Was passiert ist">
+                    <template v-if="(o.timeline?.length ?? 0) > 5" #aside>
+                        <button type="button" class="text-[15px] font-semibold text-accent" @click="allTimeline = !allTimeline">{{ allTimeline ? 'Weniger' : 'Alles' }}</button>
+                    </template>
+                    <div class="overflow-hidden rounded-[14px] bg-surface">
+                        <p v-if="!o.timeline?.length" class="px-3.5 py-3 text-[15px] text-ink-3">Noch nichts.</p>
+                        <div v-for="(t, i) in timelineShown" :key="i" class="flex gap-3 px-3.5 py-[11px]"
+                            :class="i < timelineShown.length - 1 ? 'border-b-[0.5px] border-line' : ''">
+                            <div class="w-[52px] shrink-0 pt-0.5 text-[13px] text-ink-3">{{ t.label }}</div>
+                            <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+                                <span class="text-[15px] font-semibold" :class="{ 'text-warn-ink': t.tone === 'warn', 'text-danger-ink': t.tone === 'danger', 'text-success-ink': t.tone === 'success' }">{{ t.title }}</span>
+                                <span v-if="t.meta" class="text-[13px] text-ink-3">{{ t.meta }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </AdminSection>
+            </div>
+
+            <div class="px-1 pt-2 text-[13px] font-semibold uppercase text-ink-3">Details · {{ user.email }} · ID {{ user.id }}</div>
 
             <!-- ── Activity stats KPIs ──────────────────────────── -->
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -732,17 +780,38 @@ const zoneColors = [
                 </div>
             </template>
 
-        </div>
+        </AdminPage>
+
+        <!-- ── Werkzeuge (Mockup „Werkzeuge“) ─────────────────── -->
+        <AppSheet :show="showTools" :title="`Werkzeuge für ${first}`" @close="showTools = false">
+            <div class="flex flex-col gap-[18px] pb-2">
+                <div v-for="g in toolGroups" :key="g.title" class="flex flex-col gap-1.5">
+                    <div class="px-1 text-[13px] font-semibold uppercase text-ink-3">{{ g.title }}</div>
+                    <div class="overflow-hidden rounded-[14px] bg-surface-2/60 dark:bg-surface-2">
+                        <component :is="r.href ? Link : 'button'" v-for="(r, i) in g.rows" :key="r.label" :href="r.href" type="button"
+                            class="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left active:bg-surface-3"
+                            :class="i < g.rows.length - 1 ? 'border-b-[0.5px] border-line' : ''"
+                            @click="r.href ? (showTools = false) : tool(r.run)">
+                            <span class="text-[16px]" :class="r.danger ? 'text-danger' : ''">{{ r.label }}</span>
+                            <span v-if="r.value" class="truncate text-[15px] text-ink-3">{{ r.value }}</span>
+                        </component>
+                    </div>
+                </div>
+            </div>
+        </AppSheet>
 
         <!-- ── Sheets ────────────────────────────────────────── -->
         <ConfirmSheet
             :show="showDeleteModal"
-            title="Nutzer löschen"
-            :message="`Soll ${user.name} wirklich unwiderruflich gelöscht werden? Alle Aktivitäten, Ziele und Daten werden entfernt.`"
-            confirm-label="Ja, löschen"
+            :title="`${first} löschen?`"
+            :message="`Alle Aktivitäten, Ziele und Daten von ${user.name} werden unwiderruflich entfernt. Tippe zur Bestätigung „${first}“.`"
+            confirm-label="Endgültig löschen"
             @confirm="deleteUser"
-            @close="showDeleteModal = false"
-        />
+            @close="showDeleteModal = false; deleteName = ''"
+        >
+            <input v-model="deleteName" type="text" autocomplete="off" :aria-label="`${first} eintippen`" :placeholder="first"
+                class="mt-3 w-full rounded-[10px] border border-line-strong bg-transparent px-3 py-2 text-[16px] focus:border-danger focus:ring-0" />
+        </ConfirmSheet>
 
         <ConfirmSheet
             :show="showWeeklyModal"

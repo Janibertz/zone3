@@ -9,6 +9,7 @@ use App\Models\RunnerProfile;
 use App\Models\User;
 use App\Models\WeeklyReview;
 use App\Services\AI\CoachingTextService;
+use App\Services\Admin\AdminInsights;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Password;
@@ -16,39 +17,19 @@ use Inertia\Inertia;
 
 class AdminUserController extends Controller
 {
-    public function index(Request $request)
+    /**
+     * Die Athletenliste (Umbau 18.11.2026): alle Konten auf einmal, Filter
+     * und Suche im Browser. Bei ein paar Dutzend Konten ist das schneller
+     * als jede Seitenzahl, und die Zahlen an den Filtern stimmen.
+     */
+    public function index(Request $request, AdminInsights $insights)
     {
-        $query = User::withCount(['activities', 'events'])
-            ->with('stravaAccount:id,user_id,username,last_synced_at')
-            ->latest();
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                // Eine reine Zahl ist meist die ID (Diagnose, Log).
-                if (ctype_digit((string) $search)) {
-                    $q->where('id', (int) $search);
-                }
-                $q->orWhere('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
-            });
-        }
-
-        if ($request->filled('filter')) {
-            match ($request->filter) {
-                'admin'     => $query->where('is_admin', true),
-                'inactive'  => $query->where('is_active', false),
-                'verified'  => $query->whereNotNull('email_verified_at'),
-                'onboarded' => $query->whereNotNull('onboarding_completed_at'),
-                'strava'    => $query->has('stravaAccount'),
-                'waiting'   => $query->whereNotNull('waitlisted_at'),
-                default     => null,
-            };
-        }
+        $rows = $insights->athleteRows();
 
         return Inertia::render('Admin/Users/Index', [
-            'users'   => $query->paginate(25)->withQueryString(),
-            'filters' => $request->only(['search', 'filter']),
+            'athletes' => $rows,
+            'filter'   => $request->query('filter', 'all'),
+            'search'   => (string) $request->query('search', ''),
         ]);
     }
 
@@ -108,7 +89,32 @@ class AdminUserController extends Controller
                 ->get(),
         ];
 
+        $insights = app(AdminInsights::class);
+        $user->loadCount('pushSubscriptions')->loadMax('activities', 'start_date');
+        $row = $insights->athleteRow($user->loadMissing(['garminConnection', 'corosConnection', 'polarConnection', 'whoopConnection', 'intervalsConnection', 'activeTrainingPlan.event']));
+        $checklist = app(\App\Services\StarterChecklist::class)->done($user);
+        $required  = collect(\App\Services\StarterChecklist::ITEMS)->reject(fn ($i) => $i['optional'] ?? false)->keys();
+
         return Inertia::render('Admin/Users/Show', [
+            // Kopf, Kacheln, Verbindungen und Zeitleiste (18.11.2026).
+            'overview'         => [
+                'initial'     => $row['initial'],
+                'color'       => $row['color'],
+                'meta'        => collect([
+                    'Dabei seit ' . $user->created_at->format('d.m.'),
+                    $user->signup_source ? "über {$user->signup_source}" : null,
+                    $user->coach ? "Coach {$user->coach->name}" : null,
+                ])->filter()->implode(' · '),
+                'plan_line'   => $row['plan_line'],
+                'has_plan'    => $row['has_plan'],
+                'checklist'   => $required->filter(fn ($k) => $checklist[$k] ?? false)->count() . '/' . $required->count(),
+                'way'         => ($w = $insights->way($user)) ? $w . ' · ' . $insights->lastSeenLabel($user) : null,
+                'kpis'        => $insights->kpis($user),
+                'connections' => $insights->connections($user),
+                'timeline'    => $insights->timeline($user),
+                'gaps'        => count($insights->planHoles($user)),
+                'first'       => $insights->first($user->name),
+            ],
             'user'             => $user,
             'activities'       => $activities,
             'events'           => $events,

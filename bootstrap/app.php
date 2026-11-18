@@ -27,7 +27,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'whoop/webhook',
             'intervals/webhook',
             'telegram/webhook',
-            'webhook/github',
             // Apple schickt die Anmeldung als Formular von appleid.apple.com;
             // geschützt über state + nonce im Cache.
             'auth/apple/callback',

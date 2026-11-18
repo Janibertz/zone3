@@ -33,9 +33,14 @@ class AdminSystemController extends Controller
 {
     public function __construct(private readonly SystemHealth $health) {}
 
-    public function index(Watchdog $watchdog): Response
+    public function index(Watchdog $watchdog, \App\Services\Admin\AdminInsights $insights): Response
     {
         return Inertia::render('Admin/System/Index', [
+            // Umbau 18.11.2026: Fehler gruppiert, Anbindungen je Anbieter,
+            // was der Plan-Prüfer korrigieren musste.
+            'failureGroups' => $insights->failureGroups(),
+            'providers'     => $insights->providers(),
+            'planChecker'   => $insights->planChecker(),
             'queues'       => $this->health->queues(),
             'failedJobs'   => $this->health->failedJobs(),
             'planHealth'   => $this->health->planHealth(),
@@ -79,6 +84,32 @@ class AdminSystemController extends Controller
         Artisan::call('queue:retry', ['id' => [$uuid]]);
 
         return back()->with('success', 'Aufgabe erneut eingereiht.');
+    }
+
+    /** Eine Gruppe (dieselbe Aufgabe, derselbe Fehler) auf einmal erneut einreihen. */
+    public function retryGroup(Request $request): RedirectResponse
+    {
+        $uuids = $this->groupUuids($request);
+        Artisan::call('queue:retry', ['id' => $uuids]);
+
+        return back()->with('success', count($uuids) === 1 ? 'Aufgabe erneut eingereiht.' : count($uuids) . ' Aufgaben erneut eingereiht.');
+    }
+
+    public function forgetGroup(Request $request): RedirectResponse
+    {
+        $uuids = $this->groupUuids($request);
+        DB::table('failed_jobs')->whereIn('uuid', $uuids)->delete();
+
+        return back()->with('success', count($uuids) === 1 ? 'Eintrag verworfen.' : count($uuids) . ' Einträge verworfen.');
+    }
+
+    /** @return list<string> */
+    private function groupUuids(Request $request): array
+    {
+        return $request->validate([
+            'uuids'   => 'required|array|min:1|max:500',
+            'uuids.*' => 'string|max:64',
+        ])['uuids'];
     }
 
     public function retryAllFailed(): RedirectResponse

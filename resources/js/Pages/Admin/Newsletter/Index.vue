@@ -136,7 +136,7 @@ function formatDate(d) {
 
     <AdminLayout>
         <template #header>
-            <PageHeader title="Newsletter" />
+            <PageHeader title="Newsletter" :back="route('admin.more')" />
         </template>
 
         <div class="p-4 lg:px-8 lg:py-6 space-y-6">

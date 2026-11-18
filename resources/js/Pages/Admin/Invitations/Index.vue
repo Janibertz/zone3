@@ -1,8 +1,11 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import PageHeader from '@/Components/UI/PageHeader.vue';
+import AdminPage from '@/Components/Admin/AdminPage.vue';
+import AdminSection from '@/Components/Admin/AdminSection.vue';
+import AdminSegmented from '@/Components/Admin/AdminSegmented.vue';
+import { firstName } from '@/Composables/useAdminFormat';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -10,40 +13,38 @@ const props = defineProps({
     validDays:   Number,
     mode:        String,
     waiting:     Array,
+    sources:     { type: Array, default: () => [] },
+    referrers:   { type: Array, default: () => [] },
 });
+
+const sourceRange = ref('recent');
+const sourceRows = computed(() => props.sources
+    .map((s) => ({ source: s.source, n: s[sourceRange.value] }))
+    .filter((s) => s.n > 0)
+    .sort((a, b) => (a.source === 'ohne Quelle') - (b.source === 'ohne Quelle') || b.n - a.n));
+const sourceMax = computed(() => Math.max(1, ...sourceRows.value.map((s) => s.n)));
+
+const showOld = ref(false);
+
+function daysLeft(iso) {
+    return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000));
+}
+function shortName(name) {
+    const parts = String(name).trim().split(/\s+/);
+    return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1].charAt(0)}.` : parts[0];
+}
+async function share(inv) {
+    if (navigator.share) {
+        try { await navigator.share({ title: 'Zone3', text: 'Komm zu Zone3:', url: inv.url }); return; } catch { /* abgebrochen */ }
+    }
+    copy(inv);
+}
 
 // ── Warteliste ──────────────────────────────────────────────────────
 function setMode(mode) {
     if (mode === props.mode) return;
     router.post(route('admin.invitations.mode'), { mode }, { preserveScroll: true });
 }
-
-const approvingId = ref(null);
-function approve(u) {
-    approvingId.value = u.id;
-    router.post(route('admin.waitlist.approve', u.id), {}, {
-        preserveScroll: true,
-        onFinish: () => { approvingId.value = null; },
-    });
-}
-
-const toReject = ref(null);
-function confirmReject() {
-    if (!toReject.value) return;
-    busy.value = true;
-    router.delete(route('admin.waitlist.reject', toReject.value.id), {
-        preserveScroll: true,
-        onFinish: () => { busy.value = false; toReject.value = null; },
-    });
-}
-
-function since(value) {
-    const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
-
-const page  = usePage();
-const flash = computed(() => page.props.flash ?? {});
 
 const form = useForm({ note: '', multi: false, max_uses: '', days: 14, source: '' });
 
@@ -87,6 +88,7 @@ function confirmRevoke() {
 
 const open  = computed(() => props.invitations.filter((i) => i.status === 'open'));
 const other = computed(() => props.invitations.filter((i) => i.status !== 'open'));
+const otherShown = computed(() => other.value.slice(0, showOld.value ? undefined : 5));
 
 const statusLabels = {
     used:    { text: 'Eingelöst',     cls: 'text-success-ink' },
@@ -102,214 +104,140 @@ function when(value) {
 </script>
 
 <template>
-    <Head title="Zugang" />
+    <Head title="Admin – Zugang" />
 
     <AdminLayout>
-        <template #header>
-            <PageHeader title="Zugang" />
-        </template>
-        <div class="px-4 py-4 lg:px-8 lg:py-6 space-y-6">
-
-            <div v-if="flash.success" class="px-4 py-3 bg-success-soft border border-success/25 rounded-field text-sm text-success-ink">
-                {{ flash.success }}
-            </div>
-
-            <!-- ── Zugang: Warteliste oder offen ───────────────────────── -->
-            <div class="bg-surface rounded-card shadow-card">
-                <div class="px-6 py-4 border-b border-line">
-                    <h2 class="text-sm font-semibold text-ink-2">Neue Konten über Apple oder Link per Mail</h2>
-                    <p class="text-xs text-ink-3 mt-0.5">
-                        Bei jeder neuen Anmeldung bekommst du einen Push. Wer über einen Einladungslink kommt, ist immer sofort drin.
-                    </p>
-                </div>
-                <div class="px-6 py-4 grid grid-cols-2 gap-2">
-                    <button
-                        v-for="opt in [{ key: 'waitlist', label: 'Warteliste', hint: 'Du schaltest frei' }, { key: 'open', label: 'Offen', hint: 'Sofort drin' }]"
-                        :key="opt.key"
-                        type="button"
-                        class="rounded-field px-4 py-3 text-left transition active:scale-[0.98]"
-                        :class="mode === opt.key ? 'bg-accent text-white' : 'bg-surface-2 text-ink'"
-                        @click="setMode(opt.key)">
-                        <span class="block text-sm font-semibold">{{ opt.label }}</span>
-                        <span class="block text-xs" :class="mode === opt.key ? 'text-white/80' : 'text-ink-3'">{{ opt.hint }}</span>
-                    </button>
-                </div>
-
-                <div class="border-t border-line">
-                    <p v-if="!waiting.length" class="px-6 py-6 text-sm text-ink-3">
-                        Niemand wartet.
-                    </p>
-                    <div v-else class="divide-y divide-line">
-                        <div v-for="u in waiting" :key="u.id" class="px-6 py-3 flex flex-wrap items-center justify-between gap-3">
-                            <div class="min-w-0">
-                                <p class="text-sm font-medium text-ink truncate">{{ u.name }}</p>
-                                <p class="text-xs text-ink-3 truncate">{{ u.email }} · {{ u.via }} · seit {{ since(u.since) }}</p>
-                            </div>
-                            <div class="flex gap-2">
-                                <button
-                                    class="rounded-field bg-accent px-3 py-1.5 text-xs font-semibold text-white active:opacity-80 disabled:opacity-50"
-                                    :disabled="approvingId === u.id"
-                                    @click="approve(u)">
-                                    Freischalten
-                                </button>
-                                <button
-                                    class="rounded-field px-3 py-1.5 text-xs text-ink-3 hover:text-danger-ink active:opacity-60"
-                                    @click="toReject = u">
-                                    Ablehnen
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+        <AdminPage title="Zugang" detail :back="route('admin.more')" back-label="Mehr">
+            <!-- Warteliste an/aus (Mockup „Einladungen“) -->
+            <div class="flex flex-col gap-1.5">
+                <button type="button" role="switch" :aria-checked="mode === 'waitlist'"
+                    class="flex w-full items-center justify-between gap-3 rounded-[14px] bg-surface px-3.5 py-3 text-left"
+                    @click="setMode(mode === 'waitlist' ? 'open' : 'waitlist')">
+                    <span class="flex flex-col">
+                        <span class="text-[16px]">Neue Konten auf die Warteliste</span>
+                        <span class="text-[13px] text-ink-3">Mit Apple und Link per Mail</span>
+                    </span>
+                    <span class="relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors duration-200" :class="mode === 'waitlist' ? 'bg-success' : 'bg-surface-3'">
+                        <span class="absolute top-0.5 h-[27px] w-[27px] rounded-full bg-white shadow transition-transform duration-200 ease-out-strong" :class="mode === 'waitlist' ? 'translate-x-[22px]' : 'translate-x-0.5'" />
+                    </span>
+                </button>
+                <div class="px-1 text-[13px] text-ink-3">
+                    Wer über einen Link kommt, überspringt die Warteliste.
+                    <Link v-if="waiting.length" :href="route('admin.inbox.index')" class="font-semibold text-accent">{{ waiting.length }} {{ waiting.length === 1 ? 'wartet' : 'warten' }} im Postfach</Link>
                 </div>
             </div>
 
-            <!-- ── Neuer Link ────────────────────────────────────────── -->
-            <div class="bg-surface rounded-card shadow-card">
-                <div class="px-6 py-4 border-b border-line">
-                    <h2 class="text-sm font-semibold text-ink-2">Einladungslink erstellen</h2>
-                    <p class="text-xs text-ink-3 mt-0.5">
-                        Wer über diesen Link kommt, ist sofort drin, an der Warteliste vorbei. Er gilt für jeden, der ihn hat.
-                        Für eine Person einmal und {{ validDays }} Tage; für mehrere so oft und so lange, wie du einstellst.
-                        Die Notiz ist nur für dich, die Quelle steht später am Konto.
-                    </p>
-                </div>
-                <form class="px-6 py-4 space-y-3" @submit.prevent="create">
-                    <div class="grid grid-cols-2 gap-2">
-                        <button
-                            v-for="opt in [{ multi: false, label: 'Für eine Person', hint: 'Einmal, 14 Tage' }, { multi: true, label: 'Für mehrere', hint: 'z. B. Freunde, Lauftreff' }]"
-                            :key="opt.label"
-                            type="button"
-                            class="rounded-field px-4 py-3 text-left transition active:scale-[0.98]"
-                            :class="form.multi === opt.multi ? 'bg-accent text-white' : 'bg-surface-2 text-ink'"
-                            @click="pickKind(opt.multi)">
-                            <span class="block text-sm font-semibold">{{ opt.label }}</span>
-                            <span class="block text-xs" :class="form.multi === opt.multi ? 'text-white/80' : 'text-ink-3'">{{ opt.hint }}</span>
-                        </button>
-                    </div>
-                    <input
-                        v-model="form.note"
-                        type="text"
-                        maxlength="120"
-                        :placeholder="form.multi ? 'Notiz, z. B. „Freunde per DM“' : 'Notiz, z. B. „für Christopher“'"
-                        class="w-full rounded-field border-line bg-canvas text-base sm:text-sm text-ink placeholder:text-ink-3" />
-                    <div v-if="form.multi" class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                        <label class="block">
-                            <span class="block text-xs text-ink-3 mb-1">Höchstens Konten</span>
-                            <input v-model="form.max_uses" type="number" min="2" inputmode="numeric" placeholder="beliebig viele"
-                                class="w-full rounded-field border-line bg-canvas text-base sm:text-sm text-ink placeholder:text-ink-3" />
+            <!-- Neuer Link -->
+            <AdminSection title="Neuer Link">
+                <form class="flex flex-col gap-3 rounded-[14px] bg-surface p-3.5" @submit.prevent="create">
+                    <AdminSegmented :model-value="form.multi ? 'multi' : 'single'"
+                        :options="[{ value: 'single', label: 'Für eine Person' }, { value: 'multi', label: 'Für mehrere' }]"
+                        @update:model-value="(v) => pickKind(v === 'multi')" />
+                    <input v-model="form.note" type="text" maxlength="120" aria-label="Notiz"
+                        :placeholder="form.multi ? 'Notiz, z. B. „Freunde per DM“' : 'Notiz, z. B. „Kollege vom Verein“'"
+                        class="rounded-[10px] border-0 bg-surface-2 px-3 py-2 text-[16px] placeholder:text-ink-3 focus:ring-2 focus:ring-accent/40" />
+                    <div v-if="form.multi" class="grid grid-cols-3 gap-2">
+                        <label class="flex flex-col gap-1 text-[13px] text-ink-3">Höchstens
+                            <input v-model="form.max_uses" type="number" min="2" inputmode="numeric" placeholder="beliebig"
+                                class="rounded-[10px] border-0 bg-surface-2 px-3 py-2 text-[16px] text-ink focus:ring-2 focus:ring-accent/40" />
                         </label>
-                        <label class="block">
-                            <span class="block text-xs text-ink-3 mb-1">Gültig (Tage)</span>
+                        <label class="flex flex-col gap-1 text-[13px] text-ink-3">Tage gültig
                             <input v-model.number="form.days" type="number" min="1" max="365" inputmode="numeric"
-                                class="w-full rounded-field border-line bg-canvas text-base sm:text-sm text-ink" />
+                                class="rounded-[10px] border-0 bg-surface-2 px-3 py-2 text-[16px] text-ink focus:ring-2 focus:ring-accent/40" />
                         </label>
-                        <label class="block">
-                            <span class="block text-xs text-ink-3 mb-1">Quelle</span>
-                            <input v-model="form.source" type="text" maxlength="40" placeholder="z. B. freunde"
-                                class="w-full rounded-field border-line bg-canvas text-base sm:text-sm text-ink placeholder:text-ink-3" />
+                        <label class="flex flex-col gap-1 text-[13px] text-ink-3">Quelle
+                            <input v-model="form.source" type="text" maxlength="40" placeholder="freunde"
+                                class="rounded-[10px] border-0 bg-surface-2 px-3 py-2 text-[16px] text-ink focus:ring-2 focus:ring-accent/40" />
                         </label>
                     </div>
-                    <p v-for="(msg, key) in form.errors" :key="key" class="text-xs text-danger-ink">{{ msg }}</p>
-                    <button
-                        type="submit"
-                        :disabled="form.processing"
-                        class="rounded-field bg-accent px-4 py-2 text-sm font-semibold text-white transition active:opacity-80 disabled:opacity-50">
-                        Link erstellen
-                    </button>
+                    <p v-for="(msg, key) in form.errors" :key="key" class="m-0 text-[13px] text-danger-ink">{{ msg }}</p>
+                    <button type="submit" :disabled="form.processing" class="h-11 rounded-xl bg-accent text-[16px] font-semibold text-white disabled:opacity-40">Link erstellen</button>
+                    <p class="m-0 text-[13px] text-ink-3">{{ form.multi ? 'Gilt für mehrere Konten, bis die Plätze voll sind.' : `Einmal einlösbar, ${validDays} Tage gültig.` }}</p>
                 </form>
-            </div>
+            </AdminSection>
 
-            <!-- ── Offen ─────────────────────────────────────────────── -->
-            <div class="bg-surface rounded-card shadow-card">
-                <div class="px-6 py-4 border-b border-line">
-                    <h2 class="text-sm font-semibold text-ink-2">Offene Links ({{ open.length }})</h2>
-                </div>
-
-                <p v-if="!open.length" class="px-6 py-8 text-sm text-ink-3">
-                    Kein offener Link.
-                </p>
-
-                <div v-else class="divide-y divide-line">
-                    <div v-for="inv in open" :key="inv.id" class="px-6 py-3 space-y-2">
-                        <div class="flex flex-wrap items-baseline justify-between gap-2">
-                            <span class="text-sm font-medium text-ink">
-                                {{ inv.note || 'Ohne Notiz' }}
-                                <span v-if="inv.multi" class="ml-1 text-xs font-normal text-accent-ink">für mehrere</span>
+            <!-- Offene Links -->
+            <AdminSection id="links" title="Offene Links" :aside="open.length" class="scroll-mt-4">
+                <div class="overflow-hidden rounded-[14px] bg-surface">
+                    <p v-if="!open.length" class="px-3.5 py-3 text-[15px] text-ink-3">Kein offener Link.</p>
+                    <div v-for="(inv, i) in open" :key="inv.id" class="flex flex-col gap-2 px-3.5 py-3" :class="i < open.length - 1 ? 'border-b-[0.5px] border-line' : ''">
+                        <div class="flex items-baseline justify-between gap-3">
+                            <span class="truncate text-[16px] font-semibold">{{ inv.note || (inv.multi ? 'Für mehrere' : 'Für eine Person') }}</span>
+                            <span class="shrink-0 text-[15px] tabular-nums text-ink-3">
+                                {{ inv.multi ? (inv.max_uses ? `${inv.uses_count} von ${inv.max_uses}` : `${inv.uses_count} Konten`) : `noch ${daysLeft(inv.expires_at)} ${daysLeft(inv.expires_at) === 1 ? 'Tag' : 'Tage'}` }}
                             </span>
-                            <span class="text-xs text-ink-3">gültig bis {{ when(inv.expires_at) }}</span>
                         </div>
-                        <p v-if="inv.multi" class="text-xs text-ink-3">
-                            {{ inv.uses_count }} {{ inv.max_uses ? 'von ' + inv.max_uses : '' }} {{ inv.uses_count === 1 ? 'Konto' : 'Konten' }}
-                            <template v-if="inv.source"> · Quelle „{{ inv.source }}“</template>
-                            <template v-if="inv.redeemers.length">
-                                ·
-                                <template v-for="(r, idx) in inv.redeemers" :key="r.id">
-                                    <Link :href="route('admin.users.show', r.id)" class="hover:text-accent-ink">{{ r.name }}</Link><span v-if="idx < inv.redeemers.length - 1">, </span>
-                                </template>
+                        <div v-if="inv.multi && inv.max_uses" class="h-1.5 overflow-hidden rounded bg-surface-2">
+                            <div class="h-full rounded bg-accent" :style="{ width: Math.min(100, (inv.uses_count / inv.max_uses) * 100) + '%' }" />
+                        </div>
+                        <div class="flex items-center justify-between gap-3 text-[13px] text-ink-3">
+                            <span class="truncate">
+                                <template v-if="inv.multi">{{ inv.source ? `Quelle ${inv.source} · ` : '' }}bis {{ when(inv.expires_at) }}</template>
+                                <template v-else>bis {{ when(inv.expires_at) }}{{ inv.creator ? ` · von ${firstName(inv.creator)}` : '' }}</template>
+                            </span>
+                            <span class="flex shrink-0 gap-3">
+                                <button type="button" class="font-semibold text-accent" @click="share(inv)">{{ copiedId === inv.id ? 'Kopiert' : 'Teilen' }}</button>
+                                <button type="button" class="font-semibold text-danger" @click="toRevoke = inv">Zurückziehen</button>
+                            </span>
+                        </div>
+                        <div v-if="inv.redeemers.length" class="text-[13px] text-ink-3">
+                            <template v-for="(r, idx) in inv.redeemers" :key="r.id">
+                                <Link :href="route('admin.users.show', r.id)" class="text-ink-2">{{ firstName(r.name) }}</Link><span v-if="idx < inv.redeemers.length - 1">, </span>
                             </template>
-                        </p>
-                        <p class="text-xs text-ink-3 font-mono break-all select-all">{{ inv.url }}</p>
-                        <div class="flex gap-2">
-                            <button
-                                class="px-2 py-1 rounded-field text-xs font-medium text-accent-ink active:opacity-60"
-                                @click="copy(inv)">
-                                {{ copiedId === inv.id ? 'Kopiert ✓' : 'Link kopieren' }}
-                            </button>
-                            <button
-                                class="px-2 py-1 rounded-field text-xs text-ink-3 hover:text-danger-ink active:opacity-60"
-                                @click="toRevoke = inv">
-                                Zurückziehen
-                            </button>
                         </div>
                     </div>
                 </div>
-            </div>
+            </AdminSection>
 
-            <!-- ── Verlauf ───────────────────────────────────────────── -->
-            <div v-if="other.length" class="bg-surface rounded-card shadow-card">
-                <div class="px-6 py-4 border-b border-line">
-                    <h2 class="text-sm font-semibold text-ink-2">Verlauf</h2>
+            <!-- Tester laden ein -->
+            <AdminSection v-if="referrers.length" title="Tester laden ein" :aside="`${referrers.reduce((n, r) => n + r.used, 0)} Freunde`">
+                <div class="overflow-hidden rounded-[14px] bg-surface">
+                    <div v-for="(r, i) in referrers" :key="r.name" class="flex justify-between gap-3 px-3.5 py-[11px]" :class="i < referrers.length - 1 ? 'border-b-[0.5px] border-line' : ''">
+                        <span class="text-[16px]">{{ shortName(r.name) }}</span>
+                        <span class="text-[15px] tabular-nums text-ink-3">{{ r.used }} von {{ r.max }}</span>
+                    </div>
                 </div>
-                <div class="divide-y divide-line">
-                    <div v-for="inv in other" :key="inv.id" class="px-6 py-3 flex flex-wrap items-baseline justify-between gap-2">
-                        <div>
-                            <span class="text-sm text-ink">{{ inv.note || 'Ohne Notiz' }}</span>
-                            <span class="ml-2 text-xs text-ink-3">erstellt {{ when(inv.created_at) }}</span>
-                        </div>
-                        <span class="text-xs" :class="statusLabels[inv.status]?.cls">
-                            {{ statusLabels[inv.status]?.text }}
-                            <template v-if="inv.multi">
-                                · {{ inv.uses_count }} {{ inv.uses_count === 1 ? 'Konto' : 'Konten' }}
-                            </template>
-                            <template v-else-if="inv.redeemer">
-                                von
-                                <Link :href="route('admin.users.show', inv.redeemer.id)" class="hover:text-accent-ink">
-                                    {{ inv.redeemer.name }}
-                                </Link>
-                                am {{ when(inv.used_at) }}
-                            </template>
+            </AdminSection>
+
+            <!-- Woher Anmeldungen kommen -->
+            <AdminSection id="quellen" title="Woher Anmeldungen kommen" class="scroll-mt-4">
+                <div class="flex flex-col gap-2.5 rounded-[14px] bg-surface p-3.5">
+                    <AdminSegmented v-model="sourceRange" :options="[{ value: 'recent', label: '30 Tage' }, { value: 'total', label: 'Gesamt' }]" />
+                    <p v-if="!sourceRows.length" class="m-0 text-[15px] text-ink-3">Noch keine Anmeldung.</p>
+                    <div v-else class="grid grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_34px] items-center gap-2.5 text-[15px]">
+                        <template v-for="s in sourceRows" :key="s.source">
+                            <span class="truncate" :class="s.source === 'ohne Quelle' ? 'text-ink-3' : ''">{{ s.source }}</span>
+                            <div class="h-2 rounded" :class="s.source === 'ohne Quelle' ? 'bg-line-strong' : 'bg-accent'" :style="{ width: Math.max(4, (s.n / sourceMax) * 100) + '%' }" />
+                            <span class="text-right font-bold tabular-nums">{{ s.n }}</span>
+                        </template>
+                    </div>
+                    <p class="m-0 text-[13px] text-ink-3">Gezählt ab 10.11.2026, über <span class="font-mono">?ref=</span> im ersten Link.</p>
+                </div>
+            </AdminSection>
+
+            <!-- Verlauf -->
+            <AdminSection v-if="other.length" title="Verlauf">
+                <template #aside>
+                    <button type="button" class="text-[15px] font-semibold text-accent" @click="showOld = !showOld">{{ showOld ? 'Weniger' : `Alle ${other.length}` }}</button>
+                </template>
+                <div class="overflow-hidden rounded-[14px] bg-surface">
+                    <div v-for="(inv, i) in otherShown" :key="inv.id" class="flex items-baseline justify-between gap-3 px-3.5 py-[11px]" :class="i < otherShown.length - 1 ? 'border-b-[0.5px] border-line' : ''">
+                        <span class="truncate text-[15px]">{{ inv.note || (inv.multi ? 'Für mehrere' : 'Für eine Person') }}</span>
+                        <span class="shrink-0 text-[13px]" :class="statusLabels[inv.status]?.cls">
+                            {{ statusLabels[inv.status]?.text }}<template v-if="inv.multi"> · {{ inv.uses_count }}</template><template v-else-if="inv.redeemer"> · {{ firstName(inv.redeemer.name) }}</template>
                         </span>
                     </div>
                 </div>
-            </div>
-        </div>
+            </AdminSection>
+        </AdminPage>
 
         <ConfirmSheet
             :show="!!toRevoke"
-            title="Einladung zurückziehen"
-            :message="toRevoke ? `Der Link ${toRevoke.note ? '„' + toRevoke.note + '“ ' : ''}funktioniert danach nicht mehr.` : ''"
+            title="Link zurückziehen?"
+            :message="toRevoke ? `Der Link ${toRevoke.note ? '„' + toRevoke.note + '“ ' : ''}funktioniert danach nicht mehr. Wer schon drin ist, bleibt.` : ''"
             confirm-label="Zurückziehen"
             :loading="busy"
             @confirm="confirmRevoke"
             @close="toRevoke = null" />
-
-        <ConfirmSheet
-            :show="!!toReject"
-            title="Anmeldung ablehnen"
-            :message="toReject ? `Das Konto von ${toReject.name} (${toReject.email}) wird gelöscht.` : ''"
-            confirm-label="Ablehnen"
-            :loading="busy"
-            @confirm="confirmReject"
-            @close="toReject = null" />
     </AdminLayout>
 </template>

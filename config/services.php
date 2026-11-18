@@ -124,6 +124,9 @@ return [
         'budget' => [
             'daily_eur'      => (float) env('OPENAI_BUDGET_DAILY_EUR', 1.00),
             'user_daily_eur' => (float) env('OPENAI_BUDGET_USER_DAILY_EUR', 0.30),
+            // Das harte Limit auf der OpenAI-Plattform, nur zum Anzeigen
+            // (KI-Kosten im Admin). Ändert man es dort, hier nachziehen.
+            'monthly_usd'    => (float) env('OPENAI_BUDGET_MONTHLY_USD', 15),
         ],
     ],
 
@@ -169,10 +172,6 @@ return [
         'public_key'  => env('VAPID_PUBLIC_KEY'),
         'private_key' => env('VAPID_PRIVATE_KEY'),
         'subject'     => env('VAPID_SUBJECT', 'mailto:admin@zone3.app'),
-    ],
-
-    'github' => [
-        'webhook_secret' => env('GITHUB_WEBHOOK_SECRET'),
     ],
 
 ];

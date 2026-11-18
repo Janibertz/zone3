@@ -78,7 +78,7 @@ function when(value) {
 
     <AdminLayout>
         <template #header>
-            <PageHeader title="Aktivitäten" />
+            <PageHeader title="Aktivitäten" :back="route('admin.more')" />
         </template>
         <div class="px-4 py-4 lg:px-8 lg:py-6 space-y-6">
 

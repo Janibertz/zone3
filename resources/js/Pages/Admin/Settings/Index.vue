@@ -1,7 +1,7 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
-import { Head, router, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -14,8 +14,6 @@ const flash = computed(() => page.props.flash ?? {});
 
 const sendingPush      = ref(false);
 const togglingMaintenance = ref(false);
-const broadcastForm    = ref({ title: '', message: '', url: '' });
-const broadcasting     = ref(false);
 
 function sendTestPush() {
     sendingPush.value = true;
@@ -33,14 +31,6 @@ function toggleMaintenance() {
     });
 }
 
-function broadcastPush() {
-    broadcasting.value = true;
-    router.post(route('admin.settings.broadcast-push'), broadcastForm.value, {
-        preserveScroll: true,
-        onSuccess: () => { broadcastForm.value = { title: '', message: '', url: '' }; },
-        onFinish: () => { broadcasting.value = false; },
-    });
-}
 
 const modelLabels = {
     'gpt-6-astra':         { label: 'GPT-6 Astra',   sub: 'Für die härtesten Aufgaben — 10 $ / 50 $ je 1M Token' },
@@ -73,7 +63,7 @@ function modelInfo(id) {
 
     <AdminLayout>
         <template #header>
-            <PageHeader title="Einstellungen" />
+            <PageHeader title="Einstellungen" :back="route('admin.more')" />
         </template>
 
         <div class="px-4 py-4 lg:px-8 lg:py-6 space-y-6">
@@ -261,28 +251,11 @@ function modelInfo(id) {
                 </div>
             </div>
 
-            <!-- ── Broadcast Push ──────────────────────────────── -->
-            <div class="bg-surface rounded-card divide-y divide-line shadow-card">
-                <div class="px-6 py-4">
-                    <h2 class="text-sm font-semibold text-ink-2">Push-Broadcast</h2>
-                    <p class="text-xs text-ink-3 mt-0.5">Nachricht an alle Nutzer mit aktivierten Push-Benachrichtigungen senden</p>
-                </div>
-                <div class="px-6 py-4 space-y-3">
-                    <input v-model="broadcastForm.title" type="text" placeholder="Titel…"
-                        class="w-full rounded-field bg-surface px-3 py-2 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/40" />
-                    <input v-model="broadcastForm.message" type="text" placeholder="Nachricht…"
-                        class="w-full rounded-field bg-surface px-3 py-2 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/40" />
-                    <input v-model="broadcastForm.url" type="text" placeholder="URL (optional, z.B. /dashboard)"
-                        class="w-full rounded-field bg-surface px-3 py-2 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/40" />
-                    <button @click="broadcastPush" :disabled="broadcasting || !broadcastForm.title || !broadcastForm.message || !config.push_key_set"
-                        class="px-4 py-2 rounded-field text-sm font-semibold text-white transition-colors"
-                        :class="(broadcasting || !broadcastForm.title || !broadcastForm.message || !config.push_key_set)
-                            ? 'bg-surface-3 cursor-not-allowed text-ink-3'
-                            : 'bg-accent hover:opacity-90'">
-                        {{ broadcasting ? 'Wird gesendet…' : 'An alle senden' }}
-                    </button>
-                </div>
-            </div>
+            <!-- Nachrichten an Athleten: eigene Seite seit 18.11.2026 -->
+            <Link :href="route('admin.push.index')" class="flex items-center justify-between rounded-card bg-surface px-6 py-4 shadow-card">
+                <span class="text-sm font-semibold text-ink-2">Nachricht an Athleten senden</span>
+                <span class="text-sm text-accent">Push senden ›</span>
+            </Link>
 
             <!-- ── Wartungsmodus ────────────────────────────────── -->
             <div class="bg-surface rounded-card divide-y divide-line shadow-card">

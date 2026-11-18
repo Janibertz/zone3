@@ -117,6 +117,12 @@ class AiLog extends Model
     ];
 
     /** Kosten einer Abschrift nach ihrer Laenge in Sekunden. */
+    /** Dollar in Euro mit demselben Kurs wie die Kostenrechnung. */
+    public static function usdToEur(float $usd): float
+    {
+        return $usd * self::USD_TO_EUR;
+    }
+
     public static function transcriptionCost(string $model, int $seconds): float
     {
         $key  = preg_replace('/-\d{4}-\d{2}-\d{2}$/', '', strtolower(trim($model)));
@@ -203,25 +209,40 @@ class AiLog extends Model
         return number_format($this->cost_eur, 4) . ' €';
     }
 
+    /** Deutscher Name je Aufruftyp, für Admin-Listen und -Filter. */
+    public const CALL_TYPE_LABELS = [
+        'coach_chat'            => 'Coach-Chat',
+        'session_review'        => 'Nachricht nach Einheit',
+        'event_plan'            => 'Trainingsplan',
+        'recommendation'        => 'Tagesvorschlag',
+        'adjust_recommendation' => 'Tagesvorschlag anpassen',
+        'adjust_session'        => 'Vorschlag zur Tagesform',
+        'weekly_review'         => 'Wochenrückblick',
+        'threshold_pace'        => 'Schwelle',
+        'pace_zones'            => 'Pace-Zonen',
+        'profile_estimation'    => 'Profil-Schätzung',
+        'race_prediction_text'  => 'Prognosetext',
+        'race_strategy'         => 'Rennstrategie',
+        'race_analysis'         => 'Rennanalyse',
+        'coach_pr'              => 'Bestzeit-Nachricht',
+        'daily_message'         => 'Tagesnachricht',
+        'wrapped_review'        => 'Jahresrückblick',
+        'backyard_ultra'        => 'Backyard-Plan',
+        'voice_transcription'   => 'Sprachnachricht',
+        'image_description'     => 'Bild an den Coach',
+        'plan'                  => 'Trainingsplan (alt)',
+        'nutrition'             => 'Ernährungstipps (alt)',
+        'goal_analysis'         => 'Ziel-Analyse (alt)',
+        'suggestions'           => 'Vorschläge (alt)',
+    ];
+
+    public static function labelFor(?string $type): string
+    {
+        return self::CALL_TYPE_LABELS[$type] ?? (string) $type;
+    }
+
     public function getCallTypeLabelAttribute(): string
     {
-        return match ($this->call_type) {
-            'recommendation'       => 'Tagesempfehlung',
-            'adjust_recommendation'=> 'Empfehlung anpassen',
-            'plan'                 => 'Trainingsplan',
-            'event_plan'           => 'Event-Trainingsplan',
-            'weekly_review'        => 'Wochenrückblick',
-            'pace_zones'           => 'Pace-Zonen',
-            'threshold_pace'       => 'Schwellenpace',
-            'nutrition'            => 'Ernährungstipps',
-            'adjust_session'       => 'Session anpassen',
-            'goal_analysis'        => 'Ziel-Analyse',
-            'coach_chat'           => 'Coach-Chat',
-            'voice_transcription'  => 'Sprachnachricht',
-            'image_description'    => 'Bild an den Coach',
-            'session_review'       => 'Einheit-Review',
-            'suggestions'          => 'Vorschläge',
-            default                => $this->call_type,
-        };
+        return self::labelFor($this->call_type);
     }
 }

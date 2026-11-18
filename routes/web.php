@@ -17,7 +17,6 @@ use App\Models\Event;
 use App\Models\TrainingSession;
 use App\Http\Controllers\StatisticsController;
 use App\Http\Controllers\StravaController;
-use App\Http\Controllers\WebhookController;
 use App\Http\Controllers\WellbeingController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\SupportTicketController;
@@ -1014,7 +1013,6 @@ Route::post('/garmin/webhook/health', [\App\Http\Controllers\GarminController::c
 Route::post('/garmin/webhook/activities', [\App\Http\Controllers\GarminController::class, 'webhookActivities'])->name('garmin.webhook.activities');
 
 // GitHub Webhook — no auth middleware, signature-verified
-Route::post('/webhook/github', [WebhookController::class, 'github'])->name('webhook.github');
 
 // Telegram-Bot des Coaches. Geschuetzt durch das Geheimnis im Header, nicht
 // durch eine Sitzung — siehe TelegramWebhookController.

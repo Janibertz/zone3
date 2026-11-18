@@ -7,7 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 /** Meldung eines geteilten Workouts durch einen anderen Athleten. */
 class WorkoutReport extends Model
 {
-    protected $fillable = ['workout_id', 'user_id', 'reason'];
+    protected $fillable = ['workout_id', 'user_id', 'reason', 'dismissed_at'];
+
+    protected $casts = ['dismissed_at' => 'datetime'];
 
     public function workout()
     {

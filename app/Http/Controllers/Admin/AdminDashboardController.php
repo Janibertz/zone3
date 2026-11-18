@@ -3,101 +3,39 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Activity;
-use App\Models\AiLog;
-use App\Models\Coach;
-use App\Models\Event;
-use App\Models\TrainingPlan;
-use App\Models\User;
-use App\Models\WellbeingEntry;
+use App\Services\Admin\AdminInsights;
 use App\Services\SystemHealth;
 use Inertia\Inertia;
 
+/**
+ * „Heute“ im Admin (Umbau 18.11.2026): was eine Antwort braucht, das
+ * Tester-Ziel mit Trichter, die KI-Kosten und wer still geworden ist.
+ * Die alten Zähler (Bestand, Tagesform-Trend, Coach-Verteilung,
+ * Monatsbalken) sind weg — sie haben nie eine Entscheidung ausgelöst.
+ */
 class AdminDashboardController extends Controller
 {
-    public function __construct(private readonly SystemHealth $health) {}
+    public function __construct(
+        private readonly SystemHealth $health,
+        private readonly AdminInsights $insights,
+    ) {}
 
     public function index()
     {
-        $today = now()->toDateString();
-
-        $stats = [
-            'total_users'      => User::count(),
-            'verified_users'   => User::whereNotNull('email_verified_at')->count(),
-            'onboarded_users'  => User::whereNotNull('onboarding_completed_at')->count(),
-            'admin_users'      => User::where('is_admin', true)->count(),
-            'strava_users'     => User::has('stravaAccount')->count(),
-            // Worin Zone3 in den letzten sieben Tagen benutzt wurde (seit 09.11.2026).
-            'seen_app'         => User::whereDate('seen_app_on', '>=', now()->subDays(6)->toDateString())->count(),
-            'seen_homescreen'  => User::whereDate('seen_homescreen_on', '>=', now()->subDays(6)->toDateString())->count(),
-            'seen_browser'     => User::whereDate('seen_browser_on', '>=', now()->subDays(6)->toDateString())->count(),
-            'total_activities' => Activity::count(),
-            'total_events'     => Event::count(),
-            'upcoming_events'  => Event::where('event_date', '>=', $today)->count(),
-            'total_wellbeing'  => WellbeingEntry::count(),
-            'active_plans'     => TrainingPlan::where('is_active', true)->count(),
-            'ai_calls_today'   => AiLog::whereDate('created_at', $today)->count(),
-            'ai_cost_today'    => (float) AiLog::whereDate('created_at', $today)->sum('cost_eur'),
-            'ai_cost_total'    => (float) AiLog::sum('cost_eur'),
-            'ai_calls_total'   => AiLog::count(),
-        ];
-
-        $registrationsPerMonth = User::selectRaw("DATE_FORMAT(created_at, '%Y-%m') as month, COUNT(*) as count")
-            ->where('created_at', '>=', now()->subMonths(6)->startOfMonth())
-            ->groupBy('month')
-            ->orderBy('month')
-            ->get();
-
-        $activitiesPerMonth = Activity::selectRaw("DATE_FORMAT(start_date, '%Y-%m') as month, COUNT(*) as count")
-            ->where('start_date', '>=', now()->subMonths(6)->startOfMonth())
-            ->groupBy('month')
-            ->orderBy('month')
-            ->get();
-
-        $aiCostsPerDay = AiLog::selectRaw("DATE(created_at) as day, SUM(cost_eur) as cost, COUNT(*) as calls")
-            ->where('created_at', '>=', now()->subDays(29)->startOfDay())
-            ->groupByRaw('DATE(created_at)')
-            ->orderBy('day')
-            ->get();
-
-        $coachDistribution = Coach::withCount('users')
-            ->orderByDesc('users_count')
-            ->get(['id', 'name', 'avatar_color', 'avatar_initials']);
-
-        $wellbeingTrend = WellbeingEntry::selectRaw(
-            "`date`,
-             ROUND(AVG((energy_level + mood + sleep_quality + (10 - muscle_soreness) + (10 - stress_level)) / 5.0), 1) as avg_score,
-             COUNT(*) as entries"
-        )
-            ->where('date', '>=', now()->subDays(13)->toDateString())
-            ->groupBy('date')
-            ->orderBy('date')
-            ->get();
-
-        $recentUsers = User::latest()
-            ->limit(5)
-            ->get(['id', 'name', 'email', 'is_admin', 'is_active', 'created_at']);
-
-        // Woher neue Konten kamen (seit 10.11.2026): 30 Tage und gesamt.
-        $signupSources = User::selectRaw('COALESCE(signup_source, ?) as source, COUNT(*) as total, SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) as recent', ['ohne', now()->subDays(29)->startOfDay()])
-            ->where('created_at', '>=', '2026-11-10')
-            ->groupBy('source')
-            ->orderByDesc('total')
-            ->get()
-            ->map(fn ($r) => ['source' => $r->source, 'total' => (int) $r->total, 'recent' => (int) $r->recent]);
+        $groups = $this->insights->failureGroups();
 
         return Inertia::render('Admin/Dashboard', [
-            'signupSources'         => $signupSources,
-            'stats'                 => $stats,
-            'registrationsPerMonth' => $registrationsPerMonth,
-            'activitiesPerMonth'    => $activitiesPerMonth,
-            'aiCostsPerDay'         => $aiCostsPerDay,
-            'coachDistribution'     => $coachDistribution,
-            'wellbeingTrend'        => $wellbeingTrend,
-            'recentUsers'           => $recentUsers,
-            // Eine Seite, die niemand aufruft, hilft niemandem: was auf
-            // /admin/system rot waere, steht hier als eine Zeile.
-            'systemHealth'          => $this->health->summary(),
+            'needsYou'      => $this->insights->needsYou(),
+            'goal'          => $this->insights->testerGoal(),
+            'withoutPlan'   => $this->insights->onboardedWithoutPlan(),
+            'aiCosts'       => $this->insights->aiCosts(),
+            'quiet'         => $this->insights->quiet(),
+            'providers'     => $this->insights->providers(),
+            'systemHealth'  => $this->health->summary(),
+            'failure'       => $groups ? [
+                'count' => array_sum(array_column($groups, 'count')),
+                'since' => collect($groups)->min('first'),
+            ] : null,
         ]);
     }
 }

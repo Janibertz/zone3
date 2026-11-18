@@ -1,6 +1,7 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import PageHeader from '@/Components/UI/PageHeader.vue';
+import AdminPage from '@/Components/Admin/AdminPage.vue';
+import SystemTabs from '@/Components/Admin/SystemTabs.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 
@@ -69,10 +70,9 @@ function when(value) {
     <Head title="Log" />
 
     <AdminLayout>
-        <template #header>
-            <PageHeader title="Log" :back="route('admin.system.index')" />
-        </template>
-        <div class="px-4 py-4 lg:px-8 lg:py-6 space-y-6">
+        <AdminPage title="System" eyebrow="Log" width="wide">
+            <SystemTabs current="log" />
+        <div class="space-y-6">
 
             <div class="bg-surface rounded-card shadow-card">
                 <div class="px-6 py-4 border-b border-line flex flex-wrap items-start justify-between gap-3">
@@ -158,5 +158,6 @@ function when(value) {
                 </div>
             </div>
         </div>
+        </AdminPage>
     </AdminLayout>
 </template>
