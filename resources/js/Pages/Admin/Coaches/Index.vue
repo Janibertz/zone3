@@ -36,7 +36,7 @@ function formatTokens(n) {
 
     <AdminLayout>
         <template #header>
-            <PageHeader title="Coaches" />
+            <PageHeader title="Coaches" :back="route('admin.more')" />
         </template>
 
         <div class="p-4 lg:px-8 lg:py-6 space-y-6">

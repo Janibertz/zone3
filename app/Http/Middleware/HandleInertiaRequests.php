@@ -75,6 +75,12 @@ class HandleInertiaRequests extends Middleware
                 'error'   => $request->session()->get('error'),
             ],
 
+            // Zahl am Postfach und Punkt an System in der Admin-Leiste —
+            // nur auf Admin-Seiten, sonst kostet jede App-Seite die Abfragen.
+            'adminNav' => fn () => $request->user()?->is_admin && $request->routeIs('admin.*')
+                ? app(\App\Services\Admin\AdminInsights::class)->nav()
+                : null,
+
             'auth' => [
                 'user'           => $this->userProps($request->user()),
                 'isAdmin'        => (bool) $request->user()?->is_admin,

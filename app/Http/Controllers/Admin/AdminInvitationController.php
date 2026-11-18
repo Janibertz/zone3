@@ -65,7 +65,32 @@ class AdminInvitationController extends Controller
             'validDays'   => Invitation::VALID_DAYS,
             'mode'        => Access::mode(),
             'waiting'     => $waiting,
+            'sources'     => $this->sources(),
+            'referrers'   => $invitations
+                ->filter(fn ($i) => $i['source'] === 'empfehlung' && $i['creator'])
+                ->groupBy('creator')
+                ->map(fn ($g, $name) => ['name' => $name, 'used' => $g->sum('uses_count'), 'max' => $g->sum('max_uses')])
+                ->sortByDesc('used')->values(),
         ]);
+    }
+
+    /**
+     * Woher Anmeldungen kommen (stand bis 18.11.2026 auf der Übersicht):
+     * je Quelle die Zahl der Konten, letzte 30 Tage und gesamt.
+     *
+     * @return list<array{source:string, total:int, recent:int}>
+     */
+    private function sources(): array
+    {
+        $since = now()->subDays(30);
+
+        return User::query()
+            ->selectRaw('signup_source as source, count(*) as total, sum(case when created_at >= ? then 1 else 0 end) as recent', [$since])
+            ->groupBy('signup_source')
+            ->orderByDesc('total')
+            ->get()
+            ->map(fn ($r) => ['source' => $r->source ?: 'ohne Quelle', 'total' => (int) $r->total, 'recent' => (int) $r->recent])
+            ->all();
     }
 
     public function store(Request $request): RedirectResponse

@@ -1,6 +1,8 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import PageHeader from '@/Components/UI/PageHeader.vue';
+import AdminPage from '@/Components/Admin/AdminPage.vue';
+import SystemTabs from '@/Components/Admin/SystemTabs.vue';
+import AdminChips from '@/Components/Admin/AdminChips.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 
@@ -13,6 +15,7 @@ const props = defineProps({
     callTypes:   Array,
     users:       Array,
     filters:     Object,
+    typeLabels:  { type: Object, default: () => ({}) },
 });
 
 const filterUserId   = ref(props.filters?.user_id   ?? '');
@@ -55,20 +58,14 @@ function formatTokens(n) {
     return n.toString();
 }
 
-const callTypeLabel = (t) => ({
-    recommendation:        'Tagesempfehlung',
-    adjust_recommendation: 'Empfehlung anpassen',
-    plan:                  'Trainingsplan',
-    event_plan:            'Event-Plan',
-    weekly_review:         'Wochenrückblick',
-    pace_zones:            'Pace-Zonen',
-    threshold_pace:        'Schwellenpace',
-    nutrition:             'Ernährung',
-    adjust_session:        'Session anpassen',
-    goal_analysis:         'Ziel-Analyse',
-    profile_estimation:    'Profil-Schätzung',
-    suggestions:           'Vorschläge',
-}[t] ?? t);
+const callTypeLabel = (t) => props.typeLabels?.[t] ?? t;
+
+// Schnellfilter wie im Mockup „Aufrufe“: alle · Fehler · gebremst.
+const quick = computed(() => [
+    { value: '', label: 'Alle' },
+    { value: 'error', label: 'Fehler', tone: 'danger' },
+    { value: 'skipped', label: 'Gebremst', tone: 'warn' },
+]);
 
 const typeColor = (t) => ({
     recommendation:        'bg-info-soft text-info',
@@ -93,11 +90,10 @@ const maxTypeCalls = computed(() => Math.max(...(props.byType?.map(t => t.count)
     <Head title="Admin – AI Logs" />
 
     <AdminLayout>
-        <template #header>
-            <PageHeader title="AI Logs" />
-        </template>
-
-        <div class="p-4 lg:px-8 lg:py-6 space-y-6">
+        <AdminPage title="System" eyebrow="KI-Aufrufe" width="wide">
+            <SystemTabs current="ai" />
+            <AdminChips v-model="filterStatus" :options="quick" />
+        <div class="space-y-6">
 
             <!-- ── KPI Row ── -->
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -207,6 +203,7 @@ const maxTypeCalls = computed(() => Math.max(...(props.byType?.map(t => t.count)
                         <option value="">Alle Status</option>
                         <option value="success">Erfolgreich</option>
                         <option value="error">Fehler</option>
+                        <option value="skipped">Gebremst</option>
                     </select>
                     <input v-model="filterDateFrom" type="date" placeholder="Von" class="text-sm border-0 rounded-field px-3 py-2 bg-surface text-ink-2 focus:outline-none focus:ring-2 focus:ring-danger/40" />
                     <input v-model="filterDateTo" type="date" placeholder="Bis" class="text-sm border-0 rounded-field px-3 py-2 bg-surface text-ink-2 focus:outline-none focus:ring-2 focus:ring-danger/40" />
@@ -307,5 +304,6 @@ const maxTypeCalls = computed(() => Math.max(...(props.byType?.map(t => t.count)
             </div>
 
         </div>
+        </AdminPage>
     </AdminLayout>
 </template>

@@ -1116,6 +1116,20 @@ WHOOP Developer API v2 (Bedingungen geprüft in `whoop-oura-antrag/befund.md` de
 
 Routes in `routes/admin.php` — protected by `is_admin` on User. Manual threshold recalculation, AI log viewer (all OpenAI calls with tokens + duration), coach personality editor, push test sender, settings page showing both models.
 
+### Neu aufgebaut (18.11.2026, Mockups „Admin-Redesign“, von Jan abgenommen)
+
+Optik wie die App (iOS-Listen, Akzent Rot fürs Admin, Aktion Blau). Am Telefon fünf Tabs **Heute · Athleten · Postfach · System · Mehr**, am Desktop Seitenleiste (248 px). Rahmen jeder Seite: `Components/Admin/AdminPage.vue` (Titel, Zurück, Flash), dazu `AdminSection`, `AdminChips`, `AdminSegmented`, `SystemTabs`, `Dot`; Zahlen über `Composables/useAdminFormat.js`. Die Zahlen für Leiste und Seiten rechnet **`App\Services\Admin\AdminInsights`** (eine Stelle; `adminNav` wird nur auf `admin.*` geteilt).
+
+- **Heute** (`/admin/dashboard`): Statuszeile, „Braucht dich“ (Warteliste mit Freigeben, Tickets, Kontakt, gemeldete Workouts, Fehlergruppen), Ziel 50 Tester bis 24.12. mit Trichter, KI-Kosten, „Still geworden“ (`QUIET_DAYS` 5), Anbindungen. Die alten Zähler sind weg.
+- **Postfach** (`/admin/postfach`): Warteliste, Hilfe & Feedback, Kontaktformular und Workout-Meldungen in einer Liste, jede mit ihrer eigenen Aktion. „Freigabe lassen“ setzt `workout_reports.dismissed_at`. `/admin/support` und `/admin/contact` leiten dorthin. Ein Ticket ist ein Gespräch; **die Antwort geht per Mail und zusätzlich über Telegram, sonst Push** (`AdminPushService::notify`).
+- **Athleten**: Liste mit Filtern im Browser; Athletenseite mit Kopf, Kennzahlen (Readiness, VDOT, Woche), Verbindungen, „Was passiert ist“, Plan und KI, darunter die alten Detail-Tabs. Alle Aktionen hinter **Werkzeuge** (Sheet); Löschen verlangt den Vornamen.
+- **Push senden** (`/admin/push`): an alle, eine Gruppe (`AdminPushService::GROUPS`) oder einen Athleten. **Wer Telegram verbunden hat, bekommt es nur dort** (Jan: Telegram ist Quelle 1), sonst Push. Verlauf in `admin_pushes`. Ziele nur aus `TARGETS`. Der alte Broadcast unter Einstellungen ist weg.
+- **System**: Tabs Status · Log · KI-Aufrufe. Oben Fehler gruppiert nach Job + Grund (Erneut/Verwerfen für die ganze Gruppe), Anbindungen, Plan-Prüfer 7 Tage (Korrekturen nach Art), Maschine; darunter die bisherigen Details.
+- **KI-Kosten** (`/admin/ki-kosten`): Monat gegen das Plattformlimit `OPENAI_BUDGET_MONTHLY_USD` (15), Prognose, Tage, wofür, wer. Deutsche Namen der Aufruftypen stehen in `AiLog::CALL_TYPE_LABELS`.
+- **Zugang** (`/admin/invitations`): Warteliste-Schalter, neuer Link, offene Links mit Belegung, „Tester laden ein“, „Woher Anmeldungen kommen“ (früher auf der Übersicht).
+- **Wiki und Changelog sind entfernt** (Jan), samt `POST /webhook/github`. Die Tabellen `wiki_*` löscht die Migration `2026_11_18_170000`; der GitHub-Webhook ist in den Repo-Einstellungen zu löschen.
+- Tests: `AdminRedesignTest`.
+
 ### Einladungen — Registrieren nur mit Link
 
 Seit 27.10.2026 kommt niemand mehr ohne Einladung auf die Plattform (Entscheidung von Jan). `/admin/invitations` erzeugt einen Link `/register?invite=<token>`:
@@ -1293,6 +1307,8 @@ OPENAI_MODEL_TRANSCRIBE=gpt-4o-mini-transcribe
 OPENAI_FLEX=true
 OPENAI_BUDGET_DAILY_EUR=1.00
 OPENAI_BUDGET_USER_DAILY_EUR=0.30
+# Monatslimit der OpenAI-Plattform in $, nur für die Anzeige im Admin
+OPENAI_BUDGET_MONTHLY_USD=15
 
 STRAVA_CLIENT_ID=
 STRAVA_CLIENT_SECRET=

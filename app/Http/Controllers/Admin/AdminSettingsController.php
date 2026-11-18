@@ -42,23 +42,6 @@ class AdminSettingsController extends Controller
         return back()->with('success', $msg);
     }
 
-    public function broadcastPush(Request $request, WebPushService $push)
-    {
-        $request->validate([
-            'title'   => 'required|string|max:100',
-            'message' => 'required|string|max:255',
-            'url'     => 'nullable|string|max:255',
-        ]);
-
-        $sent = $push->broadcast(
-            $request->title,
-            $request->message,
-            $request->url ?? '/dashboard'
-        );
-
-        return back()->with('success', "Push-Nachricht an {$sent} Nutzer gesendet.");
-    }
-
     private function pingOpenAI(): array
     {
         $key = config('services.openai.api_key');

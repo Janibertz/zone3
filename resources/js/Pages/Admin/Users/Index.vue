@@ -1,242 +1,108 @@
 <script setup>
+import { computed, onMounted, ref } from 'vue';
+import { Head, Link } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import PageHeader from '@/Components/UI/PageHeader.vue';
-import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
-import { Head, Link, router } from '@inertiajs/vue3';
-import { ref, watch } from 'vue';
+import AdminPage from '@/Components/Admin/AdminPage.vue';
+import AdminChips from '@/Components/Admin/AdminChips.vue';
 
+/**
+ * Athleten (Mockup 18.11.2026): alle Konten, Filter mit Zahlen, Suche im
+ * Browser. Je Zeile: zuletzt aktiv, Plan, Uhr, Weg der Nachrichten, womit
+ * Zone3 geöffnet wird.
+ */
 const props = defineProps({
-    users: Object,
-    filters: Object,
+    athletes: { type: Array, default: () => [] },
+    filter:   { type: String, default: 'all' },
+    search:   { type: String, default: '' },
 });
 
-const search    = ref(props.filters?.search ?? '');
-// Ohne Filter kommt `filters` als leeres Array an, und `[].filter` ist die
-// Array-Methode — das Auswahlfeld stand dann leer statt auf „Alle".
-const filter    = ref(typeof props.filters?.filter === 'string' ? props.filters.filter : '');
-const deleteTarget = ref(null);
+const filter = ref(props.filter === 'waiting' ? 'waiting' : props.filter);
+const q = ref(props.search);
+const sort = ref('active');
+const searchInput = ref(null);
 
-let searchTimeout = null;
-watch(search, (val) => {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => applyFilters(), 400);
+onMounted(() => {
+    if (new URLSearchParams(window.location.search).has('focus')) searchInput.value?.focus();
 });
 
-function applyFilters() {
-    router.get(route('admin.users.index'), { search: search.value, filter: filter.value }, {
-        preserveState: true,
-        replace: true,
-    });
+const FILTERS = {
+    all:     () => true,
+    active:  (a) => a.active,
+    quiet:   (a) => a.quiet,
+    noplan:  (a) => a.onboarded && !a.has_plan && !a.waiting,
+    waiting: (a) => a.waiting,
+    admin:   (a) => a.is_admin,
+};
+
+const chips = computed(() => [
+    { value: 'all', label: 'Alle', count: props.athletes.length },
+    { value: 'active', label: 'Aktiv', count: props.athletes.filter(FILTERS.active).length },
+    { value: 'quiet', label: 'Still', count: props.athletes.filter(FILTERS.quiet).length, tone: 'warn' },
+    { value: 'noplan', label: 'Ohne Plan', count: props.athletes.filter(FILTERS.noplan).length },
+    { value: 'waiting', label: 'Warteliste', count: props.athletes.filter(FILTERS.waiting).length },
+]);
+
+const SORTS = {
+    active: { label: 'zuletzt aktiv', fn: (a, b) => (b.last_at ?? '').localeCompare(a.last_at ?? '') },
+    new:    { label: 'neueste', fn: (a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '') },
+    name:   { label: 'Name', fn: (a, b) => a.name.localeCompare(b.name, 'de') },
+};
+function nextSort() {
+    const keys = Object.keys(SORTS);
+    sort.value = keys[(keys.indexOf(sort.value) + 1) % keys.length];
 }
 
-function toggleAdmin(user) {
-    router.patch(route('admin.users.toggle-admin', user.id), {}, { preserveScroll: true });
-}
+const shown = computed(() => {
+    const needle = q.value.trim().toLowerCase();
+    return props.athletes
+        .filter(FILTERS[filter.value] ?? FILTERS.all)
+        .filter((a) => !needle || String(a.id) === needle || [a.name, a.email, a.source].some((v) => (v ?? '').toLowerCase().includes(needle)))
+        .sort(SORTS[sort.value].fn);
+});
 
-function toggleActive(user) {
-    router.patch(route('admin.users.toggle-active', user.id), {}, { preserveScroll: true });
-}
+const activeCount = computed(() => props.athletes.filter(FILTERS.active).length);
 
-function confirmDelete(user) {
-    deleteTarget.value = user;
-}
-
-function deleteUser() {
-    if (!deleteTarget.value) return;
-    router.delete(route('admin.users.destroy', deleteTarget.value.id), {
-        onFinish: () => { deleteTarget.value = null; },
-    });
-}
-
-// Worin der Athlet Zone3 benutzt hat, neuester Weg zuerst (seit 09.11.2026).
-function usedVia(u) {
-    return [
-        { label: 'App', on: u.seen_app_on },
-        { label: 'Homescreen', on: u.seen_homescreen_on },
-        { label: 'Browser', on: u.seen_browser_on },
-    ].filter((w) => w.on).sort((a, b) => (a.on < b.on ? 1 : -1));
-}
-
-function formatDate(d) {
-    if (!d) return '—';
-    return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
-
-function formatPace(speedMps) {
-    if (!speedMps) return '—';
-    const secPerKm = 1000 / speedMps;
-    const m = Math.floor(secPerKm / 60);
-    const s = Math.round(secPerKm % 60);
-    return `${m}:${s.toString().padStart(2, '0')} /km`;
-}
-
-const filterOptions = [
-    { value: '',          label: 'Alle' },
-    { value: 'admin',     label: 'Admins' },
-    { value: 'inactive',  label: 'Inaktiv' },
-    { value: 'verified',  label: 'Verifiziert' },
-    { value: 'onboarded', label: 'Onboarded' },
-    { value: 'strava',    label: 'Strava' },
-    { value: 'waiting',   label: 'Warteliste' },
-];
+const toneText = { success: 'font-semibold text-success-ink', warn: 'font-semibold text-warn-ink', plain: 'text-ink-3' };
+const chipTone = { plain: 'bg-surface-2 text-ink-2', warn: 'bg-warn-soft text-warn-ink', danger: 'bg-danger-soft text-danger-ink' };
 </script>
 
 <template>
-    <Head title="Admin – Nutzer" />
+    <Head title="Admin – Athleten" />
 
     <AdminLayout>
-        <template #header>
-            <PageHeader title="Nutzer" />
-        </template>
+        <AdminPage title="Athleten" :eyebrow="`${athletes.length} Konten · ${activeCount} aktiv`">
+            <template #action>
+                <button type="button" class="h-[34px] px-1 text-[17px] font-semibold text-accent" @click="nextSort">Sortieren</button>
+            </template>
 
-        <div class="p-4 lg:px-8 lg:py-6 space-y-6">
+            <label class="-mt-1 flex h-[38px] items-center gap-2 rounded-[10px] bg-surface-2 px-2.5 text-ink-3">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                <input ref="searchInput" v-model="q" type="search" aria-label="Athleten suchen" placeholder="Name, Mail, Quelle"
+                    class="flex-1 border-0 bg-transparent p-0 text-[17px] text-ink outline-none placeholder:text-ink-3 focus:ring-0" />
+            </label>
 
-            <!-- Filter bar -->
-            <div class="flex flex-col sm:flex-row gap-3">
-                <input
-                    v-model="search"
-                    type="search"
-                    placeholder="ID, Name oder E-Mail suchen…"
-                    class="flex-1 px-4 py-2.5 rounded-field border-0 bg-surface text-ink text-sm focus:outline-none focus:ring-2 focus:ring-danger/40 transition-colors"
-                />
-                <select
-                    v-model="filter"
-                    @change="applyFilters"
-                    class="px-4 py-2.5 rounded-field border-0 bg-surface text-ink text-sm focus:outline-none focus:ring-2 focus:ring-danger/40 transition-colors"
-                >
-                    <option v-for="opt in filterOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                </select>
+            <AdminChips v-model="filter" :options="chips" />
+
+            <div class="-mb-2 px-1 pt-1.5 text-[13px] font-semibold uppercase text-ink-3">{{ SORTS[sort].label }}</div>
+            <div class="overflow-hidden rounded-[14px] bg-surface">
+                <p v-if="!shown.length" class="px-3.5 py-4 text-[15px] text-ink-3">Niemand passt.</p>
+                <Link v-for="(a, i) in shown" :key="a.id" :href="route('admin.users.show', a.id)"
+                    class="flex items-center gap-3 px-3.5 py-3 active:bg-surface-2"
+                    :class="i < shown.length - 1 ? 'border-b-[0.5px] border-line' : ''">
+                    <span class="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full text-[17px] font-bold text-white"
+                        :style="{ background: a.quiet || (!a.active && !a.has_plan) ? '#8E8E93' : a.color }">{{ a.initial }}</span>
+                    <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <div class="flex justify-between gap-2">
+                            <span class="truncate text-[16px] font-semibold">{{ a.name }}</span>
+                            <span class="shrink-0 text-[13px]" :class="toneText[a.last_tone]">{{ a.last_label }}</span>
+                        </div>
+                        <div class="truncate text-[13px] text-ink-3">{{ a.plan_line }}</div>
+                        <div class="mt-[3px] flex flex-wrap gap-1.5">
+                            <span v-for="c in a.chips" :key="c.label" class="rounded-md px-[7px] py-0.5 text-[12px] font-semibold" :class="chipTone[c.tone]">{{ c.label }}</span>
+                        </div>
+                    </div>
+                </Link>
             </div>
-
-            <!-- Table -->
-            <div class="bg-surface rounded-card overflow-hidden shadow-card">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead class="border-b border-line">
-                            <tr class="text-left">
-                                <th class="pl-6 pr-2 py-3 text-[13px] font-semibold text-ink-3 text-right">ID</th>
-                                <th class="px-4 py-3 text-[13px] font-semibold text-ink-3">Nutzer</th>
-                                <th class="px-4 py-3 text-[13px] font-semibold text-ink-3">Status</th>
-                                <th class="px-4 py-3 text-[13px] font-semibold text-ink-3 text-right">Aktivitäten</th>
-                                <th class="px-4 py-3 text-[13px] font-semibold text-ink-3 text-right">Ziele</th>
-                                <th class="px-4 py-3 text-[13px] font-semibold text-ink-3 text-right">Registriert</th>
-                                <th class="px-4 py-3 text-[13px] font-semibold text-ink-3 text-right">Aktionen</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-line">
-                            <tr v-for="u in users.data" :key="u.id" class="hover:bg-surface-2/50 transition-colors">
-                                <td class="pl-6 pr-2 py-3 text-right font-rounded text-ink-3 whitespace-nowrap">{{ u.id }}</td>
-
-                                <!-- User -->
-                                <td class="px-4 py-3">
-                                    <div class="flex items-center gap-3">
-                                        <div class="h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-card"
-                                            :class="u.is_admin ? 'bg-danger' : 'bg-ink-3'"
-                                        >
-                                            {{ u.name.charAt(0).toUpperCase() }}
-                                        </div>
-                                        <div>
-                                            <p class="font-medium text-ink">{{ u.name }}</p>
-                                            <p class="text-xs text-ink-3">{{ u.email }}</p>
-                                        </div>
-                                    </div>
-                                </td>
-
-                                <!-- Badges -->
-                                <td class="px-4 py-3">
-                                    <div class="flex flex-wrap gap-1">
-                                        <span v-if="u.is_admin"    class="badge bg-danger-soft text-danger-ink">Admin</span>
-                                        <span v-if="!u.is_active"  class="badge bg-surface-2 text-ink-3">Inaktiv</span>
-                                        <span v-if="u.email_verified_at"          class="badge bg-success-soft text-success-ink">✓ Mail</span>
-                                        <span v-if="u.onboarding_completed_at"    class="badge bg-accent-soft text-accent-ink">Onboarded</span>
-                                        <span v-if="u.strava_account"             class="badge bg-warn-soft text-warn-ink">Strava</span>
-                                        <span v-if="u.signup_source" class="badge bg-info-soft text-info-ink" title="Anmeldung über">↳ {{ u.signup_source }}</span>
-                                        <span v-for="w in usedVia(u)" :key="w.label" class="badge bg-surface-2 text-ink-2" :title="`Zuletzt ${formatDate(w.on)}`">{{ w.label }}</span>
-                                    </div>
-                                </td>
-
-                                <td class="px-4 py-3 text-right text-ink-2">{{ u.activities_count }}</td>
-                                <td class="px-4 py-3 text-right text-ink-2">{{ u.events_count }}</td>
-                                <td class="px-4 py-3 text-right text-xs text-ink-3 whitespace-nowrap">{{ formatDate(u.created_at) }}</td>
-
-                                <!-- Actions -->
-                                <td class="px-4 py-3 text-right">
-                                    <div class="flex items-center justify-end gap-2">
-                                        <Link
-                                            :href="route('admin.users.show', u.id)"
-                                            class="px-3 py-1.5 text-xs rounded-lg bg-surface-2 text-ink-2 hover:bg-surface-3 transition-colors"
-                                        >
-                                            Ansehen
-                                        </Link>
-                                        <button
-                                            @click="toggleAdmin(u)"
-                                            class="px-3 py-1.5 text-xs rounded-lg transition-colors"
-                                            :class="u.is_admin
-                                                ? 'bg-danger-soft text-danger-ink hover:opacity-90'
-                                                : 'bg-surface-2 text-ink-2 hover:bg-surface-3'"
-                                        >
-                                            {{ u.is_admin ? 'Admin entziehen' : 'Admin machen' }}
-                                        </button>
-                                        <button
-                                            @click="toggleActive(u)"
-                                            class="px-3 py-1.5 text-xs rounded-lg transition-colors"
-                                            :class="u.is_active
-                                                ? 'bg-warn-soft text-warn-ink hover:opacity-90'
-                                                : 'bg-success-soft text-success-ink hover:opacity-90'"
-                                        >
-                                            {{ u.is_active ? 'Deaktivieren' : 'Aktivieren' }}
-                                        </button>
-                                        <button
-                                            @click="confirmDelete(u)"
-                                            class="px-3 py-1.5 text-xs rounded-lg bg-danger-soft text-danger-ink hover:opacity-90 transition-colors"
-                                        >
-                                            Löschen
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-
-                            <tr v-if="!users.data.length">
-                                <td colspan="7" class="px-6 py-12 text-center text-ink-3">
-                                    Keine Nutzer gefunden.
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Pagination -->
-                <div v-if="users.links?.length > 3" class="px-6 py-4 border-t border-line flex flex-wrap gap-1">
-                    <Link
-                        v-for="link in users.links"
-                        :key="link.label"
-                        :href="link.url ?? '#'"
-                        class="px-3 py-1.5 text-xs rounded-lg transition-colors"
-                        :class="link.active
-                            ? 'bg-danger text-white'
-                            : link.url
-                                ? 'bg-surface-2 text-ink-2 hover:bg-surface-3'
-                                : 'bg-surface-2 text-ink-3 cursor-not-allowed'"
-                        v-html="link.label"
-                    />
-                </div>
-            </div>
-        </div>
-
-        <!-- Delete confirmation -->
-        <ConfirmSheet
-            :show="!!deleteTarget"
-            title="Nutzer löschen"
-            :message="`Soll ${deleteTarget?.name} wirklich unwiderruflich gelöscht werden? Alle Daten dieses Nutzers werden entfernt.`"
-            confirm-label="Ja, löschen"
-            @confirm="deleteUser"
-            @close="deleteTarget = null"
-        />
+        </AdminPage>
     </AdminLayout>
 </template>
-
-<style scoped>
-.badge {
-    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
-}
-</style>

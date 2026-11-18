@@ -81,6 +81,7 @@ class AdminAiLogController extends Controller
             'byType'      => $byType,
             'topUsers'    => $topUsers,
             'callTypes'   => $callTypes,
+            'typeLabels'  => AiLog::CALL_TYPE_LABELS,
             'users'       => $users,
             'filters'     => $request->only(['user_id', 'call_type', 'status', 'date_from', 'date_to']),
         ]);

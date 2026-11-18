@@ -56,11 +56,11 @@ const prettyResponse = computed(() => {
 </script>
 
 <template>
-    <Head :title="`AI Log #${log.id}`" />
+    <Head :title="`KI-Aufruf #${log.id}`" />
 
     <AdminLayout>
         <template #header>
-            <PageHeader :title="`AI Log #${log.id}`" :back="route('admin.ai-logs.index')" />
+            <PageHeader :title="`KI-Aufruf #${log.id}`" :back="route('admin.ai-logs.index')" />
         </template>
 
         <div class="px-4 py-4 lg:px-8 lg:py-6 space-y-6">

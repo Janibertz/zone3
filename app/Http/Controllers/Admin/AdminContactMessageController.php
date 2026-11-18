@@ -8,11 +8,10 @@ use Inertia\Inertia;
 
 class AdminContactMessageController extends Controller
 {
+    /** Seit 18.11.2026 im Postfach. */
     public function index()
     {
-        return Inertia::render('Admin/ContactMessages/Index', [
-            'messages' => ContactMessage::latest()->limit(200)->get(['id', 'name', 'email', 'message', 'handled_at', 'created_at']),
-        ]);
+        return redirect()->route('admin.inbox.index');
     }
 
     public function handle(ContactMessage $contact)

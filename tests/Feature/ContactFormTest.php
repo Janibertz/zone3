@@ -79,8 +79,12 @@ class ContactFormTest extends TestCase
         $this->actingAs($athlete)->get('/admin/contact')->assertForbidden();
         $this->actingAs($athlete)->delete("/admin/contact/{$msg->id}")->assertForbidden();
 
-        $this->actingAs($admin)->get('/admin/contact')->assertOk()
-            ->assertInertia(fn (Assert $p) => $p->component('Admin/ContactMessages/Index')->has('messages', 1));
+        // Seit 18.11.2026 stehen Nachrichten im Postfach.
+        $this->actingAs($admin)->get('/admin/contact')->assertRedirect(route('admin.inbox.index'));
+        $this->actingAs($admin)->get('/admin/postfach')->assertOk()
+            ->assertInertia(fn (Assert $p) => $p->component('Admin/Inbox/Index')
+                ->where('counts.contact', 1)
+                ->where('items.0.kind', 'contact'));
 
         $this->actingAs($admin)->patch("/admin/contact/{$msg->id}/handled")->assertRedirect();
         $this->assertNotNull($msg->fresh()->handled_at);

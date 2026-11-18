@@ -1,365 +1,152 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useDarkMode } from '@/Composables/useDarkMode';
 import Wordmark from '@/Components/Brand/Wordmark.vue';
 import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
 
+/**
+ * Admin-Hülle (Umbau 18.11.2026, Mockups „Admin-Bereich aufräumen“).
+ * Am iPhone fünf Tabs: Heute · Athleten · Postfach · System · Mehr. Am
+ * Desktop dieselben oben in der Seitenleiste, darunter die Gruppen von
+ * „Mehr“. Die Zahl am Postfach und der Punkt an System kommen aus
+ * `adminNav` (HandleInertiaRequests → AdminInsights::nav()).
+ */
+
 const page = usePage();
-const user = computed(() => page.props.auth.user);
+const nav = computed(() => page.props.adminNav ?? { inbox: 0, system: false, athletes: null });
 const { isDark, toggle } = useDarkMode();
 
-const moreOpen = ref(false);
+const icons = {
+    home: '<path d="M3 11 12 3l9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />',
+    people: '<circle cx="9" cy="8" r="4" /><path d="M2 21c0-4 3-6 7-6s7 2 7 6M16 4a4 4 0 0 1 0 8M22 21c0-3-2-5-4-6" />',
+    inbox: '<path d="M3 13h5l2 3h4l2-3h5M5 5h14l2 8v6H3v-6z" />',
+    pulse: '<path d="M3 12h4l3-8 4 16 3-8h4" />',
+};
 
-const navItems = [
-    {
-        label: 'Übersicht',
-        routeName: 'admin.dashboard',
-        icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />`,
-    },
-    {
-        label: 'Nutzer',
-        routeName: 'admin.users.index',
-        icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />`,
-    },
-    {
-        label: 'AI Logs',
-        routeName: 'admin.ai-logs.index',
-        icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />`,
-    },
-    {
-        label: 'Support',
-        routeName: 'admin.support.index',
-        icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />`,
-    },
+/** Die vier Tabs vor „Mehr“ — `match` sind die Routen, auf denen der Tab rot ist. */
+const tabs = [
+    { label: 'Heute',    route: 'admin.dashboard',   icon: icons.home,   match: ['admin.dashboard'] },
+    { label: 'Athleten', route: 'admin.users.index', icon: icons.people, match: ['admin.users.*'] },
+    { label: 'Postfach', route: 'admin.inbox.index', icon: icons.inbox,  match: ['admin.inbox.*', 'admin.support.*', 'admin.contact.*'], badge: 'inbox' },
+    { label: 'System',   route: 'admin.system.index', icon: icons.pulse, match: ['admin.system.*', 'admin.ai-logs.*'], dot: 'system' },
 ];
 
-const moreNavItems = [
-    {
-        label: 'Kontakt',
-        routeName: 'admin.contact.index',
-        icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0-9.75 6.75L2.25 6.75" />`,
-    },
-    {
-        label: 'Zugang',
-        routeName: 'admin.invitations.index',
-        icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />`,
-    },
-    {
-        label: 'Aktivitäten',
-        routeName: 'admin.activities.index',
-        icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />`,
-    },
-    {
-        label: 'Workouts',
-        routeName: 'admin.workouts.index',
-        icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h10.5a3 3 0 0 1 3 3v10.5a3 3 0 0 1-3 3H6.75a3 3 0 0 1-3-3V6.75a3 3 0 0 1 3-3Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9.75h7.5M8.25 14.25h4.5" />`,
-    },
-    {
-        label: 'Onboarding-Texte',
-        routeName: 'admin.onboarding-texts.index',
-        icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 0 1 .778-.332 48.294 48.294 0 0 0 5.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />`,
-    },
-    {
-        label: 'Kraftübungen',
-        routeName: 'admin.strength-exercises.index',
-        icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9v6m3-7.5v9m10.5-9v9m3-7.5v6M6.75 12h10.5" />`,
-    },
-    {
-        label: 'System',
-        routeName: 'admin.system.index',
-        icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 0 1-3-3m3 3a3 3 0 1 0 0 6h13.5a3 3 0 1 0 0-6m-16.5-3a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3m-19.5 0a4.5 4.5 0 0 1 .9-2.7L5.737 5.1a3.375 3.375 0 0 1 2.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 0 1 .9 2.7m0 0a3 3 0 0 1-3 3m0 3h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Zm-3 6h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Z" />`,
-    },
-    {
-        label: 'Newsletter',
-        routeName: 'admin.newsletter.index',
-        icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />`,
-    },
-    {
-        label: 'Coaches',
-        routeName: 'admin.coaches.index',
-        icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />`,
-    },
-    {
-        label: 'Wiki',
-        routeName: 'admin.wiki.index',
-        icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />`,
-    },
-    {
-        label: 'Einstellungen',
-        routeName: 'admin.settings.index',
-        icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />`,
-    },
+/** Dieselben Gruppen wie auf der Mehr-Seite. */
+const groups = [
+    { title: 'Wachstum', items: [
+        { label: 'Zugang und Warteliste', route: 'admin.invitations.index', match: ['admin.invitations.*'] },
+    ] },
+    { title: 'Inhalte', items: [
+        { label: 'Coaches',          route: 'admin.coaches.index',            match: ['admin.coaches.*'] },
+        { label: 'Kraftübungen',     route: 'admin.strength-exercises.index', match: ['admin.strength-exercises.*'] },
+        { label: 'Geteilte Workouts', route: 'admin.workouts.index',          match: ['admin.workouts.*'] },
+        { label: 'Onboarding-Texte', route: 'admin.onboarding-texts.index',   match: ['admin.onboarding-texts.*'] },
+    ] },
+    { title: 'Nachrichten', items: [
+        { label: 'Push senden', route: 'admin.push.index',       match: ['admin.push.*'] },
+        { label: 'Newsletter',  route: 'admin.newsletter.index', match: ['admin.newsletter.*'] },
+    ] },
+    { title: 'Daten und Technik', items: [
+        { label: 'Aktivitäten',   route: 'admin.activities.index',  match: ['admin.activities.*'] },
+        { label: 'Einstellungen', route: 'admin.settings.index',    match: ['admin.settings.*'] },
+        { label: 'COROS-Rohdaten', route: 'admin.coros-probe.index', match: ['admin.coros-probe.*'] },
+    ] },
 ];
 
-const allNavItems = [...navItems, ...moreNavItems];
+const isOn = (patterns) => patterns.some((p) => route().current(p));
+
+/** Alles, was nicht zu einem der vier Tabs gehört, hält „Mehr“ aktiv. */
+const moreActive = computed(() => ! tabs.some((t) => isOn(t.match)));
+
+const kiActive = computed(() => route().current('admin.ai-costs'));
 </script>
 
 <template>
-    <div class="min-h-screen bg-canvas">
+    <div class="min-h-screen bg-canvas text-ink">
 
-        <!-- ══════════════════════════════════════
-             DESKTOP SIDEBAR
-             ══════════════════════════════════════ -->
-        <aside class="hidden flex-col border-r border-line bg-canvas lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-64">
-            <!-- Logo -->
-            <div class="flex h-16 shrink-0 items-center gap-3 px-5">
+        <!-- ═══ Desktop-Seitenleiste ═══ -->
+        <aside class="hidden flex-col gap-[18px] overflow-y-auto border-r-[0.5px] border-line-strong bg-canvas px-3 py-[22px] lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-[248px]">
+            <Link :href="route('admin.dashboard')" class="flex items-center gap-2.5 px-2">
                 <ZoneIcon tone="admin" class="h-8 w-8" />
                 <div class="flex flex-col gap-1">
-                    <Wordmark class="h-4 text-ink" />
-                    <span class="text-[13px] font-semibold leading-tight text-danger">Admin</span>
+                    <Wordmark class="h-[15px] text-ink" />
+                    <span class="text-[12px] font-bold leading-none text-danger">Admin</span>
                 </div>
-            </div>
+            </Link>
 
-            <!-- Navigation -->
-            <nav class="flex-1 space-y-0.5 overflow-y-auto px-3 pb-5 pt-2">
+            <nav class="flex flex-col gap-0.5">
                 <Link
-                    v-for="item in allNavItems"
-                    :key="item.routeName"
-                    :href="route(item.routeName)"
-                    class="flex items-center gap-3 rounded-[10px] px-3 py-2 text-[15px] transition duration-150 ease-out-strong"
-                    :class="route().current(item.routeName)
-                        ? 'bg-danger font-semibold text-white'
-                        : 'text-ink hover:bg-surface-2'"
+                    v-for="t in tabs"
+                    :key="t.route"
+                    :href="route(t.route)"
+                    class="flex items-center justify-between rounded-[9px] px-2.5 py-2 text-[15px] transition duration-150 ease-out-strong"
+                    :class="isOn(t.match) ? 'bg-danger font-semibold text-white' : 'text-ink hover:bg-surface-2'"
                 >
-                    <svg class="h-5 w-5 shrink-0" :class="route().current(item.routeName) ? '' : 'text-danger'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
-                    {{ item.label }}
+                    {{ t.label }}
+                    <span v-if="t.route === 'admin.users.index' && nav.athletes" class="tabular-nums" :class="isOn(t.match) ? 'text-white/80' : 'text-ink-3'">{{ nav.athletes }}</span>
+                    <span v-else-if="t.badge && nav[t.badge] > 0" class="rounded-[9px] px-[7px] py-px text-[12px] font-bold tabular-nums" :class="isOn(t.match) ? 'bg-white text-danger' : 'bg-danger text-white'">{{ nav[t.badge] }}</span>
+                    <span v-else-if="t.dot && nav[t.dot]" class="h-2 w-2 rounded-full" :class="isOn(t.match) ? 'bg-white' : 'bg-warn'" />
                 </Link>
+                <Link
+                    :href="route('admin.ai-costs')"
+                    class="rounded-[9px] px-2.5 py-2 text-[15px] transition duration-150 ease-out-strong"
+                    :class="kiActive ? 'bg-danger font-semibold text-white' : 'text-ink hover:bg-surface-2'"
+                >KI-Kosten</Link>
             </nav>
 
-            <!-- Footer -->
-            <div class="shrink-0 space-y-0.5 border-t border-line p-3">
+            <div v-for="g in groups" :key="g.title" class="flex flex-col gap-0.5">
+                <span class="px-2.5 pb-1 text-[12px] font-bold uppercase text-ink-3">{{ g.title }}</span>
                 <Link
-                    :href="route('dashboard')"
-                    class="w-full flex items-center gap-2.5 px-3 py-2 rounded-field text-sm text-ink-3 hover:bg-surface-2 hover:text-ink transition-colors"
-                >
-                    <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
-                    </svg>
-                    Zurück zur App
-                </Link>
-                <button
-                    @click="toggle"
-                    class="w-full flex items-center gap-2.5 px-3 py-2 rounded-field text-sm text-ink-3 hover:bg-surface-2 hover:text-ink transition-colors"
-                >
-                    <svg v-if="isDark" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
-                    </svg>
-                    <svg v-else class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
-                    </svg>
+                    v-for="i in g.items"
+                    :key="i.route"
+                    :href="route(i.route)"
+                    class="rounded-[9px] px-2.5 py-[7px] text-[15px] transition duration-150 ease-out-strong"
+                    :class="isOn(i.match) ? 'bg-danger font-semibold text-white' : 'text-ink hover:bg-surface-2'"
+                >{{ i.label }}</Link>
+            </div>
+
+            <div class="mt-auto flex flex-col gap-0.5">
+                <Link :href="route('dashboard')" class="rounded-[9px] px-2.5 py-[7px] text-[15px] text-accent hover:bg-surface-2">Zurück zur App</Link>
+                <button type="button" class="rounded-[9px] px-2.5 py-[7px] text-left text-[15px] text-ink-2 hover:bg-surface-2" @click="toggle">
                     {{ isDark ? 'Helles Design' : 'Dunkles Design' }}
                 </button>
-                <div class="flex items-center gap-3 px-2 py-2">
-                    <div class="h-9 w-9 shrink-0 rounded-full bg-danger flex items-center justify-center">
-                        <span class="text-sm font-bold text-white">{{ user.name.charAt(0).toUpperCase() }}</span>
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <p class="text-sm font-semibold text-ink truncate">{{ user.name }}</p>
-                        <p class="text-[13px] text-ink-3 truncate">Administrator</p>
-                    </div>
-                </div>
-                <Link
-                    :href="route('logout')"
-                    method="post"
-                    as="button"
-                    class="w-full flex items-center gap-2.5 px-3 py-2 rounded-field text-sm text-ink-3 hover:bg-danger-soft hover:text-danger transition-colors"
-                >
-                    <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-                    </svg>
-                    Abmelden
-                </Link>
+                <Link :href="route('logout')" method="post" as="button" class="rounded-[9px] px-2.5 py-[7px] text-left text-[15px] text-danger hover:bg-danger-soft">Abmelden</Link>
             </div>
         </aside>
 
-        <!-- ══════════════════════════════════════
-             MOBILE TOP BAR
-             ══════════════════════════════════════ -->
-        <header class="fixed inset-x-0 top-0 z-20 flex h-mobile-header items-end justify-between border-b border-line/70 bg-canvas/80 px-3 pb-2 pt-safe backdrop-blur-xl backdrop-saturate-150 lg:hidden">
-            <!-- Left: back to app + logo -->
-            <div class="flex items-center gap-2">
-                <Link
-                    :href="route('dashboard')"
-                    class="h-9 w-9 flex items-center justify-center rounded-field text-ink-3 hover:bg-surface-2 transition-colors"
-                    title="Zurück zur App"
-                >
-                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-                    </svg>
-                </Link>
-                <div class="flex items-center gap-2">
-                    <ZoneIcon tone="admin" class="h-7 w-7" />
-                    <div class="flex flex-col gap-0.5">
-                        <Wordmark class="h-3.5 text-ink" />
-                        <span class="text-[11px] font-semibold leading-tight text-danger">Admin</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right: dark mode + logout -->
-            <div class="flex items-center gap-1">
-                <button
-                    @click="toggle"
-                    class="h-9 w-9 flex items-center justify-center rounded-field text-ink-3 hover:bg-surface-2 transition-colors"
-                >
-                    <svg v-if="isDark" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
-                    </svg>
-                    <svg v-else class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
-                    </svg>
-                </button>
-                <Link
-                    :href="route('logout')"
-                    method="post"
-                    as="button"
-                    class="h-9 w-9 flex items-center justify-center rounded-field text-ink-3 hover:bg-danger-soft hover:text-danger transition-colors"
-                >
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-                    </svg>
-                </Link>
-            </div>
-        </header>
-
-        <!-- ══════════════════════════════════════
-             MAIN CONTENT
-             ══════════════════════════════════════ -->
-        <!-- pt-mobile-header accounts for h-14 + env(safe-area-inset-top) (Dynamic Island) -->
-        <div class="lg:pl-64 flex flex-col min-h-screen pt-mobile-header lg:pt-0">
-            <!-- Titelzeile: sitzt auf dem Canvas, ohne Balken und Trennlinie —
-                 die Karten darunter tragen die Struktur. -->
+        <!-- ═══ Inhalt ═══ -->
+        <div class="flex min-h-screen flex-col pt-[calc(env(safe-area-inset-top)+14px)] lg:pl-[248px] lg:pt-0">
             <slot name="header" />
-            <main class="flex-1 pb-24 lg:pb-0">
+            <main class="flex-1 pb-[calc(env(safe-area-inset-bottom)+84px)] lg:pb-10">
                 <slot />
             </main>
         </div>
 
-        <!-- ══════════════════════════════════════
-             MOBILE BOTTOM TAB BAR (4 primary + Mehr)
-             ══════════════════════════════════════ -->
-        <nav class="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface/85 pb-safe-tabbar backdrop-blur-xl backdrop-saturate-150 lg:hidden">
-            <div class="flex h-[52px] items-center">
+        <!-- ═══ Tab-Leiste am Telefon ═══ -->
+        <nav class="fixed inset-x-0 bottom-0 z-30 border-t-[0.5px] border-line-strong bg-surface/85 px-1 pb-safe-tabbar backdrop-blur-xl backdrop-saturate-150 lg:hidden" aria-label="Admin">
+            <div class="flex h-[52px]">
                 <Link
-                    v-for="item in navItems"
-                    :key="item.routeName"
-                    :href="route(item.routeName)"
-                    class="flex h-full flex-1 flex-col items-center justify-center gap-0.5 transition-colors"
-                    :class="route().current(item.routeName)
-                        ? 'text-danger'
-                        : 'text-ink-3'"
+                    v-for="t in tabs"
+                    :key="t.route"
+                    :href="route(t.route)"
+                    class="relative flex flex-1 flex-col items-center gap-[3px] pt-2 text-[10px] font-semibold"
+                    :class="isOn(t.match) ? 'text-danger' : 'text-[#8E8E93]'"
                 >
-                    <svg class="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" v-html="item.icon" />
-                    <span class="text-[10px] font-semibold leading-none">{{ item.label }}</span>
+                    <svg class="h-[26px] w-[26px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" v-html="t.icon" />
+                    {{ t.label }}
+                    <span v-if="t.badge && nav[t.badge] > 0" class="absolute left-[52%] top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-[9px] bg-danger px-1 text-[12px] font-bold text-white tabular-nums">{{ nav[t.badge] }}</span>
+                    <span v-if="t.dot && nav[t.dot]" class="absolute left-[58%] top-1.5 h-[9px] w-[9px] rounded-full bg-warn" />
                 </Link>
-
-                <!-- Mehr button -->
-                <button
-                    @click="moreOpen = true"
-                    class="flex h-full flex-1 flex-col items-center justify-center gap-0.5 transition-colors"
-                    :class="moreOpen ? 'text-danger' : 'text-ink-3'"
+                <Link
+                    :href="route('admin.more')"
+                    class="flex flex-1 flex-col items-center gap-[3px] pt-2 text-[10px] font-semibold"
+                    :class="moreActive ? 'text-danger' : 'text-[#8E8E93]'"
                 >
-                    <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                    </svg>
-                    <span class="text-[10px] font-semibold leading-none">Mehr</span>
-                </button>
+                    <svg class="h-[26px] w-[26px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
+                    Mehr
+                </Link>
             </div>
         </nav>
-
-        <!-- ══════════════════════════════════════
-             MOBILE "MEHR" SHEET
-             ══════════════════════════════════════ -->
-        <Transition
-            enter-active-class="transition duration-200 ease-out-strong"
-            enter-from-class="opacity-0"
-            enter-to-class="opacity-100"
-            leave-active-class="transition duration-150 ease-out-strong"
-            leave-from-class="opacity-100"
-            leave-to-class="opacity-0"
-        >
-            <div v-if="moreOpen" class="lg:hidden fixed inset-0 z-40 bg-black/40" @click="moreOpen = false" />
-        </Transition>
-
-        <Transition
-            enter-active-class="transition duration-200 ease-out-strong"
-            enter-from-class="translate-y-full"
-            enter-to-class="translate-y-0"
-            leave-active-class="transition duration-150 ease-out-strong"
-            leave-from-class="translate-y-0"
-            leave-to-class="translate-y-full"
-        >
-            <div v-if="moreOpen"
-                class="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-surface rounded-t-[20px] pb-safe-tabbar overflow-hidden"
-            >
-                <!-- Sheet handle -->
-                <div class="flex justify-center pt-3 pb-1">
-                    <div class="h-1 w-10 rounded-full bg-surface-3" />
-                </div>
-
-                <!-- Header -->
-                <div class="flex items-center justify-between px-4 py-3 border-b border-line">
-                    <span class="text-[17px] font-semibold text-ink">Admin</span>
-                    <button @click="moreOpen = false"
-                        class="h-8 w-8 flex items-center justify-center rounded-full bg-surface-2 text-ink-3">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <!-- More nav links -->
-                <nav class="px-3 py-3 space-y-0.5">
-                    <Link
-                        v-for="item in moreNavItems"
-                        :key="item.routeName"
-                        :href="route(item.routeName)"
-                        @click="moreOpen = false"
-                        class="flex items-center gap-3 rounded-[10px] px-3 py-2 text-[17px] transition-colors"
-                        :class="route().current(item.routeName)
-                            ? 'bg-surface-2 font-semibold text-ink'
-                            : 'text-ink active:bg-surface-2'"
-                    >
-                        <span class="h-9 w-9 rounded-field flex items-center justify-center shrink-0"
-                            :class="route().current(item.routeName)
-                                ? 'bg-danger-soft text-danger-ink'
-                                : 'bg-surface-2 text-ink-3'">
-                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" v-html="item.icon" />
-                        </span>
-                        <span>{{ item.label }}</span>
-                    </Link>
-
-                    <!-- Divider -->
-                    <div class="my-2 border-t border-line" />
-
-                    <!-- Zurück zur App -->
-                    <Link
-                        :href="route('dashboard')"
-                        @click="moreOpen = false"
-                        class="flex items-center gap-3 rounded-[10px] px-3 py-2 text-[17px] text-accent transition-colors active:bg-surface-2"
-                    >
-                        <span class="h-9 w-9 rounded-field flex items-center justify-center shrink-0 bg-accent-soft text-accent-ink">
-                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
-                            </svg>
-                        </span>
-                        <span class="font-semibold">Zurück zur App</span>
-                    </Link>
-                </nav>
-
-                <!-- User info -->
-                <div class="mx-3 mt-1 mb-2 rounded-field bg-surface-2 px-3 py-2.5 flex items-center gap-3">
-                    <div class="h-8 w-8 shrink-0 rounded-full bg-danger flex items-center justify-center">
-                        <span class="text-xs font-bold text-white">{{ user.name.charAt(0).toUpperCase() }}</span>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-sm font-semibold text-ink truncate">{{ user.name }}</p>
-                        <p class="text-xs text-danger font-medium">Administrator</p>
-                    </div>
-                </div>
-            </div>
-        </Transition>
-
     </div>
 </template>

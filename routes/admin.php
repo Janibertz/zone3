@@ -2,6 +2,10 @@
 
 use App\Http\Controllers\Admin\AdminAiLogController;
 use App\Http\Controllers\Admin\AdminActivityController;
+use App\Http\Controllers\Admin\AdminAiCostController;
+use App\Http\Controllers\Admin\AdminInboxController;
+use App\Http\Controllers\Admin\AdminMoreController;
+use App\Http\Controllers\Admin\AdminPushController;
 use App\Http\Controllers\Admin\AdminCoachController;
 use App\Http\Controllers\Admin\AdminCorosProbeController;
 use App\Http\Controllers\Admin\AdminDashboardController;
@@ -15,13 +19,20 @@ use App\Http\Controllers\Admin\AdminStrengthExerciseController;
 use App\Http\Controllers\Admin\AdminSupportController;
 use App\Http\Controllers\Admin\AdminSystemController;
 use App\Http\Controllers\Admin\AdminUserController;
-use App\Http\Controllers\Admin\AdminWikiController;
 use App\Http\Controllers\Admin\AdminWorkoutController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/admin/dashboard');
 
 Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
+
+// Umbau 18.11.2026: Postfach, Mehr, Push senden, KI-Kosten.
+Route::get('/postfach',                            [AdminInboxController::class, 'index'])      ->name('inbox.index');
+Route::post('/postfach/workouts/{workout}/keep',   [AdminInboxController::class, 'keepWorkout'])->name('inbox.keep-workout');
+Route::get('/mehr',                                AdminMoreController::class)                  ->name('more');
+Route::get('/push',                                [AdminPushController::class, 'index'])       ->name('push.index');
+Route::post('/push',                               [AdminPushController::class, 'send'])        ->name('push.send');
+Route::get('/ki-kosten',                           AdminAiCostController::class)                ->name('ai-costs');
 
 Route::get('/users',                               [AdminUserController::class, 'index'])              ->name('users.index');
 Route::get('/users/{user}',                        [AdminUserController::class, 'show'])               ->name('users.show');
@@ -73,6 +84,8 @@ Route::get('/coros-probe',                    [AdminCorosProbeController::class,
 Route::get('/coros-probe/{file}',             [AdminCorosProbeController::class, 'show'])      ->name('coros-probe.show');
 Route::get('/system',                         [AdminSystemController::class, 'index'])         ->name('system.index');
 Route::get('/system/logs',                    [AdminSystemController::class, 'logs'])          ->name('system.logs');
+Route::post('/system/failed/group/retry',  [AdminSystemController::class, 'retryGroup'])    ->name('system.failed.group.retry');
+Route::post('/system/failed/group/forget', [AdminSystemController::class, 'forgetGroup'])   ->name('system.failed.group.forget');
 Route::post('/system/failed/retry-all',       [AdminSystemController::class, 'retryAllFailed'])->name('system.failed.retry-all');
 Route::delete('/system/failed',               [AdminSystemController::class, 'flushFailed'])   ->name('system.failed.flush');
 Route::post('/system/failed/{uuid}/retry',    [AdminSystemController::class, 'retryFailed'])   ->name('system.failed.retry');
@@ -89,7 +102,6 @@ Route::put('/coaches/{coach}',   [AdminCoachController::class, 'update']) ->name
 Route::get('/settings',                    [AdminSettingsController::class, 'index'])          ->name('settings.index');
 Route::post('/settings/test-push',         [AdminSettingsController::class, 'sendTestPush'])   ->name('settings.test-push');
 Route::post('/settings/maintenance',       [AdminSettingsController::class, 'toggleMaintenance'])->name('settings.maintenance');
-Route::post('/settings/broadcast-push',    [AdminSettingsController::class, 'broadcastPush'])  ->name('settings.broadcast-push');
 
 // Kontaktformular aus dem Impressum
 Route::get('/contact',                        [AdminContactMessageController::class, 'index'])  ->name('contact.index');
@@ -108,11 +120,3 @@ Route::post('/newsletter',                          [AdminNewsletterController::
 Route::put('/newsletter/{newsletter}',              [AdminNewsletterController::class, 'update']) ->name('newsletter.update');
 Route::post('/newsletter/{newsletter}/send',        [AdminNewsletterController::class, 'send'])   ->name('newsletter.send');
 Route::delete('/newsletter/{newsletter}',           [AdminNewsletterController::class, 'destroy'])->name('newsletter.destroy');
-
-// Wiki
-Route::get('/wiki',                  [AdminWikiController::class, 'index'])   ->name('wiki.index');
-Route::get('/wiki/changelog',        [AdminWikiController::class, 'changelog'])->name('wiki.changelog');
-Route::post('/wiki',                 [AdminWikiController::class, 'store'])   ->name('wiki.store');
-Route::get('/wiki/{page}',           [AdminWikiController::class, 'page'])    ->name('wiki.page');
-Route::put('/wiki/{page}',           [AdminWikiController::class, 'update'])  ->name('wiki.update');
-Route::delete('/wiki/{page}',        [AdminWikiController::class, 'destroy']) ->name('wiki.destroy');
