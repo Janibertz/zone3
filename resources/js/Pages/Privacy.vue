@@ -11,7 +11,7 @@ import { LEGAL } from '@/legal';
  * personenbezogene Daten bekommt, trägt ihn in `empfaenger` ein. Die Seite
  * ist eine Zusage an Fremde, keine Beschreibung von Absichten.
  */
-const STAND = '13. November 2026';
+const STAND = '18. November 2026';
 const MAIL = LEGAL.email;
 
 const empfaenger = [
@@ -54,6 +54,11 @@ const empfaenger = [
         name: 'Intervals.icu Ltd',
         ort: 'Vereinigtes Königreich',
         zweck: 'Nur wenn du intervals.icu verbindest (mit deiner Einwilligung): Übertragung deiner geplanten Radeinheiten der nächsten sieben Tage in deinen intervals.icu-Kalender, damit intervals.icu sie an Zwift, ROUVY oder MyWhoosh weitergibt, und Abruf deiner Fahrten aus diesen Apps (samt Datei mit Leistung und Herzfrequenz). Gesundheitswerte liest Zone3 dort nicht. Für das Vereinigte Königreich gilt ein Angemessenheitsbeschluss der EU-Kommission.',
+    },
+    {
+        name: 'VirtualTraining s.r.o. (ROUVY)',
+        ort: 'Tschechien',
+        zweck: 'Nur wenn du ROUVY verbindest (mit deiner Einwilligung): Übertragung deiner geplanten Radeinheiten der nächsten sieben Tage als Workout in dein ROUVY-Konto und Abruf deiner ROUVY-Fahrten (samt Datei mit Leistung und Herzfrequenz). Gesundheitswerte liest Zone3 dort nicht. ROUVY erfährt dabei, dass dein Konto mit Zone3 verbunden ist.',
     },
     {
         name: 'OpenAI Ireland Ltd.',
@@ -148,7 +153,7 @@ const empfaenger = [
                     <li><strong class="text-ink">Ziele und Pläne:</strong> Rennen, Zielzeiten, Trainingspläne und -einheiten, deine Bewertungen und Notizen dazu, Antworten im Plan-Interview.</li>
                     <li><strong class="text-ink">Tagesform:</strong> freiwillige Selbsteinschätzung (Energie, Schlaf, Muskelkater, Stress, krank oder verletzt, Notiz).</li>
                     <li><strong class="text-ink">Coach:</strong> deine Nachrichten an den Coach, seine Antworten und Notizen, die er sich über dich merkt.</li>
-                    <li><strong class="text-ink">Verbindungen:</strong> Zugangstoken für Strava, Garmin, COROS, Polar, WHOOP und intervals.icu, deine Telegram-Chat-ID, das Token deines Kalender-Abos, Push-Abonnements.</li>
+                    <li><strong class="text-ink">Verbindungen:</strong> Zugangstoken für Strava, Garmin, COROS, Polar, WHOOP, intervals.icu und ROUVY, deine Telegram-Chat-ID, das Token deines Kalender-Abos, Push-Abonnements.</li>
                     <li><strong class="text-ink">Support und Kontakt:</strong> Inhalt deiner Support-Anfragen; über das Kontaktformular im Impressum außerdem Name (freiwillig), E-Mail-Adresse und Nachricht.</li>
                     <li><strong class="text-ink">Technische Daten:</strong> IP-Adresse, Zeitpunkt und aufgerufene Adresse in Server-Logs.</li>
                 </ul>
@@ -222,7 +227,7 @@ const empfaenger = [
             </section>
 
             <section>
-                <h2 class="mb-3 text-[22px] font-bold text-ink">6. Garmin, COROS, Polar, WHOOP, intervals.icu und Apple Health</h2>
+                <h2 class="mb-3 text-[22px] font-bold text-ink">6. Garmin, COROS, Polar, WHOOP, intervals.icu, ROUVY und Apple Health</h2>
                 <p>
                     Verbindest du dein Garmin-Konto, liest Zone3 die Daten, die du dabei freigibst: deine
                     Erholungswerte und, wenn du Garmin als Quelle für Aktivitäten wählst, deine Aktivitäten.
@@ -280,6 +285,15 @@ const empfaenger = [
                     Gesundheitswerte (Schlaf, HRV, Gewicht) liest Zone3 dort nicht. Zone3 speichert dafür den Zugang, den
                     du bei intervals.icu freigibst. Beim Trennen nimmt Zone3 die geplanten Radeinheiten aus dem Kalender
                     und widerruft den Zugang; übernommene Fahrten bleiben in deinem Verlauf, bis du sie löschst.
+                </p>
+                <p class="mt-3">
+                    ROUVY kannst du auch direkt verbinden. Dann legt Zone3 deine geplanten Radeinheiten der nächsten
+                    sieben Tage als Workout mit Datum in dein ROUVY-Konto, und du willigst ein, dass Zone3 deine
+                    ROUVY-Fahrten liest (Dauer, Strecke, Leistung, Herzfrequenz, Runden), für Plan, Auswertungen und
+                    Coach verwendet und dafür an OpenAI übermittelt (Abschnitt 7). Gesundheitswerte liest Zone3 dort
+                    nicht. Zone3 speichert dafür den Zugang, den du bei ROUVY freigibst, und deine ROUVY-Nutzer-ID.
+                    Beim Trennen, in Zone3 oder bei ROUVY, nimmt Zone3 die geplanten Workouts heraus und löscht den
+                    Zugang; übernommene Fahrten bleiben in deinem Verlauf, bis du sie löschst.
                 </p>
                 <p class="mt-3">
                     In der iOS-App kannst du Zone3 erlauben, Daten aus Apple Health zu lesen. Gelesen werden nur
@@ -353,6 +367,9 @@ const empfaenger = [
                 <p class="mt-3">
                     Fahrten von intervals.icu gehen nur mit der Einwilligung an OpenAI, die du beim Verbinden
                     erteilst. Trennen unter <strong class="text-ink">Profil → Verbindungen → intervals.icu</strong> widerruft sie.
+                </p>
+                <p class="mt-3">
+                    Für Fahrten von ROUVY gilt dasselbe. Trennen unter <strong class="text-ink">Profil → Verbindungen → ROUVY</strong> widerruft die Einwilligung.
                 </p>
                 <p class="mt-3">
                     Daten aus Apple Health gehen ebenfalls nur mit deiner gesonderten Einwilligung an OpenAI

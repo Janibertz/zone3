@@ -5,9 +5,10 @@ import GaugeTile from '@/Components/UI/GaugeTile.vue';
 import Wordmark from '@/Components/Brand/Wordmark.vue';
 import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
 
-defineProps({
+const props = defineProps({
     canLogin: { type: Boolean },
     canRegister: { type: Boolean },
+    rouvyDirect: { type: Boolean, default: false },
 });
 
 const scrolled = ref(false);
@@ -100,7 +101,12 @@ const dienste = {
     rechts: [
         { name: 'intervals.icu', track: '',                 was: 'Workouts nach Zwift, ROUVY, MyWhoosh' },
         { name: 'ZWIFT',        track: 'tracking-[0.1em]',  was: 'Radeinheiten automatisch, Fahrten zurück' },
-        { name: 'ROUVY · MyWhoosh', track: '',              was: 'Über intervals.icu' },
+        ...(props.rouvyDirect
+            ? [
+                { name: 'ROUVY',    track: 'tracking-[0.1em]',  was: 'Radeinheiten automatisch, Fahrten zurück' },
+                { name: 'MyWhoosh', track: '',                  was: 'Über intervals.icu' },
+            ]
+            : [{ name: 'ROUVY · MyWhoosh', track: '', was: 'Über intervals.icu' }]),
         { name: 'FIT-Datei',    track: '',                  was: 'Jede Uhr, auch alte Läufe' },
         { name: 'Telegram',     track: '',                  was: 'Der Coach im Messenger' },
     ],

@@ -92,6 +92,11 @@ Schedule::command('whoop:sync --health')->hourlyAt(40)->withoutOverlapping();
 Schedule::command('intervals:sync')->hourlyAt(45)->withoutOverlapping();
 Schedule::command('intervals:sync --activities')->cron('50 */2 * * *')->withoutOverlapping();
 
+// ROUVY (Indoor-Rad): Workouts stuendlich (unveraendert = kein Aufruf), Fahrten
+// alle zwei Stunden als Netz unter dem Webhook.
+Schedule::command('rouvy:sync')->hourlyAt(55)->withoutOverlapping();
+Schedule::command('rouvy:sync --activities')->cron('5 */2 * * *')->withoutOverlapping();
+
 // Jede Minute: laufende LiveTrack-Sitzungen abfragen. Der Command prueft
 // selbst, ob ueberhaupt eine Sitzung im Zeitfenster liegt.
 Schedule::command('livetrack:poll')->everyMinute()->withoutOverlapping();

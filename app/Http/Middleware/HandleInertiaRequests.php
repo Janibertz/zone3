@@ -89,6 +89,8 @@ class HandleInertiaRequests extends Middleware
                 'garminSync'     => (bool) $request->user()?->syncsPlanToGarmin(),
                 // Radeinheiten gehen über intervals.icu von selbst nach Zwift.
                 'zwiftSync'      => (bool) $request->user()?->intervalsConnection,
+                // Und über ROUVY in dessen Bibliothek.
+                'rouvySync'      => (bool) $request->user()?->rouvyConnection,
                 // Dasselbe fuer COROS, aber nur heute und morgen (MCP kann
                 // im Kalender nicht loeschen, siehe CorosWorkoutSync).
                 'corosSync'      => (bool) $request->user()?->syncsPlanToCoros(),

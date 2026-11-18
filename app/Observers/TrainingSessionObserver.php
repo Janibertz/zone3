@@ -44,5 +44,10 @@ class TrainingSessionObserver
         if ($user?->intervalsConnection && ($session->hasBikeSteps() || $session->wasChanged('steps') || ! $session->exists)) {
             SyncIntervalsWorkoutsJob::dispatch($user->id)->delay(now()->addSeconds(SyncIntervalsWorkoutsJob::DELAY_SECONDS));
         }
+
+        // ROUVY ebenso nur fuer Radeinheiten.
+        if ($user?->rouvyConnection && ($session->hasBikeSteps() || $session->wasChanged('steps') || ! $session->exists)) {
+            \App\Jobs\SyncRouvyWorkoutsJob::dispatch($user->id)->delay(now()->addSeconds(\App\Jobs\SyncRouvyWorkoutsJob::DELAY_SECONDS));
+        }
     }
 }

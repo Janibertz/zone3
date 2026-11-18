@@ -26,6 +26,12 @@ class Activity extends Model
      * Aktivitätsquelle: Zwift-Fahrten kommen immer, wie bei Strava.
      */
     public const SOURCE_INTERVALS = 'intervals';
+    /**
+     * ROUVY (18.11.2026), Fahrten aus ROUVY. Kennung = Startzeit, ROUVYs ID
+     * ist ein String (`rouvy_activity_id`). Keine wählbare Aktivitätsquelle:
+     * ROUVY-Fahrten kommen immer, wie Zwift über intervals.icu.
+     */
+    public const SOURCE_ROUVY = 'rouvy';
 
     /** Je Quelle die Spalte mit ihrer ID. Eine Zeile kann beide tragen. */
     public const ID_COLUMNS = [
@@ -37,6 +43,7 @@ class Activity extends Model
         self::SOURCE_POLAR  => 'polar_start',
         self::SOURCE_WHOOP  => 'whoop_start',
         self::SOURCE_INTERVALS => 'intervals_start',
+        self::SOURCE_ROUVY  => 'rouvy_start',
     ];
 
     /** Wie die Quelle in der Oberfläche heißt. */
@@ -49,6 +56,7 @@ class Activity extends Model
         self::SOURCE_POLAR  => 'Polar',
         self::SOURCE_WHOOP  => 'WHOOP',
         self::SOURCE_INTERVALS => 'intervals.icu',
+        self::SOURCE_ROUVY  => 'ROUVY',
     ];
 
     /**
@@ -74,6 +82,8 @@ class Activity extends Model
         'whoop_workout_id',
         'intervals_start',
         'intervals_activity_id',
+        'rouvy_start',
+        'rouvy_activity_id',
         'source',
         'device_name',
         'name',

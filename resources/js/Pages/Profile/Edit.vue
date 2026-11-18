@@ -14,6 +14,7 @@ import AppleHealthCard from '@/Components/Settings/AppleHealthCard.vue';
 import PolarConnection from '@/Components/Settings/PolarConnection.vue';
 import WhoopConnection from '@/Components/Settings/WhoopConnection.vue';
 import IntervalsConnection from '@/Components/Settings/IntervalsConnection.vue';
+import RouvyConnection from '@/Components/Settings/RouvyConnection.vue';
 import AppleWatchCard from '@/Components/Settings/AppleWatchCard.vue';
 import SegmentedControl from '@/Components/UI/SegmentedControl.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -51,6 +52,7 @@ const props = defineProps({
     polar:                 { type: Object, default: () => ({ available: false, connection: null }) },
     whoop:                 { type: Object, default: () => ({ available: false, connection: null }) },
     intervals:             { type: Object, default: () => ({ available: false, connection: null }) },
+    rouvy:                 { type: Object, default: () => ({ available: false, connection: null }) },
     activitySource:        { type: Object, default: () => ({ current: 'strava', usable: [] }) },
     appleHealth:           { type: Object, default: () => ({ consent_at: null, watch_metrics: false, synced_at: null }) },
     appleWatch:            { type: Object, default: null },
@@ -60,7 +62,7 @@ const page = usePage();
 const user = computed(() => page.props.auth.user);
 // Kommt der Athlet von Garmin zurück, landet er direkt bei den Verbindungen —
 // sonst sähe er die Rückmeldung zum Verbinden gar nicht.
-const backFromGarmin = !!props.garminOfficial?.status || !!props.coros?.status || !!props.polar?.status || !!props.whoop?.status || !!props.intervals?.status;
+const backFromGarmin = !!props.garminOfficial?.status || !!props.coros?.status || !!props.polar?.status || !!props.whoop?.status || !!props.intervals?.status || !!props.rouvy?.status;
 // „Mehr" verlinkt direkt in einen Abschnitt (/profile?section=connections).
 const SECTION_KEYS = ['personal', 'coach', 'athlete', 'notifications', 'connections', 'security', 'account'];
 const requestedSection = typeof window !== 'undefined'
@@ -1287,6 +1289,9 @@ const inputClass = 'z-input';
 
                             <!-- intervals.icu: nur die Brücke zu Zwift. -->
                             <IntervalsConnection v-if="props.intervals?.available" :connection="props.intervals.connection" :status="props.intervals.status" allow-disconnect />
+
+                            <!-- ROUVY: Radeinheiten in die Bibliothek, Fahrten zurück. -->
+                            <RouvyConnection v-if="props.rouvy?.available" :connection="props.rouvy.connection" :status="props.rouvy.status" allow-disconnect />
 
                             <!-- Apple Health: lesen nur in der iOS-App (HealthKit gibt es im
                                  Browser nicht); widerrufen geht auch hier. -->

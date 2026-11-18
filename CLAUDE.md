@@ -945,6 +945,17 @@ Zwift vergibt seine Training API nicht mehr (Antwort vom 13.11.2026, frühestens
 - 100 Aufrufe pro Athlet und Tag. intervals.icu steht hinter Cloudflare, darum ein eigener User-Agent.
 - **Ungeprüft gegen einen echten Aufruf:** das Feld `indoor`, wo das Webhook-Geheimnis ankommt, `athlete.id` in der Token-Antwort und woran eine Zwift-Fahrt im JSON erkennbar ist. Kommt nichts an: `intervals_webhook_events`, dann `/admin/system/logs` nach „intervals“. Tests: `IntervalsIntegrationTest`.
 
+### ROUVY direkt (seit 18.11.2026)
+
+ROUVY hat Zone3 am 18.11.2026 die Public API zugesagt (api@rouvy.com, OpenAPI 1.5.0 in `rouvy-antrag/` der Projektdateien): KI auf ROUVY-Fahrten **nur mit ausdrücklicher Einwilligung**, eine API-Policy folgt, keine Kosten, 30 bzw. 60 Aufrufe/min für die ganze App. Jan: intervals.icu ist für ROUVY nur ein Behelf, also direkt. **Eingeblendet nur mit `ROUVY_CLIENT_ID` und `ROUVY_CLIENT_SECRET`** (Startseite und FAQ ebenso; ohne bleibt dort „ROUVY über intervals.icu“). ROUVY verlangt dafür eine AGB-Seite: `/nutzungsbedingungen` (`Terms.vue`).
+
+- **OAuth2 ohne PKCE** (`RouvyClient`, Scopes `profile:read activities:read workouts:write`). Rückweg `/rouvy/callback` ohne Anmeldung über den `state` im Cache, Ausgang heißt dort `response=success|error` (+ `reason`). Access-Token 1 h, der Refresh-Token **kann** rotieren → `Cache::lock('rouvy-refresh:<user>')` wie bei WHOOP. `GET /me` liefert nur die `userId` (= `ownerId` im Webhook), mehr wird nicht gespeichert. Ohne Einwilligung keine Verbindung (`rouvy_connections.ai_consent_at`).
+- **Hin:** `RouvyWorkoutSync` schickt jede Einheit mit Schritten in % FTP der nächsten 7 Tage als .zwo (`ZwoWriter`) an `POST /workouts/push` mit `plannedAt` (nur der Tag zählt, Zone3 schickt 12:00 UTC). **ROUVY kennt kein Ändern:** geänderter `payload_hash` → `DELETE /workouts/{id}` und neu senden; die `workoutId` steht in `rouvy_scheduled_workouts`. 409 `incomplete_user_profile` = im ROUVY-Profil fehlt der Benutzername, das steht dann an der Verbindung. Auslöser `TrainingSessionObserver` → `SyncRouvyWorkoutsJob`, Netz `rouvy:sync` stündlich (:55).
+- **Zurück:** Webhook `/rouvy/webhook` nach Standard Webhooks, **Ed25519 (`v1a`)** über `{webhook-id}.{webhook-timestamp}.{Body}`, Schlüssel von `GET /webhooks/public-keys` (`whpk_` + SPKI, eine Stunde gemerkt, bei Fehlschlag neu geholt), höchstens 5 min alt (`RouvyWebhookSignature`). **Der Schlüssel gilt für alle ROUVY-Apps** — darum zählt nur `clientId` = unsere. Wiederholungen tragen dieselbe `webhook-id` und werden einmal verarbeitet. `activity` → `ImportRouvyActivityJob` (die Nutzlast ist die ganze Fahrt), `disconnect` (im Riders Portal getrennt) → `RouvyDisconnector` mit `remote`. Jeder Aufruf in `rouvy_webhook_events` (30 Tage). Netz `rouvy:sync --activities` alle zwei Stunden, nach dem Verbinden einmal 42 Tage.
+- **Fahrten** (`RouvyActivityImporter`, `Activity::SOURCE_ROUVY`): immer `VirtualRide`, unabhängig von der gewählten Aktivitätsquelle (wie intervals.icu, ROUVY ist keine wählbare Quelle). Kennung = Startzeit (`activities.rouvy_start`), ROUVYs ID daneben (`rouvy_activity_id`). Zahlen aus `GET /activities/{id}/fit`, sonst aus der Zusammenfassung (`aggregates`). Lädt ROUVY dieselbe Fahrt zu Garmin/Strava, hängt `store()` sie an. ROUVY meldet kein Löschen.
+- **Trennen** (`RouvyDisconnector`, auch beim Konto löschen): bevorstehende Workouts löschen, Refresh-Token widerrufen (`/oauth/revoke`), Zugang löschen; übernommene Fahrten bleiben.
+- **Ungeprüft gegen einen echten Aufruf.** Kommt nichts an: zuerst `rouvy_webhook_events`, dann `/admin/system/logs` nach „ROUVY“. Tests: `RouvyIntegrationTest`.
+
 ## Apple Watch
 
 Gewünscht am 25.10.2026: Einheiten als strukturiertes Training auf die Watch. Strukturierte Trainings nimmt die Watch nur über WorkoutKit an, eine eigene iOS-App (Mac, Xcode, 99 €/Jahr) braucht es trotzdem nicht: die Fitness-App importiert die `.workout`-Datei, die sie beim Teilen selbst erzeugt. Antippen auf dem iPhone → „Hinzufügen" → das Training steht in der Training-App.
@@ -1308,6 +1319,10 @@ WHOOP_CLIENT_SECRET=
 INTERVALS_CLIENT_ID=
 INTERVALS_CLIENT_SECRET=
 INTERVALS_WEBHOOK_SECRET=
+
+# ROUVY Public API. Ohne ID/Secret keine Verbindung (Startseite/FAQ nennen ROUVY dann über intervals.icu).
+ROUVY_CLIENT_ID=
+ROUVY_CLIENT_SECRET=
 
 # Garmin Connect Developer Program (OAuth2 PKCE). Ohne ID/Secret gibt es
 # keine Garmin-Verbindung.

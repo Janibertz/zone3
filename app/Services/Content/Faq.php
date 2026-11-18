@@ -57,6 +57,11 @@ class Faq
                      'a' => 'Bei Garmin automatisch für die nächsten sieben Tage, bei COROS für heute und morgen, auf der Apple Watch über die iPhone-App. Radeinheiten landen über intervals.icu in Zwift, ROUVY oder MyWhoosh. Polar liefert nur Daten an Zone3, Einheiten kann Zone3 dort nicht hinschicken.'],
                     ['q' => 'Wie kommen meine Radeinheiten in Zwift, ROUVY oder MyWhoosh?',
                      'a' => 'Über intervals.icu, das alle drei Apps beliefert. So geht es: 1. Leg dir ein kostenloses Konto bei <a href="https://intervals.icu" target="_blank" rel="noopener noreferrer">intervals.icu</a> an. 2. Verbinde dort in den Einstellungen deine Rad-App und schalte das Hochladen geplanter Workouts ein. 3. Verbinde in Zone3 unter <a href="/profile?section=connections">Profil → Verbindungen</a> intervals.icu, dort steht auch die Anleitung. Ab dann legt Zone3 jede Radeinheit sieben Tage voraus in deinen intervals-Kalender, und du findest sie in deiner Rad-App bei den Workouts des Tages. Nach der Fahrt kommt sie zurück und hakt die Einheit ab.'],
+                    // ROUVY direkt erst, wenn die App bei ROUVY eingerichtet ist.
+                    ...(app(\App\Services\Rouvy\RouvyClient::class)->configured() ? [
+                        ['q' => 'Geht ROUVY auch ohne intervals.icu?',
+                         'a' => 'Ja. Verbinde ROUVY unter <a href="/profile?section=connections">Profil → Verbindungen</a> direkt. Zone3 legt dann jede Radeinheit sieben Tage voraus in deine ROUVY-Workouts, mit dem Tag, an dem sie geplant ist. Nach der Fahrt kommt sie zurück und hakt die Einheit ab.'],
+                    ] : []),
                 ],
             ],
             [

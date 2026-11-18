@@ -635,7 +635,7 @@ const routeSegments = computed(() => {
 
                     <!-- ── Herkunft und Löschen ───────────────────── -->
                     <section class="space-y-3">
-                        <div v-if="activity.strava_id || activity.garmin_activity_id || activity.coros_label_id || activity.from_polar || activity.from_whoop || activity.intervals_activity_id" class="divide-y divide-line overflow-hidden rounded-card bg-surface">
+                        <div v-if="activity.strava_id || activity.garmin_activity_id || activity.coros_label_id || activity.from_polar || activity.from_whoop || activity.intervals_activity_id || activity.from_rouvy" class="divide-y divide-line overflow-hidden rounded-card bg-surface">
                             <a v-if="activity.strava_id" :href="`https://www.strava.com/activities/${activity.strava_id}`" target="_blank" rel="noopener noreferrer"
                                 class="flex min-h-[44px] items-center gap-3 px-4 py-3 transition-colors active:bg-surface-2">
                                 <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-[#FC4C02] text-white">
@@ -684,6 +684,12 @@ const routeSegments = computed(() => {
                                 <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-ink text-canvas text-[13px] font-bold" aria-hidden="true">W</span>
                                 <span class="min-w-0 flex-1">
                                     <span class="block text-[17px] text-ink">Daten von WHOOP</span>
+                                </span>
+                            </div>
+                            <div v-if="activity.from_rouvy" class="flex min-h-[44px] items-center gap-3 px-4 py-3">
+                                <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-ink text-canvas text-[13px] font-bold" aria-hidden="true">R</span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-[17px] text-ink">Daten von ROUVY</span>
                                 </span>
                             </div>
                         </div>

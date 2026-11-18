@@ -46,6 +46,8 @@ Route::get('/', function () {
         'canRegister' => Route::has('register'),
         'laravelVersion' => Application::VERSION,
         'phpVersion' => PHP_VERSION,
+        // ROUVY direkt, sobald die App bei ROUVY eingerichtet ist; vorher über intervals.icu.
+        'rouvyDirect' => app(\App\Services\Rouvy\RouvyClient::class)->configured(),
     ]);
 });
 
@@ -85,6 +87,7 @@ Route::get('/.well-known/apple-app-site-association', fn () => response()->json(
                 ['/' => '/polar/callback*'],
                 ['/' => '/whoop/callback*'],
                 ['/' => '/intervals/callback*'],
+                ['/' => '/rouvy/callback*'],
                 ['/' => '/strava/callback*'],
                 // Anmeldelink aus der Mail: öffnet die App, dort wird angemeldet.
                 ['/' => '/login/link/*'],
@@ -140,6 +143,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/polar/connect', [\App\Http\Controllers\PolarController::class, 'connect'])->name('polar.connect');
     Route::post('/whoop/connect', [\App\Http\Controllers\WhoopController::class, 'connect'])->name('whoop.connect');
     Route::post('/intervals/connect', [\App\Http\Controllers\IntervalsController::class, 'connect'])->name('intervals.connect');
+    Route::post('/rouvy/connect', [\App\Http\Controllers\RouvyController::class, 'connect'])->name('rouvy.connect');
     Route::patch('/profile/activity-source', [ProfileController::class, 'updateActivitySource'])->name('profile.activity-source');
 
     // Apple Health aus der iOS-App (08.11.2026): die App liest, der Server
@@ -755,6 +759,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::delete('/polar/connection', [\App\Http\Controllers\PolarController::class, 'disconnect'])->name('polar.connection.destroy');
     Route::delete('/whoop/connection', [\App\Http\Controllers\WhoopController::class, 'disconnect'])->name('whoop.connection.destroy');
     Route::delete('/intervals/connection', [\App\Http\Controllers\IntervalsController::class, 'disconnect'])->name('intervals.connection.destroy');
+    Route::delete('/rouvy/connection', [\App\Http\Controllers\RouvyController::class, 'disconnect'])->name('rouvy.connection.destroy');
     Route::patch('/coros/workout-sync', [\App\Http\Controllers\CorosController::class, 'updateWorkoutSync'])->name('coros.workout-sync');
     Route::patch('/coros/data-import', [\App\Http\Controllers\CorosController::class, 'updateDataImport'])->name('coros.data-import');
 
@@ -1009,6 +1014,10 @@ Route::post('/whoop/webhook', [\App\Http\Controllers\WhoopController::class, 'we
 // der App (INTERVALS_WEBHOOK_SECRET). Cloudflare braucht eine WAF-Skip-Regel.
 Route::get('/intervals/callback', [\App\Http\Controllers\IntervalsController::class, 'callback'])->name('intervals.callback');
 Route::post('/intervals/webhook', [\App\Http\Controllers\IntervalsController::class, 'webhook'])->name('intervals.webhook');
+
+// ROUVY: Rueckweg ohne Anmeldung, Webhook mit Ed25519-Signatur (Standard Webhooks).
+Route::get('/rouvy/callback', [\App\Http\Controllers\RouvyController::class, 'callback'])->name('rouvy.callback');
+Route::post('/rouvy/webhook', [\App\Http\Controllers\RouvyController::class, 'webhook'])->name('rouvy.webhook');
 
 // Garmin-Webhook fuer Deregistrierung und Freigaben — ohne Auth, Garmin ruft
 // von aussen an. Braucht in Cloudflare dieselbe WAF-Skip-Regel wie

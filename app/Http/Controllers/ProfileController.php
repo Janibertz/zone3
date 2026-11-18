@@ -93,6 +93,12 @@ class ProfileController extends Controller
                 'connection' => $user->intervalsConnection?->summary(),
                 'status'     => session('intervals_status'),
             ],
+            // ROUVY: Radeinheiten in die Bibliothek, Fahrten zurück.
+            'rouvy'            => [
+                'available'  => app(\App\Services\Rouvy\RouvyClient::class)->configured(),
+                'connection' => $user->rouvyConnection?->summary(),
+                'status'     => session('rouvy_status'),
+            ],
             // Apple Health aus der iOS-App: Einwilligung und wer Vorrang hat.
             'appleHealth'      => [
                 'consent_at'    => $user->apple_health_consent_at?->toIso8601String(),
@@ -261,6 +267,9 @@ class ProfileController extends Controller
         }
         if ($user->intervalsConnection) {
             app(\App\Services\Intervals\IntervalsDisconnector::class)->disconnect($user);
+        }
+        if ($user->rouvyConnection) {
+            app(\App\Services\Rouvy\RouvyDisconnector::class)->disconnect($user);
         }
 
         Auth::logout();

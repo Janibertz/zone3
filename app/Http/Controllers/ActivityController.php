@@ -146,6 +146,7 @@ class ActivityController extends Controller
                 'from_polar'           => $activity->polar_start !== null,
                 'from_whoop'           => $activity->whoop_start !== null,
                 'intervals_activity_id' => $activity->intervals_activity_id,
+                'from_rouvy'           => $activity->rouvy_start !== null,
                 'device_name'          => $activity->device_name,
                 'name'                 => $activity->name,
                 'description'          => $activity->description,

@@ -148,6 +148,11 @@ class User extends Authenticatable
         return $this->hasOne(\App\Models\IntervalsConnection::class);
     }
 
+    public function rouvyConnection()
+    {
+        return $this->hasOne(\App\Models\RouvyConnection::class);
+    }
+
     /** Legt Zone3 die naechsten Plantage selbst in den COROS-Kalender? */
     public function syncsPlanToCoros(): bool
     {

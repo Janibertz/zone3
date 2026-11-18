@@ -84,6 +84,9 @@ class OnboardingController extends Controller
             'intervals'          => $user->intervalsConnection?->summary(),
             'intervalsAvailable' => app(\App\Services\Intervals\IntervalsClient::class)->configured(),
             'intervalsStatus'    => session('intervals_status'),
+            'rouvy'              => $user->rouvyConnection?->summary(),
+            'rouvyAvailable'     => app(\App\Services\Rouvy\RouvyClient::class)->configured(),
+            'rouvyStatus'        => session('rouvy_status'),
             // Apple Health nur in der iOS-App; die Seite entscheidet, ob sie es zeigt.
             'appleHealth'     => [
                 'consent_at'    => $user->apple_health_consent_at?->toIso8601String(),

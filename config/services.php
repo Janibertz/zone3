@@ -93,6 +93,16 @@ return [
     // intervals.icu (seit 15.11.2026), nur als Brücke zu Zwift: Radeinheiten in
     // den intervals-Kalender, Zwift-Fahrten zurück. OAuth-App unter
     // intervals.icu/settings/apps. Ohne ID/Secret ist die Verbindung ausgeblendet.
+    // ROUVY Public API (seit 18.11.2026): Radeinheiten in die ROUVY-Bibliothek,
+    // Fahrten per signiertem Webhook zurück. Client-ID/Secret vergibt ROUVY
+    // (api@rouvy.com). Ohne ID/Secret ist die Verbindung ausgeblendet.
+    'rouvy' => [
+        'client_id'     => env('ROUVY_CLIENT_ID'),
+        'client_secret' => env('ROUVY_CLIENT_SECRET'),
+        'redirect'      => env('ROUVY_REDIRECT_URI', env('APP_URL') . '/rouvy/callback'),
+        'api_url'       => env('ROUVY_API_URL', 'https://api.rouvy.com'),
+    ],
+
     'intervals' => [
         'client_id'      => env('INTERVALS_CLIENT_ID'),
         'client_secret'  => env('INTERVALS_CLIENT_SECRET'),

@@ -93,6 +93,7 @@ class MoreController extends Controller
             'polar'        => app(\App\Services\Polar\PolarClient::class)->configured() ? (bool) $user->polarConnection : null,
             'whoop'        => app(\App\Services\Whoop\WhoopClient::class)->configured() ? (bool) $user->whoopConnection : null,
             'intervals'    => app(\App\Services\Intervals\IntervalsClient::class)->configured() ? (bool) $user->intervalsConnection : null,
+            'rouvy'        => app(\App\Services\Rouvy\RouvyClient::class)->configured() ? (bool) $user->rouvyConnection : null,
             // null = Strava für diesen Athleten nicht freigeschaltet.
             'strava'       => $user->canUseStrava() ? (bool) $user->stravaAccount : null,
             'apple_health' => $user->apple_health_consent_at !== null,
