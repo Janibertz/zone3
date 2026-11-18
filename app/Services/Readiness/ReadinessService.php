@@ -28,7 +28,8 @@ use Illuminate\Support\Collection;
  *
  * Ohne einen Wert der Uhr von heute gibt es keine Readiness: aus Tagesform
  * und Belastung allein wäre es eine Schätzung, die wie eine Messung aussieht.
- * Krank oder verletzt in der Tagesform deckelt den Wert auf 10.
+ * Krank oder verletzt in der Tagesform deckelt den Wert auf 10, zwei klare
+ * Warnsignale (HRV, Ruhepuls, Belastung) deckeln ihn auf 24.
  *
  * Die Belastung zählt nur Aktivitäten einer Uhr, nie reine Strava-Zeilen —
  * der Wert steht in Prompts (Strava-Policy §5.3).
@@ -59,6 +60,12 @@ class ReadinessService
         ['from' => 75, 'key' => 'high',     'label' => 'Hoch',     'tone' => 'success', 'advice' => 'Bereit für eine harte Einheit'],
         ['from' => 95, 'key' => 'prime',    'label' => 'Optimal',  'tone' => 'accent',  'advice' => 'Bestens erholt'],
     ];
+
+    /** Belastung ohne vier Wochen Daten: akute Last mindestens doppelt so hoch wie die gewohnte … */
+    public const LOAD_RAMP_FACTOR = 2.0;
+
+    /** … und nicht nur ein einzelner Lauf nach Wochen Pause. */
+    public const LOAD_MIN_ATL = 15.0;
 
     private const BASELINE_DAYS = 60;
     private const MIN_BASELINE  = 7;
@@ -102,6 +109,7 @@ class ReadinessService
 
         $parts   = [];
         $reasons = [];
+        $alarms  = 0; // klare Warnsignale: HRV, Ruhepuls, Belastung
 
         // HRV: eine Streuung über dem Schnitt ist gut, eine darunter schlecht.
         if ($today->hrv !== null && ($base = $this->baseline($before, 'hrv', 3.0))) {
@@ -109,6 +117,7 @@ class ReadinessService
             $parts['hrv'] = $this->clamp(70 + $z * 22);
             $pct = ($today->hrv - $base['mean']) / $base['mean'] * 100;
             if ($z <= -1) {
+                $alarms++;
                 $reasons[] = sprintf('HRV %d %% unter deinem Normalbereich', round(abs($pct)));
             }
         }
@@ -117,6 +126,7 @@ class ReadinessService
             $z = ($base['mean'] - $today->resting_hr) / $base['sd'];
             $parts['rhr'] = $this->clamp(70 + $z * 22);
             if ($today->resting_hr - $base['mean'] >= 3 && $z <= -1) {
+                $alarms++;
                 $reasons[] = sprintf('Ruhepuls %d Schläge über deinem Schnitt', round($today->resting_hr - $base['mean']));
             }
         }
@@ -147,10 +157,16 @@ class ReadinessService
         // Belastung nur für heute — die Rechnung läuft bis jetzt.
         if ($day->isToday()) {
             $load = $this->load->calculate($user->id, withoutStrava: true);
-            if ($load['enough_data'] ?? false) {
+            // Unter vier Wochen Uhr-Daten ist die gewohnte Last unterschätzt;
+            // dann zählt die Belastung nur, wenn die akute klar darüber liegt
+            // (Jan, 18.11.2026: Garmin sah Überbelastung, Zone3 gar nichts).
+            $ramp = ($load['atl'] ?? 0) >= self::LOAD_MIN_ATL
+                && ($load['atl'] ?? 0) >= self::LOAD_RAMP_FACTOR * ($load['ctl'] ?? 0);
+            if (($load['enough_data'] ?? false) || $ramp) {
                 $form = ($load['ctl'] - $load['atl']) / max($load['ctl'], 15.0);
                 $parts['load'] = $this->clamp(75 + $form * 130);
                 if ($form <= -0.25) {
+                    $alarms++;
                     $reasons[] = 'hohe Belastung der letzten Tage';
                 }
             }
@@ -179,6 +195,11 @@ class ReadinessService
             $sum    += $value * self::WEIGHTS[$part];
         }
         $score = (int) max(1, min(100, round($sum / $weight)));
+
+        // Zwei klare Warnsignale zugleich wiegt guter Schlaf nicht auf (Jan).
+        if ($alarms >= 2) {
+            $score = min($score, self::REST_BELOW - 1);
+        }
 
         if ($wellbeing?->is_sick || $wellbeing?->is_injured) {
             $score = min($score, 10);

@@ -13,6 +13,7 @@ use App\Models\WellbeingEntry;
 use App\Services\Polar\PolarHealthImporter;
 use App\Services\Readiness\ReadinessProposal;
 use App\Services\Readiness\ReadinessService;
+use App\Services\TrainingLoadService;
 use App\Services\Widget\WidgetPayload;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
@@ -199,5 +200,52 @@ class ReadinessTest extends TestCase
 
         $this->assertSame(2, $out['2026-11-18']['recharge_status']);
         $this->assertNull($out['2026-11-17']['recharge_status']);
+    }
+
+    private function fakeLoad(float $atl, float $ctl, bool $enough): void
+    {
+        $this->app->instance(TrainingLoadService::class, new class($atl, $ctl, $enough) extends TrainingLoadService {
+            public function __construct(private float $a, private float $c, private bool $e) {}
+
+            public function calculate(int $userId, bool $withoutStrava = false): array
+            {
+                return ['atl' => $this->a, 'ctl' => $this->c, 'tsb' => $this->c - $this->a, 'enough_data' => $this->e];
+            }
+        });
+    }
+
+    /** Jans Morgen am 18.11.2026: Garmin 1, Zone3 47 — guter Schlaf hob HRV und Ruhepuls auf. */
+    public function test_two_warning_signs_cap_the_value_despite_good_sleep(): void
+    {
+        $user = $this->athlete();
+        $this->tonight($user, ['hrv' => 44, 'resting_hr' => 56, 'sleep_hours' => 8.5]);
+        WellbeingEntry::create(['user_id' => $user->id, 'date' => now()->toDateString(), 'energy_level' => 8,
+            'sleep_quality' => 8, 'muscle_soreness' => 1, 'stress_level' => 1, 'mood' => 8]);
+
+        $r = $this->readiness($user);
+
+        $this->assertCount(2, $r['reasons']);
+        $this->assertLessThan(ReadinessService::REST_BELOW, $r['score']);
+    }
+
+    public function test_load_counts_early_when_acute_load_doubles(): void
+    {
+        $this->fakeLoad(atl: 27, ctl: 8, enough: false);
+        $user = $this->athlete();
+        $this->tonight($user, ['hrv' => 62, 'resting_hr' => 49, 'sleep_hours' => 8]);
+
+        $r = $this->readiness($user);
+
+        $this->assertSame(0, $r['parts']['load']);
+        $this->assertContains('hohe Belastung der letzten Tage', $r['reasons']);
+    }
+
+    public function test_load_stays_out_early_without_a_clear_ramp(): void
+    {
+        $this->fakeLoad(atl: 12, ctl: 4, enough: false);
+        $user = $this->athlete();
+        $this->tonight($user, ['hrv' => 62, 'resting_hr' => 49, 'sleep_hours' => 8]);
+
+        $this->assertArrayNotHasKey('load', $this->readiness($user)['parts']);
     }
 }
