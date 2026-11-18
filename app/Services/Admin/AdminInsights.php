@@ -641,7 +641,7 @@ class AdminInsights
     {
         $rows = collect();
 
-        foreach ($u->activities()->latest('created_at')->limit($limit)->get(['id', 'name', 'type', 'sport_type', 'distance', 'moving_time', 'source', 'created_at']) as $a) {
+        foreach ($u->activities()->latest('created_at')->limit($limit)->get(['id', 'name', 'type', 'distance', 'moving_time', 'source', 'created_at']) as $a) {
             $session = TrainingSession::where('activity_id', $a->id)->first(['title', 'status']);
             $km = $a->distance > 0 ? ' · ' . number_format($a->distance / 1000, 1, ',', '.') . ' km' : '';
             $rows->push([

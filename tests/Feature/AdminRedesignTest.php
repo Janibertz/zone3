@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Activity;
 use App\Models\AdminPush;
 use App\Models\AiLog;
 use App\Models\ContactMessage;
@@ -186,6 +187,78 @@ class AdminRedesignTest extends TestCase
                 ->has('overview.kpis')
                 ->has('overview.timeline')
                 ->has('overview.connections'));
+    }
+
+    /** Gemeldet am 18.11.2026: die Athletenseite fiel mit Aktivitäten um (activities.sport_type gibt es nicht). */
+    public function test_athlete_page_with_activities_opens(): void
+    {
+        $admin = $this->admin();
+        $athlete = User::factory()->create(['name' => 'Tom Tester', 'onboarding_completed_at' => now()]);
+        Activity::create([
+            'user_id' => $athlete->id, 'strava_id' => 555001, 'name' => 'Abendlauf',
+            'type' => 'Run', 'start_date' => now()->subDay(), 'distance' => 12000,
+            'moving_time' => 3300, 'elapsed_time' => 3300, 'average_speed' => 12000 / 3300,
+        ]);
+        Activity::create([
+            'user_id' => $athlete->id, 'strava_id' => 555002, 'name' => 'Zwift',
+            'type' => 'VirtualRide', 'start_date' => now()->subDays(2), 'distance' => 30000,
+            'moving_time' => 3600, 'elapsed_time' => 3600, 'average_speed' => 30000 / 3600,
+        ]);
+
+        $missing = $this->watchSelectedColumns();
+
+        $this->actingAs($admin)->get("/admin/users/{$athlete->id}")->assertOk()
+            ->assertInertia(fn (Assert $p) => $p->component('Admin/Users/Show')
+                ->has('overview.timeline', 2));
+
+        $this->assertSame([], $missing->all(), 'Abgefragte Spalten fehlen');
+    }
+
+    /** Alle Admin-Seiten fragen nur Spalten ab, die es gibt. */
+    public function test_admin_pages_select_only_existing_columns(): void
+    {
+        $admin = $this->admin();
+        $athlete = User::factory()->create(['name' => 'Tom Tester', 'onboarding_completed_at' => now()]);
+        Activity::create([
+            'user_id' => $athlete->id, 'strava_id' => 555003, 'name' => 'Abendlauf',
+            'type' => 'Run', 'start_date' => now()->subDay(), 'distance' => 12000,
+            'moving_time' => 3300, 'elapsed_time' => 3300, 'average_speed' => 12000 / 3300,
+        ]);
+        $missing = $this->watchSelectedColumns();
+
+        foreach (['/admin/dashboard', '/admin/users', "/admin/users/{$athlete->id}", '/admin/postfach',
+            '/admin/system', '/admin/ki-kosten', '/admin/push', '/admin/invitations', '/admin/activities'] as $url) {
+            $this->actingAs($admin)->get($url)->assertOk();
+        }
+
+        $this->assertSame([], $missing->all(), 'Abgefragte Spalten fehlen');
+    }
+
+    /**
+     * SQLite liest eine unbekannte Spalte in doppelten Anführungszeichen als
+     * Text statt eines Fehlers — MySQL bricht ab. Darum prüfen wir selbst,
+     * ob jede ausgewählte Spalte existiert.
+     */
+    private function watchSelectedColumns(): \Illuminate\Support\Collection
+    {
+        $missing = collect();
+        DB::listen(function ($q) use ($missing) {
+            // Unterabfragen (withCount) und "tabelle".* lassen wir aus — nur
+            // ausdrücklich genannte Spalten können fehlen.
+            if (! preg_match('/^select (.+?) from "(\w+)"/i', $q->sql, $m) || str_contains($m[1], '(')) {
+                return;
+            }
+            $m[1] = preg_replace('/"\w+"\.\*/', '', $m[1]);
+            preg_match_all('/(?:"(\w+)"\.)?"(\w+)"/', $m[1], $cols, PREG_SET_ORDER);
+            foreach ($cols as $c) {
+                $table = $c[1] ?: $m[2];
+                if (\Illuminate\Support\Facades\Schema::hasTable($table) && ! \Illuminate\Support\Facades\Schema::hasColumn($table, $c[2])) {
+                    $missing->push("{$table}.{$c[2]}");
+                }
+            }
+        });
+
+        return $missing;
     }
 
     public function test_ai_costs_page(): void
