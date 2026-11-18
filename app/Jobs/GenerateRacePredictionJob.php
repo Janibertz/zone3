@@ -9,13 +9,24 @@ use App\Models\User;
 use App\Services\AI\CoachingTextService;
 use App\Services\PredictFinishTimeService;
 use App\Services\RacePredictionService;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
 
-class GenerateRacePredictionJob implements ShouldQueue
+class GenerateRacePredictionJob implements ShouldQueue, ShouldBeUnique
 {
     use Queueable;
+
+    // Die Planseite startet den Job bei jedem Aufruf, solange Text und
+    // Prognose nicht zusammenpassen — mehrmals Neuladen soll nicht mehrmals
+    // das Modell rufen.
+    public int $uniqueFor = 300;
+
+    public function uniqueId(): string
+    {
+        return (string) $this->planId;
+    }
 
     public int $tries   = 1;
     public int $timeout = 180; // Flex: doppeltes Zeitlimit plus ein Versuch auf Standard
