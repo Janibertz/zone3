@@ -51,6 +51,30 @@ const RECOVERY_ZONES = [
     { from: 67, to: 100, tone: 'success', label: 'Hoch' },
 ];
 
+/** Zone3s Readiness — dieselben Stufen wie Garmins Trainingsbereitschaft. */
+export const READINESS_ZONES = [
+    { from: 0,  to: 25,  tone: 'danger',  label: 'Schlecht' },
+    { from: 25, to: 50,  tone: 'warn',    label: 'Niedrig' },
+    { from: 50, to: 75,  tone: 'sky',     label: 'Mäßig' },
+    { from: 75, to: 95,  tone: 'success', label: 'Hoch' },
+    { from: 95, to: 100, tone: 'accent',  label: 'Optimal' },
+];
+
+/**
+ * Die Readiness-Kachel (seit 18.11.2026). `r` kommt fertig vom Server
+ * ({@see App\Services\Readiness\ReadinessService}); hier wird nur gezeichnet.
+ */
+export function readinessTile(r) {
+    if (!r) return null;
+    return {
+        key: 'readiness', icon: 'readiness', label: 'Readiness', mode: 'fill',
+        value: r.score, display: String(r.score), unit: null,
+        min: 0, max: 100, zones: READINESS_ZONES,
+        status: { text: r.label, tone: r.tone },
+        hint: r.reasons?.[0] ?? r.advice,
+    };
+}
+
 /** Stufe, in die ein Wert fällt (obere Grenze gehört zur nächsten Stufe). */
 export function zoneOf(zones, v) {
     if (v == null) return null;

@@ -7,6 +7,7 @@ use App\Models\Activity;
 use App\Models\TrainingSession;
 use App\Services\Plan\FixedAppointment;
 use App\Models\User;
+use App\Services\Readiness\ReadinessService;
 use App\Services\PaceFormat;
 use App\Services\Today\TodayExtras;
 use Carbon\CarbonImmutable;
@@ -108,6 +109,15 @@ class WidgetPayload
                 'weeks'  => $race['progress']['weeks'] ?? null,
             ] : null,
             'week'         => $this->week($user, $plan, $today),
+            // Zone3s Readiness (seit 18.11.2026); ältere Widgets lesen das Feld nicht.
+            'readiness'    => ($r = app(ReadinessService::class)->forDay($user, $today)) ? [
+                'score'  => $r['score'],
+                'label'  => $r['label'],
+                // Das Widget kennt „sky" nicht.
+                'tone'   => $r['tone'] === 'sky' ? 'info' : $r['tone'],
+                'advice' => $r['advice'],
+                'date'   => $r['date'],
+            ] : null,
         ];
     }
 

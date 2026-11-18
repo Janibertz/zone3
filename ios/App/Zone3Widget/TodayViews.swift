@@ -11,6 +11,10 @@ struct HeroContent: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
                 chips
+                // Readiness (seit 18.11.2026): klein nur die Zahl.
+                if let r = day.readiness {
+                    Chip(text: large ? "Readiness \(r.score)" : "\(r.score)", color: Z.accent(r.tone), size: large ? 12 : 11)
+                }
                 Spacer(minLength: 4)
                 if large, let race = day.race, let w = race.week, let n = race.weeks, day.kind != .planStart {
                     Text("Heute · Woche \(w) von \(n)")

@@ -628,6 +628,10 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             return ['weekStart' => $start->format('Y-m-d'), 'days' => $days];
         })(),
 
+        // Zone3s Readiness (seit 18.11.2026): eigener Wert aus den Uhr-Werten
+        // der Nacht, Belastung und Tagesform — Garmins kommt über keine API.
+        'readiness' => app(\App\Services\Readiness\ReadinessService::class)->forDay($user),
+
         // Garmin recovery data (HRV, sleep, RHR, Body Battery, stress, steps).
         // Per Push ueber die Health API. Missing values stay null ("keine Daten").
         'garminMetrics' => (function () use ($user) {

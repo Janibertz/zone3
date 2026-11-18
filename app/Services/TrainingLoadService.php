@@ -31,7 +31,12 @@ class TrainingLoadService
     /** Ab so vielen Tagen Verlauf sagt die Form etwas aus. */
     public const MIN_HISTORY_DAYS = 28;
 
-    public function calculate(int $userId): array
+    /**
+     * @param  bool  $withoutStrava  nur Aktivitäten, die nicht von Strava kommen —
+     *                               für alles, was in einen Prompt gehen kann
+     *                               (Strava-Policy §5.3, siehe {@see \App\Services\Readiness\ReadinessService})
+     */
+    public function calculate(int $userId, bool $withoutStrava = false): array
     {
         $profile          = RunnerProfile::where('user_id', $userId)->first();
         $thresholdPaceSec = $profile?->threshold_speed ? $profile->threshold_speed * 60 : null;
@@ -41,6 +46,15 @@ class TrainingLoadService
         // Only the columns used by activityTSS() — skip large polyline/laps JSON.
         $activities = Activity::where('user_id', $userId)
             ->where('start_date', '>=', Carbon::now()->subDays(180))
+            // Eine Zeile, die nur Strava kennt, bleibt draußen; hat eine Uhr
+            // dieselbe Einheit angehängt, zählt sie.
+            ->when($withoutStrava, fn ($q) => $q->where(function ($q) {
+                foreach (Activity::ID_COLUMNS as $source => $column) {
+                    if ($source !== Activity::SOURCE_STRAVA) {
+                        $q->orWhereNotNull($column);
+                    }
+                }
+            }))
             ->orderBy('start_date')
             ->get(['id', 'type', 'start_date', 'moving_time', 'average_speed', 'distance', 'average_heartrate']);
 

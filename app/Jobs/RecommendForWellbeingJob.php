@@ -56,6 +56,13 @@ class RecommendForWellbeingJob implements ShouldQueue
         // erst, wenn der Schnitt nachgezogen hat.
         $metrics = $garmin->forDay($this->userId, \Carbon\CarbonImmutable::parse($today));
 
+        // Die Readiness gehört dazu (seit 18.11.2026): derselbe Wert, den der
+        // Athlet auf Heute sieht.
+        if ($readiness = app(\App\Services\Readiness\ReadinessService::class)->forDay($user, \Carbon\CarbonImmutable::parse($today))) {
+            $metrics['has_data'] = true;
+            $metrics['lines'][]  = \App\Services\Readiness\ReadinessService::promptLine($readiness);
+        }
+
         $adjusted = $sessions->adjustSessionForWellbeing($session->toArray(), $wellbeing, $metrics);
 
         if (! $adjusted) {

@@ -82,6 +82,7 @@ const ICONS = {
     energy:  ['M13 3 5 13.5h6L10 21l8-10.5h-6L13 3Z'],
     muscle:  ['M5 15c2-1 3-4 3-7 0-2 1.5-3 3-3s2 1 2 2.5c0 1-1 1.5-2 1.5', 'M5 15c1 3 4 4 7 4 4 0 7-2 7-5.5 0-2.5-2-4-4.5-4-1.5 0-3 1-3.5 2.5'],
     stress:  ['M3 12h3l2-5 3 10 3-8 2 3h5'],
+    readiness: ['M4.5 17a7.5 7.5 0 1 1 15 0', 'M12 17l3.5-4.5'],
 };
 const iconPaths = computed(() => ICONS[props.icon] ?? null);
 // Das halbtransparente Hellblau trägt als Text zu wenig Kontrast.

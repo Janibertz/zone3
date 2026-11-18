@@ -122,7 +122,7 @@ const segClass = (seg) => seg.kind === 'work' ? (ZONE_FILL[seg.zone] ?? meta.val
 
             <h2 class="text-[38px] font-extrabold leading-[40px] tracking-[-0.04em] [overflow-wrap:anywhere] lg:text-[52px] lg:leading-[1.05]">{{ session.title }}</h2>
             <p v-if="session.description && !rest" class="mt-2.5 hidden max-w-xl text-[17px] leading-6 text-white/85 line-clamp-2 lg:block">{{ session.description }}</p>
-            <p v-else-if="rest" class="mt-2.5 max-w-xl text-[17px] leading-6 text-white/85">Erholung gehört zum Training. Genieß den freien Tag.</p>
+            <p v-else-if="rest" class="mt-2.5 max-w-xl text-[17px] leading-6 text-white/85">{{ session.readiness_rest ? session.description : 'Erholung gehört zum Training. Genieß den freien Tag.' }}</p>
 
             <div v-if="numbers.length" class="mt-[18px] flex flex-wrap gap-x-[22px] gap-y-2 lg:mt-5 lg:gap-x-9">
                 <div v-for="n in numbers" :key="n.label">

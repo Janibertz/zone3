@@ -33,7 +33,7 @@ import AppCard from '@/Components/UI/AppCard.vue';
 import EmptyState from '@/Components/UI/EmptyState.vue';
 import StatChip from '@/Components/UI/StatChip.vue';
 import GaugeTile from '@/Components/UI/GaugeTile.vue';
-import { garminGauges, wellbeingGauges } from '@/Composables/useRecoveryGauges.js';
+import { garminGauges, wellbeingGauges, readinessTile } from '@/Composables/useRecoveryGauges.js';
 import SectionHeader from '@/Components/UI/SectionHeader.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { paceValue, sessionType, stepAmount } from '@/Composables/useSessionTypes';
@@ -158,6 +158,10 @@ const props = defineProps({
     dashboardLayout: {
         type: Array,
         default: () => [],
+    },
+    readiness: {
+        type: Object,
+        default: null,
     },
     garminMetrics: {
         type: Object,
@@ -554,9 +558,14 @@ const garminLatest = computed(() => props.garminMetrics?.latest ?? null);
  * Die Kacheln unter „Körper“: Garmin-Bögen, ohne Garmin der Check-in in
  * derselben Darstellung. Die Rechnung steht in useRecoveryGauges.js.
  */
-const metricTiles = computed(() => (garminLatest.value
-    ? garminGauges(props.garminMetrics)
-    : wellbeingGauges(props.wellbeingToday)));
+const metricTiles = computed(() => {
+    const tiles = garminLatest.value
+        ? garminGauges(props.garminMetrics)
+        : wellbeingGauges(props.wellbeingToday);
+    // Die Readiness steht vorn (Jan, 18.11.2026).
+    const r = readinessTile(props.readiness);
+    return r ? [r, ...tiles] : tiles;
+});
 
 /** Woher die Kacheln stammen — für die Beschriftung darüber. */
 const metricSource = computed(() => {
@@ -1483,6 +1492,14 @@ async function resetLayout() {
                                 Details
                             </Link>
                         </div>
+                        <!-- Readiness unter 25: Ruhetag empfohlen, der Athlet darf ablehnen (Jan, 18.11.2026) -->
+                        <div v-else-if="heroKind === 'proposal' && heroSession.readiness_rest" class="flex flex-wrap items-center gap-2.5">
+                            <button type="button" @click="adjustRecommendation('harder')" :disabled="adjustingDirection !== null"
+                                class="inline-flex h-11 items-center gap-2 rounded-full bg-white/20 px-5 text-[15px] font-semibold text-white backdrop-blur-md transition active:scale-95 disabled:opacity-50">
+                                <span v-if="adjustingDirection === 'harder'" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                Trotzdem trainieren
+                            </button>
+                        </div>
                         <div v-else-if="heroSession.type !== 'rest'" class="flex flex-wrap items-center gap-2.5">
                             <!-- Vorschlag des Coaches: Einplanen ist die Entscheidung -->
                             <template v-if="heroKind === 'proposal'">
@@ -2110,7 +2127,7 @@ async function resetLayout() {
                                 </SectionHeader>
                                 <!-- Eine Reihe (Jan): am iPhone wischbar, ab lg alle nebeneinander -->
                                 <div class="no-scrollbar -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto px-4 lg:mx-0 lg:grid lg:overflow-visible lg:px-0"
-                                    :class="metricTiles.length === 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'">
+                                    :class="metricTiles.length >= 7 ? 'lg:grid-cols-7' : metricTiles.length === 6 ? 'lg:grid-cols-6' : metricTiles.length === 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'">
                                     <GaugeTile v-for="t in metricTiles" :key="t.key" v-bind="t"
                                         class="w-[28%] min-w-[104px] shrink-0 snap-start lg:w-auto lg:min-w-0" />
                                 </div>

@@ -252,6 +252,17 @@ class GarminHealthSummary
             }
         }
 
+        // Polars Nightly Recharge, 1 sehr schlecht … 6 sehr gut.
+        if ($today->recharge_status !== null) {
+            $values['recharge'] = ['value' => $today->recharge_status];
+            $lines[] = sprintf('Nightly Recharge (Polar): Stufe %d von 6', $today->recharge_status);
+
+            if ($today->recharge_status <= 2) {
+                $flags[]   = sprintf('Nightly Recharge nur Stufe %d', $today->recharge_status);
+                $flagged[] = 'recharge';
+            }
+        }
+
         return [
             'has_data'  => ! empty($lines),
             'lines'     => $lines,

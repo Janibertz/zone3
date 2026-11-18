@@ -73,6 +73,12 @@ struct TrainingLockView: View {
                 } else if let zone = state.zone {
                     Text("Zone \(zone)").font(Z.font(12, .bold)).foregroundStyle(.white.opacity(0.85))
                 }
+                if !state.done, let r = state.readiness {
+                    Text("Readiness \(r)")
+                        .font(Z.font(11, .bold))
+                        .lineLimit(1)
+                        .foregroundStyle(Z.accent(state.readinessTone ?? ""))
+                }
                 Spacer(minLength: 4)
                 LiveWordmark()
             }

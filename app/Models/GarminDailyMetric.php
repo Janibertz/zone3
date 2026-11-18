@@ -17,6 +17,7 @@ class GarminDailyMetric extends Model
         'body_battery_low',
         'body_battery_high',
         'recovery_score',
+        'recharge_status',
         'stress_avg',
         'steps',
         'vo2max',

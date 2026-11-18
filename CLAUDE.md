@@ -557,6 +557,17 @@ Idee 4 aus der Ideenliste, Jans Antworten vom 13.11.2026. Vorher lief der Plan a
 - **Tagesvorschlag ohne Plan:** `AIController::todayFor()` gibt in der Erholung ohne Modellaufruf einen Ruhetag oder einen lockeren Lauf aus dem Katalog (30 min kurz, sonst 45, höchstens das Tagesfenster).
 - Tests: `RaceRecoveryTest`.
 
+### Readiness — Zone3s eigene Trainingsbereitschaft (seit 18.11.2026)
+
+Jan: Garmin zeigte Trainingsbereitschaft 1 und empfahl Ruhetag, Zone3 schlug einen lockeren Lauf vor. Zwei Ursachen: der **Tagesvorschlag ohne Planeinheit** (`AIController::todayFor()`) und der **Coach-Chat** sahen die Werte der Uhr gar nicht, nur die Tagesform. Beide bekommen jetzt `GarminHealthSummary::forDay()` und die Readiness. Garmins Wert selbst kommt über keine API (Health API 1.2.2, Activity API 2.0 durchsucht), COROS' `queryRecoveryStatus` lieferte „Unknown“.
+
+- **`App\Services\Readiness\ReadinessService::forDay()`**, 1–100, ohne Modell, für **alle Uhren gleich** (auch bei WHOOP gilt dieser Wert, nicht dessen Recovery — Jan). Teile mit Gewicht: HRV gegen Normalbereich 30, Schlaf (heute 70 %, drei Nächte davor 30 %) 25, Belastung ATL/CTL 20, Ruhepuls 15, Tagesform 10. Was fehlt, fällt aus der Gewichtung. **Ohne Wert der Uhr von heute keine Readiness**; vor der Tagesform wird schon gerechnet (Jan). Krank/verletzt deckelt auf 10. Stufen wie Garmin: 1–24 schlecht, 25–49 niedrig, 50–74 mäßig, 75–94 hoch, 95+ optimal.
+- **Belastung nur aus Uhr-Aktivitäten** (`TrainingLoadService::calculate(withoutStrava: true)`) — der Wert steht in Prompts (Strava §5.3).
+- **Der Coach schlägt vor, der Athlet entscheidet** (Jan): `readiness:check` (alle 15 min, 05–14 Uhr, `ReadinessProposal`) legt unter 25 einen Ruhetag, bei 25–49 statt einer harten Einheit einen lockeren Lauf als `SessionRecommendation` (`source = readiness`) an — höchstens einer je Einheit und Tag, Rennen und Kraft nie. Telegram über den Observer, sonst Push. Ohne Planeinheit wird der **Tagesvorschlag** unter 25 ein Ruhetag ohne Modell (`readiness_rest`), mit „Trotzdem trainieren“ (`adjust harder` → `readiness_declined`, gilt bis morgen). Der gespeicherte Vorschlag merkt sich `readiness_level` und wird bei einer anderen Stufe neu geschrieben.
+- **Angezeigt** als erste Kachel unter „Körper“ (`readinessTile()` in `useRecoveryGauges.js`), oben im Telegram-Briefing, im Widget (`WidgetPayload.readiness`, Chip im Foto) und in der Live Activity (`readiness`/`readinessTone` im `content-state`, optional — alte Builds ignorieren es). Ton `sky` heißt in Swift `info`.
+- **Polar Nightly Recharge** (1–6) steht in `garmin_daily_metrics.recharge_status`, nur im Prompt und Briefing, nicht in der Readiness.
+- Tests: `ReadinessTest`.
+
 ### One verdict on the goal, not two
 
 `TrainingPaceService` judged the goal from threshold pace ("Das Ziel passt zur heutigen Form"); `LongRunPlanService` judged it from the ladder ("Mit dieser Vorbereitung ist die Zielzeit unwahrscheinlich"). Both landed in the same prompt as fact, with no precedence, and the model picked one at random for the description.

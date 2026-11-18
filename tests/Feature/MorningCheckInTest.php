@@ -139,7 +139,8 @@ class MorningCheckInTest extends TestCase
         $this->assertStringContainsString('Ruhepuls 50 bpm · normal', $text);
         $this->assertStringContainsString('Schlaf 7,2 h (Score 82)', $text);
         $this->assertStringContainsString('Body Battery 85', $text);
-        $this->assertStringNotContainsString('Readiness', $text);
+        // Zone3s eigene Readiness steht seit 18.11.2026 obenauf.
+        $this->assertStringContainsString('Readiness', $text);
         $this->assertStringNotContainsString('weichen', $text);
     }
 

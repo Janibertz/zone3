@@ -44,6 +44,8 @@ Schedule::command('plan:roll-blocks')->dailyAt('00:05');
 
 // Vorschläge zu gestrigen Einheiten verfallen, sonst bleiben sie offen.
 Schedule::command('recommendations:expire')->dailyAt('00:10');
+// Readiness: sobald die Werte der Nacht da sind, bei niedrigem Wert ein Vorschlag (seit 18.11.2026).
+Schedule::command('readiness:check')->everyFifteenMinutes()->between('05:00', '14:00');
 
 // Every day at 05:00: detect plan gaps and queue regeneration for athletes with upcoming races
 Schedule::command('plan:auto-update')->dailyAt('05:00');

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\TrainingSession;
 use App\Models\User;
+use App\Services\Readiness\ReadinessService;
 use App\Observers\SessionRecommendationObserver;
 use Carbon\CarbonImmutable;
 
@@ -119,8 +120,8 @@ class TelegramBriefing
      * hat (Schlaf kommt erst, wenn die Uhr synchronisiert hat), fehlt einfach
      * — das Briefing wartet nicht darauf.
      *
-     * Readiness steht bewusst nicht drin: sie ist aus der Oberfläche
-     * genommen, und Schritte und Stress sagen morgens noch nichts.
+     * Ganz oben steht Zone3s eigene Readiness (seit 18.11.2026) — Garmins
+     * Wert kommt über keine API. Schritte und Stress sagen morgens nichts.
      */
     private function garminNight(User $user): ?string
     {
@@ -148,12 +149,23 @@ class TelegramBriefing
         if (isset($values['recovery'])) {
             $lines[] = "Recovery {$values['recovery']['value']} %";
         }
+        if (isset($values['recharge'])) {
+            $lines[] = "Nightly Recharge {$values['recharge']['value']}/6";
+        }
 
-        if (! $lines) {
+        $readiness = app(ReadinessService::class)->forDay($user);
+
+        if (! $lines && ! $readiness) {
             return null;
         }
 
-        $text = "**Deine Nacht**\n" . implode("\n", $lines);
+        $text = '';
+        if ($readiness) {
+            $text = "**Readiness {$readiness['score']} · {$readiness['label']}**\n{$readiness['advice']}"
+                . ($readiness['reasons'] ? ' (' . implode(', ', $readiness['reasons']) . ')' : '') . ".\n\n";
+        }
+
+        $text = rtrim($text . ($lines ? "**Deine Nacht**\n" . implode("\n", $lines) : ''));
 
         if ($day['flagged']) {
             $text .= "\nDeine Werte weichen heute deutlich von deinem Normalbereich ab. Hör beim Training besonders auf dich.";

@@ -30,6 +30,10 @@ struct TrainingActivityAttributes: ActivityAttributes {
         var foot: String?
         /// Ganze Adresse, die ein Tipp öffnet.
         var url: String
+        /// Zone3s Readiness 1–100 und ihr Ton (danger, warn, info, success,
+        /// accent), seit 18.11.2026. Optional: ältere Pushs haben sie nicht.
+        var readiness: Int?
+        var readinessTone: String?
     }
 
     struct Metric: Codable, Hashable {

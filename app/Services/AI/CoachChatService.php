@@ -341,6 +341,20 @@ class CoachChatService
         if ($open = self::openGoalLine($user)) $ctx[] = $open;
         if ($wellbeing) $ctx[] = "TAGESFORM (Selbsteinschätzung): Energie {$wellbeing->energy_level}/10, Schlaf {$wellbeing->sleep_quality}/10, Stimmung {$wellbeing->mood}/10";
 
+        // Die Werte der Uhr und die Readiness (seit 18.11.2026). Vorher kannte
+        // der Coach im Chat nur die Tagesform — und sagte „lauf locker",
+        // während die Uhr eine kaputte Nacht gemessen hatte.
+        if ($user->receivesHealthMetrics()) {
+            $health = app(\App\Services\GarminHealthSummary::class)->forDay($user->id, \Carbon\CarbonImmutable::parse($today));
+            if ($health['has_data']) {
+                $ctx[] = "WERTE DER UHR (heute Nacht, gegen die eigene Grundlinie):\n- ".implode("\n- ", $health['lines'])
+                    .($health['flags'] ? "\nAuffällig: ".implode(', ', $health['flags']) : '');
+            }
+            if ($readiness = app(\App\Services\Readiness\ReadinessService::class)->forDay($user, \Carbon\CarbonImmutable::parse($today))) {
+                $ctx[] = \App\Services\Readiness\ReadinessService::promptLine($readiness);
+            }
+        }
+
         $contextBlock = "\n\n=== ATHLETEN-DATEN ({$today}) ===\n".implode("\n\n",$ctx)."\n=== ENDE ===";
         $coachName = $user->coach?->name ?? 'Coach';
 

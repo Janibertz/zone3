@@ -12,6 +12,8 @@ struct WidgetFeed: Codable {
     let planStart: String?
     let race: Race?
     let week: Week
+    /// Zone3s Readiness (seit 18.11.2026). Optional: ältere Antworten haben sie nicht.
+    let readiness: Readiness?
 
     struct Day: Codable {
         let date: String
@@ -67,6 +69,15 @@ struct WidgetFeed: Codable {
         let open: Bool
         let week: Int?
         let weeks: Int?
+    }
+
+    struct Readiness: Codable {
+        let score: Int
+        let label: String
+        /// danger, warn, info, success, accent — wie `Z.accent(_:)`.
+        let tone: String
+        let advice: String
+        let date: String
     }
 
     struct Week: Codable {
@@ -145,6 +156,7 @@ struct DayView {
     let planStartDays: Int?
     let planStartLabel: String?
     let week: WidgetFeed.Week?
+    let readiness: WidgetFeed.Readiness?
     let base: String
 
     init(feed: WidgetFeed, now: Date) {
@@ -170,6 +182,7 @@ struct DayView {
         self.following = upcoming.first
 
         self.base = feed.base
+        self.readiness = feed.readiness?.date == today ? feed.readiness : nil
         self.race = feed.race
         self.raceDays = feed.race.map { Fmt.daysBetween(today, $0.date) }
         if let start = feed.planStart, start > today {

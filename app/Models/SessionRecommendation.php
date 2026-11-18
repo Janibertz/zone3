@@ -44,6 +44,9 @@ class SessionRecommendation extends Model
     /** Eine eigene Idee des Coaches aus dem Chat (seit 29.10.2026). */
     public const SOURCE_COACH = 'coach';
 
+    /** Niedrige Readiness am Morgen (seit 18.11.2026). */
+    public const SOURCE_READINESS = 'readiness';
+
     /** Die Felder, die eine Empfehlung an der Einheit ueberhaupt anfassen darf. */
     public const FIELDS = [
         'type', 'title', 'description', 'distance_km',
@@ -97,6 +100,10 @@ class SessionRecommendation extends Model
             // Die Schritte beschrieben die alte Einheit.
             'steps'     => null,
         ]);
+        // Aus einer Radeinheit wird ein Ruhetag — kein Rad mehr daran.
+        if (($this->after['type'] ?? null) === 'rest') {
+            $session->sport_type = null;
+        }
         // Der neue Ablauf aus dem Katalog — der Vorschlag hat ihn schon mit
         // denselben Zahlen gerechnet.
         app(\App\Services\Run\SessionStructure::class)->apply($session, $this->after['workout_variant'] ?? null, $this->after['easy_pace'] ?? null, $this->after['hard_pace'] ?? null);

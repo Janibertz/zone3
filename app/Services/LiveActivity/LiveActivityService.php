@@ -146,7 +146,23 @@ class LiveActivityService
             'band'    => $lead['band'],
             'foot'    => $foot,
             'url'     => $url,
-        ];
+        ] + $this->readiness($user, $day);
+    }
+
+    /**
+     * Zone3s Readiness für die Activity (seit 18.11.2026). Ältere App-Builds
+     * ignorieren die Felder, neuere zeigen sie neben dem Typ.
+     *
+     * @return array{readiness?: int, readinessTone?: string}
+     */
+    private function readiness(User $user, CarbonImmutable $day): array
+    {
+        $r = app(\App\Services\Readiness\ReadinessService::class)->forDay($user, $day);
+
+        return $r ? [
+            'readiness'     => $r['score'],
+            'readinessTone' => $r['tone'] === 'sky' ? 'info' : $r['tone'],
+        ] : [];
     }
 
     /**

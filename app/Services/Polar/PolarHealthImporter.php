@@ -17,7 +17,8 @@ use Throwable;
  * - **Nightly Recharge** (`/v3/users/nightly-recharge`, 28 Tage): HRV als
  *   RMSSD in ms — dasselbe Maß wie Garmin, also eine Grundlinie. Der Puls
  *   der ersten vier Schlafstunden steht als Ruhepuls (liegt meist ein,
- *   zwei Schläge darüber; Polar liefert keinen Tages-Ruhepuls). Atemfrequenz.
+ *   zwei Schläge darüber; Polar liefert keinen Tages-Ruhepuls). Atemfrequenz
+ *   und der Recharge-Status 1–6 (seit 18.11.2026, nur im Prompt).
  * - **VO2max** aus der Physical info, auf heute (wie bei COROS).
  *
  * Polar schickt für Schlaf zwar Webhooks, aber ein Abruf je Stunde reicht
@@ -122,6 +123,8 @@ class PolarHealthImporter
                 'hrv'              => ($night['heart_rate_variability_avg'] ?? 0) > 0 ? (int) round($night['heart_rate_variability_avg']) : null,
                 'resting_hr'       => ($night['heart_rate_avg'] ?? 0) > 0 ? (int) round($night['heart_rate_avg']) : null,
                 'respiration_rate' => ($night['breathing_rate_avg'] ?? 0) > 0 ? round((float) $night['breathing_rate_avg'], 1) : null,
+                // 1 sehr schlecht … 6 sehr gut (seit 18.11.2026)
+                'recharge_status'  => in_array((int) ($night['nightly_recharge_status'] ?? 0), range(1, 6), true) ? (int) $night['nightly_recharge_status'] : null,
             ];
         }
 

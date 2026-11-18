@@ -122,17 +122,51 @@ class AIController extends Controller
             return [$rec['type'] === 'rest' ? $rec : $this->withStructure($rec, $user), null, $wellbeingExists];
         }
 
+        // Readiness und die Werte der Uhr (seit 18.11.2026). Bis dahin sah
+        // der Tagesvorschlag nur die Tagesform.
+        $readiness = app(\App\Services\Readiness\ReadinessService::class)->forDay($user);
+        $health    = $user->receivesHealthMetrics()
+            ? app(\App\Services\GarminHealthSummary::class)->forDay($user->id, \Carbon\CarbonImmutable::today())
+            : null;
+
+        $cached = null;
+        if ($runnerProfile && $runnerProfile->recommendation_date == $today && ! empty($runnerProfile->today_recommendation)) {
+            $decoded = json_decode($runnerProfile->today_recommendation, true);
+            $cached  = is_array($decoded) ? $decoded : null;
+        }
+
+        // Unter 25 ein Ruhetag, ohne Modell. Wer „Trotzdem trainieren"
+        // getippt hat, bekommt seine Anpassung (Jan: annehmen oder ablehnen).
+        if ($readiness && $readiness['score'] < \App\Services\Readiness\ReadinessService::REST_BELOW
+            && ! ($cached['readiness_declined'] ?? false)) {
+            $why = $readiness['reasons'] ? ' (' . implode(', ', $readiness['reasons']) . ')' : '';
+
+            $rest = $this->rest('Ruhetag empfohlen', "Deine Readiness liegt heute bei {$readiness['score']}{$why}. Dein Körper braucht Erholung — gern spazieren gehen.") + [
+                'readiness_rest' => true,
+                'readiness'      => $readiness['score'],
+            ];
+
+            // Gespeichert wie jeder Vorschlag: Widget und Live Activity lesen
+            // ihn aus dem Profil.
+            if ($runnerProfile && ($cached['readiness_rest'] ?? false) !== true) {
+                $runnerProfile->today_recommendation        = json_encode($rest, JSON_UNESCAPED_UNICODE);
+                $runnerProfile->recommendation_date         = $today;
+                $runnerProfile->recommendation_wellbeing_id = $todayWellbeing?->id;
+                $runnerProfile->save();
+            }
+
+            return [$rest, null, $wellbeingExists];
+        }
+
         if ($wellbeingExists || ! $requireWellbeing) {
-            // Check cached recommendation (same day + same entry) — stored as JSON string
-            if ($runnerProfile &&
-                $runnerProfile->recommendation_date == $today &&
+            // Check cached recommendation (same day + same entry) — stored as JSON string.
+            // Eine andere Readiness-Stufe als beim Schreiben macht ihn ungültig:
+            // morgens fehlte vielleicht noch die HRV.
+            if ($cached &&
                 $runnerProfile->recommendation_wellbeing_id == $todayWellbeing?->id &&
-                !empty($runnerProfile->today_recommendation))
+                (($cached['readiness_declined'] ?? false) || ($cached['readiness_level'] ?? null) === ($readiness['level'] ?? null)))
             {
-                $decoded = json_decode($runnerProfile->today_recommendation, true);
-                if (is_array($decoded)) {
-                    $recommendation = $decoded;
-                }
+                $recommendation = $cached;
             }
 
             if (! $recommendation) {
@@ -152,8 +186,14 @@ class AIController extends Controller
                     $todayAvailability,
                     $this->weather->forUser($user),
                     $this->returnToRun->statusFor($user),
-                    $user->planStartsLater()
+                    $user->planStartsLater(),
+                    $health,
+                    $readiness,
                 );
+
+                if ($recommendation) {
+                    $recommendation['readiness_level'] = $readiness['level'] ?? null;
+                }
 
                 if ($runnerProfile && $recommendation) {
                     $runnerProfile->today_recommendation = json_encode($recommendation, JSON_UNESCAPED_UNICODE);
@@ -324,6 +364,13 @@ class AIController extends Controller
         // Die Anpassung ist jetzt der Vorschlag des Tages: Widget, Live
         // Activity und ein Neuladen von „Heute" lesen ihn aus dem Profil.
         // Ohne Speichern zeigten sie weiter das Original (Jan, 13.11.2026).
+        // „Trotzdem trainieren" auf dem Readiness-Ruhetag: die Entscheidung
+        // bleibt bis morgen stehen.
+        if ($adjusted && ($request->current['readiness_rest'] ?? false)) {
+            $adjusted['readiness_declined'] = true;
+            unset($adjusted['readiness_rest']);
+        }
+
         if ($adjusted && $runnerProfile) {
             $runnerProfile->today_recommendation = json_encode(
                 \Illuminate\Support\Arr::except($adjusted, ['steps']),

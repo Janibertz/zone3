@@ -42,7 +42,7 @@ class CoachingTextService
         return "Wetter heute am Trainingsort: {$line}.{$hint}\n";
     }
 
-    public function generateTodayRecommendation(?array $runnerProfile, ?array $yesterdayActivity, ?array $wellbeingEntry, ?array $goal, array $progress, array $upcomingEvents = [], ?array $todayAvailability = null, ?array $weather = null, ?array $returnToRun = null, ?array $planStart = null): ?array
+    public function generateTodayRecommendation(?array $runnerProfile, ?array $yesterdayActivity, ?array $wellbeingEntry, ?array $goal, array $progress, array $upcomingEvents = [], ?array $todayAvailability = null, ?array $weather = null, ?array $returnToRun = null, ?array $planStart = null, ?array $health = null, ?array $readiness = null): ?array
     {
         $profileText = $runnerProfile ? "Runner Profile:\n- LTHR: {$runnerProfile['threshold_heart_rate']} bpm\n- Max HR: {$runnerProfile['max_heart_rate']} bpm\n" : "Kein Runner Profile vorhanden.\n";
         // Die Tempi aus dem VDOT, wie im Plan. Vorher stand hier nur die
@@ -60,6 +60,18 @@ class CoachingTextService
         // („Weisheitszahn-OP"), ist oft das Wichtigste des Tages.
         if (! empty($wellbeingEntry['notes'])) {
             $wellbeingText .= 'Notiz des Athleten: "' . mb_substr($wellbeingEntry['notes'], 0, 500) . "\" — nimm sie ernst, sie kann jede andere Regel überstimmen.\n";
+        }
+        // Die Werte der Uhr von heute Nacht. Bis 18.11.2026 sah der
+        // Tagesvorschlag nur die Tagesform — Jans Garmin empfahl einen
+        // Ruhetag, Zone3 einen lockeren Lauf.
+        if (! empty($health['has_data'])) {
+            $wellbeingText .= "Gemessene Werte der Uhr (heute Nacht, gegen die eigene Grundlinie):\n- " . implode("\n- ", $health['lines']) . "\n";
+            if (! empty($health['flags'])) {
+                $wellbeingText .= 'Auffällig: ' . implode(', ', $health['flags']) . ". Die Messwerte wiegen schwerer als das Gefühl.\n";
+            }
+        }
+        if ($readiness) {
+            $wellbeingText .= \App\Services\Readiness\ReadinessService::promptLine($readiness) . "\n";
         }
         $goalText = $goal ? "Ziel: {$goal['name']} (bis {$goal['end_date']})\n" : "Kein aktives Ziel.\n";
 
@@ -186,6 +198,10 @@ PROMPT;
         $directionText = $direction === 'harder'
             ? 'Mache die Einheit HÄRTER: mehr Distanz (+15-25%), schnellere Pace, höhere Zone, oder Wechsel zu einem intensiveren Typ (z.B. easy_run → tempo_run).'
             : 'Mache die Einheit SOFTER: weniger Distanz (-15-25%), langsamere Pace, niedrigere Zone, oder Wechsel zu einem ruhigeren Typ (z.B. tempo_run → easy_run).';
+        // „Trotzdem trainieren" auf dem Readiness-Ruhetag.
+        if ($direction === 'harder' && ($current['type'] ?? null) === 'rest') {
+            $directionText = 'Der Athlet möchte trotz niedriger Readiness trainieren. Schlage einen kurzen, lockeren Lauf vor: type easy_run, Zone 1–2, höchstens 30 Minuten, intensity low.';
+        }
 
         $wellbeingText = $wellbeingEntry ? "Tagesform: Energie {$wellbeingEntry['energy_level']}/10, Muskelkater {$wellbeingEntry['muscle_soreness']}/10\n" : '';
         $profileText = $runnerProfile ? "Schwellenpace: {$runnerProfile['threshold_speed']} min/km\n" : '';
