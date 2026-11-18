@@ -105,6 +105,7 @@ const groups = computed(() => [
         // Blade-Seite, kein Inertia: ein Link-Besuch bekäme HTML statt JSON.
         { name: 'Häufige Fragen',   href: route('faq'),                   icon: P.doc, tint: 'bg-ink-3', value: '', external: true },
         { name: 'Datenschutz',      href: route('privacy'),               icon: P.shield, tint: 'bg-ink-3', value: '' },
+        { name: 'Nutzungsbedingungen', href: route('terms'),             icon: P.doc, tint: 'bg-ink-3', value: '' },
         { name: 'Impressum',        href: route('impressum'),             icon: P.doc, tint: 'bg-ink-3', value: '' },
         ...(isAdmin.value ? [{ name: 'Admin-Bereich', href: route('admin.dashboard'), icon: P.shield, tint: 'bg-danger', value: '' }] : []),
     ] },

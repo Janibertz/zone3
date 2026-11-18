@@ -52,6 +52,7 @@
             <div class="flex gap-5">
                 <a href="{{ route('faq') }}">FAQ</a>
                 <a href="{{ route('privacy') }}">Datenschutz</a>
+                <a href="{{ route('terms') }}">Nutzungsbedingungen</a>
                 <a href="{{ route('impressum') }}">Impressum</a>
                 <a href="{{ route('login') }}">Anmelden</a>
             </div>

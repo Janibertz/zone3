@@ -54,6 +54,10 @@ Route::get('/', function () {
 // leitet dauerhaft weiter; der Routenname bleibt, damit alte Verweise halten.
 Route::get('/privacy', fn() => Inertia::render('Privacy'))->name('privacy');
 
+// Nutzungsbedingungen — öffentlich, Partner (ROUVY) verlangen eine Terms-of-Service-URL.
+Route::get('/nutzungsbedingungen', fn() => Inertia::render('Terms'))->name('terms');
+Route::permanentRedirect('/terms', '/nutzungsbedingungen');
+
 // Ratgeber und Blog — öffentlich, als Blade-Seiten für Suchmaschinen.
 Route::get('/{kind}', [\App\Http\Controllers\ArticleController::class, 'index'])
     ->whereIn('kind', array_keys(\App\Services\Content\Articles::KINDS))->name('articles.index');

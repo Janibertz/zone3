@@ -47,7 +47,7 @@ class ArticleController extends Controller
 
     public function sitemap(): Response
     {
-        $urls = collect([url('/'), route('faq'), route('privacy'), route('impressum')]);
+        $urls = collect([url('/'), route('faq'), route('privacy'), route('terms'), route('impressum')]);
         foreach (array_keys(Articles::KINDS) as $kind) {
             $urls->push(route('articles.index', $kind));
             $urls = $urls->merge(Articles::all($kind)->pluck('url'));

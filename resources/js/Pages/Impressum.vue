@@ -126,7 +126,10 @@ const field = 'mt-1 block w-full rounded-field border-0 bg-surface-2 px-3.5 py-3
 
         <footer class="border-t border-line px-5 py-8">
             <div class="mx-auto flex max-w-3xl items-center justify-between text-[13px] text-ink-3">
-                <Link :href="route('privacy')" class="transition hover:text-ink-2 active:opacity-60">Datenschutz</Link>
+                <div class="flex gap-4">
+                    <Link :href="route('privacy')" class="transition hover:text-ink-2 active:opacity-60">Datenschutz</Link>
+                    <Link :href="route('terms')" class="transition hover:text-ink-2 active:opacity-60">Nutzungsbedingungen</Link>
+                </div>
                 <Link href="/" class="transition hover:text-ink-2 active:opacity-60">Zur Startseite</Link>
             </div>
         </footer>
