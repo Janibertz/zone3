@@ -68,7 +68,9 @@ jobs:
         run: npm ci
 
       - name: Capacitor synchronisieren
-        run: npx cap sync android
+        run: |
+          npx cap sync android
+          node android/start-path.mjs
 
       - name: Bauen
         working-directory: android
@@ -107,7 +109,9 @@ jobs:
         run: npm ci
 
       - name: Capacitor synchronisieren
-        run: npx cap sync android
+        run: |
+          npx cap sync android
+          node android/start-path.mjs
 
       - name: Upload-Schlüssel
         env:
