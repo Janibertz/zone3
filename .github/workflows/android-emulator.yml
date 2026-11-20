@@ -1,0 +1,57 @@
+name: Android-Emulator
+
+# Startet die Debug-APK in einem Android-Emulator und hängt Bildschirmfotos
+# und Logcat als Artefakt an. Zum Nachstellen von Fehlern ohne echtes Gerät.
+on:
+  workflow_dispatch:
+    inputs:
+      api:
+        description: 'Android-API-Level'
+        default: '34'
+
+jobs:
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+      - run: npx cap sync android
+
+      - name: Debug-APK bauen
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: KVM freischalten
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Im Emulator starten
+        uses: reactivecircus/android-emulator-runner@v2.33.0
+        with:
+          api-level: ${{ inputs.api }}
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: bash .github/scripts/android-emulator-run.sh
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emulator-ergebnis
+          path: emulator-out/
+          retention-days: 7
