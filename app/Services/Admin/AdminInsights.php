@@ -444,7 +444,7 @@ class AdminInsights
     {
         $users = User::with([
             'garminConnection', 'corosConnection', 'polarConnection', 'whoopConnection',
-            'intervalsConnection', 'stravaAccount', 'activeTrainingPlan.event',
+            'intervalsConnection', 'rouvyConnection', 'stravaAccount', 'activeTrainingPlan.event',
         ])
             ->withCount('pushSubscriptions')
             ->withMax('activities', 'start_date')
@@ -590,6 +590,8 @@ class AdminInsights
         $dev('Apple Health', $u->apple_health_consent_at, $u->apple_health_consent_at ? $latest($u->apple_health_synced_at ? Carbon::parse($u->apple_health_synced_at) : null, $lastActivity(Activity::SOURCE_APPLE)) : null, null);
         $i = $u->intervalsConnection;
         $dev('intervals.icu', $i, $i ? $latest($i->workouts_synced_at ? Carbon::parse($i->workouts_synced_at) : null, $i->activities_synced_at ? Carbon::parse($i->activities_synced_at) : null) : null, $i?->last_error);
+        $r = $u->rouvyConnection;
+        $dev('ROUVY', $r, $r ? $latest($r->workouts_synced_at ? Carbon::parse($r->workouts_synced_at) : null, $r->activities_synced_at ? Carbon::parse($r->activities_synced_at) : null, $lastActivity(Activity::SOURCE_ROUVY)) : null, $r?->last_error);
 
         if ($g && $u->syncsPlanToGarmin()) {
             $rows[] = ['name' => 'Plan auf der Uhr', 'kind' => 'channel', 'tone' => 'success', 'value' => 'Garmin, 7 Tage'];
@@ -627,6 +629,8 @@ class AdminInsights
             $u->corosConnection ? 'COROS' : null,
             $u->polarConnection ? 'Polar' : null,
             $u->whoopConnection ? 'WHOOP' : null,
+            $u->intervalsConnection ? 'intervals.icu' : null,
+            $u->rouvyConnection ? 'ROUVY' : null,
             $u->apple_health_consent_at ? 'Apple Health' : null,
             $u->stravaAccount ? 'Strava' : null,
         ]));
@@ -808,6 +812,7 @@ class AdminInsights
             ['key' => 'polar', 'name' => 'Polar', 'count' => $count('polar_connections'), 'last' => $latest($max('polar_webhook_events'), $max('polar_connections', 'activities_synced_at')), 'errors' => $errors('polar_connections', 'last_error'), 'anchor' => 'polar', 'what' => null],
             ['key' => 'whoop', 'name' => 'WHOOP', 'count' => $count('whoop_connections'), 'last' => $latest($max('whoop_webhook_events'), $max('whoop_connections', 'activities_synced_at'), $max('whoop_connections', 'health_synced_at')), 'errors' => $errors('whoop_connections', 'last_error'), 'anchor' => 'whoop', 'what' => null],
             ['key' => 'intervals', 'name' => 'intervals.icu', 'count' => $count('intervals_connections'), 'last' => $latest($max('intervals_webhook_events'), $max('intervals_connections', 'workouts_synced_at'), $max('intervals_connections', 'activities_synced_at')), 'errors' => $errors('intervals_connections', 'last_error'), 'anchor' => null, 'what' => null],
+            ['key' => 'rouvy', 'name' => 'ROUVY', 'count' => $count('rouvy_connections'), 'last' => $latest($max('rouvy_webhook_events'), $max('rouvy_connections', 'workouts_synced_at'), $max('rouvy_connections', 'activities_synced_at')), 'errors' => $errors('rouvy_connections', 'last_error'), 'anchor' => 'rouvy', 'what' => null],
         ];
 
         return collect($rows)->map(function ($r) {

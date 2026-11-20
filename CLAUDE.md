@@ -1132,6 +1132,7 @@ Optik wie die App (iOS-Listen, Akzent Rot fürs Admin, Aktion Blau). Am Telefon 
 - **Zugang** (`/admin/invitations`): Warteliste-Schalter, neuer Link, offene Links mit Belegung, „Tester laden ein“, „Woher Anmeldungen kommen“ (früher auf der Übersicht).
 - **Wiki und Changelog sind entfernt** (Jan), samt `POST /webhook/github`. Die Tabellen `wiki_*` löscht die Migration `2026_11_18_170000`; der GitHub-Webhook ist in den Repo-Einstellungen zu löschen.
 - Tests: `AdminRedesignTest`.
+- **Eine neue Anbindung gehört auch in den Admin** (Jan, 20.11.2026): Zeile in `AdminInsights::providers()` (Heute/System), `connections()`, `deviceNames()` und die Relation in `athleteRows()`/`AdminUserController`, Gruppe in `AdminPushService::GROUPS`/`audience()`, mit Webhook-Protokoll auch `SystemHealth::providerWebhooks()` (Ergebnisse in `PROVIDER_OUTCOMES`, Name in `HOOK_NAMES` der Systemseite). ROUVY ist dort seit 20.11. (`AdminRouvyTest`), intervals.icu ohne Webhook-Liste.
 
 ### Einladungen — Registrieren nur mit Link
 

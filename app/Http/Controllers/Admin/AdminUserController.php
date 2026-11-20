@@ -91,7 +91,7 @@ class AdminUserController extends Controller
 
         $insights = app(AdminInsights::class);
         $user->loadCount('pushSubscriptions')->loadMax('activities', 'start_date');
-        $row = $insights->athleteRow($user->loadMissing(['garminConnection', 'corosConnection', 'polarConnection', 'whoopConnection', 'intervalsConnection', 'activeTrainingPlan.event']));
+        $row = $insights->athleteRow($user->loadMissing(['garminConnection', 'corosConnection', 'polarConnection', 'whoopConnection', 'intervalsConnection', 'rouvyConnection', 'activeTrainingPlan.event']));
         $checklist = app(\App\Services\StarterChecklist::class)->done($user);
         $required  = collect(\App\Services\StarterChecklist::ITEMS)->reject(fn ($i) => $i['optional'] ?? false)->keys();
 

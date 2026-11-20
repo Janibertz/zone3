@@ -1,4 +1,5 @@
 <script setup>
+const HOOK_NAMES = { whoop: 'WHOOP', polar: 'Polar', rouvy: 'ROUVY' };
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import AdminPage from '@/Components/Admin/AdminPage.vue';
 import AdminSection from '@/Components/Admin/AdminSection.vue';
@@ -156,7 +157,7 @@ function daysAgo(value) {
                                 <span class="text-right text-[15px]" :class="p.tone === 'warn' ? 'text-warn-ink' : 'text-ink-3'">{{ p.value }}</span>
                             </component>
                         </div>
-                        <div class="px-1 text-[13px] text-ink-3">Strava, WHOOP und Polar: Tipp führt zu den letzten Aufrufen mit Athlet und Ergebnis.</div>
+                        <div class="px-1 text-[13px] text-ink-3">Strava, WHOOP, Polar und ROUVY: Tipp führt zu den letzten Aufrufen mit Athlet und Ergebnis.</div>
                     </AdminSection>
 
                     <!-- Maschine -->
@@ -292,13 +293,13 @@ function daysAgo(value) {
                 </div>
             </div>
 
-            <!-- ── Rufen WHOOP und Polar an? ─────────────────────────── -->
+            <!-- ── Rufen WHOOP, Polar und ROUVY an? ─────────────────────────── -->
             <div v-for="(hooks, key) in providerHooks" :id="key" :key="key" class="scroll-mt-4 bg-surface rounded-card shadow-card">
                 <div class="px-6 py-4 border-b border-line">
-                    <h2 class="text-sm font-semibold text-ink-2">{{ key === 'whoop' ? 'WHOOP' : 'Polar' }}-Webhook</h2>
+                    <h2 class="text-sm font-semibold text-ink-2">{{ HOOK_NAMES[key] ?? key }}-Webhook</h2>
                     <p class="text-xs text-ink-3 mt-0.5">
                         Jeder Aufruf, festgehalten bevor gefiltert wird. Steht hier nichts, obwohl ein
-                        Athlet verbunden ist und trainiert hat, schickt {{ key === 'whoop' ? 'WHOOP' : 'Polar' }} nichts.
+                        Athlet verbunden ist und trainiert hat, schickt {{ HOOK_NAMES[key] ?? key }} nichts.
                     </p>
                 </div>
 

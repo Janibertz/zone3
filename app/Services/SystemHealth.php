@@ -494,7 +494,7 @@ class SystemHealth
         ];
     }
 
-    /** Ergebnisse der WHOOP- und Polar-Webhooks, deutsch für die Systemseite. */
+    /** Ergebnisse der WHOOP-, Polar- und ROUVY-Webhooks, deutsch für die Systemseite. */
     public const PROVIDER_OUTCOMES = [
         'received'         => 'angekommen',
         'bad_signature'    => 'Signatur falsch',
@@ -512,10 +512,13 @@ class SystemHealth
         'unknown_activity' => 'Aktivität unbekannt',
         'detached'         => 'gelöst',
         'deleted'          => 'gelöscht',
+        'other_client'     => 'andere ROUVY-App',
+        'no_activity'      => 'ohne Fahrt',
+        'disconnected'     => 'getrennt',
     ];
 
     /**
-     * Die letzten Aufrufe von WHOOP und Polar — kommt dort überhaupt etwas an?
+     * Die letzten Aufrufe von WHOOP, Polar und ROUVY — kommt dort überhaupt etwas an?
      * Beide Tabellen halten jeden Aufruf vor jeder Filterung fest; der
      * Athlet wird über die Verbindung aufgelöst (die Tabellen kennen nur die
      * Kennung des Anbieters).
@@ -527,10 +530,13 @@ class SystemHealth
         $sources = [
             'whoop' => ['whoop_webhook_events', 'type', 'whoop_user_id', 'whoop_connections'],
             'polar' => ['polar_webhook_events', 'event', 'polar_user_id', 'polar_connections'],
+            'rouvy' => ['rouvy_webhook_events', 'type', 'owner_id', 'rouvy_connections', 'rouvy_user_id'],
         ];
 
         $out = [];
         foreach ($sources as $key => [$table, $eventCol, $idCol, $connections]) {
+            // Die Kennung heißt in der Verbindung nicht immer wie im Protokoll.
+            $connCol = $sources[$key][4] ?? $idCol;
             if (! Schema::hasTable($table)) {
                 $out[$key] = ['total' => 0, 'last_at' => null, 'recent' => []];
                 continue;
@@ -540,8 +546,8 @@ class SystemHealth
 
             $names = DB::table($connections)
                 ->join('users', 'users.id', '=', "{$connections}.user_id")
-                ->whereIn("{$connections}.{$idCol}", $rows->pluck($idCol)->filter()->unique())
-                ->pluck('users.name', "{$connections}.{$idCol}");
+                ->whereIn("{$connections}.{$connCol}", $rows->pluck($idCol)->filter()->unique())
+                ->pluck('users.name', "{$connections}.{$connCol}");
 
             $out[$key] = [
                 'total'   => DB::table($table)->count(),
