@@ -13,7 +13,7 @@ public class MainActivity extends BridgeActivity {
         // Standard-Roboter stehen.
         SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
-        // Fehlerseite mit Grund (fehler.html?code=…).
+        // Fehlerseite mit Grund (fehler.html#…).
         bridge.setWebViewClient(new ZoneWebViewClient(bridge));
     }
 }

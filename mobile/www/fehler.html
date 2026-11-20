@@ -20,9 +20,8 @@
     <a href="https://zone3.run/dashboard">Erneut versuchen</a>
     <small id="code" style="margin-top:28px;color:#8e8e93;font-size:13px;word-break:break-all"></small>
     <script>
-        var q = new URLSearchParams(location.search);
-        if (q.get('code')) {
-            document.getElementById('code').textContent = q.get('code') + ' · ' + (q.get('url') || '');
+        if (location.hash.length > 1) {
+            document.getElementById('code').textContent = decodeURIComponent(location.hash.slice(1));
         }
     </script>
 </body>

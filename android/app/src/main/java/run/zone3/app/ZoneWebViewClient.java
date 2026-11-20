@@ -11,7 +11,7 @@ import com.getcapacitor.Logger;
 
 /**
  * Wie Capacitors Client, aber die Fehlerseite bekommt den Grund mit
- * (fehler.html?code=…). Capacitor lädt bei einem Fehler nur die nackte
+ * (fehler.html#…). Capacitor lädt bei einem Fehler nur die nackte
  * Seite, und ohne Gerät am Rechner sieht man sonst nie, woran es lag.
  */
 public class ZoneWebViewClient extends BridgeWebViewClient {
@@ -49,12 +49,8 @@ public class ZoneWebViewClient extends BridgeWebViewClient {
         if (errorUrl == null) {
             return;
         }
-        view.loadUrl(
-            Uri.parse(errorUrl).buildUpon()
-                .appendQueryParameter("code", code)
-                .appendQueryParameter("url", String.valueOf(url))
-                .build()
-                .toString()
-        );
+        // Als Fragment, nicht als Query: Capacitors lokaler Server findet
+        // fehler.html?code=… nicht, und die Seite blieb schwarz.
+        view.loadUrl(errorUrl + "#" + Uri.encode(code + " · " + url));
     }
 }
