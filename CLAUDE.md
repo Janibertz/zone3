@@ -994,7 +994,8 @@ Entscheidungen von Jan (27.10.): **Capacitor-Hülle statt Neubau**, zuerst nur i
 
 ## Android-App (Capacitor, im Aufbau seit 11.11.2026)
 
-Plan im Dokument „Android-Version: Plan“. Dieselbe Hülle wie iOS (`server.url = https://zone3.run`), Ordner `android/`, gebaut auf Ubuntu in `.github/workflows/android.yml` (Debug-APK als Artefakt; signiertes Bundle für die Play Console folgt mit dem Konto).
+Plan im Dokument „Android-Version: Plan“. Dieselbe Hülle wie iOS (`server.url = https://zone3.run`), Ordner `android/`, gebaut auf Ubuntu in `.github/workflows/android.yml`: Debug-APK als Artefakt, und bei jedem Push auf `main` (Pfade wie iOS) ein signiertes Bundle (`versionCode` = Laufnummer), das mit dem Secret `PLAY_SERVICE_ACCOUNT_JSON` von selbst in den internen Test geht.
+- **Startbild:** `Theme.SplashScreen` braucht `windowSplashScreenAnimatedIcon` und `postSplashScreenTheme`, `MainActivity` ruft `SplashScreen.installSplashScreen()` — ohne zeigte Android den Standard-Roboter (20.11.2026).
 
 - **`minSdk 26`**, weil `@capgo/capacitor-health` es verlangt; compile/target 36.
 - **`android.includePlugins` in `capacitor.config.json` lässt nur `@capacitor/app` zu.** Push braucht Firebase (`google-services.json`), sonst stürzt `register()` ab; das Health-Plugin trägt eine Liste von Health-Connect-Berechtigungen ins Manifest, die Play erst nach einer Erklärung annimmt. Beides kommt mit eigenem Paket (FCM, Health Connect).

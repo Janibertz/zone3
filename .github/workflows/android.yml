@@ -7,9 +7,12 @@ name: Android
 #
 # Stufe 1: Debug-APK ohne Play-Signatur, als Artefakt zum Herunterladen und
 # direkt Installieren.
-# Stufe 2 (Job play): signiertes App-Bundle für die Play Console, nur per
-# Hand gestartet. Braucht die Secrets ANDROID_KEYSTORE_BASE64,
-# ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
+# Stufe 2 (Job play): signiertes App-Bundle für die Play Console, bei jedem
+# Push auf main (wie TestFlight bei iOS) und per Hand. Braucht die Secrets
+# ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS,
+# ANDROID_KEY_PASSWORD. Mit PLAY_SERVICE_ACCOUNT_JSON (Dienstkonto mit
+# Freigabe in der Play Console) geht das Bundle von selbst in den internen
+# Test; ohne bleibt es nur als Artefakt.
 on:
   workflow_dispatch:
     inputs:
@@ -80,7 +83,7 @@ jobs:
 
   play:
     name: Bundle für Google Play
-    if: github.event_name == 'workflow_dispatch' && inputs.play
+    if: (github.event_name == 'workflow_dispatch' && inputs.play) || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -135,3 +138,15 @@ jobs:
           name: zone3-android-play
           path: android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
+
+      - name: In den internen Test
+        env:
+          PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        if: env.PLAY_JSON != ''
+        uses: r0adkll/upload-google-play@v1.1.3
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: run.zone3.app
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed
