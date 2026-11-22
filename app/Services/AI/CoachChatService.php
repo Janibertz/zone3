@@ -698,7 +698,7 @@ class CoachChatService
                 'description' => 'Lösche eine geplante Einheit ganz aus dem Plan. Für "war krank" oder "hab ich ausgelassen" nimm stattdessen skip_training_sessions — das bleibt in der Historie sichtbar. Löschen ist für Einheiten, die es gar nicht erst geben sollte.',
                 'parameters'  => ['type' => 'object', 'properties' => [
                     'date' => ['type' => 'string', 'description' => 'Tag der Einheit YYYY-MM-DD'],
-                    'type' => ['type' => 'string', 'description' => 'Nur nötig, wenn an dem Tag mehrere Einheiten stehen'],
+                    'type' => ['type' => 'string', 'description' => 'Nur nötig, wenn an dem Tag mehrere Einheiten stehen: der Typ (easy_run, long_run, strength …), „bike“ für eine Radeinheit, „run“ für den Lauf'],
                     'part' => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur eine Hälfte einer Doppel-Schwelle löschen'],
                 ], 'required' => ['date']],
             ]],
@@ -899,9 +899,35 @@ class CoachChatService
         return \App\Models\TrainingSession::where('user_id', $user->id)
             ->whereDate('planned_date', $date)
             ->where('status', '!=', 'skipped')
-            ->when($type, fn ($q) => $q->where('type', $type))
+            ->when($type, fn ($q) => $this->whereSessionType($q, $type))
             ->orderBy('sort_order')
             ->first();
+    }
+
+    /**
+     * Filtert nach der Art einer Einheit, so wie das Modell sie nennt.
+     *
+     * Eine Radeinheit ist `cross_training` mit `sport_type` Ride/VirtualRide —
+     * das Modell sagt aber „bike“, „rad“ oder „zwift“. Ein exakter Vergleich auf
+     * `type` fand sie nie, und „Rad von heute streichen“ meldete „keine geplante
+     * Einheit“, während sie auf Heute stand (22.11.2026).
+     */
+    private function whereSessionType($query, string $type)
+    {
+        $key = mb_strtolower(trim($type));
+
+        if (in_array($key, ['bike', 'rad', 'radeinheit', 'zwift', 'ride', 'virtualride', 'cycling', 'bike_session', 'indoor_bike', 'rouvy'], true)) {
+            return $query->where('type', 'cross_training')->whereIn('sport_type', \App\Models\TrainingSession::BIKE_SPORTS);
+        }
+        if (in_array($key, ['run', 'lauf', 'laufen', 'running'], true)) {
+            return $query->whereIn('type', \App\Services\TrainingPlanValidator::RUN_TYPES)
+                ->where(fn ($q) => $q->whereNull('sport_type')->orWhereNotIn('sport_type', \App\Models\TrainingSession::BIKE_SPORTS));
+        }
+        if (in_array($key, ['kraft', 'strength_training'], true)) {
+            return $query->where('type', 'strength');
+        }
+
+        return $query->where('type', $type);
     }
 
     /** Das Lauftraining eines Tages — davon gibt es höchstens eines. */
@@ -1414,7 +1440,7 @@ class CoachChatService
                     ->where('status', 'planned');
 
                 if (! empty($args['type'])) {
-                    $query->where('type', $args['type']);
+                    $this->whereSessionType($query, (string) $args['type']);
                 }
 
                 $sessions = $query->get();
@@ -1424,7 +1450,16 @@ class CoachChatService
                     $sessions = collect([$half]);
                 }
                 if ($sessions->isEmpty()) {
-                    return ['message' => "Am {$date} steht keine geplante Einheit, die ich loeschen koennte.", 'action' => null];
+                    // Nennen, was dort steht — sonst behauptet das Modell, es
+                    // gebe die Einheit nicht, obwohl der Athlet sie sieht.
+                    $open = \App\Models\TrainingSession::where('user_id', $user->id)
+                        ->whereDate('planned_date', $date)->where('status', 'planned')
+                        ->get()->map(fn ($s) => "{$s->title} (type={$s->type}" . ($s->sport_type ? ", sport={$s->sport_type}" : '') . ')')
+                        ->implode('; ');
+
+                    return ['message' => $open
+                        ? "Am {$date} passt keine geplante Einheit zu type=" . ($args['type'] ?? '') . ". Geplant sind dort: {$open}. Fuer eine Radeinheit type=bike angeben."
+                        : "Am {$date} steht keine geplante Einheit, die ich loeschen koennte.", 'action' => null];
                 }
 
                 $titles = $sessions->pluck('title')->implode(', ');
