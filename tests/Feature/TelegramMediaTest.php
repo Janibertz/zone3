@@ -145,6 +145,8 @@ class TelegramMediaTest extends TestCase
     {
         $user = $this->athlete();
         config(['services.openai.budget.user_daily_eur' => 0.30]);
+        // Die Migrationen tragen die Budgets im Admin ein; hier gilt die Umgebung.
+        \App\Models\AppSetting::whereIn('key', [\App\Services\AI\OpenAIClient::SETTING_DAILY_BUDGET, \App\Services\AI\OpenAIClient::SETTING_USER_BUDGET])->delete();
         AiLog::create(['user_id' => $user->id, 'call_type' => 'coach_chat', 'model' => 'gpt-5.6-terra', 'status' => 'success', 'cost_eur' => 0.50]);
 
         $this->update(['voice' => ['file_id' => 'f1', 'duration' => 6]]);

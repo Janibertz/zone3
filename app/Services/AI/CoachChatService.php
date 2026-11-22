@@ -374,6 +374,9 @@ class CoachChatService
             // danach den alten Plan vor.
             "WICHTIG: Behaupte NIE, du hättest etwas am Plan geändert, ohne das passende Werkzeug aufgerufen zu haben. Formulierungen wie „den ersetzen wir“ oder „ich habe eingeplant“ sind nur erlaubt, nachdem das Werkzeug gelaufen ist und Erfolg gemeldet hat. ".
             "Will der Athlet eine Einheit an einem bestimmten Tag, rufe das Werkzeug SOFORT auf und beschreibe die Einheit erst danach. Kannst du etwas nicht ändern, sage das klar, statt es zu beschreiben. ".
+            // 22.11.2026: Der Coach sagte ein Einlaufen per Lap-Taste zu, das
+            // nirgends eingetragen war.
+            "Sage nichts zu, was das System nicht eingetragen hat: Die Werkzeug-Antwort nennt den eingetragenen Ablauf, und nur der gilt — für die Uhr ebenso. Geht ein Wunsch nicht (etwa eine eigene Struktur), sag es offen und nenne den Weg (Workout-Builder). Ein- oder Auslaufen, das der Athlet per Lap-/Rundentaste beenden will, setzt du mit open_warmup bzw. open_cooldown. ".
             "Pro Tag gibt es höchstens EIN Lauftraining. Soll an einem Tag etwas anderes laufen, ändere die bestehende Einheit — lege keine zweite daneben. ".
             // Die eine Ausnahme ist dieselbe wie im Planer: die Doppel-Schwelle
             // des norwegischen Modells. Ohne sie ersetzte der Coach an einem
@@ -635,6 +638,8 @@ class CoachChatService
                     'workout'      => ['type' => 'string', 'enum' => self::workoutEnum(), 'description' => 'Baustein für den Ablauf eines Laufs (Varianten: ' . self::workoutHint() . '). Den Ablauf mit Abschnitten, Paces und Distanz baut das System daraus.'],
                     'easy_pace'    => ['type' => 'string', 'description' => 'Nur wenn der Athlet ausdrücklich ein Tempo für einen lockeren Lauf nennt, z. B. "6:00-6:30". Gilt für die lockeren Abschnitte (lockerer Lauf, langer Lauf, Ein-/Auslaufen). Harte Abschnitte regelt hard_pace.'],
                     'hard_pace'    => ['type' => 'string', 'description' => 'Nur wenn der Athlet ausdrücklich ein Tempo für die harten Abschnitte nennt (Intervalle, Tempoblöcke, Schwelle, Renntempo), z. B. "4:09" oder "4:05-4:10". Ersetzt deren Pace aus der Form; Ein-/Auslaufen und Pausen bleiben.'],
+                    'open_warmup'  => ['type' => 'boolean', 'description' => 'true, wenn der Athlet das Einlaufen selbst per Lap-/Rundentaste beenden will (ohne feste Dauer). false nimmt das wieder zurück. Weglassen = wie bisher.'],
+                    'open_cooldown'=> ['type' => 'boolean', 'description' => 'true, wenn der Athlet das Auslaufen selbst per Lap-/Rundentaste beenden will (ohne feste Dauer). false nimmt das wieder zurück. Weglassen = wie bisher.'],
                     'part'         => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit Doppel-Schwelle: morgens (am) oder abends (pm)'],
                     'exercises'    => self::exercisesParam(),
                 ]],
@@ -653,6 +658,8 @@ class CoachChatService
                     'workout'      => ['type' => 'string', 'enum' => self::workoutEnum(), 'description' => 'Baustein für den Ablauf eines Laufs (Varianten: ' . self::workoutHint() . '). Den Ablauf mit Abschnitten, Paces und Distanz baut das System daraus.'],
                     'easy_pace'    => ['type' => 'string', 'description' => 'Nur wenn der Athlet ausdrücklich ein Tempo für einen lockeren Lauf nennt, z. B. "6:00-6:30". Gilt für die lockeren Abschnitte (lockerer Lauf, langer Lauf, Ein-/Auslaufen). Harte Abschnitte regelt hard_pace.'],
                     'hard_pace'    => ['type' => 'string', 'description' => 'Nur wenn der Athlet ausdrücklich ein Tempo für die harten Abschnitte nennt (Intervalle, Tempoblöcke, Schwelle, Renntempo), z. B. "4:09" oder "4:05-4:10". Ersetzt deren Pace aus der Form; Ein-/Auslaufen und Pausen bleiben.'],
+                    'open_warmup'  => ['type' => 'boolean', 'description' => 'true, wenn der Athlet das Einlaufen selbst per Lap-/Rundentaste beenden will (ohne feste Dauer). false nimmt das wieder zurück. Weglassen = wie bisher.'],
+                    'open_cooldown'=> ['type' => 'boolean', 'description' => 'true, wenn der Athlet das Auslaufen selbst per Lap-/Rundentaste beenden will (ohne feste Dauer). false nimmt das wieder zurück. Weglassen = wie bisher.'],
                     'part'         => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit Doppel-Schwelle: morgens (am) oder abends (pm)'],
                     'exercises'    => self::exercisesParam(),
                 ], 'required' => ['reason']],
@@ -670,6 +677,8 @@ class CoachChatService
                     'workout'      => ['type' => 'string', 'enum' => self::workoutEnum(), 'description' => 'Baustein für den Ablauf eines Laufs (Varianten: ' . self::workoutHint() . '). Den Ablauf mit Abschnitten, Paces und Distanz baut das System daraus.'],
                     'easy_pace'    => ['type' => 'string', 'description' => 'Nur wenn der Athlet ausdrücklich ein Tempo für einen lockeren Lauf nennt, z. B. "6:00-6:30". Gilt für die lockeren Abschnitte (lockerer Lauf, langer Lauf, Ein-/Auslaufen). Harte Abschnitte regelt hard_pace.'],
                     'hard_pace'    => ['type' => 'string', 'description' => 'Nur wenn der Athlet ausdrücklich ein Tempo für die harten Abschnitte nennt (Intervalle, Tempoblöcke, Schwelle, Renntempo), z. B. "4:09" oder "4:05-4:10". Ersetzt deren Pace aus der Form; Ein-/Auslaufen und Pausen bleiben.'],
+                    'open_warmup'  => ['type' => 'boolean', 'description' => 'true, wenn der Athlet das Einlaufen selbst per Lap-/Rundentaste beenden will (ohne feste Dauer). false nimmt das wieder zurück. Weglassen = wie bisher.'],
+                    'open_cooldown'=> ['type' => 'boolean', 'description' => 'true, wenn der Athlet das Auslaufen selbst per Lap-/Rundentaste beenden will (ohne feste Dauer). false nimmt das wieder zurück. Weglassen = wie bisher.'],
                     'part'         => ['type' => 'string', 'enum' => ['am', 'pm'], 'description' => 'Nur an einem Tag mit Doppel-Schwelle: morgens (am) oder abends (pm)'],
                     'exercises'    => self::exercisesParam(),
                 ], 'required' => ['date', 'type']],
@@ -1049,11 +1058,48 @@ class CoachChatService
 
         // Der Ablauf kommt aus dem Katalog — derselbe wie im Plan, damit
         // der Coach keine Struktur erfindet, die sonst nirgends gilt.
+        // Offenes Ein-/Auslaufen bleibt, solange der Athlet nichts anderes sagt.
+        $open = \App\Services\Run\SessionStructure::openEnds($session->steps);
         $session->steps = null;
-        app(\App\Services\Run\SessionStructure::class)->apply($session, $args['workout'] ?? null, $args['easy_pace'] ?? null, $args['hard_pace'] ?? null);
+        app(\App\Services\Run\SessionStructure::class)->apply(
+            $session,
+            $args['workout'] ?? null,
+            $args['easy_pace'] ?? null,
+            $args['hard_pace'] ?? null,
+            isset($args['open_warmup']) ? (bool) $args['open_warmup'] : $open['warmup'],
+            isset($args['open_cooldown']) ? (bool) $args['open_cooldown'] : $open['cooldown'],
+        );
 
         // Kraft: Übungen nur aus dem Katalog (Admin → Kraftübungen).
         app(\App\Services\Strength\StrengthCatalog::class)->applyTo($session, $args['exercises'] ?? null);
+    }
+
+    /**
+     * Der Ablauf, wie er wirklich eingetragen ist — für die Werkzeug-Antwort.
+     * Am 22.11.2026 sagte der Coach ein Ein- und Auslaufen per Lap-Taste zu,
+     * das es in der Einheit gar nicht gab. Mit dieser Zeile sieht er, was
+     * steht, und darf nur das bestätigen.
+     */
+    private function stepsLine(\App\Models\TrainingSession $session): string
+    {
+        if (empty($session->steps) || ! is_array($session->steps)) {
+            return '';
+        }
+
+        $parts = array_map(function (array $s): string {
+            $label = $s['label'] ?? ($s['type'] ?? 'Abschnitt');
+            if (! empty($s['open'])) {
+                return "{$label} (offen, Ende per Lap-Taste)";
+            }
+            $amount = ! empty($s['distance_m'])
+                ? ($s['distance_m'] >= 1000 ? round($s['distance_m'] / 1000, 1) . ' km' : $s['distance_m'] . ' m')
+                : (! empty($s['duration_min']) ? round((float) $s['duration_min'], 1) . ' min' : '');
+            $reps = ! empty($s['repetitions']) ? $s['repetitions'] . '× ' : '';
+
+            return trim("{$reps}{$label} {$amount}");
+        }, $session->steps);
+
+        return ' Eingetragener Ablauf: ' . implode(' · ', $parts) . '. Bestätige dem Athleten nur diese Abschnitte — was hier fehlt, gibt es nicht.';
     }
 
     /** Werkzeug-Parameter für die Übungen einer Krafteinheit. */
@@ -1211,7 +1257,8 @@ class CoachChatService
                 return [
                     'message' => "Einheit am {$date} aktualisiert: {$session->title}"
                         . ($session->distance_km ? ", {$session->distance_km} km" : '')
-                        . ($session->duration_min ? ", {$session->duration_min} min" : '') . '.',
+                        . ($session->duration_min ? ", {$session->duration_min} min" : '') . '.'
+                        . $this->stepsLine($session),
                     'action'  => ['type' => 'session_modified', 'label' => "Training angepasst ({$when}): {$session->title}", 'reload' => true],
                 ];
             }
@@ -1292,7 +1339,8 @@ class CoachChatService
                 return [
                     'message' => "Neue Einheit am {$date} angelegt: {$session->title}"
                         . ($session->distance_km ? ", {$session->distance_km} km" : '')
-                        . ($session->duration_min ? ", {$session->duration_min} min" : '') . '.',
+                        . ($session->duration_min ? ", {$session->duration_min} min" : '') . '.'
+                        . $this->stepsLine($session),
                     'action'  => ['type' => 'session_created', 'label' => "Einheit ergaenzt ({$this->dayLabel($date)}): {$session->title}", 'reload' => true],
                 ];
             }
@@ -1528,6 +1576,12 @@ class CoachChatService
         }
         if ($hardPace = \App\Services\Run\SessionStructure::normalizePace($args['hard_pace'] ?? null)) {
             $after['hard_pace'] = $hardPace;
+        }
+        // Offene Enden auch — sonst baut das Annehmen sie wieder fest.
+        $openEnds = \App\Services\Run\SessionStructure::openEnds($draft->steps);
+        if ($openEnds['warmup'] || $openEnds['cooldown']) {
+            $after['open_warmup']   = $openEnds['warmup'];
+            $after['open_cooldown'] = $openEnds['cooldown'];
         }
 
         // Ein neuer Vorschlag zur selben Einheit ersetzt den alten — zwei

@@ -133,7 +133,7 @@ return [
         // bevor sie den Monat aufbraucht.
         'budget' => [
             'daily_eur'      => (float) env('OPENAI_BUDGET_DAILY_EUR', 1.00),
-            'user_daily_eur' => (float) env('OPENAI_BUDGET_USER_DAILY_EUR', 0.30),
+            'user_daily_eur' => (float) env('OPENAI_BUDGET_USER_DAILY_EUR', 1.00),
             // Das harte Limit auf der OpenAI-Plattform, nur zum Anzeigen
             // (KI-Kosten im Admin). Ändert man es dort, hier nachziehen.
             'monthly_usd'    => (float) env('OPENAI_BUDGET_MONTHLY_USD', 15),

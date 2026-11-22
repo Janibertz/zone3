@@ -197,6 +197,8 @@ class TelegramCoachTest extends TestCase
     public function test_an_athlete_over_budget_is_told_so_and_reaches_no_coach(): void
     {
         config(['services.openai.budget.user_daily_eur' => 0.30, 'services.openai.budget.daily_eur' => 1.00]);
+        // Die Migrationen tragen die Budgets im Admin ein; hier gilt die Umgebung.
+        \App\Models\AppSetting::whereIn('key', [\App\Services\AI\OpenAIClient::SETTING_DAILY_BUDGET, \App\Services\AI\OpenAIClient::SETTING_USER_BUDGET])->delete();
         $user = $this->athlete();
         \App\Models\AiLog::create(['user_id' => $user->id, 'call_type' => 'coach_chat', 'model' => 'gpt-5.6-terra', 'cost_eur' => 0.31, 'status' => 'success']);
 

@@ -41,6 +41,9 @@ class OpenAIClient
      */
     public const BUDGET_EXEMPT = ['event_plan'];
 
+    /** Anfang des Grundes, wenn das Tagesbudget eines Athleten sperrt. */
+    public const USER_BUDGET_REASON = 'Tagesbudget des Athleten erreicht';
+
     /** Cache-Schluessel der Notbremse. */
     public const BLOCK_KEY = 'openai:blocked';
 
@@ -178,7 +181,7 @@ class OpenAIClient
         if ($this->userId && ! in_array($callType, self::BUDGET_EXEMPT, true)) {
             $perUser = $this->userBudgetEur();
             if ($perUser > 0 && AiLog::todayCost($this->userId) >= $perUser) {
-                return sprintf('Tagesbudget des Athleten erreicht (%.2f EUR)', $perUser);
+                return sprintf(self::USER_BUDGET_REASON . ' (%.2f EUR)', $perUser);
             }
         }
 
@@ -760,6 +763,38 @@ class OpenAIClient
         ]);
 
         Log::warning("OpenAI {$callType} uebersprungen", ['reason' => $reason, 'user_id' => $this->userId]);
+
+        $this->notifyBudgetReached($reason);
+    }
+
+    /**
+     * Ist das Tagesbudget des Athleten voll, erfährt er es — einmal am Tag,
+     * über Telegram, sonst Push (Jan, 22.11.2026). Sonst blieben Review,
+     * Vorschlag und Coach-Antwort still aus, und niemand wüsste, warum.
+     */
+    private function notifyBudgetReached(string $reason): void
+    {
+        if (! $this->userId || ! str_starts_with($reason, self::USER_BUDGET_REASON)) {
+            return;
+        }
+        if (! Cache::add('openai:budget-notified:' . $this->userId . ':' . now()->toDateString(), true, now()->endOfDay())) {
+            return;
+        }
+
+        try {
+            $user = User::find($this->userId);
+            if (! $user) return;
+
+            $budget = number_format($this->userBudgetEur(), 2, ',', '.');
+            app(\App\Services\Admin\AdminPushService::class)->notify(
+                $user,
+                'KI-Budget für heute aufgebraucht',
+                "Dein Tagesbudget für den Coach ({$budget} €) ist erreicht. Antworten, Reviews und Vorschläge pausieren bis morgen früh. Dein Plan läuft weiter.",
+                '/dashboard',
+            );
+        } catch (\Throwable $e) {
+            Log::warning('KI-Budget: Athlet nicht benachrichtigt', ['user_id' => $this->userId, 'error' => $e->getMessage()]);
+        }
     }
 
     /**

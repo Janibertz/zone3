@@ -95,6 +95,8 @@ class SessionRecommendation extends Model
             return false;
         }
 
+        // Offenes Ein-/Auslaufen überlebt einen Vorschlag, der nichts dazu sagt.
+        $had = \App\Services\Run\SessionStructure::openEnds($session->steps);
         $session->fill(array_intersect_key($this->after, array_flip(self::FIELDS)) + [
             'pinned_at' => now(),
             // Die Schritte beschrieben die alte Einheit.
@@ -106,7 +108,14 @@ class SessionRecommendation extends Model
         }
         // Der neue Ablauf aus dem Katalog — der Vorschlag hat ihn schon mit
         // denselben Zahlen gerechnet.
-        app(\App\Services\Run\SessionStructure::class)->apply($session, $this->after['workout_variant'] ?? null, $this->after['easy_pace'] ?? null, $this->after['hard_pace'] ?? null);
+        app(\App\Services\Run\SessionStructure::class)->apply(
+            $session,
+            $this->after['workout_variant'] ?? null,
+            $this->after['easy_pace'] ?? null,
+            $this->after['hard_pace'] ?? null,
+            isset($this->after['open_warmup']) ? (bool) $this->after['open_warmup'] : $had['warmup'],
+            isset($this->after['open_cooldown']) ? (bool) $this->after['open_cooldown'] : $had['cooldown'],
+        );
         app(\App\Services\Strength\StrengthCatalog::class)->applyTo($session, $this->after['exercises'] ?? null);
         $session->save();
 

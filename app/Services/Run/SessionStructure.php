@@ -47,8 +47,18 @@ class SessionStructure
      * @param  string|null  $hardPace  Dasselbe für die harten Abschnitte
      *   (Schwelle, Intervalle, Renntempo): „die Intervalle lieber in 4:09".
      */
-    public function apply(TrainingSession $session, ?string $variant = null, ?string $easyPace = null, ?string $hardPace = null): bool
+    /**
+     * @param  bool|null  $openWarmup  Einlaufen ohne Länge, der Athlet beendet
+     *   es per Rundentaste (Jan, 22.11.2026: „das Warmup will ich durch die
+     *   Lap-Taste beenden"). Null = wie bisher an der Einheit.
+     * @param  bool|null  $openCooldown  Dasselbe fürs Auslaufen.
+     */
+    public function apply(TrainingSession $session, ?string $variant = null, ?string $easyPace = null, ?string $hardPace = null, ?bool $openWarmup = null, ?bool $openCooldown = null): bool
     {
+        $had          = self::openEnds($session->steps);
+        $openWarmup   ??= $had['warmup'];
+        $openCooldown ??= $had['cooldown'];
+
         if (! $this->supports($session)) {
             return false;
         }
@@ -71,14 +81,23 @@ class SessionStructure
             $session->planned_date?->format('Y-m-d'),
         );
 
+        $paces = self::withPaceWish($this->pacesFor($session), $easyPace, $hardPace);
         $built = $this->catalog->build($session->type, $variant, [
             'minutes' => (int) $session->duration_min,
             'km'      => (float) $session->distance_km,
-            'paces'   => self::withPaceWish($this->pacesFor($session), $easyPace, $hardPace),
+            'paces'   => $paces,
         ]);
 
         if ($built === null) {
             return false;
+        }
+
+        if ($openWarmup || $openCooldown) {
+            $built['steps']        = self::withOpenEnds($built['steps'], $openWarmup, $openCooldown, $paces['easy'] ?? null);
+            // Gezählt wird nur, was feststeht — die offenen Abschnitte
+            // kommen erst mit dem gelaufenen Training dazu (Jan).
+            $built['duration_min'] = (int) round($this->catalog->totalMinutes($built['steps']));
+            $built['distance_km']  = \App\Services\AI\SessionContentService::stepsTotalKm($built['steps']);
         }
 
         $session->steps           = $built['steps'];
@@ -93,6 +112,59 @@ class SessionStructure
         $session->description     = SessionText::clean($session->description, $built['workout']);
 
         return true;
+    }
+
+    /**
+     * Welche Enden einer Schritteliste offen sind (Ende per Rundentaste).
+     *
+     * @return array{warmup: bool, cooldown: bool}
+     */
+    public static function openEnds(mixed $steps): array
+    {
+        $steps = is_array($steps) ? array_values($steps) : [];
+        $first = $steps[0] ?? null;
+        $last  = $steps[count($steps) - 1] ?? null;
+
+        return [
+            'warmup'   => ! empty($first['open']) && ($first['type'] ?? null) === 'warmup',
+            'cooldown' => ! empty($last['open']) && ($last['type'] ?? null) === 'cooldown',
+        ];
+    }
+
+    /**
+     * Ein- und Auslaufen durch offene Abschnitte ersetzen bzw. davor- und
+     * dahintersetzen. Offen heißt: keine Dauer, keine Strecke — Garmin,
+     * COROS und die Apple Watch machen daraus einen Abschnitt, den der
+     * Athlet per Rundentaste beendet.
+     */
+    public static function withOpenEnds(array $steps, bool $warmup, bool $cooldown, ?string $easyPace): array
+    {
+        $steps = array_values($steps);
+        $open  = fn (string $type, string $label) => [
+            'type'         => $type,
+            'label'        => $label,
+            'duration_min' => 0,
+            'distance_m'   => null,
+            'pace_target'  => $easyPace,
+            'zone'         => 1,
+            'repetitions'  => null,
+            'open'         => true,
+        ];
+
+        if ($warmup) {
+            while ($steps && ($steps[0]['type'] ?? null) === 'warmup') {
+                array_shift($steps);
+            }
+            array_unshift($steps, $open('warmup', 'Einlaufen'));
+        }
+        if ($cooldown) {
+            while ($steps && ($steps[count($steps) - 1]['type'] ?? null) === 'cooldown') {
+                array_pop($steps);
+            }
+            $steps[] = $open('cooldown', 'Auslaufen');
+        }
+
+        return $steps;
     }
 
     /**

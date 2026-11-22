@@ -125,6 +125,9 @@ export function paceWithUnit(paceTarget) {
  * brauchen eine Zahl. Angezeigt wird sie nur, wenn es keine Strecke gibt.
  */
 export function stepAmount(step) {
+    // Offen: kein Ende vorgegeben, der Athlet drückt die Rundentaste.
+    if (step?.open) return 'bis Lap-Taste';
+
     const meters = Number(step?.distance_m ?? 0);
 
     if (meters > 0) {
@@ -226,7 +229,8 @@ export function zoneSpan(session, steps = null) {
  */
 export function stepBand(steps) {
     if (!Array.isArray(steps) || !steps.length) return [];
-    const minutes = (s) => Number(s.duration_min) || (Number(s.distance_m) ? Number(s.distance_m) / 1000 * 5 : 0) || 1;
+    // Ein offener Abschnitt hat keine Länge; im Band steht er wie 10 min.
+    const minutes = (s) => (s.open ? 10 : 0) || Number(s.duration_min) || (Number(s.distance_m) ? Number(s.distance_m) / 1000 * 5 : 0) || 1;
 
     const out = [];
     for (let i = 0; i < steps.length; i++) {
