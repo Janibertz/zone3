@@ -395,6 +395,9 @@ class OpenAIClient
      */
     public ?string $lastErrorCode = null;
 
+    /** Ist der letzte Coach-Aufruf vom Responses-Weg auf Chat Completions zurückgefallen? */
+    public bool $lastFellBack = false;
+
     /** OpenAIs Inhaltsfilter hat den Prompt abgelehnt (HTTP 400, `invalid_prompt`). */
     public const FLAGGED_PROMPT = 'invalid_prompt';
 
@@ -405,6 +408,7 @@ class OpenAIClient
         int     $maxTokens = 2500,
         int     $timeout   = 90,
         ?string $model     = null,
+        ?string $engine    = null,
     ): ?array {
         $model = $model ?? $this->model;
 
@@ -417,7 +421,11 @@ class OpenAIClient
         }
 
         $startMs = (int) round(microtime(true) * 1000);
-        $engine  = self::coachEngine();
+        $engine  = $engine ?? self::coachEngine();
+        if ($engine === 'chat') {
+            // Antworten aus dem Responses-Weg tragen `_output`; Chat Completions kennt das Feld nicht.
+            $messages = array_map(fn ($m) => array_diff_key($m, ['_output' => true]), $messages);
+        }
 
         $response = $engine === 'responses'
             ? $this->postTo('/responses', $this->responsesPayload($model, $messages, $tools, $maxTokens), $timeout)
@@ -476,6 +484,21 @@ class OpenAIClient
                 : $userContent,
             'full_response'     => $response->failed() ? mb_substr($response->body(), 0, 2000) : $this->toolResponseText($body),
         ]);
+
+        // Lehnt die Responses API die Anfrage ab (Format, Modell, Feld), fällt
+        // der Coach einmal auf Chat Completions zurück, statt zu schweigen.
+        // Ein Inhaltsfilter oder fehlendes Geld ist kein Formatfehler.
+        if ($engine === 'responses' && $response->failed()
+            && in_array($response->status(), [400, 404, 422], true)
+            && $this->lastErrorCode !== self::FLAGGED_PROMPT
+            && ! $this->quotaError($response)) {
+            Log::warning('Coach: Responses API abgelehnt, Rückfall auf Chat Completions', [
+                'status' => $response->status(), 'code' => $this->lastErrorCode, 'user_id' => $this->userId,
+            ]);
+            $this->lastFellBack = true;
+
+            return $this->chatWithTools($callType, $messages, $tools, $maxTokens, $timeout, $model, 'chat');
+        }
 
         if ($response->failed()) {
             $this->tripIfQuotaExhausted($response);

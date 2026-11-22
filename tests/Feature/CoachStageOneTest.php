@@ -256,4 +256,21 @@ class CoachStageOneTest extends TestCase
         $this->assertSame('length', $body['choices'][0]['finish_reason']);
         $this->assertNull($body['choices'][0]['message']['content']);
     }
+
+    public function test_a_rejected_responses_call_falls_back_to_chat_completions(): void
+    {
+        AppSetting::set('coach_engine', 'responses');
+        Http::fake([
+            'api.openai.com/v1/responses' => Http::response(['error' => ['code' => 'unsupported_parameter', 'message' => 'nope']], 400),
+            'api.openai.com/v1/chat/completions' => Http::response([
+                'choices' => [['message' => ['role' => 'assistant', 'content' => 'Trotzdem da.'], 'finish_reason' => 'stop']],
+                'usage'   => ['prompt_tokens' => 10, 'completion_tokens' => 5, 'total_tokens' => 15],
+            ]),
+        ]);
+        [$user] = $this->jansSunday();
+
+        $result = app(CoachChatService::class)->chatWithCoachTools($user, [], 'Hallo');
+
+        $this->assertSame('Trotzdem da.', $result['reply']);
+    }
 }
