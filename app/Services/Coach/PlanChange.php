@@ -60,7 +60,7 @@ class PlanChange
         if (! in_array($mode, self::MODES, true)) {
             return $this->reject($mode, ['mode muss dry_run, apply oder propose sein.']);
         }
-        $steps = array_values(array_filter($steps, 'is_array'));
+        $steps = array_values(array_map([self::class, 'normalize'], array_filter($steps, 'is_array')));
         if (! $steps) {
             return $this->reject($mode, ['Keine Schritte.']);
         }
@@ -134,6 +134,28 @@ class PlanChange
             'warnings'  => $this->warnings ?: null,
             'change_id' => $result?->id,
         ], fn ($v) => $v !== null);
+    }
+
+    /**
+     * Das Modell füllt über die Responses API jedes Feld aus, auch die, die
+     * nicht gemeint sind: session_id 0, distance_km 0, part „am“, leere
+     * Texte, open_warmup false (Jans Intervalle am 22.11.2026). Leeres und
+     * Null zählt als „nicht angegeben“; false bei den offenen Enden auch —
+     * sonst nähme jeder Aufruf ein Einlaufen per Lap-Taste still wieder weg.
+     */
+    public static function normalize(array $step): array
+    {
+        $out = [];
+        foreach ($step as $key => $value) {
+            if ($value === null || $value === '' || $value === [] || $value === false) continue;
+            if (in_array($key, ['session_id', 'duration_min', 'distance_km'], true) && (float) $value <= 0) continue;
+            $out[$key] = $value;
+        }
+        // part gilt nur für Läufe; bike_workout nur fürs Rad.
+        if (($out['sport'] ?? null) !== 'run') unset($out['part']);
+        if (($out['sport'] ?? null) !== 'bike') unset($out['bike_workout']);
+
+        return $out;
     }
 
     private function reject(string $mode, array $reasons): array

@@ -380,6 +380,15 @@ class CoachStageTwoTest extends TestCase
         $this->assertNotNull(TrainingSession::find($bike->id));
     }
 
+    public function test_filled_defaults_count_as_not_given(): void
+    {
+        // So kam Jans Donnerstag am 22.11.2026 vom Modell: jedes Feld gefüllt.
+        $step = PlanChange::normalize(['op' => 'set', 'session_id' => 0, 'date' => '2026-11-26', 'to_date' => '', 'sport' => 'run', 'type' => 'interval',
+            'workout' => 'vo2_3min', 'bike_workout' => 'easy', 'duration_min' => 50, 'distance_km' => 0, 'easy_pace' => '', 'open_warmup' => false, 'exercises' => [], 'part' => 'am']);
+
+        $this->assertSame(['op' => 'set', 'date' => '2026-11-26', 'sport' => 'run', 'type' => 'interval', 'workout' => 'vo2_3min', 'duration_min' => 50, 'part' => 'am'], $step);
+    }
+
     public function test_the_old_tools_stay_as_emergency_exit(): void
     {
         [$user] = $this->sunday();
