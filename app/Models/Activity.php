@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
+use DateTimeInterface;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -147,6 +150,34 @@ class Activity extends Model
         }
 
         return 'other:' . $type;
+    }
+
+    /**
+     * `start_date` steht in der Zeitzone der App (Europe/Berlin), wie jedes
+     * andere Datum in Zone3. Bis zum 22.11.2026 stand hier die UTC-Uhrzeit,
+     * gelesen wurde sie aber als Berliner Zeit: Jans Lauf um 9:44 zeigte
+     * 8:44, und kurz nach Mitternacht zählte ein Lauf zum Vortag. Jede Quelle
+     * liefert einen Zeitpunkt mit Zone (Strava `…Z`, sonst UTC-Sekunden);
+     * hier wird er einmal umgerechnet. Ein Text ohne Zone gilt als Berliner
+     * Zeit.
+     */
+    protected function startDate(): Attribute
+    {
+        return Attribute::make(
+            set: function ($value) {
+                if ($value === null || $value === '') {
+                    return null;
+                }
+
+                $date = match (true) {
+                    $value instanceof DateTimeInterface => CarbonImmutable::instance($value),
+                    is_numeric($value)                  => CarbonImmutable::createFromTimestampUTC((int) $value),
+                    default                             => CarbonImmutable::parse($value),
+                };
+
+                return $date->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s');
+            },
+        );
     }
 
     public function user()

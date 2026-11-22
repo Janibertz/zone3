@@ -148,9 +148,8 @@ class GarminActivityWebhookTest extends TestCase
         $this->assertSame('Hannover Laufen', $activity->name);
         $this->assertEquals(10000, $activity->distance);
         $this->assertSame('Forerunner 965', $activity->device_name);
-        // Dieselbe Konvention wie Stravas `start_date` (…Z): die Spalte hält
-        // die UTC-Uhrzeit. Nur so findet der Abgleich dieselbe Einheit.
-        $this->assertStringStartsWith('2026-10-28 07:00:00', $activity->getRawOriginal('start_date'));
+        // 07:00 UTC, gespeichert in Berliner Zeit wie alle Quellen (22.11.2026).
+        $this->assertStringStartsWith('2026-10-28 08:00:00', $activity->getRawOriginal('start_date'));
         $this->assertSame(GarminWebhookEvent::OUTCOME_IMPORTED, GarminWebhookEvent::sole()->outcome);
     }
 

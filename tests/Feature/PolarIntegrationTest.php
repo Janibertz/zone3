@@ -171,7 +171,7 @@ class PolarIntegrationTest extends TestCase
         $this->assertSame('polar', $activity->source);
         $this->assertSame('Run', $activity->type);
         $this->assertSame(1813, $activity->moving_time);
-        $this->assertSame('2026-11-13 11:00:00', $activity->getRawOriginal('start_date') === null ? '' : Carbon::parse($activity->getRawOriginal('start_date'))->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-11-13 12:00:00', $activity->getRawOriginal('start_date') === null ? '' : Carbon::parse($activity->getRawOriginal('start_date'))->format('Y-m-d H:i:s'));
         $this->assertSame('Polar Pacer Pro', $activity->device_name);
 
         $this->assertSame('known', $importer->importById($this->user, 'aQlC83'));

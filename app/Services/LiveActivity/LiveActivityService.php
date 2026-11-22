@@ -199,11 +199,11 @@ class LiveActivityService
         $tz = config('app.timezone');
 
         $starts = Activity::where('user_id', $user->id)
-            ->where('start_date', '>=', $day->subDays(self::HISTORY_DAYS)->startOfDay()->utc()->format('Y-m-d H:i:s'))
-            ->where('start_date', '<', $day->startOfDay()->utc()->format('Y-m-d H:i:s'))
+            ->where('start_date', '>=', $day->subDays(self::HISTORY_DAYS)->startOfDay()->setTimezone($tz)->format('Y-m-d H:i:s'))
+            ->where('start_date', '<', $day->startOfDay()->setTimezone($tz)->format('Y-m-d H:i:s'))
             ->pluck('start_date')
-            // start_date hält die UTC-Uhrzeit (wie bei Strava).
-            ->map(fn ($d) => CarbonImmutable::parse($d->format('Y-m-d H:i:s'), 'UTC')->setTimezone($tz));
+            // start_date steht in Berliner Zeit (Activity::startDate()).
+            ->map(fn ($d) => CarbonImmutable::parse($d->format('Y-m-d H:i:s'), $tz));
 
         $sameDay = $starts->filter(fn ($d) => $d->dayOfWeekIso === $day->dayOfWeekIso);
         $pool    = $sameDay->count() >= 2 ? $sameDay : ($starts->count() >= 3 ? $starts : collect());

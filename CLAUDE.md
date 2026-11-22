@@ -806,6 +806,10 @@ Inertia.js — no API calls, all data passed as props from Laravel controllers.
 - `useActivityTypes.js` — Strava type → label/emoji/group/pill, plus `SPORT_FILTERS`. Mirrored in `StatisticsController::SPORT_TYPES`; the two must agree.
 - `useSessionTypes.js` — session type → label/colour, and `paceWithUnit()` (the model writes "min/km" into `pace_target` itself; appending the unit produced "5:08–5:43 min/km /km")
 
+### Startzeit in Berliner Zeit (seit 22.11.2026)
+
+Gemeldet von Jan: Lauf um 9:44, die App zeigte 8:44. Die Server-Uhr stimmte; `activities.start_date` stand in **UTC**, während `app.timezone` Europe/Berlin ist und Eloquent die Spalte als Berliner Zeit las. Dieselbe Verschiebung traf jede Abfrage mit `now()`/`today()`/`whereDate` (ein Lauf um 0:30 zählte zum Vortag) und das Wetter (stündlich in Ortszeit). Jetzt rechnet der Setter `Activity::startDate()` jeden Wert einmal in die App-Zeitzone um (Carbon mit Zone, `…Z`-Text, UTC-Sekunden; ein Text ohne Zone gilt als Berlin), die Migration `2026_11_22_120000` hat den Bestand je Zeile mit Sommer-/Winterzeit umgerechnet. **Wer `start_date` abfragt, vergleicht mit Berliner Zeit, nie mit `->utc()`.** Die Kennungen `*_start` (UTC-Sekunden) bleiben UTC. Tests: `ActivityStartTimeTest`.
+
 ### Deleting an activity
 
 `DELETE /activities/{activity}` → `ActivityDeletionService`. A bare `$activity->delete()` is not enough:
@@ -1055,7 +1059,7 @@ Zone3 ist im Garmin Connect Developer Program (Activity, Health, Training API). 
 - **Bestzeiten rechnet Zone3 selbst** (`BestEffortService::effortsFromStream()`): kürzestes Zeitfenster je Distanz über Uhrzeit, nicht Bewegungszeit — eine Ampelpause gehört zur Zeit.
 - `manuallyUpdatedActivities` trägt laut Spezifikation **kein `activityId`**, nur `summaryId` (dieselbe Zahl; bei Details mit `-detail`). Ein Mehrsport-Rahmen (`isParent`) wird nicht gespeichert, seine Teile kommen einzeln. `deviceName = unknown` heißt manuell angelegt.
 - Typen übersetzt `GarminActivityType::toInternal()` in Stravas `type`-Vokabular (Trail/Laufband → `Run`, Gravel/MTB → `Ride`, Wechselzonen und Rollstuhl → `Workout`).
-- `start_date` hält wie bei Strava die **UTC-Uhrzeit** — sonst fände der Abgleich dieselbe Einheit nicht.
+- `start_date` steht in **Berliner Zeit** wie jedes Datum der App (siehe „Startzeit in Berliner Zeit“). Jede Quelle liefert UTC, `Activity::startDate()` rechnet um; der Abgleich vergleicht in derselben Zone.
 - Im Protokoll (`garmin_webhook_events.payload`) stehen nur die ersten drei Messpunkte plus `samples_count`; zwei Stunden mit einem Punkt pro Sekunde wären Megabytes je Lauf.
 - Die Aktivitätsseite nennt das Gerät und verlinkt Garmin Connect (Garmin verlangt die Herkunftsangabe).
 - Im Garmin-Endpunkt-Tool zeigen Activities, Activity Details und Manually Updated Activities auf `https://zone3.run/garmin/webhook/activities`.

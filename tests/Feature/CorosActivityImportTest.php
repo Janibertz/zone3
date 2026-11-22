@@ -179,7 +179,7 @@ class CorosActivityImportTest extends TestCase
         $this->assertCount(2, $run->laps);
         $this->assertNotEmpty($run->polyline['polyline']);
         $this->assertSame('COROS PACE 9', $run->device_name);
-        $this->assertSame(Carbon::createFromTimestampUTC($this->start())->toDateTimeString(), $run->start_date->toDateTimeString());
+        $this->assertSame(Carbon::createFromTimestampUTC($this->start())->setTimezone('Europe/Berlin')->toDateTimeString(), $run->start_date->toDateTimeString());
 
         $this->assertSame('VirtualRide', Activity::where('coros_label_id', 400000000000000002)->value('type'));
 

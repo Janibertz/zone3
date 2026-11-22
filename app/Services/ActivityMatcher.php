@@ -55,7 +55,8 @@ class ActivityMatcher
             return null;
         }
 
-        $start  = Carbon::parse($attributes['start_date'])->utc();
+        // Gespeichert in Berliner Zeit (Activity::startDate()).
+        $start  = Carbon::parse($attributes['start_date'])->setTimezone(config('app.timezone'));
         $family = Activity::sportFamily($attributes['type'] ?? null);
 
         $candidates = $open()

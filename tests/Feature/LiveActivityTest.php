@@ -106,7 +106,7 @@ class LiveActivityTest extends TestCase
         for ($w = 1; $w <= $weeks; $w++) {
             Activity::create([
                 'user_id' => $user->id, 'strava_id' => 1000 + $w, 'name' => 'Abendlauf', 'type' => 'Run',
-                'start_date' => CarbonImmutable::parse(self::TODAY)->subWeeks($w)->format('Y-m-d') . ' 17:30:00',
+                'start_date' => CarbonImmutable::parse(self::TODAY)->subWeeks($w)->format('Y-m-d') . 'T17:30:00Z',
                 'distance' => 10000, 'moving_time' => 2700, 'elapsed_time' => 2750, 'average_speed' => 10000 / 2700,
             ]);
         }
