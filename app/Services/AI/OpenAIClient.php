@@ -417,8 +417,11 @@ class OpenAIClient
         }
 
         $startMs = (int) round(microtime(true) * 1000);
+        $engine  = self::coachEngine();
 
-        $response = $this->send([
+        $response = $engine === 'responses'
+            ? $this->postTo('/responses', $this->responsesPayload($model, $messages, $tools, $maxTokens), $timeout)
+            : $this->send([
             'model'                 => $model,
             'messages'              => $messages,
             'max_completion_tokens' => $maxTokens,
@@ -431,21 +434,17 @@ class OpenAIClient
             //    gpt-5.6-sol in /v1/chat/completions. To use function tools,
             //    use /v1/responses or set reasoning_effort to 'none'."
             //
-            // Das Modell bringt ein Standard-Reasoning mit, und das vertraegt
-            // sich in Chat Completions nicht mit Function-Tools. Betroffen ist
-            // nur dieser Pfad — der Coach-Chat ist die einzige Stelle mit
-            // Tools; `chat()` ohne Tools laeuft unveraendert.
-            //
-            // Der saubere Weg waere /v1/responses, wo Tools UND Reasoning
-            // zusammen gehen. Das ist ein anderes Request- und Antwortformat
-            // und damit ein eigener Umbau; bis dahin gilt hier, was vorher
-            // ohnehin galt: keine interne Denkzeit, dafuer funktionierende
-            // Werkzeuge.
+            // Seit 22.11.2026 läuft der Coach über /v1/responses (oben), wo
+            // Werkzeuge und Reasoning zusammen gehen. Dieser Zweig ist nur
+            // noch der Notausgang (`coach_engine = chat`).
             'reasoning_effort'      => 'none',
         ], $timeout, false);
 
         $durationMs = (int) round(microtime(true) * 1000) - $startMs;
         $body       = $response->json() ?? [];
+        if ($engine === 'responses' && $response->successful()) {
+            $body = self::normalizeResponses($body);
+        }
 
         $userContent = '';
         foreach (array_reverse($messages) as $m) {
@@ -519,6 +518,143 @@ class OpenAIClient
         }
 
         return implode("\n", $parts);
+    }
+
+    /**
+     * Welcher Weg der Coach-Chat nimmt: `responses` (Reasoning + Werkzeuge)
+     * oder `chat` (Chat Completions ohne Reasoning, Notausgang).
+     */
+    public static function coachEngine(): string
+    {
+        $engine = AppSetting::get('coach_engine') ?: config('services.openai.coach_engine', 'responses');
+
+        return $engine === 'chat' ? 'chat' : 'responses';
+    }
+
+    /**
+     * Die Chat-Nachrichten des Coaches als Eingabe der Responses API.
+     *
+     * Der Coach-Chat führt seinen Verlauf weiter im Format von Chat
+     * Completions (system/user/assistant/tool). Eine Antwort aus diesem Weg
+     * trägt ihre rohen Ausgabe-Elemente unter `_output` — darin steckt das
+     * verschlüsselte Reasoning, das beim nächsten Schritt zurück muss, sonst
+     * denkt das Modell nach jedem Werkzeug von vorn. `store: false`: OpenAI
+     * hebt die Antwort nicht auf.
+     */
+    private function responsesPayload(string $model, array $messages, array $tools, int $maxTokens): array
+    {
+        $input        = [];
+        $instructions = [];
+
+        foreach ($messages as $m) {
+            $role = $m['role'] ?? 'user';
+
+            if ($role === 'assistant' && ! empty($m['_output'])) {
+                foreach ($m['_output'] as $item) {
+                    $input[] = $item;
+                }
+                continue;
+            }
+
+            if ($role === 'assistant' && ! empty($m['tool_calls'])) {
+                if (filled($m['content'] ?? null)) {
+                    $input[] = ['role' => 'assistant', 'content' => (string) $m['content']];
+                }
+                foreach ($m['tool_calls'] as $call) {
+                    $input[] = [
+                        'type'      => 'function_call',
+                        'call_id'   => $call['id'],
+                        'name'      => data_get($call, 'function.name'),
+                        'arguments' => (string) data_get($call, 'function.arguments', '{}'),
+                    ];
+                }
+                continue;
+            }
+
+            if ($role === 'tool') {
+                $input[] = ['type' => 'function_call_output', 'call_id' => $m['tool_call_id'], 'output' => (string) $m['content']];
+                continue;
+            }
+
+            // Der erste Systemprompt wird `instructions`; spätere
+            // Systemzeilen (Nachhaken) bleiben an ihrer Stelle im Verlauf.
+            if ($role === 'system' && $input === []) {
+                $instructions[] = (string) $m['content'];
+                continue;
+            }
+
+            $input[] = ['role' => $role === 'system' ? 'developer' : $role, 'content' => (string) ($m['content'] ?? '')];
+        }
+
+        return [
+            'model'             => $model,
+            'instructions'      => implode("\n\n", $instructions),
+            'input'             => $input,
+            'tools'             => array_map(fn (array $t) => [
+                'type'        => 'function',
+                'name'        => data_get($t, 'function.name'),
+                'description' => data_get($t, 'function.description', ''),
+                'parameters'  => data_get($t, 'function.parameters', ['type' => 'object', 'properties' => new \stdClass]),
+            ], $tools),
+            'tool_choice'       => 'auto',
+            'reasoning'         => ['effort' => (string) config('services.openai.coach_reasoning', 'low')],
+            // Reasoning zählt in die Ausgabe — mit 2.500 wie in Chat
+            // Completions bliebe für die Antwort zu wenig übrig.
+            'max_output_tokens' => max($maxTokens, 6000),
+            'store'             => false,
+            'include'           => ['reasoning.encrypted_content'],
+        ];
+    }
+
+    /**
+     * Eine Antwort der Responses API in der Form von Chat Completions:
+     * `choices.0.message` mit Text und `tool_calls`, `usage` mit
+     * prompt/completion. So bleibt die Schleife im Coach-Chat dieselbe.
+     */
+    public static function normalizeResponses(array $body): array
+    {
+        $text  = [];
+        $calls = [];
+
+        foreach ($body['output'] ?? [] as $item) {
+            if (($item['type'] ?? null) === 'function_call') {
+                $calls[] = [
+                    'id'       => $item['call_id'] ?? ($item['id'] ?? 'call'),
+                    'type'     => 'function',
+                    'function' => ['name' => $item['name'] ?? '', 'arguments' => $item['arguments'] ?? '{}'],
+                ];
+            }
+            if (($item['type'] ?? null) === 'message') {
+                foreach ($item['content'] ?? [] as $part) {
+                    if (in_array($part['type'] ?? null, ['output_text', 'text'], true)) {
+                        $text[] = (string) ($part['text'] ?? '');
+                    }
+                }
+            }
+        }
+
+        $message = ['role' => 'assistant', 'content' => $text ? implode("\n", $text) : null];
+        if ($calls) {
+            $message['tool_calls'] = $calls;
+        }
+        $message['_output'] = $body['output'] ?? [];
+
+        $usage  = $body['usage'] ?? [];
+        $finish = $calls ? 'tool_calls'
+            : ((($body['status'] ?? null) === 'incomplete') ? 'length' : 'stop');
+
+        return [
+            'id'           => $body['id'] ?? null,
+            'service_tier' => $body['service_tier'] ?? null,
+            'choices'      => [['message' => $message, 'finish_reason' => $finish]],
+            'usage'        => [
+                'prompt_tokens'             => (int) ($usage['input_tokens'] ?? 0),
+                'completion_tokens'         => (int) ($usage['output_tokens'] ?? 0),
+                'total_tokens'              => (int) ($usage['total_tokens'] ?? 0),
+                'prompt_tokens_details'     => ['cached_tokens' => (int) data_get($usage, 'input_tokens_details.cached_tokens', 0)],
+                'completion_tokens_details' => ['reasoning_tokens' => (int) data_get($usage, 'output_tokens_details.reasoning_tokens', 0)],
+            ],
+        ];
     }
 
     /**
@@ -663,10 +799,15 @@ class OpenAIClient
 
     private function post(array $payload, int $timeout): Response
     {
+        return $this->postTo('/chat/completions', $payload, $timeout);
+    }
+
+    private function postTo(string $path, array $payload, int $timeout): Response
+    {
         return Http::withHeaders([
             'Authorization' => 'Bearer ' . $this->apiKey,
             'Content-Type'  => 'application/json',
-        ])->timeout($timeout)->post($this->baseUrl . '/chat/completions', $payload);
+        ])->timeout($timeout)->post($this->baseUrl . $path, $payload);
     }
 
     /**

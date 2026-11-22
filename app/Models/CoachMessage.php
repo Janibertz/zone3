@@ -56,6 +56,33 @@ class CoachMessage extends Model
      * dahinter. Die Markierung ist dieselbe, die der Systemprompt erklärt —
      * sie steht auch im Verlauf späterer Runden so da.
      */
+    /**
+     * Die Nachricht für den Verlauf des Modells — bei Antworten des Coaches
+     * mit dem, was Zone3 dabei wirklich eingetragen hat.
+     *
+     * Bis 22.11.2026 sah das Modell im Verlauf nur seine eigenen Worte. Ein
+     * „Erledigt, Ruhetag ist eingetragen“ ohne Werkzeugaufruf las sich
+     * danach wie eine Tatsache, und das Modell bestätigte sich selbst.
+     */
+    public function forHistory(): string
+    {
+        $text = $this->forModel();
+
+        if ($this->role !== 'assistant' || ! $this->reply_to_id) {
+            return $text;
+        }
+
+        $changes = collect($this->actions ?? [])
+            ->reject(fn ($a) => ($a['type'] ?? null) === self::ACTION_REVIEW_QUESTION)
+            ->map(fn ($a) => ($a['type'] ?? '') === 'proposal' ? 'Vorschlag gemacht: ' . ($a['label'] ?? '') : ($a['label'] ?? ($a['type'] ?? '')))
+            ->filter()
+            ->values();
+
+        return $text . "\n\n" . ($changes->isEmpty()
+            ? '[Zone3-Protokoll: Bei dieser Antwort wurde nichts am Plan geändert.]'
+            : '[Zone3-Protokoll: Eingetragen wurde: ' . $changes->implode('; ') . ']');
+    }
+
     public function forModel(): string
     {
         $own = trim((string) $this->content);

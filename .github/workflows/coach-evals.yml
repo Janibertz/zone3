@@ -1,0 +1,105 @@
+name: Coach-Evals
+
+# Der Coach gegen das ECHTE Modell (tests/CoachEval, Konzept „Coach-Chat
+# neu“, 22.11.2026). Jans Entscheidung: vor jeder Änderung am Coach und
+# einmal pro Woche — die Woche fängt ab, wenn OpenAI das Modell still ändert.
+#
+# Kostet Geld: ca. 1 Cent je Szenario und Durchlauf, bei 12 Szenarien × 3
+# also rund 0,40 €. Braucht das Secret COACH_EVAL_OPENAI_KEY (am besten ein
+# eigenes OpenAI-Projekt mit kleinem Limit); ohne Secret wird nichts
+# ausgeführt. Rot heißt Warnung per Benachrichtigung, kein Deploy-Stopp.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/Services/AI/**'
+      - 'app/Jobs/CoachReplyJob.php'
+      - 'app/Models/CoachMessage.php'
+      - 'app/Services/Run/**'
+      - 'tests/CoachEval/**'
+      - 'config/services.php'
+  schedule:
+    - cron: '0 5 * * 1'   # montags 06:00 Berliner Zeit (Winter)
+  workflow_dispatch:
+    inputs:
+      only:
+        description: 'Nur Szenarien, deren Name das enthält (leer = alle)'
+        required: false
+      repeat:
+        description: 'Durchläufe je Szenario'
+        required: false
+        default: '3'
+
+concurrency:
+  group: coach-evals
+  cancel-in-progress: false
+
+jobs:
+  evals:
+    name: Coach gegen das echte Modell
+    runs-on: ubuntu-latest
+    env:
+      COACH_EVAL_OPENAI_KEY: ${{ secrets.COACH_EVAL_OPENAI_KEY }}
+      COACH_EVAL_ONLY: ${{ github.event.inputs.only }}
+      COACH_EVAL_REPEAT: ${{ github.event.inputs.repeat || '3' }}
+
+    steps:
+      - name: Schlüssel vorhanden?
+        id: key
+        run: |
+          if [ -z "$COACH_EVAL_OPENAI_KEY" ]; then
+            echo "Secret COACH_EVAL_OPENAI_KEY fehlt — Evals übersprungen." >> "$GITHUB_STEP_SUMMARY"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.key.outputs.run == 'true'
+
+      - name: PHP einrichten
+        if: steps.key.outputs.run == 'true'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_sqlite, sqlite3, intl, bcmath, pdo_mysql, mysqlnd, openssl
+          coverage: none
+
+      - name: Umgebung vorbereiten
+        if: steps.key.outputs.run == 'true'
+        run: cp .env.example .env
+
+      - name: Composer-Cache
+        if: steps.key.outputs.run == 'true'
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: PHP-Abhängigkeiten
+        if: steps.key.outputs.run == 'true'
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Anwendungsschlüssel
+        if: steps.key.outputs.run == 'true'
+        run: php artisan key:generate --force
+
+      - name: Evals
+        if: steps.key.outputs.run == 'true'
+        run: php artisan test tests/CoachEval
+
+      - name: Bericht
+        if: always() && steps.key.outputs.run == 'true'
+        run: |
+          if [ -f storage/app/coach-eval/report.md ]; then
+            cat storage/app/coach-eval/report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Bericht anhängen
+        if: always() && steps.key.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coach-eval
+          path: storage/app/coach-eval/
+          if-no-files-found: ignore

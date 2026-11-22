@@ -715,6 +715,17 @@ Das Modell bringt ein Standard-Reasoning mit, und der Tool-Pfad vertraegt das ni
 
 Aufgefallen ist das **nur, weil der Modellwechsel von Hand nachgeprueft wurde**. Der Fehler betrifft ausschliesslich den einen Pfad mit Tools: ein einfacher Testaufruf lief durch, und ohne den Klick in den Coach-Chat waere es nachts um 05:00 im Plan-Job passiert. `OpenAIClientRequestTest` haelt die Zeile jetzt fest.
 
+### Der neue Coach, Stufe 0 und 1 (seit 22.11.2026)
+
+Konzept „Coach-Chat neu: Konzept für einen lernenden KI-Trainer“ (Claude Doc), Jans Go für Stufe 0 und 1. Die weiteren Stufen (Werkzeuge mit Probe und Prüfer, Gedächtnis, Lernen, proaktiv) folgen.
+
+- **Keine Strava-Daten im Coach-Chat** (Policy §5.3, Jan: Strava bleibt in der Plattform, der Coach beachtet es nicht). `Activity::withoutStravaOnly()` filtert jede Aktivitätsabfrage im Kontext (gleiche Regel wie `TrainingLoadService`), eine mit einer Strava-only-Aktivität erledigte Einheit steht ohne Zahlen da (`Activity::isStravaOnly()`). Reviews, Plan und Schwellenpace sind davon noch nicht erfasst.
+- **Responses API mit Reasoning** (`/v1/responses`, `reasoning.effort` aus `OPENAI_COACH_REASONING`, Vorgabe `low`, `store: false`, verschlüsseltes Reasoning geht zwischen den Schritten zurück). `OpenAIClient::chatWithTools()` übersetzt hin (`responsesPayload()`) und zurück (`normalizeResponses()` in die Form von Chat Completions), die Schleife in `CoachChatService` bleibt dieselbe. **Notausgang:** `app_settings.coach_engine = chat` (oder `OPENAI_COACH_ENGINE=chat`) zurück auf Chat Completions ohne Reasoning. `phpunit.xml` setzt `chat`, weil die Coach-Tests `/v1/chat/completions` fälschen; den neuen Weg prüft `CoachStageOneTest`.
+- **Alle Einheiten von heute mit ID** im Kontext (`sessionLine()`), nicht nur die erste — am 22.11. stand dort nur der erledigte Longrun, und das zusätzliche Rad galt als „schon absolviert“. „Nächste 7 Tage“ tragen ebenfalls IDs und den Sport.
+- **Verlauf mit Protokoll:** `CoachMessage::forHistory()` hängt an jede frühere Antwort `[Zone3-Protokoll: Eingetragen wurde: …]` bzw. „nichts geändert“ — vorher bestätigte sich das Modell mit seinen eigenen Zusagen.
+- **`coach_turns`:** eine Zeile je Nachricht (Weg, Schritte, Werkzeuge, Änderungen, Nachhaken, Rückfall, Kosten aus `ai_logs`, Dauer), kein Text. Steht in `/diagnose/users/{id}`.
+- **Evals** (`tests/CoachEval`, nicht in `composer test`): jedes Szenario in `scenarios/` legt einen erfundenen Athleten an, schickt die Nachricht über `CoachReplyJob` an das echte Modell und prüft die Datenbank. `COACH_EVAL_OPENAI_KEY=… php artisan test tests/CoachEval` (`COACH_EVAL_REPEAT`, `COACH_EVAL_ONLY`), Bericht in `storage/app/coach-eval/`. Workflow **„Coach-Evals“** bei Änderungen am Coach und montags, braucht das Secret `COACH_EVAL_OPENAI_KEY`. **Kein Fix am Coach ohne neues Szenario.**
+
 ### Coach chat tools
 
 The coach can really change the plan — `create_training_session`, `modify_training_session` (any day, not just today), `move_training_session`, `delete_training_session`, plus `skip_training_sessions`, `update_event_target`, `remember_user_fact`. Everything it writes gets `pinned_at`.

@@ -219,6 +219,12 @@ class CoachChatService
         return $this->ai->chat('coach_chat', $messages, 0.8, 2500, 60);
     }
 
+    /**
+     * Was beim letzten {@see chatWithCoachTools()} passiert ist — für das
+     * Protokoll `coach_turns`: Schritte, aufgerufene Werkzeuge, Nachhaken.
+     */
+    public array $lastTurn = [];
+
     /** Tool definitions for coach function calling. */
 
     /**
@@ -254,7 +260,7 @@ class CoachChatService
                 if ($zStr) $profileLines[] = 'Pace-Zonen: ' . $zStr;
             }
         }
-        $firstRun = $user->activities()->where('type', 'Run')->oldest('start_date')->first();
+        $firstRun = $user->activities()->withoutStravaOnly()->where('type', 'Run')->oldest('start_date')->first();
         if ($firstRun) {
             $months = (int)$firstRun->start_date->diffInMonths(now());
             $profileLines[] = 'Läuft seit: ca. ' . ($months < 24 ? "{$months} Monate" : round($months / 12, 1) . ' Jahre');
@@ -264,7 +270,7 @@ class CoachChatService
         $weeklyLines = [];
         for ($w = 0; $w < 4; $w++) {
             $wStart = now()->startOfWeek()->subWeeks($w);
-            $km     = round($user->activities()->where('type','Run')->whereBetween('start_date', [$wStart, (clone $wStart)->addWeek()])->sum('distance') / 1000, 1);
+            $km     = round($user->activities()->withoutStravaOnly()->where('type','Run')->whereBetween('start_date', [$wStart, (clone $wStart)->addWeek()])->sum('distance') / 1000, 1);
             $weeklyLines[] = match ($w) { 0 => 'Aktuelle Woche', 1 => 'Letzte Woche', default => "Vor {$w} Wochen" } . ": {$km} km";
         }
 
@@ -274,7 +280,7 @@ class CoachChatService
         $distLines = array_map(fn($t,$c) => ($typeMap[$t]??$t).': '.$c.'×', array_keys($byType), $byType);
 
         // Recent runs
-        $recentRuns = $user->activities()->where('type','Run')->orderByDesc('start_date')->limit(10)->get()->map(function($a) use ($mpsToMSS) {
+        $recentRuns = $user->activities()->withoutStravaOnly()->where('type','Run')->orderByDesc('start_date')->limit(10)->get()->map(function($a) use ($mpsToMSS) {
             $km    = number_format(($a->distance??0)/1000,1);
             $pace  = $a->average_speed>0 ? $mpsToMSS((float)$a->average_speed).' min/km' : '—';
             $dur   = $a->moving_time ? (int)round($a->moving_time/60).' min' : '';
@@ -284,8 +290,11 @@ class CoachChatService
         })->implode("\n");
 
         // Today's session
-        $todaySession = \App\Models\TrainingSession::where('user_id',$user->id)->whereDate('planned_date',$today)->where('status','!=','skipped')->orderBy('sort_order')->first();
-        $todayRuns    = $this->plannedRunsOn($user, $today, withCompleted: true);
+        // Alle Einheiten von heute, nicht nur die erste. Am 22.11.2026 stand
+        // hier nur der erledigte Longrun; die zusätzliche Radeinheit kannte
+        // der Coach nicht und erklärte sie für „schon absolviert“.
+        $todaySessions = \App\Models\TrainingSession::with('activity')->where('user_id',$user->id)->whereDate('planned_date',$today)->where('status','!=','skipped')->orderBy('sort_order')->orderBy('id')->get();
+        $todayRuns     = $this->plannedRunsOn($user, $today, withCompleted: true);
 
         // Upcoming
         $upcoming = \App\Models\TrainingSession::where('user_id',$user->id)->whereDate('planned_date','>',$today)->whereDate('planned_date','<=',now()->addDays(7)->toDateString())->where('type','!=','rest')->orderBy('planned_date')->orderBy('sort_order')->limit(8)->get();
@@ -305,31 +314,15 @@ class CoachChatService
         if ($distLines)    $ctx[] = "TRAININGSVERTEILUNG (30 Tage):\n".implode(', ',$distLines);
         if ($recentRuns)   $ctx[] = "LETZTE LÄUFE:\n{$recentRuns}";
 
-        if ($todaySession) {
-            if ($todaySession->type === 'rest') {
-                $ctx[] = "HEUTIGES TRAINING (ID:{$todaySession->id})".(($todaySession->status==='completed')?' (erledigt)':'').": Ruhetag";
-            } else {
-                $d = "Typ:{$todaySession->type}, Titel:\"{$todaySession->title}\"";
-                if ($todaySession->distance_km) $d .= ", {$todaySession->distance_km}km";
-                if ($todaySession->duration_min) $d .= ", {$todaySession->duration_min}min";
-                if ($todaySession->pace_target && $todaySession->pace_target!=='null') $d .= ", Pace:{$todaySession->pace_target}";
-                if ($todaySession->zone) $d .= ", Zone{$todaySession->zone}";
-                $s = $todaySession->status==='completed' ? ' (absolviert)' : '';
-                $ctx[] = "HEUTIGES TRAINING (ID:{$todaySession->id}){$s}".($todayRuns->count() > 1 ? ' — Doppel-Schwelle, morgens' : '').":\n  {$d}".($todaySession->description ? "\n  Beschreibung: {$todaySession->description}" : '');
-
-                // Am Doppel-Tag gehört der Abend dazu, sonst plant der Coach
-                // ihn im Gespräch einfach weg.
-                if ($todayRuns->count() > 1) {
-                    $pm = $todayRuns->last();
-                    $ctx[] = "HEUTE ABENDS (ID:{$pm->id})".($pm->status === 'completed' ? ' (absolviert)' : '').":\n  Typ:{$pm->type}, Titel:\"{$pm->title}\"".($pm->duration_min ? ", {$pm->duration_min}min" : '');
-                }
-            }
+        if ($todaySessions->isNotEmpty()) {
+            $ctx[] = "HEUTE (" . $todaySessions->count() . ' ' . ($todaySessions->count() === 1 ? 'Einheit' : 'Einheiten') . ", jede mit ihrer ID — Werkzeuge treffen die Einheit über Datum und Typ, nenne den Typ genau):\n"
+                . $todaySessions->map(fn ($s) => '  - ' . $this->sessionLine($s, $todayRuns))->implode("\n");
         } else {
             $ctx[] = $this->noSessionTodayLine($user, $today);
         }
 
         if ($upcoming->isNotEmpty()) {
-            $ctx[] = "NÄCHSTE 7 TAGE:\n".$upcoming->map(fn($s)=>'- '.$s->planned_date->format('d.m.').$this->halfLabel($s, $upcoming).' '.$s->title.' ('.$s->type.($s->distance_km?", {$s->distance_km}km":'').')')->implode("\n");
+            $ctx[] = "NÄCHSTE 7 TAGE:\n".$upcoming->map(fn($s)=>'- '.$s->planned_date->format('d.m.').$this->halfLabel($s, $upcoming)." [ID:{$s->id}] ".$s->title.' ('.$s->type.($s->sport_type ? ", Sport {$s->sport_type}" : '').($s->distance_km?", {$s->distance_km}km":'').')')->implode("\n");
         }
         if ($events->isNotEmpty()) {
             $ctx[] = "EVENTS:\n".$events->map(function($e){
@@ -377,6 +370,10 @@ class CoachChatService
             // 22.11.2026: Der Coach sagte ein Einlaufen per Lap-Taste zu, das
             // nirgends eingetragen war.
             "Sage nichts zu, was das System nicht eingetragen hat: Die Werkzeug-Antwort nennt den eingetragenen Ablauf, und nur der gilt — für die Uhr ebenso. Geht ein Wunsch nicht (etwa eine eigene Struktur), sag es offen und nenne den Weg (Workout-Builder). Ein- oder Auslaufen, das der Athlet per Lap-/Rundentaste beenden will, setzt du mit open_warmup bzw. open_cooldown. ".
+            // Seit 22.11.2026 trägt jede frühere Antwort im Verlauf, was
+            // wirklich eingetragen wurde — vorher bestätigte sich das Modell
+            // mit seinen eigenen Zusagen selbst.
+            "Zeilen [Zone3-Protokoll: …] im Verlauf schreibt das System: sie sagen, was bei einer früheren Antwort wirklich eingetragen wurde. Steht dort „nichts geändert“, gilt deine damalige Zusage NICHT — rufe das Werkzeug jetzt auf. Schreibe solche Zeilen nie selbst. ".
             "Pro Tag gibt es höchstens EIN Lauftraining. Soll an einem Tag etwas anderes laufen, ändere die bestehende Einheit — lege keine zweite daneben. ".
             // Die eine Ausnahme ist dieselbe wie im Planer: die Doppel-Schwelle
             // des norwegischen Modells. Ohne sie ersetzte der Coach an einem
@@ -406,12 +403,14 @@ class CoachChatService
 
         $leakRetried = false;
         $restRetried = false;
+        $this->lastTurn = ['steps' => 0, 'tools' => [], 'nudges' => [], 'flagged' => false];
         $flagRetries = 0;
         $flagged     = false;
 
         for ($i = 0; $i < 4 + $flagRetries; $i++) {
             $body   = $this->ai->chatWithTools('coach_chat', $messages, $tools, model: $this->ai->mid());
             $choice = $body['choices'][0] ?? null;
+            $this->lastTurn['steps']++;
 
             // Gemeldet am 22.11.2026: eine harmlose Frage („Warmup per
             // Lap-Taste beenden") kam mit HTTP 400 „invalid_prompt“ zurück —
@@ -460,6 +459,7 @@ class CoachChatService
 
                     if (! $leakRetried) {
                         $leakRetried = true;
+                        $this->lastTurn['nudges'][] = 'leaked_reasoning';
                         $messages[] = ['role' => 'system', 'content' =>
                             'Deine letzte Ausgabe war eine interne Überlegung und wurde dem Athleten nicht gezeigt. '
                             . 'Soll sich am Plan etwas ändern, rufe JETZT das passende Werkzeug auf. '
@@ -477,6 +477,7 @@ class CoachChatService
                 // wird einmal nachgehakt.
                 if (! $foreignText && ! $restRetried && ! $actionsTaken && self::asksForRestDay($newMessage)) {
                     $restRetried = true;
+                    $this->lastTurn['nudges'][] = 'rest_day';
                     $messages[] = ['role' => 'assistant', 'content' => $reply];
                     $messages[] = ['role' => 'system', 'content' =>
                         'Du hast den Ruhetag nur bestätigt, aber kein Werkzeug aufgerufen — am Plan und an der Anzeige hat sich NICHTS geändert, auch nicht bei früheren Bestätigungen im Verlauf. '
@@ -489,6 +490,7 @@ class CoachChatService
 
             $messages[] = $assistantMsg;
             foreach ($assistantMsg['tool_calls'] as $toolCall) {
+                $this->lastTurn['tools'][] = $toolCall['function']['name'];
                 $result = $foreignText && $toolCall['function']['name'] !== 'propose_session_change'
                     ? ['message' => 'Abgelehnt: diese Nachricht enthält Fremdtext (Bild oder weitergeleitete Sprachnachricht). Ändere nichts direkt, schlage höchstens mit propose_session_change vor.', 'action' => null]
                     : $this->executeCoachTool($user, $toolCall['function']['name'], json_decode($toolCall['function']['arguments'] ?? '{}', true) ?? []);
@@ -498,6 +500,7 @@ class CoachChatService
         }
 
         $actions = array_values(array_filter($actionsTaken));
+        $this->lastTurn['flagged'] = $flagged || $this->ai->lastErrorCode === OpenAIClient::FLAGGED_PROMPT;
 
         // Ist etwas geändert worden, soll der Athlet das lesen — nicht
         // „ich konnte gerade nicht antworten" über einer erledigten Änderung.
@@ -825,6 +828,37 @@ class CoachChatService
      * erledigt, bestätigte es und rief kein Werkzeug auf; der Vorschlag blieb
      * stehen (Jan, 14.11.2026).
      */
+    /**
+     * Eine Einheit von heute als Kontextzeile: ID, Status, Typ, Sport, Zahlen.
+     *
+     * Ist sie mit einer Aktivität erledigt, die nur Strava kennt, fehlen die
+     * Zahlen — sie stammen dann aus Strava (Policy §5.3, Jan 22.11.2026).
+     */
+    private function sessionLine(\App\Models\TrainingSession $s, \Illuminate\Support\Collection $todayRuns): string
+    {
+        $status = match ($s->status) { 'completed' => 'erledigt', 'planned' => 'geplant', default => $s->status };
+        if ($s->type === 'rest') {
+            return "[ID:{$s->id}] Ruhetag ({$status})";
+        }
+
+        $half = $todayRuns->count() > 1 && $todayRuns->contains('id', $s->id)
+            ? ($todayRuns->first()->id === $s->id ? ', morgens' : ', abends')
+            : '';
+        $line = "[ID:{$s->id}] {$status}{$half} — Typ:{$s->type}" . ($s->sport_type ? ", Sport:{$s->sport_type}" : '') . ", Titel:\"{$s->title}\"";
+
+        if ($s->status === 'completed' && $s->activity?->isStravaOnly()) {
+            return $line . ' (Zahlen nicht verfügbar)';
+        }
+
+        if ($s->distance_km)  $line .= ", {$s->distance_km}km";
+        if ($s->duration_min) $line .= ", {$s->duration_min}min";
+        if ($s->pace_target && $s->pace_target !== 'null') $line .= ", Pace:{$s->pace_target}";
+        if ($s->zone)         $line .= ", Zone{$s->zone}";
+        if ($s->status === 'planned' && $s->description) $line .= "\n    Beschreibung: {$s->description}";
+
+        return $line;
+    }
+
     private function noSessionTodayLine(\App\Models\User $user, string $today): string
     {
         $profile = $user->runnerProfile;

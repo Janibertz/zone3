@@ -176,6 +176,8 @@ class DiagnoseController extends Controller
             'coach_messages' => CoachMessage::where('user_id', $user->id)->latest('id')->limit(min(50, $request->integer('messages', 12)))->get()
                 ->reverse()->values()
                 ->map(fn ($m) => ['id' => $m->id, 'at' => $m->created_at?->toIso8601String(), 'role' => $m->role, 'channel' => $m->channel, 'kind' => $m->kind, 'content' => $m->content, 'actions' => $m->actions]),
+            'coach_turns' => \App\Models\CoachTurn::where('user_id', $user->id)->latest('id')->limit(10)->get()
+                ->map->only(['id', 'question_id', 'reply_id', 'channel', 'engine', 'steps', 'tools', 'changes', 'nudges', 'flagged', 'fallback', 'cost_eur', 'duration_ms', 'created_at']),
             'plan_revisions' => PlanRevision::where('user_id', $user->id)->latest('id')->limit(5)->get()
                 ->map->only(['id', 'triggered_by', 'corrections', 'created_at']),
             'ai_logs' => AiLog::where('user_id', $user->id)->latest('id')->limit(min(50, $request->integer('ai', 10)))->get()

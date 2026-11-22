@@ -128,6 +128,12 @@ return [
         // Hintergrund-Aufrufe ueber Flex: halber Preis, langsamer.
         'flex'       => env('OPENAI_FLEX', true),
 
+        // Coach-Chat (seit 22.11.2026): Responses API mit Reasoning. `chat`
+        // ist der Notausgang zurück auf Chat Completions ohne Reasoning;
+        // `app_settings.coach_engine` schlägt die Umgebung.
+        'coach_engine'    => env('OPENAI_COACH_ENGINE', 'responses'),
+        'coach_reasoning' => env('OPENAI_COACH_REASONING', 'low'),
+
         // Tagesbudgets in Euro (0 = aus). Das Monatslimit steht zusaetzlich
         // hart auf der OpenAI-Plattform; diese hier fangen eine Schleife ab,
         // bevor sie den Monat aufbraucht.

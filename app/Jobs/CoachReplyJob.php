@@ -2,7 +2,9 @@
 
 namespace App\Jobs;
 
+use App\Models\AiLog;
 use App\Models\CoachMessage;
+use App\Models\CoachTurn;
 use App\Services\AI\CoachChatService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -51,21 +53,57 @@ class CoachReplyJob implements ShouldQueue
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->limit(self::HISTORY)
-            ->get(['role', 'content', 'kind', 'media_text', 'media_foreign'])
+            ->get(['role', 'content', 'kind', 'media_text', 'media_foreign', 'reply_to_id', 'actions'])
             ->reverse()
             ->values()
-            ->map(fn ($m) => ['role' => $m->role, 'content' => $m->forModel()])
+            ->map(fn ($m) => ['role' => $m->role, 'content' => $m->forHistory()])
             ->all();
 
         $chat->withCoach($user->coach?->personality_prompt)->forUser($user->id);
 
         // Steckt Fremdtext in der Frage (Bild, weitergeleitete Sprachnachricht),
         // darf der Coach in dieser Runde nur vorschlagen, nicht ändern.
+        $started = now();
+        $startMs = (int) round(microtime(true) * 1000);
+
         $result  = $chat->chatWithCoachTools($user, $history, $question->forModel(), foreignText: $question->carriesForeignText());
         $reply   = $result['reply'] ?? null;
         $actions = $result['actions'] ?? [];
 
-        $this->answer($question, $reply ?: 'Entschuldigung, ich konnte gerade nicht antworten. Versuche es gleich nochmal.', $actions);
+        $answer = $this->answer($question, $reply ?: 'Entschuldigung, ich konnte gerade nicht antworten. Versuche es gleich nochmal.', $actions);
+
+        $this->record($question, $answer, $chat->lastTurn, $actions, ! $reply, $started, (int) round(microtime(true) * 1000) - $startMs);
+    }
+
+    /**
+     * Eine Zeile `coach_turns`. Ein Fehler hier darf die Antwort nie
+     * verhindern — sie ist zu diesem Zeitpunkt schon unterwegs.
+     */
+    private function record(CoachMessage $question, CoachMessage $answer, array $turn, array $actions, bool $fallback, $started, int $durationMs): void
+    {
+        try {
+            CoachTurn::create([
+                'user_id'     => $question->user_id,
+                'question_id' => $question->id,
+                'reply_id'    => $answer->id,
+                'channel'     => $question->channel,
+                'engine'      => \App\Services\AI\OpenAIClient::coachEngine(),
+                'model'       => config('services.openai.model_mid'),
+                'steps'       => (int) ($turn['steps'] ?? 0),
+                'tools'       => $turn['tools'] ?? [],
+                'changes'     => count($actions),
+                'nudges'      => $turn['nudges'] ?? [],
+                'flagged'     => (bool) ($turn['flagged'] ?? false),
+                'fallback'    => $fallback,
+                'cost_eur'    => (float) AiLog::where('user_id', $question->user_id)
+                    ->where('call_type', 'coach_chat')
+                    ->where('created_at', '>=', $started)
+                    ->sum('cost_eur'),
+                'duration_ms' => $durationMs,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('coach_turns: Protokoll nicht geschrieben', ['message_id' => $question->id, 'error' => $e->getMessage()]);
+        }
     }
 
     /**
@@ -82,9 +120,9 @@ class CoachReplyJob implements ShouldQueue
         }
     }
 
-    private function answer(CoachMessage $question, string $content, array $actions): void
+    private function answer(CoachMessage $question, string $content, array $actions): CoachMessage
     {
-        CoachMessage::create([
+        return CoachMessage::create([
             'user_id'     => $question->user_id,
             'role'        => 'assistant',
             'content'     => $content,

@@ -49,6 +49,35 @@ class Activity extends Model
         self::SOURCE_ROUVY  => 'rouvy_start',
     ];
 
+    /**
+     * Nur Zeilen, die auch eine andere Quelle als Strava kennt (Strava API
+     * Policy §5.3: keine Strava-Daten in KI, auch nicht im Kontextfenster).
+     * Hat eine Uhr dieselbe Einheit angehängt, zählt sie. Dieselbe Regel wie
+     * `TrainingLoadService::calculate(withoutStrava: true)`.
+     */
+    public function scopeWithoutStravaOnly($query)
+    {
+        return $query->where(function ($q) {
+            foreach (self::ID_COLUMNS as $source => $column) {
+                if ($source !== self::SOURCE_STRAVA) {
+                    $q->orWhereNotNull($column);
+                }
+            }
+        });
+    }
+
+    /** Nur Strava, keine andere Quelle: diese Zeile darf nicht in einen Prompt. */
+    public function isStravaOnly(): bool
+    {
+        foreach (self::ID_COLUMNS as $source => $column) {
+            if ($source !== self::SOURCE_STRAVA && filled($this->{$column})) {
+                return false;
+            }
+        }
+
+        return filled($this->strava_id);
+    }
+
     /** Wie die Quelle in der Oberfläche heißt. */
     public const SOURCE_LABELS = [
         self::SOURCE_STRAVA => 'Strava',
