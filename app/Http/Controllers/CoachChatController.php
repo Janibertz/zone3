@@ -51,17 +51,25 @@ class CoachChatController extends Controller
     {
         $ids = collect($messages)->flatMap(fn ($m) => collect($m['actions'] ?? [])
             ->where('type', 'proposal')->pluck('recommendation_id'))->filter()->unique();
+        $changeIds = collect($messages)->flatMap(fn ($m) => collect($m['actions'] ?? [])
+            ->where('type', 'plan_change')->pluck('change_id'))->filter()->unique();
 
-        if ($ids->isEmpty()) {
+        if ($ids->isEmpty() && $changeIds->isEmpty()) {
             return $messages;
         }
 
         $status = \App\Models\SessionRecommendation::whereIn('id', $ids)->pluck('status', 'id');
+        // Ob sich eine Änderung noch zurücknehmen lässt — der Knopf steht nur dann.
+        $changes = \App\Models\CoachChange::whereIn('id', $changeIds)->get()->keyBy('id');
 
-        return array_map(function ($m) use ($status) {
-            $m['actions'] = array_map(function ($a) use ($status) {
+        return array_map(function ($m) use ($status, $changes) {
+            $m['actions'] = array_map(function ($a) use ($status, $changes) {
                 if (($a['type'] ?? null) === 'proposal') {
                     $a['status'] = $status[$a['recommendation_id'] ?? 0] ?? \App\Models\SessionRecommendation::STATUS_EXPIRED;
+                }
+                if (($a['type'] ?? null) === 'plan_change' && ($c = $changes[$a['change_id'] ?? 0] ?? null)) {
+                    $a['undone']   = (bool) $c->undone_at;
+                    $a['undoable'] = ! $c->undoBlocker();
                 }
 
                 return $a;
@@ -69,6 +77,21 @@ class CoachChatController extends Controller
 
             return $m;
         }, $messages);
+    }
+
+    /**
+     * Eine Änderung des Coaches zurücknehmen (Knopf „Rückgängig“ im Chat).
+     */
+    public function undoChange(Request $request, \App\Models\CoachChange $change): JsonResponse
+    {
+        abort_unless($change->user_id === $request->user()->id, 404);
+
+        if ($blocker = $change->undoBlocker()) {
+            return response()->json(['ok' => false, 'message' => $blocker], 422);
+        }
+        $change->undo();
+
+        return response()->json(['ok' => true, 'message' => 'Zurückgenommen — der Plan steht wieder wie vorher.']);
     }
 
     /**

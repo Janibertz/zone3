@@ -294,6 +294,19 @@ class TelegramWebhookController extends Controller
             return;
         }
 
+        if ($user && preg_match('/^cu:(\d+)$/', (string) ($callback['data'] ?? ''), $cu)) {
+            $change = \App\Models\CoachChange::where('id', (int) $cu[1])->where('user_id', $user->id)->first();
+            $blocker = $change ? $change->undoBlocker() : 'Die Änderung gibt es nicht.';
+            if (! $blocker) {
+                $change->undo();
+            }
+            $this->telegram->answerCallback((string) ($callback['id'] ?? ''));
+            $this->telegram->clearButtons($chatId, $messageId);
+            $this->telegram->sendMessage($chatId, $blocker ?? 'Zurückgenommen — der Plan steht wieder wie vorher.');
+
+            return;
+        }
+
         if (! $user || ! preg_match('/^rec:(accept|reject):(\d+)$/', (string) ($callback['data'] ?? ''), $m)) {
             $this->telegram->answerCallback((string) ($callback['id'] ?? ''));
 

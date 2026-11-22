@@ -64,6 +64,7 @@ class CoachEvalTest extends TestCase
             'services.telegram.bot_token' => null,
         ]);
         AppSetting::set('coach_engine', env('COACH_EVAL_ENGINE', 'responses'));
+        AppSetting::set('coach_tools', env('COACH_EVAL_TOOLS', 'v2'));
         Carbon::setTestNow(self::NOW);
     }
 
@@ -119,7 +120,7 @@ class CoachEvalTest extends TestCase
             $this->assertNotNull($reply, 'keine Antwort');
             $this->assertFalse((bool) $turn?->fallback, 'Rückfallantwort statt Antwort');
             $this->assertFalse(CoachChatService::looksLikeLeakedReasoning($reply->content), 'Überlegung statt Antwort: ' . $reply->content);
-            $this->assertDoesNotMatchRegularExpression('/\b[a-z]+_[a-z_]+\(|\b(set_rest_day|modify_training_session|delete_training_session)\b/', $reply->content, 'Werkzeugname im Text');
+            $this->assertDoesNotMatchRegularExpression('/\b[a-z]+_[a-z_]+\(|\b(set_rest_day|modify_training_session|delete_training_session|plan_change|get_plan|session_id)\b/', $reply->content, 'Werkzeugname im Text');
 
             ($scenario['expect'])($this, $ctx);
             self::$report[$name]['passed']++;

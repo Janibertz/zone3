@@ -968,6 +968,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::post('/recommendations/{recommendation}/accept', [\App\Http\Controllers\SessionRecommendationController::class, 'accept'])->name('recommendations.accept');
     Route::post('/recommendations/{recommendation}/reject', [\App\Http\Controllers\SessionRecommendationController::class, 'reject'])->name('recommendations.reject');
 
+    Route::post('/api/coach/changes/{change}/undo', [CoachChatController::class, 'undoChange'])->name('coach.changes.undo');
     Route::delete('/api/coach/messages', [CoachChatController::class, 'destroyMessages'])->name('coach.messages.destroy');
     Route::delete('/api/coach/notes',    [CoachChatController::class, 'destroyNotes'])->name('coach.notes.destroy');
     Route::post('/api/coach/pr-dismiss', [AIController::class, 'dismissPr'])->name('coach.pr.dismiss');

@@ -37,7 +37,7 @@ class CoachMessageObserver
         // Antworten auf eine Frage aus dem Web-Chat bleiben im Web: dort
         // wartet der Athlet gerade auf sie.
         if ($user->hasTelegram() && $message->channel !== CoachMessage::CHANNEL_WEB) {
-            app(TelegramClient::class)->sendMessage((int) $user->telegram_chat_id, $message->content, self::reviewButtons($message));
+            app(TelegramClient::class)->sendMessage((int) $user->telegram_chat_id, self::withReceipt($message), self::reviewButtons($message) ?? self::undoButtons($message));
 
             // Eigene Vorschläge des Coaches folgen der Antwort, mit Knöpfen.
             foreach ($message->actions ?? [] as $action) {
@@ -68,6 +68,30 @@ class CoachMessageObserver
                 'error'      => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Was plan_change angewendet hat, steht unter der Antwort — aus der
+     * Datenbank, nicht vom Modell (Stufe 2, 22.11.2026). Im Web-Chat zeigt
+     * der Chat dieselben Zeilen als Systemzeilen.
+     */
+    public static function withReceipt(CoachMessage $message): string
+    {
+        $lines = collect($message->actions ?? [])
+            ->filter(fn ($a) => in_array($a['type'] ?? null, ['plan_change', 'plan_undone', 'training_paused', 'training_resumed', 'event_updated'], true))
+            ->pluck('label')->filter();
+
+        return $lines->isEmpty()
+            ? $message->content
+            : rtrim($message->content) . "\n\n" . $lines->map(fn ($l) => '✓ ' . $l)->implode("\n");
+    }
+
+    /** „↩︎ Rückgängig“ unter einer Änderung (`cu:<Paket>`). */
+    public static function undoButtons(CoachMessage $message): ?array
+    {
+        $id = collect($message->actions ?? [])->firstWhere('type', 'plan_change')['change_id'] ?? null;
+
+        return $id ? [[['text' => '↩︎ Rückgängig', 'callback_data' => "cu:{$id}"]]] : null;
     }
 
     /**

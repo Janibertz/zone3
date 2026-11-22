@@ -133,6 +133,9 @@ return [
         // `app_settings.coach_engine` schlägt die Umgebung.
         'coach_engine'    => env('OPENAI_COACH_ENGINE', 'responses'),
         'coach_reasoning' => env('OPENAI_COACH_REASONING', 'low'),
+        // Stufe 2 (22.11.2026): v2 = plan_change mit IDs, Prüfer und Rückgängig;
+        // v1 = die alten Werkzeuge. Notausgang auch über app_settings.coach_tools.
+        'coach_tools'     => env('OPENAI_COACH_TOOLS', 'v2'),
 
         // Tagesbudgets in Euro (0 = aus). Das Monatslimit steht zusaetzlich
         // hart auf der OpenAI-Plattform; diese hier fangen eine Schleife ab,

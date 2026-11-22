@@ -356,6 +356,25 @@ function proposalRows(a) {
 
 const deciding = ref(null);
 
+/* ── Rückgängig (Stufe 2) ──────────────────────────────────────────────── */
+const undoing = ref(null);
+const canUndo = (a) => a.type === 'plan_change' && a.undo && a.change_id && !a.undone && a.undoable !== false;
+
+async function undoChange(action) {
+    if (undoing.value) return;
+    undoing.value = action.change_id;
+    try {
+        await axios.post(route('coach.changes.undo', action.change_id), {}, { headers: { Accept: 'application/json' } });
+        action.undone = true;
+        pendingReload.value = true;
+    } catch (e) {
+        action.undoable = false;
+        action.undoError = e?.response?.data?.message ?? 'Lässt sich nicht mehr zurücknehmen.';
+    } finally {
+        undoing.value = null;
+    }
+}
+
 async function decideProposal(action, decision) {
     if (deciding.value) return;
     deciding.value = action.recommendation_id;
@@ -381,6 +400,8 @@ function decisionText(p) {
 }
 
 const changeIcons = {
+    plan_change: 'M3 8.5 6.5 12 13 4.5',
+    plan_undone: 'M6 3 3 6l3 3M3 6h6.5a3.5 3.5 0 0 1 0 7H7',
     memory:            'M8 2.5a3.5 3.5 0 0 0-2 6.37V11h4V8.87A3.5 3.5 0 0 0 8 2.5ZM6.5 13.5h3',
     session_created:   'M8 3v10M3 8h10',
     session_moved:     'M5.5 4.5 3 7l2.5 2.5M3 7h8M10.5 11.5 13 9l-2.5-2.5M13 9H5',
@@ -683,7 +704,13 @@ const isEmpty = computed(() => hasLoaded.value && messages.value.length === 0 &&
                             <!-- Was der Coach geändert hat -->
                             <p v-else-if="r.kind === 'change'" class="mx-6 mt-2.5 flex items-start justify-center gap-1.5 text-center text-[11px] leading-4 text-ink-3">
                                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 shrink-0" aria-hidden="true"><path :d="changeIcons[r.a.type] ?? editIcon" /></svg>
-                                <span><b class="font-semibold text-ink-2">{{ r.a.label }}</b></span>
+                                <span>
+                                    <b class="font-semibold text-ink-2" :class="r.a.undone ? 'line-through' : ''">{{ r.a.label }}</b>
+                                    <template v-if="canUndo(r.a)"> · <button type="button" class="font-semibold text-accent-ink transition active:opacity-60 disabled:opacity-40"
+                                        :disabled="undoing === r.a.change_id" @click="undoChange(r.a)">Rückgängig</button></template>
+                                    <template v-else-if="r.a.undo && r.a.undone"> · Rückgängig gemacht</template>
+                                    <template v-else-if="r.a.undoError"> · {{ r.a.undoError }}</template>
+                                </span>
                             </p>
 
                             <!-- Zugestellt / Wird gesendet -->
