@@ -33,6 +33,9 @@ class OpenAICostControlTest extends TestCase
             'services.openai.budget.daily_eur'      => 1.00,
             'services.openai.budget.user_daily_eur' => 0.30,
         ]);
+
+        // Die Migration trägt 5 € im Admin ein; diese Tests prüfen die Vorgaben aus der Umgebung.
+        \App\Models\AppSetting::whereIn('key', [OpenAIClient::SETTING_DAILY_BUDGET, OpenAIClient::SETTING_USER_BUDGET])->delete();
     }
 
     private function client(): OpenAIClient

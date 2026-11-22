@@ -3,6 +3,7 @@
 namespace App\Services\AI;
 
 use App\Models\AiLog;
+use App\Models\AppSetting;
 use App\Models\User;
 use App\Services\WebPushService;
 use Illuminate\Http\Client\ConnectionException;
@@ -169,7 +170,7 @@ class OpenAIClient
             return 'Notbremse: ' . $reason;
         }
 
-        $daily = (float) config('services.openai.budget.daily_eur', 0);
+        $daily = self::dailyBudgetEur();
         if ($daily > 0 && AiLog::todayCost() >= $daily) {
             return sprintf('Tagesbudget fuer alle erreicht (%.2f EUR)', $daily);
         }
@@ -194,7 +195,33 @@ class OpenAIClient
 
         return $own !== null
             ? (float) $own
-            : (float) config('services.openai.budget.user_daily_eur', 0);
+            : self::userDefaultBudgetEur();
+    }
+
+    /** Schlüssel in `app_settings` — im Admin unter Einstellungen änderbar (seit 22.11.2026). */
+    public const SETTING_DAILY_BUDGET = 'openai_budget_daily_eur';
+    public const SETTING_USER_BUDGET  = 'openai_budget_user_daily_eur';
+
+    /**
+     * Tagesbudget für alle in Euro: was im Admin eingetragen ist, sonst
+     * `OPENAI_BUDGET_DAILY_EUR`. 0 = unbegrenzt.
+     */
+    public static function dailyBudgetEur(): float
+    {
+        return self::setting(self::SETTING_DAILY_BUDGET) ?? (float) config('services.openai.budget.daily_eur', 0);
+    }
+
+    /** Vorgabe je Athlet in Euro (Admin, sonst `OPENAI_BUDGET_USER_DAILY_EUR`). 0 = unbegrenzt. */
+    public static function userDefaultBudgetEur(): float
+    {
+        return self::setting(self::SETTING_USER_BUDGET) ?? (float) config('services.openai.budget.user_daily_eur', 0);
+    }
+
+    private static function setting(string $key): ?float
+    {
+        $value = AppSetting::get($key);
+
+        return is_numeric($value) ? (float) $value : null;
     }
 
     /**
@@ -359,6 +386,15 @@ class OpenAIClient
      *
      * @return array|null Der dekodierte Antwortkoerper, null bei Fehler.
      */
+    /**
+     * Fehlercode des letzten {@see chatWithTools()}-Aufrufs (`error.code` von
+     * OpenAI, sonst `http_<status>`), null nach Erfolg.
+     */
+    public ?string $lastErrorCode = null;
+
+    /** OpenAIs Inhaltsfilter hat den Prompt abgelehnt (HTTP 400, `invalid_prompt`). */
+    public const FLAGGED_PROMPT = 'invalid_prompt';
+
     public function chatWithTools(
         string  $callType,
         array   $messages,
@@ -368,6 +404,8 @@ class OpenAIClient
         ?string $model     = null,
     ): ?array {
         $model = $model ?? $this->model;
+
+        $this->lastErrorCode = null;
 
         if ($blocked = $this->blockReason($callType)) {
             $this->logSkipped($callType, $model, $blocked);
@@ -411,6 +449,10 @@ class OpenAIClient
             if (($m['role'] ?? null) === 'user') { $userContent = (string) $m['content']; break; }
         }
 
+        $this->lastErrorCode = $response->failed()
+            ? (string) (data_get($body, 'error.code') ?: 'http_' . $response->status())
+            : null;
+
         AiLog::create([
             'user_id'           => $this->userId,
             'call_type'         => $callType,
@@ -422,13 +464,26 @@ class OpenAIClient
                 ? 'HTTP ' . $response->status() . ': ' . mb_substr($response->body(), 0, 300)
                 : null,
             'prompt_preview'    => mb_substr($userContent, 0, 500),
-            'full_prompt'       => $userContent,
-            'full_response'     => $this->toolResponseText($body),
+            // Bei einem Fehler der ganze Aufruf (Systemprompt, Verlauf,
+            // Frage): am 22.11.2026 lehnte OpenAI eine harmlose Frage als
+            // „invalid_prompt" ab, und im Log stand nur die Frage — was den
+            // Filter ausgelöst hatte, ließ sich nicht mehr nachlesen. Nach
+            // 30 Tagen leert `ai:prune-logs` die Spalte wie jede andere.
+            'full_prompt'       => $response->failed()
+                ? json_encode($messages, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+                : $userContent,
+            'full_response'     => $response->failed() ? mb_substr($response->body(), 0, 2000) : $this->toolResponseText($body),
         ]);
 
         if ($response->failed()) {
             $this->tripIfQuotaExhausted($response);
-            Log::error("OpenAI {$callType} Error", ['status' => $response->status()]);
+
+            // Ein abgelehnter Prompt ist kein Defekt der App: der Coach-Chat
+            // versucht es entschärft noch einmal. Nur ein Warnhinweis, sonst
+            // weckt der Sofort-Push die Admins für einen Fehlalarm des Filters.
+            $this->lastErrorCode === self::FLAGGED_PROMPT
+                ? Log::warning("OpenAI {$callType} Prompt vom Inhaltsfilter abgelehnt", ['status' => $response->status(), 'user_id' => $this->userId])
+                : Log::error("OpenAI {$callType} Error", ['status' => $response->status(), 'code' => $this->lastErrorCode]);
 
             return null;
         }

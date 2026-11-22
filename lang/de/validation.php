@@ -156,6 +156,8 @@ return [
     // Feldnamen, wie der Athlet sie liest. Ohne Eintrag erscheint der
     // technische Name ("age"), mit ihm "Alter".
     'attributes' => [
+        'daily_eur' => 'Tagesbudget',
+        'user_eur' => 'Budget je Athlet',
         'name' => 'Name',
         'email' => 'E-Mail-Adresse',
         'password' => 'Passwort',

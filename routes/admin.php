@@ -101,6 +101,7 @@ Route::put('/coaches/{coach}',   [AdminCoachController::class, 'update']) ->name
 
 Route::get('/settings',                    [AdminSettingsController::class, 'index'])          ->name('settings.index');
 Route::post('/settings/test-push',         [AdminSettingsController::class, 'sendTestPush'])   ->name('settings.test-push');
+Route::patch('/settings/budget',            [AdminSettingsController::class, 'updateBudget'])   ->name('settings.budget');
 Route::post('/settings/maintenance',       [AdminSettingsController::class, 'toggleMaintenance'])->name('settings.maintenance');
 
 // Kontaktformular aus dem Impressum

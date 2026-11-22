@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\User;
+use App\Services\AI\OpenAIClient;
 use App\Services\WebPushService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -42,6 +43,24 @@ class AdminSettingsController extends Controller
         return back()->with('success', $msg);
     }
 
+    /**
+     * Die beiden Euro-Bremsen (Jan, 22.11.2026: „lass mich das unter den
+     * Einstellungen selber ändern"). Gespeichert in `app_settings`, gelten
+     * sofort und vor den Werten aus der Umgebung. 0 = unbegrenzt.
+     */
+    public function updateBudget(Request $request)
+    {
+        $data = $request->validate([
+            'daily_eur' => ['required', 'numeric', 'min:0', 'max:100'],
+            'user_eur'  => ['required', 'numeric', 'min:0', 'max:100'],
+        ]);
+
+        AppSetting::set(OpenAIClient::SETTING_DAILY_BUDGET, (string) round((float) $data['daily_eur'], 2));
+        AppSetting::set(OpenAIClient::SETTING_USER_BUDGET, (string) round((float) $data['user_eur'], 2));
+
+        return back()->with('success', 'Kostenbremse gespeichert.');
+    }
+
     private function pingOpenAI(): array
     {
         $key = config('services.openai.api_key');
@@ -73,8 +92,8 @@ class AdminSettingsController extends Controller
             'openai_model_mid'    => config('services.openai.model_mid',  'gpt-5.6-terra'),
             'openai_model_mini'   => config('services.openai.model_mini', 'gpt-5.6-luna'),
             'openai_flex'         => (bool) config('services.openai.flex', true),
-            'openai_budget_daily' => (float) config('services.openai.budget.daily_eur', 0),
-            'openai_budget_user'  => (float) config('services.openai.budget.user_daily_eur', 0),
+            'openai_budget_daily' => OpenAIClient::dailyBudgetEur(),
+            'openai_budget_user'  => OpenAIClient::userDefaultBudgetEur(),
             'openai_key_set'      => !empty(config('services.openai.api_key')),
             'push_key_set'        => !empty(config('services.webpush.public_key')),
             'mail_mailer'         => config('mail.default', 'log'),

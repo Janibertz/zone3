@@ -1,7 +1,7 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
-import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -13,6 +13,15 @@ const page  = usePage();
 const flash = computed(() => page.props.flash ?? {});
 
 const sendingPush      = ref(false);
+
+// Kostenbremse in Euro, im Admin änderbar (seit 22.11.2026). 0 = unbegrenzt.
+const budgetForm = useForm({
+    daily_eur: props.config.openai_budget_daily ?? 0,
+    user_eur:  props.config.openai_budget_user ?? 0,
+});
+function saveBudget() {
+    budgetForm.patch(route('admin.settings.budget'), { preserveScroll: true });
+}
 const togglingMaintenance = ref(false);
 
 function sendTestPush() {
@@ -125,17 +134,36 @@ function modelInfo(id) {
                 </div>
 
                 <!-- Kostenbremsen -->
-                <div class="px-6 py-4 flex items-center justify-between gap-4">
-                    <div>
-                        <p class="text-sm font-medium text-ink">Kostenbremsen</p>
-                        <p class="text-xs text-ink-3 mt-0.5">OPENAI_FLEX, OPENAI_BUDGET_DAILY_EUR, OPENAI_BUDGET_USER_DAILY_EUR</p>
+                <form class="px-6 py-4 space-y-3" @submit.prevent="saveBudget">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <p class="text-sm font-medium text-ink">Kostenbremse</p>
+                            <p class="text-xs text-ink-3 mt-0.5">Euro pro Tag, 0 = unbegrenzt. Flex {{ config.openai_flex ? 'an' : 'aus' }}.</p>
+                        </div>
                     </div>
-                    <p class="text-sm text-ink-2 text-right">
-                        Flex {{ config.openai_flex ? 'an' : 'aus' }} ·
-                        {{ config.openai_budget_daily ? config.openai_budget_daily.toFixed(2) + ' € / Tag' : 'kein Tagesbudget' }} ·
-                        {{ config.openai_budget_user ? config.openai_budget_user.toFixed(2) + ' € / Athlet' : 'kein Athletenbudget' }}
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="block">
+                            <span class="text-xs text-ink-3">Alle zusammen</span>
+                            <input v-model="budgetForm.daily_eur" type="number" min="0" max="100" step="0.1" inputmode="decimal"
+                                class="mt-1 w-full text-base sm:text-sm border-0 rounded-field px-3 py-2 bg-surface text-ink focus:outline-none focus:ring-2 focus:ring-danger/40" />
+                        </label>
+                        <label class="block">
+                            <span class="text-xs text-ink-3">Je Athlet (Vorgabe)</span>
+                            <input v-model="budgetForm.user_eur" type="number" min="0" max="100" step="0.05" inputmode="decimal"
+                                class="mt-1 w-full text-base sm:text-sm border-0 rounded-field px-3 py-2 bg-surface text-ink focus:outline-none focus:ring-2 focus:ring-danger/40" />
+                        </label>
+                    </div>
+                    <p v-if="budgetForm.errors.daily_eur || budgetForm.errors.user_eur" class="text-xs text-danger">
+                        {{ budgetForm.errors.daily_eur || budgetForm.errors.user_eur }}
                     </p>
-                </div>
+                    <div class="flex items-center justify-between gap-3">
+                        <p class="text-xs text-ink-3">Der Plan zählt nicht ins Athletenbudget. Abweichungen je Athlet stehen auf der Athletenseite.</p>
+                        <button type="submit" :disabled="budgetForm.processing || !budgetForm.isDirty"
+                            class="shrink-0 px-4 py-2 rounded-full text-sm font-semibold bg-accent text-white active:opacity-80 disabled:opacity-40">
+                            {{ budgetForm.processing ? '…' : 'Sichern' }}
+                        </button>
+                    </div>
+                </form>
 
                 <!-- API Key -->
                 <div class="px-6 py-4 flex items-center justify-between">

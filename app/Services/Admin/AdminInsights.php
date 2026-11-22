@@ -350,7 +350,7 @@ class AdminInsights
 
         return [
             'today'        => round((float) AiLog::whereDate('created_at', today())->sum('cost_eur'), 4),
-            'today_budget' => (float) config('services.openai.budget.daily_eur', 0),
+            'today_budget' => \App\Services\AI\OpenAIClient::dailyBudgetEur(),
             'month'        => round($month, 4),
             'month_label'  => now()->locale('de')->isoFormat('MMMM'),
             'forecast'     => round($month / max(1, $day) * $days, 2),

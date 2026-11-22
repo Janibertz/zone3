@@ -127,7 +127,7 @@ class AdminUserController extends Controller
             // Die zweite Grenze neben der Anzahl: Euro. Ohne sie hier sah
             // der Admin ein freies Limit, waehrend der Coach schon gesperrt war.
             'aiTodayCost'      => round(AiLog::todayCost($user->id), 4),
-            'aiBudgetDefault'  => (float) config('services.openai.budget.user_daily_eur', 0),
+            'aiBudgetDefault'  => \App\Services\AI\OpenAIClient::userDefaultBudgetEur(),
             'aiBlockReason'    => app(\App\Services\AI\OpenAIClient::class)->forUser($user->id)->chatBlockReason(),
             // Was bei der Suche nach der Plan-Luecke gefehlt hat: welche
             // Neuberechnungen es gab und warum, was im aktiven Plan steht,
