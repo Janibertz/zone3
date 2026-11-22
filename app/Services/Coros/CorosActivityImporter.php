@@ -2,8 +2,10 @@
 
 namespace App\Services\Coros;
 
+use App\Jobs\GenerateSessionReviewJob;
 use App\Models\Activity;
 use App\Models\IgnoredActivity;
+use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\ActivityDeletionService;
 use App\Services\ActivityImportService;
@@ -31,6 +33,14 @@ use Throwable;
  * (Schwelle, Umfang und VDOT brauchen sechs Wochen). Was dabei aelter als
  * `FRESH_HOURS` ist, wird nur gespeichert: kein Push, kein Review, keine
  * Zuordnung zu laengst vergangenen Einheiten.
+ *
+ * **Eine Aktivitaet, die noch laeuft, steht schon in der Liste** (gemeldet am
+ * 22.11.2026: 15,56 km gelaufen, angekommen 3,57 km in 20 min). COROS liefert
+ * dann den Zwischenstand und zur FIT-Datei „still in progress“. So ein
+ * Eintrag wird uebersprungen, der naechste Abruf holt ihn fertig. Weicht eine
+ * schon gespeicherte Aktivitaet ohne FIT-Datei deutlich von der Liste ab, wird sie
+ * aufgefrischt — samt Einheit und, wenn sie sich stark geaendert hat, mit
+ * einem neuen Review.
  */
 class CorosActivityImporter
 {
@@ -41,6 +51,12 @@ class CorosActivityImporter
     public const MAX_NEW_PER_RUN = 10;
 
     public const FRESH_HOURS = 48;
+
+    /** Hoechstens so viele Auffrischungen je Abruf (jede kostet eine FIT-Datei). */
+    public const MAX_REFRESH_PER_RUN = 5;
+
+    /** Ab dieser Abweichung ist das Review veraltet und wird neu geschrieben. */
+    public const REREVIEW_SHARE = 0.2;
 
     public function __construct(
         private readonly CorosClient $client,
@@ -72,11 +88,11 @@ class CorosActivityImporter
 
         $records = $this->parser->records($text);
 
-        $known = Activity::where('user_id', $user->id)
+        $stored = Activity::where('user_id', $user->id)
             ->whereIn('coros_label_id', array_column($records, 'label_id'))
-            ->pluck('coros_label_id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
+            ->get()
+            ->keyBy(fn (Activity $a) => (int) $a->coros_label_id);
+        $known = $stored->keys()->all();
 
         $new = array_values(array_filter($records, fn ($r) => ! in_array($r['label_id'], $known, true)
             && ! IgnoredActivity::blocks($user->id, Activity::SOURCE_COROS, $r['label_id'])));
@@ -85,7 +101,7 @@ class CorosActivityImporter
         usort($new, fn ($a, $b) => ($b['start'] ?? 0) <=> ($a['start'] ?? 0));
         $batch = array_slice($new, 0, self::MAX_NEW_PER_RUN);
 
-        $outcomes = ['imported' => 0, 'attached' => 0, 'without_fit' => 0, 'pending' => count($new) - count($batch)];
+        $outcomes = ['imported' => 0, 'attached' => 0, 'without_fit' => 0, 'in_progress' => 0, 'refreshed' => 0, 'pending' => count($new) - count($batch)];
 
         if ($batch !== [] && ! $connection->device_name) {
             try {
@@ -99,10 +115,24 @@ class CorosActivityImporter
         foreach ($batch as $record) {
             $outcome = $this->importOne($user, $record, $connection->device_name);
             $outcomes[$outcome['result']]++;
-            if (! $outcome['fit']) {
+            if (! $outcome['fit'] && $outcome['result'] !== 'in_progress') {
                 $outcomes['without_fit']++;
             }
             $freshNew = $freshNew || $outcome['fresh'];
+        }
+
+        $changed = array_values(array_filter($records, fn ($r) => isset($stored[$r['label_id']])
+            && $stored[$r['label_id']]->source === Activity::SOURCE_COROS
+            // Nur was ohne FIT-Datei ankam: mit Datei gelten deren Zahlen, und
+            // eine dauerhafte Abweichung zur Liste kostete sonst jeden Abruf
+            // eine der 50 Dateien am Tag.
+            && empty($stored[$r['label_id']]->laps)
+            && $this->differs($stored[$r['label_id']], $r)));
+
+        foreach (array_slice($changed, 0, self::MAX_REFRESH_PER_RUN) as $record) {
+            if ($this->refreshOne($user, $stored[$record['label_id']], $record, $connection->device_name)) {
+                $outcomes['refreshed']++;
+            }
         }
 
         if ($freshNew) {
@@ -123,7 +153,15 @@ class CorosActivityImporter
     private function importOne(User $user, array $record, ?string $device): array
     {
         $attributes = $this->attributes($record, $device);
-        $decoded    = $this->fitFor($user, $record);
+        $decoded    = $this->fitFor($user, $record, $inProgress);
+
+        if ($inProgress) {
+            // Der Zwischenstand eines laufenden Trainings. Nichts speichern —
+            // sonst stuende er als erledigte Einheit im Plan, mit Review dazu.
+            Log::info('COROS-Aktivitaet laeuft noch, spaeter', ['user_id' => $user->id, 'coros_label_id' => $record['label_id']]);
+
+            return ['result' => 'in_progress', 'fit' => false, 'fresh' => false];
+        }
 
         if ($decoded) {
             $attributes = array_merge($attributes, $this->fromFit($decoded));
@@ -159,6 +197,91 @@ class CorosActivityImporter
         return ['result' => 'imported', 'fit' => (bool) $decoded, 'fresh' => $fresh];
     }
 
+    /**
+     * Weicht die gespeicherte Aktivitaet deutlich von der Liste ab? Die Liste
+     * rundet (Strecke auf 10 m, Dauer auf die Sekunde, aus der FIT-Datei kommen
+     * die genauen Werte), darum mit Luft — sonst frischte jeder Abruf auf.
+     */
+    public function differs(Activity $activity, array $record): bool
+    {
+        $distance = (float) ($record['distance'] ?? 0);
+        $duration = (int) ($record['duration'] ?? 0);
+
+        $distanceOff = $distance > 0 && abs($distance - (float) $activity->distance) > max(100, 0.02 * $distance);
+        $durationOff = $duration > 0 && abs($duration - (int) $activity->moving_time) > max(120, 0.05 * $duration);
+
+        return $distanceOff || $durationOff;
+    }
+
+    /**
+     * Eine schon gespeicherte Aktivitaet nachziehen: Zahlen, Linie, Runden,
+     * die Einheit dazu und die Bestzeiten. Hat sie sich stark geaendert (ein
+     * Zwischenstand, der zum ganzen Lauf wurde), beschreibt das Review etwas
+     * anderes und wird neu geschrieben.
+     */
+    private function refreshOne(User $user, Activity $activity, array $record, ?string $device): bool
+    {
+        $decoded = $this->fitFor($user, $record, $inProgress);
+
+        if ($inProgress) {
+            return false;
+        }
+
+        $before = ['distance' => (float) $activity->distance, 'moving_time' => (int) $activity->moving_time];
+
+        $attributes = $this->attributes($record, $device);
+        if ($decoded) {
+            $attributes = array_merge($attributes, $this->fromFit($decoded));
+        }
+
+        $activity = $this->activities->store($user->id, Activity::SOURCE_COROS, $record['label_id'], $attributes);
+        $this->activities->syncSessionsWithActivity($activity);
+
+        $fresh = $record['start'] !== null && $record['start'] >= now()->subHours(self::FRESH_HOURS)->timestamp;
+
+        if ($decoded && $activity->type === 'Run') {
+            $efforts    = BestEffortService::effortsFromStream($this->stream($decoded['records']));
+            $newRecords = $this->bestEfforts->syncFromActivityData($activity, ['best_efforts' => $efforts]);
+
+            // Den ganzen Lauf hat noch niemand gefeiert.
+            if ($fresh && ! empty($newRecords)) {
+                $this->activities->flagPendingPr($user->id, $activity->id);
+            }
+        }
+
+        $rereview = $fresh && ($this->share($before['distance'], (float) $activity->distance) > self::REREVIEW_SHARE
+            || $this->share($before['moving_time'], (int) $activity->moving_time) > self::REREVIEW_SHARE);
+
+        if ($rereview) {
+            TrainingSession::where('user_id', $user->id)
+                ->where('activity_id', $activity->id)
+                ->where('status', 'completed')
+                ->whereNotNull('reviewed_at')
+                ->get()
+                ->each(function (TrainingSession $session) {
+                    $session->update(['coach_review' => null, 'reviewed_at' => null]);
+                    GenerateSessionReviewJob::dispatch($session->id)->delay(now()->addSeconds(20));
+                });
+        }
+
+        Log::info('COROS-Aktivitaet aufgefrischt', [
+            'user_id'        => $user->id,
+            'coros_label_id' => $record['label_id'],
+            'distance'       => [$before['distance'], (float) $activity->distance],
+            'moving_time'    => [$before['moving_time'], (int) $activity->moving_time],
+            'fit'            => (bool) $decoded,
+            'rereview'       => $rereview,
+        ]);
+
+        return true;
+    }
+
+    /** Relative Aenderung von a nach b (0 bei a = 0). */
+    private function share(float $a, float $b): float
+    {
+        return $a > 0 ? abs($b - $a) / $a : ($b > 0 ? 1.0 : 0.0);
+    }
+
     /** Was die Liste hergibt, in Zone3s Namen. */
     public function attributes(array $record, ?string $device): array
     {
@@ -183,8 +306,10 @@ class CorosActivityImporter
     }
 
     /** Die FIT-Datei einer Aktivitaet, entschluesselt; null, wenn sie nicht kommt. */
-    private function fitFor(User $user, array $record): ?array
+    private function fitFor(User $user, array $record, ?bool &$inProgress = null): ?array
     {
+        $inProgress = false;
+
         try {
             $text = $this->client->callTool($user->corosConnection, 'queryActivityFitFileDownloadUrls', [
                 'labelId'   => (string) $record['label_id'],
@@ -196,6 +321,16 @@ class CorosActivityImporter
             }
 
             return $this->fit->decode(Http::timeout(60)->get($url[0])->throw()->body());
+        } catch (CorosException $e) {
+            if (str_contains(strtolower($e->getMessage()), 'in progress')) {
+                $inProgress = true;
+
+                return null;
+            }
+
+            Log::warning('COROS: FIT-Datei nicht geladen', ['user_id' => $user->id, 'coros_label_id' => $record['label_id'], 'error' => $e->getMessage()]);
+
+            return null;
         } catch (Throwable $e) {
             Log::warning('COROS: FIT-Datei nicht geladen', ['user_id' => $user->id, 'coros_label_id' => $record['label_id'], 'error' => $e->getMessage()]);
 

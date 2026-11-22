@@ -219,4 +219,101 @@ class CorosActivityImportTest extends TestCase
         $this->assertSame([$strava->id], Activity::where('user_id', $this->user->id)->pluck('id')->all());
         $this->assertNull($strava->fresh()->coros_label_id);
     }
+
+    /**
+     * Gemeldet am 22.11.2026: COROS listet ein laufendes Training schon mit
+     * dem Zwischenstand, die FIT-Datei kommt erst danach. Gespeichert wurde
+     * der Zwischenstand und nie wieder angefasst.
+     */
+    private function fakeLiveRun(string &$state, array &$tools = []): void
+    {
+        $start = $this->start();
+        $fit   = self::fit($start);
+
+        Http::fake([
+            'mcpeu.coros.com/mcp' => function (Request $request) use (&$state, &$tools, $start) {
+                $tool    = $request['params']['name'];
+                $args    = (array) ($request['params']['arguments'] ?? []);
+                $tools[] = $tool;
+                [$dur, $km] = $state === 'running' ? ['5:00', '1.00'] : ['30:00', '6.00'];
+                $end = $start + 1860;
+
+                if ($tool === 'queryActivityFitFileDownloadUrls' && $state === 'running') {
+                    return Http::response(['jsonrpc' => '2.0', 'id' => 1, 'result' => ['isError' => true, 'content' => [['type' => 'text', 'text' => 'This activity is still in progress; the FIT file is available after it ends.']]]]);
+                }
+
+                $text = match ($tool) {
+                    'querySportRecords' => "Sport Records\n\n1. Outdoor Run — 2026-11-06\n   Time Window: startTimestamp={$start} | endTimestamp={$end}\n   Duration: {$dur} | Distance: {$km} km\n   Avg HR: 150 bpm\n   LabelId: 400000000000000009 | SportType: 100\n",
+                    'queryActivityFitFileDownloadUrls' => "1. x.fit\n   https://s3eu.coros.com/fit/v2/1/{$args['labelId']}.fit",
+                    'queryDevices' => "1. COROS PACE 3",
+                    default => '',
+                };
+
+                return Http::response(['jsonrpc' => '2.0', 'id' => 1, 'result' => ['content' => [['type' => 'text', 'text' => $text]]]]);
+            },
+            's3eu.coros.com/*' => Http::response($fit),
+        ]);
+    }
+
+    public function test_a_run_still_in_progress_waits_for_the_next_sync(): void
+    {
+        $state = 'running';
+        $this->fakeLiveRun($state);
+
+        $result = app(CorosActivityImporter::class)->sync($this->user);
+
+        $this->assertSame(1, $result['in_progress']);
+        $this->assertSame(0, $result['imported']);
+        $this->assertSame(0, Activity::where('user_id', $this->user->id)->count());
+
+        $state = 'done';
+        $again = app(CorosActivityImporter::class)->sync($this->user->fresh());
+
+        $this->assertSame(1, $again['imported']);
+        $run = Activity::where('coros_label_id', 400000000000000009)->first();
+        $this->assertEquals(6000, $run->distance);
+        $this->assertSame(1800, $run->moving_time);
+        $this->assertCount(2, $run->laps);
+    }
+
+    public function test_a_stored_partial_run_is_refreshed_with_its_session_and_review(): void
+    {
+        // So stand es vor dem Fix in der Datenbank: Zwischenstand, ohne FIT,
+        // einer Einheit zugeordnet und schon besprochen.
+        $activity = Activity::create([
+            'user_id' => $this->user->id, 'source' => 'coros', 'coros_label_id' => 400000000000000009,
+            'name' => 'Aktivität', 'type' => 'Run', 'distance' => 1000, 'moving_time' => 300, 'elapsed_time' => 300,
+            'average_speed' => 3.333, 'start_date' => Carbon::createFromTimestampUTC($this->start()),
+        ]);
+        $session = \App\Models\TrainingSession::create([
+            'user_id' => $this->user->id, 'planned_date' => '2026-11-06', 'type' => 'long_run', 'title' => 'Langer Lauf',
+            'status' => 'completed', 'intensity' => 'low', 'activity_id' => $activity->id, 'distance_km' => 1.0, 'duration_min' => 5,
+            'coach_review' => 'Heute bewusst kurz.', 'reviewed_at' => now(),
+        ]);
+
+        $state = 'done';
+        $tools = [];
+        $this->fakeLiveRun($state, $tools);
+
+        $result = app(CorosActivityImporter::class)->sync($this->user);
+
+        $this->assertSame(1, $result['refreshed']);
+        $activity->refresh();
+        $this->assertEquals(6000, $activity->distance);
+        $this->assertSame(1800, $activity->moving_time);
+        $this->assertCount(2, $activity->laps);
+
+        $session->refresh();
+        $this->assertEquals(6.0, $session->distance_km);
+        $this->assertSame(30, $session->duration_min);
+        $this->assertNull($session->reviewed_at);
+        $this->assertNull($session->coach_review);
+        Queue::assertPushed(\App\Jobs\GenerateSessionReviewJob::class, fn ($job) => $job->sessionId === $session->id);
+
+        // Steht es einmal richtig da, frischt kein Abruf mehr auf.
+        $tools = [];
+        $again = app(CorosActivityImporter::class)->sync($this->user->fresh());
+        $this->assertSame(0, $again['refreshed']);
+        $this->assertNotContains('queryActivityFitFileDownloadUrls', $tools);
+    }
 }
