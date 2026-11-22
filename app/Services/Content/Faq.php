@@ -12,6 +12,9 @@ namespace App\Services\Content;
  */
 class Faq
 {
+    /** Ko-fi, wie `resources/js/donate.js`. */
+    public const DONATE_URL = 'https://ko-fi.com/zone3run';
+
     public static function groups(): array
     {
         return [
@@ -25,6 +28,10 @@ class Faq
                      'a' => 'Für alle, die regelmäßig laufen wollen: von den ersten 5 km bis zur neuen Bestzeit im Halbmarathon oder Marathon. Der Plan richtet sich nach dem, was du heute kannst und wie viel Zeit du hast, nicht nach einer Tabelle.'],
                     ['q' => 'Was kostet Zone3?',
                      'a' => 'Zone3 ist ein junges Projekt und zurzeit kostenlos. Ein Abo kann später kommen. Wenn es so weit ist, sagen wir das offen und vorher an.'],
+                    // Nur im Browser: in den Apps blendet layout.blade.php die Frage aus
+                    // (Apple und Google erlauben Spenden in Apps nur Gemeinnützigen).
+                    ['q' => 'Kann ich Zone3 unterstützen?', 'web_only' => true,
+                     'a' => 'Gern, freiwillig und ohne Gegenleistung. Zone3 ist ein privates Projekt, und die KI des Coaches und der Server kosten jeden Monat Geld. Über <a href="'.self::DONATE_URL.'" target="_blank" rel="noopener noreferrer">Ko-fi</a> kannst du einen Kaffee spendieren, das hilft, die Kosten zu decken. Alle Funktionen bleiben für alle gleich, ob mit oder ohne Spende.'],
                     ['q' => 'Wie komme ich rein?',
                      'a' => 'Über <a href="/login?ref=faq">zone3.run</a> mit Apple oder mit einem Link an deine E-Mail-Adresse, ein Passwort brauchst du nicht. Neue Konten landen zuerst auf einer Warteliste, wir schalten dich dann frei. Mit dem Einladungslink eines Freundes bist du sofort drin.'],
                     ['q' => 'Gibt es eine App?',

@@ -23,7 +23,7 @@
             <h2 class="mt-10 text-[22px] font-bold">{{ $group['title'] }}</h2>
             <div class="mt-3 overflow-hidden rounded-card bg-surface">
                 @foreach ($group['items'] as $i => $item)
-                    <details class="group {{ $i ? 'border-t border-line' : '' }}">
+                    <details class="group {{ $i ? 'border-t border-line' : '' }}" @if (! empty($item['web_only'])) data-web-only @endif>
                         <summary class="flex min-h-[52px] cursor-pointer list-none items-center gap-3 px-5 py-3 text-[17px] font-semibold text-ink active:bg-surface-2 [&::-webkit-details-marker]:hidden">
                             <span class="flex-1">{{ $item['q'] }}</span>
                             <svg class="h-4 w-4 shrink-0 text-ink-3 transition-transform duration-200 ease-in-out-strong group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>

@@ -22,8 +22,13 @@
             document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
             var tag = document.querySelector('meta[name="theme-color"]');
             if (tag) tag.setAttribute('content', dark ? '#000000' : '#f2f2f7');
+            // In den Apps (Capacitor) fehlt, was nur im Browser stehen darf (Spenden).
+            try { if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) document.documentElement.classList.add('native-app'); } catch (e) {}
         })();
     </script>
+    <style>
+        .native-app [data-web-only] { display: none !important; }
+    </style>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="alternate icon" href="/favicon.ico">
     @vite('resources/js/content.js')

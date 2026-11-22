@@ -111,6 +111,10 @@ Jan: „Ratgeber und Blog über Neuerungen von Zone3“. `/ratgeber` und `/blog`
 
 **FAQ** (`/faq`, seit 15.11.2026, Jan): dieselbe Blade-Hülle, Fragen und Antworten in `App\Services\Content\Faq` (mit FAQPage-JSON-LD), verlinkt aus Startseite, Login, Mehr (als echtes `<a>`, kein Inertia-Link), Onboarding-Schritt „Verbindungen“ (`#daten`) und Sitemap; Warteliste darf sie lesen. **Die Daten-Antworten müssen zu `Privacy.vue` passen** — wer dort etwas ändert, liest die FAQ mit. Kosten: „zurzeit kostenlos, ein Abo kann später kommen, wir sagen es offen an“ (Jan). WHOOP steht dort nicht (API Terms 5.2).
 
+### Spenden über Ko-fi (seit 22.11.2026)
+
+Jan, ohne Gewerbe: freiwillige Spenden für KI- und Serverkosten über `https://ko-fi.com/zone3run` (`resources/js/donate.js`, in PHP `Faq::DONATE_URL`). „Zone3 unterstützen“ steht auf Mehr (Gruppe Zone3), im Fuß der Startseite und als FAQ-Frage — **nur im Browser und in der Homescreen-App**. Apple und Google erlauben Spenden in Apps nur Gemeinnützigen; `isNativeApp()` blendet die Links aus, auf den Blade-Seiten setzt `layout.blade.php` die Klasse `native-app` und versteckt alles mit `data-web-only` (FAQ-Eintrag mit `web_only`). Spenden schalten nichts frei.
+
 ### Sprache und Fehlerseiten (seit 03.11.2026)
 
 Bis zum Usability-Befund gab es kein `lang/`, und `APP_LOCALE` stand auf `en`: Login und jede Validierung meldeten sich auf Englisch („The age field is required.“). Jetzt liegen `lang/de/{auth,passwords,pagination,validation}.php` im Repo, `config/app.php` hat `de` als Vorgabe und `phpunit.xml` setzt es für die Tests. **In Coolify muss `APP_LOCALE=de` stehen**, sonst gewinnt die Umgebung. Feldnamen stehen in `validation.attributes` als Hauptwort („Alter fehlt.“); ein neues Formularfeld bekommt dort einen Eintrag, sonst steht der Spaltenname in der Meldung.

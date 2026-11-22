@@ -1,5 +1,6 @@
 <script setup>
-import { isIosApp } from '@/Composables/useNativeApp';
+import { isIosApp, isNativeApp } from '@/Composables/useNativeApp';
+import { DONATE_URL } from '@/donate';
 import { clearWidget } from '@/Composables/useWidget';
 import { computed } from 'vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
@@ -13,6 +14,8 @@ import { useDeviceStatus } from '@/Composables/useDeviceStatus';
 
 // App Store (Guideline 2.2): in der iOS-App ist von keiner Beta die Rede.
 const inApp = isIosApp();
+// Spenden nur im Browser: Apple und Google erlauben sie in Apps nur Gemeinnützigen.
+const showDonate = !isNativeApp();
 
 /**
  * „Mehr" als iOS-Einstellungsliste (Redesign Paket 3, 28.10.2026).
@@ -66,6 +69,7 @@ const P = {
     help:  'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17v.1',
     shield:'M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z',
     doc:   'M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5',
+    heart: 'M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z',
     gift:  'M4 11h16v10H4zM3 7h18v4H3zM12 7v14M12 7c-1.5-3-5-3-5-1s3 1 5 1c2 0 5 1 5-1s-3.5-2-5 1',
 };
 
@@ -81,6 +85,7 @@ const groups = computed(() => [
     ] },
     { title: 'Zone3', rows: [
         { name: 'Freunde einladen', href: route('more.invite'), icon: P.gift, tint: 'bg-accent', value: '' },
+        ...(showDonate ? [{ name: 'Zone3 unterstützen', href: DONATE_URL, icon: P.heart, tint: 'bg-form', value: 'Ko-fi', foot: 'Hilft bei KI- und Serverkosten', external: true, newTab: true }] : []),
     ] },
     { title: 'Verbindungen', rows: [
         // Uhren und Datenquellen als Kacheln auf einer eigenen Seite.
@@ -144,6 +149,7 @@ const groups = computed(() => [
                     <h2 class="mx-4 mb-1.5 text-[13px] text-ink-3">{{ g.title }}</h2>
                     <nav class="overflow-hidden rounded-card bg-surface">
                         <component :is="r.external ? 'a' : Link" v-for="(r, i) in g.rows" :key="r.name" :href="r.href"
+                            :target="r.newTab ? '_blank' : undefined" :rel="r.newTab ? 'noopener noreferrer' : undefined"
                             class="flex min-h-[48px] items-center gap-3 pl-4 transition-colors active:bg-surface-2">
                             <span class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] text-white" :class="r.tint">
                                 <svg class="h-[17px] w-[17px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="r.icon" /></svg>

@@ -4,6 +4,11 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import GaugeTile from '@/Components/UI/GaugeTile.vue';
 import Wordmark from '@/Components/Brand/Wordmark.vue';
 import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
+import { isNativeApp } from '@/Composables/useNativeApp';
+import { DONATE_URL } from '@/donate';
+
+// Spenden nur im Browser (Apple/Google: in Apps nur für Gemeinnützige).
+const showDonate = !isNativeApp();
 
 const props = defineProps({
     canLogin: { type: Boolean },
@@ -460,6 +465,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                     <a href="/ratgeber" class="transition hover:text-ink-2">Ratgeber</a>
                     <a href="/blog" class="transition hover:text-ink-2">Neu in Zone3</a>
                     <a href="/faq" class="transition hover:text-ink-2">FAQ</a>
+                    <a v-if="showDonate" :href="DONATE_URL" target="_blank" rel="noopener noreferrer" class="transition hover:text-ink-2">Zone3 unterstützen</a>
                     <Link :href="route('privacy')" class="transition hover:text-ink-2">Datenschutz</Link>
                     <Link :href="route('terms')" class="transition hover:text-ink-2">Nutzungsbedingungen</Link>
                     <Link :href="route('impressum')" class="transition hover:text-ink-2">Impressum</Link>

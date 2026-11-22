@@ -57,6 +57,15 @@ class ArticlePagesTest extends TestCase
         $this->get('/sitemap.xml')->assertSee(route('faq'), false);
     }
 
+    /** Spenden nur im Browser: in den Apps blendet das Layout die Frage aus. */
+    public function test_the_donation_answer_is_marked_web_only(): void
+    {
+        $this->get('/faq')->assertOk()
+            ->assertSee('https://ko-fi.com/zone3run', false)
+            ->assertSee('data-web-only', false)
+            ->assertSee('.native-app [data-web-only]', false);
+    }
+
     public function test_a_waitlisted_account_can_read_the_faq(): void
     {
         $user = \App\Models\User::factory()->create(['waitlisted_at' => now()]);
