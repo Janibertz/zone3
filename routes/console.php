@@ -17,7 +17,7 @@ Schedule::command('telegram:briefing')->everyMinute();
 
 // Live Activity „Heute steht an“: starten (6 h vor der üblichen Laufzeit),
 // auf Erledigt stellen, beenden. Pusht nur, wenn sich etwas geändert hat.
-Schedule::command('live-activities:tick')->everyMinute()->withoutOverlapping();
+Schedule::command('live-activities:tick')->everyMinute()->withoutOverlapping(10);
 
 // Every Monday at 07:00: generate weekly AI review for all athletes
 Schedule::command('ai:weekly-review')->weeklyOn(1, '07:00');
@@ -66,40 +66,40 @@ Schedule::command('ai:prune-logs')->dailyAt('04:45');
 // Plan automatisch auf die Uhr (Training API): die naechsten 7 Tage. Der
 // Beobachter auf den Einheiten ist der schnelle Weg; stuendlich ist das Netz
 // darunter. Ein unveraenderter Plan kostet keinen Aufruf bei Garmin.
-Schedule::command('garmin:sync-workouts')->hourly()->withoutOverlapping();
+Schedule::command('garmin:sync-workouts')->hourly()->withoutOverlapping(120);
 
 // Dasselbe fuer COROS (MCP): heute und morgen. Stuendlich, damit der neue Tag
 // kurz nach Mitternacht auf der Uhr steht. Ohne Aenderung kein Aufruf.
-Schedule::command('coros:sync-workouts')->hourly()->withoutOverlapping();
-Schedule::command('coros:sync-health')->hourlyAt(20)->withoutOverlapping();
-Schedule::command('coros:sync-activities')->everyFifteenMinutes()->withoutOverlapping();
+Schedule::command('coros:sync-workouts')->hourly()->withoutOverlapping(120);
+Schedule::command('coros:sync-health')->hourlyAt(20)->withoutOverlapping(120);
+Schedule::command('coros:sync-activities')->everyFifteenMinutes()->withoutOverlapping(60);
 
 // Polar AccessLink: der Webhook meldet Trainings in Sekunden, das hier ist das
 // Netz. Erholungswerte (Schlaf, Nightly Recharge, VO2max) stuendlich per Abruf.
 // polar:webhook haelt den einen Webhook des Clients eingerichtet — nicht in
 // startup.sh, weil Polar beim Anlegen sofort einen PING schickt.
-Schedule::command('polar:sync')->everyThirtyMinutes()->withoutOverlapping();
-Schedule::command('polar:sync --health')->hourlyAt(25)->withoutOverlapping();
-Schedule::command('polar:webhook')->hourlyAt(35)->withoutOverlapping();
+Schedule::command('polar:sync')->everyThirtyMinutes()->withoutOverlapping(60);
+Schedule::command('polar:sync --health')->hourlyAt(25)->withoutOverlapping(120);
+Schedule::command('polar:webhook')->hourlyAt(35)->withoutOverlapping(120);
 
 // WHOOP: Webhook ist der schnelle Weg, das hier das Netz (und haelt den
 // Refresh-Token frisch).
-Schedule::command('whoop:sync')->everyThirtyMinutes()->withoutOverlapping();
-Schedule::command('whoop:sync --health')->hourlyAt(40)->withoutOverlapping();
+Schedule::command('whoop:sync')->everyThirtyMinutes()->withoutOverlapping(60);
+Schedule::command('whoop:sync --health')->hourlyAt(40)->withoutOverlapping(120);
 
 // intervals.icu (nur Zwift): Kalender stuendlich (unveraendert = kein Aufruf),
 // Fahrten alle zwei Stunden als Netz unter dem Webhook. Kontingent 100/Tag/Athlet.
-Schedule::command('intervals:sync')->hourlyAt(45)->withoutOverlapping();
-Schedule::command('intervals:sync --activities')->cron('50 */2 * * *')->withoutOverlapping();
+Schedule::command('intervals:sync')->hourlyAt(45)->withoutOverlapping(120);
+Schedule::command('intervals:sync --activities')->cron('50 */2 * * *')->withoutOverlapping(180);
 
 // ROUVY (Indoor-Rad): Workouts stuendlich (unveraendert = kein Aufruf), Fahrten
 // alle zwei Stunden als Netz unter dem Webhook.
-Schedule::command('rouvy:sync')->hourlyAt(55)->withoutOverlapping();
-Schedule::command('rouvy:sync --activities')->cron('5 */2 * * *')->withoutOverlapping();
+Schedule::command('rouvy:sync')->hourlyAt(55)->withoutOverlapping(120);
+Schedule::command('rouvy:sync --activities')->cron('5 */2 * * *')->withoutOverlapping(180);
 
 // Jede Minute: laufende LiveTrack-Sitzungen abfragen. Der Command prueft
 // selbst, ob ueberhaupt eine Sitzung im Zeitfenster liegt.
-Schedule::command('livetrack:poll')->everyMinute()->withoutOverlapping();
+Schedule::command('livetrack:poll')->everyMinute()->withoutOverlapping(10);
 
 // Strava-Aktivitaeten abholen, unabhaengig vom Webhook.
 //
@@ -114,7 +114,14 @@ Schedule::command('livetrack:poll')->everyMinute()->withoutOverlapping();
 //
 // Die Rechnung: ein Listenaufruf je Konto und Durchlauf. Bei vier Konten
 // sind das 4 je 15 Minuten (Limit 200) und 384 am Tag (Limit 2000).
-Schedule::command('strava:sync')->everyFifteenMinutes()->withoutOverlapping();
+//
+// Die Sperre gegen Ueberlappen laeuft nach 60 min ab, nicht nach Laravels
+// Vorgabe von 24 h: am 22.11.2026 kam der Lauf um 19:00 nie zum Ende (Prozess
+// vermutlich beendet, ohne die Sperre freizugeben), und weil die Sperre im
+// Datenbank-Cache liegt, ueberlebte sie und blockierte jeden weiteren Lauf
+// bis zum naechsten Abend. Dasselbe gilt fuer alle haeufigen Befehle oben;
+// `startup.sh` raeumt alte Sperren ausserdem bei jedem Start ab.
+Schedule::command('strava:sync')->everyFifteenMinutes()->withoutOverlapping(60);
 
 /*
  * Beobachtung des eigenen Betriebs.

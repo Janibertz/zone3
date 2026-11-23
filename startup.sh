@@ -36,6 +36,14 @@ echo "[startup] Starting queue worker in background..."
   done
 ) &
 
+echo "[startup] Clearing stale scheduler locks..."
+# `withoutOverlapping` legt seine Sperre in den Cache, und der ist die
+# Datenbank: ein Befehl, der beim Neustart mitten im Lauf beendet wurde,
+# gibt sie nie frei. Am 22.11.2026 hielt so eine Sperre `strava:sync`
+# fast einen Tag lang an. Beim Start laeuft hier noch nichts, also sind
+# alle vorhandenen Sperren alt.
+php artisan schedule:clear-cache --no-interaction || true
+
 echo "[startup] Starting scheduler in background..."
 # `schedule:work` startet `schedule:run` zu Beginn jeder vollen Minute, ohne
 # auf den vorigen Lauf zu warten. Die fruehere Schleife `schedule:run; sleep 60`
