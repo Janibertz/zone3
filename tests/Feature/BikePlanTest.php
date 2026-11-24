@@ -361,6 +361,27 @@ class BikePlanTest extends TestCase
         $this->assertSame(1, TrainingSession::where('user_id', $user->id)->count(), 'keine ungeplante Zusatzeinheit');
     }
 
+    public function test_a_swim_completes_the_planned_swim_but_not_the_ride(): void
+    {
+        [$user, $plan] = $this->athleteWithPlan();
+        $ride = $this->plannedRide($user, $plan);
+        $swim = TrainingSession::create([
+            'user_id' => $user->id, 'training_plan_id' => $plan->id, 'event_id' => $plan->event_id,
+            'planned_date' => '2026-09-02', 'type' => 'cross_training', 'sport_type' => 'Swim',
+            'title' => 'Schwimmen locker', 'duration_min' => 45, 'intensity' => 'low', 'status' => 'planned',
+        ]);
+        $activity = $this->activity($user, 'Swim');
+
+        app(ActivityImportService::class)->matchActivityToSession($user->id, $activity);
+
+        $swim->refresh();
+        $this->assertSame('completed', $swim->status);
+        $this->assertSame($activity->id, $swim->activity_id);
+        $this->assertSame('Schwimmen locker', $swim->planned_snapshot['title']);
+        $this->assertSame('planned', $ride->fresh()->status);
+        $this->assertSame(2, TrainingSession::where('user_id', $user->id)->count(), 'keine ungeplante Zusatzeinheit');
+    }
+
     public function test_a_run_does_not_complete_the_planned_ride(): void
     {
         [$user, $plan] = $this->athleteWithPlan();

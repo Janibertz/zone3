@@ -235,12 +235,19 @@ class ActivityImportService
             // Rad → die geplante Radeinheit des Tages. Eine Fahrt draußen
             // erfüllt die Zwift-Einheit genauso; was geplant war, hält der
             // Schnappschuss fest.
-            if (in_array($activity->type, TrainingSession::BIKE_SPORTS, true)) {
+            // Schwimmen genauso: die Schwimmeinheit des Tages (vorher kannte
+            // der Abgleich nur Rad, ein Schwimmen landete daneben als ungeplant).
+            $family = match (true) {
+                in_array($activity->type, TrainingSession::BIKE_SPORTS, true) => TrainingSession::BIKE_SPORTS,
+                in_array($activity->type, TrainingSession::SWIM_SPORTS, true) => TrainingSession::SWIM_SPORTS,
+                default => null,
+            };
+            if ($family) {
                 $bikeSession = TrainingSession::where('user_id', $userId)
                     ->whereDate('planned_date', $date)
                     ->where('status', 'planned')
                     ->where('type', 'cross_training')
-                    ->whereIn('sport_type', TrainingSession::BIKE_SPORTS)
+                    ->whereIn('sport_type', $family)
                     ->whereHas('trainingPlan', fn ($q) => $q->where('is_active', true))
                     ->first();
 

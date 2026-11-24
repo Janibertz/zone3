@@ -77,6 +77,9 @@ class TrainingSession extends Model
     /** Was eine geplante Radeinheit erfüllt — Zwift oder draußen. */
     public const BIKE_SPORTS = ['VirtualRide', 'Ride'];
 
+    /** Schwimmen — erfüllt eine geplante Schwimmeinheit (cross_training + Swim). */
+    public const SWIM_SPORTS = ['Swim'];
+
     /**
      * Der feste Wochentermin (Laufclub)? Den Inhalt gibt der Trainer vor
      * Ort vor, jede Woche einen anderen — Zone3 baut dafür keinen Ablauf
