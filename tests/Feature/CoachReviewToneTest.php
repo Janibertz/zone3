@@ -218,6 +218,50 @@ class CoachReviewToneTest extends TestCase
             && $r->data()['model'] === config('services.openai.model_mid', $r->data()['model']));
     }
 
+    public function test_cold_weather_is_no_point_for_an_indoor_workout(): void
+    {
+        $this->openAiSays(self::GOOD);
+        [$user, $plan] = $this->athlete();
+        $done = $this->done($user, $plan, sport: 'Workout', meters: 0);
+        $done->activity->update(['weather' => ['temp_c' => -2, 'apparent_c' => -6]]);
+
+        GenerateSessionReviewJob::dispatchSync($done->id);
+
+        $this->assertStringNotContainsString('Gefühlt -6 Grad', $this->prompt());
+        $this->assertStringNotContainsString('Wetter:', $this->prompt());
+    }
+
+    public function test_cold_weather_counts_for_a_run_outside(): void
+    {
+        $this->openAiSays(self::GOOD);
+        [$user, $plan] = $this->athlete();
+        $done = $this->done($user, $plan);
+        $done->activity->update(['weather' => ['temp_c' => -2, 'apparent_c' => -6], 'polyline' => ['polyline' => '_p~iF~ps|U_ulLnnqC']]);
+
+        GenerateSessionReviewJob::dispatchSync($done->id);
+
+        $this->assertStringContainsString('Gefühlt -6 Grad', $this->prompt());
+    }
+
+    public function test_no_second_look_ahead_at_the_same_day(): void
+    {
+        $this->openAiSays(self::GOOD);
+        [$user, $plan] = $this->athlete();
+        TrainingSession::create([
+            'user_id' => $user->id, 'training_plan_id' => $plan->id, 'event_id' => $plan->event_id,
+            'planned_date' => now()->addDays(2)->toDateString(), 'type' => 'tempo_run', 'title' => 'Schwelle',
+            'description' => '', 'intensity' => 'high', 'status' => 'planned',
+        ]);
+        \App\Models\CoachMessage::create(['user_id' => $user->id, 'role' => 'assistant', 'content' => 'Gut gemacht. Samstag die Schwelle ruhig angehen.']);
+        $run = $this->done($user, $plan);
+
+        GenerateSessionReviewJob::dispatchSync($run->id);
+
+        $prompt = $this->prompt();
+        $this->assertStringNotContainsString('Nächste Einheit: Samstag', $prompt);
+        $this->assertStringContainsString('KEIN Ausblick', $prompt);
+    }
+
     public function test_a_message_that_reads_like_a_log_is_rewritten_once(): void
     {
         $this->openAiSays(self::JANS_EXAMPLE, self::GOOD);

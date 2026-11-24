@@ -257,7 +257,7 @@ class GenerateSessionReviewJob implements ShouldQueue
                     . "(Drift {$drift['delta_signed']} bpm)";
             }
 
-            if (! empty($activity->weather)) {
+            if (! empty($activity->weather) && self::outdoor($activity)) {
                 $w = $activity->weather;
                 $wl = ($w['emoji'] ?? '') . ' ' . ($w['description'] ?? '') . ', ' . ($w['temp_c'] ?? '?') . '°C';
                 if (isset($w['apparent_c'])) $wl .= " (gefühlt {$w['apparent_c']}°C)";
@@ -319,6 +319,12 @@ class GenerateSessionReviewJob implements ShouldQueue
      * Die Rohsignale für {@see SessionHighlights::pick()} — alles gerechnet,
      * nichts geschätzt.
      */
+    private static function outdoor(\App\Models\Activity $activity): bool
+    {
+        return ! in_array($activity->type, ['VirtualRide', 'VirtualRun'], true)
+            && ! empty($activity->polyline['polyline'] ?? null);
+    }
+
     private function signals(TrainingSession $s): array
     {
         $activity = $s->activity;
@@ -401,7 +407,11 @@ class GenerateSessionReviewJob implements ShouldQueue
             $out['drift'] = $drift['second'] - $drift['first'];
         }
 
-        $weather = $activity->weather ?? [];
+        // Wetter nur draußen: ein Crossfit bei gefühlt −6 Grad bekam
+        // „trotzdem durchgezogen“ (24.11.2026). Draußen heißt: nicht
+        // virtuell und mit Strecke auf der Karte (Laufband, Halle, Becken,
+        // Kraft haben keine).
+        $weather = self::outdoor($activity) ? ($activity->weather ?? []) : [];
         $out['temp']     = isset($weather['temp_c']) ? (float) $weather['temp_c'] : null;
         $out['apparent'] = isset($weather['apparent_c']) ? (float) $weather['apparent_c'] : null;
         $out['wind']     = ! empty($weather['wind_kmh']) ? (float) $weather['wind_kmh'] : null;
@@ -483,6 +493,10 @@ class GenerateSessionReviewJob implements ShouldQueue
             $lines[] = "Der Plan startet erst am {$later['date']}; bis dahin geht es ums Formhalten";
         }
 
+        $recentRaw = CoachMessage::where('user_id', $user->id)
+            ->where('role', 'assistant')
+            ->latest('id')->limit(3)->pluck('content');
+
         $next = TrainingSession::where('user_id', $user->id)
             ->where('status', 'planned')
             ->whereNotIn('type', ['rest'])
@@ -491,13 +505,19 @@ class GenerateSessionReviewJob implements ShouldQueue
             ->first();
         if ($next) {
             $label = $next->isRun() ? (TrainingSession::TYPE_LABELS[$next->type] ?? $next->type) : $next->sportLabel();
-            $lines[] = 'Nächste Einheit: ' . $next->planned_date->locale('de')->isoFormat('dddd')
-                . ", {$label}" . ($next->title && $next->title !== $label ? " ({$next->title})" : '');
+            $weekday = $next->planned_date->locale('de')->isoFormat('dddd');
+            // Hat die letzte Nachricht schon auf genau diesen Tag geschaut,
+            // kommt kein zweiter Ausblick (24.11.2026: zweimal fast
+            // wortgleich „Donnerstag den langen Lauf … Kraft für die Woche“).
+            if ($recentRaw->first() && mb_stripos($recentRaw->first(), $weekday) !== false) {
+                $lines[] = "Die nächste Einheit ({$weekday}) hat deine letzte Nachricht schon angekündigt — diesmal KEIN Ausblick darauf";
+            } else {
+                $lines[] = 'Nächste Einheit: ' . $weekday
+                    . ", {$label}" . ($next->title && $next->title !== $label ? " ({$next->title})" : '');
+            }
         }
 
-        $recent = CoachMessage::where('user_id', $user->id)
-            ->where('role', 'assistant')
-            ->latest('id')->limit(3)->pluck('content')
+        $recent = $recentRaw
             ->map(fn ($c) => '„' . mb_strimwidth(preg_replace('/\s+/', ' ', $c), 0, 140, '…') . '"')
             ->all();
         if ($recent) {
