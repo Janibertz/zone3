@@ -11,6 +11,19 @@ import { DONATE_URL } from '@/donate';
 // Spenden nur im Browser (Apple/Google: in Apps nur für Gemeinnützige).
 const showDonate = !isNativeApp();
 
+// Die iPhone-App bewerben (24.11.2026, Jan): eigener Bereich mit den
+// Bildern aus dem App Store, nur im Browser — in der App wäre er Unsinn.
+const showApp = !isNativeApp();
+const appBilder = [
+    { src: '/images/app-store/heute.jpg',  alt: 'Heute auf einen Blick' },
+    { src: '/images/app-store/plan.jpg',   alt: 'Ein Plan, der sich nach dir richtet' },
+    { src: '/images/app-store/coach.jpg',  alt: 'Dein Coach, jederzeit' },
+    { src: '/images/app-store/lauf.jpg',   alt: 'Jeder Lauf genau ausgewertet' },
+    { src: '/images/app-store/saison.jpg', alt: 'Die ganze Saison im Blick' },
+    { src: '/images/app-store/uhr.jpg',    alt: 'Mit deiner Uhr verbunden' },
+];
+const appExtras = ['Widgets', 'Live Activity', 'Apple Watch', 'Apple Health'];
+
 const props = defineProps({
     canLogin: { type: Boolean },
     canRegister: { type: Boolean },
@@ -163,6 +176,12 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
             </div>
             <div class="relative mx-auto grid max-w-5xl items-center gap-12 lg:grid-cols-2 lg:gap-16">
                 <div class="pt-[140px] sm:pt-[180px] lg:pt-0">
+                    <a v-if="showApp" href="#iphone-app"
+                        class="mb-5 inline-flex items-center gap-2 rounded-full bg-white/15 py-1.5 pl-1.5 pr-3.5 text-[13px] font-semibold text-white backdrop-blur-md transition hover:bg-white/25 active:scale-[0.98]">
+                        <span class="rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide">Neu</span>
+                        Jetzt im App Store
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                    </a>
                     <p class="text-[17px] font-semibold text-white/80">Der Coach, der mitläuft.</p>
                     <!--
                         Zwei Blöcke statt <br>: Vue faltet den Zeilenumbruch im
@@ -193,7 +212,6 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                         </a>
                     </div>
                     <p class="mt-4 text-[13px] text-ink-3">Beta · kostenlos · mit Warteliste</p>
-                    <AppStoreBadge class="mt-6" :height="48" />
                 </div>
 
                 <!-- Die Heute-Karte aus dem Dashboard -->
@@ -425,6 +443,53 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
             </div>
         </section>
 
+        <!-- ══ APP ════════════════════════════════════════════════ -->
+        <section v-if="showApp" id="iphone-app" class="relative scroll-mt-20 overflow-hidden py-20 sm:py-28">
+            <!-- Laufbahn-Kurven wie im Logo, dahinter ein Lichtfleck in Akzentblau. -->
+            <div class="pointer-events-none absolute inset-0" aria-hidden="true">
+                <div class="absolute -right-40 top-10 h-[560px] w-[560px] rounded-full bg-accent/25 blur-[140px]" />
+                <svg class="absolute -left-24 top-0 h-[720px] w-[720px] text-white/[0.06]" viewBox="0 0 720 720" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="360" cy="360" r="140" /><circle cx="360" cy="360" r="200" /><circle cx="360" cy="360" r="260" /><circle cx="360" cy="360" r="320" />
+                </svg>
+            </div>
+
+            <div class="relative mx-auto grid max-w-5xl grid-cols-1 gap-10 px-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center lg:gap-12 [&>*]:min-w-0">
+                <div>
+                    <span class="inline-block rounded-full bg-accent-soft px-3.5 py-1.5 text-[13px] font-semibold text-accent-ink">Neu · App für iPhone</span>
+                    <h2 class="mt-5 text-[2.75rem] font-extrabold leading-[0.98] tracking-[-0.04em] sm:text-6xl lg:text-[3.6rem]">
+                        <span class="block">Dein Coach</span>
+                        <span class="block">in der Tasche<span class="text-accent">.</span></span>
+                    </h2>
+                    <p class="mt-5 max-w-md text-[17px] leading-relaxed text-ink-2">
+                        Zone3 gibt es jetzt im App Store. Die Einheit von heute auf dem Sperrbildschirm,
+                        der Plan als Widget und jedes Training auf deiner Uhr, bevor du die Schuhe bindest.
+                    </p>
+
+                    <ul class="mt-6 flex flex-wrap gap-2">
+                        <li v-for="x in appExtras" :key="x" class="rounded-full bg-surface px-3.5 py-1.5 text-[13px] font-semibold text-ink-2">{{ x }}</li>
+                    </ul>
+
+                    <div class="mt-8 flex items-center gap-4">
+                        <AppStoreBadge :height="56" />
+                        <p class="text-[13px] leading-snug text-ink-3">Kostenlos<br />fürs iPhone</p>
+                    </div>
+                </div>
+
+                <!-- Die Bilder aus dem App Store, zum Wischen. Am Rand angeschnitten, damit man sieht, dass es weitergeht. -->
+                <div class="-mx-5 lg:mx-0 lg:-mr-[calc((100vw-64rem)/2+1.25rem)]">
+                    <ul class="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-2 sm:gap-4 lg:pl-0 lg:pr-10">
+                        <li v-for="(b, i) in appBilder" :key="b.src"
+                            class="w-[64vw] max-w-[250px] shrink-0 snap-start sm:w-[230px] lg:w-[220px]"
+                            :class="i % 2 ? 'lg:mt-10' : ''">
+                            <img :src="b.src" :alt="b.alt" width="600" height="1304" loading="lazy" decoding="async"
+                                class="block w-full rounded-[26px] ring-1 ring-white/10" />
+                        </li>
+                    </ul>
+                    <p class="mt-3 px-5 text-[13px] text-ink-3 lg:hidden">Wischen für mehr →</p>
+                </div>
+            </div>
+        </section>
+
         <!-- ══ MITMACHEN ══════════════════════════════════════════ -->
         <section id="mitmachen" class="relative scroll-mt-20 overflow-hidden px-5 pb-24 pt-[300px] sm:pt-[360px]">
             <div class="pointer-events-none absolute inset-0" aria-hidden="true">
@@ -455,7 +520,6 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
 
                 <!-- Die Adresse ausgeschrieben: ohne Mail-App am Rechner führt der Knopf ins Leere. -->
                 <p class="mt-4 select-text text-[15px] text-white/70">{{ KONTAKT.adresse }}</p>
-                <AppStoreBadge class="mt-8" :height="52" />
 
                 <p class="mt-14 text-[15px] font-semibold text-white/70">Für Läufer mit Garmin, COROS, Polar oder Apple Watch · Apple Health über die iOS-App</p>
             </div>
