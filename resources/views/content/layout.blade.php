@@ -53,7 +53,13 @@
 
     <footer class="border-t border-line px-4 pt-8 pb-[calc(2rem+env(safe-area-inset-bottom))]">
         <div class="mx-auto flex max-w-3xl flex-col items-center justify-between gap-3 text-[13px] text-ink-3 sm:flex-row">
-            <span>Zone3 · Der Coach, der mitläuft.</span>
+            <div class="flex flex-col items-center gap-3 sm:items-start">
+                <span>Zone3 · Der Coach, der mitläuft.</span>
+                {{-- Apples Original-Badge, nur im Browser (resources/js/appstore.js). --}}
+                <a href="https://apps.apple.com/de/app/zone3/id6832175374" target="_blank" rel="noopener noreferrer" data-web-only>
+                    <img src="/images/badges/app-store-en.svg" alt="Download on the App Store" style="height:40px" class="block w-auto">
+                </a>
+            </div>
             <div class="flex gap-5">
                 <a href="{{ route('faq') }}">FAQ</a>
                 <a href="{{ route('privacy') }}">Datenschutz</a>

@@ -4,6 +4,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import GaugeTile from '@/Components/UI/GaugeTile.vue';
 import Wordmark from '@/Components/Brand/Wordmark.vue';
 import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
+import AppStoreBadge from '@/Components/Brand/AppStoreBadge.vue';
 import { isNativeApp } from '@/Composables/useNativeApp';
 import { DONATE_URL } from '@/donate';
 
@@ -192,6 +193,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                         </a>
                     </div>
                     <p class="mt-4 text-[13px] text-ink-3">Beta · kostenlos · mit Warteliste</p>
+                    <AppStoreBadge class="mt-6" :height="48" />
                 </div>
 
                 <!-- Die Heute-Karte aus dem Dashboard -->
@@ -453,6 +455,7 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
 
                 <!-- Die Adresse ausgeschrieben: ohne Mail-App am Rechner führt der Knopf ins Leere. -->
                 <p class="mt-4 select-text text-[15px] text-white/70">{{ KONTAKT.adresse }}</p>
+                <AppStoreBadge class="mt-8" :height="52" />
 
                 <p class="mt-14 text-[15px] font-semibold text-white/70">Für Läufer mit Garmin, COROS, Polar oder Apple Watch · Apple Health über die iOS-App</p>
             </div>
@@ -460,7 +463,10 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
 
         <footer class="border-t border-line px-5 pt-8 pb-[calc(2rem+env(safe-area-inset-bottom))]">
             <div class="mx-auto flex max-w-5xl flex-col items-center justify-between gap-3 text-[13px] text-ink-3 sm:flex-row">
-                <span>Zone3 · zone3.run</span>
+                <div class="flex flex-col items-center gap-3 sm:items-start">
+                    <span>Zone3 · zone3.run</span>
+                    <AppStoreBadge :height="40" />
+                </div>
                 <div class="flex flex-wrap justify-center gap-x-5 gap-y-2">
                     <a href="/ratgeber" class="transition hover:text-ink-2">Ratgeber</a>
                     <a href="/blog" class="transition hover:text-ink-2">Neu in Zone3</a>
