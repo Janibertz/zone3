@@ -9,8 +9,6 @@
  */
 export const APP_STORE_URL = 'https://apps.apple.com/de/app/zone3/id6832175374';
 
-// Vorläufig die englische Fassung von developer.apple.com; die deutsche
-// („Laden im App Store") ersetzt sie, sobald sie aus Apples Marketing Tools
-// vorliegt — dann nur diesen Pfad ändern.
-export const APP_STORE_BADGE = '/images/badges/app-store-en.svg';
-export const APP_STORE_BADGE_ALT = 'Download on the App Store';
+// Deutsche Fassung aus Apples Marketing Tools (von Jan, 24.11.2026).
+export const APP_STORE_BADGE = '/images/badges/app-store-de.svg';
+export const APP_STORE_BADGE_ALT = 'Laden im App Store';

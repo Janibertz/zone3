@@ -57,7 +57,7 @@
                 <span>Zone3 · Der Coach, der mitläuft.</span>
                 {{-- Apples Original-Badge, nur im Browser (resources/js/appstore.js). --}}
                 <a href="https://apps.apple.com/de/app/zone3/id6832175374" target="_blank" rel="noopener noreferrer" data-web-only>
-                    <img src="/images/badges/app-store-en.svg" alt="Download on the App Store" style="height:40px" class="block w-auto">
+                    <img src="/images/badges/app-store-de.svg" alt="Laden im App Store" style="height:40px" class="block w-auto">
                 </a>
             </div>
             <div class="flex gap-5">
