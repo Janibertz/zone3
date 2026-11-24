@@ -16,6 +16,10 @@ use Carbon\CarbonInterface;
  * (Jan, 15.11.2026: „wenn ich die Dauer ändere, bleibt es beim Laufclub,
  * außer ich sage es ausdrücklich dem Coach"). Vorher strich jede Ausnahme
  * an einem Tag den Termin, auch eine, die dem Raster glich.
+ *
+ * Seit 24.11.2026 sagt `fixed_off` an der Tagesausnahme den Termin allein ab
+ * (Coach: „heute nicht zum Laufclub, ich gehe schwimmen“) — der Tag bleibt
+ * verfügbar, nur der Termin fällt weg.
  */
 class FixedAppointment
 {
@@ -33,7 +37,7 @@ class FixedAppointment
         }
 
         $override = $overrides[$date->toDateString()] ?? null;
-        if (is_array($override) && ! ($override['available'] ?? true)) {
+        if (is_array($override) && (! ($override['available'] ?? true) || ! empty($override['fixed_off']))) {
             return null;
         }
 

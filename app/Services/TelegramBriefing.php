@@ -23,13 +23,16 @@ class TelegramBriefing
     {
         $plan = $user->activeTrainingPlan;
 
-        $sessions = $plan
-            ? TrainingSession::where('training_plan_id', $plan->id)
-                ->whereDate('planned_date', now()->toDateString())
-                ->where('status', '!=', 'skipped')
-                ->orderBy('sort_order')
-                ->get()
-            : collect();
+        // Was „Heute“ zeigt: Einheiten des aktiven Plans und eingeplante
+        // ohne Plan (Builder, angenommener Tagesvorschlag, Coach). Vorher nur
+        // der Plan — am 24.11.2026 stand vor dem Planstart „Heute steht
+        // nichts im Plan“, während die App den Laufclub zeigte.
+        $sessions = TrainingSession::where('user_id', $user->id)
+            ->where(fn ($q) => $plan ? $q->where('training_plan_id', $plan->id)->orWhereNull('training_plan_id') : $q->whereNull('training_plan_id'))
+            ->whereDate('planned_date', now()->toDateString())
+            ->where('status', '!=', 'skipped')
+            ->orderBy('sort_order')->orderBy('id')
+            ->get();
 
         $greeting = $morning ? 'Guten Morgen' . ($user->name ? ', ' . strtok($user->name, ' ') : '') . "!\n\n" : '';
 
@@ -83,6 +86,14 @@ class TelegramBriefing
         }
 
         if ($sessions->isEmpty()) {
+            if ($fixed = \App\Services\Plan\FixedAppointment::unplanned($user, CarbonImmutable::today(), CarbonImmutable::today())[0] ?? null) {
+                return "**Heute: {$fixed['title']}** (fester Termin). Den Ablauf gibt der Termin vor.";
+            }
+            if ($rec = $this->suggestion($user)) {
+                return '**Vorschlag für heute: ' . SessionRecommendationObserver::describe($rec) . '**'
+                    . (($d = trim(strtok((string) ($rec['description'] ?? ''), "\n"))) !== '' ? "\n{$d}" : '');
+            }
+
             return $plan ? 'Heute steht nichts im Plan.' : 'Du hast noch keinen aktiven Trainingsplan.';
         }
 
@@ -113,6 +124,21 @@ class TelegramBriefing
         }
 
         return implode("\n", $lines);
+    }
+
+    /** Der heute schon gespeicherte Tagesvorschlag (kein Modellaufruf). */
+    private function suggestion(User $user): ?array
+    {
+        $profile = $user->runnerProfile;
+        if (! $profile || (string) $profile->recommendation_date !== now()->toDateString() || ! $profile->today_recommendation) {
+            return null;
+        }
+        $rec = json_decode($profile->today_recommendation, true);
+        if (! is_array($rec) || ($rec['type'] ?? 'rest') === 'rest') {
+            return null;
+        }
+
+        return array_intersect_key($rec, array_flip(['title', 'type', 'distance_km', 'duration_min', 'pace_target', 'description']));
     }
 
     /**

@@ -28,6 +28,9 @@ class CoachTools
     public bool $foreign = false;
     /** Ob in dieser Nachricht schon ein Paket angewendet wurde. */
     public bool $applied = false;
+    /** Die Nachricht des Athleten — für die Prüfung „heute gemeint, anderer Tag getroffen“. */
+    public string $question = '';
+    private bool $todayWarned = false;
 
     public function __construct(private PlanChange $planChange, private SessionWriter $writer) {}
 
@@ -41,11 +44,11 @@ class CoachTools
         $date = ['type' => 'string', 'description' => 'YYYY-MM-DD'];
 
         $step = ['type' => 'object', 'properties' => [
-            'op'           => ['type' => 'string', 'enum' => PlanChange::OPS, 'description' => 'set = Einheit setzen oder ersetzen (mit session_id genau diese; ohne: die Einheit dieser Sportart am Tag, sonst neu). add = zusätzlich an den Tag (z. B. Rad neben dem Lauf). move = session_id auf to_date. remove = session_id streichen.'],
+            'op'           => ['type' => 'string', 'enum' => PlanChange::OPS, 'description' => 'set = Einheit setzen oder ersetzen (mit session_id genau diese; ohne: die Einheit dieser Sportart am Tag, sonst neu). add = zusätzlich an den Tag (z. B. Rad neben dem Lauf). move = session_id auf to_date. remove = session_id streichen. cancel = festen Termin ohne ID (appointment in get_plan, z. B. Laufclub vor dem Planstart) an date absagen.'],
             'session_id'   => ['type' => 'integer', 'description' => 'ID der Einheit aus dem Kontext oder get_plan'],
             'date'         => $date + ['description' => 'Tag für set/add ohne session_id. Standard heute.'],
             'to_date'      => $date + ['description' => 'Zieltag für move'],
-            'sport'        => ['type' => 'string', 'enum' => PlanChange::SPORTS, 'description' => 'run = Laufen, bike = Rad/Zwift/ROUVY, strength/core/mobility, rest = Ruhetag (set). Mit session_id und anderem sport wird die Einheit umgewandelt (Lauf → Rad).'],
+            'sport'        => ['type' => 'string', 'enum' => PlanChange::SPORTS, 'description' => 'run = Laufen, bike = Rad/Zwift/ROUVY, swim = Schwimmen, strength/core/mobility, rest = Ruhetag (set). Mit session_id und anderem sport wird die Einheit umgewandelt (Lauf → Rad).'],
             'type'         => ['type' => 'string', 'enum' => array_values(array_diff(\App\Services\TrainingPlanValidator::RUN_TYPES, ['race_prep'])), 'description' => 'Lauftyp (nur sport run)'],
             'workout'      => ['type' => 'string', 'enum' => SessionWriter::workoutEnum(), 'description' => 'Baustein für den Ablauf eines Laufs (' . SessionWriter::workoutHint() . '). Abschnitte, Paces und Distanz baut das System.'],
             'bike_workout' => ['type' => 'string', 'enum' => ['easy', 'vo2', 'threshold'], 'description' => 'Rad: easy = locker, vo2 = 4-min-Intervalle, threshold = 10-min-Blöcke. Ohne: aus dem Lauf abgeleitet bzw. locker.'],
@@ -63,7 +66,7 @@ class CoachTools
         ], 'required' => ['op']];
 
         return [
-            $fn('get_plan', 'Einheiten mit ID, Status, Sport, Typ und Ablauf in einem Zeitraum (höchstens 28 Tage).', ['from' => $date, 'to' => $date], ['from', 'to']),
+            $fn('get_plan', 'Einheiten mit ID, Status, Sport, Typ und Ablauf in einem Zeitraum (höchstens 28 Tage). Dazu feste Termine ohne ID (kind appointment, absagen mit cancel) und der heutige Tagesvorschlag (kind suggestion).', ['from' => $date, 'to' => $date], ['from', 'to']),
             $fn('get_session', 'Eine Einheit mit allen Abschnitten, Beschreibung und der erledigten Aktivität.', ['id' => ['type' => 'integer']], ['id']),
             $fn('get_activities', 'Aufgezeichnete Aktivitäten im Zeitraum (höchstens 30). sport: run, bike, swim, strength oder all.', ['from' => $date, 'to' => $date, 'sport' => ['type' => 'string', 'enum' => ['all', 'run', 'bike', 'swim', 'strength']]], ['from', 'to']),
             $fn('get_health', 'Werte der Uhr (HRV, Ruhepuls, Schlaf …) und Tagesform der letzten Tage gegen die eigene Grundlinie.', ['days' => ['type' => 'integer', 'description' => '1 bis 14']]),
@@ -133,6 +136,12 @@ class CoachTools
             return ['message' => $json(['ok' => false, 'rejected' => ['In dieser Nachricht wurde schon ein Paket angewendet. Ein Paket je Nachricht — nichts geändert.']]), 'action' => null];
         }
 
+        if ($mode === 'apply' && ! $this->todayWarned && ($warning = $this->missesToday($user, (array) ($args['steps'] ?? [])))) {
+            $this->todayWarned = true;
+
+            return ['message' => $json(['ok' => false, 'rejected' => [$warning], 'note' => 'Nichts geändert.']), 'action' => null];
+        }
+
         $result = $this->planChange->run($user, (array) ($args['steps'] ?? []), $mode);
 
         if (! $result['ok']) {
@@ -164,6 +173,43 @@ class CoachTools
         $result['note'] = 'Angewendet. Die Zeilen in lines zeigt das System dem Athleten selbst unter deiner Antwort — wiederhole sie nicht wörtlich und sag nichts zu, was dort nicht steht. Rückgängig geht per Knopf.';
 
         return ['message' => $json($result), 'action' => $actions[0] ?? null, 'actions' => $actions];
+    }
+
+    /**
+     * Spricht der Athlet von heute, und das Paket berührt keinen Tag von
+     * heute? Gemeldet am 24.11.2026: „heute nicht zum Laufclub“ strich den
+     * Laufclub am 01.12. Einmal je Nachricht zurück ans Modell; schickt es
+     * dasselbe noch einmal, gilt es.
+     */
+    private function missesToday(User $user, array $steps): ?string
+    {
+        $m = mb_strtolower($this->question);
+        if (! preg_match('/\bheute\b/u', $m)
+            || preg_match('/\b(morgen|übermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|nächste[nrs]?|wochenende|\d{1,2}\.\d{1,2}\.?)\b/u', $m)) {
+            return null;
+        }
+
+        $today = today()->toDateString();
+        $dates = [];
+        foreach ($steps as $step) {
+            $step = PlanChange::normalize(is_array($step) ? $step : []);
+            if (! empty($step['session_id'])) {
+                $s = TrainingSession::where('user_id', $user->id)->find((int) $step['session_id']);
+                if ($s) $dates[] = $s->planned_date->toDateString();
+            }
+            foreach (['date', 'to_date'] as $key) {
+                if (! empty($step[$key])) $dates[] = substr((string) $step[$key], 0, 10);
+            }
+            if (empty($step['session_id']) && empty($step['date']) && in_array($step['op'] ?? null, ['set', 'add', 'cancel'], true)) {
+                $dates[] = $today;
+            }
+        }
+        if (! $dates || in_array($today, $dates, true)) {
+            return null;
+        }
+
+        return 'Der Athlet spricht von heute (' . $today . '), dein Paket betrifft aber ' . implode(', ', array_unique($dates)) . '. '
+            . 'Meint er den Termin von heute, nimm die Einheit von heute oder — steht er ohne ID da — cancel mit date ' . $today . '. Ist wirklich der andere Tag gemeint, schick dasselbe Paket noch einmal.';
     }
 
     /** Wie {@see \App\Services\AI\CoachChatService::proposeSessionChange()}, über die ID. */
@@ -333,9 +379,42 @@ class CoachTools
 
         $pending = SessionRecommendation::where('user_id', $user->id)->where('status', SessionRecommendation::STATUS_PENDING)->pluck('training_session_id')->all();
 
+        // Feste Termine, die noch kein Plan trägt (vor dem Planstart oder
+        // ohne Plan) — sonst fand der Coach nur den nächsten gespeicherten
+        // Laufclub (24.11.2026).
+        $extra = collect(\App\Services\Plan\FixedAppointment::unplanned($user, $from, $to))->map(fn ($f) => [
+            'kind'    => 'appointment',
+            'date'    => $f['planned_date'],
+            'weekday' => $this->writer->dayLabel($f['planned_date']),
+            'type'    => $f['type'],
+            'label'   => $f['title'],
+            'note'    => 'Fester Termin aus dem Wochenraster, keine ID. Absagen: plan_change op cancel mit date.',
+        ]);
+
+        // Der Tagesvorschlag, den „Heute“ zeigt, wenn heute nichts steht.
+        $today = today()->toDateString();
+        $profile = $user->runnerProfile;
+        if ($from->toDateString() <= $today && $today <= $to->toDateString()
+            && ! $sessions->contains(fn ($s) => $s->planned_date->toDateString() === $today)
+            && ! $extra->contains('date', $today)
+            && $profile && (string) $profile->recommendation_date === $today && $profile->today_recommendation) {
+            $rec = json_decode($profile->today_recommendation, true);
+            if (is_array($rec) && ($rec['type'] ?? 'rest') !== 'rest') {
+                $extra->push([
+                    'kind'    => 'suggestion',
+                    'date'    => $today,
+                    'weekday' => $this->writer->dayLabel($today),
+                    'type'    => $rec['type'],
+                    'label'   => trim(($rec['title'] ?? '') . (! empty($rec['duration_min']) ? " {$rec['duration_min']} min" : '')),
+                    'note'    => 'Tagesvorschlag auf „Heute“, keine ID. Ersetzen: set/add mit date heute; Ruhe: set sport rest.',
+                ]);
+            }
+        }
+
         return [
             'from'     => $from->toDateString(),
             'to'       => $to->toDateString(),
+            'without_id' => $extra->values()->all() ?: null,
             'sessions' => $sessions->map(fn ($s) => array_filter([
                 'id'       => $s->id,
                 'date'     => $s->planned_date->toDateString(),

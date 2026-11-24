@@ -403,6 +403,7 @@ class CoachChatService
         if ($v2) {
             $toolbox = app(\App\Services\Coach\CoachTools::class);
             $toolbox->foreign = $foreignText;
+            $toolbox->question = $newMessage;
             $tools = $foreignText ? $toolbox->readAndPropose($toolbox->definitions()) : $toolbox->definitions();
         } else {
             $tools = $foreignText ? self::proposalOnly($this->coachTools()) : $this->coachTools();
@@ -580,7 +581,7 @@ class CoachChatService
         return "Du bist {$coachName}, der persönliche Lauf-Coach von {$user->name}. Du antwortest wie ein echter Trainer, der seinen Athleten kennt: auf Deutsch, mit „du“, so kurz wie die Frage es verlangt, Markdown nur wenn es hilft. Zahlen nur aus den Daten oder den Werkzeugen, nie erfunden.\n\n"
             . "NACHSEHEN: Die Athleten-Daten unten sind ein Auszug. Mehr holst du mit get_plan, get_session, get_activities, get_health und get_races — lieber einmal nachsehen als raten.\n\n"
             . "ÄNDERN: Am Plan änderst du NUR mit plan_change, und Einheiten sprichst du über ihre ID an (aus dem Kontext oder get_plan). "
-            . "Schritte: set (Einheit setzen/ersetzen; mit session_id genau diese, auch Sportwechsel wie Lauf → Rad), add (zusätzlich an einen Tag, z. B. Rad neben dem Lauf), move (session_id auf to_date), remove (session_id streichen). Ruhetag an einem Tag = set mit sport rest und date. Rad, Zwift und ROUVY sind sport bike, nie ein Lauf. "
+            . "Schritte: set (Einheit setzen/ersetzen; mit session_id genau diese, auch Sportwechsel wie Lauf → Rad), add (zusätzlich an einen Tag, z. B. Rad neben dem Lauf), move (session_id auf to_date), remove (session_id streichen). Ruhetag an einem Tag = set mit sport rest und date. Rad, Zwift und ROUVY sind sport bike, Schwimmen sport swim — beides nie ein Lauf. cancel (mit date) sagt einen festen Termin ohne ID (Laufclub vor dem Planstart, in get_plan als appointment) für diesen Tag ab. Spricht der Athlet von heute, gilt die Einheit oder der Termin von HEUTE, nicht der nächste gleichnamige. "
             . "Alles, was zu einer Bitte gehört, kommt in EIN Paket. Hat der Athlet die Änderung verlangt („streich das Rad“, „mach Sonntag 25 km“), nimm mode apply. Ist es deine eigene Idee (er gibt nur Rückmeldung wie „war zu leicht“), nimm mode propose — er entscheidet per Knopf. Bist du unsicher, ob es passt, probiere mit dry_run. "
             . "Ist unklar, welche Einheit oder was gemeint ist, frag nach, statt zu raten. Verschieben oder Streichen aus eigener Idee: erst fragen.\n\n"
             . "REGELN, die das System prüft: ein Lauf pro Tag (Ausnahme Doppel-Schwelle im norwegischen Modell, part am/pm), vergangene und erledigte Einheiten bleiben, Rennen ändert der Coach nicht, in einer Trainingspause kein Lauf. Lehnt plan_change ab, steht der Grund dabei und NICHTS ist geändert — bessere nach oder erkläre es dem Athleten. "
@@ -935,6 +936,14 @@ class CoachChatService
             ? json_decode($profile->today_recommendation, true)
             : null;
 
+        $v2 = self::toolsVersion() === 'v2';
+        $fixed = \App\Services\Plan\FixedAppointment::unplanned($user, \Carbon\CarbonImmutable::parse($today), \Carbon\CarbonImmutable::parse($today))[0] ?? null;
+
+        if ($v2 && $fixed) {
+            return "HEUTIGES TRAINING: keine Einheit mit ID, aber heute ist der feste Termin „{$fixed['title']}“ ({$fixed['type']}) aus dem Wochenraster. Der Athlet sieht ihn auf „Heute“, im Kalender und im Widget.\n"
+                . "  Geht er nicht hin: plan_change mit op cancel und date {$today} sagt den Termin für heute ab. Macht er stattdessen etwas anderes (z. B. Schwimmen), kommt add mit dem Sport ins selben Paket; will er Ruhe, set mit sport rest. Ein Laufclub an einem anderen Tag ist NICHT gemeint.";
+        }
+
         if (! is_array($rec) || ($rec['type'] ?? 'rest') === 'rest') {
             return "HEUTIGES TRAINING: Kein Training geplant.";
         }
@@ -942,6 +951,11 @@ class CoachChatService
         $d = "Typ:{$rec['type']}, Titel:\"" . ($rec['title'] ?? '') . "\"";
         if (! empty($rec['distance_km']))  $d .= ", {$rec['distance_km']}km";
         if (! empty($rec['duration_min'])) $d .= ", {$rec['duration_min']}min";
+
+        if ($v2) {
+            return "HEUTIGES TRAINING: keine Einheit mit ID, aber der Athlet sieht auf „Heute“, im Widget und auf dem Sperrbildschirm diesen Tagesvorschlag:\n  {$d}\n"
+                . "  Will er heute Ruhe, reicht eine Bestätigung im Text NICHT: plan_change set mit sport rest und date {$today}. Etwas anderes stattdessen: set oder add mit dem Sport und date {$today} — eine Einheit von heute ersetzt den Vorschlag überall.";
+        }
 
         return "HEUTIGES TRAINING: keine Einheit im Plan, aber der Athlet sieht auf „Heute“, im Widget und auf dem Sperrbildschirm diesen Tagesvorschlag:\n  {$d}\n"
             . "  Will er heute Ruhe (oder etwas anderes), reicht eine Bestätigung im Text NICHT: für Ruhe rufe set_rest_day auf, für eine andere Einheit create_training_session. Beides ersetzt den Vorschlag überall.";

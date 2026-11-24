@@ -34,8 +34,8 @@ use Illuminate\Support\Facades\Log;
 class PlanChange
 {
     public const MODES = ['dry_run', 'apply', 'propose'];
-    public const OPS = ['set', 'add', 'move', 'remove'];
-    public const SPORTS = ['run', 'bike', 'strength', 'core', 'mobility', 'rest'];
+    public const OPS = ['set', 'add', 'move', 'remove', 'cancel'];
+    public const SPORTS = ['run', 'bike', 'swim', 'strength', 'core', 'mobility', 'rest'];
     public const MAX_STEPS = 8;
 
     /** Einheiten vor der ersten Änderung, roh (id => Zeile). */
@@ -173,7 +173,8 @@ class PlanChange
             'add'    => $this->add($user, $step),
             'move'   => $this->move($user, $step),
             'remove' => $this->remove($user, $step),
-            default  => 'op muss set, add, move oder remove sein.',
+            'cancel' => $this->cancel($user, $step),
+            default  => 'op muss set, add, move, remove oder cancel sein.',
         };
     }
 
@@ -192,7 +193,7 @@ class PlanChange
             if ($session->planned_date->toDateString() < today()->toDateString()) return 'Der Tag ist vorbei.';
             $sport ??= $this->sportOf($session);
         } else {
-            if (! $sport) return 'sport fehlt (run, bike, strength, core, mobility oder rest).';
+            if (! $sport) return 'sport fehlt (run, bike, swim, strength, core, mobility oder rest).';
             $date = $this->date($step['date'] ?? null);
             if (is_null($date)) return 'Ungültiges oder vergangenes Datum.';
 
@@ -228,7 +229,7 @@ class PlanChange
     {
         $sport = $step['sport'] ?? null;
         if (! in_array($sport, self::SPORTS, true) || $sport === 'rest') {
-            return 'add braucht sport run, bike, strength, core oder mobility. Ein Ruhetag ist set mit sport rest.';
+            return 'add braucht sport run, bike, swim, strength, core oder mobility. Ein Ruhetag ist set mit sport rest.';
         }
         $date = $this->date($step['date'] ?? null);
         if (is_null($date)) return 'Ungültiges oder vergangenes Datum.';
@@ -307,6 +308,60 @@ class PlanChange
         return null;
     }
 
+    /**
+     * Den festen Termin (Laufclub) für einen Tag absagen. Vor dem Planstart
+     * steht er nicht als Einheit in der Datenbank — gemeldet am 24.11.2026:
+     * „heute nicht zum Laufclub, ich gehe schwimmen“, und der Coach strich
+     * den nächsten gleichnamigen Termin eine Woche später, weil get_plan nur
+     * gespeicherte Einheiten kannte. Die Absage ist eine Tagesausnahme
+     * (`fixed_off`), die {@see \App\Services\Plan\FixedAppointment::on()}
+     * überall auswertet (Kalender, Widget, Tagesvorschlag, Gerüst, Garmin).
+     * Eine schon eingeplante Einheit des Termins an dem Tag fällt mit weg.
+     */
+    private function cancel(User $user, array $step): ?string
+    {
+        $date = $this->date($step['date'] ?? null);
+        if (is_null($date)) return 'Ungültiges oder vergangenes Datum.';
+
+        $fixed = \App\Services\Plan\FixedAppointment::forUser($user, \Carbon\CarbonImmutable::parse($date));
+        if (! $fixed) {
+            return "Am {$date} steht kein fester Termin. Eine Einheit mit ID streichst du mit remove.";
+        }
+
+        $plan = $user->activeTrainingPlan()->first();
+        if (! $plan) {
+            return 'Ohne aktiven Plan lässt sich der Termin nicht für einen Tag absagen. Setz an dem Tag einen Ruhetag (set mit sport rest) oder eine andere Einheit.';
+        }
+
+        // Eine Einheit des Termins an dem Tag (eingeplanter Vorschlag oder
+        // Planeinheit) geht mit — sonst stünde er dort weiter.
+        foreach ($this->sessionsOn($user, $date) as $s) {
+            if ($s->status === 'planned' && $s->type === $fixed['type'] && trim((string) $s->title) === trim($fixed['label'])) {
+                $this->remember($s);
+                $s->delete();
+            }
+        }
+
+        $this->setOverride($plan, $date, ['fixed_off' => true]);
+        $this->dates[$date] = true;
+        $this->lines[] = "Abgesagt ({$this->writer->dayLabel($date)}): {$fixed['label']}";
+
+        return null;
+    }
+
+    /** Tagesausnahme im aktiven Plan schreiben; der Vorher-Stand gilt für Rückgängig. */
+    private function setOverride(TrainingPlan $plan, string $date, array $values): void
+    {
+        if ($this->planId === null) {
+            $this->planId = $plan->id;
+            $this->overridesBefore = $plan->availability_overrides;
+        }
+        $overrides = $plan->availability_overrides ?? [];
+        $overrides[$date] = array_merge($overrides[$date] ?? [], $values);
+        $plan->availability_overrides = $overrides;
+        $plan->save();
+    }
+
     // ── Einheiten schreiben ─────────────────────────────────────────────
 
     private function create(User $user, string $date, string $sport, array $step): ?string
@@ -319,7 +374,7 @@ class PlanChange
 
         $type = match ($sport) {
             'run'   => $this->runType($step['type'] ?? null) ?? 'easy_run',
-            'bike'  => 'cross_training',
+            'bike', 'swim' => 'cross_training',
             default => $sport,
         };
         $session = $this->writer->newSessionFor($user, $date, $type);
@@ -368,6 +423,23 @@ class PlanChange
                     : (int) ($session->duration_min ?: 45);
             }
             $this->writer->fillBikeSession($session, $kind, $minutes, $user->runnerProfile?->ftp);
+        } elseif ($sport === 'swim') {
+            // Schwimmen ist Alternativtraining wie in der Planung: keine
+            // Laufzahlen, kein Ablauf, nur Dauer.
+            $session->fill([
+                'type'         => 'cross_training',
+                'title'        => trim((string) ($step['title'] ?? '')) ?: 'Schwimmen locker',
+                'description'  => trim((string) ($step['description'] ?? '')) ?: 'Alternativtraining im Wasser — locker, ohne Druck.',
+                'duration_min' => (int) ($step['duration_min'] ?? 0) ?: ((int) $session->duration_min ?: 45),
+                'distance_km'  => null,
+                'pace_target'  => null,
+                'zone'         => null,
+                'steps'        => null,
+                'intensity'    => 'low',
+                'pinned_at'    => now(),
+            ]);
+            $session->sport_type = 'Swim';
+            $session->save();
         } else {
             $args = array_intersect_key($step, array_flip([
                 'title', 'description', 'distance_km', 'duration_min', 'workout',
@@ -443,14 +515,7 @@ class PlanChange
 
         // Sonst zeigt „Heute“ ohne Planeinheit weiter einen Tagesvorschlag.
         if ($plan = $user->activeTrainingPlan()->first()) {
-            if ($this->planId === null) {
-                $this->planId = $plan->id;
-                $this->overridesBefore = $plan->availability_overrides;
-            }
-            $overrides = $plan->availability_overrides ?? [];
-            $overrides[$date] = array_merge($overrides[$date] ?? [], ['available' => false]);
-            $plan->availability_overrides = $overrides;
-            $plan->save();
+            $this->setOverride($plan, $date, ['available' => false]);
         }
 
         $this->dates[$date] = true;
@@ -564,6 +629,7 @@ class PlanChange
     public function sportOf(TrainingSession $s): string
     {
         if ($s->type === 'cross_training' && in_array($s->sport_type, TrainingSession::BIKE_SPORTS, true)) return 'bike';
+        if ($s->type === 'cross_training' && $s->sport_type === 'Swim') return 'swim';
         if (in_array($s->type, TrainingPlanValidator::RUN_TYPES, true)) return 'run';
 
         return $s->type;
