@@ -973,6 +973,7 @@ Route::middleware(['auth', 'onboarding'])->group(function () {
     Route::delete('/api/coach/notes',    [CoachChatController::class, 'destroyNotes'])->name('coach.notes.destroy');
     Route::post('/api/coach/pr-dismiss', [AIController::class, 'dismissPr'])->name('coach.pr.dismiss');
     Route::post('/moments/seen', [\App\Http\Controllers\MomentController::class, 'seen'])->name('moments.seen');
+    Route::post('/review/prompted', [\App\Http\Controllers\MomentController::class, 'reviewPrompted'])->name('review.prompted');
 });
 
 // Zurueck aus einer Uebernahme in den eigenen Admin-Account.

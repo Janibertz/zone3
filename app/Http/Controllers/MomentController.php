@@ -28,6 +28,26 @@ class MomentController extends Controller
         }
         $user->save();
 
+        // Nach der ersten geschafften Woche einmal Apples Bewertungsdialog
+        // (nur die iOS-App fragt danach, siehe Dashboard.vue::closeWeek).
+        return response()->json([
+            'ok'         => true,
+            'ask_review' => $data['kind'] === 'week' && $user->review_prompted_at === null,
+        ]);
+    }
+
+    /**
+     * Die iOS-App hat den Bewertungsdialog angefordert. Erst dann gilt er als
+     * gezeigt — ein alter Build ohne das Plugin verbraucht ihn nicht.
+     */
+    public function reviewPrompted(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if ($user->review_prompted_at === null) {
+            $user->review_prompted_at = now();
+            $user->save();
+        }
+
         return response()->json(['ok' => true]);
     }
 }

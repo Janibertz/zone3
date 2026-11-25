@@ -8,5 +8,6 @@ class ZoneBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(WatchWorkoutsPlugin())
         bridge?.registerPluginInstance(AppleSignInPlugin())
         bridge?.registerPluginInstance(ZoneWidgetPlugin())
+        bridge?.registerPluginInstance(StoreReviewPlugin())
     }
 }
