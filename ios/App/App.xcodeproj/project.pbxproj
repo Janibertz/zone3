@@ -27,6 +27,7 @@
 		7A3E000000152FF2A0C1D00D /* WidgetFeedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A3E000000052FF2A0C1D00D /* WidgetFeedStore.swift */; };
 		7A3E000000162FF2A0C1D00D /* WidgetFeedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A3E000000052FF2A0C1D00D /* WidgetFeedStore.swift */; };
 		7A3E000000172FF2A0C1D00D /* ZoneWidgetPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A3E000000062FF2A0C1D00D /* ZoneWidgetPlugin.swift */; };
+		7A3E000000482FF2A0C1D00D /* StoreReviewPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A3E000000472FF2A0C1D00D /* StoreReviewPlugin.swift */; };
 		7A3E000000182FF2A0C1D00D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7A3E000000072FF2A0C1D00D /* Assets.xcassets */; };
 		7A3E000000192FF2A0C1D00D /* Inter-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7A3E0000000A2FF2A0C1D00D /* Inter-SemiBold.ttf */; };
 		7A3E0000001A2FF2A0C1D00D /* Inter-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7A3E0000000B2FF2A0C1D00D /* Inter-Bold.ttf */; };
@@ -86,6 +87,7 @@
 		7A3E000000042FF2A0C1D00D /* Zone3Widget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Zone3Widget.swift; sourceTree = "<group>"; };
 		7A3E000000052FF2A0C1D00D /* WidgetFeedStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetFeedStore.swift; sourceTree = "<group>"; };
 		7A3E000000062FF2A0C1D00D /* ZoneWidgetPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneWidgetPlugin.swift; sourceTree = "<group>"; };
+		7A3E000000472FF2A0C1D00D /* StoreReviewPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreReviewPlugin.swift; sourceTree = "<group>"; };
 		7A3E000000072FF2A0C1D00D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		7A3E000000082FF2A0C1D00D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		7A3E000000092FF2A0C1D00D /* Zone3Widget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Zone3Widget.entitlements; sourceTree = "<group>"; };
@@ -150,6 +152,7 @@
 				9582B6922FE993A70072D4E8 /* WatchWorkoutsPlugin.swift */,
 				9582B6942FE993A70072D4E8 /* AppleSignInPlugin.swift */,
 				7A3E000000062FF2A0C1D00D /* ZoneWidgetPlugin.swift */,
+				7A3E000000472FF2A0C1D00D /* StoreReviewPlugin.swift */,
 				7A3E000000452FF2A0C1D00D /* LiveActivityRegistrar.swift */,
 				9582B6902FE993A70072D4E8 /* ZoneBridgeViewController.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
@@ -333,6 +336,7 @@
 				9582B6952FE993A70072D4E8 /* AppleSignInPlugin.swift in Sources */,
 				9582B6912FE993A70072D4E8 /* ZoneBridgeViewController.swift in Sources */,
 				7A3E000000172FF2A0C1D00D /* ZoneWidgetPlugin.swift in Sources */,
+				7A3E000000482FF2A0C1D00D /* StoreReviewPlugin.swift in Sources */,
 				7A3E000000162FF2A0C1D00D /* WidgetFeedStore.swift in Sources */,
 				7A3E000000412FF2A0C1D00D /* TrainingActivity.swift in Sources */,
 				7A3E000000462FF2A0C1D00D /* LiveActivityRegistrar.swift in Sources */,
@@ -506,7 +510,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.2;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = run.zone3.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -529,7 +533,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = run.zone3.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
@@ -553,7 +557,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = run.zone3.app.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -578,7 +582,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = run.zone3.app.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;

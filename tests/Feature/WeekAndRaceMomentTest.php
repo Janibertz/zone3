@@ -127,4 +127,31 @@ class WeekAndRaceMomentTest extends TestCase
         $this->actingAs(User::factory()->create(['onboarding_completed_at' => now()]))
             ->postJson('/moments/seen', ['kind' => 'race', 'event_id' => $event->id])->assertNotFound();
     }
+
+    public function test_the_first_finished_week_asks_for_a_review_once(): void
+    {
+        $user = User::factory()->create(['onboarding_completed_at' => now()]);
+
+        $this->actingAs($user)->postJson('/moments/seen', ['kind' => 'week', 'week_start' => '2026-11-02'])
+            ->assertOk()->assertJson(['ask_review' => true]);
+        // Erst wenn die App den Dialog angefordert hat, gilt er als gezeigt.
+        $this->actingAs($user)->postJson('/moments/seen', ['kind' => 'week', 'week_start' => '2026-11-09'])
+            ->assertJson(['ask_review' => true]);
+
+        $this->actingAs($user)->postJson('/review/prompted')->assertOk();
+        $this->assertNotNull($user->fresh()->review_prompted_at);
+
+        $this->actingAs($user)->postJson('/moments/seen', ['kind' => 'week', 'week_start' => '2026-11-16'])
+            ->assertJson(['ask_review' => false]);
+    }
+
+    public function test_a_race_moment_never_asks_for_a_review(): void
+    {
+        $user  = User::factory()->create(['onboarding_completed_at' => now()]);
+        $event = Event::create(['user_id' => $user->id, 'name' => '10er', 'event_date' => '2026-11-08',
+            'race_distance' => '10km', 'priority' => 'B', 'target_time_hours' => 0, 'target_time_minutes' => 42]);
+
+        $this->actingAs($user)->postJson('/moments/seen', ['kind' => 'race', 'event_id' => $event->id])
+            ->assertJson(['ask_review' => false]);
+    }
 }

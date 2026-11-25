@@ -17,6 +17,7 @@ import { Inertia } from '@inertiajs/inertia';
 import { router } from '@inertiajs/vue3';
 import { ref, watch, computed, onMounted } from 'vue';
 import axios from 'axios';
+import { isIosApp, nativePlugin } from '@/Composables/useNativeApp';
 import { reloadWidget } from '@/Composables/useWidget';
 import SessionCard from '@/Components/UI/SessionCard.vue';
 import UpcomingSessions from '@/Components/Plan/UpcomingSessions.vue';
@@ -197,7 +198,21 @@ function closeRace() {
 }
 function closeWeek() {
     weekSeen.value = true;
-    axios.post(route('moments.seen'), { kind: 'week', week_start: props.weekDone.week_start });
+    axios.post(route('moments.seen'), { kind: 'week', week_start: props.weekDone.week_start })
+        .then(({ data }) => { if (data?.ask_review) askForReview(); })
+        .catch(() => {});
+}
+
+// Apples Bewertungsdialog nach der ersten geschafften Woche, einmal je Konto.
+// Nur in der iOS-App mit dem Plugin; ob der Dialog erscheint, entscheidet iOS.
+function askForReview() {
+    const review = isIosApp() ? nativePlugin('StoreReview') : null;
+    if (!review) return;
+    setTimeout(() => {
+        review.requestReview()
+            .then(() => axios.post(route('review.prompted')))
+            .catch(() => {});
+    }, 800);
 }
 
 async function dismissPr() {

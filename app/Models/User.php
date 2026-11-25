@@ -25,7 +25,7 @@ use Illuminate\Notifications\Notifiable;
     'newsletter_opt_in', 'unsubscribe_token',
     'telegram_chat_id', 'telegram_link_token', 'telegram_linked_at', 'calendar_token', 'widget_token',
     'dashboard_layout', 'apple_health_consent_at', 'apple_health_synced_at', 'apple_activities_synced_at',
-    'moment_week_seen', 'moment_race_seen'])]
+    'moment_week_seen', 'moment_race_seen', 'review_prompted_at'])]
 #[Hidden(['password', 'remember_token', 'unsubscribe_token', 'apple_sub',
     'telegram_chat_id', 'telegram_link_token', 'calendar_token', 'widget_token'])]
 class User extends Authenticatable
@@ -83,6 +83,7 @@ class User extends Authenticatable
             'starter_dismissed_at'          => 'datetime',
             'beta_badge_at'                 => 'datetime',
             'moment_week_seen'              => 'date',
+            'review_prompted_at'            => 'datetime',
             'apple_health_consent_at'       => 'datetime',
             'apple_health_synced_at'        => 'datetime',
             'apple_activities_synced_at'    => 'datetime',
