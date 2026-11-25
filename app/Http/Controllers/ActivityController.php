@@ -173,6 +173,11 @@ class ActivityController extends Controller
             'muscleLabels'  => $activity->strength_sets ? \App\Services\Strength\Muscles::LABELS : null,
             'ftpHint'       => app(\App\Services\Bike\FtpCheck::class)
                 ->forActivity($activity, Auth::user()->runnerProfile?->ftp),
+            // Soll und Ist je Block mit Umsetzungswert (Mockup 25.11.2026),
+            // aus den Runden der Uhr, ohne Modellaufruf.
+            'execution'     => $linkedSession && ! $linkedSession->was_unplanned
+                ? app(\App\Services\Run\WorkoutExecution::class)->compare($linkedSession->steps, $activity, $paceZones)
+                : null,
             'linkedSession' => $linkedSession ? [
                 'id'               => $linkedSession->id,
                 'title'            => $linkedSession->title,

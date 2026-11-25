@@ -398,6 +398,10 @@ Route::get('/dashboard', function (ProgressService $progressService, TrainingLoa
             'session_id' => $open->training_session_id,
             'before'     => $open->before,
             'after'      => $open->after,
+            // Vorher/neu als Höhenprofil (Mockup 25.11.2026); neu ist der
+            // Ablauf, der nach dem Annehmen gilt, gerechnet ohne Speichern.
+            'before_steps' => is_array($open->session?->steps) ? array_values($open->session->steps) : null,
+            'after_steps'  => $open->previewSteps(),
         ];
     }
 

@@ -7,6 +7,7 @@
  */
 import { computed } from 'vue';
 import { paceValue, sessionType, stepBand, zoneSpan } from '@/Composables/useSessionTypes';
+import StepProfile from '@/Components/UI/StepProfile.vue';
 import { heroPhoto } from '@/Composables/useMomentPhotos';
 import { fmtNum } from '@/Composables/useFormat';
 import { activityType } from '@/Composables/useActivityTypes';
@@ -63,8 +64,6 @@ const numbers = computed(() => {
 });
 
 const band = computed(() => stepBand(props.session.steps));
-const ZONE_FILL = { 1: 'bg-white/45', 2: 'bg-success', 3: 'bg-accent', 4: 'bg-warn', 5: 'bg-danger' };
-const segClass = (seg) => seg.kind === 'work' ? (ZONE_FILL[seg.zone] ?? meta.value.dot) : 'bg-white/45';
 </script>
 
 <template>
@@ -134,9 +133,8 @@ const segClass = (seg) => seg.kind === 'work' ? (ZONE_FILL[seg.zone] ?? meta.val
                 </div>
             </div>
 
-            <div v-if="band.length" class="mt-4 flex h-[7px] gap-[3px] overflow-hidden rounded-full lg:mt-5 lg:h-2" role="img" aria-label="Ablauf der Einheit">
-                <span v-for="(seg, i) in band" :key="i" class="block h-full" :class="segClass(seg)" :style="{ flex: seg.flex }" />
-            </div>
+            <!-- Ablauf als Höhenprofil: Breite = Dauer, Höhe = Zone (Mockup 25.11.2026). -->
+            <StepProfile v-if="band.length" :steps="session.steps" tone="hero" :height="24" :gap="3" class="mt-4 lg:mt-5" />
 
             <div v-if="$slots.default" class="mt-5 lg:mt-6">
                 <slot />

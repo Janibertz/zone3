@@ -15,6 +15,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { sessionType } from '@/Composables/useSessionTypes';
+import StepProfile from '@/Components/UI/StepProfile.vue';
 import { fmtNum } from '@/Composables/useFormat';
 import { useFinePointer } from '@/Composables/useFinePointer';
 
@@ -204,7 +205,7 @@ onBeforeUnmount(() => document.removeEventListener('click', outside));
                 <component :is="d.active && !d.appointment ? 'button' : 'div'" v-for="d in weekDays" :key="d.date"
                     :type="d.active && !d.appointment ? 'button' : undefined" @click="d.active && !d.appointment && emit('open', d.main)"
                     :aria-label="d.active ? `${d.label}: ${d.main.title}` : `${d.label}: Ruhetag`"
-                    class="relative flex h-[92px] min-w-0 flex-col justify-between overflow-hidden rounded-[14px] p-2 text-left transition lg:h-[190px] lg:rounded-[18px] lg:p-3.5"
+                    class="relative flex h-[112px] min-w-0 flex-col justify-between overflow-hidden rounded-[14px] p-2 text-left transition lg:h-[190px] lg:rounded-[18px] lg:p-3.5"
                     :class="[
                         d.done && d.look ? [d.look.cls, d.look.dark ? 'text-black' : 'text-white'] : 'bg-surface text-ink',
                         d.active && !d.appointment ? 'active:scale-[0.97]' : '',
@@ -226,9 +227,14 @@ onBeforeUnmount(() => document.removeEventListener('click', outside));
                         <span v-if="!d.value && d.appointment" class="block text-[12px] font-bold leading-tight lg:mt-1 lg:text-[13px] lg:text-ink-3">Termin</span>
                         <span v-if="d.extra" class="mt-0.5 hidden text-[12px] font-semibold lg:block" :class="d.done ? 'opacity-75' : 'text-ink-3'">+ {{ d.extra }} weitere</span>
                     </span>
+                    <!-- Der Ablauf als Höhenprofil: Breite = Dauer, Höhe = Zone (Mockup 25.11.2026). -->
+                    <span v-if="d.active && d.main.steps?.length" class="block w-full" aria-hidden="true">
+                        <StepProfile class="lg:hidden" :steps="d.main.steps" :height="16" :gap="1" :tone="d.done ? 'light' : 'zone'" />
+                        <StepProfile class="hidden lg:flex" :steps="d.main.steps" :height="26" :tone="d.done ? 'light' : 'zone'" />
+                    </span>
                 </component>
             </div>
-            <p class="mx-1 mt-2.5 text-[13px] text-ink-3">Erledigt ist ganz in der Farbe, geplant hat eine Farbkante oben.</p>
+            <p class="mx-1 mt-2.5 text-[13px] text-ink-3">Erledigt ist ganz in der Farbe, geplant hat eine Farbkante oben. Unten der Ablauf: Breite ist die Dauer, Höhe die Zone.</p>
         </section>
 
         <!-- Die nächsten Wochen -->

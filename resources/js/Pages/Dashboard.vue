@@ -37,7 +37,8 @@ import GaugeTile from '@/Components/UI/GaugeTile.vue';
 import { garminGauges, wellbeingGauges, readinessTile } from '@/Composables/useRecoveryGauges.js';
 import SectionHeader from '@/Components/UI/SectionHeader.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
-import { paceValue, sessionType, stepAmount } from '@/Composables/useSessionTypes';
+import { paceValue, sessionType, stepAmount, stepProfile } from '@/Composables/useSessionTypes';
+import StepProfile from '@/Components/UI/StepProfile.vue';
 
 
 const props = defineProps({
@@ -403,6 +404,18 @@ const todaySessionHref = computed(() => {
     if (done) return done;
 
     return s.event_id ? `/events/${s.event_id}/plan?open=${s.id}` : route('calendar');
+});
+
+// Vorher/neu als Höhenprofil auf demselben Maßstab (Mockup 25.11.2026):
+// die kürzere Einheit endet früher, man sieht, was wegfällt.
+const recommendationProfiles = computed(() => {
+    const r = props.coachRecommendation;
+    if (!r) return null;
+    const before = stepProfile(r.before_steps);
+    const after = stepProfile(r.after_steps);
+    if (!before.length && !after.length) return null;
+    const sum = (p) => p.reduce((t, s) => t + (Number(s.flex) || 0), 0);
+    return { before, after, total: Math.max(sum(before), sum(after)) };
 });
 
 const recommendationNumbers = computed(() => {
@@ -1733,6 +1746,21 @@ async function resetLayout() {
                                     :class="c.to.length > 6 ? 'text-[20px] leading-8' : 'text-[30px] leading-9'">{{ c.to }}</span>
                                 <span v-if="c.unit && c.to !== '—'" class="ml-0.5 text-[15px] font-semibold text-ink-3">{{ c.unit }}</span>
                             </p>
+                        </div>
+                    </div>
+
+                    <div v-if="recommendationProfiles" class="mt-4 space-y-2" aria-label="Ablauf vorher und neu">
+                        <div class="grid grid-cols-[52px_minmax(0,1fr)] items-end gap-3">
+                            <span class="text-[13px] text-ink-3">vorher</span>
+                            <StepProfile v-if="recommendationProfiles.before.length" :parts="recommendationProfiles.before" :total="recommendationProfiles.total"
+                                :height="26" class="opacity-40" label="Ablauf vorher" />
+                            <span v-else class="text-[13px] text-ink-3">—</span>
+                        </div>
+                        <div class="grid grid-cols-[52px_minmax(0,1fr)] items-end gap-3">
+                            <span class="text-[13px] font-semibold text-ink">neu</span>
+                            <StepProfile v-if="recommendationProfiles.after.length" :parts="recommendationProfiles.after" :total="recommendationProfiles.total"
+                                :height="26" label="Ablauf neu" />
+                            <span v-else class="text-[13px] text-ink-2">Ruhetag</span>
                         </div>
                     </div>
 

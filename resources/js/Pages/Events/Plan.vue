@@ -14,6 +14,7 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 import SectionHeader from '@/Components/UI/SectionHeader.vue';
 import PlanDesktopOverview from '@/Components/Plan/PlanDesktopOverview.vue';
 import PlanWeeksOverview from '@/Components/Plan/PlanWeeksOverview.vue';
+import StepProfile from '@/Components/UI/StepProfile.vue';
 import GarminSendSheet from '@/Components/UI/GarminSendSheet.vue';
 import SwipeRow from '@/Components/SwipeRow.vue';
 import DragGhost from '@/Components/UI/DragGhost.vue';
@@ -1262,8 +1263,11 @@ const lapHeightPct = computed(() => {
                                             Aktionen stehen in den Details — die Zeile öffnet sie.
                                         -->
                                         <!-- Ruhetage als schmale Zeile (Befund P2-10): in der ersten Woche waren sie 4 von 7 vollen Karten. -->
-                                        <div class="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 px-4"
-                                            :class="session.type === 'rest' ? 'py-1.5' : session.status === 'appointment' ? 'py-3.5' : 'cursor-pointer py-3.5'"
+                                        <div class="grid items-center gap-3 px-4"
+                                            :class="[
+                                                session.type === 'rest' ? 'py-1.5' : session.status === 'appointment' ? 'py-3.5' : 'cursor-pointer py-3.5',
+                                                session.steps?.length && session.type !== 'rest' ? 'grid-cols-[44px_minmax(0,1fr)_auto] lg:grid-cols-[44px_minmax(0,1fr)_minmax(140px,240px)_110px] lg:gap-4' : 'grid-cols-[44px_minmax(0,1fr)_auto]',
+                                            ]"
                                             @click="session.type !== 'rest' && openDetail(session)">
                                             <div class="text-center">
                                                 <p class="text-[12px] font-semibold leading-4"
@@ -1288,7 +1292,12 @@ const lapHeightPct = computed(() => {
                                                 <p v-else-if="session.status === 'appointment'" class="text-[13px] text-ink-3">Fester Termin · Ablauf gibt der Termin vor</p>
                                                 <p v-else-if="session.was_unplanned" class="text-[13px] text-warn-ink">Nicht im Plan<template v-if="session.activity_source"> · aus {{ session.activity_source }}</template></p>
                                                 <p v-else-if="plannedDiffers(session)" class="truncate text-[13px] text-ink-3">Geplant: {{ plannedSummary(session) }}</p>
+                                                <!-- Ablauf als Höhenprofil (Mockup 25.11.2026); am Desktop eine eigene Spalte. -->
+                                                <StepProfile v-if="session.steps?.length && session.type !== 'rest'" :steps="session.steps" :height="14"
+                                                    class="mt-1.5 max-w-[150px] lg:hidden" :gap="1.5" />
                                             </div>
+                                            <StepProfile v-if="session.steps?.length && session.type !== 'rest'" :steps="session.steps" :height="20"
+                                                class="hidden lg:flex" />
 
                                             <div v-if="session.type !== 'rest' && session.status !== 'skipped'" class="text-right">
                                                 <p class="whitespace-nowrap font-rounded text-[17px] font-bold tabular-nums text-ink">{{ rowPrimary(session) }}</p>

@@ -95,6 +95,27 @@ class SessionRecommendation extends Model
             return false;
         }
 
+        $this->fillSession($session);
+        $session->save();
+
+        $this->update(['status' => self::STATUS_ACCEPTED, 'responded_at' => now()]);
+
+        Log::info('Empfehlung angenommen', [
+            'user_id'        => $this->user_id,
+            'session_id'     => $session->id,
+            'recommendation' => $this->id,
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Den Vorschlag auf die Einheit legen, ohne zu speichern. `accept()`
+     * speichert danach; `previewSteps()` arbeitet auf einer Kopie, damit der
+     * Vorschlag schon vorher den Ablauf zeigt, der nach dem Annehmen gilt.
+     */
+    private function fillSession(TrainingSession $session): void
+    {
         // Offenes Ein-/Auslaufen überlebt einen Vorschlag, der nichts dazu sagt.
         $had = \App\Services\Run\SessionStructure::openEnds($session->steps);
         $session->fill(array_intersect_key($this->after, array_flip(self::FIELDS)) + [
@@ -117,17 +138,25 @@ class SessionRecommendation extends Model
             isset($this->after['open_cooldown']) ? (bool) $this->after['open_cooldown'] : $had['cooldown'],
         );
         app(\App\Services\Strength\StrengthCatalog::class)->applyTo($session, $this->after['exercises'] ?? null);
-        $session->save();
+    }
 
-        $this->update(['status' => self::STATUS_ACCEPTED, 'responded_at' => now()]);
+    /**
+     * Der Ablauf nach dem Annehmen, gerechnet auf einer Kopie der Einheit
+     * (Mockup „Einheiten mit Profil“, 25.11.2026: vorher/neu als Profil).
+     * Nichts wird gespeichert. Null bei einem Ruhetag oder ohne Ablauf.
+     */
+    public function previewSteps(): ?array
+    {
+        $session = $this->session;
+        if (! $session || ($this->after['type'] ?? null) === 'rest') {
+            return null;
+        }
 
-        Log::info('Empfehlung angenommen', [
-            'user_id'        => $this->user_id,
-            'session_id'     => $session->id,
-            'recommendation' => $this->id,
-        ]);
+        $copy = $session->replicate();
+        $copy->planned_date = $session->planned_date;
+        $this->fillSession($copy);
 
-        return true;
+        return is_array($copy->steps) && $copy->steps ? array_values($copy->steps) : null;
     }
 
     /** Gilt ein Vorschlag zu dieser Einheit noch? Nur für geplante Einheiten ab heute. */

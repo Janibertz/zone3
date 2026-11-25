@@ -240,10 +240,30 @@ export function stepBand(steps) {
         for (let r = 0; r < reps; r++) {
             out.push({ flex: minutes(s), kind: s.type, zone: Number(s.zone) || null });
             if (pause && (reps > 1 ? r < reps - 1 || Number(pause.repetitions) >= reps : true)) {
-                out.push({ flex: minutes(pause), kind: 'rest', zone: null });
+                out.push({ flex: minutes(pause), kind: 'rest', zone: Number(pause.zone) || null });
             }
         }
         if (pause) i++;
     }
     return out;
+}
+
+/**
+ * Höhe je Zone im Höhenprofil (Mockup „Zone3 Einheiten mit Profil und
+ * Soll/Ist“, Jan 25.11.2026: „Geil so umsetzen!“). Breite = Dauer, Höhe =
+ * Zone — eine Intervalleinheit sieht man so auf einen Blick als Zacken.
+ */
+export const ZONE_HEIGHT = { 1: 0.3, 2: 0.45, 3: 0.65, 4: 0.85, 5: 1 };
+
+/**
+ * Das Band als Höhenprofil: jedes Stück mit `height` (0–1). Abschnitte ohne
+ * Zone bekommen die übliche: Pausen Zone 1, Ein-/Auslaufen und Belastung Zone 2.
+ *
+ * @returns {{ flex: number, kind: string, zone: number, height: number }[]}
+ */
+export function stepProfile(steps) {
+    return stepBand(steps).map((seg) => {
+        const zone = seg.zone || (seg.kind === 'rest' ? 1 : 2);
+        return { ...seg, zone, height: ZONE_HEIGHT[zone] ?? ZONE_HEIGHT[2] };
+    });
 }

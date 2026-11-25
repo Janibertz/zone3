@@ -8,6 +8,7 @@ import SectionHeader from '@/Components/UI/SectionHeader.vue';
 import ConfirmSheet from '@/Components/UI/ConfirmSheet.vue';
 import MuscleMap from '@/Components/Strength/MuscleMap.vue';
 import RouteMap from '@/Components/Map/RouteMap.vue';
+import StepProfile from '@/Components/UI/StepProfile.vue';
 import ShareRunSheet from '@/Components/Share/ShareRunSheet.vue';
 import { activityType } from '@/Composables/useActivityTypes';
 import { sessionType } from '@/Composables/useSessionTypes';
@@ -34,7 +35,15 @@ const props = defineProps({
     // Sätze eines Krafttrainings aus der Uhr-Datei (StrengthSets::present).
     strength:      Object,
     muscleLabels:  Object,
+    // Soll und Ist je Block mit Umsetzungswert (WorkoutExecution).
+    execution:     Object,
 });
+
+// ── Soll und Ist ─────────────────────────────────────────────────
+const showHow = ref(false);
+const ZONE_BAR_BG = { 1: 'bg-ink-3', 2: 'bg-success', 3: 'bg-accent', 4: 'bg-warn', 5: 'bg-danger' };
+const BLOCK_STATUS = { ok: 'im Bereich', fast: 'zu schnell', slow: 'zu langsam', short: 'zu kurz' };
+const scoreTone = (n) => (n >= 80 ? 'text-success-ink' : n >= 60 ? 'text-warn-ink' : 'text-danger-ink');
 
 // ── Kraft ────────────────────────────────────────────────────────
 const openExercise = ref(null);
@@ -487,6 +496,62 @@ const routeSegments = computed(() => {
                             <p class="whitespace-pre-line text-[17px] leading-[25px] text-ink">{{ linkedSession.coach_review }}</p>
                             <p v-if="reviewedAt" class="mt-2.5 text-[13px] text-ink-3">Zone3 Coach · {{ reviewedAt }}</p>
                         </div>
+                    </section>
+
+                    <!-- ── Soll und Ist (Mockup 25.11.2026) ─────────── -->
+                    <section v-if="execution">
+                        <SectionHeader title="Soll und Ist">
+                            <template #action>
+                                <button type="button" class="text-[15px] text-accent active:opacity-60" :aria-expanded="showHow" @click="showHow = !showHow">Wie gerechnet?</button>
+                            </template>
+                        </SectionHeader>
+                        <div class="rounded-card bg-surface p-4">
+                            <div class="flex items-baseline gap-3">
+                                <p class="font-rounded text-[44px] font-extrabold leading-none tabular-nums tracking-[-0.03em] text-ink">{{ execution.score }}</p>
+                                <div class="min-w-0">
+                                    <p class="text-[13px] font-semibold" :class="scoreTone(execution.score)">Umsetzung · von 100</p>
+                                    <p class="text-[15px] leading-snug text-ink-2">{{ execution.sentence }}</p>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 space-y-2">
+                                <div class="grid grid-cols-[64px_minmax(0,1fr)] items-end gap-3">
+                                    <span class="text-[13px] text-ink-3">geplant</span>
+                                    <StepProfile :parts="execution.planned" :total="execution.total" :height="26" class="opacity-40" label="Ablauf geplant" />
+                                </div>
+                                <div class="grid grid-cols-[64px_minmax(0,1fr)] items-end gap-3">
+                                    <span class="text-[13px] font-semibold text-ink">gelaufen</span>
+                                    <StepProfile :parts="execution.actual" :total="execution.total" :height="26" label="Ablauf gelaufen" />
+                                </div>
+                            </div>
+
+                            <p v-if="showHow" class="mt-4 rounded-[12px] bg-surface-2 p-3 text-[13px] leading-snug text-ink-2">
+                                Jede Runde der Uhr gehört zu einem Abschnitt des Plans. Im Pace-Bereich ist ein Block 100, jede Sekunde daneben kostet 8 Punkte,
+                                und was kürzer war als geplant, zählt anteilig. Die Blöcke zählen nach ihrer Dauer, Ein- und Auslaufen ein Fünftel —
+                                und nur, wenn sie mehr als 10 s zu schnell waren.
+                            </p>
+                        </div>
+
+                        <ul class="mt-2 divide-y divide-line rounded-card bg-surface">
+                            <li v-for="b in execution.blocks" :key="b.n" class="px-4 py-3">
+                                <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                                    <p class="truncate text-[17px] text-ink">
+                                        <span class="tabular-nums text-ink-3">{{ b.n }}</span>
+                                        {{ b.label || 'Block' }}
+                                        <span v-if="b.status !== 'ok'" class="text-[13px] text-ink-3">· {{ BLOCK_STATUS[b.status] }}</span>
+                                    </p>
+                                    <p class="text-[17px] font-bold tabular-nums" :class="scoreTone(b.score)">{{ b.score }}</p>
+                                </div>
+                                <span class="mt-1.5 block h-[6px] overflow-hidden rounded-full bg-surface-2">
+                                    <span class="block h-full rounded-full" :class="ZONE_BAR_BG[b.zone] || 'bg-success'" :style="{ width: Math.max(4, b.score) + '%' }" />
+                                </span>
+                                <p class="mt-1.5 text-[13px] tabular-nums text-ink-3">
+                                    Soll {{ [b.planned_amount, b.target].filter(Boolean).join(' · ') || '—' }}
+                                    · Ist {{ [b.actual_amount, b.actual].filter(Boolean).join(' · ') }}<template v-if="b.hr"> · {{ b.hr }} bpm</template>
+                                </p>
+                            </li>
+                        </ul>
+                        <p v-if="execution.easy" class="mt-2 px-4 text-[13px] text-ink-3">{{ execution.easy }}</p>
                     </section>
 
                     <!-- ── Kraft: geplant gegen gemacht ──────────── -->
