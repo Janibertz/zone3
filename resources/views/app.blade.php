@@ -59,6 +59,12 @@
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
         <meta name="apple-mobile-web-app-title" content="Zone3">
+        {{-- Smart App Banner (Safari auf dem iPhone), nur auf der Startseite.
+             Muss im ersten HTML stehen — per JS nachgereicht liest Safari ihn
+             nicht. In der App selbst (WKWebView) zeigt iOS ihn nie. --}}
+        @if (($page['component'] ?? null) === 'Welcome')
+            <meta name="apple-itunes-app" content="app-id=6832175374">
+        @endif
         <link rel="manifest" href="/manifest.json">
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
