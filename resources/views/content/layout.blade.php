@@ -13,6 +13,8 @@
     <meta property="og:type" content="@yield('og_type', 'website')">
     @hasSection('og_image')<meta property="og:image" content="@yield('og_image')">@endif
     <meta name="theme-color" content="#f2f2f7">
+    {{-- Smart App Banner (Safari am iPhone), wie auf der Startseite. --}}
+    <meta name="apple-itunes-app" content="app-id=6832175374">
     {{-- Thema vor dem ersten Paint, wie in app.blade.php (useDarkMode.js). --}}
     <script>
         (function () {
