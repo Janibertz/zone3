@@ -3,6 +3,8 @@
 namespace App\Services\Fit;
 
 use App\Services\Polyline;
+use App\Services\Run\ActivityStreamStore;
+use App\Services\Run\StreamSampler;
 use App\Services\Strength\StrengthSets;
 
 /**
@@ -83,6 +85,12 @@ class FitActivityAttributes
         $sets = StrengthSets::fromFit($decoded['sets'] ?? [], $source);
         if ($sets !== []) {
             $attributes['strength_sets'] = $sets;
+        }
+
+        // Messpunkte alle 2 s für die Verlaufskurve; `ActivityImportService::store()`
+        // nimmt sie heraus und legt sie in `activity_streams`.
+        if ($stream = StreamSampler::fromFit($decoded['records'] ?? [])) {
+            $attributes[ActivityStreamStore::KEY] = $stream;
         }
 
         return $attributes;

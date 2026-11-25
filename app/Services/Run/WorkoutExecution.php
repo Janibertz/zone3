@@ -14,10 +14,11 @@ use App\Services\Watch\AppleWorkoutWriter;
  *
  * - Die Schritte werden aufgefaltet wie das Band im Frontend (`stepBand()`):
  *   jede Wiederholung ein Abschnitt, die Pause dazwischen auch.
- * - Zugeordnet wird nur 1:1 über die Runden der Uhr. Hat die Uhr genau so
- *   viele Runden wie der Ablauf Abschnitte (eine winzige Schlussrunde zählt
- *   nicht), passt jede Runde zu ihrem Abschnitt. Sonst gibt es kein Soll/Ist
- *   — eine Zuordnung nach Gefühl wäre schlechter als keine. Eine Einheit aus
+ * - Zugeordnet wird zuerst 1:1 über die Runden der Uhr: genau so viele
+ *   Runden wie Abschnitte (eine winzige Schlussrunde zählt nicht), und jede
+ *   ungefähr so lang wie ihr Abschnitt. Sonst (Autolap) werden die
+ *   Abschnitte der Reihe nach auf die Messpunkte gelegt (`lapsFromStream()`,
+ *   seit Etappe 4); ohne Messpunkte gibt es kein Soll/Ist. Eine Einheit aus
  *   nur einem Abschnitt (lockerer Lauf) wird gegen die ganze Aktivität gelegt.
  * - Ein Block im Pace-Bereich ist 100. Jede Sekunde daneben kostet 8 Punkte,
  *   und was kürzer gelaufen wurde als geplant, zählt anteilig.
@@ -48,7 +49,7 @@ class WorkoutExecution
      * @param  array|null  $steps      Schritte der verknüpften Einheit
      * @param  array|null  $paceZones  `z1`..`z5` mit min_pace/max_pace
      */
-    public function compare(?array $steps, Activity $activity, ?array $paceZones = null): ?array
+    public function compare(?array $steps, Activity $activity, ?array $paceZones = null, ?array $stream = null): ?array
     {
         if (! $steps || ! in_array($activity->type, self::RUN_TYPES, true)) {
             return null;
@@ -59,14 +60,28 @@ class WorkoutExecution
             return null;
         }
 
-        $laps = $this->laps($activity, count($segments));
+        $method = 'laps';
+        $laps   = $this->laps($activity, $segments);
+        if ($laps === null) {
+            // Runden passen nicht (Autolap): die geplanten Abschnitte der
+            // Reihe nach auf die Messpunkte legen (Jan, 25.11.2026).
+            $laps   = $stream ? $this->lapsFromStream($segments, $stream) : null;
+            $method = 'stream';
+        }
         if ($laps === null) {
             return null;
         }
 
         $rows = [];
+        $from = 0;
         foreach ($segments as $i => $seg) {
-            $rows[] = $this->evaluate($seg, $laps[$i], $paceZones);
+            $row          = $this->evaluate($seg, $laps[$i], $paceZones);
+            $to           = $laps[$i]['_to'] ?? $from + (float) ($laps[$i]['elapsed_time'] ?? 0);
+            $row['from']  = (int) round($from);
+            $row['to']    = (int) round($to);
+            $row['range'] = ($r = AppleWorkoutWriter::paceRange($seg['pace_target'] ?? null)) ? [(int) round(1000 / $r[1]), (int) round(1000 / $r[0])] : null;
+            $rows[]       = $row;
+            $from         = $to;
         }
 
         $work = array_values(array_filter($rows, fn ($r) => $r['kind'] === 'work'));
@@ -110,6 +125,13 @@ class WorkoutExecution
             }, $blocks),
             'planned'  => $planned,
             'actual'   => $actual,
+            'method'   => $method,
+            // Wo jeder Abschnitt in der Zeitreihe liegt, mit Pace-Bereich
+            // (s/km schnell–langsam) — das Zielband der Verlaufskurve.
+            'windows'  => array_map(fn ($r) => [
+                'from' => $r['from'], 'to' => $r['to'], 'kind' => $r['kind'],
+                'zone' => $r['planned_zone'], 'range' => $r['range'],
+            ], $rows),
             'total'    => max(array_sum(array_column($planned, 'flex')), array_sum(array_column($actual, 'flex'))),
         ];
     }
@@ -147,8 +169,9 @@ class WorkoutExecution
      *
      * @return list<array<string, mixed>>|null
      */
-    private function laps(Activity $activity, int $segments): ?array
+    private function laps(Activity $activity, array $segmentList): ?array
     {
+        $segments = count($segmentList);
         if ($segments === 1) {
             return [[
                 'elapsed_time'      => $activity->elapsed_time,
@@ -165,7 +188,104 @@ class WorkoutExecution
             array_pop($laps);
         }
 
-        return count($laps) === $segments ? $laps : null;
+        if (count($laps) !== $segments) {
+            return null;
+        }
+
+        // Gleich viele Runden heißt noch nicht passend: neun Autolap-Runden
+        // zu je 1 km gegen neun Abschnitte wären Zufall. Jede Runde muss
+        // ungefähr so lang sein wie ihr Abschnitt.
+        foreach ($segmentList as $i => $seg) {
+            if (! $this->fits($seg, $laps[$i])) {
+                return null;
+            }
+        }
+
+        return $laps;
+    }
+
+    /** Passt die Runde in der Länge zum Abschnitt (Strecke ±25 %, Zeit ±35 %)? */
+    private function fits(array $seg, array $lap): bool
+    {
+        if (! empty($seg['open'])) {
+            return true;
+        }
+        if (! empty($seg['distance_m'])) {
+            $ratio = (float) ($lap['distance'] ?? 0) / (float) $seg['distance_m'];
+
+            return $ratio >= 0.75 && $ratio <= 1.25;
+        }
+        if (! empty($seg['duration_min'])) {
+            $seconds = (float) ($lap['elapsed_time'] ?? 0) ?: (float) ($lap['moving_time'] ?? 0);
+            $ratio   = $seconds / ((float) $seg['duration_min'] * 60);
+
+            return $ratio >= 0.65 && $ratio <= 1.35;
+        }
+
+        return true;
+    }
+
+    /**
+     * Die Abschnitte nacheinander auf die Messpunkte gelegt: eine Strecke
+     * endet nach ihren Metern, eine Zeit nach ihren Sekunden. Ein offener
+     * Abschnitt (bis Lap-Taste) hat kein Ende, das man legen könnte — dann
+     * gibt es kein Soll/Ist.
+     *
+     * @return list<array<string, mixed>>|null
+     */
+    private function lapsFromStream(array $segments, array $stream): ?array
+    {
+        $t = $stream['t'] ?? [];
+        $d = $stream['d'] ?? null;
+        $n = count($t);
+        if ($n < 2) {
+            return null;
+        }
+
+        $laps = [];
+        $i    = 0;
+        foreach ($segments as $seg) {
+            if (! empty($seg['open'])) {
+                return null;
+            }
+            $start = $i;
+            if (! empty($seg['distance_m'])) {
+                if (! $d) {
+                    return null;
+                }
+                $goal = ($d[$i] ?? 0) + (float) $seg['distance_m'];
+                while ($i < $n - 1 && ($d[$i] ?? 0) < $goal) {
+                    $i++;
+                }
+            } elseif (! empty($seg['duration_min'])) {
+                $goal = $t[$i] + (float) $seg['duration_min'] * 60;
+                while ($i < $n - 1 && $t[$i] < $goal) {
+                    $i++;
+                }
+            } else {
+                return null;
+            }
+
+            $seconds = max(0, $t[$i] - $t[$start]);
+            $meters  = $d ? max(0, (float) ($d[$i] ?? 0) - (float) ($d[$start] ?? 0)) : 0;
+            $hr      = array_filter(array_slice($stream['hr'] ?? [], $start, $i - $start + 1), fn ($v) => $v);
+            // Ohne Strecke das Tempo aus den Messpunkten mitteln.
+            if (! $d) {
+                $v      = array_filter(array_slice($stream['v'] ?? [], $start, $i - $start + 1), fn ($x) => $x !== null);
+                $meters = $v ? array_sum($v) / count($v) * $seconds : 0;
+            }
+
+            $laps[] = [
+                'elapsed_time'      => $seconds,
+                'moving_time'       => $seconds,
+                'distance'          => $meters,
+                'average_heartrate' => $hr ? array_sum($hr) / count($hr) : null,
+                '_to'               => $t[$i],
+            ];
+        }
+
+        // Kaum etwas gelaufen von dem, was geplant war: lieber nichts zeigen.
+        return array_sum(array_column($laps, 'elapsed_time')) >= 60 ? $laps : null;
     }
 
     private function tiny(array $lap): bool

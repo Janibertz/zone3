@@ -214,6 +214,12 @@ class Activity extends Model
         return $this->belongsTo(User::class);
     }
 
+    /** Messpunkte alle 2 s (nur Uhr-Quellen). */
+    public function stream()
+    {
+        return $this->hasOne(ActivityStream::class);
+    }
+
     public function bestEfforts()
     {
         return $this->hasMany(BestEffort::class);

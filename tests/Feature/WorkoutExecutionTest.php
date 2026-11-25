@@ -3,11 +3,16 @@
 namespace Tests\Feature;
 
 use App\Models\Activity;
+use App\Models\ActivityStream;
 use App\Models\Event;
 use App\Models\SessionRecommendation;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
+use App\Services\ActivityImportService;
+use App\Services\Garmin\GarminActivityImporter;
+use App\Services\Run\ActivityStreamStore;
+use App\Services\Run\StreamSampler;
 use App\Services\Run\WorkoutExecution;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -173,5 +178,140 @@ class WorkoutExecutionTest extends TestCase
 
         $rec->accept();
         $this->assertEquals($preview, $session->fresh()->steps, 'Angenommen gilt genau der gezeigte Ablauf.');
+    }
+
+    // ── Etappe 4: Messpunkte, Autolap, Verlauf, Vergleich ────────────
+
+    /**
+     * Punkte jede Sekunde für den Intervall-Ablauf: Einlaufen 5:20, Blöcke
+     * mit $blockPace s/km, Trab 6:00, Auslaufen 5:30.
+     */
+    private function rawPoints(int $blockPace = 245): array
+    {
+        $plan = [[900, 320], [$blockPace * 1, $blockPace], [120, 360], [$blockPace, $blockPace], [120, 360], [$blockPace, $blockPace], [600, 330]];
+        $points = [];
+        $t = 1_700_000_000;
+        $d = 0.0;
+        foreach ($plan as [$seconds, $pace]) {
+            // Strecken-Blöcke: 1000 m in $pace Sekunden.
+            for ($i = 0; $i < $seconds; $i++) {
+                $v = 1000 / $pace;
+                $d += $v;
+                $points[] = ['t' => $t++, 'd' => $d, 'v' => $v, 'hr' => 150, 'alt' => 60];
+            }
+        }
+
+        return $points;
+    }
+
+    public function test_the_sampler_keeps_one_point_every_two_seconds(): void
+    {
+        $out = StreamSampler::sample($this->rawPoints());
+
+        $this->assertSame(0, $out['t'][0]);
+        $this->assertSame(2, $out['t'][1]);
+        $this->assertEqualsWithDelta(count($this->rawPoints()) / 2, count($out['t']), 1);
+        $this->assertSame(150, $out['hr'][10]);
+        $this->assertEqualsWithDelta(1000 / 320, $out['v'][5], 0.01);
+    }
+
+    public function test_garmin_samples_bring_a_stream_and_strava_never_stores_one(): void
+    {
+        $user    = User::factory()->onboarded()->create();
+        $samples = array_map(fn ($p) => [
+            'startTimeInSeconds' => $p['t'], 'totalDistanceInMeters' => $p['d'],
+            'speedMetersPerSecond' => $p['v'], 'heartRate' => $p['hr'], 'elevationInMeters' => $p['alt'],
+        ], $this->rawPoints());
+
+        $attributes = app(GarminActivityImporter::class)->fromSamples($samples, []);
+        $this->assertArrayHasKey(ActivityStreamStore::KEY, $attributes);
+
+        $run = app(ActivityImportService::class)->store($user->id, Activity::SOURCE_GARMIN, 42, [
+            'name' => 'Lauf', 'type' => 'Run', 'distance' => 9000, 'moving_time' => 2700, 'elapsed_time' => 2700,
+            'average_speed' => 3.3, 'start_date' => now()->subHour(),
+        ] + $attributes);
+
+        $this->assertSame(Activity::SOURCE_GARMIN, $run->stream->source);
+        $this->assertGreaterThan(1000, $run->stream->points);
+
+        ActivityStreamStore::keep($run, Activity::SOURCE_STRAVA, ['t' => [0, 2]]);
+        ActivityStreamStore::keep($run, Activity::SOURCE_COROS, ['t' => [0, 2]]);
+        $this->assertSame(Activity::SOURCE_GARMIN, $run->fresh()->stream->source, 'Die erste Uhr-Quelle bleibt, Strava nie.');
+    }
+
+    public function test_autolap_runs_get_a_comparison_from_the_stream(): void
+    {
+        $user   = User::factory()->onboarded()->create();
+        $stream = StreamSampler::sample($this->rawPoints(233));
+        $laps   = array_fill(0, 9, $this->lap(1000, 300));
+
+        $out = app(WorkoutExecution::class)->compare($this->steps(), $this->activity($user, $laps), null, $stream);
+
+        $this->assertNotNull($out);
+        $this->assertSame('stream', $out['method']);
+        $this->assertCount(3, $out['blocks']);
+        $this->assertSame('fast', $out['blocks'][0]['status']);
+        $this->assertEqualsWithDelta(233, $this->secs($out['blocks'][0]['actual']), 2);
+        $this->assertCount(7, $out['windows']);
+        $this->assertSame(0, $out['windows'][0]['from']);
+        $this->assertEqualsWithDelta(900, $out['windows'][0]['to'], 4);
+        $this->assertSame([240, 250], $out['windows'][1]['range']);
+    }
+
+    public function test_autolap_with_the_same_number_of_laps_is_not_taken_as_a_match(): void
+    {
+        $user = User::factory()->onboarded()->create();
+        // Sieben Autolap-Runden zu 1 km gegen sieben Abschnitte: Zufall.
+        $laps = array_fill(0, 7, $this->lap(1000, 300));
+
+        $this->assertNull(app(WorkoutExecution::class)->compare($this->steps(), $this->activity($user, $laps)));
+        $this->assertSame('stream', app(WorkoutExecution::class)
+            ->compare($this->steps(), $this->activity($user, $laps), null, StreamSampler::sample($this->rawPoints()))['method']);
+    }
+
+    public function test_an_open_warmup_cannot_be_laid_on_the_stream(): void
+    {
+        $user  = User::factory()->onboarded()->create();
+        $steps = $this->steps();
+        $steps[0] = ['type' => 'warmup', 'label' => 'Einlaufen', 'open' => true, 'zone' => 2];
+
+        $this->assertNull(app(WorkoutExecution::class)->compare(
+            $steps, $this->activity($user, array_fill(0, 9, $this->lap(1000, 300))), null, StreamSampler::sample($this->rawPoints()),
+        ));
+    }
+
+    public function test_the_activity_page_shows_the_curve_and_the_last_same_session(): void
+    {
+        $user = User::factory()->onboarded()->create();
+
+        $make = function (string $date, int $pace) use ($user) {
+            $run = $this->activity($user, array_fill(0, 9, $this->lap(1000, 300)));
+            ActivityStream::create(['activity_id' => $run->id, 'source' => 'garmin', 'points' => 1, 'data' => StreamSampler::sample($this->rawPoints($pace))]);
+            TrainingSession::create([
+                'user_id' => $user->id, 'planned_date' => $date, 'type' => 'interval', 'workout_variant' => 'intervall_1000',
+                'title' => '3 × 1000 m', 'intensity' => 'high', 'status' => 'completed', 'activity_id' => $run->id, 'steps' => $this->steps(),
+            ]);
+
+            return $run;
+        };
+
+        $make(now()->subDays(30)->toDateString(), 250);
+        $make(now()->subDays(14)->toDateString(), 248);
+        $today = $make(now()->toDateString(), 245);
+
+        $this->actingAs($user)->get(route('activities.show', $today))
+            ->assertInertia(fn ($page) => $page
+                ->where('execution.method', 'stream')
+                ->has('chart.pace')
+                ->has('chart.hr')
+                ->where('comparison.date', now()->subDays(14)->locale('de')->isoFormat('dd DD.MM.'))
+                ->has('comparison.pace'));
+    }
+
+    private function secs(string $pace): int
+    {
+        [$m, $s] = explode(':', $pace);
+
+        return (int) $m * 60 + (int) $s;
     }
 }

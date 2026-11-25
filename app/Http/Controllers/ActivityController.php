@@ -134,6 +134,12 @@ class ActivityController extends Controller
             ->where('user_id', Auth::id())
             ->first();
 
+        $stream    = $activity->stream;
+        $chart     = app(\App\Services\Run\ActivityChart::class);
+        $execution = $linkedSession && ! $linkedSession->was_unplanned
+            ? app(\App\Services\Run\WorkoutExecution::class)->compare($linkedSession->steps, $activity, $paceZones, $stream?->data)
+            : null;
+
         return Inertia::render('Activities/Show', [
             'activity' => [
                 'id'                   => $activity->id,
@@ -175,9 +181,11 @@ class ActivityController extends Controller
                 ->forActivity($activity, Auth::user()->runnerProfile?->ftp),
             // Soll und Ist je Block mit Umsetzungswert (Mockup 25.11.2026),
             // aus den Runden der Uhr, ohne Modellaufruf.
-            'execution'     => $linkedSession && ! $linkedSession->was_unplanned
-                ? app(\App\Services\Run\WorkoutExecution::class)->compare($linkedSession->steps, $activity, $paceZones)
-                : null,
+            'execution'     => $execution,
+            // Verlaufskurve (Etappe 4): Messpunkte der Uhr, Zielband aus
+            // `execution.windows`, gestrichelt die letzte gleiche Einheit.
+            'chart'         => $chart->series($stream, in_array($activity->type, ['Run', 'TrailRun', 'VirtualRun'], true)),
+            'comparison'    => $linkedSession && ! $linkedSession->was_unplanned && $stream ? $chart->comparison($linkedSession, $activity) : null,
             'linkedSession' => $linkedSession ? [
                 'id'               => $linkedSession->id,
                 'title'            => $linkedSession->title,

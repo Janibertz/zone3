@@ -2,6 +2,8 @@
 
 namespace App\Services\Garmin;
 
+use App\Services\Run\ActivityStreamStore;
+use App\Services\Run\StreamSampler;
 use App\Jobs\GenerateSessionReviewJob;
 use App\Models\Activity;
 use App\Models\GarminConnection;
@@ -272,6 +274,10 @@ class GarminActivityImporter
         $lapStarts = collect($laps)->pluck('startTimeInSeconds')->filter(fn ($v) => $v !== null)->map(fn ($v) => (int) $v)->sort()->values()->all();
         if ($lapStarts !== []) {
             $attributes['laps'] = $this->laps($samples, $lapStarts);
+        }
+
+        if ($stream = StreamSampler::fromGarmin($samples)) {
+            $attributes[ActivityStreamStore::KEY] = $stream;
         }
 
         return $attributes;

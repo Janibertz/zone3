@@ -10,6 +10,7 @@ use App\Models\RunnerProfile;
 use App\Models\TrainingPlan;
 use App\Models\TrainingSession;
 use App\Models\User;
+use App\Services\Run\ActivityStreamStore;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -53,6 +54,20 @@ class ActivityImportService
      * besprochen.
      */
     public function store(int $userId, string $source, int $externalId, array $attributes, ?int $otherId = null): Activity
+    {
+        $stream   = $attributes[ActivityStreamStore::KEY] ?? null;
+        unset($attributes[ActivityStreamStore::KEY]);
+
+        $activity = $this->storeRow($userId, $source, $externalId, $attributes, $otherId);
+
+        if ($stream) {
+            ActivityStreamStore::keep($activity, $source, $stream);
+        }
+
+        return $activity;
+    }
+
+    private function storeRow(int $userId, string $source, int $externalId, array $attributes, ?int $otherId): Activity
     {
         $column = Activity::ID_COLUMNS[$source];
 
