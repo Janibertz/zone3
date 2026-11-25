@@ -72,7 +72,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
 
 // „Schreib mir einfach" — eine E-Mail, kein Formular (Jan, 28.10.2026).
 const KONTAKT = {
-    href: 'mailto:jan.anders@zone3.run?subject=' + encodeURIComponent('Zone3 mittesten'),
+    href: 'mailto:jan.anders@zone3.run?subject=' + encodeURIComponent('Frage zu Zone3'),
     label: 'E-Mail schreiben',
     adresse: 'jan.anders@zone3.run',
 };
@@ -204,14 +204,14 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                     <div class="mt-8 flex flex-col gap-3 sm:flex-row">
                         <a href="#mitmachen"
                             class="inline-flex h-12 items-center justify-center rounded-full bg-accent px-7 font-semibold text-white transition hover:opacity-90 active:scale-[0.98]">
-                            Mittesten
+                            Jetzt starten
                         </a>
                         <a href="#so-arbeitet-es"
                             class="inline-flex h-12 items-center justify-center rounded-full bg-surface-2 px-7 font-semibold text-ink transition hover:bg-surface-3 active:scale-[0.98]">
                             Wie es arbeitet
                         </a>
                     </div>
-                    <p class="mt-4 text-[13px] text-ink-3">Beta · kostenlos · mit Warteliste</p>
+                    <p class="mt-4 text-[13px] text-ink-3">Kostenlos · im Browser und als iPhone-App</p>
                 </div>
 
                 <!-- Die Heute-Karte aus dem Dashboard -->
@@ -490,6 +490,46 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
             </div>
         </section>
 
+        <!-- ══ ÜBER MICH ══════════════════════════════════════════ -->
+        <!-- Jan, 25.11.2026: warum es Zone3 gibt und warum es kostenlos ist. In Jans Stimme. -->
+        <section id="ueber-mich" class="relative scroll-mt-20 px-5 py-20 sm:py-28">
+            <div class="mx-auto grid max-w-5xl grid-cols-1 gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-16 [&>*]:min-w-0">
+                <div>
+                    <span class="inline-block rounded-full bg-accent-soft px-3.5 py-1.5 text-[13px] font-semibold text-accent-ink">Warum Zone3 kostenlos ist</span>
+                    <h2 class="mt-5 text-[2.6rem] font-extrabold leading-[1.02] tracking-[-0.035em] sm:text-6xl">
+                        <span class="block">Gebaut,</span>
+                        <span class="block">weil es sie</span>
+                        <span class="block">nicht gab<span class="text-accent">.</span></span>
+                    </h2>
+                </div>
+
+                <div class="rounded-[28px] bg-surface p-6 sm:p-8">
+                    <p class="text-[20px] font-semibold leading-snug sm:text-[22px]">
+                        „Ich habe lange nach der perfekten Trainings-App gesucht. Gefunden habe ich sie nicht. Also habe ich sie selbst gebaut.“
+                    </p>
+                    <p class="mt-5 text-[17px] leading-relaxed text-ink-2">
+                        Ich wollte einen Plan, der sich nach meiner Woche richtet, jede Einheit auf meine Uhr legt
+                        und ehrlich sagt, wie es um mein Ziel steht. Daraus ist Zone3 geworden.
+                    </p>
+                    <p class="mt-4 text-[17px] leading-relaxed text-ink-2">
+                        Zone3 ist kein Start-up mit Investoren, sondern mein eigenes Projekt.
+                        Darum ist es zurzeit kostenlos. Sollte sich das einmal ändern, sage ich es vorher offen an.
+                    </p>
+                    <div class="mt-7 flex items-center gap-3">
+                        <span class="flex h-11 w-11 items-center justify-center rounded-full bg-accent text-[17px] font-extrabold text-white" aria-hidden="true">J</span>
+                        <span>
+                            <span class="block text-[15px] font-semibold">Jan</span>
+                            <span class="block text-[13px] text-ink-3">Läufer und Entwickler von Zone3</span>
+                        </span>
+                    </div>
+                    <p v-if="showDonate" class="mt-6 border-t border-line pt-5 text-[15px] text-ink-3">
+                        Wer mag, hilft bei den Server- und KI-Kosten:
+                        <a :href="DONATE_URL" target="_blank" rel="noopener noreferrer" class="font-semibold text-accent">Zone3 unterstützen</a>
+                    </p>
+                </div>
+            </div>
+        </section>
+
         <!-- ══ MITMACHEN ══════════════════════════════════════════ -->
         <section id="mitmachen" class="relative scroll-mt-20 overflow-hidden px-5 pb-24 pt-[300px] sm:pt-[360px]">
             <div class="pointer-events-none absolute inset-0" aria-hidden="true">
@@ -498,19 +538,19 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
             </div>
             <div class="relative mx-auto max-w-5xl">
                 <span class="inline-block rounded-full bg-accent-soft px-3.5 py-1.5 text-[13px] font-semibold text-accent-ink">
-                    Beta · kostenlos · mit Warteliste
+                    Kostenlos · ohne Abo
                 </span>
                 <h2 class="mt-5 text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.035em] sm:text-6xl">
                     <span class="block">Deine Uhr.</span>
                     <span class="block">Dein Ziel.</span>
                     <span class="block text-white/70">Verbinden. Loslegen.</span>
                 </h2>
-                <p class="mt-4 max-w-lg text-[17px] text-white/75">Garmin, COROS, Polar oder Apple Watch. Mit Apple oder deiner Mail anmelden, wir schalten dich frei. Fragen? Schreib mir einfach.</p>
+                <p class="mt-4 max-w-lg text-[17px] text-white/75">Garmin, COROS, Polar oder Apple Watch. Mit Apple oder deiner Mail anmelden und loslegen. Fragen? Schreib mir einfach.</p>
 
                 <div class="mt-8 flex flex-col gap-3 sm:flex-row">
                     <Link v-if="canLogin && !$page.props.auth.user" :href="route('login')"
                         class="inline-flex h-12 items-center justify-center rounded-full bg-accent px-8 font-semibold text-white transition hover:opacity-90 active:scale-[0.98]">
-                        Jetzt mitmachen
+                        Jetzt starten
                     </Link>
                     <a :href="KONTAKT.href"
                         class="inline-flex h-12 items-center justify-center rounded-full bg-surface-2 px-8 font-semibold text-ink transition hover:bg-surface-3 active:scale-[0.98]">
