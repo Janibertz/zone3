@@ -5,6 +5,7 @@ import GaugeTile from '@/Components/UI/GaugeTile.vue';
 import Wordmark from '@/Components/Brand/Wordmark.vue';
 import ZoneIcon from '@/Components/Brand/ZoneIcon.vue';
 import AppStoreBadge from '@/Components/Brand/AppStoreBadge.vue';
+import { APP_STORE_URL } from '@/appstore';
 import { isNativeApp } from '@/Composables/useNativeApp';
 import { DONATE_URL } from '@/donate';
 
@@ -501,26 +502,49 @@ const punkt = { rest: 'bg-ink-3', tempo: 'bg-warn', easy: 'bg-success', int: 'bg
                         <span class="block">weil es sie</span>
                         <span class="block">nicht gab<span class="text-accent">.</span></span>
                     </h2>
+
+                    <!-- Jan beim Hamburg-Marathon, dasselbe Foto wie im ersten Instagram-Beitrag (von Jan). -->
+                    <figure class="relative mt-8 overflow-hidden rounded-[28px]">
+                        <img src="/images/jan/jan-lauf.jpg" alt="Jan beim Hamburg-Marathon" width="900" height="1444" loading="lazy" decoding="async"
+                            class="block aspect-[4/5] w-full object-cover object-[30%_35%] lg:aspect-[3/4]" />
+                        <div class="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent" aria-hidden="true" />
+                        <figcaption class="absolute inset-x-0 bottom-0 p-5">
+                            <span class="block text-[13px] font-semibold text-white/70">Mein Ziel</span>
+                            <span class="block text-[28px] font-extrabold leading-tight tracking-[-0.03em] text-white">Halbmarathon unter 1:30<span class="text-accent">.</span></span>
+                        </figcaption>
+                    </figure>
                 </div>
 
-                <div class="rounded-[28px] bg-surface p-6 sm:p-8">
+                <div class="rounded-[28px] bg-surface p-6 sm:p-8 lg:self-start">
                     <p class="text-[20px] font-semibold leading-snug sm:text-[22px]">
                         „Ich habe lange nach der perfekten Trainings-App gesucht. Gefunden habe ich sie nicht. Also habe ich sie selbst gebaut.“
                     </p>
                     <p class="mt-5 text-[17px] leading-relaxed text-ink-2">
-                        Ich wollte einen Plan, der sich nach meiner Woche richtet, jede Einheit auf meine Uhr legt
-                        und ehrlich sagt, wie es um mein Ziel steht. Daraus ist Zone3 geworden.
+                        Ich bin Jan, Läufer aus Hannover und Webentwickler. Ich wollte einen Plan, der sich nach meiner Woche richtet, jede Einheit auf meine Uhr legt
+                        und ehrlich sagt, wie es um mein Ziel steht. Daraus ist Zone3 geworden,
+                        und damit trainiere ich jeden Tag selbst auf meine 1:30 hin.
                     </p>
                     <p class="mt-4 text-[17px] leading-relaxed text-ink-2">
                         Zone3 ist kein Start-up mit Investoren, sondern mein eigenes Projekt.
                         Darum ist es zurzeit kostenlos. Sollte sich das einmal ändern, sage ich es vorher offen an.
                     </p>
                     <div class="mt-7 flex items-center gap-3">
-                        <span class="flex h-11 w-11 items-center justify-center rounded-full bg-accent text-[17px] font-extrabold text-white" aria-hidden="true">J</span>
+                        <img src="/images/jan/jan-avatar.jpg" alt="" width="160" height="160" class="h-11 w-11 rounded-full object-cover" />
                         <span>
                             <span class="block text-[15px] font-semibold">Jan</span>
                             <span class="block text-[13px] text-ink-3">Läufer und Entwickler von Zone3</span>
                         </span>
+                    </div>
+                    <!-- Bewertungen im App Store (Jan, 25.11.2026). Nur im Browser, in der App fragt Apples eigener Dialog. -->
+                    <div v-if="showApp" class="mt-6 flex items-center justify-between gap-4 rounded-2xl bg-surface-2 p-4">
+                        <p class="text-[15px] leading-snug text-ink-2">
+                            <span class="mb-0.5 block text-[15px] tracking-[0.15em] text-warn" aria-hidden="true">★★★★★</span>
+                            Gefällt dir Zone3? Eine Bewertung im App Store hilft mir sehr.
+                        </p>
+                        <a :href="APP_STORE_URL + '?action=write-review'" target="_blank" rel="noopener noreferrer"
+                            class="inline-flex h-10 shrink-0 items-center rounded-full bg-accent px-4 text-[15px] font-semibold text-white transition active:scale-[0.98]">
+                            Bewerten
+                        </a>
                     </div>
                     <p v-if="showDonate" class="mt-6 border-t border-line pt-5 text-[15px] text-ink-3">
                         Wer mag, hilft bei den Server- und KI-Kosten:

@@ -39,7 +39,7 @@
     </article>
 
     <aside class="mt-12 overflow-hidden rounded-card bg-ink px-6 py-7 text-white dark:bg-surface">
-        <p class="text-[13px] font-semibold text-white/60 dark:text-ink-3">Zone3 · kostenlos in der Beta</p>
+        <p class="text-[13px] font-semibold text-white/60 dark:text-ink-3">Zone3 · kostenlos</p>
         <p class="mt-2 text-[24px] font-extrabold leading-tight tracking-[-0.03em] dark:text-ink">Dein Plan für dein Ziel. Von einem Coach, der mitläuft.</p>
         <p class="mt-2 text-[15px] text-white/75 dark:text-ink-2">Zone3 baut dir einen Trainingsplan aus deinen Läufen und passt ihn an, wenn das Leben dazwischenkommt. Für Garmin, COROS und Apple Watch.</p>
         <a href="{{ route('login', ['ref' => $kind]) }}" class="mt-5 inline-flex h-12 items-center rounded-full bg-accent px-7 font-semibold text-white active:scale-[0.97]">Jetzt mitmachen</a>

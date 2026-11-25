@@ -33,7 +33,7 @@ class Faq
                     ['q' => 'Kann ich Zone3 unterstützen?', 'web_only' => true,
                      'a' => 'Gern, freiwillig und ohne Gegenleistung. Zone3 ist ein privates Projekt, und die KI des Coaches und der Server kosten jeden Monat Geld. Über <a href="'.self::DONATE_URL.'" target="_blank" rel="noopener noreferrer">Ko-fi</a> kannst du einen Kaffee spendieren, das hilft, die Kosten zu decken. Alle Funktionen bleiben für alle gleich, ob mit oder ohne Spende.'],
                     ['q' => 'Wie komme ich rein?',
-                     'a' => 'Über <a href="/login?ref=faq">zone3.run</a> mit Apple oder mit einem Link an deine E-Mail-Adresse, ein Passwort brauchst du nicht. Neue Konten landen zuerst auf einer Warteliste, wir schalten dich dann frei. Mit dem Einladungslink eines Freundes bist du sofort drin.'],
+                     'a' => 'Über <a href="/login?ref=faq">zone3.run</a> mit Apple oder mit einem Link an deine E-Mail-Adresse, ein Passwort brauchst du nicht. Danach geht es direkt los.'],
                     ['q' => 'Gibt es eine App?',
                      'a' => 'Zone3 läuft im Browser. Auf dem Handy legst du es auf den Homescreen und nutzt es wie eine App. Eine eigene iPhone-App ist auf dem Weg, sie bringt Apple Health, die Apple Watch und Widgets mit.'],
                 ],
