@@ -11,4 +11,10 @@ class RouvyException extends RuntimeException
     {
         return in_array($this->getCode(), [401, 403], true);
     }
+
+    /** ROUVY selbst hatte ein Problem (5xx) — meist vorübergehend. */
+    public function serverSide(): bool
+    {
+        return $this->getCode() >= 500 && $this->getCode() < 600;
+    }
 }

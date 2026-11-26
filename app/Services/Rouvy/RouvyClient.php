@@ -4,6 +4,7 @@ namespace App\Services\Rouvy;
 
 use App\Models\RouvyConnection;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -129,7 +130,7 @@ class RouvyClient
 
     public function activity(RouvyConnection $connection, string $id): ?array
     {
-        $response = $this->authed($connection)->get($this->api() . '/activities/' . rawurlencode($id));
+        $response = $this->retryServerErrors($this->authed($connection))->get($this->api() . '/activities/' . rawurlencode($id));
 
         if ($response->status() === 404) {
             return null;
@@ -144,7 +145,7 @@ class RouvyClient
     /** @return list<array> Fahrten ab dem Zeitpunkt, höchstens 100. */
     public function activities(RouvyConnection $connection, \DateTimeInterface $from): array
     {
-        $response = $this->authed($connection)->get($this->api() . '/activities', [
+        $response = $this->retryServerErrors($this->authed($connection))->get($this->api() . '/activities', [
             'fromDateTime' => gmdate('Y-m-d\TH:i:s\Z', $from->getTimestamp()),
             'limit'        => 100,
         ]);
@@ -156,7 +157,7 @@ class RouvyClient
     /** Die FIT-Datei einer Fahrt. null = keine Datei. */
     public function activityFile(RouvyConnection $connection, string $id): ?string
     {
-        $response = $this->authed($connection)->timeout(60)->get($this->api() . '/activities/' . rawurlencode($id) . '/fit');
+        $response = $this->retryServerErrors($this->authed($connection)->timeout(60))->get($this->api() . '/activities/' . rawurlencode($id) . '/fit');
 
         if ($response->status() === 404) {
             return null;
@@ -253,6 +254,20 @@ class RouvyClient
     private function authed(RouvyConnection $connection): PendingRequest
     {
         return $this->http()->withToken($this->token($connection));
+    }
+
+    /**
+     * Lesende Aufrufe zweimal wiederholen, wenn ROUVY mit 5xx antwortet
+     * (26.11.2026: zweimal „Failed to retrieve data“, internal_error).
+     * Schreibende Aufrufe nicht — ein Push könnte doch angekommen sein.
+     */
+    private function retryServerErrors(PendingRequest $request): PendingRequest
+    {
+        return $request->retry(
+            [2000, 5000],
+            when: fn (Throwable $e) => $e instanceof RequestException && $e->response->serverError(),
+            throw: false,
+        );
     }
 
     private function guard(Response $response, string $what): void

@@ -9,6 +9,7 @@ use App\Services\ActivityImportService;
 use App\Services\Fit\FitActivityAttributes;
 use App\Services\Fit\FitDecoder;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
@@ -28,6 +29,9 @@ use Throwable;
  */
 class RouvyActivityImporter
 {
+    /** So viele Abrufe in Folge mit 5xx, bevor es als Fehler gemeldet wird (alle 2 h → 6 h). */
+    public const SERVER_ERRORS_BEFORE_REPORT = 3;
+
     public const FRESH_HOURS = 48;
 
     public const SYNC_DAYS = 3;
@@ -71,12 +75,30 @@ class RouvyActivityImporter
         $connection = $user->rouvyConnection;
         $days     ??= $connection->activities_synced_at ? self::SYNC_DAYS : self::BACKFILL_DAYS;
 
+        $failures = 'rouvy:activities-server-errors:' . $user->id;
+
         try {
             $list = $this->client->activities($connection, now()->subDays($days));
         } catch (RouvyException $e) {
+            // Ein 5xx bei ROUVY ist meist nach dem nächsten Lauf vorbei: erst
+            // nach mehreren Läufen in Folge ein Fehler (Sofort-Push), vorher
+            // nur eine Warnung. Der Webhook bringt die Fahrt ohnehin.
+            if ($e->serverSide()) {
+                Cache::add($failures, 0, now()->addDay());
+                $count = Cache::increment($failures);
+                if ($count < self::SERVER_ERRORS_BEFORE_REPORT) {
+                    Log::warning('ROUVY Aktivitäten: Serverfehler bei ROUVY, nächster Lauf versucht es wieder', [
+                        'user_id' => $user->id, 'in_folge' => $count, 'message' => Str::limit($e->getMessage(), 200),
+                    ]);
+
+                    return null;
+                }
+            }
             $connection->update(['last_error' => RouvyWorkoutSync::errorText($e), 'last_error_at' => now()]);
             throw $e;
         }
+
+        Cache::forget($failures);
 
         $outcomes = [];
         $fresh    = false;

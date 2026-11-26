@@ -22,6 +22,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Sleep;
 use Tests\TestCase;
 
 /**
@@ -353,6 +354,36 @@ class RouvyIntegrationTest extends TestCase
         // Dieselbe Fahrt aus dem Netz: nichts doppelt.
         $this->assertSame('known', app(RouvyActivityImporter::class)->importPayload($this->user->fresh(), $this->ride()));
         $this->assertSame(1, Activity::count());
+    }
+
+    public function test_a_server_error_at_rouvy_is_retried(): void
+    {
+        Sleep::fake();
+        $this->connect(['activities_synced_at' => now()]);
+        Http::fakeSequence(self::API . '/activities*')
+            ->push(['message' => 'Failed to retrieve data', 'code' => 'internal_error'], 500)
+            ->push(['activities' => []]);
+
+        $result = app(RouvyActivityImporter::class)->sync($this->user->fresh());
+
+        $this->assertSame([], $result);
+        Http::assertSentCount(2);
+    }
+
+    public function test_repeated_server_errors_are_reported_only_after_several_runs(): void
+    {
+        Sleep::fake();
+        $connection = $this->connect(['activities_synced_at' => now()]);
+        Http::fake([self::API . '/activities*' => Http::response(['message' => 'Failed to retrieve data', 'code' => 'internal_error'], 500)]);
+        $importer = app(RouvyActivityImporter::class);
+
+        for ($i = 1; $i < RouvyActivityImporter::SERVER_ERRORS_BEFORE_REPORT; $i++) {
+            $this->assertNull($importer->sync($this->user->fresh()));
+        }
+        $this->assertNull($connection->fresh()->last_error);
+
+        $this->expectException(\App\Services\Rouvy\RouvyException::class);
+        $importer->sync($this->user->fresh());
     }
 
     public function test_without_consent_nothing_is_read(): void
