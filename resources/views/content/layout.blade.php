@@ -62,7 +62,7 @@
                     <img src="/images/badges/app-store-de.svg" alt="Laden im App Store" style="height:40px" class="block w-auto">
                 </a>
             </div>
-            <div class="flex gap-5">
+            <div class="flex flex-wrap justify-center gap-x-5 gap-y-2">
                 <a href="{{ route('faq') }}">FAQ</a>
                 <a href="{{ route('privacy') }}">Datenschutz</a>
                 <a href="{{ route('terms') }}">Nutzungsbedingungen</a>
