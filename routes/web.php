@@ -90,11 +90,16 @@ Route::get('/.well-known/apple-app-site-association', fn () => response()->json(
                 ['/' => '/strava/callback*'],
                 // Anmeldelink aus der Mail: öffnet die App, dort wird angemeldet.
                 ['/' => '/login/link/*'],
+                // Knopf „Tagesform eintragen“ (Telegram, Push): öffnet die App.
+                ['/' => '/tagesform'],
             ],
         ]],
     ],
 ]))->name('apple-app-site-association');
 Route::permanentRedirect('/support', '/privacy')->name('support');
+// Eigener kurzer Pfad, damit nur dieser Knopf die App öffnet — /dashboard als
+// Universal Link würde jeden Link auf „Heute“ in die App ziehen (26.11.2026).
+Route::redirect('/tagesform', '/dashboard?tagesform=1')->name('tagesform');
 
 // Newsletter unsubscribe — public, no auth required
 Route::get('/newsletter/unsubscribe/{token}', [NewsletterController::class, 'unsubscribe'])->name('newsletter.unsubscribe');

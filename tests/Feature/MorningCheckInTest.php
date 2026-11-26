@@ -99,7 +99,7 @@ class MorningCheckInTest extends TestCase
         $this->assertStringContainsString('Du hast noch keinen aktiven Trainingsplan.', $msg['text']);
         $this->assertStringContainsString('Tagesform', $msg['text']);
         $this->assertSame('Tagesform eintragen', $msg['reply_markup']['inline_keyboard'][0][0]['text']);
-        $this->assertStringEndsWith('/dashboard?tagesform=1', $msg['reply_markup']['inline_keyboard'][0][0]['url']);
+        $this->assertStringEndsWith('/tagesform', $msg['reply_markup']['inline_keyboard'][0][0]['url']);
     }
 
     public function test_the_briefing_asks_during_a_pause(): void
@@ -208,7 +208,7 @@ class MorningCheckInTest extends TestCase
         $this->pushAthlete(null);
 
         $this->mock(WebPushService::class, fn ($m) => $m->shouldReceive('sendToUser')->once()
-            ->withArgs(fn ($user, $title, $body, $url) => $url === '/dashboard?tagesform=1'));
+            ->withArgs(fn ($user, $title, $body, $url) => $url === '/tagesform'));
 
         $this->artisan('push:wellbeing-reminders')->assertSuccessful();
     }

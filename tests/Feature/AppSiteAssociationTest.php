@@ -21,7 +21,7 @@ class AppSiteAssociationTest extends TestCase
         $details = $response->json('applinks.details.0');
         $this->assertSame(['Y7NR92XBVK.run.zone3.app'], $details['appIDs']);
         $this->assertSame(
-            ['/garmin/callback*', '/coros/callback*', '/polar/callback*', '/whoop/callback*', '/intervals/callback*', '/rouvy/callback*', '/strava/callback*', '/login/link/*'],
+            ['/garmin/callback*', '/coros/callback*', '/polar/callback*', '/whoop/callback*', '/intervals/callback*', '/rouvy/callback*', '/strava/callback*', '/login/link/*', '/tagesform'],
             array_column($details['components'], '/'),
         );
     }
@@ -33,5 +33,10 @@ class AppSiteAssociationTest extends TestCase
         $this->get('/.well-known/apple-app-site-association')
             ->assertOk()
             ->assertJsonPath('applinks.details.0.appIDs.0', 'Y7NR92XBVK.run.zone3.app');
+    }
+
+    public function test_the_check_in_path_leads_to_the_check_in(): void
+    {
+        $this->get('/tagesform')->assertRedirect('/dashboard?tagesform=1');
     }
 }

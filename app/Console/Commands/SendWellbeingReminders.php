@@ -38,7 +38,7 @@ class SendWellbeingReminders extends Command
                 default      => ["Wie geht es dir heute? 💪", "Trage jetzt deine Tagesform ein — dein Plan passt sich automatisch an."],
             };
 
-            $webPush->sendToUser($user, $title, $body, '/dashboard?tagesform=1');
+            $webPush->sendToUser($user, $title, $body, '/tagesform');
 
             $this->line("Sent wellbeing reminder to user #{$user->id}");
         }

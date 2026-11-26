@@ -68,7 +68,7 @@ class TelegramBriefing
     {
         return $this->checkedInToday($user)
             ? null
-            : [[['text' => 'Tagesform eintragen', 'url' => url('/dashboard?tagesform=1')]]];
+            : [[['text' => 'Tagesform eintragen', 'url' => url('/tagesform')]]];
     }
 
     public function checkedInToday(User $user): bool
