@@ -190,7 +190,7 @@ class PlanChange
             if (! empty($step['date']) && $step['date'] !== $session->planned_date->toDateString()) {
                 return 'set ändert eine Einheit an ihrem Tag — zum Verschieben move nehmen.';
             }
-            if ($session->planned_date->toDateString() < today()->toDateString()) return 'Der Tag ist vorbei.';
+            if ($session->planned_date->toDateString() < today()->toDateString()) return self::pastDay($session->planned_date->toDateString());
             $sport ??= $this->sportOf($session);
         } else {
             if (! $sport) return 'sport fehlt (run, bike, swim, strength, core, mobility oder rest).';
@@ -263,7 +263,7 @@ class PlanChange
         if (in_array($session->type, ['rest', 'race_prep'], true)) return 'Ruhetage und Rennen verschiebt der Coach nicht.';
 
         $from = $session->planned_date->toDateString();
-        if ($from < today()->toDateString()) return 'Der Tag ist vorbei.';
+        if ($from < today()->toDateString()) return self::pastDay($from);
         $to = $this->date($step['to_date'] ?? null);
         if (is_null($to)) return 'to_date fehlt oder liegt in der Vergangenheit.';
         if ($to === $from) return 'Die Einheit steht schon an dem Tag.';
@@ -295,7 +295,7 @@ class PlanChange
         if ($session->status !== 'planned') return "Einheit {$session->id} ist {$this->statusWord($session)} und bleibt stehen.";
         if ($session->type === 'race_prep') return 'Ein Rennen streicht der Coach nicht.';
         $date = $session->planned_date->toDateString();
-        if ($date < today()->toDateString()) return 'Der Tag ist vorbei.';
+        if ($date < today()->toDateString()) return self::pastDay($date);
 
         $label = $this->label($session);
         $this->remember($session);
@@ -533,7 +533,7 @@ class PlanChange
         $session = $this->find($user, $step['session_id']);
         if (is_string($session)) return $this->reject('propose', [$session]);
         if ($session->status !== 'planned') return $this->reject('propose', ["Einheit {$session->id} ist {$this->statusWord($session)}."]);
-        if ($session->planned_date->toDateString() < today()->toDateString()) return $this->reject('propose', ['Der Tag ist vorbei.']);
+        if ($session->planned_date->toDateString() < today()->toDateString()) return $this->reject('propose', [self::pastDay($session->planned_date->toDateString())]);
         $sport = $step['sport'] ?? $this->sportOf($session);
         if ($sport !== $this->sportOf($session) || ! in_array($sport, ['run', 'strength', 'core', 'mobility', 'rest'], true)) {
             return $this->reject('propose', ['Ein Vorschlag ändert eine Lauf- oder Krafteinheit ohne Sportwechsel. Rad statt Lauf: im Text fragen und nach dem Ja mit apply umsetzen.']);
@@ -686,5 +686,18 @@ class PlanChange
         ksort($out);
 
         return $out;
+    }
+
+    /**
+     * Ein vergangener Tag — mit dem heutigen Datum, damit das Modell im selben
+     * Zug den richtigen Tag nimmt, statt dem Athleten „heute ist vorbei“ zu
+     * sagen (26.11.2026).
+     */
+    public static function pastDay(string $date): string
+    {
+        $then = \Carbon\Carbon::parse($date)->locale('de')->isoFormat('dddd, DD.MM.');
+        $now  = today()->locale('de')->isoFormat('dddd, DD.MM.YYYY');
+
+        return "Der Tag ({$then}) ist vorbei. Heute ist {$now}. Meint der Athlet heute, nimm dieses Datum (ohne session_id, wenn heute keine Einheit steht).";
     }
 }

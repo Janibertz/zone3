@@ -401,4 +401,32 @@ class CoachStageTwoTest extends TestCase
         $this->assertContains('delete_training_session', $names);
         $this->assertNotContains('plan_change', $names);
     }
+
+    /** 26.11.2026: das Modell griff zum Ruhetag von gestern und gab auf. */
+    public function test_a_past_day_is_refused_with_todays_date(): void
+    {
+        [$user, , , , , $plan] = $this->sunday();
+        $old = TrainingSession::create(['user_id' => $user->id, 'training_plan_id' => $plan->id, 'planned_date' => '2026-11-21', 'type' => 'rest', 'title' => 'Ruhetag', 'description' => '', 'intensity' => 'low', 'status' => 'planned', 'sort_order' => 1]);
+
+        $result = app(PlanChange::class)->run($user, [['op' => 'set', 'session_id' => $old->id, 'sport' => 'bike', 'bike_workout' => 'threshold']], 'apply');
+
+        $this->assertFalse($result['ok']);
+        $this->assertStringContainsString('Heute ist Sonntag, 22.11.2026', $result['rejected'][0]);
+    }
+
+    /** Ältere Nachrichten tragen ihren Tag, damit „heute“ darin nicht heute heißt. */
+    public function test_history_marks_messages_from_earlier_days(): void
+    {
+        [$user] = $this->sunday();
+        $q = CoachMessage::create(['user_id' => $user->id, 'role' => 'user', 'content' => 'Heute kein Lauf mehr.', 'channel' => 'telegram']);
+        $q->forceFill(['created_at' => '2026-11-21 16:23:00'])->save();
+        $a = CoachMessage::create(['user_id' => $user->id, 'role' => 'assistant', 'content' => 'Heute ist Ruhetag.', 'channel' => 'telegram', 'reply_to_id' => $q->id]);
+        $a->forceFill(['created_at' => '2026-11-21 16:23:10'])->save();
+
+        $this->ask($user, 'Plane mir heute Intervalle auf dem Rad ein.');
+
+        $history = collect($this->requests[0]['messages'])->pluck('content')->implode("\n");
+        $this->assertStringContainsString('Nachricht vom Samstag, 21.11.', $history);
+        $this->assertStringNotContainsString('Nachricht vom Sonntag', $history);
+    }
 }

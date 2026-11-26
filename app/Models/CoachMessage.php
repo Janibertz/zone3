@@ -66,7 +66,7 @@ class CoachMessage extends Model
      */
     public function forHistory(): string
     {
-        $text = $this->forModel();
+        $text = $this->dayMark() . $this->forModel();
 
         if ($this->role !== 'assistant' || ! $this->reply_to_id) {
             return $text;
@@ -81,6 +81,20 @@ class CoachMessage extends Model
         return $text . "\n\n" . ($changes->isEmpty()
             ? '[Zone3-Protokoll: Bei dieser Antwort wurde nichts am Plan geändert.]'
             : '[Zone3-Protokoll: Eingetragen wurde: ' . $changes->implode('; ') . ']');
+    }
+
+    /**
+     * Datum vor jeder Nachricht von einem früheren Tag. Am 26.11.2026 stand
+     * im Verlauf „Heute ist Ruhetag“ vom Vortag samt Protokoll „Ruhetag
+     * (Mittwoch, 25.11.)“; der Verlauf trug kein Datum, das Modell hielt den
+     * 25.11. für heute, wollte dort das Rad eintragen und sagte „Heute ist
+     * vorbei“. „Heute“ in einer alten Nachricht meint deren Tag.
+     */
+    private function dayMark(): string
+    {
+        if (! $this->created_at || $this->created_at->isToday()) return '';
+
+        return '[Zone3-Protokoll: Nachricht vom ' . $this->created_at->locale('de')->isoFormat('dddd, DD.MM.') . " — „heute“ meinte diesen Tag.]\n";
     }
 
     public function forModel(): string

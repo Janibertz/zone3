@@ -53,7 +53,7 @@ class CoachReplyJob implements ShouldQueue
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->limit(self::HISTORY)
-            ->get(['role', 'content', 'kind', 'media_text', 'media_foreign', 'reply_to_id', 'actions'])
+            ->get(['role', 'content', 'kind', 'media_text', 'media_foreign', 'reply_to_id', 'actions', 'created_at'])
             ->reverse()
             ->values()
             ->map(fn ($m) => ['role' => $m->role, 'content' => $m->forHistory()])
