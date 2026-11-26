@@ -28,7 +28,7 @@ Außerdem wartet die Karte auf deine **Tagesform**. Danach kann der Coach die Ei
 
 ### Bevor du loslegst
 
-Du brauchst **iOS 17.2 oder neuer**. Öffne Zone3 nach dem Update einmal, damit die App sich für die Live Activity anmelden kann. Siehst du trotzdem nichts, schau unter **Einstellungen → Zone3 → Live-Aktivitäten**, ob sie eingeschaltet sind.
+Du brauchst **iOS 17.2 oder neuer**. Öffne Zone3 nach dem Update einmal, damit die App sich für die Live Activity anmelden kann. Live-Aktivitäten sind von selbst eingeschaltet. Wer sie nicht möchte, schaltet sie unter **Einstellungen → Zone3 → Live-Aktivitäten** aus.
 
 ## Readiness im Widget und auf dem Sperrbildschirm
 
