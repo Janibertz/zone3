@@ -44,18 +44,7 @@ class TrainingLoadService
 
         // Fetch 180 days of activities — enough to warm up the 42-day EMA.
         // Only the columns used by activityTSS() — skip large polyline/laps JSON.
-        $activities = Activity::where('user_id', $userId)
-            ->where('start_date', '>=', Carbon::now()->subDays(180))
-            // Eine Zeile, die nur Strava kennt, bleibt draußen; hat eine Uhr
-            // dieselbe Einheit angehängt, zählt sie.
-            ->when($withoutStrava, fn ($q) => $q->where(function ($q) {
-                foreach (Activity::ID_COLUMNS as $source => $column) {
-                    if ($source !== Activity::SOURCE_STRAVA) {
-                        $q->orWhereNotNull($column);
-                    }
-                }
-            }))
-            ->orderBy('start_date')
+        $activities = $this->activities($userId, Carbon::now()->subDays(180), $withoutStrava)
             ->get(['id', 'type', 'start_date', 'moving_time', 'average_speed', 'distance', 'average_heartrate']);
 
         // Aggregate TSS per calendar day
@@ -113,7 +102,49 @@ class TrainingLoadService
         ];
     }
 
+    /**
+     * Die Einheiten eines Tages mit Ende und TSS — für die Readiness über
+     * den Tag (seit 26.11.2026): eine Einheit zieht den Wert ab ihrem Ende
+     * herunter, nicht ab Mitternacht.
+     *
+     * @return list<array{end: \Carbon\CarbonImmutable, tss: float}>
+     */
+    public function sessionsOn(int $userId, \Carbon\CarbonInterface $day, bool $withoutStrava = false): array
+    {
+        $profile          = RunnerProfile::where('user_id', $userId)->first();
+        $thresholdPaceSec = $profile?->threshold_speed ? $profile->threshold_speed * 60 : null;
+        $thresholdHr      = $profile?->threshold_heart_rate;
+
+        return $this->activities($userId, Carbon::parse($day)->startOfDay(), $withoutStrava)
+            ->where('start_date', '<', Carbon::parse($day)->startOfDay()->addDay())
+            ->get(['id', 'type', 'start_date', 'moving_time', 'elapsed_time', 'average_speed', 'distance', 'average_heartrate'])
+            ->map(fn (Activity $a) => [
+                'end' => \Carbon\CarbonImmutable::parse($a->start_date)->addSeconds((int) ($a->elapsed_time ?: $a->moving_time)),
+                'tss' => $this->activityTSS($a, $thresholdPaceSec, $thresholdHr),
+            ])
+            ->filter(fn ($s) => $s['tss'] > 0)
+            ->values()
+            ->all();
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
+
+    private function activities(int $userId, Carbon $from, bool $withoutStrava): \Illuminate\Database\Eloquent\Builder
+    {
+        return Activity::where('user_id', $userId)
+            ->where('start_date', '>=', $from)
+            // Eine Zeile, die nur Strava kennt, bleibt draußen; hat eine Uhr
+            // dieselbe Einheit angehängt, zählt sie.
+            ->when($withoutStrava, fn ($q) => $q->where(function ($q) {
+                foreach (Activity::ID_COLUMNS as $source => $column) {
+                    if ($source !== Activity::SOURCE_STRAVA) {
+                        $q->orWhereNotNull($column);
+                    }
+                }
+            }))
+            ->orderBy('start_date');
+    }
+
 
     /**
      * Belastung einer Aktivität in TSS.

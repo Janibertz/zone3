@@ -36,6 +36,15 @@ use Illuminate\Support\Collection;
  *
  * Stufen wie bei Garmin: 1–24 schlecht, 25–49 niedrig, 50–74 mäßig,
  * 75–94 hoch, 95–100 optimal.
+ *
+ * Über den Tag (seit 26.11.2026, Jan: „er kann ja steigen oder auch
+ * fallen“): der Morgenwert rechnet die Belastung bis gestern. Der aktuelle
+ * Wert zieht davon ab, was heute trainiert wurde (ab dem Ende der Einheit,
+ * in zwölf Stunden zur Hälfte erholt — der Rest steht morgen in der
+ * Belastung), und mit Garmin, wie weit die Body Battery unter dem Hoch des
+ * Tages steht (lädt sie wieder, steigt der Wert). Angezeigt wird immer der
+ * aktuelle; Vorschläge (readiness:check, Tagesvorschlag, Tagesform)
+ * rechnen mit dem Morgenwert, damit sich der Plan nicht von selbst ändert.
  */
 class ReadinessService
 {
@@ -67,6 +76,23 @@ class ReadinessService
     /** … und nicht nur ein einzelner Lauf nach Wochen Pause. */
     public const LOAD_MIN_ATL = 15.0;
 
+    /** Eine Einheit zieht höchstens so viele Punkte ab: TSS × Faktor. */
+    public const TRAINING_DROP_PER_TSS = 0.35;
+    public const TRAINING_DROP_MAX     = 30;
+
+    /** Alle Einheiten des Tages zusammen höchstens. */
+    public const TRAINING_DROP_DAY_MAX = 40;
+
+    /** In so vielen Stunden nach dem Ende ist die Hälfte wieder erholt. */
+    public const TRAINING_HALF_RECOVERED_HOURS = 12;
+
+    /** Punkte je Body-Battery-Punkt unter dem Hoch des Tages, höchstens. */
+    public const BODY_BATTERY_FACTOR = 0.2;
+    public const BODY_BATTERY_MAX    = 15;
+
+    /** Älter als das zählt der Stand der Body Battery nicht mehr. */
+    public const BODY_BATTERY_FRESH_HOURS = 6;
+
     private const BASELINE_DAYS = 60;
     private const MIN_BASELINE  = 7;
 
@@ -81,15 +107,24 @@ class ReadinessService
      *     reasons: list<string>, parts: array<string, int>, date: string
      * }|null
      */
-    public function forDay(User $user, ?CarbonImmutable $day = null): ?array
+    public function forDay(User $user, ?CarbonImmutable $day = null, bool $morning = false): ?array
     {
         $day = ($day ?? CarbonImmutable::today())->startOfDay();
-        $key = $user->id . ':' . $day->toDateString();
+        $key = $user->id . ':' . $day->toDateString() . ($morning ? ':m' : '');
 
-        return $this->memo[$key] ??= $this->compute($user, $day);
+        return $this->memo[$key] ??= $this->compute($user, $day, $morning);
     }
 
-    private function compute(User $user, CarbonImmutable $day): ?array
+    /**
+     * Der Wert vom Morgen: ohne das, was heute trainiert wurde, und ohne die
+     * Body Battery seither. Für alles, was einen Vorschlag schreibt.
+     */
+    public function morning(User $user, ?CarbonImmutable $day = null): ?array
+    {
+        return $this->forDay($user, $day, morning: true);
+    }
+
+    private function compute(User $user, CarbonImmutable $day, bool $morning): ?array
     {
         if (! $user->receivesHealthMetrics()) {
             return null;
@@ -154,9 +189,10 @@ class ReadinessService
             return null;
         }
 
-        // Belastung nur für heute — die Rechnung läuft bis jetzt.
+        // Belastung nur für heute, und zwar bis gestern — was heute trainiert
+        // wurde, zählt unten ab dem Ende der Einheit.
         if ($day->isToday()) {
-            $load = $this->load->calculate($user->id, withoutStrava: true);
+            $load = $this->loadUntilYesterday($this->load->calculate($user->id, withoutStrava: true), $day);
             // Unter vier Wochen Uhr-Daten ist die gewohnte Last unterschätzt;
             // dann zählt die Belastung nur, wenn die akute klar darüber liegt
             // (Jan, 18.11.2026: Garmin sah Überbelastung, Zone3 gar nichts).
@@ -194,7 +230,9 @@ class ReadinessService
             $weight += self::WEIGHTS[$part];
             $sum    += $value * self::WEIGHTS[$part];
         }
-        $score = (int) max(1, min(100, round($sum / $weight)));
+        $base  = $sum / $weight;
+        $today = ($day->isToday() && ! $morning) ? $this->intraday($user, $day, $today, $reasons) : [];
+        $score = (int) max(1, min(100, round($base + array_sum($today))));
 
         // Zwei klare Warnsignale zugleich wiegt guter Schlaf nicht auf (Jan).
         if ($alarms >= 2) {
@@ -216,8 +254,78 @@ class ReadinessService
             'advice'  => $level['advice'],
             'reasons' => array_slice($reasons, 0, 3),
             'parts'   => $parts,
+            // Was heute seit dem Morgen dazukam (negativ = zieht runter).
+            'today'   => array_map(fn ($v) => (int) round($v), $today),
             'date'    => $day->toDateString(),
         ];
+    }
+
+    /**
+     * Die Belastung, wie sie gestern Abend stand. Der Verlauf trägt je Tag
+     * ATL/CTL; ohne Verlauf (oder ohne den gestrigen Tag) gilt der Stand.
+     */
+    private function loadUntilYesterday(array $load, CarbonImmutable $day): array
+    {
+        $yesterday = $day->subDay()->toDateString();
+        foreach (array_reverse($load['history'] ?? []) as $row) {
+            if (($row['date'] ?? null) === $yesterday) {
+                return ['atl' => $row['atl'], 'ctl' => $row['ctl']] + $load;
+            }
+        }
+
+        return $load;
+    }
+
+    /**
+     * Was den Wert seit dem Morgen bewegt hat, in Punkten.
+     *
+     * @param  list<string>  $reasons
+     * @return array<string, float>
+     */
+    private function intraday(User $user, CarbonImmutable $day, GarminDailyMetric $today, array &$reasons): array
+    {
+        $now = CarbonImmutable::now();
+        $out = [];
+
+        $battery = null;
+        if ($today->body_battery_now !== null && $today->body_battery_high !== null && $today->body_battery_at
+            && $today->body_battery_at->greaterThan($now->subHours(self::BODY_BATTERY_FRESH_HOURS))) {
+            $battery = $today;
+        }
+
+        $drop = 0.0;
+        foreach ($this->load->sessionsOn($user->id, $day, withoutStrava: true) as $session) {
+            if ($session['end']->greaterThan($now)) {
+                continue;
+            }
+            $hours = $session['end']->diffInMinutes($now) / 60;
+            $left  = 1 - 0.5 * min(1, $hours / self::TRAINING_HALF_RECOVERED_HOURS);
+            // Die Body Battery hat die Einheit schon mitgemessen, wenn ihr
+            // Stand danach liegt — dann zählt das Training nur halb.
+            if ($battery && $battery->body_battery_at->greaterThan($session['end'])) {
+                $left *= 0.5;
+            }
+            $drop += min(self::TRAINING_DROP_MAX, $session['tss'] * self::TRAINING_DROP_PER_TSS) * $left;
+        }
+        if ($drop > 0) {
+            $out['training'] = -min(self::TRAINING_DROP_DAY_MAX, $drop);
+            if ($drop >= 8) {
+                $reasons[] = 'Training heute';
+            }
+        }
+
+        if ($battery) {
+            $below = max(0, $battery->body_battery_high - $battery->body_battery_now);
+            $shift = min(self::BODY_BATTERY_MAX, $below * self::BODY_BATTERY_FACTOR);
+            if ($shift > 0) {
+                $out['body_battery'] = -$shift;
+                if ($shift >= 8) {
+                    $reasons[] = sprintf('Body Battery bei %d', $battery->body_battery_now);
+                }
+            }
+        }
+
+        return $out;
     }
 
     /** @return array{from: int, key: string, label: string, tone: string, advice: string} */
@@ -254,7 +362,11 @@ class ReadinessService
             default                        => 'Kein Grund, vom Plan abzuweichen.',
         };
 
-        return 'READINESS (Zone3-Wert aus den Uhr-Werten der Nacht, Belastung und Tagesform, 1–100): '
+        $source = isset($r['today']) && $r['today'] !== []
+            ? 'Stand jetzt: Uhr-Werte der Nacht, Belastung, Training und Body Battery von heute, Tagesform'
+            : 'aus den Uhr-Werten der Nacht, Belastung und Tagesform';
+
+        return 'READINESS (Zone3-Wert ' . $source . ', 1–100): '
             . self::sentence($r) . '. ' . $rule;
     }
 

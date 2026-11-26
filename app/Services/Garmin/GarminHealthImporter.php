@@ -83,6 +83,11 @@ class GarminHealthImporter
                     if ($metric->body_battery_high !== null) {
                         $values['body_battery_high'] = max($values['body_battery_high'], $metric->body_battery_high);
                     }
+                    // Ein älterer Teil, der später ankommt, setzt den Stand nicht zurück.
+                    if (isset($values['body_battery_at'], $metric->body_battery_at)
+                        && $metric->body_battery_at->greaterThan($values['body_battery_at'])) {
+                        unset($values['body_battery_now'], $values['body_battery_at']);
+                    }
                 }
 
                 $metric->fill($values + ['source' => 'garmin'])->save();
@@ -112,7 +117,7 @@ class GarminHealthImporter
             'hrv' => [
                 'hrv' => $this->positive($s['lastNightAvg'] ?? null, float: true),
             ],
-            'stressDetails' => $this->bodyBattery($s['timeOffsetBodyBatteryValues'] ?? null),
+            'stressDetails' => $this->bodyBattery($s['timeOffsetBodyBatteryValues'] ?? null, $s['startTimeInSeconds'] ?? null, $s['calendarDate'] ?? null),
             // Nur ein Kalenderdatum, kein Zeitraum: Garmin schickt den
             // aktuellen Wert, wenn er sich aendert.
             'userMetrics' => [
@@ -143,14 +148,34 @@ class GarminHealthImporter
         return is_numeric($seconds) && $seconds > 0 ? round($seconds / 3600, 2) : null;
     }
 
-    /** Tiefster und hoechster Body-Battery-Wert des Tages aus dem Verlauf. */
-    private function bodyBattery(mixed $series): array
+    /**
+     * Tiefster und hoechster Body-Battery-Wert des Tages aus dem Verlauf,
+     * dazu der letzte mit Uhrzeit (Schluessel = Sekunden ab `startTimeInSeconds`,
+     * ohne Startzeit ab Mitternacht des Kalendertags).
+     */
+    private function bodyBattery(mixed $series, mixed $start = null, mixed $date = null): array
     {
-        $levels = array_values(array_filter((array) $series, fn ($v) => is_numeric($v) && $v >= 0));
+        $levels = [];
+        foreach ((array) $series as $offset => $value) {
+            if (is_numeric($value) && $value >= 0) {
+                $levels[(int) $offset] = (int) $value;
+            }
+        }
+        if ($levels === []) {
+            return [];
+        }
 
-        return $levels === [] ? [] : [
-            'body_battery_low'  => (int) min($levels),
-            'body_battery_high' => (int) max($levels),
+        ksort($levels);
+        $last = array_key_last($levels);
+        $base = is_numeric($start)
+            ? \Carbon\CarbonImmutable::createFromTimestamp((int) $start)
+            : ($date ? \Carbon\CarbonImmutable::parse((string) $date, config('app.timezone'))->startOfDay() : null);
+
+        return [
+            'body_battery_low'  => min($levels),
+            'body_battery_high' => max($levels),
+            'body_battery_now'  => $levels[$last],
+            'body_battery_at'   => $base?->addSeconds($last)->setTimezone(config('app.timezone')),
         ];
     }
 

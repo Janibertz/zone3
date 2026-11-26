@@ -161,6 +161,7 @@ class DiagnoseController extends Controller
             // Readiness mit ihren Teilen und die Werte der Uhr dahinter —
             // ohne sie lässt sich der Wert nicht gegen Garmins nachrechnen.
             'readiness' => app(ReadinessService::class)->forDay($user, $day),
+            'readiness_morning' => app(ReadinessService::class)->morning($user, $day)['score'] ?? null,
             'load'      => $day->isToday() ? app(TrainingLoadService::class)->calculate($user->id, withoutStrava: true) : null,
             'health'    => GarminDailyMetric::where('user_id', $user->id)
                 ->whereDate('date', '>=', $day->subDays(14)->toDateString())
@@ -169,8 +170,16 @@ class DiagnoseController extends Controller
                     'date' => $m->date?->toDateString(), 'source' => $m->source, 'hrv' => $m->hrv,
                     'resting_hr' => $m->resting_hr, 'sleep_hours' => $m->sleep_hours, 'sleep_score' => $m->sleep_score,
                     'body_battery_low' => $m->body_battery_low, 'body_battery_high' => $m->body_battery_high,
+                    'body_battery_now' => $m->body_battery_now, 'body_battery_at' => $m->body_battery_at?->toIso8601String(),
                     'stress_avg' => $m->stress_avg, 'recovery_score' => $m->recovery_score, 'recharge_status' => $m->recharge_status,
                 ]),
+            // Wann Garmin Erholungswerte schickt — sagt, wie oft die
+            // Readiness über den Tag neue Werte bekommt. Ohne Inhalt.
+            'garmin_pushes' => \App\Models\GarminWebhookEvent::where('user_id', $user->id)
+                ->where('created_at', '>=', $day->subDay())
+                ->where('created_at', '<', $day->addDay())
+                ->latest('id')->limit(80)->get(['type', 'outcome', 'note', 'created_at'])
+                ->map(fn ($e) => ['at' => $e->created_at?->toIso8601String(), 'type' => $e->type, 'outcome' => $e->outcome, 'note' => $e->note]),
             'recommendations' => SessionRecommendation::where('user_id', $user->id)->latest('id')->limit(5)->get()
                 ->map->only(['id', 'training_session_id', 'source', 'status', 'reason', 'before', 'after', 'created_at']),
             'coach_messages' => CoachMessage::where('user_id', $user->id)->latest('id')->limit(min(50, $request->integer('messages', 12)))->get()

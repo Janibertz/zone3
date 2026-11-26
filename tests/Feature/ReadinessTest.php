@@ -248,4 +248,96 @@ class ReadinessTest extends TestCase
 
         $this->assertArrayNotHasKey('load', $this->readiness($user)['parts']);
     }
+
+    private function runToday(User $user, string $start, int $minutes = 60, float $speed = 3.9): void
+    {
+        \App\Models\Activity::create([
+            'user_id' => $user->id, 'source' => \App\Models\Activity::SOURCE_GARMIN, 'garmin_activity_id' => random_int(1, 1_000_000),
+            'name' => 'Tempo', 'type' => 'Run', 'start_date' => now()->toDateString() . ' ' . $start,
+            'distance' => $speed * $minutes * 60, 'moving_time' => $minutes * 60, 'elapsed_time' => $minutes * 60, 'average_speed' => $speed,
+        ]);
+    }
+
+    /** Über den Tag (26.11.2026): Training heute zieht den aktuellen Wert, nicht den Morgenwert. */
+    public function test_training_today_lowers_the_current_value_only(): void
+    {
+        $user = $this->athlete();
+        $this->tonight($user, ['hrv' => 62, 'resting_hr' => 49, 'sleep_hours' => 8]);
+        $before = $this->readiness($user)['score'];
+
+        $this->runToday($user, '07:30:00');
+        Carbon::setTestNow('2026-11-18 09:00:00');
+
+        $service = app(ReadinessService::class);
+        $now     = $service->forDay($user, CarbonImmutable::today());
+        $morning = $service->morning($user, CarbonImmutable::today());
+
+        $this->assertSame($before, $morning['score']);
+        $this->assertLessThan($morning['score'] - 10, $now['score']);
+        $this->assertArrayHasKey('training', $now['today']);
+        $this->assertContains('Training heute', $now['reasons']);
+    }
+
+    public function test_the_drop_from_training_recovers_over_the_day(): void
+    {
+        $user = $this->athlete();
+        $this->tonight($user, ['hrv' => 62, 'resting_hr' => 49, 'sleep_hours' => 8]);
+        $this->runToday($user, '07:30:00');
+
+        Carbon::setTestNow('2026-11-18 09:00:00');
+        $soon = app(ReadinessService::class)->forDay($user, CarbonImmutable::today())['score'];
+        Carbon::setTestNow('2026-11-18 21:00:00');
+        $late = (new ReadinessService(app(TrainingLoadService::class)))->forDay($user, CarbonImmutable::today())['score'];
+
+        $this->assertGreaterThan($soon, $late);
+    }
+
+    public function test_a_training_that_has_not_ended_does_not_count_yet(): void
+    {
+        $user = $this->athlete();
+        $this->tonight($user, ['hrv' => 62, 'resting_hr' => 49, 'sleep_hours' => 8]);
+        $this->runToday($user, '06:30:00', minutes: 60); // endet 07:30, jetzt 07:00
+
+        $this->assertSame([], $this->readiness($user)['today']);
+    }
+
+    public function test_body_battery_below_the_high_of_the_day_lowers_and_recharging_raises(): void
+    {
+        Carbon::setTestNow('2026-11-18 15:00:00');
+        $user = $this->athlete();
+        $this->tonight($user, ['hrv' => 62, 'resting_hr' => 49, 'sleep_hours' => 8,
+            'body_battery_high' => 95, 'body_battery_now' => 30, 'body_battery_at' => now()->subHour()]);
+
+        $low = $this->readiness($user);
+        $this->assertSame(-13, $low['today']['body_battery']);
+
+        GarminDailyMetric::where('user_id', $user->id)->whereDate('date', now()->toDateString())
+            ->update(['body_battery_now' => 70, 'body_battery_at' => now()]);
+        $high = (new ReadinessService(app(TrainingLoadService::class)))->forDay($user, CarbonImmutable::today());
+
+        $this->assertGreaterThan($low['score'], $high['score']);
+        $this->assertSame($low['score'], app(ReadinessService::class)->morning($user, CarbonImmutable::today())['score'] - 13);
+    }
+
+    public function test_a_stale_body_battery_does_not_count(): void
+    {
+        Carbon::setTestNow('2026-11-18 20:00:00');
+        $user = $this->athlete();
+        $this->tonight($user, ['hrv' => 62, 'resting_hr' => 49, 'sleep_hours' => 8,
+            'body_battery_high' => 95, 'body_battery_now' => 30, 'body_battery_at' => now()->subHours(8)]);
+
+        $this->assertSame([], $this->readiness($user)['today']);
+    }
+
+    /** Jan: der Plan ändert sich nicht von selbst, nur weil der Wert über den Tag fällt. */
+    public function test_proposals_use_the_morning_value(): void
+    {
+        $user = $this->athlete();
+        $this->tonight($user, ['hrv' => 57, 'resting_hr' => 51, 'sleep_hours' => 6.8]);
+        $this->plannedToday($user, 'interval');
+        $this->runToday($user, '05:00:00', minutes: 90, speed: 4.2);
+
+        $this->assertLessThan(ReadinessService::EASY_BELOW, $this->readiness($user)['score'], 'der aktuelle Wert ist niedrig');
+        $this->assertNull(app(ReadinessProposal::class)->check($user));
+    }
 }

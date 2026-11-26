@@ -124,7 +124,7 @@ class AIController extends Controller
 
         // Readiness und die Werte der Uhr (seit 18.11.2026). Bis dahin sah
         // der Tagesvorschlag nur die Tagesform.
-        $readiness = app(\App\Services\Readiness\ReadinessService::class)->forDay($user);
+        $readiness = app(\App\Services\Readiness\ReadinessService::class)->morning($user);
         $health    = $user->receivesHealthMetrics()
             ? app(\App\Services\GarminHealthSummary::class)->forDay($user->id, \Carbon\CarbonImmutable::today())
             : null;

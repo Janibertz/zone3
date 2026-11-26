@@ -16,6 +16,8 @@ class GarminDailyMetric extends Model
         'sleep_score',
         'body_battery_low',
         'body_battery_high',
+        'body_battery_now',
+        'body_battery_at',
         'recovery_score',
         'recharge_status',
         'stress_avg',
@@ -29,6 +31,7 @@ class GarminDailyMetric extends Model
 
     protected $casts = [
         'date'           => 'date',
+        'body_battery_at' => 'datetime',
         'hrv'            => 'float',
         'sleep_hours'    => 'float',
         'vo2max'         => 'float',

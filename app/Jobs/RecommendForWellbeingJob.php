@@ -58,7 +58,7 @@ class RecommendForWellbeingJob implements ShouldQueue
 
         // Die Readiness gehört dazu (seit 18.11.2026): derselbe Wert, den der
         // Athlet auf Heute sieht.
-        if ($readiness = app(\App\Services\Readiness\ReadinessService::class)->forDay($user, \Carbon\CarbonImmutable::parse($today))) {
+        if ($readiness = app(\App\Services\Readiness\ReadinessService::class)->morning($user, \Carbon\CarbonImmutable::parse($today))) {
             $metrics['has_data'] = true;
             $metrics['lines'][]  = \App\Services\Readiness\ReadinessService::promptLine($readiness);
         }

@@ -35,7 +35,7 @@ class ReadinessProposal
     {
         $day = $day ?? CarbonImmutable::today();
 
-        $r = $this->readiness->forDay($user, $day);
+        $r = $this->readiness->morning($user, $day);
         if (! $r || $r['score'] >= ReadinessService::EASY_BELOW) {
             return null;
         }

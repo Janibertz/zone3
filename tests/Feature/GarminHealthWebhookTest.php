@@ -194,4 +194,29 @@ class GarminHealthWebhookTest extends TestCase
         $this->assertFalse($this->connected(['WORKOUT_IMPORT'])->receivesHealthMetrics());
         $this->assertFalse(User::factory()->create()->receivesHealthMetrics());
     }
+
+    /** Readiness über den Tag (26.11.2026): der letzte Stand mit Uhrzeit. */
+    public function test_the_latest_body_battery_is_kept_with_its_time(): void
+    {
+        $user  = $this->connected();
+        $id    = 'g-' . $user->id;
+        $start = \Carbon\CarbonImmutable::parse('2026-10-27 00:00:00', 'Europe/Berlin')->getTimestamp();
+
+        $this->postJson('/garmin/webhook/health', ['stressDetails' => [[
+            'userId' => $id, 'calendarDate' => '2026-10-27', 'startTimeInSeconds' => $start,
+            'timeOffsetBodyBatteryValues' => ['0' => 40, '25200' => 95, '43200' => 60],
+        ]]]);
+        $m = $this->metric($user, '2026-10-27');
+        $this->assertSame(60, $m->body_battery_now);
+        $this->assertSame('2026-10-27 12:00', $m->body_battery_at->format('Y-m-d H:i'));
+
+        // Ein älterer Teil, der später ankommt, setzt den Stand nicht zurück.
+        $this->postJson('/garmin/webhook/health', ['stressDetails' => [[
+            'userId' => $id, 'calendarDate' => '2026-10-27', 'startTimeInSeconds' => $start,
+            'timeOffsetBodyBatteryValues' => ['0' => 40, '10800' => 80],
+        ]]]);
+        $m = $this->metric($user, '2026-10-27');
+        $this->assertSame(60, $m->body_battery_now);
+        $this->assertSame(95, $m->body_battery_high);
+    }
 }
