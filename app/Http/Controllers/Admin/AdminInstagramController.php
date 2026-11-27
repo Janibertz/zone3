@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\InstagramPublication;
 use App\Services\Instagram\InstagramClient;
+use App\Services\Instagram\InstagramPublisher;
 use App\Services\Instagram\InstagramSchedule;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -53,6 +54,19 @@ class AdminInstagramController extends Controller
         ]);
 
         return redirect()->route('admin.instagram.index')->with('success', 'Als gepostet markiert.');
+    }
+
+    public function retry(string $slug, InstagramSchedule $schedule, InstagramPublisher $publisher, InstagramClient $client): RedirectResponse
+    {
+        $post = $schedule->find($slug) ?? abort(404);
+        abort_if(in_array($post['type'], InstagramSchedule::MANUAL, true), 422);
+        $row = InstagramPublication::where('slug', $slug)->first();
+        abort_unless($row && in_array($row->status, [InstagramPublication::FAILED, InstagramPublication::MISSED], true), 422);
+        abort_unless($client->configured(), 422);
+
+        $result = $publisher->retry($post);
+
+        return redirect()->route('admin.instagram.index')->with('success', "Neu angestoßen: {$result}.");
     }
 
     private function present(array $post, ?InstagramPublication $row): array

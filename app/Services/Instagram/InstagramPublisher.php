@@ -63,6 +63,14 @@ class InstagramPublisher
         return $done;
     }
 
+    /** Ein fehlgeschlagener oder verpasster Beitrag, von Hand neu angestoßen (Admin). */
+    public function retry(array $post): string
+    {
+        InstagramPublication::where('slug', $post['slug'])->delete();
+
+        return $this->start($post);
+    }
+
     private function start(array $post): string
     {
         $row = InstagramPublication::create([

@@ -34,13 +34,24 @@ class InstagramClient
         $stored = AppSetting::get(self::TOKEN_KEY);
         if ($stored) {
             try {
-                return Crypt::decryptString($stored);
+                return self::clean(Crypt::decryptString($stored));
             } catch (Throwable) {
                 // kaputter Eintrag: auf die Umgebung zurückfallen
             }
         }
 
-        return config('services.instagram.access_token');
+        return self::clean(config('services.instagram.access_token'));
+    }
+
+    /** Leerzeichen, Anführungszeichen oder ein „Bearer“ aus dem Kopieren weg. */
+    public static function clean(?string $token): ?string
+    {
+        if ($token === null) {
+            return null;
+        }
+        $token = trim(preg_replace('/^\s*Bearer\s+/i', '', $token));
+
+        return trim($token, " \t\n\r\0\x0B\"'") ?: null;
     }
 
     /** Legt einen Container an und gibt seine ID zurück. */

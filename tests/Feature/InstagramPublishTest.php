@@ -174,6 +174,30 @@ class InstagramPublishTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_a_failed_post_can_be_retried_by_hand(): void
+    {
+        $this->write('story', ['at' => '2026-11-29 12:00', 'type' => 'story', 'media' => ['https://zone3.run/s.jpg']]);
+        Http::fakeSequence()
+            ->push(['error' => ['message' => 'Cannot parse access token']], 400)
+            ->push(['id' => 'c1'])
+            ->push(['status_code' => 'IN_PROGRESS']);
+        $this->assertSame(['story' => 'fehlgeschlagen'], $this->publisher()->run());
+
+        $post = (new InstagramSchedule($this->dir))->find('story');
+        $this->publisher()->retry($post);
+
+        $row = InstagramPublication::where('slug', 'story')->first();
+        $this->assertSame(InstagramPublication::WAITING, $row->status);
+        $this->assertSame('c1', $row->container_id);
+    }
+
+    public function test_a_pasted_token_is_cleaned(): void
+    {
+        $this->assertSame('IGAAabc', InstagramClient::clean(" \"IGAAabc\"\n"));
+        $this->assertSame('IGAAabc', InstagramClient::clean('Bearer IGAAabc'));
+        $this->assertNull(InstagramClient::clean('  '));
+    }
+
     public function test_the_refreshed_token_is_stored_and_used(): void
     {
         Http::fake(['graph.instagram.com/refresh_access_token*' => Http::response(['access_token' => 'neu', 'expires_in' => 5184000])]);

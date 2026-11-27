@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import AdminPage from '@/Components/Admin/AdminPage.vue';
@@ -51,7 +51,8 @@ const title    = (p) => (p.caption || p.sticker?.text || p.note || p.slug).split
                             <div class="text-[13px] text-ink-3">{{ fmt(p.at) }} · {{ TYPE[p.type] }}</div>
                             <div v-if="p.error" class="truncate text-[13px] text-danger">{{ p.error }}</div>
                         </div>
-                        <a v-if="p.permalink" :href="p.permalink" target="_blank" rel="noopener" class="shrink-0 text-[15px] text-accent">Ansehen</a>
+                        <button v-if="!p.manual && ['failed', 'missed'].includes(p.status)" type="button" class="shrink-0 text-[15px] text-accent active:opacity-60" @click.prevent="router.post(route('admin.instagram.retry', p.slug), {}, { preserveScroll: true })">Erneut</button>
+                        <a v-else-if="p.permalink" :href="p.permalink" target="_blank" rel="noopener" class="shrink-0 text-[15px] text-accent">Ansehen</a>
                         <span v-else class="shrink-0 text-[13px]" :class="STATUS[p.status]?.[1]">{{ STATUS[p.status]?.[0] }}</span>
                     </component>
                 </div>

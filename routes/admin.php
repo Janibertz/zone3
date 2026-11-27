@@ -35,6 +35,7 @@ Route::get('/push',                                [AdminPushController::class, 
 Route::post('/push',                               [AdminPushController::class, 'send'])        ->name('push.send');
 Route::get('/instagram',                           [AdminInstagramController::class, 'index'])  ->name('instagram.index');
 Route::get('/instagram/{slug}',                    [AdminInstagramController::class, 'show'])   ->name('instagram.show');
+Route::post('/instagram/{slug}/retry',             [AdminInstagramController::class, 'retry'])  ->name('instagram.retry');
 Route::post('/instagram/{slug}/posted',            [AdminInstagramController::class, 'posted']) ->name('instagram.posted');
 Route::get('/ki-kosten',                           AdminAiCostController::class)                ->name('ai-costs');
 
