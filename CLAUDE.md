@@ -1157,6 +1157,15 @@ WHOOP Developer API v2 (Bedingungen geprüft in `whoop-oura-antrag/befund.md` de
 - **Trennen** (`WhoopDisconnector`, auch beim Konto löschen): `DELETE /v2/user/access`, dann Zugang, WHOOP-Trainings (ohne Grabstein) und WHOOP-Erholungswerte löschen. WHOOP verbietet dauerhafte Kopien (4.2.2).
 - **Ungeprüft gegen einen echten Aufruf:** Feldnamen und Signatur stammen aus der Doku. Kommt nichts an: zuerst `whoop_webhook_events`, dann `/admin/system/logs` nach „WHOOP“.
 
+## Instagram selbst veröffentlichen (seit 27.11.2026)
+
+Metricools Monatskontingent war voll (Jan). Zone3 postet jetzt selbst über die **Instagram API mit Instagram-Login** (`graph.instagram.com`), ohne Facebook-Seite. Meta-App „Zone3“ im Entwicklungsmodus, Business-Portfolio Boostlife (Meta verlangt eins), @zone3.run als Instagram-Tester; keine App-Prüfung für das eigene Konto. Coolify: `INSTAGRAM_ACCOUNT_ID`, `INSTAGRAM_ACCESS_TOKEN`.
+
+- **Ein Beitrag ist eine JSON-Datei** `resources/content/instagram/<slug>.json` (`at` Berliner Zeit, `type` image/carousel/reel/trial_reel/story, `media` als öffentliche URLs unter zone3.run/social, `cover`, `caption`), kommt per Commit wie der Blog. `InstagramPublishTest::test_the_committed_posts_are_valid` prüft, dass jede Datei in `public/` liegt.
+- `instagram:publish` jede Minute (`InstagramPublisher`): Container anlegen (`waiting`), beim nächsten Lauf nach `FINISHED` veröffentlichen — kein Warten im Prozess. Zustand in `instagram_publications`. Mehr als 6 h zu spät = `missed`. **Kein automatischer Neuversuch**; ein Fehler geht als `Log::error` raus (Sofort-Push). Trial Reels mit `graduation_strategy = MANUAL`.
+- **Sticker (Link, Umfrage, Fragen) kann die API nicht** — solche Stories postet Jan weiter von Hand.
+- Token gilt 60 Tage; `instagram:refresh-token` mittwochs verlängert ihn und legt ihn verschlüsselt in `app_settings.instagram_access_token` ab (schlägt die Umgebung).
+
 ## Admin Panel
 
 Routes in `routes/admin.php` — protected by `is_admin` on User. Manual threshold recalculation, AI log viewer (all OpenAI calls with tokens + duration), coach personality editor, push test sender, settings page showing both models.

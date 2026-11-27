@@ -99,6 +99,11 @@ Schedule::command('rouvy:sync --activities')->cron('5 */2 * * *')->withoutOverla
 
 // Jede Minute: laufende LiveTrack-Sitzungen abfragen. Der Command prueft
 // selbst, ob ueberhaupt eine Sitzung im Zeitfenster liegt.
+// Instagram: Beiträge aus resources/content/instagram selbst veröffentlichen,
+// Token wöchentlich verlängern (gilt 60 Tage).
+Schedule::command('instagram:publish')->everyMinute()->withoutOverlapping(10);
+Schedule::command('instagram:refresh-token')->weeklyOn(3, '04:50');
+
 Schedule::command('livetrack:poll')->everyMinute()->withoutOverlapping(10);
 
 // Strava-Aktivitaeten abholen, unabhaengig vom Webhook.

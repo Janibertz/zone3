@@ -81,6 +81,16 @@ return [
 
     // WHOOP (seit 13.11.2026). App im WHOOP Developer Dashboard, Sandbox =
     // 10 Mitglieder ohne Freigabe. Ohne ID/Secret ist die Verbindung ausgeblendet.
+    // Instagram API mit Instagram-Login (seit 27.11.2026): Zone3 veröffentlicht
+    // die Beiträge aus resources/content/instagram selbst (instagram:publish).
+    // App „Zone3“ im Meta-Entwicklerportal (Portfolio Boostlife, Entwicklungsmodus,
+    // @zone3.run als Instagram-Tester). Ohne beide Werte passiert nichts.
+    'instagram' => [
+        'account_id'   => env('INSTAGRAM_ACCOUNT_ID'),
+        'access_token' => env('INSTAGRAM_ACCESS_TOKEN'),
+        'api_url'      => env('INSTAGRAM_API_URL', 'https://graph.instagram.com'),
+    ],
+
     'whoop' => [
         'client_id'     => env('WHOOP_CLIENT_ID'),
         'client_secret' => env('WHOOP_CLIENT_SECRET'),
