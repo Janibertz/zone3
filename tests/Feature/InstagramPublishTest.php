@@ -174,6 +174,24 @@ class InstagramPublishTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_a_manual_reel_hands_over_video_and_caption(): void
+    {
+        $this->write('trial', ['at' => '2026-11-29 12:00', 'type' => 'manual_trial_reel', 'media' => ['https://zone3.run/r.mp4'], 'caption' => 'Mein erster Halbmarathon']);
+        $admin = User::factory()->create(['is_admin' => true]);
+
+        $push = $this->mock(AdminPushService::class);
+        $push->shouldReceive('notify')->once()
+            ->withArgs(fn ($u, $title, $body, $url) => $title === 'Instagram-Trial-Reel ist dran' && str_contains($body, 'Musik') && $url === '/admin/instagram/trial');
+
+        Http::fake();
+        $this->assertSame(['trial' => 'benachrichtigt'], $this->publisher()->run());
+        Http::assertNothingSent();
+
+        $this->app->instance(InstagramSchedule::class, new InstagramSchedule($this->dir));
+        $this->actingAs($admin)->get('/admin/instagram/trial')->assertOk()
+            ->assertInertia(fn ($page) => $page->where('post.caption', 'Mein erster Halbmarathon')->where('post.type', 'manual_trial_reel'));
+    }
+
     public function test_a_failed_post_can_be_retried_by_hand(): void
     {
         $this->write('story', ['at' => '2026-11-29 12:00', 'type' => 'story', 'media' => ['https://zone3.run/s.jpg']]);

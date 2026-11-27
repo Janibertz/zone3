@@ -11,7 +11,7 @@ const props = defineProps({
     configured: { type: Boolean, required: true },
 });
 
-const TYPE = { image: 'Bild', carousel: 'Karussell', reel: 'Reel', trial_reel: 'Trial Reel', story: 'Story', manual_story: 'Story von Hand' };
+const TYPE = { image: 'Bild', carousel: 'Karussell', reel: 'Reel', trial_reel: 'Trial Reel', story: 'Story', manual_story: 'Story von Hand', manual_reel: 'Reel von Hand', manual_trial_reel: 'Trial Reel von Hand' };
 const STATUS = {
     planned:   ['geplant', 'text-ink-3'],
     due:       ['fällig', 'text-warn-ink'],

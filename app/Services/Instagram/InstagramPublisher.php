@@ -160,9 +160,16 @@ class InstagramPublisher
             'status'       => InstagramPublication::NOTIFIED,
         ]);
 
-        $what = $post['sticker'] ? "mit {$post['sticker']['label']}-Sticker" : 'zum Posten';
+        if ($post['type'] === 'manual_story') {
+            $what  = $post['sticker'] ? "mit {$post['sticker']['label']}-Sticker" : 'zum Posten';
+            $title = 'Instagram-Story ist dran';
+            $body  = "Jetzt die Story {$what} posten. Bild und Inhalt liegen im Admin.";
+        } else {
+            $title = $post['type'] === 'manual_trial_reel' ? 'Instagram-Trial-Reel ist dran' : 'Instagram-Reel ist dran';
+            $body  = 'Video und Text liegen im Admin: teilen, Musik wählen, Text einfügen, posten.';
+        }
         foreach (User::where('is_admin', true)->get() as $admin) {
-            $this->admins->notify($admin, 'Instagram-Story ist dran', "Jetzt die Story {$what} posten. Bild und Inhalt liegen im Admin.", '/admin/instagram/' . $post['slug']);
+            $this->admins->notify($admin, $title, $body, '/admin/instagram/' . $post['slug']);
         }
 
         return 'benachrichtigt';

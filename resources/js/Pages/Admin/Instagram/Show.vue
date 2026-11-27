@@ -16,6 +16,8 @@ const media   = computed(() => props.post.media[0]);
 const isVideo = computed(() => /\.(mp4|mov)(\?.*)?$/i.test(media.value));
 const when    = computed(() => new Date(props.post.at).toLocaleString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }));
 const done    = computed(() => props.post.status === 'posted');
+const isReel  = computed(() => props.post.type !== 'manual_story');
+const kind    = computed(() => props.post.type === 'manual_trial_reel' ? 'Trial Reel' : (isReel.value ? 'Reel' : 'Story'));
 
 const copied  = ref(null);
 const sharing = ref(false);
@@ -54,10 +56,10 @@ const posted = () => router.post(route('admin.instagram.posted', props.post.slug
 </script>
 
 <template>
-    <Head title="Admin – Story posten" />
+    <Head :title="`Admin – ${kind} posten`" />
 
     <AdminLayout>
-        <AdminPage title="Story posten" :eyebrow="when" :back="route('admin.instagram.index')" back-label="Instagram" detail>
+        <AdminPage :title="`${kind} posten`" :eyebrow="when" :back="route('admin.instagram.index')" back-label="Instagram" detail>
             <div class="overflow-hidden rounded-[14px] bg-black">
                 <video v-if="isVideo" :src="media" controls playsinline class="mx-auto max-h-[70dvh] w-full object-contain" />
                 <img v-else :src="media" alt="Story" class="mx-auto max-h-[70dvh] w-full object-contain">
@@ -67,9 +69,17 @@ const posted = () => router.post(route('admin.instagram.posted', props.post.slug
                 <button type="button" :disabled="sharing"
                     class="h-[50px] rounded-[14px] bg-accent text-[17px] font-semibold text-white active:opacity-80 disabled:opacity-50"
                     @click="share">{{ sharing ? 'Lädt …' : (isVideo ? 'Video teilen oder sichern' : 'Bild teilen oder sichern') }}</button>
-                <p class="px-1 text-[13px] text-ink-3">Im Teilen-Menü kannst du direkt Instagram wählen, dann öffnet sich die Story.</p>
+                <p v-if="!isReel" class="px-1 text-[13px] text-ink-3">Im Teilen-Menü kannst du direkt Instagram wählen, dann öffnet sich die Story.</p>
+                <p v-else class="px-1 text-[13px] text-ink-3">Im Teilen-Menü Instagram → Reels wählen. Dort Musik drunterlegen, unten den Text einfügen<template v-if="post.type === 'manual_trial_reel'"> und vor dem Teilen „Testreel“ einschalten</template>.</p>
                 <p v-if="shareError" class="px-1 text-[13px] text-danger">{{ shareError }}</p>
             </div>
+
+            <AdminSection v-if="isReel && post.caption" title="Text">
+                <button type="button" class="flex w-full items-start justify-between gap-3 rounded-[14px] bg-surface px-3.5 py-3 text-left active:bg-surface-2" @click="copy('caption', post.caption)">
+                    <span class="min-w-0 select-text whitespace-pre-line text-[16px]">{{ post.caption }}</span>
+                    <span class="shrink-0 text-[15px] text-accent">{{ copied === 'caption' ? 'Kopiert' : 'Kopieren' }}</span>
+                </button>
+            </AdminSection>
 
             <AdminSection v-if="post.sticker" :title="post.sticker.label + '-Sticker'">
                 <div class="overflow-hidden rounded-[14px] bg-surface">

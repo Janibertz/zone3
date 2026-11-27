@@ -26,10 +26,10 @@ use InvalidArgumentException;
  */
 class InstagramSchedule
 {
-    public const TYPES = ['image', 'carousel', 'reel', 'trial_reel', 'story', 'manual_story'];
+    public const TYPES = ['image', 'carousel', 'reel', 'trial_reel', 'story', 'manual_story', 'manual_reel', 'manual_trial_reel'];
 
     /** Diese Typen veröffentlicht niemand automatisch: zur Zeit kommt eine Nachricht an die Admins. */
-    public const MANUAL = ['manual_story'];
+    public const MANUAL = ['manual_story', 'manual_reel', 'manual_trial_reel'];
 
     public const STICKERS = ['link' => 'Link', 'poll' => 'Umfrage', 'question' => 'Fragen', 'quiz' => 'Quiz', 'slider' => 'Regler'];
 
