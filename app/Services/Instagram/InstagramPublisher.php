@@ -3,6 +3,8 @@
 namespace App\Services\Instagram;
 
 use App\Models\InstagramPublication;
+use App\Models\User;
+use App\Services\Admin\AdminPushService;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -26,6 +28,7 @@ class InstagramPublisher
     public function __construct(
         private InstagramClient $client,
         private InstagramSchedule $schedule,
+        private AdminPushService $admins,
     ) {}
 
     /** @return array<string, string> slug => was passiert ist */
@@ -41,10 +44,17 @@ class InstagramPublisher
 
             $status = $known[$post['slug']] ?? null;
 
+            $manual = in_array($post['type'], InstagramSchedule::MANUAL, true);
+            if (! $manual && ! $this->client->configured()) {
+                continue;
+            }
+
             if ($status === null) {
-                $done[$post['slug']] = $post['at']->lt(now()->subHours(self::CATCH_UP_HOURS))
-                    ? $this->miss($post)
-                    : $this->start($post);
+                $done[$post['slug']] = match (true) {
+                    $post['at']->lt(now()->subHours(self::CATCH_UP_HOURS)) => $this->miss($post),
+                    $manual => $this->remind($post),
+                    default => $this->start($post),
+                };
             } elseif ($status === InstagramPublication::WAITING) {
                 $done[$post['slug']] = $this->advance(InstagramPublication::where('slug', $post['slug'])->first());
             }
@@ -130,6 +140,24 @@ class InstagramPublisher
                 ), $post['media'])),
             ]),
         };
+    }
+
+    /** Story mit Sticker: die Admins bekommen Bescheid (Telegram, sonst Push). */
+    private function remind(array $post): string
+    {
+        InstagramPublication::create([
+            'slug'         => $post['slug'],
+            'type'         => $post['type'],
+            'scheduled_at' => $post['at'],
+            'status'       => InstagramPublication::NOTIFIED,
+        ]);
+
+        $what = $post['sticker'] ? "mit {$post['sticker']['label']}-Sticker" : 'zum Posten';
+        foreach (User::where('is_admin', true)->get() as $admin) {
+            $this->admins->notify($admin, 'Instagram-Story ist dran', "Jetzt die Story {$what} posten. Bild und Inhalt liegen im Admin.", '/admin/instagram/' . $post['slug']);
+        }
+
+        return 'benachrichtigt';
     }
 
     private function miss(array $post): string

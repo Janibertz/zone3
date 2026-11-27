@@ -24,6 +24,7 @@ const groups = [
     { title: 'Nachrichten', rows: [
         { label: 'Push senden', route: 'admin.push.index', value: 'push' },
         { label: 'Newsletter', route: 'admin.newsletter.index', value: 'newsletter' },
+        { label: 'Instagram', route: 'admin.instagram.index', value: 'instagram' },
     ] },
     { title: 'Daten und Technik', rows: [
         { label: 'KI-Kosten', route: 'admin.ai-costs', value: 'aiCosts' },

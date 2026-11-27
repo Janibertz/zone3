@@ -1163,7 +1163,7 @@ Metricools Monatskontingent war voll (Jan). Zone3 postet jetzt selbst über die 
 
 - **Ein Beitrag ist eine JSON-Datei** `resources/content/instagram/<slug>.json` (`at` Berliner Zeit, `type` image/carousel/reel/trial_reel/story, `media` als öffentliche URLs unter zone3.run/social, `cover`, `caption`), kommt per Commit wie der Blog. `InstagramPublishTest::test_the_committed_posts_are_valid` prüft, dass jede Datei in `public/` liegt.
 - `instagram:publish` jede Minute (`InstagramPublisher`): Container anlegen (`waiting`), beim nächsten Lauf nach `FINISHED` veröffentlichen — kein Warten im Prozess. Zustand in `instagram_publications`. Mehr als 6 h zu spät = `missed`. **Kein automatischer Neuversuch**; ein Fehler geht als `Log::error` raus (Sofort-Push). Trial Reels mit `graduation_strategy = MANUAL`.
-- **Sticker (Link, Umfrage, Fragen) kann die API nicht** — solche Stories postet Jan weiter von Hand.
+- **Sticker (Link, Umfrage, Fragen) kann die API nicht** — solche Stories sind `type = manual_story` (mit `sticker`: `type` link/poll/question/quiz/slider, `text`, `url`, `options`, dazu `note`). Zur Zeit `at` bekommen alle Admins eine Nachricht (`AdminPushService::notify`, Telegram vor Push) mit Link auf `/admin/instagram/<slug>`: Bild/Video teilen oder speichern, Sticker-Felder zum Kopieren, Knopf „Gepostet“. Läuft auch ohne Instagram-Zugang. Übersicht unter `/admin/instagram` (Mehr → Instagram).
 - Token gilt 60 Tage; `instagram:refresh-token` mittwochs verlängert ihn und legt ihn verschlüsselt in `app_settings.instagram_access_token` ab (schlägt die Umgebung).
 
 ## Admin Panel

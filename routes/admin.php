@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AdminAiLogController;
 use App\Http\Controllers\Admin\AdminActivityController;
 use App\Http\Controllers\Admin\AdminAiCostController;
 use App\Http\Controllers\Admin\AdminInboxController;
+use App\Http\Controllers\Admin\AdminInstagramController;
 use App\Http\Controllers\Admin\AdminMoreController;
 use App\Http\Controllers\Admin\AdminPushController;
 use App\Http\Controllers\Admin\AdminCoachController;
@@ -32,6 +33,9 @@ Route::post('/postfach/workouts/{workout}/keep',   [AdminInboxController::class,
 Route::get('/mehr',                                AdminMoreController::class)                  ->name('more');
 Route::get('/push',                                [AdminPushController::class, 'index'])       ->name('push.index');
 Route::post('/push',                               [AdminPushController::class, 'send'])        ->name('push.send');
+Route::get('/instagram',                           [AdminInstagramController::class, 'index'])  ->name('instagram.index');
+Route::get('/instagram/{slug}',                    [AdminInstagramController::class, 'show'])   ->name('instagram.show');
+Route::post('/instagram/{slug}/posted',            [AdminInstagramController::class, 'posted']) ->name('instagram.posted');
 Route::get('/ki-kosten',                           AdminAiCostController::class)                ->name('ai-costs');
 
 Route::get('/users',                               [AdminUserController::class, 'index'])              ->name('users.index');

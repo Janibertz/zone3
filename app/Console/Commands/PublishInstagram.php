@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Services\Instagram\InstagramClient;
 use App\Services\Instagram\InstagramPublisher;
 use Illuminate\Console\Command;
 
@@ -13,12 +12,8 @@ class PublishInstagram extends Command
 
     protected $description = 'Veröffentlicht fällige Instagram-Beiträge';
 
-    public function handle(InstagramClient $client, InstagramPublisher $publisher): int
+    public function handle(InstagramPublisher $publisher): int
     {
-        if (! $client->configured()) {
-            return self::SUCCESS;
-        }
-
         foreach ($publisher->run() as $slug => $what) {
             $this->line("{$slug}: {$what}");
         }

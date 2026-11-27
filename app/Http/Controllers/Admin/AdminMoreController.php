@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Activity;
 use App\Models\AppSetting;
 use App\Models\Coach;
+use App\Models\InstagramPublication;
 use App\Models\Invitation;
 use App\Models\Newsletter;
 use App\Models\StrengthExercise;
@@ -52,6 +53,7 @@ class AdminMoreController extends Controller
                 'workouts'    => (string) Workout::where('is_public', true)->count(),
                 'onboarding'  => $custom === 0 ? 'Vorgabe' : ($custom === 1 ? '1 geändert' : "{$custom} geändert"),
                 'push'        => 'an alle, Gruppe oder einen',
+                'instagram'   => ($n = InstagramPublication::where('status', InstagramPublication::NOTIFIED)->count()) ? "{$n} Story offen" : 'Plan und Stories',
                 'newsletter'  => $drafts === 0 ? 'kein Entwurf' : ($drafts === 1 ? '1 Entwurf' : "{$drafts} Entwürfe"),
                 'activities'  => number_format(Activity::count(), 0, ',', '.'),
                 'settings'    => AppSetting::get('maintenance_mode', '0') === '1' ? 'Wartung an' : 'Wartung aus',

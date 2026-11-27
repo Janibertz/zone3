@@ -18,19 +18,27 @@ use InvalidArgumentException;
  *   }
  *
  * Medien müssen öffentlich erreichbar sein, Instagram holt sie selbst.
- * Sticker (Link, Umfrage, Fragen) kann die API nicht setzen: solche Stories
- * gehören nicht hierher, die postet Jan von Hand.
+ * Sticker (Link, Umfrage, Fragen) kann die API nicht setzen. Solche Stories
+ * sind "manual_story" mit "sticker": {"type": "link|poll|question|quiz|slider",
+ * "text": "…", "url": "…", "options": ["…"]} und optional "note". Zur Uhrzeit
+ * bekommen die Admins eine Nachricht mit Link auf /admin/instagram/<slug>,
+ * dort liegen Bild/Video und alles, was in den Sticker gehört.
  */
 class InstagramSchedule
 {
-    public const TYPES = ['image', 'carousel', 'reel', 'trial_reel', 'story'];
+    public const TYPES = ['image', 'carousel', 'reel', 'trial_reel', 'story', 'manual_story'];
+
+    /** Diese Typen veröffentlicht niemand automatisch: zur Zeit kommt eine Nachricht an die Admins. */
+    public const MANUAL = ['manual_story'];
+
+    public const STICKERS = ['link' => 'Link', 'poll' => 'Umfrage', 'question' => 'Fragen', 'quiz' => 'Quiz', 'slider' => 'Regler'];
 
     public function __construct(private ?string $dir = null)
     {
         $this->dir ??= resource_path('content/instagram');
     }
 
-    /** @return array<int, array{slug:string, at:Carbon, type:string, media:array, cover:?string, caption:string}> */
+    /** @return array<int, array{slug:string, at:Carbon, type:string, media:array, cover:?string, caption:string, sticker:?array, note:?string}> */
     public function all(): array
     {
         $posts = [];
@@ -66,6 +74,37 @@ class InstagramSchedule
             'media'   => $media,
             'cover'   => $data['cover'] ?? null,
             'caption' => (string) ($data['caption'] ?? ''),
+            'sticker' => $this->sticker($slug, $data['sticker'] ?? null),
+            'note'    => $data['note'] ?? null,
+        ];
+    }
+
+    public function find(string $slug): ?array
+    {
+        foreach ($this->all() as $post) {
+            if ($post['slug'] === $slug) {
+                return $post;
+            }
+        }
+
+        return null;
+    }
+
+    private function sticker(string $slug, mixed $sticker): ?array
+    {
+        if ($sticker === null) {
+            return null;
+        }
+        if (! is_array($sticker) || ! isset(self::STICKERS[$sticker['type'] ?? ''])) {
+            throw new InvalidArgumentException("Instagram-Beitrag {$slug}: unbekannter Sticker");
+        }
+
+        return [
+            'type'    => $sticker['type'],
+            'label'   => self::STICKERS[$sticker['type']],
+            'text'    => $sticker['text'] ?? null,
+            'url'     => $sticker['url'] ?? null,
+            'options' => array_values((array) ($sticker['options'] ?? [])),
         ];
     }
 

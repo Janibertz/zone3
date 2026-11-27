@@ -10,6 +10,10 @@ class InstagramPublication extends Model
     public const PUBLISHED = 'published';
     public const FAILED    = 'failed';
     public const MISSED    = 'missed';
+    /** manual_story: Admins benachrichtigt, wartet auf Jan. */
+    public const NOTIFIED  = 'notified';
+    /** manual_story: Jan hat „Gepostet“ getippt. */
+    public const POSTED    = 'posted';
 
     protected $fillable = [
         'slug', 'type', 'scheduled_at', 'status', 'container_id',

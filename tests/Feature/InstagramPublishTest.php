@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\AppSetting;
 use App\Models\InstagramPublication;
+use App\Models\User;
+use App\Services\Admin\AdminPushService;
 use App\Services\Instagram\InstagramClient;
 use App\Services\Instagram\InstagramPublisher;
 use App\Services\Instagram\InstagramSchedule;
@@ -48,7 +50,40 @@ class InstagramPublishTest extends TestCase
 
     private function publisher(): InstagramPublisher
     {
-        return new InstagramPublisher(app(InstagramClient::class), new InstagramSchedule($this->dir));
+        return new InstagramPublisher(app(InstagramClient::class), new InstagramSchedule($this->dir), app(AdminPushService::class));
+    }
+
+    public function test_a_manual_story_reminds_the_admins_even_without_instagram_access(): void
+    {
+        config(['services.instagram.access_token' => null]);
+        $this->write('story-link', [
+            'at' => '2026-11-29 12:00', 'type' => 'manual_story', 'media' => ['https://zone3.run/s.jpg'],
+            'sticker' => ['type' => 'link', 'text' => 'Zone3 laden', 'url' => 'https://apps.apple.com/app/zone3/id6832175374'],
+        ]);
+        $this->write('reel', ['at' => '2026-11-29 12:00', 'type' => 'reel', 'media' => ['https://zone3.run/r.mp4']]);
+        $admin = User::factory()->create(['is_admin' => true]);
+        User::factory()->create();
+
+        $push = $this->mock(AdminPushService::class);
+        $push->shouldReceive('notify')->once()
+            ->withArgs(fn ($u, $title, $body, $url) => $u->is($admin) && str_contains($body, 'Link-Sticker') && $url === '/admin/instagram/story-link');
+
+        Http::fake();
+        $this->assertSame(['story-link' => 'benachrichtigt'], $this->publisher()->run());
+        $this->assertSame([], $this->publisher()->run());
+        Http::assertNothingSent();
+
+        $this->app->instance(InstagramSchedule::class, new InstagramSchedule($this->dir));
+        $this->actingAs($admin)->get('/admin/instagram/story-link')->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Admin/Instagram/Show')
+                ->where('post.sticker.url', 'https://apps.apple.com/app/zone3/id6832175374')
+                ->where('post.status', 'notified'));
+        $this->actingAs($admin)->get('/admin/instagram')->assertOk();
+
+        $this->actingAs($admin)->post('/admin/instagram/story-link/posted')->assertRedirect();
+        $this->assertSame(InstagramPublication::POSTED, InstagramPublication::where('slug', 'story-link')->value('status'));
+
+        $this->actingAs(User::factory()->create())->get('/admin/instagram/story-link')->assertForbidden();
     }
 
     public function test_a_due_trial_reel_is_created_and_published_once_instagram_is_done(): void
