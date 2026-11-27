@@ -202,16 +202,62 @@ class ReadinessTest extends TestCase
         $this->assertNull($out['2026-11-17']['recharge_status']);
     }
 
-    private function fakeLoad(float $atl, float $ctl, bool $enough): void
+    private function fakeLoad(float $atl, float $ctl, bool $enough, array $history = []): void
     {
-        $this->app->instance(TrainingLoadService::class, new class($atl, $ctl, $enough) extends TrainingLoadService {
-            public function __construct(private float $a, private float $c, private bool $e) {}
+        $this->app->instance(TrainingLoadService::class, new class($atl, $ctl, $enough, $history) extends TrainingLoadService {
+            public function __construct(private float $a, private float $c, private bool $e, private array $h) {}
 
             public function calculate(int $userId, bool $withoutStrava = false): array
             {
-                return ['atl' => $this->a, 'ctl' => $this->c, 'tsb' => $this->c - $this->a, 'enough_data' => $this->e];
+                return ['atl' => $this->a, 'ctl' => $this->c, 'tsb' => $this->c - $this->a, 'enough_data' => $this->e, 'history' => $this->h];
             }
         });
+    }
+
+    /** Verlauf wie TrainingLoadService: zehn Tage ohne Daten, dann die TSS je Tag bis gestern. */
+    private function fakeHistory(array $tss): void
+    {
+        $ctl = $atl = 0.0;
+        $rows = [];
+        $values = array_merge(array_fill(0, 10, 0.0), $tss);
+        $day = CarbonImmutable::today()->subDays(count($values));
+        foreach ($values as $t) {
+            $ctl += ($t - $ctl) / 42;
+            $atl += ($t - $atl) / 7;
+            $rows[] = ['date' => $day->toDateString(), 'ctl' => round($ctl, 1), 'atl' => round($atl, 1), 'tss' => $t];
+            $day = $day->addDay();
+        }
+        $this->fakeLoad($atl, $ctl, true, $rows);
+    }
+
+    /**
+     * Jan, 27.11.2026: Garmin 95, Zone3 75 mit Belastung 0. Nach einem Monat
+     * Uhr-Daten ist die CTL nur halb eingelaufen; gleichmäßiges Training ist
+     * keine Überlastung.
+     */
+    public function test_steady_training_after_a_month_of_data_is_no_overload(): void
+    {
+        $this->fakeHistory(array_merge(...array_fill(0, 15, [55.0, 0.0])));
+        $user = $this->athlete();
+        $this->tonight($user, ['hrv' => 62, 'resting_hr' => 49, 'sleep_hours' => 8]);
+
+        $r = $this->readiness($user);
+
+        $this->assertGreaterThanOrEqual(60, $r['parts']['load']);
+        $this->assertNotContains('hohe Belastung der letzten Tage', $r['reasons']);
+    }
+
+    /** Der Anstieg nach der Pause bis 17.11.2026 (Garmin 1 am 18.11.) bleibt eine Überlastung. */
+    public function test_a_real_ramp_after_a_break_still_counts(): void
+    {
+        $this->fakeHistory([4.3, 4.7, 2, 0, 0, 0, 0, 0, 0, 9.9, 0, 7, 41, 44.6, 0, 63.4, 23.6, 11.5, 54.8, 0, 97.8]);
+        $user = $this->athlete();
+        $this->tonight($user, ['hrv' => 62, 'resting_hr' => 49, 'sleep_hours' => 8]);
+
+        $r = $this->readiness($user);
+
+        $this->assertSame(0, $r['parts']['load']);
+        $this->assertContains('hohe Belastung der letzten Tage', $r['reasons']);
     }
 
     /** Jans Morgen am 18.11.2026: Garmin 1, Zone3 47 — guter Schlaf hob HRV und Ruhepuls auf. */

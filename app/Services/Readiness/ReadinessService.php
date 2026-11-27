@@ -76,6 +76,11 @@ class ReadinessService
     /** … und nicht nur ein einzelner Lauf nach Wochen Pause. */
     public const LOAD_MIN_ATL = 15.0;
 
+    /** Zeitkonstanten von TrainingLoadService (CTL 42, ATL 7 Tage). */
+    private const CTL_DAYS = 42;
+
+    private const ATL_DAYS = 7;
+
     /** Eine Einheit zieht höchstens so viele Punkte ab: TSS × Faktor. */
     public const TRAINING_DROP_PER_TSS = 0.35;
     public const TRAINING_DROP_MAX     = 30;
@@ -263,17 +268,43 @@ class ReadinessService
     /**
      * Die Belastung, wie sie gestern Abend stand. Der Verlauf trägt je Tag
      * ATL/CTL; ohne Verlauf (oder ohne den gestrigen Tag) gilt der Stand.
+     *
+     * CTL und ATL sind gleitende Mittel, die bei 0 beginnen. Mit wenigen
+     * Wochen Uhr-Daten ist die CTL deshalb viel zu klein (nach 30 Tagen etwa
+     * die Hälfte), und jede normale Woche sah wie Überlastung aus (Jan,
+     * 27.11.2026: Garmin 95, Zone3 75 mit Belastung 0). Geteilt wird durch den
+     * Anteil, den das Mittel seit dem ersten Tag mit Training erreicht haben
+     * kann — wie die Anlaufkorrektur bei Adam. Ein echter Anstieg nach einer
+     * Pause bleibt sichtbar, weil die ATL schneller wächst.
      */
     private function loadUntilYesterday(array $load, CarbonImmutable $day): array
     {
         $yesterday = $day->subDay()->toDateString();
-        foreach (array_reverse($load['history'] ?? []) as $row) {
+        $history = $load['history'] ?? [];
+        // Lag das erste Training vor dem Verlauf, ist das Mittel eingelaufen.
+        $days = ($history[0]['ctl'] ?? 0) > 0 ? 1000 : 0;
+        foreach ($history as $row) {
+            if ($days > 0 || ($row['tss'] ?? 0) > 0) {
+                $days++;
+            }
             if (($row['date'] ?? null) === $yesterday) {
-                return ['atl' => $row['atl'], 'ctl' => $row['ctl']] + $load;
+                return [
+                    'atl' => self::warmUp($row['atl'], self::ATL_DAYS, $days),
+                    'ctl' => self::warmUp($row['ctl'], self::CTL_DAYS, $days),
+                ] + $load;
             }
         }
 
         return $load;
+    }
+
+    private static function warmUp(float $value, int $span, int $days): float
+    {
+        if ($days <= 0) {
+            return $value;
+        }
+
+        return $value / (1 - (1 - 1 / $span) ** $days);
     }
 
     /**
