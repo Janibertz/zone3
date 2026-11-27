@@ -46,6 +46,7 @@ const groups = [
     { title: 'Nachrichten', items: [
         { label: 'Push senden', route: 'admin.push.index',       match: ['admin.push.*'] },
         { label: 'Newsletter',  route: 'admin.newsletter.index', match: ['admin.newsletter.*'] },
+        { label: 'Instagram',   route: 'admin.instagram.index',  match: ['admin.instagram.*'] },
     ] },
     { title: 'Daten und Technik', items: [
         { label: 'Aktivitäten',   route: 'admin.activities.index',  match: ['admin.activities.*'] },

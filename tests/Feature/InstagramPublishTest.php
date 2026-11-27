@@ -191,6 +191,19 @@ class InstagramPublishTest extends TestCase
         $this->assertSame('c1', $row->container_id);
     }
 
+    public function test_a_facebook_token_goes_through_graph_facebook_com(): void
+    {
+        config(['services.instagram.access_token' => 'EAAxyz']);
+        $this->write('story', ['at' => '2026-11-29 12:00', 'type' => 'story', 'media' => ['https://zone3.run/s.jpg']]);
+        Http::fake(['*' => Http::response(['id' => 'c1', 'status_code' => 'IN_PROGRESS'])]);
+
+        $this->publisher()->run();
+
+        Http::assertSent(fn (Request $r) => str_starts_with($r->url(), 'https://graph.facebook.com/v21.0/1789/media'));
+        Http::assertNotSent(fn (Request $r) => str_contains($r->url(), 'graph.instagram.com'));
+        $this->assertSame(0, app(InstagramClient::class)->refreshToken());
+    }
+
     public function test_a_pasted_token_is_cleaned(): void
     {
         $this->assertSame('IGAAabc', InstagramClient::clean(" \"IGAAabc\"\n"));

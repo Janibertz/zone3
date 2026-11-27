@@ -84,9 +84,25 @@ class InstagramClient
         }
     }
 
-    /** Verlängert den Token um 60 Tage und legt ihn ab. */
+    /** Base URL for a token from Facebook login (EAA…). */
+    public const FACEBOOK_API_URL = 'https://graph.facebook.com/v21.0';
+
+    /**
+     * Ein Token aus dem Facebook-Login (EAA…) statt aus dem Instagram-Login
+     * (IGAA…). Er geht nur über graph.facebook.com, mit derselben Konto-ID.
+     */
+    public function usesFacebookToken(): bool
+    {
+        return str_starts_with((string) $this->token(), 'EAA');
+    }
+
+    /** Verlängert den Token um 60 Tage und legt ihn ab. 0 = nicht verlängerbar (Facebook-Token). */
     public function refreshToken(): int
     {
+        if ($this->usesFacebookToken()) {
+            return 0;
+        }
+
         $response = Http::timeout(30)->get(rtrim(config('services.instagram.api_url'), '/') . '/refresh_access_token', [
             'grant_type'   => 'ig_refresh_token',
             'access_token' => $this->token(),
@@ -135,6 +151,8 @@ class InstagramClient
 
     private function url(string $path): string
     {
-        return rtrim(config('services.instagram.api_url'), '/') . '/' . ltrim($path, '/');
+        $base = $this->usesFacebookToken() ? self::FACEBOOK_API_URL : config('services.instagram.api_url');
+
+        return rtrim($base, '/') . '/' . ltrim($path, '/');
     }
 }
