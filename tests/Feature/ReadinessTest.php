@@ -247,6 +247,19 @@ class ReadinessTest extends TestCase
         $this->assertNotContains('hohe Belastung der letzten Tage', $r['reasons']);
     }
 
+    /** 27.11.2026: ein Drittel über der gewohnten Last ist Aufbau, keine Überlastung (Warnung erst ab ACWR 1,5). */
+    public function test_a_third_above_the_usual_load_is_no_alarm(): void
+    {
+        $this->fakeLoad(atl: 32, ctl: 24, enough: true);
+        $user = $this->athlete();
+        $this->tonight($user, ['hrv' => 62, 'resting_hr' => 49, 'sleep_hours' => 8]);
+
+        $r = $this->readiness($user);
+
+        $this->assertSame(50, $r['parts']['load']);
+        $this->assertNotContains('hohe Belastung der letzten Tage', $r['reasons']);
+    }
+
     /** Der Anstieg nach der Pause bis 17.11.2026 (Garmin 1 am 18.11.) bleibt eine Überlastung. */
     public function test_a_real_ramp_after_a_break_still_counts(): void
     {
@@ -256,7 +269,7 @@ class ReadinessTest extends TestCase
 
         $r = $this->readiness($user);
 
-        $this->assertSame(0, $r['parts']['load']);
+        $this->assertLessThan(37, $r['parts']['load']);
         $this->assertContains('hohe Belastung der letzten Tage', $r['reasons']);
     }
 

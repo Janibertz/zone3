@@ -76,6 +76,12 @@ class ReadinessService
     /** … und nicht nur ein einzelner Lauf nach Wochen Pause. */
     public const LOAD_MIN_ATL = 15.0;
 
+    /** Punkte je Anteil (CTL − ATL) / CTL: ACWR 1,33 → 50, 1,5 → 37, 2 → 0. */
+    private const LOAD_SLOPE = 75;
+
+    /** Warnsignal ab ACWR 1,5, also (CTL − ATL) / CTL ≤ −0,5. */
+    private const LOAD_ALARM_FORM = -0.5;
+
     /** Zeitkonstanten von TrainingLoadService (CTL 42, ATL 7 Tage). */
     private const CTL_DAYS = 42;
 
@@ -205,8 +211,10 @@ class ReadinessService
                 && ($load['atl'] ?? 0) >= self::LOAD_RAMP_FACTOR * ($load['ctl'] ?? 0);
             if (($load['enough_data'] ?? false) || $ramp) {
                 $form = ($load['ctl'] - $load['atl']) / max($load['ctl'], 15.0);
-                $parts['load'] = $this->clamp(75 + $form * 130);
-                if ($form <= -0.25) {
+                // Akut gegen gewohnt (ACWR): bis etwa 1,3 ist Aufbau, ab 1,5
+                // steigt das Risiko klar (Jan, 27.11.2026: Warnung erst dort).
+                $parts['load'] = $this->clamp(75 + $form * self::LOAD_SLOPE);
+                if ($form <= self::LOAD_ALARM_FORM) {
                     $alarms++;
                     $reasons[] = 'hohe Belastung der letzten Tage';
                 }
