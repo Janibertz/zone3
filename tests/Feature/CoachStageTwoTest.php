@@ -402,6 +402,25 @@ class CoachStageTwoTest extends TestCase
         $this->assertNotContains('plan_change', $names);
     }
 
+    /** 27.11.2026: „1000 Meter schwimmen“ wurde „Schwimmen 45 min“. */
+    public function test_a_swim_distance_stays_a_distance(): void
+    {
+        [$user] = $this->sunday();
+
+        $result = app(PlanChange::class)->run($user, [['op' => 'add', 'date' => '2026-11-23', 'sport' => 'swim', 'distance_m' => 1000]], 'apply');
+
+        $this->assertTrue($result['ok']);
+        $swim = TrainingSession::whereDate('planned_date', '2026-11-23')->where('sport_type', 'Swim')->firstOrFail();
+        $this->assertSame('Schwimmen 1.000 m', $swim->title);
+        $this->assertSame(25, (int) $swim->duration_min);
+        $this->assertNull($swim->distance_km, 'eine Schwimmstrecke zählt nicht als Laufstrecke');
+
+        // Eigener Titel ohne Strecke bekommt sie angehängt, eine genannte Dauer gilt.
+        app(PlanChange::class)->run($user, [['op' => 'set', 'session_id' => $swim->id, 'sport' => 'swim', 'title' => 'Schwimmen locker', 'distance_m' => 1500, 'duration_min' => 40]], 'apply');
+        $this->assertSame('Schwimmen locker · 1.500 m', $swim->fresh()->title);
+        $this->assertSame(40, (int) $swim->fresh()->duration_min);
+    }
+
     /** 26.11.2026: das Modell griff zum Ruhetag von gestern und gab auf. */
     public function test_a_past_day_is_refused_with_todays_date(): void
     {

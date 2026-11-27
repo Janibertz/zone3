@@ -148,7 +148,7 @@ class PlanChange
         $out = [];
         foreach ($step as $key => $value) {
             if ($value === null || $value === '' || $value === [] || $value === false) continue;
-            if (in_array($key, ['session_id', 'duration_min', 'distance_km'], true) && (float) $value <= 0) continue;
+            if (in_array($key, ['session_id', 'duration_min', 'distance_km', 'distance_m'], true) && (float) $value <= 0) continue;
             $out[$key] = $value;
         }
         // part gilt nur für Läufe; bike_workout nur fürs Rad.
@@ -425,12 +425,20 @@ class PlanChange
             $this->writer->fillBikeSession($session, $kind, $minutes, $user->runnerProfile?->ftp);
         } elseif ($sport === 'swim') {
             // Schwimmen ist Alternativtraining wie in der Planung: keine
-            // Laufzahlen, kein Ablauf, nur Dauer.
+            // Laufzahlen, kein Ablauf. Eine genannte Strecke steht im Titel
+            // („Schwimmen 1.000 m“, Jan 27.11.2026), nicht in distance_km —
+            // die Spalte zählen Wochenkilometer und Widget als Laufstrecke.
+            $meters = (int) ($step['distance_m'] ?? 0);
+            $title = trim((string) ($step['title'] ?? '')) ?: 'Schwimmen locker';
+            if ($meters > 0) {
+                $label = number_format($meters, 0, ',', '.') . ' m';
+                $title = preg_match('/\d\s*(m|km)\b/u', $title) ? $title : (($step['title'] ?? '') ? "{$title} · {$label}" : "Schwimmen {$label}");
+            }
             $session->fill([
                 'type'         => 'cross_training',
-                'title'        => trim((string) ($step['title'] ?? '')) ?: 'Schwimmen locker',
+                'title'        => $title,
                 'description'  => trim((string) ($step['description'] ?? '')) ?: 'Alternativtraining im Wasser — locker, ohne Druck.',
-                'duration_min' => (int) ($step['duration_min'] ?? 0) ?: ((int) $session->duration_min ?: 45),
+                'duration_min' => (int) ($step['duration_min'] ?? 0) ?: ($meters > 0 ? self::swimMinutes($meters) : ((int) $session->duration_min ?: 45)),
                 'distance_km'  => null,
                 'pace_target'  => null,
                 'zone'         => null,
@@ -693,6 +701,12 @@ class PlanChange
      * Zug den richtigen Tag nimmt, statt dem Athleten „heute ist vorbei“ zu
      * sagen (26.11.2026).
      */
+    /** Geschätzte Dauer für eine Schwimmstrecke: 2:30 je 100 m, auf 5 min gerundet, mindestens 15. */
+    public static function swimMinutes(int $meters): int
+    {
+        return max(15, (int) (ceil($meters / 100 * 2.5 / 5) * 5));
+    }
+
     public static function pastDay(string $date): string
     {
         $then = \Carbon\Carbon::parse($date)->locale('de')->isoFormat('dddd, DD.MM.');
