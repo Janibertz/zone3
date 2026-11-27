@@ -54,7 +54,7 @@ class CoachTools
             'bike_workout' => ['type' => 'string', 'enum' => ['easy', 'vo2', 'threshold'], 'description' => 'Rad: easy = locker, vo2 = 4-min-Intervalle, threshold = 10-min-Blöcke. Ohne: aus dem Lauf abgeleitet bzw. locker.'],
             'duration_min' => ['type' => 'integer'],
             'distance_km'  => ['type' => 'number', 'description' => 'Nur Laufen'],
-            'distance_m'   => ['type' => 'integer', 'description' => 'Nur Schwimmen: Strecke in Metern, wenn der Athlet eine nennt (1000 m = 1000). Die Dauer schätzt das System.'],
+            'distance_m'   => ['type' => 'integer', 'description' => 'Nur Schwimmen: Strecke in Metern, wenn der Athlet eine nennt (1000 m = 1000). Die Dauer schätzt das System aus der Schwimm-Pace des Athleten.'],
             'title'        => ['type' => 'string'],
             'description'  => ['type' => 'string', 'description' => 'Zweck und Gefühl in 1–2 Sätzen, ohne Zahlen'],
             'easy_pace'    => ['type' => 'string', 'description' => 'Nur wenn der Athlet ein Tempo für locker nennt, z. B. "6:00-6:30"'],

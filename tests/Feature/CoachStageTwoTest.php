@@ -421,6 +421,20 @@ class CoachStageTwoTest extends TestCase
         $this->assertSame(40, (int) $swim->fresh()->duration_min);
     }
 
+    /** Die Dauer kommt aus den eigenen Schwimmeinheiten, Strava-only zählt nicht. */
+    public function test_swim_minutes_follow_the_own_swim_pace(): void
+    {
+        [$user] = $this->sunday();
+        $swim = fn (array $a) => \App\Models\Activity::create($a + ['user_id' => $user->id, 'name' => 'Schwimmen', 'type' => 'Swim', 'start_date' => '2026-11-15 07:00:00', 'source' => 'garmin', 'elapsed_time' => $a['moving_time'] ?? 0]);
+        $swim(['garmin_activity_id' => 901, 'distance' => 1000, 'moving_time' => 1200]); // 2:00/100 m
+        $swim(['garmin_activity_id' => 902, 'distance' => 1500, 'moving_time' => 1800, 'start_date' => '2026-11-18 07:00:00']); // 2:00
+        $swim(['strava_id' => 903, 'distance' => 1000, 'moving_time' => 3000, 'source' => 'strava']); // Strava: zählt nicht
+
+        $this->assertSame(120, PlanChange::swimPace($user));
+        $this->assertSame(20, PlanChange::swimMinutes(1000, $user));
+        $this->assertSame(25, PlanChange::swimMinutes(1000), 'ohne Athlet 2:30 je 100 m');
+    }
+
     /** 26.11.2026: das Modell griff zum Ruhetag von gestern und gab auf. */
     public function test_a_past_day_is_refused_with_todays_date(): void
     {

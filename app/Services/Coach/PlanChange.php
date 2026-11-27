@@ -438,7 +438,7 @@ class PlanChange
                 'type'         => 'cross_training',
                 'title'        => $title,
                 'description'  => trim((string) ($step['description'] ?? '')) ?: 'Alternativtraining im Wasser — locker, ohne Druck.',
-                'duration_min' => (int) ($step['duration_min'] ?? 0) ?: ($meters > 0 ? self::swimMinutes($meters) : ((int) $session->duration_min ?: 45)),
+                'duration_min' => (int) ($step['duration_min'] ?? 0) ?: ($meters > 0 ? self::swimMinutes($meters, $user) : ((int) $session->duration_min ?: 45)),
                 'distance_km'  => null,
                 'pace_target'  => null,
                 'zone'         => null,
@@ -696,17 +696,54 @@ class PlanChange
         return $out;
     }
 
+    /** Ohne eigene Schwimmeinheiten: 2:30 je 100 m. */
+    public const SWIM_PACE_DEFAULT = 150;
+
+    /**
+     * Geschätzte Dauer für eine Schwimmstrecke, auf 5 min gerundet,
+     * mindestens 15. Die Pace kommt aus den eigenen Schwimmeinheiten
+     * (Jan, 27.11.2026: „dann wüsste der Coach, wie lange er für 1000 m
+     * braucht“), sonst 2:30 je 100 m.
+     */
+    public static function swimMinutes(int $meters, ?User $user = null): int
+    {
+        $pace = ($user ? self::swimPace($user) : null) ?? self::SWIM_PACE_DEFAULT;
+
+        return max(15, (int) (ceil($meters / 100 * $pace / 60 / 5) * 5));
+    }
+
+    /**
+     * Sekunden je 100 m: Median der letzten zehn Schwimmeinheiten ab 200 m
+     * aus 90 Tagen, ohne reine Strava-Zeilen (die Zahl landet beim Coach).
+     * Gerechnet, nicht gespeichert — eine zweite Wahrheit neben den
+     * Aktivitäten veraltete nach jeder Einheit.
+     */
+    public static function swimPace(User $user): ?int
+    {
+        $paces = $user->activities()
+            ->withoutStravaOnly()
+            ->where('type', 'Swim')
+            ->where('distance', '>=', 200)
+            ->where('moving_time', '>', 0)
+            ->where('start_date', '>=', now()->subDays(90))
+            ->orderByDesc('start_date')
+            ->limit(10)
+            ->get(['distance', 'moving_time'])
+            ->map(fn ($a) => $a->moving_time / $a->distance * 100)
+            ->filter(fn ($p) => $p >= 60 && $p <= 300)
+            ->sort()->values();
+
+        if ($paces->isEmpty()) return null;
+        $mid = intdiv($paces->count(), 2);
+
+        return (int) round($paces->count() % 2 ? $paces[$mid] : ($paces[$mid - 1] + $paces[$mid]) / 2);
+    }
+
     /**
      * Ein vergangener Tag — mit dem heutigen Datum, damit das Modell im selben
      * Zug den richtigen Tag nimmt, statt dem Athleten „heute ist vorbei“ zu
      * sagen (26.11.2026).
      */
-    /** Geschätzte Dauer für eine Schwimmstrecke: 2:30 je 100 m, auf 5 min gerundet, mindestens 15. */
-    public static function swimMinutes(int $meters): int
-    {
-        return max(15, (int) (ceil($meters / 100 * 2.5 / 5) * 5));
-    }
-
     public static function pastDay(string $date): string
     {
         $then = \Carbon\Carbon::parse($date)->locale('de')->isoFormat('dddd, DD.MM.');
