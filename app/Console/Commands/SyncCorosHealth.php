@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\User;
 use App\Services\Coros\CorosHealthImporter;
+use App\Services\Coros\CorosOutage;
 use Illuminate\Console\Command;
 use Throwable;
 
@@ -24,8 +25,9 @@ class SyncCorosHealth extends Command
             try {
                 $days = $this->option('days') ? (int) $this->option('days') : null;
                 $this->line("{$user->id}: " . json_encode($importer->sync($user, $days)));
+                CorosOutage::succeeded($user->id, 'Erholungswerte');
             } catch (Throwable $e) {
-                report($e);
+                CorosOutage::failed($e, $user->id, 'Erholungswerte');
                 $this->warn("{$user->id}: {$e->getMessage()}");
             }
         }

@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\User;
 use App\Services\Coros\CorosActivityImporter;
+use App\Services\Coros\CorosOutage;
 use Illuminate\Console\Command;
 use Throwable;
 
@@ -23,8 +24,9 @@ class SyncCorosActivities extends Command
         foreach ($users as $user) {
             try {
                 $this->line("{$user->id}: " . json_encode($importer->sync($user)));
+                CorosOutage::succeeded($user->id, 'Aktivitaeten');
             } catch (Throwable $e) {
-                report($e);
+                CorosOutage::failed($e, $user->id, 'Aktivitaeten');
                 $this->warn("{$user->id}: {$e->getMessage()}");
             }
         }

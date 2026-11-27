@@ -3,6 +3,8 @@
 namespace App\Services\Coros;
 
 use App\Models\CorosConnection;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -176,10 +178,14 @@ class CorosClient
                     'client_id'     => $connection->client_id,
                 ]);
             } catch (CorosException $e) {
-                $connection->update([
-                    'refresh_error'    => Str::limit($e->getMessage(), 250),
-                    'refresh_error_at' => now(),
-                ]);
+                // Ein Netzaussetzer heisst nicht „COROS nimmt die Verbindung
+                // nicht mehr an“ — das zeigt das Profil bei `refresh_error`.
+                if (! self::transient($e)) {
+                    $connection->update([
+                        'refresh_error'    => Str::limit($e->getMessage(), 250),
+                        'refresh_error_at' => now(),
+                    ]);
+                }
 
                 throw $e;
             }
@@ -249,7 +255,7 @@ class CorosClient
 
     private function post(string $accessToken, string $tool, array $arguments)
     {
-        return Http::withToken($accessToken)
+        return $this->retryNetwork(Http::withToken($accessToken), reads: str_starts_with($tool, 'query'))
             ->withHeaders([
                 'Accept'               => 'application/json, text/event-stream',
                 'MCP-Protocol-Version' => '2025-06-18',
@@ -287,7 +293,7 @@ class CorosClient
     private function tokenRequest(array $fields): array
     {
         try {
-            $response = Http::asForm()->acceptJson()->timeout(20)->post($this->base() . '/oauth2/token', $fields);
+            $response = $this->retryNetwork(Http::asForm()->acceptJson()->timeout(20))->post($this->base() . '/oauth2/token', $fields);
         } catch (Throwable $e) {
             throw new CorosException('COROS nicht erreichbar: ' . $e->getMessage());
         }
@@ -298,5 +304,45 @@ class CorosClient
         }
 
         return $token;
+    }
+
+    /**
+     * Kurze Netzaussetzer zweimal wiederholen (1 s, 3 s).
+     *
+     * Am 27.11.2026 lief ein Abruf in „Resolving timed out after 10000
+     * milliseconds“: `mcpeu.coros.com` ist ein CNAME auf einen AWS-Lastverteiler
+     * mit kurzer TTL, also wird bei fast jedem Lauf neu aufgelöst. Ein Fehler
+     * vor dem Senden (Name nicht auflösbar, keine Verbindung) ist für jedes
+     * Werkzeug sicher zu wiederholen — COROS hat nichts bekommen. Ein Abbruch
+     * danach nur bei lesenden Werkzeugen (`query…`), sonst stünde ein Workout
+     * womöglich zweimal im Kalender.
+     */
+    private function retryNetwork(PendingRequest $request, bool $reads = false): PendingRequest
+    {
+        return $request->retry(
+            [1000, 3000],
+            when: fn (Throwable $e) => $e instanceof ConnectionException && ($reads || self::beforeSend($e)),
+            throw: false,
+        );
+    }
+
+    /** cURL 6/7 oder ein Timeout beim Auflösen/Verbinden: die Anfrage ging nie raus. */
+    public static function beforeSend(Throwable $e): bool
+    {
+        return (bool) preg_match('/cURL error (6|7)\b|Resolving timed out|Connection timed out|Could not resolve host|Failed to connect/i', $e->getMessage());
+    }
+
+    /**
+     * Ein vorübergehendes Problem: Netz weg oder COROS antwortet mit 5xx.
+     * Das prüfen die Kommandos, bevor sie etwas als Fehler melden.
+     */
+    public static function transient(Throwable $e): bool
+    {
+        if ($e instanceof ConnectionException) {
+            return true;
+        }
+
+        return $e instanceof CorosException
+            && ($e->status >= 500 || str_starts_with($e->getMessage(), 'COROS nicht erreichbar'));
     }
 }
