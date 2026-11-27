@@ -347,4 +347,13 @@ class CoachReviewToneTest extends TestCase
 
         $this->assertStringContainsString("a.type !== 'review_question'", $vue);
     }
+
+    /** 26.11.2026: „Was hat dich ausgebremst? Was war der Hauptgrund?“ */
+    public function test_a_question_at_the_end_of_the_text_gives_way_to_the_review_question(): void
+    {
+        $text = 'Heute deutlich unter Plan geblieben, ohne Drama: Schnee und Kälte können bremsen. Was hat dich am meisten ausgebremst?';
+        $this->assertSame('Heute deutlich unter Plan geblieben, ohne Drama: Schnee und Kälte können bremsen.', \App\Services\Review\ReviewText::withoutTrailingQuestions($text));
+        $this->assertSame("Stark.\n\nWeiter so.", \App\Services\Review\ReviewText::withoutTrailingQuestions("Stark.\n\nWeiter so."));
+        $this->assertSame('Alles gut?', \App\Services\Review\ReviewText::withoutTrailingQuestions('Alles gut?'));
+    }
 }

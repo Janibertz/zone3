@@ -62,6 +62,21 @@ class ReviewText
         return $out;
     }
 
+    /**
+     * Streicht Fragen am Ende des Textes — die Rückfrage steht daneben mit
+     * Antwortknöpfen. Ein Text, der nur aus Fragen besteht, bleibt.
+     */
+    public static function withoutTrailingQuestions(string $text): string
+    {
+        $parts = self::sentences($text);
+        $count = count($parts);
+        while (count($parts) > 1 && str_ends_with(end($parts), '?')) {
+            array_pop($parts);
+        }
+
+        return count($parts) === $count ? $text : implode(' ', $parts);
+    }
+
     /** @return list<string> */
     public static function sentences(string $text): array
     {

@@ -208,7 +208,12 @@ class SessionContentService
             $options  = [];
         }
 
-        return ['review' => trim($data['review']), 'question' => $question, 'options' => $options];
+        // Fragt der Text am Ende schon selbst, stünden zwei Fragen
+        // hintereinander („Was hat dich ausgebremst? Was war der
+        // Hauptgrund?“, 26.11.2026). Die mit den Antwortknöpfen bleibt.
+        $review = $question ? \App\Services\Review\ReviewText::withoutTrailingQuestions(trim($data['review'])) : trim($data['review']);
+
+        return ['review' => $review, 'question' => $question, 'options' => $options];
     }
 
     private const REVIEW_SYSTEM = <<<'TXT'
